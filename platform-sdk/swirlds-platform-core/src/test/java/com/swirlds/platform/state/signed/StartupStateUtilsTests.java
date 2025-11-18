@@ -37,7 +37,7 @@ import com.swirlds.platform.state.snapshot.StateToDiskReason;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.StateLifecycleManagerImpl;
-import com.swirlds.state.test.fixtures.merkle.TestVirtualMapState;
+import com.swirlds.state.test.fixtures.merkle.VirtualMapStateTestUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.BufferedWriter;
 import java.io.IOException;
@@ -130,8 +130,8 @@ public class StartupStateUtilsTests {
         final SignedState signedState =
                 new RandomSignedStateGenerator(random).setRound(round).build();
 
-        stateLifecycleManager =
-                new StateLifecycleManagerImpl(new NoOpMetrics(), new FakeTime(), TestVirtualMapState::new);
+        stateLifecycleManager = new StateLifecycleManagerImpl(
+                new NoOpMetrics(), new FakeTime(), VirtualMapStateTestUtils::createTestStateWithVM);
         stateLifecycleManager.initState(signedState.getState(), true);
         stateLifecycleManager.getMutableState().release();
         // FUTURE WORK: https://github.com/hiero-ledger/hiero-consensus-node/issues/19905
@@ -173,7 +173,7 @@ public class StartupStateUtilsTests {
                         selfId,
                         mainClassName,
                         swirldName,
-                        TestVirtualMapState::new,
+                        VirtualMapStateTestUtils::createTestStateWithVM,
                         currentSoftwareVersion,
                         platformStateFacade,
                         platformContext)
@@ -203,7 +203,7 @@ public class StartupStateUtilsTests {
                         selfId,
                         mainClassName,
                         swirldName,
-                        TestVirtualMapState::new,
+                        VirtualMapStateTestUtils::createTestStateWithVM,
                         currentSoftwareVersion,
                         platformStateFacade,
                         platformContext)
@@ -238,7 +238,7 @@ public class StartupStateUtilsTests {
                         selfId,
                         mainClassName,
                         swirldName,
-                        TestVirtualMapState::new,
+                        VirtualMapStateTestUtils::createTestStateWithVM,
                         currentSoftwareVersion,
                         platformStateFacade,
                         platformContext)
@@ -284,7 +284,7 @@ public class StartupStateUtilsTests {
                         selfId,
                         mainClassName,
                         swirldName,
-                        TestVirtualMapState::new,
+                        VirtualMapStateTestUtils::createTestStateWithVM,
                         currentSoftwareVersion,
                         platformStateFacade,
                         platformContext)

@@ -41,7 +41,7 @@ import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
 import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.StateLifecycleManagerImpl;
-import com.swirlds.state.test.fixtures.merkle.TestVirtualMapState;
+import com.swirlds.state.test.fixtures.merkle.VirtualMapStateTestUtils;
 import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.IOException;
@@ -81,8 +81,8 @@ class SignedStateFileReadWriteTest {
     @BeforeEach
     void beforeEach() throws IOException {
         testDirectory = LegacyTemporaryFileBuilder.buildTemporaryFile("SignedStateFileReadWriteTest", CONFIGURATION);
-        stateLifecycleManager =
-                new StateLifecycleManagerImpl(new NoOpMetrics(), new FakeTime(), TestVirtualMapState::new);
+        stateLifecycleManager = new StateLifecycleManagerImpl(
+                new NoOpMetrics(), new FakeTime(), VirtualMapStateTestUtils::createTestStateWithVM);
         LegacyTemporaryFileBuilder.overrideTemporaryFileLocation(testDirectory.resolve("tmp"));
     }
 
@@ -142,8 +142,11 @@ class SignedStateFileReadWriteTest {
 
         final PlatformContext platformContext =
                 TestPlatformContextBuilder.create().build();
-        final DeserializedSignedState deserializedSignedState =
-                readState(testDirectory, TestVirtualMapState::new, TEST_PLATFORM_STATE_FACADE, platformContext);
+        final DeserializedSignedState deserializedSignedState = readState(
+                testDirectory,
+                VirtualMapStateTestUtils::createTestStateWithVM,
+                TEST_PLATFORM_STATE_FACADE,
+                platformContext);
         hashState(deserializedSignedState.reservedSignedState().get());
 
         assertNotNull(deserializedSignedState.originalHash(), "hash should not be null");

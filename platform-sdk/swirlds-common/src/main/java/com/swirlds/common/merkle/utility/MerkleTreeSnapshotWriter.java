@@ -5,13 +5,12 @@ import static com.swirlds.common.io.utility.FileUtils.writeAndFlush;
 import static com.swirlds.common.merkle.utility.MerkleTreeSnapshotReader.SIGNED_STATE_FILE_NAME;
 import static com.swirlds.common.merkle.utility.MerkleTreeSnapshotReader.SIG_SET_SEPARATE_STATE_FILE_VERSION;
 import static com.swirlds.common.merkle.utility.MerkleTreeSnapshotReader.VERSIONED_FILE_BYTE;
-import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
-import static com.swirlds.logging.legacy.LogMarker.STATE_TO_DISK;
 
 import com.swirlds.common.io.streams.MerkleDataOutputStream;
 import com.swirlds.common.merkle.MerkleNode;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.file.Path;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -32,23 +31,11 @@ public final class MerkleTreeSnapshotWriter {
      * @param merkleRoot the {@link MerkleNode} representing a root of the Merkle tree to write
      * @param targetPath the {@link Path} to write the snapshot to
      */
-    public static void createSnapshot(
-            @NonNull final MerkleNode merkleRoot, @NonNull final Path targetPath, @NonNull final String rootInfo) {
-        logger.info(STATE_TO_DISK.getMarker(), "Creating a snapshot on demand in {} for {}", targetPath, rootInfo);
+    public static void createSnapshot(@NonNull final MerkleNode merkleRoot, @NonNull final Path targetPath) {
         try {
             writeMerkleRootToFile(targetPath, merkleRoot);
-            logger.info(
-                    STATE_TO_DISK.getMarker(),
-                    "Successfully created a snapshot on demand in {}  for {}",
-                    targetPath,
-                    rootInfo);
-        } catch (final Throwable e) {
-            logger.error(
-                    EXCEPTION.getMarker(),
-                    "Unable to write a snapshot on demand for {} to {}.",
-                    rootInfo,
-                    targetPath,
-                    e);
+        } catch (final IOException e) {
+            throw new UncheckedIOException(e);
         }
     }
 

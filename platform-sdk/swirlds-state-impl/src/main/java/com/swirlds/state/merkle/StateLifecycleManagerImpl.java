@@ -195,7 +195,7 @@ public class StateLifecycleManagerImpl implements StateLifecycleManager {
         state.throwIfMutable();
         state.throwIfDestroyed();
         final long startTime = time.currentTimeMillis();
-        MerkleTreeSnapshotWriter.createSnapshot(state.getRoot(), targetPath, state.toString());
+        MerkleTreeSnapshotWriter.createSnapshot(state.getRoot(), targetPath);
         snapshotMetrics.updateWriteStateToDiskTimeMetric(time.currentTimeMillis() - startTime);
     }
 

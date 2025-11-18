@@ -155,13 +155,13 @@ public final class EventRecoveryWorkflow {
         final DeserializedSignedState deserializedSignedState = SignedStateFileReader.readState(
                 signedStateDir,
                 v -> hederaApp
-                        .stateRootFromVirtualMap(platformContext.getMetrics(), platformContext.getTime())
+                        .stateRootFromVirtualMap(platformContext.getMetrics())
                         .apply(v),
                 platformStateFacade,
                 platformContext);
         final StateLifecycleManager stateLifecycleManager = new StateLifecycleManagerImpl(
                 platformContext.getMetrics(), platformContext.getTime(), (Function<VirtualMap, MerkleNodeState>)
-                        hederaApp.stateRootFromVirtualMap(platformContext.getMetrics(), platformContext.getTime()));
+                        hederaApp.stateRootFromVirtualMap(platformContext.getMetrics()));
         try (final ReservedSignedState initialState = deserializedSignedState.reservedSignedState()) {
             HederaUtils.updateStateHash(hederaApp, deserializedSignedState);
 
