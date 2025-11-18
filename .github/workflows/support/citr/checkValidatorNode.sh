@@ -1,7 +1,7 @@
 node_id=$1
 
 ps -aef | grep -w stateAnalyzer | grep -v grep | grep stateAnalyzer >/dev/null
-if [ $? -eq 0 ]
+if [[ ${?} -eq 0 ]]
 then
   echo "Previous Validator is still running on ${node_id}"
   exit 1
