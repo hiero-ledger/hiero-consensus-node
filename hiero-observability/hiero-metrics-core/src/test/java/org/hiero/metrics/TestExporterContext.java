@@ -19,10 +19,9 @@ public class TestExporterContext {
 
     public TestExporterContext(MetricsSnapshotsWriter snapshotsWriter, Label... globalLabels) {
         this.snapshotsWriter = snapshotsWriter;
-        registry = MetricRegistry.builder().addGlobalLabels(globalLabels).build();
-        MetricsExportManager snapshotManager =
-                MetricsExportManager.builder("test").addExporter(exporter).build();
-        snapshotManager.manageMetricRegistry(registry);
+        registry =
+                MetricRegistry.builder("registry").addGlobalLabels(globalLabels).build();
+        MetricsExportManager.builder().addExporter(exporter).build(registry);
     }
 
     public MetricRegistry getRegistry() {

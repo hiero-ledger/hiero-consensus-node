@@ -11,15 +11,13 @@ public class NoOpMetricsExportManagerTest {
 
     @Test
     void testNoOpExportManager() {
-        MetricsExportManager manager = NoOpMetricsExportManager.INSTANCE;
+        MetricRegistry registry = MetricRegistry.builder("test-registry").build();
+        MetricsExportManager manager = new NoOpMetricsExportManager(registry);
 
-        assertThat(manager.name()).isEqualTo("no-op");
+        assertThat(manager.registry()).isSameAs(registry);
         assertThat(manager.hasRunningExportThread()).isFalse();
-        assertThat(manager.manageMetricRegistry(MetricRegistry.builder().build()))
-                .isFalse();
 
-        // Calling resetAll and shutdown should not throw any exceptions
-        manager.resetAll();
+        // Calling shutdown should not throw any exceptions
         manager.shutdown();
     }
 }

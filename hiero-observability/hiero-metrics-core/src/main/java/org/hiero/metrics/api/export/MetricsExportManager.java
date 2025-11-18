@@ -3,7 +3,6 @@ package org.hiero.metrics.api.export;
 
 import static org.hiero.metrics.api.utils.MetricUtils.load;
 
-import com.swirlds.base.ArgumentUtils;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
@@ -21,37 +20,24 @@ import org.hiero.metrics.api.core.MetricRegistry;
 import org.hiero.metrics.internal.export.DefaultMetricsExportManager;
 import org.hiero.metrics.internal.export.NoOpMetricsExportManager;
 import org.hiero.metrics.internal.export.SinglePullingExporterMetricsExportManager;
+import org.hiero.metrics.internal.export.SnapshotableMetricsRegistry;
 import org.hiero.metrics.internal.export.config.MetricsExportManagerConfig;
 
 /**
  * Manager for exporting metrics data points from all managed registries to external systems using set of
  * {@link PushingMetricsExporter} or {@link PullingMetricsExporter}, or both.
  * <p>
- * Export manager can be created using {@link #builder(String)} builder pattern.
- * {@link #manageMetricRegistry(MetricRegistry)} can be used to manage exports of multiple metric registries.
- * <p>
- * All operations are thread-safe.
+ * Export manager can be created using {@link #builder} builder pattern.
+ * Export manager can manage only one metrics registry, but multiple export managers can be created
+ * to manage different registries if needed.
  */
-public interface MetricsExportManager {
+public interface MetricsExportManager extends AutoCloseable {
 
     /**
-     * @return the name of the export manager, never {@code null}
+     * @return the managed metric registry, never {@code null}
      */
     @NonNull
-    String name();
-
-    /**
-     * Add metrics registry to be exported.
-     *
-     * @param metricRegistry metrics registry to be exported, mut not be {@code null}
-     * @return {@code true} if the registry is snapshotable and was added to the manager, {@code false} otherwise
-     */
-    boolean manageMetricRegistry(@NonNull MetricRegistry metricRegistry);
-
-    /**
-     * Reset all metrics from all managed metric registries.
-     */
-    void resetAll();
+    MetricRegistry registry();
 
     /**
      * @return {@code true} if this manager has additional running thread to export metrics.
@@ -65,16 +51,24 @@ public interface MetricsExportManager {
     void shutdown();
 
     /**
+     * Closes this export manager by shutting it down.
+     * This method is equivalent to calling {@link #shutdown()}.
+     */
+    @Override
+    default void close() {
+        shutdown();
+    }
+
+    /**
      * Creates a builder for {@link MetricsExportManager}.
      *
-     * @param exportManagerName the name of the export manager, must not be {@code null}
      * @return a new builder instance
      * @throws NullPointerException     if the {@code exportManagerName} is {@code null}
      * @throws IllegalArgumentException if the {@code exportManagerName} is blank
      */
     @NonNull
-    static Builder builder(@NonNull String exportManagerName) {
-        return new Builder(ArgumentUtils.throwArgBlank(exportManagerName, "exportManagerName"));
+    static Builder builder() {
+        return new Builder();
     }
 
     /**
@@ -90,7 +84,6 @@ public interface MetricsExportManager {
 
         private static final Logger logger = LogManager.getLogger(MetricsExportManager.class);
 
-        private final String exportManagerName;
         private final List<PullingMetricsExporter> pullingExporters = new ArrayList<>();
         private final List<PushingMetricsExporter> pushingExporters = new ArrayList<>();
         private final Set<String> exporterNames = new HashSet<>();
@@ -99,10 +92,6 @@ public interface MetricsExportManager {
         private Supplier<ScheduledExecutorService> executorServiceFactory = Executors::newSingleThreadScheduledExecutor;
 
         private Configuration configuration;
-
-        public Builder(String exportManagerName) {
-            this.exportManagerName = exportManagerName;
-        }
 
         /**
          * Sets the factory for creating the executor service for running export tasks.
@@ -115,7 +104,7 @@ public interface MetricsExportManager {
         @NonNull
         public Builder withExecutorServiceFactory(@NonNull Supplier<ScheduledExecutorService> executorServiceFactory) {
             this.executorServiceFactory =
-                    Objects.requireNonNull(executorServiceFactory, "executorServiceFactory must not be null");
+                    Objects.requireNonNull(executorServiceFactory, "executor factory must not be null");
             return this;
         }
 
@@ -130,7 +119,7 @@ public interface MetricsExportManager {
         @NonNull
         public Builder withExportIntervalSeconds(int exportIntervalSeconds) {
             if (exportIntervalSeconds <= 0) {
-                throw new IllegalArgumentException("exportIntervalSeconds must be positive");
+                throw new IllegalArgumentException("export interval seconds must be positive");
             }
             this.exportIntervalSeconds = exportIntervalSeconds;
             return this;
@@ -181,13 +170,16 @@ public interface MetricsExportManager {
 
         private <E extends MetricsExporter> E validateExporter(E exporter) {
             Objects.requireNonNull(exporter, "exporter must not be null");
-            if (!exporterNames.add(exporter.name())) {
-                throw new IllegalArgumentException("Duplicate exporter name: " + exporter.name());
+            String exporterName = exporter.name();
+            Objects.requireNonNull(exporterName, "exporter name must not be null");
+
+            if (!exporterNames.add(exporterName)) {
+                throw new IllegalArgumentException("Duplicate exporter name: " + exporterName);
             }
             return exporter;
         }
 
-        private void loadExporters(MetricsExportManagerConfig exportConfig) {
+        private void loadExporters(String registryName, MetricsExportManagerConfig exportConfig) {
             List<MetricsExporterFactory> exporterFactories = load(MetricsExporterFactory.class);
 
             Optional<MetricsExporter> optionalExporter;
@@ -198,14 +190,21 @@ public interface MetricsExportManager {
                 }
 
                 try {
-                    optionalExporter = exporterFactory.createExporter(configuration);
+                    optionalExporter = exporterFactory.createExporter(registryName, configuration);
                 } catch (RuntimeException e) {
-                    logger.warn("Failed to create metrics exporter from factory: {}", exporterFactory.name(), e);
+                    logger.warn(
+                            "Failed to create metrics exporter. factory={}, registry={}",
+                            exporterFactory.name(),
+                            registryName,
+                            e);
                     continue;
                 }
 
                 if (optionalExporter.isEmpty()) {
-                    logger.info("Metrics exporter factory doesn't create exporter: {}", exporterFactory.name());
+                    logger.info(
+                            "Metrics exporter factory doesn't create exporter. factory={}, registry={}",
+                            exporterFactory.name(),
+                            registryName);
                     continue;
                 }
 
@@ -217,15 +216,14 @@ public interface MetricsExportManager {
                     addExporter(pushingExporter);
                 } else {
                     logger.warn(
-                            "Unsupported exporter type {} create by factory {}",
-                            exporter.getClass(),
-                            exporterFactory.name());
+                            "Unsupported exporter. type={}, factory={}", exporter.getClass(), exporterFactory.name());
                 }
             }
         }
 
         /**
-         * Builds the {@link MetricsExportManager} instance.<br>
+         * Builds the {@link MetricsExportManager} instance managing provided metrics registry.
+         * <p>
          * If configuration was provided and exporting is disabled, a no-op export manager will be returned.<br>
          * If no exporters were added or discovered, a no-op export manager will be returned.<br>
          * If only a single pulling exporter is added, a single pulling exporter export manager will be returned
@@ -234,34 +232,42 @@ public interface MetricsExportManager {
          * that exports metrics at the configured interval using the provided executor service factory, providing
          * metrics snapshots to all pulling/pushing exporters.
          *
+         * @param metricRegistry the metric registry to be managed, must not be {@code null}
          * @return the constructed {@link MetricsExportManager}
          */
         @NonNull
-        public MetricsExportManager build() {
+        public MetricsExportManager build(@NonNull MetricRegistry metricRegistry) {
+            Objects.requireNonNull(metricRegistry, "metrics registry must not be null");
+
             if (configuration != null) {
                 MetricsExportManagerConfig exportConfig = configuration.getConfigData(MetricsExportManagerConfig.class);
 
                 if (!exportConfig.enabled()) {
                     logger.info("Metrics export manager is disabled in configuration. Using no-op export manager.");
-                    return NoOpMetricsExportManager.INSTANCE;
+                    return new NoOpMetricsExportManager(metricRegistry);
                 }
 
                 withExportIntervalSeconds(exportConfig.exportIntervalSeconds());
-                loadExporters(exportConfig);
+
+                pushingExporters.removeIf(exporter -> !exportConfig.isExporterEnabled(exporter.name()));
+                pullingExporters.removeIf(exporter -> !exportConfig.isExporterEnabled(exporter.name()));
+
+                loadExporters(metricRegistry.name(), exportConfig);
             }
 
             if (pushingExporters.isEmpty() && pullingExporters.isEmpty()) {
                 logger.info("No enabled metrics exporters found. Using no-op export manager.");
-                return NoOpMetricsExportManager.INSTANCE;
+                return new NoOpMetricsExportManager(metricRegistry);
             }
 
             if (pushingExporters.isEmpty() && pullingExporters.size() == 1) {
                 logger.info("Single pulling exporter found. No export thread will be running.");
-                return new SinglePullingExporterMetricsExportManager(exportManagerName, pullingExporters.getFirst());
+                return new SinglePullingExporterMetricsExportManager(
+                        (SnapshotableMetricsRegistry) metricRegistry, pullingExporters.getFirst());
             }
 
             return new DefaultMetricsExportManager(
-                    exportManagerName,
+                    (SnapshotableMetricsRegistry) metricRegistry,
                     executorServiceFactory,
                     exportIntervalSeconds,
                     pullingExporters,

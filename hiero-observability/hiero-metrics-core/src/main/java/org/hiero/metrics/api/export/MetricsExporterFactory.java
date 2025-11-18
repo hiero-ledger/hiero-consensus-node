@@ -22,9 +22,10 @@ public interface MetricsExporterFactory {
      * Returns an empty {@link Optional} if the factory cannot create an exporter with the given configuration
      * (e.g. disabled flag or wrong configuration).
      *
+     * @param metricsRegistryName the name of the metrics registry for which the exporter is created, must not be {@code null}
      * @param configuration the configuration to use for creating the exporter, must not be {@code null}
      * @return a new instance of {@link MetricsExporter}, never {@code null}, wrapped into an {@link Optional}
      */
     @NonNull
-    Optional<MetricsExporter> createExporter(@NonNull Configuration configuration);
+    Optional<MetricsExporter> createExporter(@NonNull String metricsRegistryName, @NonNull Configuration configuration);
 }

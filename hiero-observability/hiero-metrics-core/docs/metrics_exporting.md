@@ -13,8 +13,8 @@ There are two types of exporters:
 To be discovered by SPI mechanism implementations of this interface should be registered either in
 `META-INF/services/org.hiero.metrics.api.export.MetricsExporterFactory` or `module-info.java` file of the module.
 
-[MetricsExportManager](../src/main/java/org/hiero/metrics/api/export/MetricsExportManager.java) is the interface to manage metrics registries and exporters.
-`MetricsExportManager.Builder` is must be used to create instance of export manager.
+[MetricsExportManager](../src/main/java/org/hiero/metrics/api/export/MetricsExportManager.java) is the interface to manage metrics registry and exporters.
+`MetricsExportManager.Builder` must be used to create instance of export manager.
 It's `withDiscoverExporters()` method can be used to discover all available `MetricsExporterFactory`s in module path and create required exporters.
 
 ### Export Internals

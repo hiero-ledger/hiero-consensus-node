@@ -45,12 +45,12 @@ See more about metrics exporting here: [📘Metrics Exporting](metrics_exporting
 
 The Metrics Core module is split into two root packages:
 - `org.hiero.metrics.api` - contains public API for recording and exporting metrics.
-- `org.hiero.metrics.impl` - contains internal implementation of the API.
+- `org.hiero.metrics.internal` - contains internal implementation of the API.
 
 Entry points for clients are:
 - All metrics defined in `org.hiero.metrics.api` package, that can be used to create and update metrics.
 - [MetricsRegistry](../src/main/java/org/hiero/metrics/api/core/MetricRegistry.java) and its builder, to create registry for metrics.
-- [MetricsExportManager](../src/main/java/org/hiero/metrics/api/export/MetricsExportManager.java) and its builder, to create export manager to manage exports for metric registries.
+- [MetricsExportManager](../src/main/java/org/hiero/metrics/api/export/MetricsExportManager.java) and its builder, to create export manager, managing exports of a single metrics registry using one or more exporters.
 
 ### Typical production example
 
@@ -59,17 +59,17 @@ Configuration configuration = ConfigurationBuilder.create()
         // init configuration
         .build();
 
-// create export manager named "my-app-export-manager", that will discover all implementations
-// of MetricsExporterFactory SPI and create exporters using the provided configuration.
-MetricsExportManager exportManager = MetricsExportManager.builder("my-app-export-manager")
-        .withDiscoverExporters(configuration);
-
-// create metrics registry without global labels and register all metrics found
+// create metrics registry named "my-app-registry" without global labels and register all metrics found
 // by any implementation of MetricsRegistrationProvider SPI
-MetricRegistry metricRegistry = MetricRegistry.builder().build();
+MetricRegistry metricRegistry = MetricRegistry.builder("my-app-registry")
+        .withDiscoveredMetricProviders()
+        .build();
 
-// allow export manager to manage registry and perform exports
-exportManager.manageMetricRegistry(metricRegistry);
+// create export manager managing registry created above, that will discover all implementations
+// of MetricsExporterFactory SPI and create exporters using the provided configuration.
+MetricsExportManager exportManager = MetricsExportManager.builder()
+        .withDiscoverExporters(configuration)
+        .build(metricRegistry);
 
 // pass metrics registry to required classes to retrieve or register metrics
 // Use IdempotentMetricsBinder to bind metrics registry in a thread-safe and idempotent way

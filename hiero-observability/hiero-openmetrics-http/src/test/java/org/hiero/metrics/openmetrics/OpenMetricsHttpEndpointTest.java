@@ -85,14 +85,10 @@ public class OpenMetricsHttpEndpointTest {
 
         @BeforeAll
         static void setUpAll() throws IOException {
-            registry = MetricRegistry.builder().build();
+            registry = MetricRegistry.builder("test_registry").build();
 
-            globalInit(endpoint -> {
-                final MetricsExportManager exportManager = MetricsExportManager.builder("test")
-                        .addExporter(endpoint)
-                        .build();
-                exportManager.manageMetricRegistry(registry);
-            });
+            globalInit(endpoint ->
+                    MetricsExportManager.builder().addExporter(endpoint).build(registry));
         }
 
         @AfterAll

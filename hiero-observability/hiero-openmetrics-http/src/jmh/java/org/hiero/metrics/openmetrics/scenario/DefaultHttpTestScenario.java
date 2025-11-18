@@ -17,11 +17,10 @@ public class DefaultHttpTestScenario extends AbstractHttpTestScenario<DefaultMet
     public DefaultHttpTestScenario() throws IOException {
         super(new DefaultMetricsFramework());
 
-        exportManager = MetricsExportManager.builder("openmetrics-http-test-scenario")
+        exportManager = MetricsExportManager.builder()
                 .addExporter(
                         new OpenMetricsHttpEndpoint(new OpenMetricsHttpEndpointConfig(true, getPort(), getPath(), 0)))
-                .build();
-        exportManager.manageMetricRegistry(getFramework().getMetricRegistry());
+                .build(getFramework().getMetricRegistry());
     }
 
     @Override

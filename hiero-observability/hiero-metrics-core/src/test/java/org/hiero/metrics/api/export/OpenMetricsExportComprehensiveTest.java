@@ -1111,14 +1111,13 @@ public class OpenMetricsExportComprehensiveTest {
 
     @Test
     void demo() throws InterruptedException {
-        MetricRegistry registry = MetricRegistry.builder()
+        MetricRegistry registry = MetricRegistry.builder("registry")
                 .addGlobalLabel(new Label("env", "test"))
                 .build();
-        MetricsExportManager snapshotManager = MetricsExportManager.builder("demo")
+        MetricsExportManager.builder()
                 .withExportIntervalSeconds(1)
                 .addExporter(new ConsoleMetricsExporter(OpenMetricsSnapshotsWriter.DEFAULT))
-                .build();
-        snapshotManager.manageMetricRegistry(registry);
+                .build(registry);
 
         BooleanGauge booleanGauge = BooleanGauge.builder("boolean_gauge")
                 .withDescription("A test boolean gauge without labels")
