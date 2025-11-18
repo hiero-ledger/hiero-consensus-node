@@ -282,7 +282,7 @@ Latitude kubernetes cluster
 
 |        Test Name         |                                            Workflow                                            |  Required Parameters  | Run time |                  Precursor Steps                   |
 |--------------------------|------------------------------------------------------------------------------------------------|-----------------------|----------|----------------------------------------------------|
-| ScriptedLoadTest, part 1 | [ZXC: [CITR] Single Day Longevity Test](/.github/workflows/zxc-single-day-longevity-test.yaml) | nlg-accounts,nlg-time | 2 hourq  | Code Compiles, Solo deployed CNs/NLG onto Latitude |
+| ScriptedLoadTest, part 1 | [ZXC: [CITR] Single Day Longevity Test](/.github/workflows/zxc-single-day-longevity-test.yaml) | nlg-accounts,nlg-time | 2 hours  | Code Compiles, Solo deployed CNs/NLG onto Latitude |
 | ReconnectTest            | [ZXC: [CITR] Single Day Longevity Test](/.github/workflows/zxc-single-day-longevity-test.yaml) | nlg-accounts,nlg-time |          | ScriptedLoadTest                                   |
 | ScriptedLoadTest, part 2 | [ZXC: [CITR] Single Day Longevity Test](/.github/workflows/zxc-single-day-longevity-test.yaml) | nlg-accounts,nlg-time | 1 hour   | ScriptedLoadTest                                   |
 | State Validator          | [ZXC: [CITR] Single Day Longevity Test](/.github/workflows/zxc-single-day-longevity-test.yaml) |                       | 30 mins  | ReconnectTest                                      |
