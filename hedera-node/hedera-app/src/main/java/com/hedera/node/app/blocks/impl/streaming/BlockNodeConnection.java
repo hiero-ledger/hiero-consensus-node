@@ -27,7 +27,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Flow;
@@ -69,8 +68,6 @@ import org.hiero.block.api.PublishStreamResponse.SkipBlock;
 public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
 
     private static final Logger logger = LogManager.getLogger(BlockNodeConnection.class);
-
-    public static final int ACKNOWLEDGED_BLOCK_THRESHOLD = 100;
 
     private record Options(Optional<String> authority, String contentType) implements ServiceInterface.RequestOptions {}
 
@@ -149,14 +146,6 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
      * The current block number being streamed.
      */
     private final AtomicLong streamingBlockNumber = new AtomicLong(-1);
-    /**
-     * Tracks the time (ms) when a BlockHeader for a given block number was sent.
-     */
-    private final ConcurrentHashMap<Long, Long> headerSentAtMsByBlock = new ConcurrentHashMap<>();
-    /**
-     * Tracks the time (ms) when a BlockEnd for a given block number was sent.
-     */
-    private final ConcurrentHashMap<Long, Long> blockEndSentAtMsByBlock = new ConcurrentHashMap<>();
     /**
      * Reference to the worker thread, once it is initialized.
      */
@@ -258,7 +247,6 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
 
         if (initialBlockToStream != null) {
             streamingBlockNumber.set(initialBlockToStream);
-            blockStreamMetrics.recordStreamingBlockNumber(initialBlockToStream);
             logger.info(
                     "{} Block node connection will initially stream with block {}",
                     BlockNodeConnection.this,
@@ -501,35 +489,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
     }
 
     private void updateAcknowledgementMetrics(long acknowledgedBlockNumber) {
-        final long nowMs = System.currentTimeMillis();
-        headerSentAtMsByBlock.forEach((blockNum, sentAtMs) -> {
-            if (blockNum <= acknowledgedBlockNumber) {
-                if (headerSentAtMsByBlock.remove(blockNum, sentAtMs)) {
-                    final long latencyMs = nowMs - sentAtMs;
-                    blockStreamMetrics.recordHeaderSentAckLatency(latencyMs);
-                }
-            }
-        });
-        blockEndSentAtMsByBlock.forEach((blockNum, sentAtMs) -> {
-            if (blockNum <= acknowledgedBlockNumber) {
-                if (blockEndSentAtMsByBlock.remove(blockNum, sentAtMs)) {
-                    final long latencyMs = nowMs - sentAtMs;
-                    blockStreamMetrics.recordBlockEndSentToAckLatency(latencyMs);
-                }
-            }
-        });
-    }
-
-    /**
-     * Acknowledges the blocks up to the specified block number.
-     * @param acknowledgedBlockNumber the block number that has been known to be persisted and verified by the block node
-     */
-    private void acknowledgeBlocks(final long acknowledgedBlockNumber, final boolean maybeJumpToBlock) {
-        logger.debug("{} Acknowledging blocks <= {}.", this, acknowledgedBlockNumber);
-
-        final long currentBlockStreaming = streamingBlockNumber.get();
         final long currentBlockProducing = blockBufferService.getLastBlockNumberProduced();
-
         // Record latencies for all acknowledged blocks
         if (acknowledgedBlockNumber != Long.MAX_VALUE) {
             final long nowMs = System.currentTimeMillis();
@@ -543,19 +503,40 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
             if (start <= end) {
                 for (long blkNum = start; blkNum <= end; blkNum++) {
                     BlockState blockState = blockBufferService.getBlockState(blkNum);
-                    if (blockState != null && blockState.openedTimestamp() != null) {
-                        long headerProducedToAckMs =
-                                nowMs - blockState.openedTimestamp().toEpochMilli();
-                        blockStreamMetrics.recordHeaderProducedToAckLatency(headerProducedToAckMs);
-                    }
-                    if (blockState != null && blockState.closedTimestamp() != null) {
-                        long blockClosedToAckMs =
-                                nowMs - blockState.closedTimestamp().toEpochMilli();
-                        blockStreamMetrics.recordBlockClosedToAckLatency(blockClosedToAckMs);
+                    if (blockState != null) {
+                        if (blockState.openedTimestamp() != null) {
+                            long headerProducedToAckMs =
+                                    nowMs - blockState.openedTimestamp().toEpochMilli();
+                            blockStreamMetrics.recordHeaderProducedToAckLatency(headerProducedToAckMs);
+                        }
+                        if (blockState.closedTimestamp() != null) {
+                            long blockClosedToAckMs =
+                                    nowMs - blockState.closedTimestamp().toEpochMilli();
+                            blockStreamMetrics.recordBlockClosedToAckLatency(blockClosedToAckMs);
+                        }
+                        if (blockState.getHeaderSentMs() != null) {
+                            final long latencyMs = nowMs - blockState.getHeaderSentMs();
+                            blockStreamMetrics.recordHeaderSentAckLatency(latencyMs);
+                        }
+                        if (blockState.getBlockEndSentMs() != null) {
+                            final long latencyMs = nowMs - blockState.getBlockEndSentMs();
+                            blockStreamMetrics.recordBlockEndSentToAckLatency(latencyMs);
+                        }
                     }
                 }
             }
         }
+    }
+
+    /**
+     * Acknowledges the blocks up to the specified block number.
+     * @param acknowledgedBlockNumber the block number that has been known to be persisted and verified by the block node
+     */
+    private void acknowledgeBlocks(final long acknowledgedBlockNumber, final boolean maybeJumpToBlock) {
+        logger.debug("{} Acknowledging blocks <= {}.", this, acknowledgedBlockNumber);
+
+        final long currentBlockStreaming = streamingBlockNumber.get();
+        final long currentBlockProducing = blockBufferService.getLastBlockNumberProduced();
 
         // Update the last verified block by the current connection
         blockBufferService.setLatestAcknowledgedBlock(acknowledgedBlockNumber);
@@ -576,20 +557,8 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                     acknowledgedBlockNumber,
                     currentBlockStreaming,
                     currentBlockProducing);
-            final long updated = streamingBlockNumber.updateAndGet(current -> Math.max(current, blockToJumpTo));
-            blockStreamMetrics.recordStreamingBlockNumber(updated);
+            streamingBlockNumber.updateAndGet(current -> Math.max(current, blockToJumpTo));
         }
-    }
-
-    private long getStartingBlock(long acknowledgedBlockNumber) {
-        long highestAckedBlock = blockBufferService.getHighestAckedBlockNumber();
-        long startingBlock = highestAckedBlock == -1 ? acknowledgedBlockNumber : highestAckedBlock;
-        if (Math.abs(acknowledgedBlockNumber - startingBlock) > ACKNOWLEDGED_BLOCK_THRESHOLD) {
-            // If there is a large gap between the last acknowledged block and the new one,
-            // the node will only calculate latencies for the last 100 blocks to avoid excessive processing.
-            startingBlock = acknowledgedBlockNumber - ACKNOWLEDGED_BLOCK_THRESHOLD;
-        }
-        return startingBlock;
     }
 
     /**
@@ -701,7 +670,6 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
             final long nextBlock = skipBlockNumber + 1;
             if (streamingBlockNumber.compareAndSet(activeBlockNumber, nextBlock)) {
                 logger.debug("{} Received SkipBlock response; skipping to block {}", this, nextBlock);
-                blockStreamMetrics.recordStreamingBlockNumber(nextBlock);
                 return;
             }
         }
@@ -728,7 +696,6 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
 
         if (blockBufferService.getBlockState(resendBlockNumber) != null) {
             streamingBlockNumber.set(resendBlockNumber);
-            blockStreamMetrics.recordStreamingBlockNumber(resendBlockNumber);
         } else {
             // If we don't have the block state, we schedule retry for this connection and establish new one
             // with different block node
@@ -880,6 +847,12 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                         if (r.hasBlockProof()) {
                             blockNodeConnectionManager.recordBlockProofSent(
                                     nodeConfig, r.blockNumber(), Instant.ofEpochMilli(sentMs));
+                        }
+                        if (r.hasBlockHeader) {
+                            BlockState blockState = blockBufferService.getBlockState(r.blockNumber());
+                            if (blockState != null) {
+                                blockState.setHeaderSentMs(sentMs);
+                            }
                         }
                         blockStreamMetrics.recordRequestBlockItemCount(
                                 r.streamRequest().blockItems().blockItems().size());
@@ -1145,6 +1118,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
         private long pendingRequestBytes;
         private int itemIndex = 0;
         private boolean pendingRequestHasBlockProof = false;
+        private boolean pendingRequestHasBlockHeader = false;
         private BlockState block;
         private long lastSendTimeMillis = -1;
         private final AtomicInteger requestCtr = new AtomicInteger(1);
@@ -1231,6 +1205,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                 if (itemIndex == 0) {
                     logger.trace(
                             "{} Starting to process items for block {}", BlockNodeConnection.this, block.blockNumber());
+                    blockStreamMetrics.recordStreamingBlockNumber(block.blockNumber());
                     if (lastSendTimeMillis == -1) {
                         // if we've never sent a request and this is the first time we are processing a block, update
                         // the last send time to the current time. this will avoid prematurely sending a request
@@ -1271,6 +1246,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                     pendingRequestItems.add(item);
                     pendingRequestBytes += itemSize;
                     pendingRequestHasBlockProof |= item.hasBlockProof();
+                    pendingRequestHasBlockHeader |= item.hasBlockHeader();
                     ++itemIndex;
 
                     if (!trySendPendingRequest()) {
@@ -1287,6 +1263,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                     pendingRequestItems.add(item);
                     pendingRequestBytes += itemSize;
                     pendingRequestHasBlockProof |= item.hasBlockProof();
+                    pendingRequestHasBlockHeader |= item.hasBlockHeader();
                     ++itemIndex;
                 }
             }
@@ -1346,10 +1323,9 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
             try {
                 if (sendRequest(new BlockEndRequest(endOfBlock, block.blockNumber(), requestCtr.get()))) {
                     blockStreamMetrics.recordLatestBlockEndOfBlockSent(block.blockNumber());
-                    blockEndSentAtMsByBlock.put(block.blockNumber(), System.currentTimeMillis());
-                    Long sentMs = headerSentAtMsByBlock.get(block.blockNumber());
-                    if (sentMs != null) {
-                        long latencyMs = System.currentTimeMillis() - sentMs;
+                    block.setBlockEndSentMs(System.currentTimeMillis());
+                    if (block.getHeaderSentMs() != null) {
+                        long latencyMs = block.getBlockEndSentMs() - block.getHeaderSentMs();
                         blockStreamMetrics.recordHeaderSentToBlockEndSentLatency(latencyMs);
                     }
                 }
@@ -1396,7 +1372,6 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                 final long nextBlockNumber = block.blockNumber() + 1;
                 if (streamingBlockNumber.compareAndSet(block.blockNumber(), nextBlockNumber)) {
                     logger.trace("{} Advancing to block {}", BlockNodeConnection.this, nextBlockNumber);
-                    blockStreamMetrics.recordStreamingBlockNumber(nextBlockNumber);
                 } else {
                     logger.trace(
                             "{} Tried to advance to block {} but the block to stream was updated externally",
@@ -1444,6 +1419,9 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                 if (item.hasBlockProof()) {
                     pendingRequestHasBlockProof = false;
                 }
+                if (item.hasBlockHeader()) {
+                    pendingRequestHasBlockHeader = false;
+                }
                 return trySendPendingRequest();
             } else if (reqBytes > hardLimitBytes) {
                 // the request exceeds the hard limit size... abandon all hope
@@ -1473,7 +1451,8 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                         block.blockNumber(),
                         requestCtr.get(),
                         pendingRequestItems.size(),
-                        pendingRequestHasBlockProof))) {
+                        pendingRequestHasBlockProof,
+                        pendingRequestHasBlockHeader))) {
                     // record that we've sent the request
                     lastSendTimeMillis = System.currentTimeMillis();
 
@@ -1482,6 +1461,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                     pendingRequestItems.clear();
                     requestCtr.incrementAndGet();
                     pendingRequestHasBlockProof = false;
+                    pendingRequestHasBlockHeader = false;
                     return true;
                 } else {
                     logger.warn(
@@ -1521,15 +1501,11 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                 final long highestAckedBlock = blockBufferService.getHighestAckedBlockNumber();
                 if (highestAckedBlock != -1) {
                     // Set to the next block that isn't acked
-                    if (streamingBlockNumber.compareAndSet(activeBlockNum, highestAckedBlock + 1)) {
-                        blockStreamMetrics.recordStreamingBlockNumber(highestAckedBlock + 1);
-                    }
+                    streamingBlockNumber.compareAndSet(activeBlockNum, highestAckedBlock + 1);
                 } else {
                     // If no blocks are acked, start with the earliest block in the buffer
                     final long earliestBlock = blockBufferService.getEarliestAvailableBlockNumber();
-                    if (streamingBlockNumber.compareAndSet(activeBlockNum, earliestBlock)) {
-                        blockStreamMetrics.recordStreamingBlockNumber(earliestBlock);
-                    }
+                    streamingBlockNumber.compareAndSet(activeBlockNum, earliestBlock);
                 }
             }
 
@@ -1561,6 +1537,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
             pendingRequestItems.clear();
             requestCtr.set(1);
             pendingRequestHasBlockProof = false;
+            pendingRequestHasBlockHeader = false;
 
             if (block == null) {
                 logger.trace(
@@ -1702,7 +1679,8 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
             long blockNumber,
             int requestNumber,
             int numItems,
-            boolean hasBlockProof)
+            boolean hasBlockProof,
+            boolean hasBlockHeader)
             implements BlockRequest {
         BlockItemsStreamRequest {
             requireNonNull(streamRequest);

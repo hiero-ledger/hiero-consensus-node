@@ -43,6 +43,14 @@ public class BlockState {
      * The size of the block in bytes.
      */
     private long sizeBytes;
+    /**
+     * The milliseconds from epoch when the block header was sent.
+     */
+    private Long headerSentMs;
+    /**
+     * The milliseconds from epoch when the block end was sent.
+     */
+    private Long blockEndSentMs;
 
     /**
      * Create a new block state object.
@@ -173,7 +181,39 @@ public class BlockState {
      * Sets the opened timestamp for this block.
      * @param openedInstant the timestamp when the block was opened
      */
-    public void setOpenedTimestamp(Instant openedInstant) {
+    public void setOpenedTimestamp(@NonNull final Instant openedInstant) {
         this.openedTimestamp = openedInstant;
+    }
+
+    /**
+     * Sets the header sent milliseconds for this block.
+     * @param headerSentMs the milliseconds from epoch when the block header was sent
+     */
+    public void setHeaderSentMs(long headerSentMs) {
+        this.headerSentMs = headerSentMs;
+    }
+
+    /**
+     * Sets the block end sent milliseconds for this block.
+     * @param blockEndSentMs the milliseconds from epoch when the block end was sent
+     */
+    public void setBlockEndSentMs(long blockEndSentMs) {
+        this.blockEndSentMs = blockEndSentMs;
+    }
+
+    /**
+     * Gets the header sent milliseconds for this block.
+     * @return the milliseconds from epoch when the block header was sent
+     */
+    public Long getHeaderSentMs() {
+        return headerSentMs;
+    }
+
+    /**
+     * Gets the block end sent milliseconds for this block.
+     * @return the milliseconds from epoch when the block end was sent
+     */
+    public Long getBlockEndSentMs() {
+        return blockEndSentMs;
     }
 }
