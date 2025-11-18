@@ -12,7 +12,6 @@ import static org.hiero.base.utility.NonCryptographicHashing.hash64;
 import com.hedera.hapi.node.state.primitives.ProtoLong;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.pbj.runtime.ParseException;
-import com.swirlds.base.time.Time;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.state.MerkleNodeState;
@@ -42,8 +41,7 @@ import org.hiero.consensus.model.transaction.Transaction;
 /**
  * State for the Consistency Testing Tool
  */
-public class ConsistencyTestingToolState extends VirtualMapState<ConsistencyTestingToolState>
-        implements MerkleNodeState {
+public class ConsistencyTestingToolState extends VirtualMapState implements MerkleNodeState {
 
     private static final Logger logger = LogManager.getLogger(ConsistencyTestingToolState.class);
 
@@ -81,8 +79,7 @@ public class ConsistencyTestingToolState extends VirtualMapState<ConsistencyTest
      */
     private final Set<Long> transactionsAwaitingPostHandle;
 
-    public ConsistencyTestingToolState(
-            @NonNull final Configuration configuration, @NonNull final Metrics metrics, @NonNull final Time time) {
+    public ConsistencyTestingToolState(@NonNull final Configuration configuration, @NonNull final Metrics metrics) {
         super(configuration, metrics);
         transactionHandlingHistory = new TransactionHandlingHistory();
         transactionsAwaitingPostHandle = ConcurrentHashMap.newKeySet();
@@ -92,8 +89,7 @@ public class ConsistencyTestingToolState extends VirtualMapState<ConsistencyTest
     /**
      * Constructor
      */
-    public ConsistencyTestingToolState(
-            @NonNull final VirtualMap virtualMap, @NonNull final Metrics metrics, @NonNull final Time time) {
+    public ConsistencyTestingToolState(@NonNull final VirtualMap virtualMap, @NonNull final Metrics metrics) {
         super(virtualMap, metrics);
         transactionHandlingHistory = new TransactionHandlingHistory();
         transactionsAwaitingPostHandle = ConcurrentHashMap.newKeySet();
@@ -113,8 +109,9 @@ public class ConsistencyTestingToolState extends VirtualMapState<ConsistencyTest
         this.transactionsAwaitingPostHandle = that.transactionsAwaitingPostHandle;
     }
 
+    @NonNull
     @Override
-    protected ConsistencyTestingToolState copyingConstructor() {
+    public VirtualMapState copy() {
         return new ConsistencyTestingToolState(this);
     }
 

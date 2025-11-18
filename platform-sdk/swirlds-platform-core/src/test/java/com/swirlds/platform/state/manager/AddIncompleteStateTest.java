@@ -3,6 +3,7 @@ package com.swirlds.platform.state.manager;
 
 import static com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator.changeStateHashRandomly;
 import static com.swirlds.platform.test.fixtures.state.manager.SignatureVerificationTestUtils.buildFakeSignature;
+import static com.swirlds.state.test.fixtures.merkle.VirtualMapStateTestUtils.createTestState;
 import static org.hiero.base.crypto.test.fixtures.CryptoRandomUtils.randomHash;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -18,7 +19,6 @@ import com.swirlds.platform.state.StateSignatureCollectorTester;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
-import com.swirlds.state.test.fixtures.merkle.TestVirtualMapState;
 import java.security.PublicKey;
 import java.util.HashMap;
 import java.util.Map;
@@ -100,7 +100,7 @@ class AddIncompleteStateTest extends AbstractStateSignatureCollectorTest {
                 .setRoster(roster)
                 .setRound(firstRound)
                 .setSignatures(signatures)
-                .setState(new TestVirtualMapState())
+                .setState(createTestState())
                 .build();
 
         changeStateHashRandomly(stateFromDisk);

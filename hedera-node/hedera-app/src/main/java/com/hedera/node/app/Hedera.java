@@ -107,7 +107,6 @@ import com.hedera.node.config.data.VersionConfig;
 import com.hedera.node.config.types.StreamMode;
 import com.hedera.node.internal.network.Network;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.base.time.Time;
 import com.swirlds.common.notification.NotificationEngine;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
@@ -594,9 +593,8 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
      * {@inheritDoc}
      */
     @Override
-    public Function<VirtualMap, MerkleNodeState> stateRootFromVirtualMap(
-            @NonNull final Metrics metrics, @NonNull final Time time) {
-        return virtualMap -> new HederaVirtualMapState(virtualMap, metrics, time);
+    public Function<VirtualMap, MerkleNodeState> stateRootFromVirtualMap(@NonNull final Metrics metrics) {
+        return virtualMap -> new VirtualMapState(virtualMap, metrics);
     }
 
     /**
@@ -659,7 +657,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
                 startGrpcServer();
                 if (initState != null) {
                     // Disabling start up mode, so since now singletons will be commited only on block close
-                    if (initState instanceof VirtualMapState<?> virtualMapState) {
+                    if (initState instanceof VirtualMapState virtualMapState) {
                         virtualMapState.disableStartupMode();
                     }
                 }
@@ -982,7 +980,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
 
             logger.debug("Shutting down the state");
             final var state = daggerApp.workingStateAccessor().getState();
-            if (state instanceof HederaVirtualMapState msr) {
+            if (state instanceof VirtualMapState msr) {
                 msr.close();
             }
 

@@ -148,7 +148,20 @@ public final class SignedStateFileWriter {
         requireNonNull(platformStateFacade);
         requireNonNull(stateLifecycleManager);
 
-        stateLifecycleManager.createSnapshot(signedState.getState(), directory);
+        final long round = platformStateFacade.roundOf(signedState.getState());
+        try {
+            logger.info(STATE_TO_DISK.getMarker(), "Creating a snapshot on demand in {} for {}", directory, round);
+            stateLifecycleManager.createSnapshot(signedState.getState(), directory);
+            logger.info(
+                    STATE_TO_DISK.getMarker(),
+                    "Successfully created a snapshot on demand in {}  for {}",
+                    directory,
+                    round);
+        } catch (final Throwable e) {
+            logger.error(
+                    EXCEPTION.getMarker(), "Unable to write a snapshot on demand for {} to {}.", round, directory, e);
+        }
+
         writeSignatureSetFile(directory, signedState);
         writeHashInfoFile(platformContext, directory, signedState.getState(), platformStateFacade);
         writeMetadataFile(selfId, directory, signedState, platformStateFacade);
