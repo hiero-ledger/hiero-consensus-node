@@ -64,7 +64,6 @@ public class BlockStreamMetrics {
     private Counter conn_onErrorCounter;
     private Counter conn_openedCounter;
     private Counter conn_closedCounter;
-    private Counter conn_noActiveCounter;
     private Counter conn_createFailureCounter;
     private LongGauge conn_activeConnIpGauge;
     private Counter conn_endOfStreamLimitCounter;
@@ -288,10 +287,6 @@ public class BlockStreamMetrics {
         final Counter.Config closedCfg =
                 newCounter(GROUP_CONN, "closed").withDescription("Number of block node connections closed");
         conn_closedCounter = metrics.getOrCreate(closedCfg);
-
-        final Counter.Config noActiveCfg = newCounter(GROUP_CONN, "noActive")
-                .withDescription("Number of times streaming a block was attempted but there was no active connection");
-        conn_noActiveCounter = metrics.getOrCreate(noActiveCfg);
 
         final Counter.Config createFailureCfg = newCounter(GROUP_CONN, "createFailure")
                 .withDescription("Number of times establishing a block node connection failed");
