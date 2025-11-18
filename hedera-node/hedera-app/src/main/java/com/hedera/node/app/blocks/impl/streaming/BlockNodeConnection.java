@@ -12,6 +12,8 @@ import com.hedera.hapi.block.stream.BlockProof;
 import com.hedera.node.app.metrics.BlockStreamMetrics;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockNodeConnectionConfig;
+import com.hedera.node.config.data.BlockStreamConfig;
+import com.hedera.node.config.types.StreamMode;
 import com.hedera.pbj.grpc.client.helidon.PbjGrpcClientConfig;
 import com.hedera.pbj.runtime.grpc.GrpcException;
 import com.hedera.pbj.runtime.grpc.Pipeline;
@@ -1412,22 +1414,72 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
         }
 
         /**
+         * Initializes, if necessary, which block to begin streaming with. Depending on the scenario, the block to
+         * select will either be the earliest block in the buffer, the latest block produced in the buffer, or the next
+         * block after the highest acknowledged block.
+         */
+        private void initializeBlockToStreamIfNeeded() {
+            final long activeBlockNum = streamingBlockNumber.get();
+
+            if (activeBlockNum != -1) {
+                // block to stream is already initialized
+                return;
+            }
+
+            final long blockToStream;
+
+            if (!isBackPressureEnabled()) {
+                /*
+                When back pressure is disabled, we can't rely on the highest acked block since it may be from a
+                previous block node connection from a long time ago and thus the next block won't be in the buffer any
+                longer. Also, depending on the rate at which blocks are being produced and pruned, we may not be able
+                to reliably use the earliest available block in the buffer - since it or its immediate subsequent
+                blocks may be pruned before they can be streamed. Because of these concerns, when back pressure is
+                disabled we will default to using the latest block produced.
+                 */
+                blockToStream = blockBufferService.getLastBlockNumberProduced();
+                logger.info(
+                        "{} Block to start streaming with chosen as {} (source: last block produced)",
+                        BlockNodeConnection.this,
+                        blockToStream);
+            } else {
+                final long highestAckedBlock = blockBufferService.getHighestAckedBlockNumber();
+                if (highestAckedBlock != -1) {
+                    // Set to the next block that isn't acked
+                    blockToStream = highestAckedBlock + 1;
+                    logger.info(
+                            "{} Block to start streaming with chosen as {} (source: highest acked + 1)",
+                            BlockNodeConnection.this,
+                            blockToStream);
+                } else {
+                    // If no blocks are acked, start with the earliest block in the buffer
+                    blockToStream = blockBufferService.getEarliestAvailableBlockNumber();
+                    logger.info(
+                            "{} Block to start streaming with chosen as {} (source: earliest available)",
+                            BlockNodeConnection.this,
+                            blockToStream);
+                }
+            }
+
+            if (streamingBlockNumber.compareAndSet(activeBlockNum, blockToStream)) {
+                logger.info(
+                        "{} Connection did not specify which block to start streaming with; initializing to block {}",
+                        BlockNodeConnection.this,
+                        blockToStream);
+            } else {
+                logger.info(
+                        "{} Wanted to start streaming with block {}, but the block to stream was updated externally",
+                        BlockNodeConnection.this,
+                        blockToStream);
+            }
+        }
+
+        /**
          * Switches the active block if the connection's specified active block is different from the most recently
          * used block. This will also determine which block to initialize with.
          */
         private void switchBlockIfNeeded() {
-            final long activeBlockNum = streamingBlockNumber.get();
-            if (activeBlockNum == -1) {
-                final long highestAckedBlock = blockBufferService.getHighestAckedBlockNumber();
-                if (highestAckedBlock != -1) {
-                    // Set to the next block that isn't acked
-                    streamingBlockNumber.compareAndSet(activeBlockNum, highestAckedBlock + 1);
-                } else {
-                    // If no blocks are acked, start with the earliest block in the buffer
-                    final long earliestBlock = blockBufferService.getEarliestAvailableBlockNumber();
-                    streamingBlockNumber.compareAndSet(activeBlockNum, earliestBlock);
-                }
-            }
+            initializeBlockToStreamIfNeeded();
 
             final long latestActiveBlockNumber = streamingBlockNumber.get();
             if (latestActiveBlockNumber == -1) {
@@ -1512,6 +1564,17 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                     .getConfiguration()
                     .getConfigData(BlockNodeConnectionConfig.class)
                     .streamingRequestItemPaddingBytes();
+        }
+
+        /**
+         * @return true if back pressure is enabled, else false
+         */
+        private boolean isBackPressureEnabled() {
+            return configProvider
+                            .getConfiguration()
+                            .getConfigData(BlockStreamConfig.class)
+                            .streamMode()
+                    == StreamMode.BLOCKS;
         }
     }
 }

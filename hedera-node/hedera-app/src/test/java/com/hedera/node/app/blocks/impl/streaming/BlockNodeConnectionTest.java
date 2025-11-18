@@ -1442,6 +1442,20 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
 
     @Test
     void testConnectionWorker_switchBlock_initializeToHighestAckedBlock() throws Exception {
+        final TestConfigBuilder cfgBuilder =
+                createDefaultConfigProvider().withValue("blockStream.streamMode", "BLOCKS");
+        configProvider = createConfigProvider(cfgBuilder);
+        connection = new BlockNodeConnection(
+                configProvider,
+                nodeConfig,
+                connectionManager,
+                bufferService,
+                metrics,
+                executorService,
+                pipelineExecutor,
+                null,
+                clientFactory);
+
         openConnectionAndResetMocks();
         final AtomicReference<Thread> workerThreadRef = workerThreadRef();
         workerThreadRef.set(null); // clear out the fake worker thread so a real one can be initialized
@@ -1467,7 +1481,60 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
     }
 
     @Test
+    void testConnectionWorker_switchBlock_backPressureDisabled() throws Exception {
+        final TestConfigBuilder cfgBuilder = createDefaultConfigProvider().withValue("blockStream.streamMode", "BOTH");
+        configProvider = createConfigProvider(cfgBuilder);
+        connection = new BlockNodeConnection(
+                configProvider,
+                nodeConfig,
+                connectionManager,
+                bufferService,
+                metrics,
+                executorService,
+                pipelineExecutor,
+                null,
+                clientFactory);
+
+        openConnectionAndResetMocks();
+        final AtomicReference<Thread> workerThreadRef = workerThreadRef();
+        workerThreadRef.set(null); // clear out the fake worker thread so a real one can be initialized
+        final AtomicLong streamingBlockNumber = streamingBlockNumber();
+
+        doReturn(25L).when(bufferService).getLastBlockNumberProduced();
+        doReturn(new BlockState(25)).when(bufferService).getBlockState(25);
+
+        assertThat(streamingBlockNumber).hasValue(-1);
+
+        connection.updateConnectionState(ConnectionState.ACTIVE);
+        sleep(50); // give some time for the worker loop to detect the changes
+
+        assertThat(workerThreadRef).doesNotHaveNullValue();
+        assertThat(streamingBlockNumber).hasValue(25);
+
+        verify(bufferService).getLastBlockNumberProduced();
+        verify(bufferService).getBlockState(25);
+        verifyNoMoreInteractions(bufferService);
+        verifyNoInteractions(connectionManager);
+        verifyNoInteractions(metrics);
+        verifyNoInteractions(requestPipeline);
+    }
+
+    @Test
     void testConnectionWorker_switchBlock_initializeToEarliestBlock() throws Exception {
+        final TestConfigBuilder cfgBuilder =
+                createDefaultConfigProvider().withValue("blockStream.streamMode", "BLOCKS");
+        configProvider = createConfigProvider(cfgBuilder);
+        connection = new BlockNodeConnection(
+                configProvider,
+                nodeConfig,
+                connectionManager,
+                bufferService,
+                metrics,
+                executorService,
+                pipelineExecutor,
+                null,
+                clientFactory);
+
         openConnectionAndResetMocks();
         final AtomicReference<Thread> workerThreadRef = workerThreadRef();
         workerThreadRef.set(null); // clear out the fake worker thread so a real one can be initialized
@@ -1496,6 +1563,20 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
 
     @Test
     void testConnectionWorker_switchBlock_noBlockAvailable() throws Exception {
+        final TestConfigBuilder cfgBuilder =
+                createDefaultConfigProvider().withValue("blockStream.streamMode", "BLOCKS");
+        configProvider = createConfigProvider(cfgBuilder);
+        connection = new BlockNodeConnection(
+                configProvider,
+                nodeConfig,
+                connectionManager,
+                bufferService,
+                metrics,
+                executorService,
+                pipelineExecutor,
+                null,
+                clientFactory);
+
         openConnectionAndResetMocks();
         final AtomicReference<Thread> workerThreadRef = workerThreadRef();
         workerThreadRef.set(null); // clear out the fake worker thread so a real one can be initialized
