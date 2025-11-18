@@ -79,7 +79,7 @@
         },
         {
           "name": "ConsensusUpdateTopic",
-          "baseFee": 2100000,
+          "baseFee": 1200000,
           "extras": [
             { "name": "KEYS",       "includedCount": 1 }
           ]
