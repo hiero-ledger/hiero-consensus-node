@@ -30,7 +30,7 @@ import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Tag;
 
 /**
- * A class with Node Operator Queries tests.
+ * A class with Governance Transactions tests.
  */
 @Tag(ONLY_SUBPROCESS)
 @HapiTestLifecycle
