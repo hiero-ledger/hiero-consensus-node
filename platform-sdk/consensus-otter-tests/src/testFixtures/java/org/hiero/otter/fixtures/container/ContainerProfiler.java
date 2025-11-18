@@ -127,7 +127,7 @@ public class ContainerProfiler {
             log.info(
                     "Started JFR profiling on node {} with {}ms sampling ({}Hz) and events {} -> {}",
                     selfId.id(),
-                    this.samplingInterval.toMillis() + "ms",
+                    this.samplingInterval.toMillis(),
                     1000 / this.samplingInterval.toMillis(),
                     Stream.of(this.profilerEvents).map(Enum::name).collect(Collectors.joining(", ")),
                     outputFilename);

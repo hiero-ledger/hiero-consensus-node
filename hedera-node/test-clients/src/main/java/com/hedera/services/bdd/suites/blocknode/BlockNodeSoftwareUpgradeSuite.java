@@ -109,8 +109,8 @@ public class BlockNodeSoftwareUpgradeSuite implements LifecycleTest {
                     // Create a new block-nodes.json file at runtime with localhost and the correct port
                     final var node0Port = spec.getBlockNodePortById(0);
                     List<com.hedera.node.internal.network.BlockNodeConfig> blockNodes = new ArrayList<>();
-                    blockNodes.add(
-                            new com.hedera.node.internal.network.BlockNodeConfig("localhost", node0Port, 0, null));
+                    blockNodes.add(new com.hedera.node.internal.network.BlockNodeConfig(
+                            "localhost", node0Port, 0, null, null));
                     BlockNodeConnectionInfo connectionInfo = new BlockNodeConnectionInfo(blockNodes);
                     try {
                         // Write the config to this consensus node's block-nodes.json
@@ -155,7 +155,7 @@ public class BlockNodeSoftwareUpgradeSuite implements LifecycleTest {
                         Duration.ofSeconds(45),
                         "Detected ENTRY_DELETE event for block-nodes.json.",
                         "No valid block node configurations available after file change. Connections remain stopped.")),
-                assertHgcaaLogDoesNotContain(NodeSelector.allNodes(), "ERROR", Duration.ofSeconds(5)));
+                assertHgcaaLogDoesNotContainText(NodeSelector.allNodes(), "ERROR", Duration.ofSeconds(5)));
     }
 
     @HapiTest
@@ -234,6 +234,6 @@ public class BlockNodeSoftwareUpgradeSuite implements LifecycleTest {
                 waitUntilNextBlocks(20).withBackgroundTraffic(true),
                 // Verify no errors in the log after the config change and all nodes are active
                 waitForActive(NodeSelector.allNodes(), Duration.ofSeconds(30)),
-                assertHgcaaLogDoesNotContain(NodeSelector.allNodes(), "ERROR", Duration.ofSeconds(5)));
+                assertHgcaaLogDoesNotContainText(NodeSelector.allNodes(), "ERROR", Duration.ofSeconds(5)));
     }
 }
