@@ -18,18 +18,39 @@ import org.hiero.metrics.api.LongGauge;
 import org.hiero.metrics.api.utils.MetricUtils;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.MockedStatic;
 
 public class MetricRegistryTest {
 
     private static final String DUPLICATE_NAME = "duplicate_name";
 
+    private MetricRegistry.Builder testBuilder() {
+        return MetricRegistry.builder("test_registry");
+    }
+
     @Nested
     class Exceptions {
 
         @Test
+        void testNullRegistryNameThrows() {
+            assertThatThrownBy(() -> MetricRegistry.builder(null))
+                    .isInstanceOf(NullPointerException.class)
+                    .hasMessageContaining("cannot be null");
+        }
+
+        @ParameterizedTest
+        @ValueSource(strings = {"", "   "})
+        void testBlankRegistryNameThrows(String name) {
+            assertThatThrownBy(() -> MetricRegistry.builder(name))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("cannot be blank");
+        }
+
+        @Test
         void testAddNullGlobalLabelThrows() {
-            MetricRegistry.Builder builder = MetricRegistry.builder();
+            MetricRegistry.Builder builder = testBuilder();
 
             assertThatThrownBy(() -> builder.addGlobalLabel(null))
                     .isInstanceOf(NullPointerException.class)
@@ -38,7 +59,7 @@ public class MetricRegistryTest {
 
         @Test
         void testDuplicateGlobalLabelNameThrows() {
-            MetricRegistry.Builder builder = MetricRegistry.builder();
+            MetricRegistry.Builder builder = testBuilder();
             builder.addGlobalLabel(new Label("env", "test"));
             builder.addGlobalLabel(new Label("other", "test"));
 
@@ -49,7 +70,7 @@ public class MetricRegistryTest {
 
         @Test
         void testUnmodifiableEmptyGlobalLabels() {
-            MetricRegistry registry = MetricRegistry.builder().build();
+            MetricRegistry registry = testBuilder().build();
 
             assertThatThrownBy(() -> registry.globalLabels().add(new Label("key", "value")))
                     .as("Global labels list is unmodifiable")
@@ -58,9 +79,8 @@ public class MetricRegistryTest {
 
         @Test
         void testUnmodifiableGlobalLabels() {
-            MetricRegistry registry = MetricRegistry.builder()
-                    .addGlobalLabel(new Label("env", "test"))
-                    .build();
+            MetricRegistry registry =
+                    testBuilder().addGlobalLabel(new Label("env", "test")).build();
             List<Label> globalLabels = registry.globalLabels();
 
             assertThatThrownBy(() -> globalLabels.add(new Label("key", "value")))
@@ -73,7 +93,7 @@ public class MetricRegistryTest {
 
         @Test
         void testRegisterMetricWithBuilderAndLabelMatchingGlobalLabel() {
-            MetricRegistry registry = MetricRegistry.builder()
+            MetricRegistry registry = testBuilder()
                     .addGlobalLabel(new Label("env", "test"))
                     .addGlobalLabel(new Label("region", "us-west-2"))
                     .build();
@@ -86,7 +106,7 @@ public class MetricRegistryTest {
 
         @Test
         void testUnmodifiableEmptyMetricsView() {
-            MetricRegistry registry = MetricRegistry.builder().build();
+            MetricRegistry registry = testBuilder().build();
 
             assertThatThrownBy(() -> registry.metrics().add(mock(Metric.class)))
                     .as("Metrics view is unmodifiable")
@@ -95,7 +115,7 @@ public class MetricRegistryTest {
 
         @Test
         void testUnmodifiableMetricsView() {
-            MetricRegistry registry = MetricRegistry.builder().build();
+            MetricRegistry registry = testBuilder().build();
             registry.register(LongCounter.builder("test_counter"));
             Collection<Metric> metrics = registry.metrics();
 
@@ -127,7 +147,7 @@ public class MetricRegistryTest {
 
         @Test
         void testRegisterNullBuilderThrows() {
-            MetricRegistry registry = MetricRegistry.builder().build();
+            MetricRegistry registry = testBuilder().build();
 
             assertThatThrownBy(() -> registry.register(null))
                     .isInstanceOf(NullPointerException.class)
@@ -136,7 +156,7 @@ public class MetricRegistryTest {
 
         @Test
         void testRegisterDuplicateMetricWithBuilderThrows() {
-            MetricRegistry registry = MetricRegistry.builder().build();
+            MetricRegistry registry = testBuilder().build();
             registry.register(LongCounter.builder(DUPLICATE_NAME));
 
             assertThatThrownBy(() -> registry.register(LongCounter.builder(DUPLICATE_NAME)))
@@ -178,7 +198,7 @@ public class MetricRegistryTest {
 
         @Test
         void testFindMetricWithNullKeyThrows() {
-            MetricRegistry registry = MetricRegistry.builder().build();
+            MetricRegistry registry = testBuilder().build();
 
             assertThatThrownBy(() -> registry.findMetric(null))
                     .isInstanceOf(NullPointerException.class)
@@ -187,7 +207,7 @@ public class MetricRegistryTest {
 
         @Test
         void testGetMetricWithNullKeyThrows() {
-            MetricRegistry registry = MetricRegistry.builder().build();
+            MetricRegistry registry = testBuilder().build();
 
             assertThatThrownBy(() -> registry.getMetric(null))
                     .isInstanceOf(NullPointerException.class)
@@ -196,7 +216,7 @@ public class MetricRegistryTest {
 
         @Test
         void testGetMetricFromEmptyRegistryThrows() {
-            MetricRegistry registry = MetricRegistry.builder().build();
+            MetricRegistry registry = testBuilder().build();
 
             assertThatThrownBy(() -> registry.getMetric(LongCounter.key("unknown_metric")))
                     .isInstanceOf(IllegalArgumentException.class)
@@ -205,7 +225,7 @@ public class MetricRegistryTest {
 
         @Test
         void testGetMetricWithWrongNameThrows() {
-            MetricRegistry registry = MetricRegistry.builder().build();
+            MetricRegistry registry = testBuilder().build();
             String name = "test_metric";
             registry.register(LongCounter.builder(name));
 
@@ -216,7 +236,7 @@ public class MetricRegistryTest {
 
         @Test
         void testGetMetricWithWrongTypeThrows() {
-            MetricRegistry registry = MetricRegistry.builder().build();
+            MetricRegistry registry = testBuilder().build();
             String name = "test_metric";
             registry.register(LongCounter.builder(name));
 
@@ -227,8 +247,16 @@ public class MetricRegistryTest {
     }
 
     @Test
+    void testNameMatches() {
+        String registryName = "test_registry";
+        MetricRegistry registry = MetricRegistry.builder(registryName).build();
+
+        assertThat(registry.name()).isEqualTo(registryName);
+    }
+
+    @Test
     void testCreateEmptyRegistryGlobalLabels() {
-        MetricRegistry registry = MetricRegistry.builder().build();
+        MetricRegistry registry = testBuilder().build();
 
         assertThat(registry.globalLabels()).isEmpty();
     }
@@ -238,17 +266,15 @@ public class MetricRegistryTest {
         Label label1 = new Label("env", "test");
         Label label2 = new Label("region", "us-west-2");
 
-        MetricRegistry registry = MetricRegistry.builder()
-                .addGlobalLabel(label1)
-                .addGlobalLabel(label2)
-                .build();
+        MetricRegistry registry =
+                testBuilder().addGlobalLabel(label1).addGlobalLabel(label2).build();
 
         assertThat(registry.globalLabels()).containsExactly(label1, label2);
     }
 
     @Test
     void testMetricLabelsAreTheSameWithoutGlobalLabels() {
-        MetricRegistry registry = MetricRegistry.builder().build();
+        MetricRegistry registry = testBuilder().build();
         Label label = new Label("key", "value");
 
         LongCounter counter1 = registry.register(LongCounter.builder("counter1"));
@@ -264,8 +290,7 @@ public class MetricRegistryTest {
         Label label1 = new Label("a", "value1");
         Label label2 = new Label("z", "value2");
 
-        MetricRegistry registry =
-                MetricRegistry.builder().addGlobalLabel(globsLabel).build();
+        MetricRegistry registry = testBuilder().addGlobalLabel(globsLabel).build();
 
         LongCounter counter1 = registry.register(LongCounter.builder("counter1"));
         LongCounter counter2 = registry.register(LongCounter.builder("counter2").withConstantLabels(label1, label2));
@@ -276,7 +301,7 @@ public class MetricRegistryTest {
 
     @Test
     void testCreateEmptyMetricsViewNoDiscovery() {
-        MetricRegistry registry = MetricRegistry.builder().build();
+        MetricRegistry registry = testBuilder().build();
 
         assertThat(registry.metrics()).isEmpty();
     }
@@ -290,7 +315,7 @@ public class MetricRegistryTest {
 
     @Test
     void testMetricsViewNonEmptyAfterRegisterBuilders() {
-        MetricRegistry registry = MetricRegistry.builder().build();
+        MetricRegistry registry = testBuilder().build();
 
         LongCounter counter1 = registry.register(LongCounter.builder("counter1"));
         LongCounter counter2 = registry.register(LongCounter.builder("counter2"));
@@ -302,7 +327,7 @@ public class MetricRegistryTest {
     void testMetricsViewNonEmptyAfterRegisterProviders() {
         // additionally call discoverMetricProviders on builder multiple times to verify no duplication occurs
         MetricRegistry registry = createRegistryMockDiscovery(
-                MetricRegistry.builder().discoverMetricProviders().discoverMetricProviders(),
+                testBuilder().withDiscoveredMetricProviders().withDiscoveredMetricProviders(),
                 () -> List.of(LongCounter.builder("counter1")),
                 () -> List.of(LongCounter.builder("counter2"), LongCounter.builder("counter3")));
 
@@ -327,7 +352,7 @@ public class MetricRegistryTest {
 
     @Test
     void testMetricFoundWithBuilderRegistration() {
-        MetricRegistry registry = MetricRegistry.builder().build();
+        MetricRegistry registry = testBuilder().build();
         String metricName = "test_metric";
 
         LongCounter registeredCounter = registry.register(LongCounter.builder(metricName));
@@ -348,7 +373,7 @@ public class MetricRegistryTest {
 
     @Test
     void testFindMetricWithWrongName() {
-        MetricRegistry registry = MetricRegistry.builder().build();
+        MetricRegistry registry = testBuilder().build();
         String name = "test_metric";
         registry.register(LongCounter.builder(name));
 
@@ -357,7 +382,7 @@ public class MetricRegistryTest {
 
     @Test
     void testFindMetricWithWrongType() {
-        MetricRegistry registry = MetricRegistry.builder().build();
+        MetricRegistry registry = testBuilder().build();
         String name = "test_metric";
         registry.register(LongCounter.builder(name));
 
@@ -366,7 +391,7 @@ public class MetricRegistryTest {
 
     @Test
     void testReset() {
-        MetricRegistry registry = MetricRegistry.builder().build();
+        MetricRegistry registry = testBuilder().build();
 
         LongCounter counter = registry.register(LongCounter.builder("counter"));
         LongGauge gauge = registry.register(LongGauge.builder("gauge"));
@@ -382,7 +407,7 @@ public class MetricRegistryTest {
 
     @Test
     void testConcurrentMetricsRegistrations() throws InterruptedException {
-        MetricRegistry registry = MetricRegistry.builder().build();
+        MetricRegistry registry = testBuilder().build();
 
         int threadCount = 10;
         int metricsPerThread = 100;
@@ -405,7 +430,7 @@ public class MetricRegistryTest {
     }
 
     private MetricRegistry createRegistryMockDiscovery(MetricsRegistrationProvider... metricProviders) {
-        return createRegistryMockDiscovery(MetricRegistry.builder(), metricProviders);
+        return createRegistryMockDiscovery(testBuilder(), metricProviders);
     }
 
     private MetricRegistry createRegistryMockDiscovery(
@@ -414,7 +439,7 @@ public class MetricRegistryTest {
             mockedUtils
                     .when(() -> MetricUtils.load(MetricsRegistrationProvider.class))
                     .thenReturn(Arrays.asList(metricProviders));
-            return builder.discoverMetricProviders().build();
+            return builder.withDiscoveredMetricProviders().build();
         }
     }
 }

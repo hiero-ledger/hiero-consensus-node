@@ -10,22 +10,18 @@ import org.hiero.metrics.api.export.PullingMetricsExporter;
  * A {@link org.hiero.metrics.api.export.MetricsExportManager} implementation that works with
  * a single {@link PullingMetricsExporter}.
  * <p>
- * The exporter is initialized when the first {@link SnapshotableMetricsRegistry} is managed by this
- * manager. The exporter is provided with a snapshot supplier that takes snapshots of all managed
+ * The exporter is provided with a snapshot supplier that takes snapshots of all managed
  * registries on demand.
  */
 public final class SinglePullingExporterMetricsExportManager extends AbstractMetricsExportManager {
 
     private final PullingMetricsExporter exporter;
 
-    public SinglePullingExporterMetricsExportManager(@NonNull String name, @NonNull PullingMetricsExporter exporter) {
-        super(name);
+    public SinglePullingExporterMetricsExportManager(
+            @NonNull SnapshotableMetricsRegistry registry, @NonNull PullingMetricsExporter exporter) {
+        super(registry);
         this.exporter = Objects.requireNonNull(exporter, "exporter must not be null");
-    }
-
-    @Override
-    protected void init() {
-        exporter.setSnapshotProvider(this::takeSnapshot);
+        this.exporter.setSnapshotProvider(this::takeSnapshot);
     }
 
     @Override

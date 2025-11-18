@@ -11,7 +11,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import org.hiero.metrics.api.LongGauge;
-import org.hiero.metrics.api.core.MetricRegistry;
 import org.hiero.metrics.api.export.MetricsExportException;
 import org.hiero.metrics.api.export.MetricsExporter;
 import org.hiero.metrics.api.export.PullingMetricsExporter;
@@ -23,8 +22,8 @@ import org.hiero.metrics.api.utils.Unit;
  * A default implementation of the {@link org.hiero.metrics.api.export.MetricsExportManager} interface
  * that supports multiple pulling and pushing exporters.
  * <p>
- * Pulling exporters are initialized during the manager's {@link #init()} method call and are provided with a
- * supplier of the latest metrics snapshot. They can pull the latest snapshot whenever they need it.
+ * Pulling exporters are initialized with a supplier of the latest metrics snapshot.
+ * They can pull the latest snapshot whenever they need it.
  * <p>
  * Pushing exporters are periodically invoked in a separate thread at a fixed interval to push the latest metrics
  * snapshot. The interval is configurable during the manager's construction. See {@link ExportRunnable}.
@@ -42,28 +41,18 @@ public final class DefaultMetricsExportManager extends AbstractMetricsExportMana
 
     private final AtomicReference<Optional<MetricsSnapshot>> snapshotHolder = new AtomicReference<>(Optional.empty());
 
-    private final Supplier<ScheduledExecutorService> executorServiceFactory;
-    private final int exportIntervalSeconds;
     private volatile ScheduledFuture<?> scheduledExportFuture;
 
     // this metric will report previous export duration for each pushing exporter
     private LongGauge pushingExportDurationMetric;
 
     public DefaultMetricsExportManager(
-            @NonNull String name,
+            @NonNull SnapshotableMetricsRegistry registry,
             @NonNull Supplier<ScheduledExecutorService> executorServiceFactory,
             int exportIntervalSeconds,
             @NonNull List<PullingMetricsExporter> pullingExporters,
             @NonNull List<PushingMetricsExporter> pushingExporters) {
-        super(name);
-
-        if (exportIntervalSeconds <= 0) {
-            throw new IllegalArgumentException("Export interval must be greater than 0 seconds");
-        }
-
-        this.executorServiceFactory =
-                Objects.requireNonNull(executorServiceFactory, "executor service factory must not be null");
-        this.exportIntervalSeconds = exportIntervalSeconds;
+        super(registry);
 
         this.pullingExporters =
                 List.copyOf(Objects.requireNonNull(pullingExporters, "pulling exporters must not be null"));
@@ -76,35 +65,13 @@ public final class DefaultMetricsExportManager extends AbstractMetricsExportMana
 
         logExporters("pulling", pullingExporters);
         logExporters("pushing", pushingExporters);
-    }
 
-    private void logExporters(String type, List<? extends MetricsExporter> exporters) {
-        if (exporters.isEmpty()) {
-            logger.info("No {} exporters provided", type);
-        } else {
-            logger.info(
-                    "Provided {} {} exporters: {}",
-                    exporters.size(),
-                    type,
-                    exporters.stream().map(MetricsExporter::name).toList());
-        }
-    }
+        registry.register(
+                LongGauge.builder(LongGauge.key("push_export_duration").withCategory(EXPORT_METRICS_CATEGORY))
+                        .withDescription("Push export duration time")
+                        .withDynamicLabelNames(PUSHING_EXPORTER_NAME)
+                        .withUnit(Unit.MILLISECOND_UNIT));
 
-    @Override
-    protected void registerExportMetrics(@NonNull String category, @NonNull MetricRegistry exportMetricsRegistry) {
-        super.registerExportMetrics(category, exportMetricsRegistry);
-
-        if (!pushingExporters.isEmpty()) {
-            pushingExportDurationMetric = exportMetricsRegistry.register(
-                    LongGauge.builder(LongGauge.key("push_export_duration").withCategory(category))
-                            .withDescription("Push export duration time")
-                            .withDynamicLabelNames(PUSHING_EXPORTER_NAME)
-                            .withUnit(Unit.MILLISECOND_UNIT));
-        }
-    }
-
-    @Override
-    protected void init() {
         for (PullingMetricsExporter pullingExporter : pullingExporters) {
             try {
                 logger.info("Initializing pulling exporter: {}", pullingExporter.name());
@@ -119,6 +86,18 @@ public final class DefaultMetricsExportManager extends AbstractMetricsExportMana
         scheduledExportFuture = executorServiceFactory
                 .get()
                 .scheduleAtFixedRate(new ExportRunnable(), 0, exportIntervalSeconds, TimeUnit.SECONDS);
+    }
+
+    private void logExporters(String type, List<? extends MetricsExporter> exporters) {
+        if (exporters.isEmpty()) {
+            logger.info("No {} exporters provided", type);
+        } else {
+            logger.info(
+                    "Provided {} {} exporters: {}",
+                    exporters.size(),
+                    type,
+                    exporters.stream().map(MetricsExporter::name).toList());
+        }
     }
 
     @Override

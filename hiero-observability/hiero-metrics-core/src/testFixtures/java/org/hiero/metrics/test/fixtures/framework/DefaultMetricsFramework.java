@@ -20,7 +20,8 @@ import org.hiero.metrics.test.fixtures.SateSetEnum;
  */
 public final class DefaultMetricsFramework extends MetricFramework {
 
-    private final MetricRegistry metricRegistry = MetricRegistry.builder().build();
+    private final MetricRegistry metricRegistry =
+            MetricRegistry.builder("test_registry").build();
 
     public DefaultMetricsFramework() {
         registerAdapter(

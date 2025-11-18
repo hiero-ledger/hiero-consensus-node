@@ -303,7 +303,7 @@ abstract class AbstractMetricBaseTest<M extends Metric, B extends Metric.Builder
 
         @Test
         void testRegister() {
-            MetricRegistry registry = MetricRegistry.builder().build();
+            MetricRegistry registry = MetricRegistry.builder("registry").build();
             B builder = emptyMetricBuilder();
 
             builder.register(registry);

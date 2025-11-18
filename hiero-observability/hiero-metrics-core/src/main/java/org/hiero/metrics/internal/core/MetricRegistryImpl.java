@@ -22,18 +22,22 @@ public final class MetricRegistryImpl implements SnapshotableMetricsRegistry {
 
     private static final Logger logger = LogManager.getLogger(MetricRegistryImpl.class);
 
+    private final String name;
     private final List<Label> globalLabels;
     private final ConcurrentHashMap<String, Metric> metrics = new ConcurrentHashMap<>();
     private final Collection<Metric> metricsView = Collections.unmodifiableCollection(metrics.values());
 
     private final UpdatableMetricRegistrySnapshot snapshot = new UpdatableMetricRegistrySnapshot();
 
-    public MetricRegistryImpl() {
-        globalLabels = List.of();
+    public MetricRegistryImpl(@NonNull String name, @NonNull Collection<Label> globalLabels) {
+        this.name = name;
+        this.globalLabels = List.copyOf(globalLabels);
     }
 
-    public MetricRegistryImpl(@NonNull Collection<Label> globalLabels) {
-        this.globalLabels = List.copyOf(globalLabels);
+    @NonNull
+    @Override
+    public String name() {
+        return name;
     }
 
     @NonNull
