@@ -195,7 +195,7 @@ class DefaultTransactionHandlerTests {
         }
     }
 
-    private static @NonNull ConsensusSnapshot getSnapshotWithTimestamp(Instant consensusTimestamp) {
+    private static @NonNull ConsensusSnapshot getSnapshotWithTimestamp(final @NonNull Instant consensusTimestamp) {
         return ConsensusSnapshot.newBuilder()
                 .round(ConsensusConstants.ROUND_FIRST)
                 .judgeIds(List.of())
