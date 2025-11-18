@@ -19,7 +19,7 @@ import org.hiero.otter.fixtures.InstrumentedNode;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.network.GeoMeshTopology;
 import org.hiero.otter.fixtures.network.LatencyRange;
-import org.hiero.otter.fixtures.network.utils.GeoMeshTopologyConfiguration;
+import org.hiero.otter.fixtures.network.GeoMeshTopologyConfiguration;
 
 /**
  * An implementation of {@link GeoMeshTopology}.
