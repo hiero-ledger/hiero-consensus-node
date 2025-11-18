@@ -53,14 +53,8 @@ then
   echo "Prepare for import ..."
 
   cd $APP_HOME
-#  rm -rf data/saved/swirlds-tmp/*
-#  rm -rf data/saved/preconsensus-events/*/*
-#  rm -rf /opt/hgcapp/*Streams/*
   rm -rf output/*
-  #rm -rf /opt/hgcapp/services-hedera/HapiApp2.0/.archive
   ls -lt data/saved/com.hedera.services.ServicesMain/${node_id}/123
-  #cd $APP_HOME/data/keys
-  #bash generate.sh node1
 fi
 
 LANG=C.utf8
