@@ -1715,6 +1715,8 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         verify(metrics).recordResponseReceived(ResponseOneOfType.SKIP_BLOCK);
         verify(bufferService, atLeastOnce()).getBlockState(10);
         verify(bufferService, atLeastOnce()).getBlockState(11);
+        verify(bufferService, atLeastOnce()).getBlockState(12);
+        verify(bufferService, atLeastOnce()).getEarliestAvailableBlockNumber();
 
         verifyNoMoreInteractions(bufferService);
         verifyNoMoreInteractions(connectionManager);
@@ -1817,13 +1819,13 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         }
         assertThat(totalItems).isEqualTo(8);
 
-        verify(metrics).recordRequestExceedsHardLimit();
+        verify(metrics, times(6)).recordRequestExceedsHardLimit();
         verify(metrics).recordConnectionClosed();
         verify(metrics).recordActiveConnectionIp(-1L);
         verify(metrics, times(5)).recordRequestLatency(anyLong());
         verify(requestPipeline).onComplete();
-        verify(bufferService).getEarliestAvailableBlockNumber();
-        verify(bufferService).getHighestAckedBlockNumber();
+        verify(bufferService, times(6)).getEarliestAvailableBlockNumber();
+        verify(bufferService, times(6)).getHighestAckedBlockNumber();
         verify(connectionManager).notifyConnectionClosed(connection);
 
         verifyNoMoreInteractions(metrics);
@@ -2779,7 +2781,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
 
         connection.updateConnectionState(ConnectionState.ACTIVE);
         // sleep to let the worker detect the state change and start doing work
-        sleep(300);
+        Thread.sleep(300);
 
         final ArgumentCaptor<PublishStreamRequest> requestCaptor = ArgumentCaptor.forClass(PublishStreamRequest.class);
         verify(requestPipeline, times(3)).onNext(requestCaptor.capture());
@@ -2855,7 +2857,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
 
         connection.updateConnectionState(ConnectionState.ACTIVE);
         // sleep to let the worker detect the state change and start doing work
-        sleep(300);
+        Thread.sleep(300);
 
         final ArgumentCaptor<PublishStreamRequest> requestCaptor = ArgumentCaptor.forClass(PublishStreamRequest.class);
         verify(requestPipeline).onNext(requestCaptor.capture());
