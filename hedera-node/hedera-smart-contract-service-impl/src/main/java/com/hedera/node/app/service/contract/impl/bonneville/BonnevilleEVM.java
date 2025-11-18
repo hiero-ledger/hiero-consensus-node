@@ -84,6 +84,9 @@ class BEVM {
     // per-bytecode.
     final UI256.Wrap _wrap0 = new UI256.Wrap(), _wrap1 = new UI256.Wrap();
 
+    // Input data
+    byte[] _callData;
+
     BEVM( GasCalculator gasCalc, MessageFrame frame, FeatureFlags flags ) {
         _gasCalc = gasCalc;
         if( _gasCalc.getVeryLowTierGasCost() > 10 )
@@ -108,6 +111,9 @@ class BEVM {
         _isSidecarEnabled = flags.isSidecarEnabled(frame, SidecarType.CONTRACT_STATE_CHANGE);
         // Hedera optional tracking first SLOAD
         _tracker = FrameUtils.accessTrackerFor(frame);
+
+        // Preload input data
+        _callData = _frame.getInputData().toArrayUnsafe();
 
         var worldUpdater = FrameUtils.proxyUpdaterFor(_frame);
         _contractId = worldUpdater.getHederaContractId(_frame.getRecipientAddress());
@@ -157,10 +163,20 @@ class BEVM {
     // Push a long
     private ExceptionalHaltReason push( long x ) { return push(x,0,0,0); }
 
+    // Push a UInt256
+    private ExceptionalHaltReason push( UInt256 val ) {
+        return push(UI256.getLong(val,3),
+                    UI256.getLong(val,2),
+                    UI256.getLong(val,1),
+                    UI256.getLong(val,0));
+    }
+
+
+
     // Push a byte array
     private ExceptionalHaltReason push( byte[] src, int off, int len ) {
         // Caller range-checked already
-        assert src != null && off >= 0 && len>=0 && off+len < src.length;
+        assert src != null && off >= 0 && len>=0 && off+len <= src.length;
         long x0 = getLong(src,off, len);  len -= 8;
         long x1 = getLong(src,off, len);  len -= 8;
         long x2 = getLong(src,off, len);  len -= 8;
@@ -220,21 +236,50 @@ class BEVM {
             int op = _codes[pc++] & 0xFF;
             halt = switch( op ) {
 
-            case 0x02 -> add();
-            case 0x10 -> lt ();
+            case 0x00 -> stop();
+
+                // Arithmetic ops
+            case 0x01 -> add();
+            case 0x02 -> mul();
+            case 0x03 -> sub();
+            case 0x04 -> div();
+            case 0x10 -> ult();
+            case 0x11 -> ugt();
+            case 0x12 -> slt();
+            case 0x13 -> sgt();
             case 0x0A -> exp();
+            case 0x14 -> eq ();
+            case 0x15 -> eqz();
             case 0x16 -> and();
             case 0x17 -> or ();
             case 0x19 -> not();
+            case 0x1C -> shr();
 
+            // input/output argments
+            case 0x34 -> callValue();
+            case 0x35 -> callDataLoad();
             case 0x36 -> callDataSize();
             case 0x39 -> codeCopy();
 
             case 0x50 -> pop();
+
+            // Memory, Storage
             case 0x52 -> mstore();
             case 0x54 -> customSLoad (); // Hedera custom SLOAD
             case 0x55 -> customSStore(); // Hedera custom STORE
-            case 0x57 -> jumpi();
+
+            // The jumps
+            case 0x56 ->        // Jump, target on stack
+            ((pc=jump()   ) == -1) ? ExceptionalHaltReason.INVALID_JUMP_DESTINATION :
+            ( pc            == -2) ? ExceptionalHaltReason.INSUFFICIENT_GAS :
+            null;               // No error, pc set correctly
+            case 0x57 ->        // Conditional jump, target on stack
+            ((pc=jumpi(pc)) == -1) ? ExceptionalHaltReason.INVALID_JUMP_DESTINATION :
+            ( pc            == -2) ? ExceptionalHaltReason.INSUFFICIENT_GAS :
+            null;               // No error, pc set correctly
+            case 0x5B -> null;  // Jump Destination, a no-op
+
+            // Stack manipulation
             case 0x5F -> push0();
 
             case 0x60, 0x61, 0x62, 0x63, 0x64, 0x65, 0x66, 0x67, 0x68, 0x69, 0x6A, 0x6B, 0x6C, 0x6D, 0x6E, 0x6F,
@@ -261,9 +306,282 @@ class BEVM {
 
 
     // ---------------------
+    // Arithmetic
+
+    // Add
+    private ExceptionalHaltReason add() {
+        var halt = useGas(_gasCalc.getVeryLowTierGasCost());
+        if( halt!=null ) return halt;
+        if( _sp < 2 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
+        long lhs0 = STK0[--_sp], lhs1 = STK1[_sp], lhs2 = STK2[_sp], lhs3 = STK3[_sp];
+        long rhs0 = STK0[--_sp], rhs1 = STK1[_sp], rhs2 = STK2[_sp], rhs3 = STK3[_sp];
+
+        // If both sign bits are the same and differ from the result, we overflowed
+        long add0 = lhs0 + rhs0;
+        if( overflow(lhs0,rhs0,add0) ) throw new TODO();
+        long add1 = lhs1 + rhs1;
+        if( overflow(lhs1,rhs1,add1) ) throw new TODO();
+        long add2 = lhs2 + rhs2;
+        if( overflow(lhs2,rhs2,add2) ) throw new TODO();
+        long add3 = lhs3 + rhs3;
+        // Math is mod 256, so ignore last overflow
+        return push(add0,add1,add2,add3);
+    }
+    // Check the relationship amongst the sign bits only; the lower 63 bits are
+    // computed but ignored.
+    private static boolean overflow( long x, long y, long sum ) { return (~(x^y) & (x^sum)) < 0; }
+
+    private ExceptionalHaltReason mul() {
+        var halt = useGas(_gasCalc.getVeryLowTierGasCost());
+        if( halt!=null ) return halt;
+        if( _sp < 2 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
+        long lhs0 = STK0[--_sp], lhs1 = STK1[_sp], lhs2 = STK2[_sp], lhs3 = STK3[_sp];
+        long rhs0 = STK0[--_sp], rhs1 = STK1[_sp], rhs2 = STK2[_sp], rhs3 = STK3[_sp];
+        // Multiply by 1 shortcut
+        if( lhs0==1 && (lhs1 | lhs2 | lhs3)==0 )
+            return push(rhs0,rhs1,rhs2,rhs3);
+        if( rhs0==1 && (rhs1 | rhs2 | rhs3)==0 )
+            return push(lhs0,lhs1,lhs2,lhs3);
+
+        throw new TODO();
+    }
+
+    // Subtract
+    private ExceptionalHaltReason sub() {
+        var halt = useGas(_gasCalc.getVeryLowTierGasCost());
+        if( halt!=null ) return halt;
+        if( _sp < 2 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
+        long lhs0 = STK0[--_sp], lhs1 = STK1[_sp], lhs2 = STK2[_sp], lhs3 = STK3[_sp];
+        long rhs0 = STK0[--_sp], rhs1 = STK1[_sp], rhs2 = STK2[_sp], rhs3 = STK3[_sp];
+
+        // If both sign bits are the same and differ from the result, we overflowed
+        long sub0 = lhs0 - rhs0;
+        if( overflow(lhs0,~rhs0,sub0) ) throw new TODO();
+        long sub1 = lhs1 - rhs1;
+        if( overflow(lhs1,~rhs1,sub1) ) throw new TODO();
+        long sub2 = lhs2 - rhs2;
+        if( overflow(lhs2,~rhs2,sub2) ) throw new TODO();
+        long sub3 = lhs3 - rhs3;
+        // Math is mod 256, so ignore last overflow
+        return push(sub0,sub1,sub2,sub3);
+    }
+
+    private ExceptionalHaltReason div() {
+        var halt = useGas(_gasCalc.getVeryLowTierGasCost());
+        if( halt!=null ) return halt;
+        if( _sp < 2 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
+        long lhs0 = STK0[--_sp], lhs1 = STK1[_sp], lhs2 = STK2[_sp], lhs3 = STK3[_sp];
+        long rhs0 = STK0[--_sp], rhs1 = STK1[_sp], rhs2 = STK2[_sp], rhs3 = STK3[_sp];
+        throw new TODO();
+    }
+
+    // Exponent
+    private ExceptionalHaltReason exp() {
+        if( _sp < 2 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
+        long base0 = STK0[--_sp], base1 = STK1[_sp], base2 = STK2[_sp], base3 = STK3[_sp];
+        long pow0  = STK0[--_sp],  pow1 = STK1[_sp],  pow2 = STK2[_sp],  pow3 = STK3[_sp];
+
+        // Gas is based on busy longs in the power, converted to bytes
+        int numBytes =
+            pow3 != 0 ? 32 :
+            pow2 != 0 ? 24 :
+            pow1 != 0 ? 16 :
+            pow0 != 0 ?  8 : 0;
+        var halt = useGas(_gasCalc.expOperationGasCost(numBytes));
+        if( halt!=null ) return halt;
+
+        if( (pow1 | pow2 | pow3) == 0 ) {
+            if( pow0 == 0 )     // base^0 == 1
+                return push(1,0,0,0);
+        }
+        if( (base1 | base2 | base3) == 0 ) {
+            if( base0 == 0 )    // 0^pow == 0
+                return push(0,0,0,0);
+        }
+        // Prolly BigInteger
+        throw new TODO();
+    }
+
+    // Pop 2 words and Unsigned compare them.  Caller safety checked.
+    private int uCompareTo() {
+        long lhs0 = STK0[--_sp], lhs1 = STK1[_sp], lhs2 = STK2[_sp], lhs3 = STK3[_sp];
+        long rhs0 = STK0[--_sp], rhs1 = STK1[_sp], rhs2 = STK2[_sp], rhs3 = STK3[_sp];
+        int          rez = Long.compareUnsigned(lhs3,rhs3);
+        if( rez==0 ) rez = Long.compareUnsigned(lhs2,rhs2);
+        if( rez==0 ) rez = Long.compareUnsigned(lhs1,rhs1);
+        if( rez==0 ) rez = Long.compareUnsigned(lhs0,rhs0);
+        return rez;
+    }
+
+    // Unsigned Less Than
+    private ExceptionalHaltReason ult() {
+        var halt = useGas(_gasCalc.getVeryLowTierGasCost());
+        if( halt!=null ) return halt;
+        if( _sp < 2 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
+        return push( uCompareTo() < 0 ? 1 : 0);
+    }
+
+    // Unsigned Greater Than
+    private ExceptionalHaltReason ugt() {
+        var halt = useGas(_gasCalc.getVeryLowTierGasCost());
+        if( halt!=null ) return halt;
+        if( _sp < 2 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
+        return push( uCompareTo() > 0 ? 1 : 0);
+    }
+
+    // Pop 2 words and Signed compare them.  Caller safety checked.
+    private int sCompareTo() {
+        long lhs0 = STK0[--_sp], lhs1 = STK1[_sp], lhs2 = STK2[_sp], lhs3 = STK3[_sp];
+        long rhs0 = STK0[--_sp], rhs1 = STK1[_sp], rhs2 = STK2[_sp], rhs3 = STK3[_sp];
+        int          rez = Long.compare(lhs3,rhs3);
+        if( rez==0 ) rez = Long.compare(lhs2,rhs2);
+        if( rez==0 ) rez = Long.compare(lhs1,rhs1);
+        if( rez==0 ) rez = Long.compare(lhs0,rhs0);
+        return rez;
+    }
+
+    // Signed Less Than
+    private ExceptionalHaltReason slt() {
+        var halt = useGas(_gasCalc.getVeryLowTierGasCost());
+        if( halt!=null ) return halt;
+        if( _sp < 2 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
+        return push( sCompareTo() < 0 ? 1 : 0);
+    }
+
+    // Signed Greater Than
+    private ExceptionalHaltReason sgt() {
+        var halt = useGas(_gasCalc.getVeryLowTierGasCost());
+        if( halt!=null ) return halt;
+        if( _sp < 2 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
+        return push( sCompareTo() > 0 ? 1 : 0);
+    }
+
+    // Equals
+    private ExceptionalHaltReason eq() {
+        var halt = useGas(_gasCalc.getVeryLowTierGasCost());
+        if( halt!=null ) return halt;
+        if( _sp < 2 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
+        return push( uCompareTo() == 0 ? 1 : 0);
+    }
+
+    // Equals zero
+    private ExceptionalHaltReason eqz() {
+        var halt = useGas(_gasCalc.getVeryLowTierGasCost());
+        if( halt!=null ) return halt;
+        if( _sp < 1 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
+        long lhs0 = STK0[--_sp], lhs1 = STK1[_sp], lhs2 = STK2[_sp], lhs3 = STK3[_sp];
+        return push( (lhs0 | lhs1 | lhs2 | lhs3)==0 ? 1L : 0L );
+    }
+
+    // And
+    private ExceptionalHaltReason and() {
+        var halt = useGas(_gasCalc.getVeryLowTierGasCost());
+        if( halt!=null ) return halt;
+        if( _sp < 2 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
+        long lhs0 = STK0[--_sp], lhs1 = STK1[_sp], lhs2 = STK2[_sp], lhs3 = STK3[_sp];
+        long rhs0 = STK0[--_sp], rhs1 = STK1[_sp], rhs2 = STK2[_sp], rhs3 = STK3[_sp];
+        return push(lhs0 & rhs0, lhs1 & rhs1, lhs2 & rhs2, lhs3 & rhs3);
+    }
+
+    // Or
+    private ExceptionalHaltReason or() {
+        var halt = useGas(_gasCalc.getVeryLowTierGasCost());
+        if( halt!=null ) return halt;
+        if( _sp < 2 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
+        long lhs0 = STK0[--_sp], lhs1 = STK1[_sp], lhs2 = STK2[_sp], lhs3 = STK3[_sp];
+        long rhs0 = STK0[--_sp], rhs1 = STK1[_sp], rhs2 = STK2[_sp], rhs3 = STK3[_sp];
+        return push(lhs0 | rhs0, lhs1 | rhs1, lhs2 | rhs2, lhs3 | rhs3);
+    }
+
+    // not, bitwise complement (as opposed to a logical not)
+    private ExceptionalHaltReason not() {
+        if( _sp < 1 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
+        long not0 = STK0[--_sp], not1 = STK1[_sp], not2 = STK2[_sp], not3 = STK3[_sp];
+        return push(~not0, ~not1, ~not2, ~not3);
+    }
+
+    // Shr
+    private ExceptionalHaltReason shr() {
+        var halt = useGas(_gasCalc.getVeryLowTierGasCost());
+        if( halt!=null ) return halt;
+        if( _sp < 2 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
+        int shf = popMemAddress();
+        if( shf >= 256 )
+            return push0();
+        long val0 = STK0[--_sp], val1 = STK1[_sp], val2 = STK2[_sp], val3 = STK3[_sp];
+        // While shift is large, shift by whole registers
+        while( shf >= 64 ) {
+            val0 = val1;  val1 = val2;  val2 = val3;  val3 = 0;
+            shf -= 64;
+        }
+        // Remaining partial shift has to merge across word boundries
+        if( shf != 0 ) {
+            val0 = (val0>>shf) | (val1<<(64-shf));
+            val1 = (val1>>shf) | (val2<<(64-shf));
+            val2 = (val2>>shf) | (val3<<(64-shf));
+            val3 = (val3>>shf);
+        }
+        return push(val0,val1,val2,val3);
+    }
+
+
+
+    // ---------------------
+    // Call input/output
+
+    // Push passed ETH value
+    private ExceptionalHaltReason callValue() {
+        var halt = useGas(_gasCalc.getBaseTierGasCost());
+        if( halt!=null ) return halt;
+        return push((UInt256)_frame.getValue().toBytes());
+    }
+
+    // Load 32bytes of the call input data
+    private ExceptionalHaltReason callDataLoad() {
+        var halt = useGas(_gasCalc.getVeryLowTierGasCost());
+        if( halt!=null ) return halt;
+        int off = popMemAddress();
+        // If start is negative, or very large return a zero word
+        if( off > _callData.length )
+            return push0();
+        return push(_callData,off,Math.min(_callData.length-off,32));
+    }
+
+    // Push size of call data
+    private ExceptionalHaltReason callDataSize() {
+        var halt = useGas(_gasCalc.getVeryLowTierGasCost());
+        if( halt!=null ) return halt;
+        return push( _callData.length );
+    }
+
+    private ExceptionalHaltReason codeCopy() {
+        if( _sp < 3 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
+        long memOff = popLong();
+        long srcOff = popLong();
+        long len    = popLong();
+        if( (memOff | srcOff | len) < 0 )
+            return ExceptionalHaltReason.INVALID_OPERATION;
+        if( (memOff | srcOff | len) >= Integer.MAX_VALUE )
+            return ExceptionalHaltReason.INSUFFICIENT_GAS;
+        var halt = useGas(_gasCalc.dataCopyOperationGasCost(_frame, memOff, len));
+        if( halt!=null ) return halt;
+
+        _mem.write((int)memOff, _codes, (int)srcOff, (int)len);
+        return null;
+    }
+
+    // ---------------------
     // Control flow
 
     // Return from interpreter
+    private ExceptionalHaltReason stop() {
+        _frame.setOutputData(Bytes.EMPTY);
+        _frame.setState(MessageFrame.State.CODE_SUCCESS);
+        // Halt interpreter with no error
+        return ExceptionalHaltReason.NONE;
+    }
+
+    // Return from interpreter with data
     private ExceptionalHaltReason ret() {
         long off = popLong();
         long len = popLong();
@@ -278,53 +596,40 @@ class BEVM {
         // Halt interpreter with no error
         return ExceptionalHaltReason.NONE;
     }
-    private ExceptionalHaltReason jumpi() {
-        throw new TODO();
+
+    // Conditional jump to named target.  Returns either valid pc,
+    // or -1 for invalid pc or -2 for out of gas
+    private int jumpi(int nextpc) {
+        if( useGas(_gasCalc.getHighTierGasCost())!=null ) return -2;
+        long dst  = popLong();
+        long cond = popLong();
+        if( cond == 0 ) return nextpc; // No jump is jump-to-nextpc
+        return dst < 0 || dst > _codes.length || !jumpValid((int)dst)
+            ? -1                // Error
+            : (int)dst;         // Target
     }
 
-
-    // ---------------------
-    // Simple stack ops
-
-    // Push an immediate 0 to stack
-    private ExceptionalHaltReason push0() {
-        var halt = useGas(_gasCalc.getBaseTierGasCost());
-        if( halt!=null ) return halt;
-        return push( 0L );
+    private int jump() {
+        if( useGas(_gasCalc.getMidTierGasCost())!=null ) return -2;
+        long dst = popLong();
+        return dst < 0 || dst > _codes.length || !jumpValid((int)dst)
+            ? -1                // Error
+            : (int)dst;         // Target
     }
 
-    private ExceptionalHaltReason pushLong( long x ) {
-        var halt = useGas(_gasCalc.getBaseTierGasCost());
-        if( halt!=null ) return halt;
-        return push( x );
-    }
-
-    // Push an array of immediate bytes onto stack
-    private ExceptionalHaltReason push( int pc, int newpc ) {
-        var halt = useGas(_gasCalc.getVeryLowTierGasCost());
-        if( halt!=null ) return halt;
-        return push( _codes, pc, newpc-pc );
-    }
-
-    // Duplicate nth word
-    private ExceptionalHaltReason dup( int n ) {
-        var halt = useGas(_gasCalc.getVeryLowTierGasCost());
-        if( halt!=null ) return halt;
-        if( _sp < n ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
-        long x0 = STK0[_sp-n], x1 = STK1[_sp-n], x2 = STK2[_sp-n], x3 = STK3[_sp-n];
-        return push(x0,x1,x2,x3);
-    }
-
-    // Swap nth word
-    private ExceptionalHaltReason swap( int n ) {
-        var halt = useGas(_gasCalc.getVeryLowTierGasCost());
-        if( halt!=null ) return halt;
-        if( _sp <= n ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
-        long tmp0 = STK0[_sp-1-n]; STK0[_sp-1-n] = STK0[_sp-1]; STK0[_sp-1] = tmp0;
-        long tmp1 = STK1[_sp-1-n]; STK1[_sp-1-n] = STK1[_sp-1]; STK1[_sp-1] = tmp1;
-        long tmp2 = STK2[_sp-1-n]; STK2[_sp-1-n] = STK2[_sp-1]; STK2[_sp-1] = tmp2;
-        long tmp3 = STK3[_sp-1-n]; STK3[_sp-1-n] = STK3[_sp-1]; STK3[_sp-1] = tmp3;
-        return null;
+    // Must jump to a jump dest, opcode 91/0x5B
+    private BitSet _jmpDest;
+    private boolean jumpValid( int x ) {
+        if( _jmpDest == null ) {
+            _jmpDest = new BitSet();
+            for( int i=0; i<_codes.length; i++ ) {
+                int op = _codes[i] & 0xFF;
+                if( op == 0x5B ) _jmpDest.set(i); // Set Jump Destination opcodes
+                if( op >= 0x60 && op < 0x80 )
+                    i += op - 0x60 + 1; // Skip immediate bytes
+            }
+        }
+        return _jmpDest.get(x);
     }
 
     // Pop
@@ -335,7 +640,6 @@ class BEVM {
         _sp--;
         return null;
     }
-
 
     // ---------------------
     // Memory ops
@@ -430,11 +734,7 @@ class BEVM {
         if( halt!=null ) return halt;
 
         // UInt256 already in AdrKey
-        UInt256 val = _recv.getStorageValue( ak._ui256 );
-        return push(UI256.getLong(val,3),
-                    UI256.getLong(val,2),
-                    UI256.getLong(val,1),
-                    UI256.getLong(val,0));
+        return push( _recv.getStorageValue( ak._ui256 ) );
     }
 
     private ExceptionalHaltReason customSLoad() {
@@ -501,126 +801,41 @@ class BEVM {
     }
 
     // ---------------------
-    // Arithmetic
+    // Simple stack ops
 
-    // Add
-    private ExceptionalHaltReason add() {
+    // Push an immediate 0 to stack
+    private ExceptionalHaltReason push0() {
+        var halt = useGas(_gasCalc.getBaseTierGasCost());
+        if( halt!=null ) return halt;
+        return push( 0L );
+    }
+
+    // Push an array of immediate bytes onto stack
+    private ExceptionalHaltReason push( int pc, int newpc ) {
         var halt = useGas(_gasCalc.getVeryLowTierGasCost());
         if( halt!=null ) return halt;
-        if( _sp < 2 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
-        long lhs0 = STK0[--_sp], lhs1 = STK1[_sp], lhs2 = STK2[_sp], lhs3 = STK3[_sp];
-        long rhs0 = STK0[--_sp], rhs1 = STK1[_sp], rhs2 = STK2[_sp], rhs3 = STK3[_sp];
-
-        // If both sign bits are the same and differ from the result, we overflowed
-        long add0 = lhs0 + rhs0;
-        if( overflow(lhs0,rhs0,add0) ) throw new TODO();
-        long add1 = lhs1 + rhs1;
-        if( overflow(lhs1,rhs1,add1) ) throw new TODO();
-        long add2 = lhs2 + rhs2;
-        if( overflow(lhs2,rhs2,add2) ) throw new TODO();
-        long add3 = lhs3 + rhs3;
-        // Math is mod 256, so ignore last overflow
-        return push(add0,add1,add2,add3);
-    }
-    private static boolean overflow( long x, long y, long sum ) { return (~(x^y) & (x^sum)) < 0; }
-
-    // not, bitwise complement (as opposed to a logical not)
-    private ExceptionalHaltReason not() {
-        if( _sp < 2 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
-        long not0 = STK0[--_sp], not1 = STK1[_sp], not2 = STK2[_sp], not3 = STK3[_sp];
-        return push(~not0, ~not1, ~not2, ~not3);
+        return push( _codes, pc, newpc-pc );
     }
 
-    // And
-    private ExceptionalHaltReason and() {
+    // Duplicate nth word
+    private ExceptionalHaltReason dup( int n ) {
         var halt = useGas(_gasCalc.getVeryLowTierGasCost());
         if( halt!=null ) return halt;
-        if( _sp < 2 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
-        long lhs0 = STK0[--_sp], lhs1 = STK1[_sp], lhs2 = STK2[_sp], lhs3 = STK3[_sp];
-        long rhs0 = STK0[--_sp], rhs1 = STK1[_sp], rhs2 = STK2[_sp], rhs3 = STK3[_sp];
-        return push(lhs0 & rhs0, lhs1 & rhs1, lhs2 & rhs2, lhs3 & rhs3);
+        if( _sp < n ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
+        long x0 = STK0[_sp-n], x1 = STK1[_sp-n], x2 = STK2[_sp-n], x3 = STK3[_sp-n];
+        return push(x0,x1,x2,x3);
     }
 
-    // Or
-    private ExceptionalHaltReason or() {
+    // Swap nth word
+    private ExceptionalHaltReason swap( int n ) {
         var halt = useGas(_gasCalc.getVeryLowTierGasCost());
         if( halt!=null ) return halt;
-        if( _sp < 2 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
-        long lhs0 = STK0[--_sp], lhs1 = STK1[_sp], lhs2 = STK2[_sp], lhs3 = STK3[_sp];
-        long rhs0 = STK0[--_sp], rhs1 = STK1[_sp], rhs2 = STK2[_sp], rhs3 = STK3[_sp];
-        return push(lhs0 | rhs0, lhs1 | rhs1, lhs2 | rhs2, lhs3 | rhs3);
-    }
-
-    // Exponent
-    private ExceptionalHaltReason exp() {
-        if( _sp < 2 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
-        long base0 = STK0[--_sp], base1 = STK1[_sp], base2 = STK2[_sp], base3 = STK3[_sp];
-        long pow0  = STK0[--_sp],  pow1 = STK1[_sp],  pow2 = STK2[_sp],  pow3 = STK3[_sp];
-
-        // Gas is based on busy longs in the power, converted to bytes
-        int numBytes =
-            pow3 != 0 ? 32 :
-            pow2 != 0 ? 24 :
-            pow1 != 0 ? 16 :
-            pow0 != 0 ?  8 : 0;
-        var halt = useGas(_gasCalc.expOperationGasCost(numBytes));
-        if( halt!=null ) return halt;
-
-        if( (pow1 | pow2 | pow3) == 0 ) {
-            if( pow0 == 0 )     // base^0 == 1
-                return push(1,0,0,0);
-        }
-        if( (base1 | base2 | base3) == 0 ) {
-            if( base0 == 0 )    // 0^pow == 0
-                return push(0,0,0,0);
-        }
-        // Prolly BigInteger
-        throw new TODO();
-    }
-
-
-    // Pop 2 words and compare them.  Caller safety checked.
-    private int compareTo() {
-        long lhs0 = STK0[--_sp], lhs1 = STK1[_sp], lhs2 = STK2[_sp], lhs3 = STK3[_sp];
-        long rhs0 = STK0[--_sp], rhs1 = STK1[_sp], rhs2 = STK2[_sp], rhs3 = STK3[_sp];
-        int          rez = Long.compareUnsigned(rhs3,lhs3);
-        if( rez==0 ) rez = Long.compareUnsigned(rhs2,lhs2);
-        if( rez==0 ) rez = Long.compareUnsigned(rhs1,lhs1);
-        if( rez==0 ) rez = Long.compareUnsigned(rhs0,lhs0);
-        return rez;
-    }
-
-    // Less Than
-    private ExceptionalHaltReason lt() {
-        var halt = useGas(_gasCalc.getVeryLowTierGasCost());
-        if( halt!=null ) return halt;
-        if( _sp < 2 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
-        return push( compareTo() < 0 ? 1 : 0);
-    }
-
-    // ---------------------
-    // Misc
-
-    private ExceptionalHaltReason codeCopy() {
-        if( _sp < 3 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
-        long memOff = popLong();
-        long srcOff = popLong();
-        long len    = popLong();
-        if( (memOff | srcOff | len) < 0 )
-            return ExceptionalHaltReason.INVALID_OPERATION;
-        if( (memOff | srcOff | len) >= Integer.MAX_VALUE )
-            return ExceptionalHaltReason.INSUFFICIENT_GAS;
-        var halt = useGas(_gasCalc.dataCopyOperationGasCost(_frame, memOff, len));
-        if( halt!=null ) return halt;
-
-        _mem.write((int)memOff, _codes, (int)srcOff, (int)len);
+        if( _sp <= n ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
+        long tmp0 = STK0[_sp-1-n]; STK0[_sp-1-n] = STK0[_sp-1]; STK0[_sp-1] = tmp0;
+        long tmp1 = STK1[_sp-1-n]; STK1[_sp-1-n] = STK1[_sp-1]; STK1[_sp-1] = tmp1;
+        long tmp2 = STK2[_sp-1-n]; STK2[_sp-1-n] = STK2[_sp-1]; STK2[_sp-1] = tmp2;
+        long tmp3 = STK3[_sp-1-n]; STK3[_sp-1-n] = STK3[_sp-1]; STK3[_sp-1] = tmp3;
         return null;
-    }
-
-
-    // Push size of call data
-    private ExceptionalHaltReason callDataSize() {
-        return pushLong( _frame.getInputData().size() );
     }
 
 }
