@@ -472,8 +472,6 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
         logger.debug("{} BlockAcknowledgement received for block {}.", this, acknowledgedBlockNumber);
         acknowledgeBlocks(acknowledgedBlockNumber, true);
 
-        updateAcknowledgementMetrics(acknowledgedBlockNumber);
-
         // Evaluate latency and high-latency QoS via the connection manager
         final var result = blockNodeConnectionManager.recordBlockAckAndCheckLatency(
                 nodeConfig, acknowledgedBlockNumber, Instant.now());
@@ -537,6 +535,8 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
 
         final long currentBlockStreaming = streamingBlockNumber.get();
         final long currentBlockProducing = blockBufferService.getLastBlockNumberProduced();
+
+        updateAcknowledgementMetrics(acknowledgedBlockNumber);
 
         // Update the last verified block by the current connection
         blockBufferService.setLatestAcknowledgedBlock(acknowledgedBlockNumber);
@@ -848,7 +848,7 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                             blockNodeConnectionManager.recordBlockProofSent(
                                     nodeConfig, r.blockNumber(), Instant.ofEpochMilli(sentMs));
                         }
-                        if (r.hasBlockHeader) {
+                        if (r.hasBlockHeader()) {
                             BlockState blockState = blockBufferService.getBlockState(r.blockNumber());
                             if (blockState != null) {
                                 blockState.setHeaderSentMs(sentMs);
