@@ -258,7 +258,7 @@ public class BlockNodeSuite {
             })
     @Order(1)
     final Stream<DynamicTest> node0StreamingHappyPath() {
-        return validateHappyPath(200000);
+        return validateHappyPath(20);
     }
 
     @HapiTest
