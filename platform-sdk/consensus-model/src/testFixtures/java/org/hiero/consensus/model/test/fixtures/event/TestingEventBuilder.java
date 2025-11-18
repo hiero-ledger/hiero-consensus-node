@@ -448,9 +448,11 @@ public class TestingEventBuilder {
         }
 
         final List<EventDescriptorWrapper> allParentDescriptors = Stream.concat(
-                        Stream.ofNullable(selfParent),
-                        Stream.ofNullable(otherParents).flatMap(List::stream))
-                .map(parent -> createDescriptorFromParent(parent, otherParentBirthRoundOverride))
+                        Stream.ofNullable(selfParent)
+                                .map(parent -> createDescriptorFromParent(parent, selfParentBirthRoundOverride)),
+                        Stream.ofNullable(otherParents).flatMap(List::stream)
+                                .map(parent -> createDescriptorFromParent(parent, otherParentBirthRoundOverride))
+                )
                 .toList();
 
         if (this.birthRound == null) {
