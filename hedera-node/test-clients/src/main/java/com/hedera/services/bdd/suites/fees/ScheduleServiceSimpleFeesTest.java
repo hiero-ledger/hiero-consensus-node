@@ -37,7 +37,7 @@ public class ScheduleServiceSimpleFeesTest {
     private static final double BASE_FEE_SCHEDULE_DELETE = 0.001;
     private static final double BASE_FEE_SCHEDULE_INFO = 0.0001;
     private static final double BASE_FEE_CONTRACT_CALL = 0.1;
-    private static final double SINGLE_SIGNATURE_COST = 0.001;
+    private static final double SINGLE_SIGNATURE_COST = 0.0001;
 
     @HapiTest
     @DisplayName("Schedule ops have expected USD fees")
@@ -104,6 +104,6 @@ public class ScheduleServiceSimpleFeesTest {
                 // TODO: enable when we have proper fees for scheduling contract call
 
                 //                    validateChargedUsd("canonicalContractCall", BASE_FEE_CONTRACT_CALL, 3.0),
-                validateChargedUsd("getScheduleInfoBasic", BASE_FEE_SCHEDULE_INFO, 3));
+                validateChargedUsd("getScheduleInfoBasic", BASE_FEE_SCHEDULE_INFO));
     }
 }

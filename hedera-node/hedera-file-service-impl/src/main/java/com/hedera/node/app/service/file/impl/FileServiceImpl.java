@@ -3,7 +3,10 @@ package com.hedera.node.app.service.file.impl;
 
 import com.hedera.node.app.service.addressbook.ReadableNodeStore;
 import com.hedera.node.app.service.file.FileService;
+import com.hedera.node.app.service.file.impl.calculator.FileAppendFeeCalculator;
 import com.hedera.node.app.service.file.impl.calculator.FileCreateFeeCalculator;
+import com.hedera.node.app.service.file.impl.calculator.FileDeleteFeeCalculator;
+import com.hedera.node.app.service.file.impl.calculator.FileUpdateFeeCalculator;
 import com.hedera.node.app.service.file.impl.schemas.V0490FileSchema;
 import com.hedera.node.app.spi.RpcService;
 import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
@@ -11,8 +14,8 @@ import com.hedera.node.app.spi.workflows.SystemContext;
 import com.hedera.node.config.data.FeesConfig;
 import com.swirlds.state.lifecycle.SchemaRegistry;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import javax.inject.Inject;
 import java.util.Set;
+import javax.inject.Inject;
 
 /** Standard implementation of the {@link FileService} {@link RpcService}. */
 public final class FileServiceImpl implements FileService {
@@ -78,6 +81,10 @@ public final class FileServiceImpl implements FileService {
 
     @Override
     public Set<ServiceFeeCalculator> serviceFeeCalculators() {
-        return Set.of(new FileCreateFeeCalculator());
+        return Set.of(
+                new FileCreateFeeCalculator(),
+                new FileUpdateFeeCalculator(),
+                new FileDeleteFeeCalculator(),
+                new FileAppendFeeCalculator());
     }
 }

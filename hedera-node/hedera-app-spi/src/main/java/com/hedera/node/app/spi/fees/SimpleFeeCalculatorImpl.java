@@ -45,32 +45,24 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
      * @param bytes the transaction size in bytes
      * @param keys the number of keys
      */
-    private void addExtraFees(
+    private void addNodeExtras(
             @NonNull final FeeResult result,
-            @NonNull final String feeType,
             @NonNull final Iterable<ExtraFeeReference> extras,
             final long signatures,
-            final long bytes,
-            final long keys) {
+            final long bytes) {
         for (final ExtraFeeReference ref : extras) {
             final long used =
                     switch (ref.name()) {
                         case SIGNATURES -> signatures;
                         case BYTES -> bytes;
-                        case KEYS -> keys;
                         default -> 0; // Ignore extras not applicable to this transaction
                     };
 
             if (used > ref.includedCount()) {
                 final long overage = used - ref.includedCount();
                 final long unitFee = lookupExtraFee(feeSchedule, ref.name()).fee();
-                final long cost = overage * unitFee;
 
-                if ("Node".equals(feeType)) {
-                    result.addNodeFee(overage, cost);
-                } else {
-                    result.addServiceFee(overage, cost);
-                }
+                result.addNodeFee(overage, unitFee);
             }
         }
     }
@@ -83,6 +75,7 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
      * @param calculatorState the calculator state containing signature count
      * @return the calculated fee result
      */
+    @NonNull
     @Override
     public FeeResult calculateTxFee(
             @NonNull final TransactionBody txnBody, @Nullable final CalculatorState calculatorState) {
@@ -92,13 +85,14 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
 
         final var result = new FeeResult();
 
-        // Add node base + extras
+        // Add node base
         result.addNodeFee(1, feeSchedule.node().baseFee());
-        addExtraFees(result, "Node", feeSchedule.node().extras(), signatures, bytes, 0);
-
         // Add network fee
         final int multiplier = feeSchedule.network().multiplier();
         result.addNetworkFee(result.node * multiplier);
+
+        // Add node extras after we calculated the network fee
+        addNodeExtras(result, feeSchedule.node().extras(), signatures, bytes);
 
         final var serviceFeeCalculator =
                 serviceFeeCalculators.get(txnBody.data().kind());

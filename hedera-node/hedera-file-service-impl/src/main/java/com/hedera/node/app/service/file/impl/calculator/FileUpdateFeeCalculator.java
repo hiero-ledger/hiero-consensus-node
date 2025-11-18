@@ -16,21 +16,21 @@ import org.hiero.hapi.fees.FeeResult;
 import org.hiero.hapi.support.fees.FeeSchedule;
 import org.hiero.hapi.support.fees.ServiceFeeDefinition;
 
-public class FileCreateFeeCalculator implements ServiceFeeCalculator {
+public class FileUpdateFeeCalculator implements ServiceFeeCalculator {
     @Override
     public void accumulateServiceFee(
             @NonNull final TransactionBody txnBody,
             @Nullable final CalculatorState calculatorState,
             @NonNull final FeeResult feeResult,
             @NonNull final FeeSchedule feeSchedule) {
-        final var op = txnBody.fileCreateOrThrow();
+        final var op = txnBody.fileUpdateOrThrow();
         long keyCount = 0L;
         if (op.hasKeys()) {
             keyCount = txnBody.fileCreateOrThrow().keys().keys().stream()
                     .mapToLong(SimpleFeeCalculatorImpl::countKeys)
                     .sum();
         }
-        final ServiceFeeDefinition serviceDef = lookupServiceFee(feeSchedule, HederaFunctionality.FILE_CREATE);
+        final ServiceFeeDefinition serviceDef = lookupServiceFee(feeSchedule, HederaFunctionality.FILE_UPDATE);
         feeResult.addServiceFee(1, serviceDef.baseFee());
         addExtraFee(feeResult, serviceDef, KEYS, feeSchedule, keyCount);
         addExtraFee(feeResult, serviceDef, BYTES, feeSchedule, op.contents().length());
@@ -38,6 +38,6 @@ public class FileCreateFeeCalculator implements ServiceFeeCalculator {
 
     @Override
     public TransactionBody.DataOneOfType getTransactionType() {
-        return TransactionBody.DataOneOfType.FILE_CREATE;
+        return TransactionBody.DataOneOfType.FILE_UPDATE;
     }
 }
