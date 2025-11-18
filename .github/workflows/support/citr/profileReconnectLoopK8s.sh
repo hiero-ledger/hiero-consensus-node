@@ -15,8 +15,6 @@ LEARNER_LOG_LOCAL=swirlds.log
 
 k="sh $TOOLDIR/kubectlt -n $namespace"
 
-#downtime=1800
-#warmtime=600
 counter=0
 
 $k cp -c root-container $TOOLDIR/startPodJava.sh $LEARNER_POD:$LEARNER_LOG_DIR/../
