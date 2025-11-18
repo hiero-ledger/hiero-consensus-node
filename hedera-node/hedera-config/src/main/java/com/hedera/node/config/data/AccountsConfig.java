@@ -27,7 +27,7 @@ public record AccountsConfig(
         @ConfigProperty(defaultValue = "100000000") @NetworkProperty long maxNumber,
         @ConfigProperty(value = "blocklist.enabled", defaultValue = "false") @NetworkProperty boolean blocklistEnabled,
         @ConfigProperty(value = "blocklist.path", defaultValue = "") @NetworkProperty String blocklistResource,
-        @ConfigProperty(defaultValue = "2,50-59") PermissionedAccountsRange governanceTransactions) {
+        @ConfigProperty(defaultValue = "2,42-799") PermissionedAccountsRange governanceTransactions) {
 
     /**
      * Check if the given account is a superuser.
