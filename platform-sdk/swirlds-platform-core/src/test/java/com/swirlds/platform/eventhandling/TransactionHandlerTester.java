@@ -50,13 +50,14 @@ public class TransactionHandlerTester implements AutoCloseable {
      */
     public TransactionHandlerTester() {
 
-        consensusTimestamp = Instant.now().minusMillis(1);
         freezeTime = Instant.now();
+        consensusTimestamp = freezeTime.minusMillis(1);
+
         final PlatformContext platformContext =
                 TestPlatformContextBuilder.create().build();
         platformState = new PlatformStateValueAccumulator();
-        RandomSignedStateGenerator randomSignedStateGenerator = new RandomSignedStateGenerator();
-        SignedState state = randomSignedStateGenerator.build();
+        final RandomSignedStateGenerator randomSignedStateGenerator = new RandomSignedStateGenerator();
+        final SignedState state = randomSignedStateGenerator.build();
 
         consensusStateEventHandler = mock(ConsensusStateEventHandler.class);
 

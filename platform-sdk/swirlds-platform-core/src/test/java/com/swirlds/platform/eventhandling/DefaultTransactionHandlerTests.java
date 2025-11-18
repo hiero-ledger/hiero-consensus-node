@@ -2,7 +2,6 @@
 package com.swirlds.platform.eventhandling;
 
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.assertAllDatabasesClosed;
-import static com.swirlds.platform.consensus.SyntheticSnapshot.getSnapshotWithTimestamp;
 import static com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator.releaseAllBuiltSignedStates;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
@@ -13,13 +12,18 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.verify;
 
 import com.hedera.hapi.node.state.roster.Roster;
+import com.hedera.hapi.platform.state.ConsensusSnapshot;
+import com.hedera.hapi.platform.state.MinimumJudgeInfo;
 import com.swirlds.common.test.fixtures.Randotron;
 import com.swirlds.platform.system.status.actions.FreezePeriodEnteredAction;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.List;
+import org.hiero.base.utility.CommonUtils;
 import org.hiero.consensus.model.event.ConsensusEvent;
 import org.hiero.consensus.model.event.PlatformEvent;
+import org.hiero.consensus.model.hashgraph.ConsensusConstants;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
@@ -88,7 +92,7 @@ class DefaultTransactionHandlerTests {
     @ParameterizedTest
     @CsvSource({"false", "true"})
     void normalOperation(final boolean pcesRound) throws InterruptedException {
-        try (TransactionHandlerTester tester = new TransactionHandlerTester()) {
+        try (final TransactionHandlerTester tester = new TransactionHandlerTester()) {
             final ConsensusRound consensusRound = newConsensusRound(pcesRound);
 
             final TransactionHandlerResult handlerOutput =
@@ -189,6 +193,17 @@ class DefaultTransactionHandlerTests {
                             .getAndRethrow(),
                     "the running hash should from the freeze round");
         }
+    }
+
+    private static @NonNull ConsensusSnapshot getSnapshotWithTimestamp(Instant consensusTimestamp) {
+        return ConsensusSnapshot.newBuilder()
+                .round(ConsensusConstants.ROUND_FIRST)
+                .judgeIds(List.of())
+                .minimumJudgeInfoList(
+                        List.of(new MinimumJudgeInfo(ConsensusConstants.ROUND_FIRST, ConsensusConstants.ROUND_FIRST)))
+                .nextConsensusNumber(ConsensusConstants.FIRST_CONSENSUS_NUMBER)
+                .consensusTimestamp(CommonUtils.toPbjTimestamp(consensusTimestamp))
+                .build();
     }
 
     @AfterAll
