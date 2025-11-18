@@ -1441,28 +1441,14 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
     }
 
     @Test
-    void testConnectionWorker_switchBlock_initializeToHighestAckedBlock() throws Exception {
-        final TestConfigBuilder cfgBuilder =
-                createDefaultConfigProvider().withValue("blockStream.streamMode", "BLOCKS");
-        configProvider = createConfigProvider(cfgBuilder);
-        connection = new BlockNodeConnection(
-                configProvider,
-                nodeConfig,
-                connectionManager,
-                bufferService,
-                metrics,
-                executorService,
-                pipelineExecutor,
-                null,
-                clientFactory);
-
+    void testConnectionWorker_switchBlock_initialValue() throws Exception {
         openConnectionAndResetMocks();
         final AtomicReference<Thread> workerThreadRef = workerThreadRef();
         workerThreadRef.set(null); // clear out the fake worker thread so a real one can be initialized
         final AtomicLong streamingBlockNumber = streamingBlockNumber();
 
-        doReturn(100L).when(bufferService).getHighestAckedBlockNumber();
-        doReturn(new BlockState(101)).when(bufferService).getBlockState(101);
+        doReturn(100L).when(bufferService).getLastBlockNumberProduced();
+        doReturn(new BlockState(100L)).when(bufferService).getBlockState(100);
 
         assertThat(streamingBlockNumber).hasValue(-1);
 
@@ -1470,91 +1456,10 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         sleep(50); // give some time for the worker loop to detect the changes
 
         assertThat(workerThreadRef).doesNotHaveNullValue();
-        assertThat(streamingBlockNumber).hasValue(101);
-
-        verify(bufferService).getHighestAckedBlockNumber();
-        verify(bufferService).getBlockState(101);
-        verifyNoMoreInteractions(bufferService);
-        verifyNoInteractions(connectionManager);
-        verifyNoInteractions(metrics);
-        verifyNoInteractions(requestPipeline);
-    }
-
-    @Test
-    void testConnectionWorker_switchBlock_backPressureDisabled() throws Exception {
-        final TestConfigBuilder cfgBuilder = createDefaultConfigProvider().withValue("blockStream.streamMode", "BOTH");
-        configProvider = createConfigProvider(cfgBuilder);
-        connection = new BlockNodeConnection(
-                configProvider,
-                nodeConfig,
-                connectionManager,
-                bufferService,
-                metrics,
-                executorService,
-                pipelineExecutor,
-                null,
-                clientFactory);
-
-        openConnectionAndResetMocks();
-        final AtomicReference<Thread> workerThreadRef = workerThreadRef();
-        workerThreadRef.set(null); // clear out the fake worker thread so a real one can be initialized
-        final AtomicLong streamingBlockNumber = streamingBlockNumber();
-
-        doReturn(25L).when(bufferService).getLastBlockNumberProduced();
-        doReturn(new BlockState(25)).when(bufferService).getBlockState(25);
-
-        assertThat(streamingBlockNumber).hasValue(-1);
-
-        connection.updateConnectionState(ConnectionState.ACTIVE);
-        sleep(50); // give some time for the worker loop to detect the changes
-
-        assertThat(workerThreadRef).doesNotHaveNullValue();
-        assertThat(streamingBlockNumber).hasValue(25);
+        assertThat(streamingBlockNumber).hasValue(100);
 
         verify(bufferService).getLastBlockNumberProduced();
-        verify(bufferService).getBlockState(25);
-        verifyNoMoreInteractions(bufferService);
-        verifyNoInteractions(connectionManager);
-        verifyNoInteractions(metrics);
-        verifyNoInteractions(requestPipeline);
-    }
-
-    @Test
-    void testConnectionWorker_switchBlock_initializeToEarliestBlock() throws Exception {
-        final TestConfigBuilder cfgBuilder =
-                createDefaultConfigProvider().withValue("blockStream.streamMode", "BLOCKS");
-        configProvider = createConfigProvider(cfgBuilder);
-        connection = new BlockNodeConnection(
-                configProvider,
-                nodeConfig,
-                connectionManager,
-                bufferService,
-                metrics,
-                executorService,
-                pipelineExecutor,
-                null,
-                clientFactory);
-
-        openConnectionAndResetMocks();
-        final AtomicReference<Thread> workerThreadRef = workerThreadRef();
-        workerThreadRef.set(null); // clear out the fake worker thread so a real one can be initialized
-        final AtomicLong streamingBlockNumber = streamingBlockNumber();
-
-        doReturn(-1L).when(bufferService).getHighestAckedBlockNumber();
-        doReturn(12L).when(bufferService).getEarliestAvailableBlockNumber();
-        doReturn(new BlockState(12)).when(bufferService).getBlockState(12);
-
-        assertThat(streamingBlockNumber).hasValue(-1);
-
-        connection.updateConnectionState(ConnectionState.ACTIVE);
-        sleep(50); // give some time for the worker loop to detect the changes
-
-        assertThat(workerThreadRef).doesNotHaveNullValue();
-        assertThat(streamingBlockNumber).hasValue(12);
-
-        verify(bufferService).getHighestAckedBlockNumber();
-        verify(bufferService).getEarliestAvailableBlockNumber();
-        verify(bufferService).getBlockState(12);
+        verify(bufferService).getBlockState(100);
         verifyNoMoreInteractions(bufferService);
         verifyNoInteractions(connectionManager);
         verifyNoInteractions(metrics);
@@ -1582,8 +1487,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         workerThreadRef.set(null); // clear out the fake worker thread so a real one can be initialized
         final AtomicLong streamingBlockNumber = streamingBlockNumber();
 
-        doReturn(-1L).when(bufferService).getHighestAckedBlockNumber();
-        doReturn(-1L).when(bufferService).getEarliestAvailableBlockNumber();
+        doReturn(-1L).when(bufferService).getLastBlockNumberProduced();
 
         assertThat(streamingBlockNumber).hasValue(-1);
 
@@ -1593,8 +1497,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         assertThat(workerThreadRef).doesNotHaveNullValue();
         assertThat(streamingBlockNumber).hasValue(-1);
 
-        verify(bufferService, atLeastOnce()).getHighestAckedBlockNumber();
-        verify(bufferService, atLeastOnce()).getEarliestAvailableBlockNumber();
+        verify(bufferService, atLeastOnce()).getLastBlockNumberProduced();
         verifyNoMoreInteractions(bufferService);
         verifyNoInteractions(connectionManager);
         verifyNoInteractions(metrics);
@@ -1960,7 +1863,6 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         final AtomicReference<Thread> workerThreadRef = workerThreadRef();
         workerThreadRef.set(null);
         connection.createRequestPipeline();
-        connection.updateConnectionState(ConnectionState.ACTIVE);
 
         // Feed one item just over configuredMax to force fatal branch if limit not respected
         final AtomicLong streamingBlockNumber = streamingBlockNumber();
@@ -1972,6 +1874,8 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         final BlockItem tooLarge = newBlockTxItem(hardLimitBytes + 10);
         block.addItem(tooLarge);
         doReturn(block).when(bufferService).getBlockState(5);
+
+        connection.updateConnectionState(ConnectionState.ACTIVE);
 
         // Should have sent header, then ended stream due to size violation under configured limit
         verify(requestPipeline, timeout(2_000).atLeast(2)).onNext(any(PublishStreamRequest.class));
