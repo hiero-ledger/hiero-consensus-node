@@ -15,10 +15,7 @@ then
   rm -rf /opt/hgcapp/*Streams/*
   rm -rf output/*
   rm -rf data/saved/com.hedera.services.ServicesMain/${node_id}/123/*
-#  rm -rf /opt/hgcapp/services-hedera/HapiApp2.0/.archive
-
-  #cd $APP_HOME/data/keys
-  #bash generate.sh node1
+  
 fi
 
 if [ "$isToClean" = "cobertura" ]
