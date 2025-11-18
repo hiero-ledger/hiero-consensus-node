@@ -2,6 +2,7 @@
 package org.hiero.otter.fixtures;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.nio.file.Path;
 import java.util.Set;
 import org.hiero.otter.fixtures.chaosbot.ChaosBot;
 
@@ -62,6 +63,13 @@ public interface TestEnvironment {
      */
     @NonNull
     ChaosBot createChaosBot(long seed);
+
+    /**
+     * Get the root output directory for this test environment.
+     * @return the output directory
+     */
+    @NonNull
+    Path outputDirectory();
 
     /**
      * Destroys the test environment. Once this method is called, the test environment and all its

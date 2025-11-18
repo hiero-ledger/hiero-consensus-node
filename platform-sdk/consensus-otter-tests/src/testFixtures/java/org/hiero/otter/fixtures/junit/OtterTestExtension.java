@@ -17,6 +17,7 @@ import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.container.ContainerTestEnvironment;
 import org.hiero.otter.fixtures.turtle.TurtleSpecs;
 import org.hiero.otter.fixtures.turtle.TurtleTestEnvironment;
+import org.hiero.otter.fixtures.util.EnvironmentUtils;
 import org.junit.jupiter.api.RepeatedTest;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestFactory;
@@ -272,7 +273,8 @@ public class OtterTestExtension
                 AnnotationSupport.findAnnotation(extensionContext.getElement(), TurtleSpecs.class);
         final long randomSeed = turtleSpecs.map(TurtleSpecs::randomSeed).orElse(0L);
 
-        return new TurtleTestEnvironment(randomSeed, randomNodeIds);
+        final var outputDirectory = EnvironmentUtils.getDefaultOutputDirectory("Turtle", extensionContext);
+        return new TurtleTestEnvironment(randomSeed, randomNodeIds, outputDirectory);
     }
 
     /**
@@ -288,7 +290,8 @@ public class OtterTestExtension
                 AnnotationSupport.findAnnotation(extensionContext.getElement(), OtterSpecs.class);
         final boolean randomNodeIds = otterSpecs.map(OtterSpecs::randomNodeIds).orElse(true);
 
-        return new ContainerTestEnvironment(randomNodeIds);
+        final var outputDirectory = EnvironmentUtils.getDefaultOutputDirectory("Container", extensionContext);
+        return new ContainerTestEnvironment(randomNodeIds, outputDirectory);
     }
 
     /**

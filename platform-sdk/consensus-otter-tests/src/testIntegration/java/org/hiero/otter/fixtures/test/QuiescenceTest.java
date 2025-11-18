@@ -6,7 +6,6 @@ import static org.hiero.otter.fixtures.OtterAssertions.assertThat;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.util.List;
-import java.util.stream.Stream;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.Node;
@@ -14,18 +13,24 @@ import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.container.ContainerTestEnvironment;
 import org.hiero.otter.fixtures.turtle.TurtleTestEnvironment;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.api.Test;
 
 class QuiescenceTest {
 
     /**
-     * Provides a stream of test environments for the parameterized tests.
-     *
-     * @return a stream of {@link TestEnvironment} instances
+     * Test quiescence with Turtle environment.
      */
-    public static Stream<TestEnvironment> environments() {
-        return Stream.of(new TurtleTestEnvironment(), new ContainerTestEnvironment());
+    @Test
+    void testQuiescenceTurtle() {
+        testQuiescence(new TurtleTestEnvironment());
+    }
+
+    /**
+     * Test quiescence with Container environment.
+     */
+    @Test
+    void testQuiescenceContainer() {
+        testQuiescence(new ContainerTestEnvironment());
     }
 
     /**
@@ -34,9 +39,7 @@ class QuiescenceTest {
      *
      * @param env the test environment
      */
-    @ParameterizedTest
-    @MethodSource("environments")
-    void testQuiescence(@NonNull final TestEnvironment env) {
+    private void testQuiescence(@NonNull final TestEnvironment env) {
         try {
             final Network network = env.network();
             final TimeManager timeManager = env.timeManager();

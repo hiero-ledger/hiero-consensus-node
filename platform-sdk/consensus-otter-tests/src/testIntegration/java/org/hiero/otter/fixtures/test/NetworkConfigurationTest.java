@@ -8,7 +8,6 @@ import com.hedera.hapi.node.base.SemanticVersion;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.Paths;
 import java.util.List;
-import java.util.stream.Stream;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.TestEnvironment;
@@ -16,8 +15,6 @@ import org.hiero.otter.fixtures.container.ContainerTestEnvironment;
 import org.hiero.otter.fixtures.internal.AbstractNode;
 import org.hiero.otter.fixtures.turtle.TurtleTestEnvironment;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.MethodSource;
 
 /**
  * Tests for the NetworkConfiguration functionality that enables setting network properties before nodes are added and
@@ -26,22 +23,28 @@ import org.junit.jupiter.params.provider.MethodSource;
 final class NetworkConfigurationTest {
 
     /**
-     * Provides a stream of test environments for the parameterized tests.
-     *
-     * @return a stream of {@link TestEnvironment} instances
+     * Test that node configuration before nodes are added stores the values in NetworkConfiguration and applies them when nodes
+     * are subsequently added (Turtle environment).
      */
-    @NonNull
-    static Stream<TestEnvironment> environments() {
-        return Stream.of(new TurtleTestEnvironment(), new ContainerTestEnvironment());
+    @Test
+    void testNetworkConfigurationBeforeNodesAreAddedTurtle() {
+        testNetworkConfigurationBeforeNodesAreAdded(new TurtleTestEnvironment());
+    }
+
+    /**
+     * Test that node configuration before nodes are added stores the values in NetworkConfiguration and applies them when nodes
+     * are subsequently added (Container environment).
+     */
+    @Test
+    void testNetworkConfigurationBeforeNodesAreAddedContainer() {
+        testNetworkConfigurationBeforeNodesAreAdded(new ContainerTestEnvironment());
     }
 
     /**
      * Test that node configuration before nodes are added stores the values in NetworkConfiguration and applies them when nodes
      * are subsequently added.
      */
-    @ParameterizedTest
-    @MethodSource("environments")
-    void testNetworkConfigurationBeforeNodesAreAdded(@NonNull final TestEnvironment env) {
+    private void testNetworkConfigurationBeforeNodesAreAdded(@NonNull final TestEnvironment env) {
         try {
             final Network network = env.network();
 
