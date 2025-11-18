@@ -45,7 +45,6 @@ import com.hedera.pbj.runtime.UncheckedParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-
 import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
@@ -264,7 +263,8 @@ public class HookDispatchUtils {
      */
     public static void validateAllHookCreationDetails(
             @NonNull final List<HookCreationDetails> hookCreationDetailsList,
-            @NonNull final Set<HookExtensionPoint> allowedExtensionPoints) throws PreCheckException {
+            @NonNull final Set<HookExtensionPoint> allowedExtensionPoints)
+            throws PreCheckException {
         validateAllHookCreationDetails(hookCreationDetailsList, allowedExtensionPoints, null);
     }
 
@@ -279,7 +279,8 @@ public class HookDispatchUtils {
     public static void validateAllHookCreationDetails(
             @NonNull final List<HookCreationDetails> hookCreationDetailsList,
             @NonNull final Set<HookExtensionPoint> allowedExtensionPoints,
-            @Nullable final Set<HookExtensionPoint> exclusivePointsInUse) throws PreCheckException {
+            @Nullable final Set<HookExtensionPoint> exclusivePointsInUse)
+            throws PreCheckException {
         requireNonNull(hookCreationDetailsList);
         requireNonNull(allowedExtensionPoints);
         final Set<Long> hookIds = new HashSet<>();
@@ -291,7 +292,8 @@ public class HookDispatchUtils {
             }
             if (EXCLUSIVE_HOOKS.contains(details.extensionPoint())) {
                 if (exclusivePointsInUse != null) {
-                    validateTruePreCheck(!exclusivePointsInUse.contains(details.extensionPoint()), EXCLUSIVE_HOOK_ALREADY_IN_USE);
+                    validateTruePreCheck(
+                            !exclusivePointsInUse.contains(details.extensionPoint()), EXCLUSIVE_HOOK_ALREADY_IN_USE);
                 }
                 if (!newExclusivePoints.add(details.extensionPoint())) {
                     throw new PreCheckException(EXCLUSIVE_HOOK_ALREADY_IN_USE);
@@ -309,7 +311,8 @@ public class HookDispatchUtils {
      */
     public static void validateHookCreationDetails(
             @NonNull final HookCreationDetails hookCreationDetails,
-            @NonNull final Set<HookExtensionPoint> allowedExtensionPoints) throws PreCheckException {
+            @NonNull final Set<HookExtensionPoint> allowedExtensionPoints)
+            throws PreCheckException {
         requireNonNull(hookCreationDetails);
         requireNonNull(allowedExtensionPoints);
         validateTruePreCheck(hookCreationDetails.extensionPoint() != null, HOOK_EXTENSION_EMPTY);

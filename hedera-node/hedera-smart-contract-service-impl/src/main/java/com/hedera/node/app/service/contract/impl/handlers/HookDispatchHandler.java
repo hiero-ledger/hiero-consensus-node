@@ -36,12 +36,11 @@ import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
 import com.hedera.node.config.data.HooksConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.EnumSet;
+import java.util.Set;
 import javax.inject.Inject;
 import javax.inject.Provider;
 import org.hyperledger.besu.evm.gascalculator.GasCalculator;
-
-import java.util.EnumSet;
-import java.util.Set;
 
 public class HookDispatchHandler extends AbstractContractTransactionHandler implements TransactionHandler {
     private static final Set<HookExtensionPoint> ANY_EXTENSION_POINT = EnumSet.allOf(HookExtensionPoint.class);

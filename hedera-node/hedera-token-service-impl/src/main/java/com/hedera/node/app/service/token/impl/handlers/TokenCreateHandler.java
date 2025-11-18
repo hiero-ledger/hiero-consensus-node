@@ -4,20 +4,17 @@ package com.hedera.node.app.service.token.impl.handlers;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_AUTORENEW_ACCOUNT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_CUSTOM_FEE_COLLECTOR;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_HOOK_TYPE_FOR_EXTENSION_POINT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.MAX_ENTITIES_IN_PRICE_REGIME_HAVE_BEEN_CREATED;
 import static com.hedera.hapi.node.hooks.HookExtensionPoint.MINT_CONTROL_HOOK;
 import static com.hedera.node.app.hapi.fees.usage.SingletonUsageProperties.USAGE_PROPERTIES;
 import static com.hedera.node.app.hapi.fees.usage.token.TokenOpsUsageUtils.TOKEN_OPS_USAGE_UTILS;
 import static com.hedera.node.app.hapi.fees.usage.token.entities.TokenEntitySizes.TOKEN_ENTITY_SIZES;
-import static com.hedera.node.app.service.token.HookDispatchUtils.dispatchCreation;
 import static com.hedera.node.app.service.token.HookDispatchUtils.dispatchHookCreations;
 import static com.hedera.node.app.service.token.HookDispatchUtils.validateAllHookCreationDetails;
 import static com.hedera.node.app.service.token.impl.util.TokenHandlerHelper.verifyNotEmptyKey;
 import static com.hedera.node.app.service.token.impl.validators.CustomFeesValidator.SENTINEL_TOKEN_ID;
 import static com.hedera.node.app.spi.validation.ExpiryMeta.NA;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
-import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
@@ -27,7 +24,6 @@ import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TokenType;
 import com.hedera.hapi.node.hooks.HookCreationDetails;
-import com.hedera.hapi.node.hooks.HookExtensionPoint;
 import com.hedera.hapi.node.state.token.Token;
 import com.hedera.hapi.node.token.TokenCreateTransactionBody;
 import com.hedera.hapi.node.transaction.CustomFee;
@@ -54,7 +50,6 @@ import com.hedera.node.config.data.TokensConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-
 import java.util.List;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -152,7 +147,8 @@ public class TokenCreateHandler extends BaseTokenHandler implements TransactionH
             final var tokenEntityId =
                     HookEntityId.newBuilder().tokenId(newTokenId).build();
             final int slotDelta = dispatchHookCreations(context, op.hookCreationDetails(), null, tokenEntityId);
-            newToken = newToken.copyBuilder().numberLambdaStorageSlots(slotDelta).build();
+            newToken =
+                    newToken.copyBuilder().numberLambdaStorageSlots(slotDelta).build();
         }
 
         // validate custom fees and get back list of fees with created token denomination

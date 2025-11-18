@@ -105,6 +105,35 @@ the transition to a terminal state, it too will cease operations.
 
 To establish a connection back to the block node, a new connection object will need to be created.
 
+### Request Sizing
+
+There are two configurations that govern the size of a `PublishStreamRequest` that gets sent to a block node.
+These configurations are `messageSizeSoftLimitBytes` and `messageSizeHardLimitBytes`. These configurations can be
+customized for each block node via the `block-nodes.json` file.
+
+Under normal circumstances, requests are packed with multiple block items such that they get as close to the soft
+limit message size as possible. If a block item is large and would cause the request to exceed the soft limit, then
+the large item will be sent in its own request. The absolute maximum size a request can be is defined by the hard
+limit message size. If an item (or serialized request) exceeds this hard limit, then the consensus node cannot send
+the item/request to the block node.
+
+It is **strongly** recommended that the hard limit be set to `6292480`. This size is 6 MB + 1 KB. The
+largest block items currently supported are 6 MB, and the additional 1 KB is for overhead. If the hard limit is set to
+smaller than 6 MB and one of these large items are produced, then it cannot be sent to a block node.
+
+The default soft limit size is 2 MB. The default hard limit size is 6 MB + 1 KB.
+
+### Graceful Connection Close
+
+When a connection is closed, a best effort attempt to gracefully close the connection will be performed. There are two
+aspects to this "graceful close":
+1. Unless the connection is unstable, or we are notifying the block node it is too far behind, before closing an attempt
+will be made to send an EndStream request to the block with the code `RESET`.
+2. If the connection is actively streaming a block, a best effort to stream the rest of the block will be performed
+before closing the connection.
+
+A caveat to this is if the connection manager is being shutdown, then the connections will NOT be closed gracefully.
+
 ### Connection States
 
 - **UNINITIALIZED**: Initial state when a connection object is created. The bidi RequestObserver needs to be created.

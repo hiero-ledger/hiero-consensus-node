@@ -86,6 +86,7 @@ class ProxyEvmAccountHookTest {
 
     @Test
     void constructorRejectsNullHookState() {
-        assertThrows(NullPointerException.class, () -> new ProxyEvmAccountHook(state, null, CODE_FACTORY, entityIdFactory));
+        assertThrows(
+                NullPointerException.class, () -> new ProxyEvmAccountHook(state, null, CODE_FACTORY, entityIdFactory));
     }
 }

@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.handlers;
 
-import static com.hedera.hapi.node.base.HookEntityId.EntityIdOneOfType.UNSET;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.EMPTY_LAMBDA_STORAGE_UPDATE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOK_HAS_NO_STORAGE_KEY;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOK_IS_NOT_A_LAMBDA;
@@ -30,7 +29,6 @@ import com.hedera.hapi.node.hooks.LambdaMappingEntry;
 import com.hedera.hapi.node.hooks.LambdaStorageSlot;
 import com.hedera.node.app.service.contract.ReadableEvmHookStore;
 import com.hedera.node.app.service.contract.impl.state.WritableEvmHookStore;
-import com.hedera.node.app.service.token.HookDispatchUtils;
 import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.node.app.service.token.api.TokenServiceApi;
 import com.hedera.node.app.spi.workflows.HandleContext;

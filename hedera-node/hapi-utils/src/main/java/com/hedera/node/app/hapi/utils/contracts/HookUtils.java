@@ -1,15 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.hapi.utils.contracts;
 
-import static com.hedera.hapi.node.base.HookEntityId.EntityIdOneOfType.UNSET;
-import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_HOOK_ID;
 import static com.hedera.node.app.hapi.utils.MiscCryptoUtils.keccak256DigestOf;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountAmount;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
-import com.hedera.hapi.node.base.HookId;
 import com.hedera.hapi.node.base.NftTransfer;
 import com.hedera.hapi.node.base.TokenTransferList;
 import com.hedera.hapi.node.base.TransferList;
