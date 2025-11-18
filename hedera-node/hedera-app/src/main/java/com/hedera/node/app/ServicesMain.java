@@ -70,6 +70,7 @@ import com.swirlds.platform.system.SwirldMain;
 import com.swirlds.platform.util.BootstrapUtils;
 import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.State;
+import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
@@ -156,12 +157,11 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
 
     /**
      * {@inheritDoc}
-     * Specifically, {@link HederaVirtualMapState}.
+     * Specifically, {@link VirtualMapState}.
      */
     @Override
-    public Function<VirtualMap, MerkleNodeState> stateRootFromVirtualMap(
-            @NonNull final Metrics metrics, @NonNull final Time time) {
-        return hederaOrThrow().stateRootFromVirtualMap(metrics, time);
+    public Function<VirtualMap, MerkleNodeState> stateRootFromVirtualMap(@NonNull final Metrics metrics) {
+        return hederaOrThrow().stateRootFromVirtualMap(metrics);
     }
 
     /**
@@ -343,7 +343,7 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
                 Hedera.SWIRLD_NAME,
                 selfId,
                 platformContext,
-                hedera.stateRootFromVirtualMap(metrics, time));
+                hedera.stateRootFromVirtualMap(metrics));
         final ReservedSignedState initialState = reservedState.state();
         final MerkleNodeState state = initialState.get().getState();
         if (genesisNetwork.get() == null) {
@@ -377,7 +377,7 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
                                 // Otherwise derive if from the node's id in state or
                                 .orElseGet(() -> canonicalEventStreamLoc(selfId.id(), state)),
                         rosterHistory,
-                        hedera.stateRootFromVirtualMap(metrics, time))
+                        hedera.stateRootFromVirtualMap(metrics))
                 .withPlatformContext(platformContext)
                 .withConfiguration(platformConfig)
                 .withKeysAndCerts(keysAndCerts)
@@ -467,7 +467,7 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
                         metrics, ForkJoinPool.commonPool(), appContext, new HistoryLibraryImpl(), bootstrapConfig),
                 TssBlockHashSigner::new,
                 metrics,
-                () -> new HederaVirtualMapState(configuration, metrics, time));
+                () -> new VirtualMapState(configuration, metrics));
     }
 
     /**

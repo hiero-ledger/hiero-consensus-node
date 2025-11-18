@@ -26,7 +26,7 @@ import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
 import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.StateLifecycleManagerImpl;
-import com.swirlds.state.test.fixtures.merkle.TestVirtualMapState;
+import com.swirlds.state.test.fixtures.merkle.VirtualMapStateTestUtils;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
 import org.junit.jupiter.api.AfterEach;
@@ -60,7 +60,9 @@ class StateLifecycleManagerTests {
                 TestPlatformContextBuilder.create().build();
 
         stateLifecycleManager = new StateLifecycleManagerImpl(
-                platformContext.getMetrics(), platformContext.getTime(), TestVirtualMapState::new);
+                platformContext.getMetrics(),
+                platformContext.getTime(),
+                VirtualMapStateTestUtils::createTestStateWithVM);
         stateLifecycleManager.initState(initialState, true);
     }
 
@@ -173,7 +175,9 @@ class StateLifecycleManagerTests {
         final PlatformContext platformContext =
                 TestPlatformContextBuilder.create().build();
         final StateLifecycleManager uninitialized = new StateLifecycleManagerImpl(
-                platformContext.getMetrics(), platformContext.getTime(), TestVirtualMapState::new);
+                platformContext.getMetrics(),
+                platformContext.getTime(),
+                VirtualMapStateTestUtils::createTestStateWithVM);
         assertThrows(IllegalStateException.class, uninitialized::getMutableState);
     }
 
@@ -183,14 +187,16 @@ class StateLifecycleManagerTests {
         final PlatformContext platformContext =
                 TestPlatformContextBuilder.create().build();
         final StateLifecycleManager uninitialized = new StateLifecycleManagerImpl(
-                platformContext.getMetrics(), platformContext.getTime(), TestVirtualMapState::new);
+                platformContext.getMetrics(),
+                platformContext.getTime(),
+                VirtualMapStateTestUtils::createTestStateWithVM);
         assertThrows(IllegalStateException.class, uninitialized::getLatestImmutableState);
     }
 
     private static MerkleNodeState newState() {
         final String virtualMapLabel =
                 StateLifecycleManagerTests.class.getSimpleName() + "-" + java.util.UUID.randomUUID();
-        final MerkleNodeState state = TestVirtualMapState.createInstanceWithVirtualMapLabel(virtualMapLabel);
+        final MerkleNodeState state = VirtualMapStateTestUtils.createTestStateWithLabel(virtualMapLabel);
         TestingAppStateInitializer.initPlatformState(state);
 
         setCreationSoftwareVersionTo(

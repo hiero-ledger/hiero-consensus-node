@@ -2,6 +2,7 @@
 package com.hedera.node.app.state.merkle;
 
 import static com.swirlds.state.test.fixtures.merkle.MerkleStateRoot.MINIMUM_SUPPORTED_VERSION;
+import static com.swirlds.state.test.fixtures.merkle.VirtualMapStateTestUtils.createTestStateWithVM;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.hedera.hapi.node.base.SemanticVersion;
@@ -25,6 +26,7 @@ import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.lifecycle.StateDefinition;
 import com.swirlds.state.merkle.StateLifecycleManagerImpl;
+import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.merkle.disk.OnDiskReadableKVState;
 import com.swirlds.state.merkle.disk.OnDiskWritableKVState;
 import com.swirlds.state.spi.ReadableKVState;
@@ -34,7 +36,7 @@ import com.swirlds.state.spi.WritableKVState;
 import com.swirlds.state.spi.WritableQueueState;
 import com.swirlds.state.spi.WritableSingletonState;
 import com.swirlds.state.test.fixtures.merkle.MerkleTestBase;
-import com.swirlds.state.test.fixtures.merkle.TestVirtualMapState;
+import com.swirlds.state.test.fixtures.merkle.VirtualMapStateTestUtils;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
 import com.swirlds.virtualmap.config.VirtualMapConfig_;
@@ -178,7 +180,7 @@ class SerializationTest extends MerkleTestBase {
             serializedBytes = writeTree(originalTree.getRoot(), dir);
         }
 
-        final TestVirtualMapState loadedTree = loadedMerkleTree(schemaV1, serializedBytes);
+        final VirtualMapState loadedTree = loadedMerkleTree(schemaV1, serializedBytes);
 
         assertTree(loadedTree);
         try {
@@ -230,7 +232,7 @@ class SerializationTest extends MerkleTestBase {
         copy.getRoot().getHash();
         final byte[] serializedBytes = writeTree(copy.getRoot(), dir);
 
-        TestVirtualMapState loadedTree = loadedMerkleTree(schemaV1, serializedBytes);
+        final VirtualMapState loadedTree = loadedMerkleTree(schemaV1, serializedBytes);
         ((OnDiskReadableKVState) originalTree.getReadableStates(FIRST_SERVICE).get(FRUIT_STATE_ID)).reset();
         populateVmCache(loadedTree);
 
@@ -242,7 +244,7 @@ class SerializationTest extends MerkleTestBase {
         final byte[] serializedBytesWithCache = writeTree(loadedTree.getRoot(), dir);
 
         // let's load it again and see if it works
-        TestVirtualMapState loadedTreeWithCache = loadedMerkleTree(schemaV1, serializedBytesWithCache);
+        final VirtualMapState loadedTreeWithCache = loadedMerkleTree(schemaV1, serializedBytesWithCache);
         ((OnDiskReadableKVState)
                         loadedTreeWithCache.getReadableStates(FIRST_SERVICE).get(FRUIT_STATE_ID))
                 .reset();
@@ -258,9 +260,9 @@ class SerializationTest extends MerkleTestBase {
         copy.release();
     }
 
-    private TestVirtualMapState loadedMerkleTree(Schema schemaV1, byte[] serializedBytes) throws IOException {
+    private VirtualMapState loadedMerkleTree(final Schema schemaV1, final byte[] serializedBytes) throws IOException {
         final VirtualMap virtualMap = parseTree(serializedBytes, dir);
-        final TestVirtualMapState loadedTree = new TestVirtualMapState(virtualMap);
+        final VirtualMapState loadedTree = createTestStateWithVM(virtualMap);
         initServices(schemaV1, loadedTree);
 
         return loadedTree;
@@ -294,8 +296,8 @@ class SerializationTest extends MerkleTestBase {
         originalRegistry.migrate(
                 originalTreeCopy, null, v1, config, config, new HashMap<>(), migrationStateChanges, startupNetworks);
 
-        final StateLifecycleManager stateLifecycleManager =
-                new StateLifecycleManagerImpl(new NoOpMetrics(), new FakeTime(), TestVirtualMapState::new);
+        final StateLifecycleManager stateLifecycleManager = new StateLifecycleManagerImpl(
+                new NoOpMetrics(), new FakeTime(), VirtualMapStateTestUtils::createTestStateWithVM);
 
         stateLifecycleManager.initState(originalTreeCopy, true);
         return stateLifecycleManager;

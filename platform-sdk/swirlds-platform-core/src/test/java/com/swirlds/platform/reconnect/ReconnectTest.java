@@ -2,7 +2,7 @@
 package com.swirlds.platform.reconnect;
 
 import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticThreadManager;
-import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
+import static com.swirlds.state.test.fixtures.merkle.VirtualMapStateTestUtils.createTestState;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -24,7 +24,7 @@ import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
 import com.swirlds.state.MerkleNodeState;
-import com.swirlds.state.test.fixtures.merkle.TestVirtualMapState;
+import com.swirlds.state.test.fixtures.merkle.VirtualMapStateTestUtils;
 import java.io.IOException;
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
@@ -110,7 +110,7 @@ final class ReconnectTest {
             final SignedState signedState = new RandomSignedStateGenerator()
                     .setRoster(roster)
                     .setSigningNodeIds(nodeIds)
-                    .setState(new TestVirtualMapState())
+                    .setState(createTestState())
                     .build();
 
             stateCopy = signedState.getState().copy();
@@ -170,8 +170,6 @@ final class ReconnectTest {
 
     private ReconnectStateLearner buildReceiver(
             final MerkleNodeState state, final Connection connection, final ReconnectMetrics reconnectMetrics) {
-        final Roster roster =
-                RandomRosterBuilder.create(getRandomPrintSeed()).withSize(5).build();
 
         return new ReconnectStateLearner(
                 TestPlatformContextBuilder.create().build(),

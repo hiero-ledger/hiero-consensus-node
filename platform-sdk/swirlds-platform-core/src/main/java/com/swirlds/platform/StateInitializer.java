@@ -101,7 +101,7 @@ public final class StateInitializer {
      * Initializes a {@link MerkleNodeState} from the given state root.
      * <p>
      * If the state root is an instance of {@link VirtualMap}, it means this is a "Mega Map" and provided function
-     * is used to create the {@code MerkleNodeState} (i.e. {@code HederaVirtualMapState}). Otherwise, it casts the state root directly
+     * is used to create the {@code MerkleNodeState} (i.e. {@code VirtualMapState}). Otherwise, it casts the state root directly
      * to {@code MerkleNodeState}.
      * </p>
      *

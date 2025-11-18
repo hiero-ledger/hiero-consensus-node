@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.demo.migration;
 
+import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.virtualmap.VirtualMap;
 import java.io.IOException;
 import java.util.Random;
@@ -9,7 +10,7 @@ import org.hiero.base.io.streams.SerializableDataInputStream;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
 
 /**
- * A transaction that can be applied to a {@link MigrationTestingToolState}.
+ * A transaction that can be applied to a {@link VirtualMapState}.
  */
 public class MigrationTestingToolTransaction implements SelfSerializable {
 
@@ -38,7 +39,7 @@ public class MigrationTestingToolTransaction implements SelfSerializable {
      * @param state
      * 		a mutable state
      */
-    public void applyToState(final MigrationTestingToolState state) {
+    public void applyToState(final VirtualMapState state) {
         final Random random = new Random(seed);
         final VirtualMap map = (VirtualMap) state.getRoot();
 
