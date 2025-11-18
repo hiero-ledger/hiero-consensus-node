@@ -208,3 +208,50 @@ message RecordedHistorySignature {
   HistorySignature history_signature = 2;
 }
 
+
+/**
+ * The phase of a WRAPS proof construction.
+ */
+enum WrapsPhase {
+  /**
+   * Nodes are publishing their proof keys and R1 messages.
+   */
+  R1 = 0;
+  /**
+   * Nodes are publishing their R2 messages.
+   */
+  R2 = 1;
+  /**
+   * Nodes are publishing their R3 messages.
+   */
+  R3 = 2;
+}
+
+/**
+ * A message published by a node during a WRAPS proof construction.
+ */
+message WrapsMessageDetails {
+  /**
+   * The time at which the message was published.
+   */
+  proto.Timestamp publication_time = 1;
+  /**
+   * The phase of the construction the message applies to.
+   */
+  WrapsPhase phase = 2;
+  /**
+   * The message itself.
+   */
+  bytes message = 3;
+}
+
+/**
+ * A history of messages published during a WRAPS proof construction.
+ */
+message WrapsMessageHistory {
+  /*
+   * The published messages.
+   */
+  repeated WrapsMessageDetails messages = 1;
+}
+

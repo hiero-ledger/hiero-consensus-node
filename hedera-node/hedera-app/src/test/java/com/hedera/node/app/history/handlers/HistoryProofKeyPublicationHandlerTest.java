@@ -6,6 +6,7 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
+import com.hedera.hapi.node.state.history.WrapsPhase;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.services.auxiliary.history.HistoryProofKeyPublicationTransactionBody;
 import com.hedera.node.app.history.ReadableHistoryStore;
@@ -73,7 +74,7 @@ class HistoryProofKeyPublicationHandlerTest {
 
     @Test
     void ifProofKeyIsImmediatelyActiveTriesToAddToRelevantController() {
-        givenPublicationWith(PROOF_KEY);
+        givenProofKeyPublicationWith(PROOF_KEY);
         given(nodeInfo.nodeId()).willReturn(NODE_ID);
         given(context.creatorInfo()).willReturn(nodeInfo);
         given(context.storeFactory()).willReturn(factory);
@@ -93,7 +94,7 @@ class HistoryProofKeyPublicationHandlerTest {
 
     @Test
     void doesNothingMoreIfProofKeyIsNotImmediately() {
-        givenPublicationWith(PROOF_KEY);
+        givenProofKeyPublicationWith(PROOF_KEY);
         given(nodeInfo.nodeId()).willReturn(NODE_ID);
         given(context.creatorInfo()).willReturn(nodeInfo);
         given(context.storeFactory()).willReturn(factory);
@@ -106,8 +107,11 @@ class HistoryProofKeyPublicationHandlerTest {
         verifyNoInteractions(controllers);
     }
 
-    private void givenPublicationWith(@NonNull final Bytes key) {
-        final var op = new HistoryProofKeyPublicationTransactionBody(key);
+    private void givenProofKeyPublicationWith(@NonNull final Bytes key) {
+        final var op = HistoryProofKeyPublicationTransactionBody.newBuilder()
+                .proofKey(key)
+                .phase(WrapsPhase.R1)
+                .build();
         final var body =
                 TransactionBody.newBuilder().historyProofKeyPublication(op).build();
         given(context.body()).willReturn(body);

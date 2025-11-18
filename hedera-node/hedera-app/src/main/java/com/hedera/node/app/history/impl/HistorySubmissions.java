@@ -6,6 +6,7 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.state.history.HistoryProof;
 import com.hedera.hapi.node.state.history.HistoryProofVote;
 import com.hedera.hapi.node.state.history.HistorySignature;
+import com.hedera.hapi.node.state.history.WrapsPhase;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.services.auxiliary.history.HistoryProofKeyPublicationTransactionBody;
 import com.hedera.hapi.services.auxiliary.history.HistoryProofSignatureTransactionBody;
@@ -42,7 +43,11 @@ public class HistorySubmissions extends TssSubmissions {
     public CompletableFuture<Void> submitProofKeyPublication(@NonNull final Bytes proofKey) {
         requireNonNull(proofKey);
         return submitIfActive(
-                b -> b.historyProofKeyPublication(new HistoryProofKeyPublicationTransactionBody(proofKey)), onFailure);
+                b -> b.historyProofKeyPublication(HistoryProofKeyPublicationTransactionBody.newBuilder()
+                        .proofKey(proofKey)
+                        .phase(WrapsPhase.R1)
+                        .build()),
+                onFailure);
     }
 
     /**
