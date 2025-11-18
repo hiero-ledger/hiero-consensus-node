@@ -263,7 +263,7 @@ All tests are run in parallel with adjustable total TPS. Currently runs at PROD 
 
 ### Environment
 
-- MQLT runs inside of self-hosted github runners regularly against Merged Queue
+- MQLT runs inside of self-hosted github runners regularly against Trunk.io Merge Queues
 - MQLT is expected to complete within 3 hours 40 mins of the test suite starting.
 - MQLT has a dry-run equivalent that can be run against any PR, tag, or branch.
 
