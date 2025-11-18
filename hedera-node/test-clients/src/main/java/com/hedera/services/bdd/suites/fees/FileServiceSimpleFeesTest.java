@@ -83,9 +83,11 @@ public class FileServiceSimpleFeesTest {
     @DisplayName("USD fee as expected for file create transaction with extra keys")
     final Stream<DynamicTest> fileCreateExtraKeys() {
         final var contents = "0".repeat(50).getBytes();
-        // 1 included key means 4 extra
-        final var feeFromKeys = 4 * SINGLE_KEY_FEE;
-        final var feeFromSignatures = 5 * SINGLE_SIGNATURE_COST;
+        final var extraKeys = 4;
+        final var feeFromKeys = extraKeys * SINGLE_KEY_FEE;
+        final var networkMultiplier = 9;
+        final var extraSignatures = 5;
+        final var feeFromSignatures = networkMultiplier * extraSignatures * SINGLE_SIGNATURE_COST;
 
         return hapiTest(
                 newKeyNamed("key1").shape(KeyShape.SIMPLE),

@@ -123,9 +123,9 @@ class ScheduleFeeCalculatorsTest {
                                         .build())
                                 .build(),
                         3,
-                        4100000L,
+                        2100000L,
                         109000000L,
-                        8200000L),
+                        4200000L),
                 // ScheduleSignFeeCalculator case
                 new TestCase(
                         new ScheduleSignFeeCalculator(),

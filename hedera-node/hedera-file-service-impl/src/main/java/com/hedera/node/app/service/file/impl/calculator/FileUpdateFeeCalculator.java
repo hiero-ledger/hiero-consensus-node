@@ -26,7 +26,7 @@ public class FileUpdateFeeCalculator implements ServiceFeeCalculator {
         final var op = txnBody.fileUpdateOrThrow();
         long keyCount = 0L;
         if (op.hasKeys()) {
-            keyCount = txnBody.fileCreateOrThrow().keys().keys().stream()
+            keyCount = txnBody.fileUpdateOrThrow().keys().keys().stream()
                     .mapToLong(SimpleFeeCalculatorImpl::countKeys)
                     .sum();
         }
