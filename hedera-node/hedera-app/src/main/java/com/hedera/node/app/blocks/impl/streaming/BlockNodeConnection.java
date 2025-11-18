@@ -534,18 +534,26 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
         // Record latencies for all acknowledged blocks
         if (acknowledgedBlockNumber != Long.MAX_VALUE) {
             final long nowMs = System.currentTimeMillis();
-            final long startingBlock = getStartingBlock(acknowledgedBlockNumber);
-            for (long blkNum = startingBlock + 1; blkNum <= acknowledgedBlockNumber; blkNum++) {
-                BlockState blockState = blockBufferService.getBlockState(blkNum);
-                if (blockState != null && blockState.openedTimestamp() != null) {
-                    long headerProducedToAckMs =
-                            nowMs - blockState.openedTimestamp().toEpochMilli();
-                    blockStreamMetrics.recordHeaderProducedToAckLatency(headerProducedToAckMs);
-                }
-                if (blockState != null && blockState.closedTimestamp() != null) {
-                    long blockClosedToAckMs =
-                            nowMs - blockState.closedTimestamp().toEpochMilli();
-                    blockStreamMetrics.recordBlockClosedToAckLatency(blockClosedToAckMs);
+
+            final long previousAcknowledgedBlockNumber = blockBufferService.getHighestAckedBlockNumber();
+            final long lowestAvailableBlockInBuffer = blockBufferService.getEarliestAvailableBlockNumber();
+
+            final long start = Math.max(previousAcknowledgedBlockNumber + 1, lowestAvailableBlockInBuffer);
+            final long end = Math.min(acknowledgedBlockNumber, currentBlockProducing);
+
+            if (start <= end) {
+                for (long blkNum = start; blkNum <= end; blkNum++) {
+                    BlockState blockState = blockBufferService.getBlockState(blkNum);
+                    if (blockState != null && blockState.openedTimestamp() != null) {
+                        long headerProducedToAckMs =
+                                nowMs - blockState.openedTimestamp().toEpochMilli();
+                        blockStreamMetrics.recordHeaderProducedToAckLatency(headerProducedToAckMs);
+                    }
+                    if (blockState != null && blockState.closedTimestamp() != null) {
+                        long blockClosedToAckMs =
+                                nowMs - blockState.closedTimestamp().toEpochMilli();
+                        blockStreamMetrics.recordBlockClosedToAckLatency(blockClosedToAckMs);
+                    }
                 }
             }
         }

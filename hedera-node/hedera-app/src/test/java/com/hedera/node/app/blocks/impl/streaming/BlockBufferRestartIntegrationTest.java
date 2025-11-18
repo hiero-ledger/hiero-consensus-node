@@ -9,6 +9,7 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.block.stream.BlockItem;
@@ -221,6 +222,10 @@ class BlockBufferRestartIntegrationTest extends BlockNodeCommunicationTestBase {
         verify(blockStreamMetrics, times(numBlocks)).recordLatestBlockOpened(anyLong());
         verify(blockStreamMetrics, times(numBlocks)).recordBlockClosed();
         verify(blockStreamMetrics).recordLatestBlockAcked(lastVerifiedBlock);
+        verify(blockStreamMetrics, times(70)).recordBlockItemBytes(anyLong());
+        verify(blockStreamMetrics, times(10)).recordBlockItemsPerBlock(anyInt());
+        verify(blockStreamMetrics, times(10)).recordBlockBytes(anyLong());
+        verifyNoMoreInteractions(blockStreamMetrics);
         verifyNoInteractions(connectionManager);
     }
 
@@ -341,6 +346,10 @@ class BlockBufferRestartIntegrationTest extends BlockNodeCommunicationTestBase {
         verify(blockStreamMetrics, times(MAX_BUFFERED_BLOCKS)).recordLatestBlockOpened(anyLong());
         verify(blockStreamMetrics, times(MAX_BUFFERED_BLOCKS)).recordBlockClosed();
         verify(blockStreamMetrics).recordLatestBlockAcked(expectedAckedUpTo);
+        verify(blockStreamMetrics, times(750)).recordBlockItemBytes(anyLong());
+        verify(blockStreamMetrics, times(150)).recordBlockItemsPerBlock(anyInt());
+        verify(blockStreamMetrics, times(150)).recordBlockBytes(anyLong());
+        verifyNoMoreInteractions(blockStreamMetrics);
         verifyNoInteractions(connectionManager);
     }
 
