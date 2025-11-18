@@ -897,19 +897,19 @@ jobs:
         id: clean-branch-name
         run: |
           raw_ref="${{ inputs.ref }}"
-          echo "Raw input ref: $raw_ref"
+          echo "Raw input ref: ${raw_ref}"
           clean_ref=""
 
-          if [[ "{$raw_ref}" == refs/heads/* ]]; then
+          if [[ "${raw_ref}" == refs/heads/* ]]; then
             clean_ref="${raw_ref#refs/heads/}"
-          elif [[ "$raw_ref" == refs/tags/* ]]; then
+          elif [[ "${raw_ref}" == refs/tags/* ]]; then
             clean_ref="${raw_ref#refs/tags/}"
-          elif [[ "$raw_ref" == refs/pull/*/merge ]]; then
+          elif [[ "${raw_ref}" == refs/pull/*/merge ]]; then
             clean_ref="PR-${raw_ref#refs/pull/}"
             clean_ref="${clean_ref%/merge}"
           fi
 
-          echo "clean_ref=$clean_ref" >> "${GITHUB_OUTPUT}"
+          echo "clean_ref=${clean_ref}" >> "${GITHUB_OUTPUT}"
 
       - name: Build Slack Payload Message
         id: payload
@@ -940,7 +940,7 @@ jobs:
             perl -ne 'if ($. < 4) {$comma=","} else {$comma="";} ($t,$d,$l)=split(/\s+/,$_,3); $p=int((($d-$l)/$l)*100); \
             $excl=""; if ($d < $l) {$excl="\\\u2757";}
             printf("{\"type\": \"text\",\"text\": \"%-25s %7d     %5d%% %7d %s\\\n\"}%s",$t,$d,$p,$l,$excl,$comma);'`
-          freport="{\"type\": \"text\",\"text\": \"Name                          TPS         Above min\n\"},$freport,\
+          freport="{\"type\": \"text\",\"text\": \"Name                          TPS         Above min\n\"},${freport},\
             {\"type\": \"text\",\"text\": \"ReconnectTest ${Reconnect}\n\"},\
             {\"type\": \"text\",\"text\": \"ValidatorTest ${Validator}\"}"
 

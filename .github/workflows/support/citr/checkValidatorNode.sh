@@ -1,7 +1,7 @@
-node_id=$1
+node_id=${1}
 
 ps -aef | grep -w stateAnalyzer | grep -v grep | grep stateAnalyzer >/dev/null
-if [ $? -eq 0 ]
+if [[ ${?} -eq 0 ]]
 then
   echo "Previous Validator is still running on ${node_id}"
   exit 1
@@ -15,12 +15,12 @@ java -Xms16g -Xmx64g -XX:+UnlockExperimentalVMOptions -XX:+UseZGC -XX:ZAllocatio
      -XX:+ZGenerational -Dthread.num=16 \
      -jar /tmp/hedera-state-validator-*-all.jar ../com.hedera.services.ServicesMain/${node_id}/123/${currentRound} \
      validate rehash stateAnalyzer account tokenRelations internal leaf > validator.log 2>&1
-result=$?
-if [ $result -eq 0 ]
+result=${?}
+if [[ ${result} -eq 0 ]]
 then
-  echo "Node: $node_id validation of round ${currentRound} is OK"
+  echo "Node: ${node_id} validation of round ${currentRound} is OK"
   grep -i -E 'time.* taken' validator.log
 else
-  echo "Node: $node_id validation of round ${currentRound} failed"
+  echo "Node: ${node_id} validation of round ${currentRound} failed"
 fi
-exit $result
+exit ${result}
