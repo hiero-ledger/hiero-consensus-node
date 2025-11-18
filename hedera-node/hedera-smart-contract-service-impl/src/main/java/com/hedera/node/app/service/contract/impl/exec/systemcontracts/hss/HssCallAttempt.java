@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.exec.systemcontracts.hss;
 
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.HssSystemContract.HSS_EVM_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.isLongZero;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.maybeMissingNumberOf;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.numberOfLongZero;
@@ -28,8 +29,10 @@ import org.hyperledger.besu.datatypes.Address;
  * everything it will need to execute.
  */
 public class HssCallAttempt extends AbstractCallAttempt<HssCallAttempt> {
-    public static final Function LEGACY_REDIRECT_FOR_SCHEDULE =
-            new Function("redirectForSchedule(address,bytes)");
+    private static final Set<Address> HSS_ADDRESSES = Set.of(Address.fromHexString(HSS_EVM_ADDRESS));
+
+    public static final Function LEGACY_REDIRECT_FOR_SCHEDULE_TXN =
+            new Function("redirectForScheduleTxn(address,bytes)");
 
     @Nullable
     private final Schedule redirectScheduleTxn;
@@ -41,13 +44,10 @@ public class HssCallAttempt extends AbstractCallAttempt<HssCallAttempt> {
             @NonNull final Bytes input,
             @NonNull final CallAttemptOptions<HssCallAttempt> options,
             @NonNull final SignatureVerifier signatureVerifier) {
-        super(input, options, LEGACY_REDIRECT_FOR_SCHEDULE);
+        super(input, options, HSS_ADDRESSES, LEGACY_REDIRECT_FOR_SCHEDULE_TXN);
 
         this.redirectScheduleTxn =
-            this.legacyRedirectAddress
-                .or(options::maybeRedirectAddress)
-                .map(this::linkedSchedule)
-                .orElse(null);
+                this.maybeRedirectAddress.map(this::linkedSchedule).orElse(null);
 
         this.signatureVerifier = signatureVerifier;
     }

@@ -2,8 +2,11 @@
 package com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.common;
 
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.HasSystemContract.HAS_CONTRACT_ID;
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.HasSystemContract.HAS_EVM_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.HssSystemContract.HSS_CONTRACT_ID;
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.HssSystemContract.HSS_EVM_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.HtsSystemContract.HTS_167_CONTRACT_ID;
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.HtsSystemContract.HTS_167_EVM_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEFAULT_CONFIG;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.EIP_1014_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NON_SYSTEM_LONG_ZERO_ADDRESS;
@@ -26,7 +29,6 @@ import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.Objects;
-import java.util.Optional;
 import org.apache.tuweni.bytes.Bytes;
 import org.hiero.base.utility.CommonUtils;
 import org.hyperledger.besu.datatypes.Address;
@@ -162,7 +164,7 @@ public class CallAttemptTestBase extends CallTestBase {
                 new CallAttemptOptions<>(
                         contractID,
                         senderAddress,
-                        Optional.empty(),
+                        Address.fromHexString(HTS_167_EVM_ADDRESS),
                         authorizingAddress,
                         onlyDelegatableContractKeysActive,
                         mockEnhancement(),
@@ -202,7 +204,7 @@ public class CallAttemptTestBase extends CallTestBase {
                 new CallAttemptOptions<>(
                         HAS_CONTRACT_ID,
                         OWNER_BESU_ADDRESS,
-                        Optional.empty(),
+                        Address.fromHexString(HAS_EVM_ADDRESS),
                         OWNER_BESU_ADDRESS,
                         false,
                         mockEnhancement(),
@@ -247,7 +249,7 @@ public class CallAttemptTestBase extends CallTestBase {
                 new CallAttemptOptions<>(
                         HSS_CONTRACT_ID,
                         senderAddress,
-                        Optional.empty(),
+                        Address.fromHexString(HSS_EVM_ADDRESS),
                         senderAddress,
                         onlyDelegatableContractKeysActive,
                         mockEnhancement(),

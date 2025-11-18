@@ -63,12 +63,12 @@ public abstract class AbstractProxyEvmAccount extends AbstractMutableEvmAccount 
 
     @Override
     public @NonNull UInt256 getStorageValue(@NonNull final UInt256 key) {
-        return state.getStorageValue(accountID, key);
+        return state.getStorageValue(hederaContractId(), key);
     }
 
     @Override
     public @NonNull UInt256 getOriginalStorageValue(@NonNull final UInt256 key) {
-        return state.getOriginalStorageValue(accountID, key);
+        return state.getOriginalStorageValue(hederaContractId(), key);
     }
 
     @Override
@@ -78,12 +78,12 @@ public abstract class AbstractProxyEvmAccount extends AbstractMutableEvmAccount 
 
     @Override
     public void setCode(@NonNull final Bytes code) {
-        state.setCode(accountID, code);
+        state.setCode(hederaContractId(), code);
     }
 
     @Override
     public void setStorageValue(@NonNull final UInt256 key, @NonNull final UInt256 value) {
-        state.setStorageValue(accountID, key, value);
+        state.setStorageValue(hederaContractId(), key, value);
     }
 
     /**

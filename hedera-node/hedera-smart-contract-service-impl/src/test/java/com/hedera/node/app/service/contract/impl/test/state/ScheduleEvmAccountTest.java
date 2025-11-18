@@ -18,7 +18,7 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import org.apache.tuweni.units.bigints.UInt256;
 import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.datatypes.Wei;
-import org.hyperledger.besu.evm.code.CodeV0;
+import org.hyperledger.besu.evm.worldstate.CodeDelegationHelper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -73,13 +73,8 @@ class ScheduleEvmAccountTest {
     }
 
     @Test
-    void returnsEmptyCode() {
-        assertSame(CodeV0.EMPTY_CODE.getBytes(), subject.getCode());
-    }
-
-    @Test
-    void usesAnEmptyCodeHash() {
-        assertSame(CodeV0.EMPTY_CODE.getCodeHash(), subject.getCodeHash());
+    void returnsEip7702DelegationIndicatorCode() {
+        assertTrue(CodeDelegationHelper.hasCodeDelegation(subject.getCode()));
     }
 
     @Test

@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.state;
 
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.HssSystemContract.HSS_EVM_ADDRESS;
 import static org.hyperledger.besu.crypto.Hash.sha256;
+import static org.hyperledger.besu.evm.worldstate.CodeDelegationHelper.CODE_DELEGATION_PREFIX;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.apache.tuweni.bytes.Bytes;
@@ -25,8 +27,7 @@ import org.hyperledger.besu.evm.account.MutableAccount;
 public class ScheduleEvmAccount extends AbstractEvmEntityAccount {
 
     // EIP-7702 delegation to HSS system contract
-    public static final Bytes CODE = Bytes.concatenate(
-            Bytes.fromHexString("ef0100"), Bytes.fromHexString("000000000000000000000000000000000000016b"));
+    public static final Bytes CODE = Bytes.concatenate(CODE_DELEGATION_PREFIX, Address.fromHexString(HSS_EVM_ADDRESS));
     public static final Hash CODE_HASH = Hash.wrap(sha256(CODE));
 
     public ScheduleEvmAccount(@NonNull final Address address, @NonNull final EvmFrameState state) {

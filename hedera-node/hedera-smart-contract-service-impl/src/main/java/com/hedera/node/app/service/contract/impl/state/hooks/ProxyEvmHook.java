@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.state.hooks;
 
-import static com.hedera.node.app.hapi.utils.contracts.HookUtils.getHookOwnerId;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.HtsSystemContract.HTS_HOOKS_CONTRACT_ADDRESS;
 import static com.hedera.node.app.service.token.HookDispatchUtils.HTS_HOOKS_CONTRACT_NUM;
 import static java.util.Objects.requireNonNull;
@@ -15,10 +14,8 @@ import com.hedera.node.app.service.contract.impl.state.EvmFrameState;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.apache.tuweni.bytes.Bytes;
-import org.apache.tuweni.units.bigints.UInt256;
 import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.datatypes.Hash;
-import org.hyperledger.besu.evm.Code;
 import org.hyperledger.besu.evm.code.CodeFactory;
 
 /**
@@ -42,11 +39,11 @@ public class ProxyEvmHook extends AbstractProxyEvmAccount {
     public ProxyEvmHook(
             @NonNull final EvmFrameState state,
             @NonNull final EvmHookState hookState,
-            final CodeFactory codeFactory,
+            @NonNull final CodeFactory codeFactory,
             @NonNull final EntityIdFactory entityIdFactory) {
         super(getOwnerId(hookState.hookIdOrThrow()), state);
         this.hookState = requireNonNull(hookState);
-        this.codeFactory = codeFactory;
+        this.codeFactory = requireNonNull(codeFactory);
         this.entityIdFactory = requireNonNull(entityIdFactory);
     }
 
@@ -63,23 +60,18 @@ public class ProxyEvmHook extends AbstractProxyEvmAccount {
 
     @Override
     public @NonNull Bytes getCode() {
-        // TODO(Pectra): double check
-        return state.getCode(entityIdFactory.newAccountId(hookState.hookContractIdOrThrow().contractNum()));
+        return state.getCode(hookState.hookContractIdOrThrow());
     }
 
     @Override
     public @NonNull Hash getCodeHash() {
-        return state.getCodeHash(entityIdFactory.newAccountId(hookState.hookContractIdOrThrow().contractNum()), codeFactory);
-    }
-
-    @Override
-    public @NonNull UInt256 getStorageValue(@NonNull final UInt256 key) {
-        return state.getStorageValue(entityIdFactory.newAccountId(HTS_HOOKS_CONTRACT_NUM), key);
+        return state.getCodeHash(hookState.hookContractIdOrThrow(), codeFactory);
     }
 
     @NonNull
     private static AccountID getOwnerId(final @NonNull HookId hookId) {
-        return getHookOwnerId(hookId.entityIdOrThrow());
+        // We always use account id for hook owner internally
+        return hookId.entityIdOrThrow().accountIdOrThrow();
     }
 
     @Override

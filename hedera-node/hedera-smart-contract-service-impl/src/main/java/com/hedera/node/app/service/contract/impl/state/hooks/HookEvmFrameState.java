@@ -11,7 +11,6 @@ import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.tu
 import static com.hedera.node.app.service.token.HookDispatchUtils.HTS_HOOKS_CONTRACT_NUM;
 import static java.util.Objects.requireNonNull;
 
-import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.state.contract.SlotKey;
 import com.hedera.hapi.node.state.contract.SlotValue;
@@ -48,7 +47,6 @@ public class HookEvmFrameState extends DispatchingEvmFrameState {
     private final WritableEvmHookStore writableEvmHookStore;
     private final EntityIdFactory entityIdFactory;
     private final ContractID hooksContractId;
-    private final AccountID hooksAccountId;
 
     /**
      * @param nativeOperations the Hedera native operation
@@ -66,7 +64,6 @@ public class HookEvmFrameState extends DispatchingEvmFrameState {
         this.codeFactory = requireNonNull(codeFactory);
         this.writableEvmHookStore = requireNonNull(writableEvmHookStore);
         this.hooksContractId = entityIdFactory.newContractId(HTS_HOOKS_CONTRACT_NUM);
-        this.hooksAccountId = entityIdFactory.newAccountId(HTS_HOOKS_CONTRACT_NUM);
     }
 
     /**
@@ -91,8 +88,8 @@ public class HookEvmFrameState extends DispatchingEvmFrameState {
     }
 
     @Override
-    public @NonNull UInt256 getStorageValue(final AccountID accountID, @NonNull final UInt256 key) {
-        if (hooksAccountId.equals(accountID)) {
+    public @NonNull UInt256 getStorageValue(final ContractID contractID, @NonNull final UInt256 key) {
+        if (hooksContractId.equals(contractID)) {
             final var slotKey = minimalKey(hook.hookIdOrThrow(), Bytes.wrap(key.toArrayUnsafe()));
             final var value = writableEvmHookStore.getSlotValue(slotKey);
             if (value == null) {
@@ -100,12 +97,12 @@ public class HookEvmFrameState extends DispatchingEvmFrameState {
             }
             return UInt256.fromBytes(pbjToTuweniBytes(value.value()));
         }
-        return super.getStorageValue(accountID, key);
+        return super.getStorageValue(contractID, key);
     }
 
     @Override
-    public @NonNull UInt256 getOriginalStorageValue(final AccountID accountID, @NonNull final UInt256 key) {
-        if (hooksAccountId.equals(accountID)) {
+    public @NonNull UInt256 getOriginalStorageValue(final ContractID contractID, @NonNull final UInt256 key) {
+        if (hooksContractId.equals(contractID)) {
             final var slotKey = minimalKey(hook.hookIdOrThrow(), Bytes.wrap(key.toArrayUnsafe()));
             final var value = writableEvmHookStore.getOriginalSlotValue(slotKey);
             if (value == null) {
@@ -113,13 +110,13 @@ public class HookEvmFrameState extends DispatchingEvmFrameState {
             }
             return UInt256.fromBytes(pbjToTuweniBytes(value.value()));
         }
-        return super.getOriginalStorageValue(accountID, key);
+        return super.getOriginalStorageValue(contractID, key);
     }
 
     @Override
     public void setStorageValue(
-            @NonNull final AccountID accountID, @NonNull final UInt256 key, @NonNull final UInt256 value) {
-        if (hooksAccountId.equals(accountID)) {
+            @NonNull final ContractID contractID, @NonNull final UInt256 key, @NonNull final UInt256 value) {
+        if (hooksContractId.equals(contractID)) {
             final var slotKey = minimalKey(hook.hookIdOrThrow(), Bytes.wrap(key.toArrayUnsafe()));
             final var oldSlotValue = writableEvmHookStore.getSlotValue(slotKey);
             final var slotValue = new SlotValue(
@@ -129,7 +126,7 @@ public class HookEvmFrameState extends DispatchingEvmFrameState {
             writableEvmHookStore.updateStorage(slotKey, slotValue);
             return;
         }
-        super.setStorageValue(accountID, key, value);
+        super.setStorageValue(contractID, key, value);
     }
 
     /**

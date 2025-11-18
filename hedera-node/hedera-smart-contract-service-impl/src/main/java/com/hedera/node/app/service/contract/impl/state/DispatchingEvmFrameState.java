@@ -100,9 +100,7 @@ public class DispatchingEvmFrameState implements EvmFrameState {
      */
     @Override
     public void setStorageValue(
-            @NonNull final AccountID accountID, @NonNull final UInt256 key, @NonNull final UInt256 value) {
-        requireNonNull(accountID);
-        final var contractID = asContractId(accountID);
+            @NonNull final ContractID contractID, @NonNull final UInt256 key, @NonNull final UInt256 value) {
         requireNonNull(contractID);
 
         final var slotKey = new SlotKey(contractID, tuweniToPbjBytes(requireNonNull(key)));
@@ -126,11 +124,8 @@ public class DispatchingEvmFrameState implements EvmFrameState {
      * {@inheritDoc}
      */
     @Override
-    public @NonNull UInt256 getStorageValue(final AccountID accountID, @NonNull final UInt256 key) {
-        requireNonNull(accountID);
-        final var contractID = asContractId(accountID);
+    public @NonNull UInt256 getStorageValue(final ContractID contractID, @NonNull final UInt256 key) {
         requireNonNull(contractID);
-
         final var slotKey = new SlotKey(contractID, tuweniToPbjBytes(requireNonNull(key)));
         return valueOrZero(contractStateStore.getSlotValue(slotKey));
     }
@@ -139,11 +134,8 @@ public class DispatchingEvmFrameState implements EvmFrameState {
      * {@inheritDoc}
      */
     @Override
-    public @NonNull UInt256 getOriginalStorageValue(final AccountID accountID, @NonNull final UInt256 key) {
-        requireNonNull(accountID);
-        final var contractID = asContractId(accountID);
+    public @NonNull UInt256 getOriginalStorageValue(final ContractID contractID, @NonNull final UInt256 key) {
         requireNonNull(contractID);
-
         final var slotKey = new SlotKey(contractID, tuweniToPbjBytes(requireNonNull(key)));
         return valueOrZero(contractStateStore.getOriginalSlotValue(slotKey));
     }
@@ -208,8 +200,7 @@ public class DispatchingEvmFrameState implements EvmFrameState {
      * {@inheritDoc}
      */
     @Override
-    public @NonNull Bytes getCode(@NonNull final AccountID accountID) {
-        final var contractID = asContractId(accountID);
+    public @NonNull Bytes getCode(@NonNull final ContractID contractID) {
         requireNonNull(contractID);
 
         final var numberedBytecode = contractStateStore.getBytecode(contractID);
@@ -225,9 +216,7 @@ public class DispatchingEvmFrameState implements EvmFrameState {
      * {@inheritDoc}
      */
     @Override
-    public @NonNull Hash getCodeHash(@NonNull final AccountID accountID, @NonNull final CodeFactory codeFactory) {
-        requireNonNull(accountID);
-        final var contractID = asContractId(accountID);
+    public @NonNull Hash getCodeHash(@NonNull final ContractID contractID, @NonNull final CodeFactory codeFactory) {
         requireNonNull(contractID);
 
         final var numberedBytecode = contractStateStore.getBytecode(contractID);
@@ -281,11 +270,8 @@ public class DispatchingEvmFrameState implements EvmFrameState {
      * {@inheritDoc}
      */
     @Override
-    public void setCode(final AccountID accountID, @NonNull final Bytes code) {
-        requireNonNull(accountID);
-        final var contractID = asContractId(accountID);
+    public void setCode(final ContractID contractID, @NonNull final Bytes code) {
         requireNonNull(contractID);
-
         contractStateStore.putBytecode(contractID, new Bytecode(tuweniToPbjBytes(requireNonNull(code))));
     }
 
@@ -585,7 +571,7 @@ public class DispatchingEvmFrameState implements EvmFrameState {
         } else if (accountID.hasAlias()) {
             return entityIdFactory().newContractIdWithEvmAddress(accountID.alias());
         } else {
-            // TODO(Pectra): consider erroring?
+            // TODO(Pectra): consider erroring instead of returning null
             return null;
         }
     }

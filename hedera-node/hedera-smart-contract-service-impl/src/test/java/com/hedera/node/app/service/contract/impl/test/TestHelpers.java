@@ -949,7 +949,7 @@ public class TestHelpers {
 
     public static org.apache.tuweni.bytes.Bytes bytesForRedirect(final byte[] subSelector, final Address tokenAddress) {
         return org.apache.tuweni.bytes.Bytes.concatenate(
-                org.apache.tuweni.bytes.Bytes.wrap(HtsCallAttempt.REDIRECT_FOR_TOKEN.selector()),
+                org.apache.tuweni.bytes.Bytes.wrap(HtsCallAttempt.LEGACY_REDIRECT_FOR_TOKEN.selector()),
                 tokenAddress,
                 org.apache.tuweni.bytes.Bytes.of(subSelector));
     }
@@ -964,7 +964,7 @@ public class TestHelpers {
     public static org.apache.tuweni.bytes.Bytes bytesForRedirectAccount(
             final byte[] subSelector, final Address accountAddress) {
         return org.apache.tuweni.bytes.Bytes.concatenate(
-                org.apache.tuweni.bytes.Bytes.wrap(HasCallAttempt.REDIRECT_FOR_ACCOUNT.selector()),
+                org.apache.tuweni.bytes.Bytes.wrap(HasCallAttempt.LEGACY_REDIRECT_FOR_ACCOUNT.selector()),
                 accountAddress,
                 org.apache.tuweni.bytes.Bytes.of(subSelector));
     }
@@ -972,7 +972,7 @@ public class TestHelpers {
     public static org.apache.tuweni.bytes.Bytes bytesForRedirectScheduleTxn(
             final byte[] subSelector, final Address scheduleAddress) {
         return org.apache.tuweni.bytes.Bytes.concatenate(
-                org.apache.tuweni.bytes.Bytes.wrap(HssCallAttempt.REDIRECT_FOR_SCHEDULE_TXN.selector()),
+                org.apache.tuweni.bytes.Bytes.wrap(HssCallAttempt.LEGACY_REDIRECT_FOR_SCHEDULE_TXN.selector()),
                 scheduleAddress,
                 org.apache.tuweni.bytes.Bytes.of(subSelector));
     }

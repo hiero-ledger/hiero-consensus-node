@@ -162,11 +162,9 @@ class DispatchingEvmFrameStateTest {
 
     @Test
     void extFrameScopeesToSetCode() {
-        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
-
         final var expectedCode = Bytecode.newBuilder().code(SOME_PRETEND_CODE).build();
 
-        subject.setCode(A_ACCOUNT_ID, pbjToTuweniBytes(SOME_PRETEND_CODE));
+        subject.setCode(A_CONTRACT_ID, pbjToTuweniBytes(SOME_PRETEND_CODE));
 
         verify(contractStateStore).putBytecode(A_CONTRACT_ID, expectedCode);
     }
@@ -174,21 +172,19 @@ class DispatchingEvmFrameStateTest {
     @Test
     void getsExtantStorageValues() {
         given(contractStateStore.getSlotValue(A_SLOT_KEY)).willReturn(A_SLOT_VALUE);
-        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
 
         final var expectedWord = pbjToTuweniUInt256(A_STORAGE_VALUE);
-        final var actualWord = subject.getStorageValue(A_ACCOUNT_ID, pbjToTuweniUInt256(A_STORAGE_KEY));
+        final var actualWord = subject.getStorageValue(A_CONTRACT_ID, pbjToTuweniUInt256(A_STORAGE_KEY));
 
         assertEquals(expectedWord, actualWord);
     }
 
     @Test
     void getsOriginalStorageValues() {
-        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         given(contractStateStore.getOriginalSlotValue(A_SLOT_KEY)).willReturn(A_SLOT_VALUE);
 
         final var expectedWord = pbjToTuweniUInt256(A_STORAGE_VALUE);
-        final var actualWord = subject.getOriginalStorageValue(A_ACCOUNT_ID, pbjToTuweniUInt256(A_STORAGE_KEY));
+        final var actualWord = subject.getOriginalStorageValue(A_CONTRACT_ID, pbjToTuweniUInt256(A_STORAGE_KEY));
 
         assertEquals(expectedWord, actualWord);
     }
@@ -239,15 +235,13 @@ class DispatchingEvmFrameStateTest {
 
     @Test
     void overwritesNewStorageSlotAsExpected() {
-        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
-
         final var newSlotValue = A_SLOT_VALUE
                 .copyBuilder()
                 .previousKey(Bytes.EMPTY)
                 .nextKey(Bytes.EMPTY)
                 .build();
 
-        subject.setStorageValue(A_ACCOUNT_ID, pbjToTuweniUInt256(A_STORAGE_KEY), pbjToTuweniUInt256(A_STORAGE_VALUE));
+        subject.setStorageValue(A_CONTRACT_ID, pbjToTuweniUInt256(A_STORAGE_KEY), pbjToTuweniUInt256(A_STORAGE_VALUE));
 
         verify(contractStateStore).putSlot(A_SLOT_KEY, newSlotValue);
     }
@@ -265,18 +259,15 @@ class DispatchingEvmFrameStateTest {
                 .nextKey(Bytes.fromHex("5678"))
                 .build();
 
-        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         given(contractStateStore.getSlotValue(A_SLOT_KEY)).willReturn(oldSlotValue);
-        subject.setStorageValue(A_ACCOUNT_ID, pbjToTuweniUInt256(A_STORAGE_KEY), pbjToTuweniUInt256(A_STORAGE_VALUE));
+        subject.setStorageValue(A_CONTRACT_ID, pbjToTuweniUInt256(A_STORAGE_KEY), pbjToTuweniUInt256(A_STORAGE_VALUE));
 
         verify(contractStateStore).putSlot(A_SLOT_KEY, newSlotValue);
     }
 
     @Test
     void skipsSettingZeroInAnUnusedSLot() {
-        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
-
-        subject.setStorageValue(A_ACCOUNT_ID, pbjToTuweniUInt256(A_STORAGE_KEY), UInt256.ZERO);
+        subject.setStorageValue(A_CONTRACT_ID, pbjToTuweniUInt256(A_STORAGE_KEY), UInt256.ZERO);
 
         verify(contractStateStore).getSlotValue(A_SLOT_KEY);
         verifyNoMoreInteractions(contractStateStore);
@@ -284,20 +275,16 @@ class DispatchingEvmFrameStateTest {
 
     @Test
     void getsZeroWordForMissingSlotKey() {
-        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
-
-        final var actualWord = subject.getStorageValue(A_ACCOUNT_ID, pbjToTuweniUInt256(A_STORAGE_KEY));
+        final var actualWord = subject.getStorageValue(A_CONTRACT_ID, pbjToTuweniUInt256(A_STORAGE_KEY));
 
         assertSame(UInt256.ZERO, actualWord);
     }
 
     @Test
     void getsZeroWordForEmptySlotValue() {
-        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
-
         given(contractStateStore.getSlotValue(A_SLOT_KEY)).willReturn(SlotValue.DEFAULT);
 
-        final var actualWord = subject.getStorageValue(A_ACCOUNT_ID, pbjToTuweniUInt256(A_STORAGE_KEY));
+        final var actualWord = subject.getStorageValue(A_CONTRACT_ID, pbjToTuweniUInt256(A_STORAGE_KEY));
 
         assertSame(UInt256.ZERO, actualWord);
     }
@@ -305,28 +292,22 @@ class DispatchingEvmFrameStateTest {
     @Test
     void getsExtantCode() {
         givenWellKnownBytecode();
-        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
-
-        final var actualCode = subject.getCode(A_ACCOUNT_ID);
-
+        final var actualCode = subject.getCode(A_CONTRACT_ID);
         assertEquals(pbjToTuweniBytes(SOME_PRETEND_CODE), actualCode);
     }
 
     @Test
     void getsEmptyCodeForMissing() {
-        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
-
-        final var actualCode = subject.getCode(A_ACCOUNT_ID);
+        final var actualCode = subject.getCode(A_CONTRACT_ID);
 
         assertSame(org.apache.tuweni.bytes.Bytes.EMPTY, actualCode);
     }
 
     @Test
     void getsEmptyCodeForNull() {
-        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
         given(contractStateStore.getBytecode(A_CONTRACT_ID)).willReturn(new Bytecode(null));
 
-        final var actualCode = subject.getCode(A_ACCOUNT_ID);
+        final var actualCode = subject.getCode(A_CONTRACT_ID);
 
         assertSame(org.apache.tuweni.bytes.Bytes.EMPTY, actualCode);
     }
@@ -334,19 +315,15 @@ class DispatchingEvmFrameStateTest {
     @Test
     void getsExtantCodeHash() {
         givenWellKnownBytecode();
-        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
 
-        final var actualCodeHash = subject.getCodeHash(A_ACCOUNT_ID, CODE_FACTORY);
+        final var actualCodeHash = subject.getCodeHash(A_CONTRACT_ID, CODE_FACTORY);
 
         assertEquals(SOME_PRETEND_CODE_HASH, actualCodeHash);
     }
 
     @Test
     void getsEmptyCodeHashForMissing() {
-        given(nativeOperations.entityIdFactory()).willReturn(entityIdFactory);
-
-        final var actualCodeHash = subject.getCodeHash(A_ACCOUNT_ID, CODE_FACTORY);
-
+        final var actualCodeHash = subject.getCodeHash(A_CONTRACT_ID, CODE_FACTORY);
         assertSame(Hash.EMPTY, actualCodeHash);
     }
 

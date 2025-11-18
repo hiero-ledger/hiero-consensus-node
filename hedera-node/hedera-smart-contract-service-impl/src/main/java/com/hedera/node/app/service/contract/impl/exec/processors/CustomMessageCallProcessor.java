@@ -157,7 +157,7 @@ public class CustomMessageCallProcessor extends MessageCallProcessor {
             // disable precompile if so configured.
             evmPrecompile = null;
         }
-        // TODO(Pectra): revisit this?
+        // TODO(Pectra): double check all corner cases for the below condition
         // Check to see if the code address is a system account and possibly halt
         // Note that we allow calls to the allowance hook address(0x16d) if the call is part of
         // a hook dispatch; in that case, the allowance hook is being treated as a normal
@@ -398,9 +398,6 @@ public class CustomMessageCallProcessor extends MessageCallProcessor {
     }
 
     private static boolean isPayloadEligibleForAccountServiceRedirect(Bytes payload) {
-        // The compiled binary uses an ABI-compatible function dispatch, so we expect
-        // the first 4 bytes of the payload to be the selector of the function.
-        // We check that against a fixed list of selectors.
         final int prefix = payload.size() >= FUNCTION_SELECTOR_LENGTH ? payload.getInt(0) : 0;
         return ACCOUNT_PROXY_ELIGIBLE_CALL_DATA_PREFIXES.contains(prefix);
     }

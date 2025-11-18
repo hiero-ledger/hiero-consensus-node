@@ -141,8 +141,6 @@ public class ContractGetBytecodeHandler extends AbstractContractPaidQueryHandler
         if (account != null) {
             if (account.deleted()) {
                 return null;
-            } else if (account.smartContract()) {
-                return bytecodeFrom(context, account);
             } else {
                 return bytecodeFrom(context, account);
             }

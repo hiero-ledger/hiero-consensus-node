@@ -257,7 +257,6 @@ class ContractGetBytecodeHandlerTest {
     @Test
     void computeFeesIfContractWasDeletedTest() {
         givenContractWasDeleted();
-        given(entityIdFactory.newAccountId(contractID.contractNumOrElse(0L))).willReturn(accountId);
         QueryHeader defaultHeader =
                 QueryHeader.newBuilder().responseType(ANSWER_ONLY).build();
         given(contractGetBytecodeQuery.headerOrElse(QueryHeader.DEFAULT)).willReturn(defaultHeader);
@@ -269,7 +268,6 @@ class ContractGetBytecodeHandlerTest {
     @Test
     void findResponseIfContractWasDeletedTest() {
         givenContractWasDeleted();
-        given(entityIdFactory.newAccountId(contractID.contractNumOrElse(0L))).willReturn(accountId);
         given(responseHeader.nodeTransactionPrecheckCode()).willReturn(OK);
         given(responseHeader.responseType()).willReturn(ANSWER_ONLY);
         assertThat(Objects.requireNonNull(
@@ -372,7 +370,6 @@ class ContractGetBytecodeHandlerTest {
         given(contractGetBytecodeQuery.contractIDOrElse(ContractID.DEFAULT)).willReturn(contractID);
         given(context.createStore(ReadableAccountStore.class)).willReturn(contractStore);
         given(contractStore.getContractById(contractID)).willReturn(account);
-        given(account.smartContract()).willReturn(true);
         given(account.accountIdOrThrow()).willReturn(accountId);
 
         given(context.createStore(ContractStateStore.class)).willReturn(stateStore);
@@ -380,8 +377,6 @@ class ContractGetBytecodeHandlerTest {
         final var expectedResult = Bytes.wrap(new byte[] {1, 2, 3, 4, 5});
         final var bytecode = Bytecode.newBuilder().code(expectedResult).build();
         given(stateStore.getBytecode(any())).willReturn(bytecode);
-
-        given(entityIdFactory.newAccountId(contractID.contractNumOrElse(0L))).willReturn(accountId);
 
         // when:
         var response = subject.findResponse(context, responseHeader);

@@ -143,57 +143,57 @@ public interface EvmFrameState {
     MutableAccount getMutableAccount(Address address);
 
     /**
-     * Returns the storage value for the account with the given account id and key.
+     * Returns the storage value for the account with the given contract id and key.
      *
-     * @param accountID the account id
+     * @param contractID the contract id
      * @param key the key
      * @return the storage value
      */
     @NonNull
-    UInt256 getStorageValue(AccountID accountID, @NonNull UInt256 key);
+    UInt256 getStorageValue(ContractID contractID, @NonNull UInt256 key);
 
     /**
-     * Sets the storage value for the account with the given account id and key.
-     * @param accountID the account id
+     * Sets the storage value for the account with the given contract id and key.
+     * @param contractID the contract id
      * @param key the key
      * @param value the value to set
      */
-    void setStorageValue(AccountID accountID, @NonNull UInt256 key, @NonNull UInt256 value);
+    void setStorageValue(ContractID contractID, @NonNull UInt256 key, @NonNull UInt256 value);
 
     /**
-     * Returns the original storage value for the account with the given account id and key.
+     * Returns the original storage value for the account with the given contract id and key.
      *
-     * @param accountID the account id
+     * @param contractID the contract id
      * @param key the key
      * @return the original storage value
      */
     @NonNull
-    UInt256 getOriginalStorageValue(AccountID accountID, @NonNull UInt256 key);
+    UInt256 getOriginalStorageValue(ContractID contractID, @NonNull UInt256 key);
 
     /**
-     * Returns the code for the account with the given account id, or empty code if no such code exists.
+     * Returns the code for the account with the given contract id, or empty code if no such code exists.
      *
-     * @param accountID the account id
+     * @param contractID the contract id
      * @return the code for the account
      */
     @NonNull
-    Bytes getCode(AccountID accountID);
+    Bytes getCode(ContractID contractID);
 
     /**
-     * Sets the code for the contract with the given account id.
+     * Sets the code for the contract with the given contract id.
      * Used during contract creation and when setting EIP-7702 delegation.
      *
-     * @param accountID the account id
+     * @param contractID the contract id
      * @param code the new code
      */
-    void setCode(AccountID accountID, @NonNull Bytes code);
+    void setCode(ContractID contractID, @NonNull Bytes code);
 
     /**
-     * @param accountID the account to extract its code hash
+     * @param contractID the contract to extract its code hash
      * @return the code hash of the contract
      */
     @NonNull
-    Hash getCodeHash(AccountID accountID, @NonNull final CodeFactory codeFactory);
+    Hash getCodeHash(ContractID contractID, @NonNull final CodeFactory codeFactory);
 
     /**
      * Returns the native account with the given account id.

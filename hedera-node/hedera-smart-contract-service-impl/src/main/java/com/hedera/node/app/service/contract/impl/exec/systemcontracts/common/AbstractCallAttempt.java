@@ -17,10 +17,10 @@ import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-
 import java.nio.BufferUnderflowException;
 import java.util.Arrays;
 import java.util.Optional;
+import java.util.Set;
 import org.apache.tuweni.bytes.Bytes;
 import org.hyperledger.besu.datatypes.Address;
 
@@ -35,8 +35,12 @@ public abstract class AbstractCallAttempt<T extends AbstractCallAttempt<T>> {
     protected final AccountID senderId;
     protected final Bytes input;
     protected final byte[] selector;
+    protected final Optional<Address> maybeRedirectAddress;
 
-    protected final Optional<Address> legacyRedirectAddress;
+    private boolean matchesFnSelector(Function fn, Bytes input) {
+        final var selector = fn.selector();
+        return Arrays.equals(input.toArrayUnsafe(), 0, selector.length, selector, 0, selector.length);
+    }
 
     /**
      * @param input the input in bytes
@@ -46,29 +50,37 @@ public abstract class AbstractCallAttempt<T extends AbstractCallAttempt<T>> {
             // we are keeping the 'input' out of the 'options' for not duplicate and keep close to related params
             @NonNull final Bytes input,
             @NonNull final CallAttemptOptions<T> options,
-            Function redirectFunction) {
+            Set<Address> systemContractAddresses,
+            Function legacyRedirectFunction) {
         requireNonNull(input);
         this.options = requireNonNull(options);
         this.senderId = options.addressIdConverter().convertSender(options.senderAddress());
 
-        final var redirectFnSelector = redirectFunction.selector();
-        final var matchesRedirectSelector = Arrays.equals(input.toArrayUnsafe(), 0, redirectFnSelector.length, redirectFnSelector, 0, redirectFnSelector.length);
-        if (matchesRedirectSelector) {
+        // If the recipient address of this call doesn't match the system contract address
+        // it means we're running an EIP-7702 delegation (i.e. a facade/redirect call).
+        final var isDelegationRedirect = !systemContractAddresses.contains(options.recipientAddress());
+        if (isDelegationRedirect) {
+            this.maybeRedirectAddress = Optional.of(options.recipientAddress());
+            this.input = input;
+        } else if (matchesFnSelector(legacyRedirectFunction, input)) {
             Tuple abiCall = null;
             try {
-                abiCall = redirectFunction.decodeCall(input.toArrayUnsafe());
+                abiCall = legacyRedirectFunction.decodeCall(input.toArrayUnsafe());
             } catch (IllegalArgumentException | BufferUnderflowException | IndexOutOfBoundsException ignore) {
                 // no-op
             }
             if (abiCall != null) {
-                this.legacyRedirectAddress = Optional.of(Address.fromHexString(abiCall.get(0).toString()));
+                this.maybeRedirectAddress =
+                        Optional.of(Address.fromHexString(abiCall.get(0).toString()));
                 this.input = Bytes.wrap((byte[]) abiCall.get(1));
             } else {
-                this.legacyRedirectAddress = Optional.empty();
-                this.input = input;
+                // TODO(Pectra): consider dropping support for proxy calls that don't confirm to ABI
+                this.maybeRedirectAddress = Optional.of(Address.wrap(input.slice(4, 20)));
+                this.input = input.slice(24);
             }
         } else {
-            this.legacyRedirectAddress = Optional.empty();
+            // A regular call; neither EIP-7702 redirect nor legacy redirect function. Process as-is.
+            this.maybeRedirectAddress = Optional.empty();
             this.input = input;
         }
 
@@ -211,7 +223,7 @@ public abstract class AbstractCallAttempt<T extends AbstractCallAttempt<T>> {
      * @return whether the current call attempt is redirected to a system contract address
      */
     public boolean isRedirect() {
-        return this.legacyRedirectAddress.isPresent() || options.maybeRedirectAddress().isPresent();
+        return this.maybeRedirectAddress.isPresent();
     }
 
     /**

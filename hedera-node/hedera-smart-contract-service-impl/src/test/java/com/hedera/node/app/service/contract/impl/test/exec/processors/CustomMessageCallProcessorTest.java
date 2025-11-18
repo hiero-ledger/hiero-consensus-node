@@ -129,6 +129,7 @@ class CustomMessageCallProcessorTest {
         given(frame.getValue()).willReturn(Wei.ZERO);
         given(frame.getMessageFrameStack()).willReturn(stack);
         given(frame.getContextVariable(OPS_DURATION_COUNTER)).willReturn(OpsDurationCounter.disabled());
+        given(frame.getWorldUpdater()).willReturn(proxyWorldUpdater);
         given(stack.getLast()).willReturn(frame);
         given(result.output()).willReturn(OUTPUT_DATA);
         given(result.state()).willReturn(MessageFrame.State.CODE_SUCCESS);
@@ -343,12 +344,14 @@ class CustomMessageCallProcessorTest {
 
     private void givenCallWithCode(@NonNull final Address contract) {
         given(frame.getContractAddress()).willReturn(contract);
+        given(frame.getWorldUpdater()).willReturn(proxyWorldUpdater);
     }
 
     private void givenWellKnownUserSpaceCall() {
         given(frame.getContractAddress()).willReturn(CODE_ADDRESS);
         given(frame.getRecipientAddress()).willReturn(RECEIVER_ADDRESS);
         given(frame.getSenderAddress()).willReturn(SENDER_ADDRESS);
+        given(frame.getWorldUpdater()).willReturn(proxyWorldUpdater);
     }
 
     private void givenEvmPrecompileCall() {
@@ -358,6 +361,7 @@ class CustomMessageCallProcessorTest {
         given(frame.getInputData()).willReturn(INPUT_DATA);
         given(frame.getMessageFrameStack()).willReturn(stack);
         given(frame.getContextVariable(CONFIG_CONTEXT_VARIABLE)).willReturn(DEFAULT_CONFIG);
+        given(frame.getWorldUpdater()).willReturn(proxyWorldUpdater);
     }
 
     private void givenDisabledEvmPrecompileCall() {
@@ -370,6 +374,7 @@ class CustomMessageCallProcessorTest {
         given(frame.getMessageFrameStack()).willReturn(stack);
         given(frame.getContextVariable(CONFIG_CONTEXT_VARIABLE)).willReturn(DISABLED_PRECOMPILE_CONFIG);
         when(frame.getValue()).thenReturn(Wei.ZERO);
+        given(frame.getWorldUpdater()).willReturn(proxyWorldUpdater);
         given(addressChecks.isSystemAccount(ADDRESS_6)).willReturn(true);
     }
 

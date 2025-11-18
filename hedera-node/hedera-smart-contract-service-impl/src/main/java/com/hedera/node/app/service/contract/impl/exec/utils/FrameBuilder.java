@@ -214,6 +214,7 @@ public class FrameBuilder {
             // Hedera account for contract is present, get the byte code
             final var accountCode = account.getCode();
 
+            // TODO(Pectra): skip delegation processing for hooks! (i.e. if account is a proxy hook)
             if (CodeDelegationHelper.hasCodeDelegation(accountCode)) {
                 // Resolve the target account of the delegation and use its code
                 final var targetAddress =
@@ -247,12 +248,12 @@ public class FrameBuilder {
             code = CodeV0.EMPTY_CODE;
         }
 
+        // TODO(Pectra): will we support access lists? If so, add EIP-7702 accessListWarmUpAddresses (see besu impl)
         return builder.type(MessageFrame.Type.MESSAGE_CALL)
                 .address(to)
                 .contract(to)
                 .inputData(transaction.evmPayload())
                 .code(code)
-                // TODO(Pectra): add accessListWarmUpAddresses related to EIP-7702 code delegation?
                 .build();
     }
 

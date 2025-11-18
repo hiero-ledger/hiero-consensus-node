@@ -84,7 +84,7 @@ public class HasCallFactory implements CallFactory<HasCallAttempt> {
                 new CallAttemptOptions<>(
                         contractID,
                         frame.getSenderAddress(),
-                        maybeRedirectAddress,
+                        frame.getRecipientAddress(),
                         frame.getSenderAddress(),
                         addressChecks.hasParentDelegateCall(frame),
                         enhancement,

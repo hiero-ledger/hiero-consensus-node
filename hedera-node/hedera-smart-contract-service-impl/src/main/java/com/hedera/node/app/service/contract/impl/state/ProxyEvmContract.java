@@ -23,11 +23,11 @@ public class ProxyEvmContract extends AbstractProxyEvmAccount {
 
     @Override
     public @NonNull Bytes getCode() {
-        return state.getCode(accountID);
+        return state.getCode(hederaContractId());
     }
 
     @Override
     public @NonNull Hash getCodeHash() {
-        return state.getCodeHash(accountID, codeFactory);
+        return state.getCodeHash(hederaContractId(), codeFactory);
     }
 }
