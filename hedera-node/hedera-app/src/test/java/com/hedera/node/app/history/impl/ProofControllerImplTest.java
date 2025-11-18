@@ -99,6 +99,9 @@ class ProofControllerImplTest {
     @Mock
     private WritableHistoryStore store;
 
+    @Mock
+    private WrapsController.Factory wrapsControllerFactory;
+
     private final Deque<Runnable> scheduledTasks = new ArrayDeque<>();
 
     private ProofControllerImpl subject;
@@ -388,7 +391,8 @@ class ProofControllerImplTest {
                 proofKeyPublications,
                 signaturePublications,
                 votes,
-                historyService);
+                historyService,
+                wrapsControllerFactory);
     }
 
     private void runScheduledTasks() {

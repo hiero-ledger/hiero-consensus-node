@@ -142,7 +142,8 @@ public class ProofControllers {
                     keyPublications,
                     signaturePublications,
                     votes,
-                    historyService);
+                    historyService,
+                    (w, pks, now) -> new WrapsControllerImpl());
         }
     }
 

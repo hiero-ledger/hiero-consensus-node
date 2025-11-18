@@ -2,6 +2,8 @@
 package com.hedera.node.app.history.impl;
 
 import static com.hedera.hapi.util.HapiUtils.asInstant;
+import static com.hedera.node.app.history.impl.WrapsController.State.FINISHED;
+import static com.hedera.node.app.history.impl.WrapsController.State.RUNNING;
 import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.groupingBy;
 import static java.util.stream.Collectors.summingLong;
@@ -80,10 +82,17 @@ public class ProofControllerImpl implements ProofController {
     private final HistoryService historyService;
     private final HistorySubmissions submissions;
     private final RosterTransitionWeights weights;
+    private final WrapsController.Factory wrapsControllerFactory;
     private final Map<Long, HistoryProofVote> votes = new TreeMap<>();
     private final Map<Long, Bytes> targetProofKeys = new TreeMap<>();
     private final Set<Long> signingNodeIds = new HashSet<>();
     private final NavigableMap<Instant, CompletableFuture<Verification>> verificationFutures = new TreeMap<>();
+
+    /**
+     * If set, the controller navigating the conclusion of the WRAPS protocol for this construction.
+     */
+    @Nullable
+    private WrapsController wrapsController;
 
     /**
      * Once set, the metadata to be proven as associated to the target address book hash.
@@ -149,7 +158,8 @@ public class ProofControllerImpl implements ProofController {
             @NonNull final List<ProofKeyPublication> keyPublications,
             @NonNull final List<HistorySignaturePublication> signaturePublications,
             @NonNull final Map<Long, HistoryProofVote> votes,
-            @NonNull final HistoryService historyService) {
+            @NonNull final HistoryService historyService,
+            @NonNull final WrapsController.Factory wrapsControllerFactory) {
         this.selfId = selfId;
         this.wrapsEnabled = wrapsEnabled;
         this.ledgerId = ledgerId;
@@ -160,6 +170,7 @@ public class ProofControllerImpl implements ProofController {
         this.construction = requireNonNull(construction);
         this.historyService = requireNonNull(historyService);
         this.schnorrKeyPair = requireNonNull(schnorrKeyPair);
+        this.wrapsControllerFactory = requireNonNull(wrapsControllerFactory);
         this.votes.putAll(requireNonNull(votes));
         if (!construction.hasTargetProof()) {
             final var cutoffTime = construction.hasGracePeriodEndTime()
@@ -199,6 +210,9 @@ public class ProofControllerImpl implements ProofController {
                 ensureProofKeyPublished();
             }
         } else if (construction.hasAssemblyStartTime()) {
+            // We never start an assembly without creating its WRAPS controller
+            requireNonNull(wrapsController);
+            final var wrapsState = wrapsController.advanceProtocol(now);
             boolean stillCollectingSignatures = true;
             final long elapsedSeconds = Math.max(
                     1,
@@ -207,55 +221,52 @@ public class ProofControllerImpl implements ProofController {
             if (elapsedSeconds % INSUFFICIENT_SIGNATURES_CHECK_RETRY_SECS == 0) {
                 stillCollectingSignatures = couldStillGetSufficientSignatures();
             }
-            if (stillCollectingSignatures && isActive) {
+            if (wrapsState == FINISHED && isActive) {
                 if (!votes.containsKey(selfId) && proofFuture == null) {
-                    if (hasSufficientSignatures()) {
-                        final var choice = requireNonNull(firstSufficientSignatures());
-                        // These are the witnesses for the SNARK prover algorithm
-                        final var signatures = verificationFutures.headMap(choice.cutoff(), true).values().stream()
-                                .map(CompletableFuture::join)
-                                .filter(v -> choice.history().equals(v.history()) && v.isValid())
-                                .collect(toMap(
-                                        Verification::nodeId,
-                                        v -> v.historySignature().signature(),
-                                        (a, b) -> a,
-                                        TreeMap::new));
-                        // We only use recursive proofs after the ledger id is known and proved via list-of-signatures
-                        if (ledgerId != null && wrapsEnabled) {
-                            if (RUNNING_PROOF_FUTURE != null && !RUNNING_PROOF_FUTURE.isDone()) {
-                                log.warn(
-                                        "Proof future for construction #{} must wait until previous finished",
-                                        construction.constructionId());
-                            }
-                            proofFuture = Optional.ofNullable(RUNNING_PROOF_FUTURE)
-                                    .orElse(CompletableFuture.completedFuture(null))
-                                    .thenCompose(ignore -> startRecursiveProofFuture(signatures));
-                            log.info("Created proof future for construction #{}", construction.constructionId());
-                        } else {
-                            // Convert the ordered set of signatures into a list-of-signatures proof
-                            final var chainOfTrustProof = ChainOfTrustProof.newBuilder()
-                                    .nodeSignatures(new NodeSignatures(signatures.entrySet().stream()
-                                            .map(e -> new NodeSignature(e.getKey(), e.getValue()))
-                                            .toList()))
-                                    .build();
-                            // Note the proof keys are frozen at this time (can only be updated before assembly start)
-                            final var targetHash = HistoryLibrary.computeHash(
-                                    library,
-                                    weights.targetNodeIds(),
-                                    weights::targetWeightOf,
-                                    id -> targetProofKeys.getOrDefault(id, EMPTY_PUBLIC_KEY));
-                            // Build the history proof
-                            final var proof = HistoryProof.newBuilder()
-                                    .targetProofKeys(proofKeyListFrom(targetProofKeys))
-                                    .targetHistory(new History(targetHash, requireNonNull(targetMetadata)))
-                                    .chainOfTrustProof(chainOfTrustProof)
-                                    .build();
-                            // And synchronously write it to state (either block zero proof or WRAPS disabled)
-                            finishProof(historyStore, proof);
+                    // The aggregate signature and signers mask are the witnesses to the SNARK prover algorithm
+                    final var wrapsResult = wrapsController.resultOrThrow();
+                    final var choice = requireNonNull(firstSufficientSignatures());
+                    // These are the witnesses for the SNARK prover algorithm
+                    final var signatures = verificationFutures.headMap(choice.cutoff(), true).values().stream()
+                            .map(CompletableFuture::join)
+                            .filter(v -> choice.history().equals(v.history()) && v.isValid())
+                            .collect(toMap(
+                                    Verification::nodeId,
+                                    v -> v.historySignature().signature(),
+                                    (a, b) -> a,
+                                    TreeMap::new));
+                    // We only use recursive proofs after the ledger id is known and proved via list-of-signatures
+                    if (ledgerId != null && wrapsEnabled) {
+                        if (RUNNING_PROOF_FUTURE != null && !RUNNING_PROOF_FUTURE.isDone()) {
+                            log.warn(
+                                    "Proof future for construction #{} must wait until previous finished",
+                                    construction.constructionId());
                         }
-                    } else if (!signingNodeIds.contains(selfId) && signingFuture == null) {
-                        signingFuture = startSigningFuture();
-                        log.info("Started signing future for construction #{}", construction.constructionId());
+                        proofFuture = Optional.ofNullable(RUNNING_PROOF_FUTURE)
+                                .orElse(CompletableFuture.completedFuture(null))
+                                .thenCompose(ignore -> startRecursiveProofFuture(wrapsResult));
+                        log.info("Created proof future for construction #{}", construction.constructionId());
+                    } else {
+                        // Convert the ordered set of signatures into a list-of-signatures proof
+                        final var chainOfTrustProof = ChainOfTrustProof.newBuilder()
+                                .nodeSignatures(new NodeSignatures(signatures.entrySet().stream()
+                                        .map(e -> new NodeSignature(e.getKey(), e.getValue()))
+                                        .toList()))
+                                .build();
+                        // Note the proof keys are frozen at this time (can only be updated before assembly start)
+                        final var targetHash = HistoryLibrary.computeHash(
+                                library,
+                                weights.targetNodeIds(),
+                                weights::targetWeightOf,
+                                id -> targetProofKeys.getOrDefault(id, EMPTY_PUBLIC_KEY));
+                        // Build the history proof
+                        final var proof = HistoryProof.newBuilder()
+                                .targetProofKeys(proofKeyListFrom(targetProofKeys))
+                                .targetHistory(new History(targetHash, requireNonNull(targetMetadata)))
+                                .chainOfTrustProof(chainOfTrustProof)
+                                .build();
+                        // And synchronously write it to state (either block zero proof or WRAPS disabled)
+                        finishProof(historyStore, proof);
                     }
                 }
             } else if (!stillCollectingSignatures) {
@@ -469,9 +480,10 @@ public class ProofControllerImpl implements ProofController {
 
     /**
      * Returns a future that completes when the node has completed its recursive chain-of-trust proof using the
-     * given signature; and has submitted the vote for the resulting proof.
+     * given {@link com.hedera.node.app.history.impl.WrapsController.Result}; and has submitted its vote for the
+     * resulting proof.
      */
-    private CompletableFuture<Void> startRecursiveProofFuture(@NonNull final TreeMap<Long, Bytes> signatures) {
+    private CompletableFuture<Void> startRecursiveProofFuture(@NonNull final WrapsController.Result wrapsResult) {
         // Finalize inputs to the async prover
         final var ledgerId = requireNonNull(this.ledgerId);
         final var targetMetadata = requireNonNull(this.targetMetadata);
@@ -501,12 +513,7 @@ public class ProofControllerImpl implements ProofController {
         RUNNING_PROOF_FUTURE = CompletableFuture.runAsync(
                         () -> {
                             final var targetHash = library.hashAddressBook(targetWeights, targetProofKeysArray);
-                            // Nodes that did not submit signatures have null in their array index here
-                            final var verifyingSignatures = weights.sourceNodeWeights().keySet().stream()
-                                    .map(i -> Optional.ofNullable(signatures.get(i))
-                                            .map(Bytes::toByteArray)
-                                            .orElse(null))
-                                    .toArray(byte[][]::new);
+                            // TODO - switch to 2.0 proof
                             log.info("Starting recursive chain-of-trust proof for construction #{}", inProgressId);
                             // If the ledger id is set, its first 32 bytes is the genesis book hash
                             final var targetMetadataHash = library.hashHintsVerificationKey(targetMetadata);
@@ -517,7 +524,7 @@ public class ProofControllerImpl implements ProofController {
                                     sourceProofKeysArray,
                                     targetWeights,
                                     targetProofKeysArray,
-                                    verifyingSignatures,
+                                    new byte[][] { {} },
                                     targetMetadataHash);
                             log.info("Finished recursive chain-of-trust proof for construction #{}", inProgressId);
                             final var chainOfTrustProof = ChainOfTrustProof.newBuilder()

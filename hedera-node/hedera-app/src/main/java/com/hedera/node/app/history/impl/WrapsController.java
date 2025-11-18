@@ -12,18 +12,22 @@ import java.util.Map;
  * {@link WrapsPhase#R2}, and {@link WrapsPhase#R3} on the way to an aggregate signature.
  */
 public interface WrapsController {
+    interface Factory {
+        @NonNull
+        WrapsController create(
+                @NonNull Map<Long, Long> weights,
+                @NonNull Map<Long, Bytes> publicKeys,
+                @NonNull Instant now);
+    }
+
     enum State {
-        WAITING_FOR_KEYS, RUNNING, FAILED, FINISHED
+        RUNNING, FAILED, FINISHED
     }
 
     record Result(byte[] rotationMessage, byte[] aggregateSignature, boolean[] signedBy) {}
 
     @NonNull
-    State stateAt(@NonNull Instant now);
-
-    void startProtocol(@NonNull Map<Long, Bytes> publicKeys, @NonNull Instant now);
-
-    void advanceProtocol(@NonNull Instant now);
+    State advanceProtocol(@NonNull Instant now);
 
     /**
      * Returns the result of the protocol, or throws if the protocol state is not finished.
