@@ -1,4 +1,4 @@
-node_id=$1
+node_id=${1}
 
 ps -aef | grep -w stateAnalyzer | grep -v grep | grep stateAnalyzer >/dev/null
 if [[ ${?} -eq 0 ]]
