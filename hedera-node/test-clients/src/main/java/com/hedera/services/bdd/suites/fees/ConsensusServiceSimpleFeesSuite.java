@@ -66,7 +66,7 @@ public class ConsensusServiceSimpleFeesSuite {
                     "create-topic-admin-txn",
                     0.02109,
                     1,
-                    0.01629,
+                    0.02109,
                     1);
         }
 
@@ -86,7 +86,7 @@ public class ConsensusServiceSimpleFeesSuite {
                     "create-topic-admin-txn",
                     0.02009,
                     1,
-                    0.01022,
+                    0.02009,
                     1);
         }
 
@@ -139,7 +139,7 @@ public class ConsensusServiceSimpleFeesSuite {
                     // total = 12200000
                     0.00122,
                     1,
-                    0.000354,
+                    0.00122,
                     1);
         }
 
@@ -201,7 +201,7 @@ public class ConsensusServiceSimpleFeesSuite {
                     "submit-message-txn",
                     0.000110,
                     1,
-                    0.000124,
+                    0.000110,
                     1);
         }
 
