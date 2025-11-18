@@ -305,7 +305,9 @@ class StateFileManagerTests {
 
                     final SignedState stateFromDisk = assertDoesNotThrow(
                             () -> SignedStateFileReader.readState(
-                                            savedStateInfo.stateDirectory(), VirtualMapStateTestUtils::createTestStateWithVM, context)
+                                            savedStateInfo.stateDirectory(),
+                                            VirtualMapStateTestUtils::createTestStateWithVM,
+                                            context)
                                     .reservedSignedState()
                                     .get(),
                             "should be able to read state on disk");

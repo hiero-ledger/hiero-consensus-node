@@ -178,6 +178,6 @@ final class ReconnectTest {
                 state,
                 RECONNECT_SOCKET_TIMEOUT,
                 reconnectMetrics,
-                TestVirtualMapState::new);
+                VirtualMapStateTestUtils::createTestStateWithVM);
     }
 }

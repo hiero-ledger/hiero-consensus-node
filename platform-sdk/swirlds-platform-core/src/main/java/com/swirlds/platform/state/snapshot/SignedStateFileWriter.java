@@ -9,6 +9,7 @@ import static com.swirlds.platform.config.internal.PlatformConfigUtils.writeSett
 import static com.swirlds.platform.event.preconsensus.BestEffortPcesFileCopy.copyPcesFilesRetryOnFailure;
 import static com.swirlds.platform.state.service.PlatformStateUtils.ancientThresholdOf;
 import static com.swirlds.platform.state.service.PlatformStateUtils.getInfoString;
+import static com.swirlds.platform.state.service.PlatformStateUtils.roundOf;
 import static com.swirlds.platform.state.snapshot.SignedStateFileUtils.CURRENT_ROSTER_FILE_NAME;
 import static com.swirlds.platform.state.snapshot.SignedStateFileUtils.HASH_INFO_FILE_NAME;
 import static com.swirlds.platform.state.snapshot.SignedStateFileUtils.INIT_SIG_SET_FILE_VERSION;
@@ -141,7 +142,7 @@ public final class SignedStateFileWriter {
         requireNonNull(signedState);
         requireNonNull(stateLifecycleManager);
 
-        final long round = platformStateFacade.roundOf(signedState.getState());
+        final long round = roundOf(signedState.getState());
         try {
             logger.info(STATE_TO_DISK.getMarker(), "Creating a snapshot on demand in {} for {}", directory, round);
             stateLifecycleManager.createSnapshot(signedState.getState(), directory);
