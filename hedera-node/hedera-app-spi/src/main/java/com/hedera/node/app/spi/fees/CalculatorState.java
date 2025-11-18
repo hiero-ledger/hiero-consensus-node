@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.spi.fees;
 
+import edu.umd.cs.findbugs.annotations.NonNull;
+
 public interface CalculatorState {
 
     /**
@@ -9,4 +11,8 @@ public interface CalculatorState {
      * @return the number of signatures
      */
     int numTxnSignatures();
+
+    @NonNull
+    <T> T readableStore(@NonNull Class<T> storeInterface);
+
 }

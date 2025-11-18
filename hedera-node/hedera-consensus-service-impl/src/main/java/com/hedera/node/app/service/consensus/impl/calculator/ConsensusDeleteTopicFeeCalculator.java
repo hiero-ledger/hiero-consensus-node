@@ -22,7 +22,7 @@ public class ConsensusDeleteTopicFeeCalculator implements ServiceFeeCalculator {
             @NonNull FeeResult feeResult,
             @NonNull FeeSchedule feeSchedule) {
         final ServiceFeeDefinition serviceDef =
-                lookupServiceFee(feeSchedule, HederaFunctionality.CONSENSUS_DELETE_TOPIC);
+                lookupServiceFee(feeSchedule, HederaFunctionality.CONSENSUS_DELETE_TOPIC.protoName());
         feeResult.addServiceFee(1, serviceDef.baseFee());
     }
 

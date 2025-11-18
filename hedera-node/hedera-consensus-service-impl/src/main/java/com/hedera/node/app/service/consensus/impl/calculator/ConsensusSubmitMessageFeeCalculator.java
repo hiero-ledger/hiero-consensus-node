@@ -5,6 +5,7 @@ import static org.hiero.hapi.fees.FeeScheduleUtils.lookupServiceFee;
 
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.node.app.service.consensus.ReadableTopicStore;
 import com.hedera.node.app.spi.fees.CalculatorState;
 import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -22,11 +23,15 @@ public class ConsensusSubmitMessageFeeCalculator implements ServiceFeeCalculator
             @Nullable CalculatorState calculatorState,
             @NonNull FeeResult feeResult,
             @NonNull FeeSchedule feeSchedule) {
+        final var op = txnBody.consensusSubmitMessageOrThrow();
+        final var topic = calculatorState.readableStore(ReadableTopicStore.class).getTopic(op.topicIDOrThrow());
+        final var hasCustomFees = (topic != null && !topic.customFees().isEmpty());
+
         final ServiceFeeDefinition serviceDef =
-                lookupServiceFee(feeSchedule, HederaFunctionality.CONSENSUS_SUBMIT_MESSAGE);
+                lookupServiceFee(feeSchedule, HederaFunctionality.CONSENSUS_SUBMIT_MESSAGE.protoName()+(hasCustomFees?"CustomFees":""));
+
         feeResult.addServiceFee(1, serviceDef.baseFee());
 
-        final var op = txnBody.consensusSubmitMessageOrThrow();
 
         final var msgSize = op.message().length();
         addExtraFee(feeResult, serviceDef, Extra.BYTES, feeSchedule, msgSize);

@@ -8,10 +8,12 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.deleteTopic;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.submitMessageTo;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.updateTopic;
+import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fixedConsensusHbarFee;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.compareSimpleToOld;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
+import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
@@ -89,6 +91,25 @@ public class ConsensusServiceSimpleFeesSuite {
                     0.02009,
                     1);
         }
+
+        @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+        @DisplayName("compare create topic with custom fee")
+        final Stream<DynamicTest> createTopicCustomFeeComparison() {
+            return compareSimpleToOld(() -> Arrays.asList(
+                    cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
+                    cryptoCreate("collector"),
+                    createTopic("testTopic")
+                            .blankMemo()
+                            .withConsensusCustomFee(fixedConsensusHbarFee(88, "collector"))
+                            .payingWith(PAYER)
+                            .fee(ONE_HUNDRED_HBARS)
+                            .via("create-topic-txn")),
+                    "create-topic-txn",
+                    2.0001,1,
+                    2,5
+                    );
+        }
+
 
         @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
         @DisplayName("compare update topic with admin key")
@@ -203,6 +224,34 @@ public class ConsensusServiceSimpleFeesSuite {
                     1,
                     0.000110,
                     1);
+        }
+
+        @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+        @DisplayName("compare submit message with custom fee and included bytes")
+        final Stream<DynamicTest> submitCustomFeeMessageWithIncludedBytesComparison() {
+            // 100 is less than the free size, so there's no per byte charge
+            final var byte_size = 100;
+            final byte[] messageBytes = new byte[byte_size]; // up to 1k
+            Arrays.fill(messageBytes, (byte) 0b1);
+            return compareSimpleToOld(() -> Arrays.asList(
+                    cryptoCreate(PAYER).balance(ONE_MILLION_HBARS),
+                    cryptoCreate("collector"),
+                    createTopic("testTopic")
+                            .blankMemo()
+                            .withConsensusCustomFee(fixedConsensusHbarFee(88, "collector"))
+                            .payingWith(PAYER)
+                            .fee(ONE_HUNDRED_HBARS)
+                            .via("create-topic-txn"),
+                    // submit message, provide up to 1 hbar to pay for it
+                    submitMessageTo("testTopic")
+                            .blankMemo()
+                            .payingWith(PAYER)
+                            .message(new String(messageBytes))
+                            .fee(ONE_HUNDRED_HBARS)
+                            .via("submit-message-txn")),
+                    "submit-message-txn",
+                    0.05,1,0.05,1
+            );
         }
 
         // TODO: support queries

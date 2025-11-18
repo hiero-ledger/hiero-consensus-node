@@ -78,6 +78,13 @@
           ]
         },
         {
+          "name": "ConsensusCreateTopicCustomFees",
+          "baseFee": 19999000000,
+          "extras": [
+            { "name": "KEYS", "includedCount": 0 }
+          ]
+        },
+        {
           "name": "ConsensusUpdateTopic",
           "baseFee": 1200000,
           "extras": [
@@ -87,6 +94,13 @@
         {
           "name": "ConsensusSubmitMessage",
           "baseFee": 0,
+          "extras": [
+            { "name": "BYTES",      "includedCount": 100 }
+          ]
+        },
+        {
+          "name": "ConsensusSubmitMessageCustomFees",
+          "baseFee": 499000000,
           "extras": [
             { "name": "BYTES",      "includedCount": 100 }
           ]
