@@ -20,8 +20,8 @@ import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.TransactionGenerator;
 import org.hiero.otter.fixtures.internal.network.ConnectionKey;
 import org.hiero.otter.fixtures.network.BandwidthLimit;
-import org.hiero.otter.fixtures.network.DirectionalConnection;
 import org.hiero.otter.fixtures.network.Topology;
+import org.hiero.otter.fixtures.network.UnidirectionalConnection;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -30,7 +30,7 @@ import org.junit.jupiter.api.Test;
  *
  * <p>Priority order (highest to lowest):
  * <ol>
- *   <li>Explicit connection settings via {@link DirectionalConnection#connect()}/{@link DirectionalConnection#disconnect()}</li>
+ *   <li>Explicit connection settings via {@link UnidirectionalConnection#connect()}/{@link UnidirectionalConnection#disconnect()}</li>
  *   <li>Network partitions</li>
  *   <li>Topology configuration</li>
  * </ol>
@@ -55,7 +55,7 @@ class ConnectionPriorityTest {
 
     @Test
     void topologyConnectedByDefault() {
-        final DirectionalConnection connection = network.directionalConnection(node1, node2);
+        final UnidirectionalConnection connection = network.unidirectionalConnection(node1, node2);
 
         assertThat(connection.isConnected()).isTrue();
     }
@@ -64,14 +64,14 @@ class ConnectionPriorityTest {
     void topologyDisconnectedWhenConfigured() {
         network.setTopologyConnected(false);
 
-        final DirectionalConnection connection = network.directionalConnection(node1, node2);
+        final UnidirectionalConnection connection = network.unidirectionalConnection(node1, node2);
 
         assertThat(connection.isConnected()).isFalse();
     }
 
     @Test
     void partitionOverridesConnectedTopology() {
-        final DirectionalConnection connection = network.directionalConnection(node1, node2);
+        final UnidirectionalConnection connection = network.unidirectionalConnection(node1, node2);
 
         // Initially connected by topology
         assertThat(connection.isConnected()).isTrue();
@@ -87,7 +87,7 @@ class ConnectionPriorityTest {
     void partitionDoesNotOverrideDisconnectedTopology() {
         network.setTopologyConnected(false);
 
-        final DirectionalConnection connection = network.directionalConnection(node1, node2);
+        final UnidirectionalConnection connection = network.unidirectionalConnection(node1, node2);
 
         // Initially disconnected by topology
         assertThat(connection.isConnected()).isFalse();
@@ -101,7 +101,7 @@ class ConnectionPriorityTest {
 
     @Test
     void explicitDisconnectOverridesConnectedTopology() {
-        final DirectionalConnection connection = network.directionalConnection(node1, node2);
+        final UnidirectionalConnection connection = network.unidirectionalConnection(node1, node2);
 
         // Initially connected by topology
         assertThat(connection.isConnected()).isTrue();
@@ -117,7 +117,7 @@ class ConnectionPriorityTest {
     void explicitConnectOverridesDisconnectedTopology() {
         network.setTopologyConnected(false);
 
-        final DirectionalConnection connection = network.directionalConnection(node1, node2);
+        final UnidirectionalConnection connection = network.unidirectionalConnection(node1, node2);
 
         // Initially disconnected by topology
         assertThat(connection.isConnected()).isFalse();
@@ -134,7 +134,7 @@ class ConnectionPriorityTest {
         // Create partition separating node1 and node2
         network.createNetworkPartition(node1, node3);
 
-        final DirectionalConnection connection = network.directionalConnection(node1, node2);
+        final UnidirectionalConnection connection = network.unidirectionalConnection(node1, node2);
 
         // Partition causes disconnection
         assertThat(connection.isConnected()).isFalse();
@@ -148,8 +148,8 @@ class ConnectionPriorityTest {
 
     @Test
     void explicitDisconnectOverridesPartition() {
-        final DirectionalConnection connection12 = network.directionalConnection(node1, node2);
-        final DirectionalConnection connection13 = network.directionalConnection(node1, node3);
+        final UnidirectionalConnection connection12 = network.unidirectionalConnection(node1, node2);
+        final UnidirectionalConnection connection13 = network.unidirectionalConnection(node1, node3);
 
         // Create partition with all nodes together
         // (no partition actually, all nodes in same implicit partition)
@@ -168,7 +168,7 @@ class ConnectionPriorityTest {
         // Create partition
         final var partition = network.createNetworkPartition(node1, node3);
 
-        final DirectionalConnection connection = network.directionalConnection(node1, node2);
+        final UnidirectionalConnection connection = network.unidirectionalConnection(node1, node2);
 
         // Partition causes disconnection
         assertThat(connection.isConnected()).isFalse();
@@ -188,7 +188,7 @@ class ConnectionPriorityTest {
     void restoreConnectivityRemovesExplicitSettingRevealsTopology() {
         network.setTopologyConnected(false);
 
-        final DirectionalConnection connection = network.directionalConnection(node1, node2);
+        final UnidirectionalConnection connection = network.unidirectionalConnection(node1, node2);
 
         // Topology causes disconnection
         assertThat(connection.isConnected()).isFalse();
@@ -208,7 +208,7 @@ class ConnectionPriorityTest {
     void complexScenarioAllThreeLayers() {
         network.setTopologyConnected(false);
 
-        final DirectionalConnection connection = network.directionalConnection(node1, node2);
+        final UnidirectionalConnection connection = network.unidirectionalConnection(node1, node2);
 
         // Base: topology is disconnected
         assertThat(connection.isConnected()).isFalse();
@@ -236,7 +236,7 @@ class ConnectionPriorityTest {
 
     @Test
     void complexScenarioConnectedTopologyWithLayers() {
-        final DirectionalConnection connection = network.directionalConnection(node1, node2);
+        final UnidirectionalConnection connection = network.unidirectionalConnection(node1, node2);
 
         // Base: topology is connected
         assertThat(connection.isConnected()).isTrue();
