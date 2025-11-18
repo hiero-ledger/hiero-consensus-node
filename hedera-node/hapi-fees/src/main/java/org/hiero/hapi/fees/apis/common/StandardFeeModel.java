@@ -4,7 +4,6 @@ package org.hiero.hapi.fees.apis.common;
 import static org.hiero.hapi.fees.FeeScheduleUtils.lookupExtraFee;
 import static org.hiero.hapi.fees.FeeScheduleUtils.lookupServiceFee;
 
-import com.hedera.hapi.node.base.HederaFunctionality;
 import java.security.InvalidParameterException;
 import java.util.Map;
 import org.hiero.hapi.fees.FeeResult;

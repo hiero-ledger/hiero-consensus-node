@@ -14,5 +14,4 @@ public interface CalculatorState {
 
     @NonNull
     <T> T readableStore(@NonNull Class<T> storeInterface);
-
 }

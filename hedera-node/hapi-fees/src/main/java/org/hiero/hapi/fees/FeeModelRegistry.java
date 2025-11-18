@@ -59,7 +59,7 @@ import org.hiero.hapi.fees.apis.common.StandardFeeModel;
  * are currently omitted.
  */
 public class FeeModelRegistry {
-    private static final Map<String , FeeModel> registry = new LinkedHashMap<>();
+    private static final Map<String, FeeModel> registry = new LinkedHashMap<>();
 
     private static void register(FeeModel feeModel) {
         registry.put(feeModel.getApi(), feeModel);
@@ -90,13 +90,16 @@ public class FeeModelRegistry {
         register(new StandardFeeModel(CONTRACT_CREATE.protoName(), "Create a smart contract"));
         register(new StandardFeeModel(CONTRACT_UPDATE.protoName(), "Update a smart contract"));
         register(new StandardFeeModel(CONTRACT_GET_INFO.protoName(), "Get information about a smart contract"));
-        register(new StandardFeeModel(CONTRACT_GET_BYTECODE.protoName(), "Get the compiled bytecode for a smart contract"));
+        register(new StandardFeeModel(
+                CONTRACT_GET_BYTECODE.protoName(), "Get the compiled bytecode for a smart contract"));
         register(new StandardFeeModel(CONTRACT_DELETE.protoName(), "Delete a smart contract"));
 
         register(new StandardFeeModel(TOKEN_CREATE.protoName(), "Create a token"));
         register(new StandardFeeModel(TOKEN_GET_INFO.protoName(), "Get metadata for a token"));
-        register(new StandardFeeModel(TOKEN_FREEZE_ACCOUNT.protoName(), "Freeze a specific account with respect to a token"));
-        register(new StandardFeeModel(TOKEN_UNFREEZE_ACCOUNT.protoName(), "Unfreeze a specific account with respect to a token"));
+        register(new StandardFeeModel(
+                TOKEN_FREEZE_ACCOUNT.protoName(), "Freeze a specific account with respect to a token"));
+        register(new StandardFeeModel(
+                TOKEN_UNFREEZE_ACCOUNT.protoName(), "Unfreeze a specific account with respect to a token"));
         register(new StandardFeeModel(
                 TOKEN_GRANT_KYC_TO_ACCOUNT.protoName(), "Grant KYC status to an account for a specific token"));
         register(new StandardFeeModel(
@@ -107,7 +110,8 @@ public class FeeModelRegistry {
         register(new StandardFeeModel(TOKEN_BURN.protoName(), "Burn tokens"));
         register(new StandardFeeModel(TOKEN_ACCOUNT_WIPE.protoName(), "Wipe all amounts for a specific token"));
         register(new StandardFeeModel(TOKEN_ASSOCIATE_TO_ACCOUNT.protoName(), "Associate account to a specific token"));
-        register(new StandardFeeModel(TOKEN_DISSOCIATE_FROM_ACCOUNT.protoName(), "Dissociate account from a specific token"));
+        register(new StandardFeeModel(
+                TOKEN_DISSOCIATE_FROM_ACCOUNT.protoName(), "Dissociate account from a specific token"));
         register(new StandardFeeModel(TOKEN_PAUSE.protoName(), "Pause a specific token"));
         register(new StandardFeeModel(TOKEN_UNPAUSE.protoName(), "Unpause a specific token"));
         register(new StandardFeeModel(TOKEN_UPDATE_NFTS.protoName(), "Update metadata of an NFT token"));

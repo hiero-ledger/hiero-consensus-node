@@ -31,8 +31,7 @@ public class FeeScheduleUtils {
     }
 
     /** Create a service fee for a specific Hedera service */
-    public static ServiceFeeDefinition makeServiceFee(
-            String name, long baseFee, ExtraFeeReference... reference) {
+    public static ServiceFeeDefinition makeServiceFee(String name, long baseFee, ExtraFeeReference... reference) {
         return ServiceFeeDefinition.DEFAULT
                 .copyBuilder()
                 .name(name)
@@ -73,9 +72,11 @@ public class FeeScheduleUtils {
         return null;
     }
 
-    public static ServiceFeeDefinition lookupServiceFee(FeeSchedule feeSchedule, HederaFunctionality api, boolean customFees) {
-        return lookupServiceFee(feeSchedule, api.protoName()+(customFees?"CustomFees":""));
+    public static ServiceFeeDefinition lookupServiceFee(
+            FeeSchedule feeSchedule, HederaFunctionality api, boolean customFees) {
+        return lookupServiceFee(feeSchedule, api.protoName() + (customFees ? "CustomFees" : ""));
     }
+
     public static ServiceFeeDefinition lookupServiceFee(FeeSchedule feeSchedule, HederaFunctionality api) {
         return lookupServiceFee(feeSchedule, api.protoName());
     }
