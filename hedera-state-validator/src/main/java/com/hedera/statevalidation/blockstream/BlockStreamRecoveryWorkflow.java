@@ -8,7 +8,6 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.block.stream.Block;
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.output.StateChanges;
-import com.hedera.node.app.HederaVirtualMapState;
 import com.hedera.node.app.hapi.utils.blocks.BlockStreamAccess;
 import com.hedera.node.app.hapi.utils.blocks.BlockStreamUtils;
 import com.hedera.statevalidation.util.PlatformContextHelper;
@@ -21,6 +20,7 @@ import com.swirlds.platform.state.snapshot.SignedStateFileWriter;
 import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.StateLifecycleManagerImpl;
+import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.spi.CommittableWritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
@@ -155,7 +155,7 @@ public class BlockStreamRecoveryWorkflow {
         final StateLifecycleManager stateLifecycleManager = new StateLifecycleManagerImpl(
                 platformContext.getMetrics(),
                 platformContext.getTime(),
-                vm -> new HederaVirtualMapState(vm, platformContext.getMetrics(), platformContext.getTime()));
+                vm -> new VirtualMapState(vm, platformContext.getMetrics()));
         try {
             SignedStateFileWriter.writeSignedStateFilesToDirectory(
                     platformContext,
