@@ -32,7 +32,6 @@ import com.swirlds.platform.eventhandling.TransactionHandlerResult;
 import com.swirlds.platform.eventhandling.TransactionPrehandler;
 import com.swirlds.platform.metrics.PlatformMetricsConfig;
 import com.swirlds.platform.metrics.event.EventPipelineTracker;
-import com.swirlds.platform.publisher.PlatformPublisher;
 import com.swirlds.platform.state.hasher.StateHasher;
 import com.swirlds.platform.state.hashlogger.HashLogger;
 import com.swirlds.platform.state.iss.IssDetector;

@@ -106,7 +106,6 @@ module com.swirlds.platform.core {
     exports com.swirlds.platform.config.internal;
     exports com.swirlds.platform.freeze;
     exports com.swirlds.platform.network.protocol.rpc;
-    exports com.swirlds.platform.event.metrics;
     exports com.swirlds.platform.state.iss to
             org.hiero.otter.test;
     exports com.swirlds.platform.metrics.event;
