@@ -44,7 +44,7 @@ import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movi
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertCreationMaxAssociations;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertCreationViaCallMaxAssociations;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertHgcaaLogDoesNotContain;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertHgcaaLogDoesNotContainText;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.contractListWithPropertiesInheritedFrom;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.getEcdsaPrivateKeyFromSpec;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyListNamed;
@@ -924,7 +924,7 @@ public class ContractCreateSuite {
                 // fails during execution due to insufficient gas
                 contractCreate("HushSenseManager").gas(200_000L).hasKnownStatus(ResponseCodeEnum.INSUFFICIENT_GAS),
                 // Ensure we don't log for empty action stack anymore
-                assertHgcaaLogDoesNotContain(
+                assertHgcaaLogDoesNotContainText(
                         NodeSelector.allNodes(), "Action stack prematurely empty", Duration.ofSeconds(10)),
                 // succeeds with enough gas
                 contractCreate("HushSenseManager").gas(1_000_000L).hasKnownStatus(ResponseCodeEnum.SUCCESS));
