@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.metrics.api.core;
 
+import com.swirlds.base.ArgumentUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -17,9 +18,17 @@ import org.hiero.metrics.internal.core.MetricRegistryImpl;
 /**
  * A thread-safe registry for {@link Metric} instances.
  * <p>
- * Registry can be created via {@link #builder()} using builder pattern.
+ * Registry can be created via {@link #builder(String)} using builder pattern.
  */
 public sealed interface MetricRegistry permits org.hiero.metrics.internal.export.SnapshotableMetricsRegistry {
+
+    /**
+     * Returns the name of the metric registry.
+     *
+     * @return the name of the registry, never {@code null}
+     */
+    @NonNull
+    String name();
 
     /**
      * Returns an unmodifiable list of global labels that are applied to all metrics in this registry.
@@ -90,11 +99,12 @@ public sealed interface MetricRegistry permits org.hiero.metrics.internal.export
     /**
      * Creates a new {@link Builder} for constructing a {@link MetricRegistry}.
      *
+     * @param registryName the name of the registry, must not be {@code null} or blank
      * @return a new {@link Builder} instance
      */
     @NonNull
-    static Builder builder() {
-        return new Builder();
+    static Builder builder(@NonNull String registryName) {
+        return new Builder(registryName);
     }
 
     /**
@@ -104,9 +114,14 @@ public sealed interface MetricRegistry permits org.hiero.metrics.internal.export
 
         private static final Logger logger = LogManager.getLogger(MetricRegistry.class);
 
+        private final String registryName;
         private boolean discoreMetricProviders = false;
         private final List<Label> globalLabels = new ArrayList<>();
         private final Set<String> globalLabelNames = new HashSet<>();
+
+        public Builder(@NonNull String registryName) {
+            this.registryName = ArgumentUtils.throwArgBlank(registryName, "registry name");
+        }
 
         /**
          * Adds a global label to the registry that will be applied to all metrics.
@@ -148,7 +163,7 @@ public sealed interface MetricRegistry permits org.hiero.metrics.internal.export
          * @return this builder instance
          */
         @NonNull
-        public Builder discoverMetricProviders() {
+        public Builder withDiscoveredMetricProviders() {
             this.discoreMetricProviders = true;
             return this;
         }
@@ -160,7 +175,7 @@ public sealed interface MetricRegistry permits org.hiero.metrics.internal.export
          */
         @NonNull
         public MetricRegistry build() {
-            MetricRegistryImpl registry = new MetricRegistryImpl(globalLabels);
+            MetricRegistryImpl registry = new MetricRegistryImpl(registryName, globalLabels);
 
             if (discoreMetricProviders) {
                 List<MetricsRegistrationProvider> providers = MetricUtils.load(MetricsRegistrationProvider.class);

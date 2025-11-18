@@ -10,26 +10,16 @@ import org.hiero.metrics.api.export.MetricsExportManager;
  */
 public final class NoOpMetricsExportManager implements MetricsExportManager {
 
-    public static final MetricsExportManager INSTANCE = new NoOpMetricsExportManager();
+    private final MetricRegistry metricRegistry;
 
-    private NoOpMetricsExportManager() {
-        // private constructor to prevent instantiation
+    public NoOpMetricsExportManager(MetricRegistry metricRegistry) {
+        this.metricRegistry = metricRegistry;
     }
 
     @NonNull
     @Override
-    public String name() {
-        return "no-op";
-    }
-
-    @Override
-    public boolean manageMetricRegistry(@NonNull MetricRegistry metricRegistry) {
-        return false;
-    }
-
-    @Override
-    public void resetAll() {
-        // no op
+    public MetricRegistry registry() {
+        return metricRegistry;
     }
 
     @Override

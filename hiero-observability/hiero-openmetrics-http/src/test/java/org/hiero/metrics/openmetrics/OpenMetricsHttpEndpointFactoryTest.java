@@ -10,6 +10,7 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.net.BindException;
 import java.net.ServerSocket;
 import java.util.Optional;
 import org.hiero.metrics.api.export.MetricsExporter;
@@ -30,7 +31,7 @@ public class OpenMetricsHttpEndpointFactoryTest {
                 .autoDiscoverExtensions()
                 .withValue("metrics.exporter.openmetrics.http.enabled", "false")
                 .build();
-        Optional<MetricsExporter> exporter = new OpenMetricsHttpEndpointFactory().createExporter(config);
+        Optional<MetricsExporter> exporter = new OpenMetricsHttpEndpointFactory().createExporter("registry", config);
 
         assertThat(exporter).isEmpty();
     }
@@ -43,8 +44,10 @@ public class OpenMetricsHttpEndpointFactoryTest {
             when(configuration.getConfigData(OpenMetricsHttpEndpointConfig.class))
                     .thenReturn(new OpenMetricsHttpEndpointConfig(true, socket.getLocalPort(), "/metrics", 0));
 
-            assertThatThrownBy(() -> new OpenMetricsHttpEndpointFactory().createExporter(configuration))
-                    .isInstanceOf(UncheckedIOException.class);
+            assertThatThrownBy(() -> new OpenMetricsHttpEndpointFactory().createExporter("registry", configuration))
+                    .isInstanceOf(UncheckedIOException.class)
+                    .hasCauseInstanceOf(BindException.class)
+                    .hasRootCauseMessage("Address already in use");
         }
     }
 }
