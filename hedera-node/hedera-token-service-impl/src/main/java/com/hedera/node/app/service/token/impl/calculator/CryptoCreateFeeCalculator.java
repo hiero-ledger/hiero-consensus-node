@@ -3,6 +3,7 @@ package com.hedera.node.app.service.token.impl.calculator;
 
 import static com.hedera.node.app.spi.fees.SimpleFeeCalculatorImpl.countKeys;
 import static org.hiero.hapi.fees.FeeScheduleUtils.lookupServiceFee;
+import static org.hiero.hapi.support.fees.Extra.HOOKS;
 import static org.hiero.hapi.support.fees.Extra.KEYS;
 
 import com.hedera.hapi.node.base.HederaFunctionality;
@@ -11,11 +12,15 @@ import com.hedera.node.app.spi.fees.CalculatorState;
 import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.hiero.hapi.fees.FeeResult;
 import org.hiero.hapi.support.fees.ServiceFeeDefinition;
 
-/** Calculates CryptoCreate fees. Per HIP-1261, uses SIGNATURES and KEYS extras. */
+/** Calculates CryptoCreate fees */
 public class CryptoCreateFeeCalculator implements ServiceFeeCalculator {
+
+    private static final Logger log = LogManager.getLogger(CryptoCreateFeeCalculator.class);
 
     @Override
     public void accumulateServiceFee(
@@ -26,10 +31,14 @@ public class CryptoCreateFeeCalculator implements ServiceFeeCalculator {
         final var op = txnBody.cryptoCreateAccountOrThrow();
         // Add service base + extras
         final ServiceFeeDefinition serviceDef = lookupServiceFee(feeSchedule, HederaFunctionality.CRYPTO_CREATE);
+        log.info("SIMPLE_FEE_DEBUG CryptoCreate - baseFee: {}, extras: {}", serviceDef.baseFee(), serviceDef.extras());
         feeResult.addServiceFee(1, serviceDef.baseFee());
-        // Add KEYS extra if key is being updated
         if (op.hasKey()) {
             addExtraFee(feeResult, serviceDef, KEYS, feeSchedule, countKeys(op.key()));
+        }
+        if (!op.hookCreationDetails().isEmpty()) {
+            log.info("SIMPLE_FEE_DEBUG CryptoCreate - adding HOOKS fee for {} hooks", op.hookCreationDetails().size());
+            addExtraFee(feeResult, serviceDef, HOOKS, feeSchedule, op.hookCreationDetails().size());
         }
     }
 
