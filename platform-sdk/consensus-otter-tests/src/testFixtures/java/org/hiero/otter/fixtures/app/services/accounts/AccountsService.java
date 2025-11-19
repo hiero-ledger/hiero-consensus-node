@@ -83,7 +83,7 @@ public class AccountsService implements OtterService {
         final Account account = new Account(id, accountName);
         accountsState.put(id, account);
 
-        log.info(DEMO_INFO.getMarker(), "Account created: id={} name={}", id.id(), accountName);
+//        log.info(DEMO_INFO.getMarker(), "Account created: id={} name={}", id.id(), accountName);
     }
 
     private void handleDeleteAccount(
