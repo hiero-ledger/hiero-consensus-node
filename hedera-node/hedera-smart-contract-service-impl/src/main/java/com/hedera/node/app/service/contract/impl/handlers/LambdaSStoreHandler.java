@@ -11,8 +11,11 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.LAMBDA_STORAGE_UPDATE_B
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOO_MANY_LAMBDA_STORAGE_UPDATES;
 import static com.hedera.hapi.node.state.hooks.EvmHookType.LAMBDA;
 import static com.hedera.node.app.hapi.utils.contracts.HookUtils.asAccountId;
+import static com.hedera.node.app.hapi.utils.contracts.HookUtils.leftPad32;
 import static com.hedera.node.app.hapi.utils.contracts.HookUtils.minimalRepresentationOf;
+import static com.hedera.node.app.hapi.utils.contracts.HookUtils.slotKeyOfMappingEntry;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
+import static com.hedera.node.app.spi.workflows.PreCheckException.validateFalsePreCheck;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
 import static java.util.Objects.requireNonNull;
 
@@ -20,12 +23,17 @@ import com.hedera.hapi.node.base.HookEntityId;
 import com.hedera.hapi.node.base.HookId;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.KeyList;
+import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.base.ThresholdKey;
 import com.hedera.hapi.node.hooks.LambdaMappingEntry;
 import com.hedera.hapi.node.hooks.LambdaStorageSlot;
+import com.hedera.hapi.node.hooks.LambdaStorageUpdate;
+import com.hedera.hapi.node.state.hooks.LambdaSlotKey;
 import com.hedera.node.app.service.contract.ReadableEvmHookStore;
 import com.hedera.node.app.service.contract.impl.state.WritableEvmHookStore;
 import com.hedera.node.app.service.token.api.TokenServiceApi;
+import com.hedera.node.app.spi.fees.FeeContext;
+import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
@@ -35,12 +43,27 @@ import com.hedera.node.app.spi.workflows.TransactionHandler;
 import com.hedera.node.config.data.HooksConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @Singleton
 public class LambdaSStoreHandler implements TransactionHandler {
+    private static final Logger log = LoggerFactory.getLogger(LambdaSStoreHandler.class);
+
+    /**
+     * The gas costs of various {@code SSTORE} opcode scenarios in the EVM.
+     */
+    public static final long ZERO_INTO_ZERO_GAS_COST = 2_100L;
+
+    public static final long NONZERO_INTO_ZERO_GAS_COST = 22_100L;
+    public static final long ZERO_INTO_NONZERO_GAS_COST = 200L;
+    public static final long NONZERO_INTO_NONZERO_GAS_COST = 5_000L;
+    public static final long NOOP_NONZERO_INTO_NONZERO_GAS_COST = 2_100L;
+
     public static final long MAX_UPDATE_BYTES_LEN = 32L;
 
     @Inject
@@ -57,6 +80,7 @@ public class LambdaSStoreHandler implements TransactionHandler {
         validateTruePreCheck(hookId.hasEntityId(), INVALID_HOOK_ID);
         final var ownerType = hookId.entityIdOrThrow().entityId().kind();
         validateTruePreCheck(ownerType != UNSET, INVALID_HOOK_ID);
+        validateFalsePreCheck(op.storageUpdates().isEmpty(), EMPTY_LAMBDA_STORAGE_UPDATE);
         for (final var update : op.storageUpdates()) {
             if (update.hasStorageSlot()) {
                 validateSlot(update.storageSlotOrThrow());
@@ -117,6 +141,65 @@ public class LambdaSStoreHandler implements TransactionHandler {
                 delta,
                 // But if the user expected a contract, enforce that here
                 op.hookIdOrThrow().entityIdOrThrow().hasContractId());
+    }
+
+    @Override
+    public @NonNull Fees calculateFees(@NonNull final FeeContext feeContext) {
+        final var calculator = feeContext.feeCalculatorFactory().feeCalculator(SubType.DEFAULT);
+        calculator.resetUsage();
+        final var op = feeContext.body().lambdaSstoreOrThrow();
+        long effectiveGas = 0L;
+        try {
+            final var hookId = effectiveHookId(op.hookIdOrThrow());
+            final var store = feeContext.readableStore(ReadableEvmHookStore.class);
+            for (final var update : op.storageUpdates()) {
+                if (update.hasStorageSlot()) {
+                    final var slot = update.storageSlotOrThrow();
+                    final var oldSlotValue = store.getSlotValue(new LambdaSlotKey(hookId, slot.key()));
+                    final var oldValue = oldSlotValue == null ? null : oldSlotValue.value();
+                    effectiveGas += effectiveGasCost(oldValue, slot.value());
+                } else if (update.hasMappingEntries()) {
+                    final var entries = update.mappingEntriesOrThrow();
+                    final var p = leftPad32(entries.mappingSlot());
+                    for (final var entry : entries.entries()) {
+                        final var key = slotKeyOfMappingEntry(p, entry);
+                        final var oldSlotValue = store.getSlotValue(new LambdaSlotKey(hookId, key));
+                        final var oldValue = oldSlotValue == null ? null : oldSlotValue.value();
+                        effectiveGas += effectiveGasCost(oldValue, entry.value());
+                    }
+                }
+            }
+        } catch (Exception unexpected) {
+            log.warn("Unexpected exception calculating fees for LambdaSStore", unexpected);
+            // Fallback to a mid-range default gas cost
+            effectiveGas = slotCount(op.storageUpdates()) * NONZERO_INTO_NONZERO_GAS_COST;
+        }
+        return calculator.addGas(effectiveGas).calculate();
+    }
+
+    private int slotCount(@NonNull final List<LambdaStorageUpdate> storageUpdates) {
+        int count = 0;
+        for (final var update : storageUpdates) {
+            if (update.hasStorageSlot()) {
+                count++;
+            } else if (update.hasMappingEntries()) {
+                count += update.mappingEntriesOrThrow().entries().size();
+            }
+        }
+        return count;
+    }
+
+    private long effectiveGasCost(@Nullable final Bytes oldValue, @NonNull final Bytes newValue) {
+        // We don't ever explicitly store zero; so only the null comparison
+        if (oldValue == null) {
+            return newValue.length() == 0 ? ZERO_INTO_ZERO_GAS_COST : NONZERO_INTO_ZERO_GAS_COST;
+        } else {
+            if (newValue.length() == 0) {
+                return ZERO_INTO_NONZERO_GAS_COST;
+            } else {
+                return oldValue.equals(newValue) ? NOOP_NONZERO_INTO_NONZERO_GAS_COST : NONZERO_INTO_NONZERO_GAS_COST;
+            }
+        }
     }
 
     private void validateSlot(@NonNull final LambdaStorageSlot slot) throws PreCheckException {
