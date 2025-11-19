@@ -59,71 +59,67 @@ import org.hiero.hapi.fees.apis.common.StandardFeeModel;
  * are currently omitted.
  */
 public class FeeModelRegistry {
-    private static final Map<String, FeeModel> registry = new LinkedHashMap<>();
+    private static final Map<HederaFunctionality, FeeModel> registry = new LinkedHashMap<>();
 
     private static void register(FeeModel feeModel) {
         registry.put(feeModel.getApi(), feeModel);
     }
 
     static {
-        register(new StandardFeeModel(CONSENSUS_CREATE_TOPIC.protoName(), "Create a new topic"));
-        register(new StandardFeeModel(CONSENSUS_UPDATE_TOPIC.protoName(), "Update topic"));
-        register(new StandardFeeModel(CONSENSUS_DELETE_TOPIC.protoName(), "Delete topic"));
-        register(new StandardFeeModel(CONSENSUS_GET_TOPIC_INFO.protoName(), "Get metadata for a topic"));
-        register(new StandardFeeModel(CONSENSUS_SUBMIT_MESSAGE.protoName(), "Submit message to topic"));
+        register(new StandardFeeModel(CONSENSUS_CREATE_TOPIC, "Create a new topic"));
+        register(new StandardFeeModel(CONSENSUS_UPDATE_TOPIC, "Update topic"));
+        register(new StandardFeeModel(CONSENSUS_DELETE_TOPIC, "Delete topic"));
+        register(new StandardFeeModel(CONSENSUS_GET_TOPIC_INFO, "Get metadata for a topic"));
+        register(new StandardFeeModel(CONSENSUS_SUBMIT_MESSAGE, "Submit message to topic"));
 
-        register(new StandardFeeModel(FILE_CREATE.protoName(), "Create file"));
-        register(new StandardFeeModel(FILE_APPEND.protoName(), "Append to file"));
-        register(new StandardFeeModel(FILE_UPDATE.protoName(), "Update file"));
-        register(new StandardFeeModel(FILE_DELETE.protoName(), "Delete file"));
-        register(new StandardFeeModel(FILE_GET_CONTENTS.protoName(), "Get file contents"));
-        register(new StandardFeeModel(FILE_GET_INFO.protoName(), "Get file info"));
+        register(new StandardFeeModel(FILE_CREATE, "Create file"));
+        register(new StandardFeeModel(FILE_APPEND, "Append to file"));
+        register(new StandardFeeModel(FILE_UPDATE, "Update file"));
+        register(new StandardFeeModel(FILE_DELETE, "Delete file"));
+        register(new StandardFeeModel(FILE_GET_CONTENTS, "Get file contents"));
+        register(new StandardFeeModel(FILE_GET_INFO, "Get file info"));
 
-        register(new StandardFeeModel(CRYPTO_TRANSFER.protoName(), "Transfer tokens among accounts"));
-        register(new StandardFeeModel(CRYPTO_UPDATE.protoName(), "Update an account"));
-        register(new StandardFeeModel(CRYPTO_DELETE.protoName(), "Delete an account"));
-        register(new StandardFeeModel(CRYPTO_CREATE.protoName(), "Create a new account"));
-        register(new StandardFeeModel(CRYPTO_APPROVE_ALLOWANCE.protoName(), "Approve an allowance for a spender"));
-        register(new StandardFeeModel(CRYPTO_DELETE_ALLOWANCE.protoName(), "Delete an allowance for a spender"));
+        register(new StandardFeeModel(CRYPTO_TRANSFER, "Transfer tokens among accounts"));
+        register(new StandardFeeModel(CRYPTO_UPDATE, "Update an account"));
+        register(new StandardFeeModel(CRYPTO_DELETE, "Delete an account"));
+        register(new StandardFeeModel(CRYPTO_CREATE, "Create a new account"));
+        register(new StandardFeeModel(CRYPTO_APPROVE_ALLOWANCE, "Approve an allowance for a spender"));
+        register(new StandardFeeModel(CRYPTO_DELETE_ALLOWANCE, "Delete an allowance for a spender"));
 
-        register(new StandardFeeModel(CONTRACT_CALL.protoName(), "Execute a smart contract call"));
-        register(new StandardFeeModel(CONTRACT_CREATE.protoName(), "Create a smart contract"));
-        register(new StandardFeeModel(CONTRACT_UPDATE.protoName(), "Update a smart contract"));
-        register(new StandardFeeModel(CONTRACT_GET_INFO.protoName(), "Get information about a smart contract"));
-        register(new StandardFeeModel(
-                CONTRACT_GET_BYTECODE.protoName(), "Get the compiled bytecode for a smart contract"));
-        register(new StandardFeeModel(CONTRACT_DELETE.protoName(), "Delete a smart contract"));
+        register(new StandardFeeModel(CONTRACT_CALL, "Execute a smart contract call"));
+        register(new StandardFeeModel(CONTRACT_CREATE, "Create a smart contract"));
+        register(new StandardFeeModel(CONTRACT_UPDATE, "Update a smart contract"));
+        register(new StandardFeeModel(CONTRACT_GET_INFO, "Get information about a smart contract"));
+        register(new StandardFeeModel(CONTRACT_GET_BYTECODE, "Get the compiled bytecode for a smart contract"));
+        register(new StandardFeeModel(CONTRACT_DELETE, "Delete a smart contract"));
 
-        register(new StandardFeeModel(TOKEN_CREATE.protoName(), "Create a token"));
-        register(new StandardFeeModel(TOKEN_GET_INFO.protoName(), "Get metadata for a token"));
+        register(new StandardFeeModel(TOKEN_CREATE, "Create a token"));
+        register(new StandardFeeModel(TOKEN_GET_INFO, "Get metadata for a token"));
+        register(new StandardFeeModel(TOKEN_FREEZE_ACCOUNT, "Freeze a specific account with respect to a token"));
+        register(new StandardFeeModel(TOKEN_UNFREEZE_ACCOUNT, "Unfreeze a specific account with respect to a token"));
         register(new StandardFeeModel(
-                TOKEN_FREEZE_ACCOUNT.protoName(), "Freeze a specific account with respect to a token"));
+                TOKEN_GRANT_KYC_TO_ACCOUNT, "Grant KYC status to an account for a specific token"));
         register(new StandardFeeModel(
-                TOKEN_UNFREEZE_ACCOUNT.protoName(), "Unfreeze a specific account with respect to a token"));
-        register(new StandardFeeModel(
-                TOKEN_GRANT_KYC_TO_ACCOUNT.protoName(), "Grant KYC status to an account for a specific token"));
-        register(new StandardFeeModel(
-                TOKEN_REVOKE_KYC_FROM_ACCOUNT.protoName(), "Revoke KYC status from an account for a specific token"));
-        register(new StandardFeeModel(TOKEN_DELETE.protoName(), "Delete a specific token"));
-        register(new StandardFeeModel(TOKEN_UPDATE.protoName(), "Update a specific token"));
-        register(new StandardFeeModel(TOKEN_MINT.protoName(), "Mint tokens"));
-        register(new StandardFeeModel(TOKEN_BURN.protoName(), "Burn tokens"));
-        register(new StandardFeeModel(TOKEN_ACCOUNT_WIPE.protoName(), "Wipe all amounts for a specific token"));
-        register(new StandardFeeModel(TOKEN_ASSOCIATE_TO_ACCOUNT.protoName(), "Associate account to a specific token"));
-        register(new StandardFeeModel(
-                TOKEN_DISSOCIATE_FROM_ACCOUNT.protoName(), "Dissociate account from a specific token"));
-        register(new StandardFeeModel(TOKEN_PAUSE.protoName(), "Pause a specific token"));
-        register(new StandardFeeModel(TOKEN_UNPAUSE.protoName(), "Unpause a specific token"));
-        register(new StandardFeeModel(TOKEN_UPDATE_NFTS.protoName(), "Update metadata of an NFT token"));
-        register(new StandardFeeModel(TOKEN_REJECT.protoName(), "Reject a token"));
-        register(new StandardFeeModel(TOKEN_AIRDROP.protoName(), "Airdrop one or more tokens"));
-        register(new StandardFeeModel(TOKEN_CANCEL_AIRDROP.protoName(), "Cancel pending airdrops"));
-        register(new StandardFeeModel(TOKEN_CLAIM_AIRDROP.protoName(), "Claim pending airdrops"));
+                TOKEN_REVOKE_KYC_FROM_ACCOUNT, "Revoke KYC status from an account for a specific token"));
+        register(new StandardFeeModel(TOKEN_DELETE, "Delete a specific token"));
+        register(new StandardFeeModel(TOKEN_UPDATE, "Update a specific token"));
+        register(new StandardFeeModel(TOKEN_MINT, "Mint tokens"));
+        register(new StandardFeeModel(TOKEN_BURN, "Burn tokens"));
+        register(new StandardFeeModel(TOKEN_ACCOUNT_WIPE, "Wipe all amounts for a specific token"));
+        register(new StandardFeeModel(TOKEN_ASSOCIATE_TO_ACCOUNT, "Associate account to a specific token"));
+        register(new StandardFeeModel(TOKEN_DISSOCIATE_FROM_ACCOUNT, "Dissociate account from a specific token"));
+        register(new StandardFeeModel(TOKEN_PAUSE, "Pause a specific token"));
+        register(new StandardFeeModel(TOKEN_UNPAUSE, "Unpause a specific token"));
+        register(new StandardFeeModel(TOKEN_UPDATE_NFTS, "Update metadata of an NFT token"));
+        register(new StandardFeeModel(TOKEN_REJECT, "Reject a token"));
+        register(new StandardFeeModel(TOKEN_AIRDROP, "Airdrop one or more tokens"));
+        register(new StandardFeeModel(TOKEN_CANCEL_AIRDROP, "Cancel pending airdrops"));
+        register(new StandardFeeModel(TOKEN_CLAIM_AIRDROP, "Claim pending airdrops"));
 
-        register(new StandardFeeModel(SCHEDULE_CREATE.protoName(), "Create a scheduled transaction"));
-        register(new StandardFeeModel(SCHEDULE_DELETE.protoName(), "Delete a scheduled transaction"));
-        register(new StandardFeeModel(SCHEDULE_SIGN.protoName(), "Sign a scheduled transaction"));
-        register(new StandardFeeModel(SCHEDULE_GET_INFO.protoName(), "Get metadata for a scheduled transaction"));
+        register(new StandardFeeModel(SCHEDULE_CREATE, "Create a scheduled transaction"));
+        register(new StandardFeeModel(SCHEDULE_DELETE, "Delete a scheduled transaction"));
+        register(new StandardFeeModel(SCHEDULE_SIGN, "Sign a scheduled transaction"));
+        register(new StandardFeeModel(SCHEDULE_GET_INFO, "Get metadata for a scheduled transaction"));
     }
 
     public static FeeModel lookupModel(HederaFunctionality service) {

@@ -14,7 +14,7 @@ import org.hiero.hapi.support.fees.FeeSchedule;
  */
 public interface FeeModel {
     /** Get the @{@link HederaFunctionality} that this fee module handles. */
-    String getApi();
+    HederaFunctionality getApi();
 
     /** A string description of this fee model. Used for human-readable output. */
     String getDescription();

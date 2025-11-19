@@ -4,6 +4,7 @@ package org.hiero.hapi.fees.apis.common;
 import static org.hiero.hapi.fees.FeeScheduleUtils.lookupExtraFee;
 import static org.hiero.hapi.fees.FeeScheduleUtils.lookupServiceFee;
 
+import com.hedera.hapi.node.base.HederaFunctionality;
 import java.security.InvalidParameterException;
 import java.util.Map;
 import org.hiero.hapi.fees.FeeResult;
@@ -14,7 +15,7 @@ import org.hiero.hapi.support.fees.ServiceFeeDefinition;
 
 public class StandardFeeModel extends AbstractBaseFeeModel {
 
-    public StandardFeeModel(String api, String description) {
+    public StandardFeeModel(HederaFunctionality api, String description) {
         super(api, description);
     }
 
