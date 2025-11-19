@@ -2,6 +2,7 @@
 package com.hedera.node.app.spi.fees;
 
 import static org.hiero.hapi.fees.FeeScheduleUtils.lookupExtraFee;
+import static org.hiero.hapi.support.fees.Extra.SIGNATURES;
 
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.transaction.Query;
@@ -39,25 +40,13 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
      * Avoids Map allocation for hot path performance.
      *
      * @param result the fee result to accumulate fees into
-     * @param feeType "Node" or "Service" - determines which add method to call
      * @param extras the list of extra fee references from the fee schedule
      * @param signatures the number of signatures
-     * @param bytes the transaction size in bytes
-     * @param keys the number of keys
      */
     private void addNodeExtras(
-            @NonNull final FeeResult result,
-            @NonNull final Iterable<ExtraFeeReference> extras,
-            final long signatures,
-            final long bytes) {
+            @NonNull final FeeResult result, @NonNull final Iterable<ExtraFeeReference> extras, final long signatures) {
         for (final ExtraFeeReference ref : extras) {
-            final long used =
-                    switch (ref.name()) {
-                        case SIGNATURES -> signatures;
-                        case BYTES -> bytes;
-                        default -> 0; // Ignore extras not applicable to this transaction
-                    };
-
+            final long used = ref.name() == SIGNATURES ? signatures : 0;
             if (used > ref.includedCount()) {
                 final long overage = used - ref.includedCount();
                 final long unitFee = lookupExtraFee(feeSchedule, ref.name()).fee();
@@ -81,13 +70,11 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
             @NonNull final TransactionBody txnBody, @Nullable final CalculatorState calculatorState) {
         // Extract primitive counts (no allocations)
         final long signatures = calculatorState != null ? calculatorState.numTxnSignatures() : 0;
-        final long bytes = TransactionBody.PROTOBUF.toBytes(txnBody).length();
-
         final var result = new FeeResult();
 
         // Add node base and extras
         result.addNodeFee(1, feeSchedule.node().baseFee());
-        addNodeExtras(result, feeSchedule.node().extras(), signatures, bytes);
+        addNodeExtras(result, feeSchedule.node().extras(), signatures);
         // Add network fee
         final int multiplier = feeSchedule.network().multiplier();
         result.addNetworkFee(result.node * multiplier);

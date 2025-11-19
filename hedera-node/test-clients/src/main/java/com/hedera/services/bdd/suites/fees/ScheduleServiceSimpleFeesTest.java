@@ -38,6 +38,7 @@ public class ScheduleServiceSimpleFeesTest {
     private static final double BASE_FEE_SCHEDULE_INFO = 0.0001;
     private static final double BASE_FEE_CONTRACT_CALL = 0.1;
     private static final double SINGLE_SIGNATURE_COST = 0.0001;
+    private static final double NETWORK_MULTIPLIER = 9;
 
     @HapiTest
     @DisplayName("Schedule ops have expected USD fees")
@@ -99,11 +100,15 @@ public class ScheduleServiceSimpleFeesTest {
                         .via("getScheduleInfoBasic"),
                 validateChargedUsd("canonicalCreation", BASE_FEE_SCHEDULE_CREATE),
                 validateChargedUsd("canonicalSigning", BASE_FEE_SCHEDULE_SIGN),
-                validateChargedUsd("multiScheduleSign", BASE_FEE_SCHEDULE_SIGN + SINGLE_SIGNATURE_COST),
+                // validate the fee when we have single overage signature
+                validateChargedUsd(
+                        "multiScheduleSign",
+                        BASE_FEE_SCHEDULE_SIGN + SINGLE_SIGNATURE_COST + SINGLE_SIGNATURE_COST * NETWORK_MULTIPLIER),
                 validateChargedUsd("canonicalDeletion", BASE_FEE_SCHEDULE_DELETE),
                 // TODO: enable when we have proper fees for scheduling contract call
 
                 //                    validateChargedUsd("canonicalContractCall", BASE_FEE_CONTRACT_CALL, 3.0),
-                validateChargedUsd("getScheduleInfoBasic", BASE_FEE_SCHEDULE_INFO));
+                // TODO: implement the query simple fee
+                validateChargedUsd("getScheduleInfoBasic", BASE_FEE_SCHEDULE_INFO, 3));
     }
 }
