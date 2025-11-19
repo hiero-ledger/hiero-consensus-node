@@ -72,28 +72,28 @@
       "schedule": [
         {
           "name": "ConsensusCreateTopic",
-          "baseFee": 99700000,
+          "baseFee": 99000000,
           "extras": [
             { "name": "KEYS", "includedCount": 0 }
           ]
         },
         {
           "name": "ConsensusUpdateTopic",
-          "baseFee": 3240000,
+          "baseFee": 1200000,
           "extras": [
             { "name": "KEYS",       "includedCount": 1 }
           ]
         },
         {
           "name": "ConsensusSubmitMessage",
-          "baseFee": 700000,
+          "baseFee": 0,
           "extras": [
             { "name": "BYTES",      "includedCount": 256 }
           ]
         },
         {
           "name": "ConsensusDeleteTopic",
-          "baseFee": 21700000,
+          "baseFee": 49000000,
           "extras": [
           ]
         },
