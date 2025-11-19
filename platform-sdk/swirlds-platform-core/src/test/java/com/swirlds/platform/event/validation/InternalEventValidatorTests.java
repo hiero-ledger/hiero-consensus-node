@@ -165,7 +165,7 @@ class InternalEventValidatorTests {
 
     @Test
     @DisplayName("An event with duplicate parents is invalid")
-    void identicalParents() {
+    void duplicateParents() {
         final PlatformEvent parent = new TestingEventBuilder(random).build();
         final PlatformEvent invalidEvent = new TestingEventBuilder(random)
                 .setSelfParent(parent)
