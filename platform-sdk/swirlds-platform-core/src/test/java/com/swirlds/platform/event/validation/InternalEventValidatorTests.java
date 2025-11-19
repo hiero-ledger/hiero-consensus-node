@@ -11,8 +11,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.node.base.Timestamp;
-import com.hedera.hapi.node.state.roster.Roster;
-import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.platform.event.EventCore;
 import com.hedera.hapi.platform.event.EventDescriptor;
 import com.hedera.hapi.platform.event.GossipEvent;
@@ -31,7 +29,6 @@ import org.hiero.base.crypto.DigestType;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
-import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.transaction.TransactionLimits;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -43,8 +40,6 @@ import org.mockito.Mockito;
  */
 class InternalEventValidatorTests {
 
-    private static final long SINGLE_NODE_ROUND = 1L;
-    private static final long MULTI_NODE_ROUND = 2L;
     private static final TransactionLimits TRANSACTION_LIMITS = new TransactionLimits(133120, 245760);
 
     private AtomicLong exitedIntakePipelineCount;
@@ -69,30 +64,7 @@ class InternalEventValidatorTests {
         final PlatformContext platformContext =
                 TestPlatformContextBuilder.create().withTime(time).build();
 
-        final RosterHistory rosterHistory = createRosterHistory();
-
-        validator = new DefaultInternalEventValidator(
-                platformContext, rosterHistory, intakeEventCounter, TRANSACTION_LIMITS);
-    }
-
-    /**
-     * Creates a mocked roster history where round 1 has a single node roster and round 2+ has a multi-node roster.
-     *
-     * @return the mocked roster history
-     */
-    private static RosterHistory createRosterHistory() {
-        final Roster singleNodeRoster = mock(Roster.class);
-        when(singleNodeRoster.rosterEntries()).thenReturn(List.of(mock(RosterEntry.class)));
-
-        final Roster multiNodeRoster = mock(Roster.class);
-        when(multiNodeRoster.rosterEntries()).thenReturn(List.of(mock(RosterEntry.class), mock(RosterEntry.class)));
-
-        final RosterHistory rosterHistory = mock(RosterHistory.class);
-        when(rosterHistory.getRosterForRound(SINGLE_NODE_ROUND)).thenReturn(singleNodeRoster);
-        when(rosterHistory.getRosterForRound(Mockito.longThat(round -> round >= MULTI_NODE_ROUND)))
-                .thenReturn(multiNodeRoster);
-
-        return rosterHistory;
+        validator = new DefaultInternalEventValidator(platformContext, intakeEventCounter, TRANSACTION_LIMITS);
     }
 
     @Test
@@ -119,10 +91,7 @@ class InternalEventValidatorTests {
         assertEquals(1, exitedIntakePipelineCount.get());
 
         final GossipEvent noTimeCreated = GossipEvent.newBuilder()
-                .eventCore(EventCore.newBuilder()
-                        .timeCreated((Timestamp) null)
-                        .birthRound(MULTI_NODE_ROUND)
-                        .build())
+                .eventCore(EventCore.newBuilder().timeCreated((Timestamp) null).build())
                 .signature(wholeEvent.signature())
                 .transactions(wholeEvent.transactions())
                 .build();
@@ -161,12 +130,8 @@ class InternalEventValidatorTests {
         final GossipEvent validEvent = new TestingEventBuilder(r)
                 .setSystemTransactionCount(1)
                 .setAppTransactionCount(2)
-                .setSelfParent(new TestingEventBuilder(r)
-                        .setBirthRound(MULTI_NODE_ROUND)
-                        .build())
-                .setOtherParent(new TestingEventBuilder(r)
-                        .setBirthRound(MULTI_NODE_ROUND)
-                        .build())
+                .setSelfParent(new TestingEventBuilder(r).build())
+                .setOtherParent(new TestingEventBuilder(r).build())
                 .build()
                 .getGossipEvent();
 
@@ -199,24 +164,15 @@ class InternalEventValidatorTests {
     }
 
     @Test
-    @DisplayName("An event with identical parents is only valid in a single node network")
+    @DisplayName("An event with duplicate parents is invalid")
     void identicalParents() {
-        final PlatformEvent parent =
-                new TestingEventBuilder(random).setBirthRound(SINGLE_NODE_ROUND).build();
-        final PlatformEvent validSingeNodeNetworkEvent = new TestingEventBuilder(random)
+        final PlatformEvent parent = new TestingEventBuilder(random).build();
+        final PlatformEvent invalidEvent = new TestingEventBuilder(random)
                 .setSelfParent(parent)
                 .setOtherParent(parent)
-                .setBirthRound(SINGLE_NODE_ROUND)
-                .build();
-        final PlatformEvent invalidSingeNodeNetworkEvent = new TestingEventBuilder(random)
-                .setSelfParent(parent)
-                .setOtherParent(parent)
-                .setBirthRound(MULTI_NODE_ROUND)
                 .build();
 
-        assertNull(validator.validateEvent(invalidSingeNodeNetworkEvent));
-        assertEquals(validSingeNodeNetworkEvent, validator.validateEvent(validSingeNodeNetworkEvent));
-
+        assertNull(validator.validateEvent(invalidEvent));
         assertEquals(1, exitedIntakePipelineCount.get());
     }
 
@@ -285,23 +241,19 @@ class InternalEventValidatorTests {
     void successfulValidation() {
         final PlatformEvent normalEvent = new TestingEventBuilder(random)
                 .setSelfParent(new TestingEventBuilder(random)
-                        .setBirthRound(MULTI_NODE_ROUND)
+                        .setCreatorId(NodeId.of(0))
                         .build())
                 .setOtherParent(new TestingEventBuilder(random)
-                        .setBirthRound(MULTI_NODE_ROUND)
+                        .setCreatorId(NodeId.of(1))
                         .build())
                 .build();
         final PlatformEvent missingSelfParent = new TestingEventBuilder(random)
                 .setSelfParent(null)
-                .setOtherParent(new TestingEventBuilder(random)
-                        .setBirthRound(MULTI_NODE_ROUND)
-                        .build())
+                .setOtherParent(new TestingEventBuilder(random).build())
                 .build();
 
         final PlatformEvent missingOtherParent = new TestingEventBuilder(random)
-                .setSelfParent(new TestingEventBuilder(random)
-                        .setBirthRound(MULTI_NODE_ROUND)
-                        .build())
+                .setSelfParent(new TestingEventBuilder(random).build())
                 .setOtherParent(null)
                 .build();
 

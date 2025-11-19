@@ -16,6 +16,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
+import org.hiero.consensus.roster.RosterHistory;
 
 /**
  * Logs and metrics for the {@link ConsensusLinker}
@@ -31,10 +32,12 @@ public class LinkerLogsAndMetrics {
     private final RateLimitedLogger missingParentLogger;
     private final RateLimitedLogger birthRoundMismatchLogger;
     private final RateLimitedLogger timeCreatedMismatchLogger;
+    private final RateLimitedLogger missingRosterLogger;
 
     private final LongAccumulator missingParentAccumulator;
     private final LongAccumulator birthRoundMismatchAccumulator;
     private final LongAccumulator timeCreatedMismatchAccumulator;
+    private final LongAccumulator missingRosterAccumulator;
 
     /**
      * Constructor.
@@ -46,6 +49,7 @@ public class LinkerLogsAndMetrics {
         this.missingParentLogger = new RateLimitedLogger(logger, time, MINIMUM_LOG_PERIOD);
         this.birthRoundMismatchLogger = new RateLimitedLogger(logger, time, MINIMUM_LOG_PERIOD);
         this.timeCreatedMismatchLogger = new RateLimitedLogger(logger, time, MINIMUM_LOG_PERIOD);
+        this.missingRosterLogger = new RateLimitedLogger(logger, time, MINIMUM_LOG_PERIOD);
 
         missingParentAccumulator = metrics.getOrCreate(new LongAccumulator.Config(PLATFORM_CATEGORY, "missingParents")
                 .withDescription("Parent child relationships where a parent was missing"));
@@ -57,6 +61,8 @@ public class LinkerLogsAndMetrics {
                 new LongAccumulator.Config(PLATFORM_CATEGORY, "timeCreatedMismatch")
                         .withDescription(
                                 "Parent child relationships where child time created wasn't strictly after parent time created"));
+        missingRosterAccumulator = metrics.getOrCreate(new LongAccumulator.Config(PLATFORM_CATEGORY, "missingRoster")
+                .withDescription("No roster is available in the roster history for the event's birth round"));
     }
 
     /**
@@ -120,5 +126,15 @@ public class LinkerLogsAndMetrics {
                 childTimeCreated,
                 parentTimeCreated);
         timeCreatedMismatchAccumulator.update(1);
+    }
+
+    protected void missingRosterForEvent(
+            @NonNull final PlatformEvent event, @NonNull final RosterHistory rosterHistory) {
+        missingRosterLogger.error(
+                EXCEPTION.getMarker(),
+                "Event {} with birth round {} has no roster available in the roster history:\n {}",
+                event.getDescriptor(),
+                rosterHistory);
+        missingRosterAccumulator.update(1);
     }
 }

@@ -271,11 +271,7 @@ public class TipsetEventCreator implements EventCreator {
      */
     @NonNull
     private UnsignedEvent createEventForSizeOneNetwork() {
-        // There is a quirk in size 1 networks where we can only
-        // reach consensus if the self parent is also the other parent.
-        // Unexpected, but harmless. So just use the same event
-        // as both parents until that issue is resolved.
-        return buildAndProcessEvent(lastSelfEvent);
+        return buildAndProcessEvent(null);
     }
 
     /**

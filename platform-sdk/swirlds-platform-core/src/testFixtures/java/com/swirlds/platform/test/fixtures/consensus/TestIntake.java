@@ -2,6 +2,10 @@
 package com.swirlds.platform.test.fixtures.consensus;
 
 import static com.swirlds.component.framework.wires.SolderType.INJECT;
+import static org.hiero.consensus.roster.RosterUtils.createRosterHistory;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
@@ -41,6 +45,7 @@ import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.roster.RosterHistory;
 
 /**
  * Event intake with consensus and shadowgraph, used for testing
@@ -89,7 +94,7 @@ public class TestIntake {
         freezeCheckHolder = new FreezeCheckHolder();
         freezeCheckHolder.setFreezeCheckRef(i -> false);
         final ConsensusEngine consensusEngine =
-                new DefaultConsensusEngine(platformContext, roster, selfId, freezeCheckHolder);
+                new DefaultConsensusEngine(platformContext, createRosterHistory(roster), selfId, freezeCheckHolder);
 
         consensusEngineWiring = new ComponentWiring<>(model, ConsensusEngine.class, scheduler("consensusEngine"));
         consensusEngineWiring.bind(consensusEngine);
@@ -124,6 +129,12 @@ public class TestIntake {
         consensusEngineWiring.getInputWire(ConsensusEngine::outOfBandSnapshotUpdate);
 
         model.start();
+    }
+
+    private static RosterHistory createRosterHistory(@NonNull final Roster roster) {
+        final RosterHistory rosterHistory = mock(RosterHistory.class);
+        when(rosterHistory.getRosterForRound(anyLong())).thenReturn(roster);
+        return rosterHistory;
     }
 
     /**

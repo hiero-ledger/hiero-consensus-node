@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.event.linking;
 
+import static java.util.Objects.requireNonNull;
+
+import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.platform.event.EventCounter;
 import com.swirlds.platform.internal.EventImpl;
@@ -11,13 +14,13 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.sequence.map.SequenceMap;
 import org.hiero.consensus.model.sequence.map.StandardSequenceMap;
+import org.hiero.consensus.roster.RosterHistory;
 
 /**
  * Links events to their parents. Expects events to be provided in topological order.
@@ -54,6 +57,8 @@ public class ConsensusLinker {
      */
     private final Map<Hash, EventImpl> parentHashMap = new HashMap<>(INITIAL_CAPACITY);
 
+    private final RosterHistory rosterHistory;
+
     /**
      * The current event window.
      */
@@ -64,9 +69,9 @@ public class ConsensusLinker {
      *
      * @param platformContext the platform context
      */
-    public ConsensusLinker(@NonNull final PlatformContext platformContext) {
+    public ConsensusLinker(@NonNull final PlatformContext platformContext, @NonNull final RosterHistory rosterHistory) {
         this.logsAndMetrics = new LinkerLogsAndMetrics(platformContext.getMetrics(), platformContext.getTime());
-
+        this.rosterHistory = requireNonNull(rosterHistory);
         this.eventWindow = EventWindow.getGenesisEventWindow();
         this.parentDescriptorMap =
                 new StandardSequenceMap<>(0, INITIAL_CAPACITY, true, EventDescriptorWrapper::birthRound);
@@ -89,7 +94,7 @@ public class ConsensusLinker {
 
         // FUTURE WORK: Extend other parent linking to support multiple other parents.
         // Until then, take the first parent in the list.
-        final List<EventDescriptorWrapper> otherParents = event.getOtherParents();
+        final List<EventDescriptorWrapper> otherParents = getOtherParents(event);
         final EventImpl otherParent = otherParents.isEmpty() ? null : getParentToLink(event, otherParents.getFirst());
 
         final EventImpl linkedEvent = new EventImpl(event, selfParent, otherParent);
@@ -103,13 +108,39 @@ public class ConsensusLinker {
     }
 
     /**
+     * Get the other parents for the given event, taking into account special handling for size 1 networks.
+     *
+     * @param event the event to get other parents for
+     * @return the other parents to use
+     */
+    private List<EventDescriptorWrapper> getOtherParents(@NonNull final PlatformEvent event) {
+        final Roster roster = rosterHistory.getRosterForRound(event.getBirthRound());
+        if (roster == null) {
+            logsAndMetrics.missingRosterForEvent(event, rosterHistory);
+            return List.of();
+        }
+
+        if (roster.rosterEntries().size() > 1) {
+            return event.getOtherParents();
+        } else if (event.getSelfParent() != null) {
+            // There is a quirk in size 1 networks where we can only
+            // reach consensus if the self parent is also the other parent.
+            // Unexpected, but harmless. So just use the same event
+            // as both parents until that issue is resolved.
+            return List.of(event.getSelfParent());
+        }
+
+        return List.of();
+    }
+
+    /**
      * Set the event window, defining the minimum non-ancient threshold.
      *
      * @param eventWindow the event window
      * @return a list of events that just became ancient because of the new event window
      */
     public final List<EventImpl> setEventWindow(@NonNull final EventWindow eventWindow) {
-        this.eventWindow = Objects.requireNonNull(eventWindow);
+        this.eventWindow = requireNonNull(eventWindow);
 
         final List<EventImpl> ancientEvents = new ArrayList<>();
         parentDescriptorMap.shiftWindow(eventWindow.ancientThreshold(), (descriptor, event) -> {

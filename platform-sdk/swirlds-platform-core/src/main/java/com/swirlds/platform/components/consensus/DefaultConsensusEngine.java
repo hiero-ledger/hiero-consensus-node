@@ -3,7 +3,6 @@ package com.swirlds.platform.components.consensus;
 
 import static org.hiero.consensus.model.status.PlatformStatus.REPLAYING_EVENTS;
 
-import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.platform.Consensus;
@@ -29,6 +28,7 @@ import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
+import org.hiero.consensus.roster.RosterHistory;
 
 /**
  * The default implementation of the {@link ConsensusEngine} interface
@@ -58,20 +58,20 @@ public class DefaultConsensusEngine implements ConsensusEngine {
      * Constructor
      *
      * @param platformContext the platform context
-     * @param roster the current roster
+     * @param rosterHistory the roster history
      * @param selfId the ID of the node
      * @param freezeChecker checks if the consensus time has reached the freeze period
      */
     public DefaultConsensusEngine(
             @NonNull final PlatformContext platformContext,
-            @NonNull final Roster roster,
+            @NonNull final RosterHistory rosterHistory,
             @NonNull final NodeId selfId,
             @NonNull final FreezeCheckHolder freezeChecker) {
 
         final ConsensusMetrics consensusMetrics = new ConsensusMetricsImpl(selfId, platformContext.getMetrics());
-        consensus = new ConsensusImpl(platformContext, consensusMetrics, roster);
+        consensus = new ConsensusImpl(platformContext, consensusMetrics, rosterHistory.getCurrentRoster());
 
-        linker = new ConsensusLinker(platformContext);
+        linker = new ConsensusLinker(platformContext, rosterHistory);
         futureEventBuffer = new FutureEventBuffer(
                 platformContext.getMetrics(), FutureEventBufferingOption.PENDING_CONSENSUS_ROUND, "consensus");
         roundsNonAncient = platformContext

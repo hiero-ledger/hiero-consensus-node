@@ -10,13 +10,18 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
+import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.platform.internal.EventImpl;
+import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import com.swirlds.platform.test.fixtures.event.generator.StandardGraphGenerator;
 import com.swirlds.platform.test.fixtures.event.source.StandardEventSource;
 import java.time.Duration;
@@ -30,6 +35,7 @@ import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
 import org.hiero.consensus.model.test.fixtures.hashgraph.EventWindowBuilder;
+import org.hiero.consensus.roster.RosterHistory;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -47,8 +53,9 @@ class ConsensusLinkerTests {
 
     private FakeTime time;
 
-    private final NodeId selfId = NodeId.of(0);
-    private final NodeId otherId = NodeId.of(1);
+    private RosterHistory rosterHistory;
+    private NodeId selfId = NodeId.of(0);
+    private NodeId otherId = NodeId.of(1);
 
     /**
      * Set up the in order linker for testing
@@ -59,11 +66,16 @@ class ConsensusLinkerTests {
     void setup() {
         random = getRandomPrintSeed();
         time = new FakeTime();
+        final Roster roster = RandomRosterBuilder.create(random).withSize(2).build();
+        rosterHistory = mock(RosterHistory.class);
+        when(rosterHistory.getRosterForRound(anyLong())).thenReturn(roster);
+        selfId = NodeId.of(roster.rosterEntries().getFirst().nodeId());
+        otherId = NodeId.of(roster.rosterEntries().getLast().nodeId());
     }
 
     private void inOrderLinkerSetup() {
         linker = new ConsensusLinker(
-                TestPlatformContextBuilder.create().withTime(time).build());
+                TestPlatformContextBuilder.create().withTime(time).build(), rosterHistory);
 
         time.tick(Duration.ofSeconds(1));
         genesisSelfParent = new TestingEventBuilder(random)
@@ -363,7 +375,7 @@ class ConsensusLinkerTests {
                 new StandardEventSource());
 
         final List<EventImpl> linkedEvents = new LinkedList<>();
-        final ConsensusLinker linker = new ConsensusLinker(platformContext);
+        final ConsensusLinker linker = new ConsensusLinker(platformContext, rosterHistory);
 
         EventWindow eventWindow = EventWindow.getGenesisEventWindow();
 

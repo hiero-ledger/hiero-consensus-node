@@ -5,7 +5,6 @@ import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.metrics.api.Metrics.PLATFORM_CATEGORY;
 import static org.hiero.consensus.model.hashgraph.ConsensusConstants.ROUND_NEGATIVE_INFINITY;
 
-import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.event.EventCore;
 import com.hedera.hapi.platform.event.EventDescriptor;
 import com.hedera.hapi.platform.event.GossipEvent;
@@ -25,7 +24,6 @@ import org.hiero.base.crypto.DigestType;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.transaction.Transaction;
-import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.transaction.TransactionLimits;
 
 /**
@@ -38,11 +36,6 @@ public class DefaultInternalEventValidator implements InternalEventValidator {
      * The minimum period between log messages for a specific mode of failure.
      */
     private static final Duration MINIMUM_LOG_PERIOD = Duration.ofMinutes(1);
-
-    /**
-     * The complete roster history, i.e. all rosters for non-ancient rounds.
-     */
-    private RosterHistory rosterHistory;
 
     /**
      * Keeps track of the number of events in the intake pipeline from each peer
@@ -67,17 +60,13 @@ public class DefaultInternalEventValidator implements InternalEventValidator {
      * Constructor
      *
      * @param platformContext the platform context
-     * @param rosterHistory the roster history
      * @param intakeEventCounter keeps track of the number of events in the intake pipeline from each peer
      * @param transactionLimits transaction size limits for validation
      */
     public DefaultInternalEventValidator(
             @NonNull final PlatformContext platformContext,
-            @Nullable final RosterHistory rosterHistory,
             @NonNull final IntakeEventCounter intakeEventCounter,
             @NonNull final TransactionLimits transactionLimits) {
-
-        this.rosterHistory = Objects.requireNonNull(rosterHistory);
         this.intakeEventCounter = Objects.requireNonNull(intakeEventCounter);
 
         this.transactionLimits = Objects.requireNonNull(transactionLimits);
@@ -201,41 +190,26 @@ public class DefaultInternalEventValidator implements InternalEventValidator {
     }
 
     /**
-     * Checks that the parent hashes are not the same if the roster size is greater than one.
+     * Checks that no more than 1 parent event is from the same creator.
      *
      * @param event the event to check
-     * @return true if the parents are legal given the size of the roster
+     * @return true if the parents are all from unique creators, otherwise false
      */
     private boolean areParentsInternallyConsistent(@NonNull final PlatformEvent event) {
-        final EventDescriptorWrapper selfParent = event.getSelfParent();
+        final long numUniqueParentCreators = event.getAllParents().stream()
+                .map(EventDescriptorWrapper::creator)
+                .distinct()
+                .count();
 
-        final Roster applicableRoster = rosterHistory.getRosterForRound(
-                event.getDescriptor().eventDescriptor().birthRound());
-        if (applicableRoster == null) {
-            invalidBirthRoundLogger.error(
+        if (numUniqueParentCreators < event.getAllParents().size()) {
+            invalidParentsAccumulator.update(1);
+            invalidParentsLogger.error(
                     EXCEPTION.getMarker(),
-                    "Cannot validate parents for event {} without a roster for birth round {}",
-                    event,
-                    event.getBirthRound());
-            invalidBirthRoundAccumulator.update(1);
+                    "Event {} has multiple parents from the same creator: {}",
+                    event.getDescriptor(),
+                    event.getAllParents());
             return false;
         }
-        final int rosterSize = applicableRoster.rosterEntries().size();
-
-        // only single node networks are allowed to have identical self-parent and other-parent hashes
-        if (rosterSize > 1 && selfParent != null) {
-            for (final EventDescriptorWrapper otherParent : event.getOtherParents()) {
-                if (selfParent.hash().equals(otherParent.hash())) {
-                    invalidParentsLogger.error(
-                            EXCEPTION.getMarker(),
-                            "Event %s has identical self-parent and other-parent hash: %s"
-                                    .formatted(event, selfParent.hash()));
-                    invalidParentsAccumulator.update(1);
-                    return false;
-                }
-            }
-        }
-
         return true;
     }
 
