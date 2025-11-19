@@ -72,7 +72,7 @@ public class SimpleFeesSuite {
         testLifecycle.overrideInClass(Map.of("fees.simpleFeesEnabled", "true"));
     }
 
-    public static Stream<DynamicTest> runBeforeAfter(@NonNull final SpecOperation... ops) {
+    static Stream<DynamicTest> runBeforeAfter(@NonNull final SpecOperation... ops) {
         List<SpecOperation> opsList = new ArrayList<>();
         opsList.add(overriding("fees.simpleFeesEnabled", "false"));
         opsList.addAll(Arrays.asList(ops));
@@ -81,7 +81,7 @@ public class SimpleFeesSuite {
         return hapiTest(opsList.toArray(new SpecOperation[opsList.size()]));
     }
 
-    public static double ucents_to_USD(double amount) {
+    static double ucents_to_USD(double amount) {
         return amount / 100_000.0;
     }
 
