@@ -108,7 +108,7 @@ public class EthereumTransactionHandler extends AbstractContractTransactionHandl
             }
             // gas requirements check
             final byte[] callData = ethTxData.hasCallData() ? ethTxData.callData() : new byte[0];
-            final var isContractCreate = !ethTxData.hasToAddress() || Arrays.equals(ethTxData.to(), EMPTY_ADDRESS);
+            final var isContractCreate = !ethTxData.hasToAddress();
             // TODO: Revisit baselineGas with Pectra support epic
             final var intrinsicGas = gasCalculator.transactionIntrinsicGasCost(
                     org.apache.tuweni.bytes.Bytes.wrap(callData), isContractCreate, 0L);

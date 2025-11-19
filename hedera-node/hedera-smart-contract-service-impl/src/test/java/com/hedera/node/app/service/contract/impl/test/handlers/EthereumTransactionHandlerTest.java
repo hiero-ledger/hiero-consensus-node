@@ -485,23 +485,6 @@ class EthereumTransactionHandlerTest {
     }
 
     @Test
-    void validatePureChecksAtLeastIntrinsicGasForZeroToAddress() {
-        // check at least intrinsic gas for contract create (hasToAddress() == false)
-        try (MockedStatic<EthTxData> ethTxData = Mockito.mockStatic(EthTxData.class)) {
-            ethTxData.when(() -> EthTxData.populateEthTxData(any())).thenReturn(ethTxDataReturned);
-            given(pureChecksContext.body()).willReturn(ethTxWithTx());
-            given(ethTxDataReturned.value()).willReturn(BigInteger.ZERO);
-            given(ethTxDataReturned.hasToAddress()).willReturn(true);
-            given(ethTxDataReturned.to()).willReturn(new byte[20]);
-            given(gasCalculator.transactionIntrinsicGasCost(org.apache.tuweni.bytes.Bytes.wrap(new byte[0]), true, 0L))
-                    .willReturn(INTRINSIC_GAS_FOR_0_ARG_METHOD);
-            PreCheckException exception =
-                    assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
-            assertEquals(INSUFFICIENT_GAS, exception.responseCode());
-        }
-    }
-
-    @Test
     @SuppressWarnings("unchecked")
     void handleSetsNewSenderNonceWhenPresent() {
         given(factory.create(context, ETHEREUM_TRANSACTION, EvmFrameStates.DEFAULT))
