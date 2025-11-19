@@ -3,9 +3,7 @@ package com.hedera.node.app.blocks.impl.streaming;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchRuntimeException;
-import static org.assertj.core.api.Assertions.fail;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeast;
@@ -195,18 +193,10 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         connection.updateConnectionState(ConnectionState.CLOSED);
         final AtomicReference<Thread> workerThreadRef = workerThreadRef();
 
-        for (int i = 0; i < 5; ++i) {
-            final Thread workerThread = workerThreadRef.get();
-            if (workerThread == null || workerThread.equals(FAKE_WORKER_THREAD)) {
-                break;
-            }
-
-            Thread.sleep(50);
-        }
-
+        // Wait for worker thread to terminate
         final Thread workerThread = workerThreadRef.get();
         if (workerThread != null && !workerThread.equals(FAKE_WORKER_THREAD)) {
-            fail("Connection worker thread did not get cleaned up");
+            assertThat(workerThread.join(Duration.ofSeconds(2))).isTrue();
         }
     }
 
@@ -1310,91 +1300,6 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         verifyNoInteractions(connectionManager);
         verifyNoInteractions(metrics);
         verifyNoInteractions(requestPipeline);
-    }
-
-    @Test
-    void testConnectionWorker_sendRequests() throws Exception {
-        openConnectionAndResetMocks();
-        connection.createRequestPipeline();
-        connection.updateConnectionState(ConnectionState.ACTIVE);
-        final AtomicLong streamingBlockNumber = streamingBlockNumber();
-
-        streamingBlockNumber.set(10);
-
-        final BlockState block = new BlockState(10);
-        doReturn(block).when(bufferService).getBlockState(10);
-        lenient().doReturn(null).when(bufferService).getBlockState(11L); // Block 11 doesn't exist yet
-        lenient().doReturn(null).when(bufferService).getBlockState(12L); // Block 12 doesn't exist yet
-
-        final ArgumentCaptor<PublishStreamRequest> requestCaptor = ArgumentCaptor.forClass(PublishStreamRequest.class);
-        final Object worker = createWorker();
-
-        // Add items that will fit together in one request
-        final BlockItem item1 = newBlockHeaderItem();
-        final BlockItem item2 = newBlockTxItem(15);
-        final BlockItem item3 = newBlockTxItem(20);
-        final BlockItem item4 = newBlockTxItem(50);
-
-        block.addItem(item1);
-        block.addItem(item2);
-        block.addItem(item3);
-        block.addItem(item4);
-
-        // Call doWork - doesn't send yet because block is not closed
-        invokeDoWork(worker);
-
-        // Add a large item that won't fit with previous items
-        final BlockItem item5 = newBlockTxItem(2_097_000);
-        block.addItem(item5);
-
-        // Call doWork - the large item causes pending items to be sent first
-        invokeDoWork(worker);
-
-        verify(requestPipeline, atLeastOnce()).onNext(requestCaptor.capture());
-        List<PublishStreamRequest> sentRequests = new ArrayList<>(requestCaptor.getAllValues());
-        // First request should contain the small items
-        assertRequestContainsItems(sentRequests.getFirst(), item1, item2, item3, item4);
-
-        reset(requestPipeline);
-
-        // Add more items and close the block
-        final BlockItem item6 = newBlockTxItem(1_000_250);
-        final BlockItem item7 = newBlockTxItem(100);
-        final BlockItem item8 = newBlockTxItem(250);
-        final BlockItem item9 = newPreProofBlockStateChangesItem();
-        final BlockItem item10 = newBlockProofItem(10, 1_420_910);
-
-        block.addItem(item6);
-        block.addItem(item7);
-        block.addItem(item8);
-        block.addItem(item9);
-        block.addItem(item10);
-        block.closeBlock();
-
-        // Call doWork - sends item5, then processes remaining items and sends them with EndOfBlock
-        invokeDoWork(worker);
-        invokeDoWork(worker); // May need multiple calls to process all items
-
-        verify(requestPipeline, atLeastOnce()).onNext(requestCaptor.capture());
-        sentRequests = new ArrayList<>(requestCaptor.getAllValues());
-        // Should have sent multiple requests with remaining items and EndOfBlock
-        assertThat(sentRequests.size()).isGreaterThanOrEqualTo(1);
-        assertThat(sentRequests.getLast()).isEqualTo(createRequest(10)); // EndOfBlock
-
-        assertThat(streamingBlockNumber).hasValue(11);
-
-        // Verify metrics (use atLeast due to batching variations)
-        verify(metrics, times(1)).recordRequestSent(RequestOneOfType.END_OF_BLOCK);
-        verify(metrics, atLeast(2)).recordRequestSent(RequestOneOfType.BLOCK_ITEMS);
-        verify(metrics, atLeast(2)).recordBlockItemsSent(anyInt());
-        verify(metrics, atLeast(3)).recordRequestLatency(anyLong());
-        verify(connectionManager).recordBlockProofSent(eq(connection.getNodeConfig()), eq(10L), any(Instant.class));
-        verify(bufferService, atLeastOnce()).getBlockState(10);
-        // May also check for block 11 during switchBlockIfNeeded after advancing
-        verifyNoMoreInteractions(metrics);
-        verifyNoMoreInteractions(connectionManager);
-        verifyNoMoreInteractions(requestPipeline);
-        // Don't verify no more interactions on bufferService as switchBlockIfNeeded may call getBlockState(11)
     }
 
     @Test

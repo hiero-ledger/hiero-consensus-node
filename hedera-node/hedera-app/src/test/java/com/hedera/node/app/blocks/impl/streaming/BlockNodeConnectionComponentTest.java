@@ -2,10 +2,10 @@
 package com.hedera.node.app.blocks.impl.streaming;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.fail;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeast;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.doAnswer;
@@ -34,6 +34,7 @@ import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodHandles.Lookup;
 import java.lang.invoke.VarHandle;
 import java.lang.reflect.Method;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -175,12 +176,9 @@ class BlockNodeConnectionComponentTest extends BlockNodeCommunicationTestBase {
         final AtomicReference<Thread> workerThreadRef = workerThreadRef();
 
         // Wait for worker thread to terminate
-        for (int i = 0; i < 5; ++i) {
-            final Thread workerThread = workerThreadRef.get();
-            if (workerThread == null || !workerThread.isAlive()) {
-                break;
-            }
-            Thread.sleep(50);
+        final Thread workerThread = workerThreadRef.get();
+        if (workerThread != null) {
+            assertThat(workerThread.join(Duration.ofSeconds(2))).isTrue();
         }
     }
 
@@ -201,7 +199,7 @@ class BlockNodeConnectionComponentTest extends BlockNodeCommunicationTestBase {
         connection.updateConnectionState(ConnectionState.CLOSING);
 
         // Wait for worker thread to actually terminate
-        workerThread.join(2000);
+        assertThat(workerThread.join(Duration.ofSeconds(2))).isTrue();
 
         assertThat(workerThreadRef).hasNullValue();
         assertThat(workerThread.isAlive()).isFalse();
@@ -334,9 +332,24 @@ class BlockNodeConnectionComponentTest extends BlockNodeCommunicationTestBase {
         block.addItem(item4);
         block.closeBlock();
 
+        // Set up latch to wait for END_OF_BLOCK to be recorded
+        final CountDownLatch endOfBlockLatch = new CountDownLatch(1);
+        doAnswer(invocation -> {
+                    RequestOneOfType type = invocation.getArgument(0);
+                    if (type == RequestOneOfType.END_OF_BLOCK) {
+                        endOfBlockLatch.countDown();
+                    }
+                    return null;
+                })
+                .when(metrics)
+                .recordRequestSent(any(RequestOneOfType.class));
+
         connection.updateConnectionState(ConnectionState.ACTIVE);
-        // sleep to let the worker detect the state change and start doing work
-        Thread.sleep(300);
+
+        // Wait for the worker thread to send END_OF_BLOCK
+        assertThat(endOfBlockLatch.await(2, TimeUnit.SECONDS))
+                .as("Worker thread should send END_OF_BLOCK")
+                .isTrue();
 
         final ArgumentCaptor<PublishStreamRequest> requestCaptor = ArgumentCaptor.forClass(PublishStreamRequest.class);
         verify(requestPipeline, times(3)).onNext(requestCaptor.capture());
@@ -410,9 +423,21 @@ class BlockNodeConnectionComponentTest extends BlockNodeCommunicationTestBase {
 
         block.addItem(item);
 
+        // Set up latch to wait for connection closure after error
+        final CountDownLatch connectionClosedLatch = new CountDownLatch(1);
+        doAnswer(invocation -> {
+                    connectionClosedLatch.countDown();
+                    return null;
+                })
+                .when(metrics)
+                .recordConnectionClosed();
+
         connection.updateConnectionState(ConnectionState.ACTIVE);
-        // sleep to let the worker detect the state change and start doing work
-        Thread.sleep(300);
+
+        // Wait for the worker thread to close the connection due to oversized item
+        assertThat(connectionClosedLatch.await(2, TimeUnit.SECONDS))
+                .as("Worker thread should close connection due to oversized item")
+                .isTrue();
 
         final ArgumentCaptor<PublishStreamRequest> requestCaptor = ArgumentCaptor.forClass(PublishStreamRequest.class);
         verify(requestPipeline).onNext(requestCaptor.capture());
@@ -622,7 +647,7 @@ class BlockNodeConnectionComponentTest extends BlockNodeCommunicationTestBase {
         // nearest block boundary, the connection should be closed without sending any items
 
         // Wait for worker thread to complete (which means close is done)
-        workerThread.join(2000);
+        assertThat(workerThread.join(Duration.ofSeconds(2))).isTrue();
 
         // now the connection should be closed and all the items are sent
         assertThat(connection.getConnectionState()).isEqualTo(ConnectionState.CLOSED);
@@ -692,7 +717,7 @@ class BlockNodeConnectionComponentTest extends BlockNodeCommunicationTestBase {
         block.closeBlock();
 
         // Wait for worker thread to complete (which means close is done)
-        workerThread.join(2000);
+        assertThat(workerThread.join(Duration.ofSeconds(2))).isTrue();
 
         // now the connection should be closed and all the items are sent
         assertThat(connection.getConnectionState()).isEqualTo(ConnectionState.CLOSED);
@@ -777,7 +802,7 @@ class BlockNodeConnectionComponentTest extends BlockNodeCommunicationTestBase {
      * Tests InterruptedException handling during pipeline operation.
      */
     @Test
-    void testSendRequest_interruptedException() {
+    void testSendRequest_interruptedException() throws Exception {
         openConnectionAndResetMocks();
         connection.updateConnectionState(ConnectionState.ACTIVE);
 
@@ -810,24 +835,15 @@ class BlockNodeConnectionComponentTest extends BlockNodeCommunicationTestBase {
             }
         });
 
-        try {
-            assertThat(threadBlockingLatch.await(2, TimeUnit.SECONDS))
-                    .as("Thread should start blocking")
-                    .isTrue();
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            fail("Test interrupted while waiting for thread to block");
-        }
+        assertThat(threadBlockingLatch.await(2, TimeUnit.SECONDS))
+                .as("Thread should start blocking")
+                .isTrue();
 
         // Interrupt the thread
         testThread.interrupt();
 
         // Wait for thread to complete
-        try {
-            testThread.join(2000);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        }
+        assertThat(testThread.join(Duration.ofSeconds(2))).isTrue();
 
         // Verify exception was thrown
         assertThat(exceptionRef.get()).isNotNull();
@@ -878,6 +894,112 @@ class BlockNodeConnectionComponentTest extends BlockNodeCommunicationTestBase {
         assertThat(isInterrupted.get()).isTrue();
     }
 
+    @Test
+    void testConnectionWorker_sendRequests() throws Exception {
+        openConnectionAndResetMocks();
+        final AtomicReference<Thread> workerThreadRef = workerThreadRef();
+        workerThreadRef.set(null); // clear the fake worker thread
+        final AtomicLong streamingBlockNumber = streamingBlockNumber();
+
+        streamingBlockNumber.set(10);
+
+        final BlockState block = new BlockState(10);
+
+        doReturn(block).when(bufferService).getBlockState(10);
+
+        final ArgumentCaptor<PublishStreamRequest> requestCaptor = ArgumentCaptor.forClass(PublishStreamRequest.class);
+
+        connection.updateConnectionState(ConnectionState.ACTIVE);
+        // sleep to let the worker detect the state change and start doing work
+        Thread.sleep(100);
+
+        // add the header to the block, then wait for the max request delay... a request with the header should be sent
+        final BlockItem item1 = newBlockHeaderItem();
+        block.addItem(item1);
+
+        Thread.sleep(400);
+        verify(requestPipeline, atLeastOnce()).onNext(requestCaptor.capture());
+        final List<PublishStreamRequest> requests1 = requestCaptor.getAllValues();
+        reset(requestPipeline);
+
+        assertThat(requests1).hasSize(1);
+        assertRequestContainsItems(requests1.getFirst(), item1);
+
+        // add multiple small items to the block and wait for them to be sent in one batch
+        final BlockItem item2 = newBlockTxItem(15);
+        final BlockItem item3 = newBlockTxItem(20);
+        final BlockItem item4 = newBlockTxItem(50);
+        block.addItem(item2);
+        block.addItem(item3);
+        block.addItem(item4);
+
+        Thread.sleep(400);
+
+        verify(requestPipeline, atLeastOnce()).onNext(requestCaptor.capture());
+        final List<PublishStreamRequest> requests2 = requestCaptor.getAllValues();
+        reset(requestPipeline);
+        requests2.removeAll(requests1);
+        assertRequestContainsItems(requests2, item2, item3, item4);
+
+        // add a large item and a smaller item
+        final BlockItem item5 = newBlockTxItem(2_097_000);
+        final BlockItem item6 = newBlockTxItem(1_000_250);
+        block.addItem(item5);
+        block.addItem(item6);
+
+        Thread.sleep(500);
+
+        verify(requestPipeline, times(2)).onNext(requestCaptor.capture());
+        final List<PublishStreamRequest> requests3 = requestCaptor.getAllValues();
+        reset(requestPipeline);
+        requests3.removeAll(requests1);
+        requests3.removeAll(requests2);
+        // there should be two requests since the items together exceed the max per request
+        assertThat(requests3).hasSize(2);
+        assertRequestContainsItems(requests3, item5, item6);
+
+        // now add some more items and the block proof, then close the block
+        // after these requests are sent, we should see the worker loop move to the next block
+        final BlockItem item7 = newBlockTxItem(100);
+        final BlockItem item8 = newBlockTxItem(250);
+        final BlockItem item9 = newPreProofBlockStateChangesItem();
+        final BlockItem item10 = newBlockProofItem(10, 1_420_910);
+        block.addItem(item7);
+        block.addItem(item8);
+        block.addItem(item9);
+        block.addItem(item10);
+        block.closeBlock();
+
+        Thread.sleep(500);
+
+        verify(requestPipeline, atLeastOnce()).onNext(requestCaptor.capture());
+        final List<PublishStreamRequest> requests4 = requestCaptor.getAllValues();
+        final int totalRequestsSent = requests4.size();
+        final int endOfBlockRequest = 1;
+
+        reset(requestPipeline);
+        requests4.removeAll(requests1);
+        requests4.removeAll(requests2);
+        requests4.removeAll(requests3);
+        assertRequestContainsItems(requests4, item7, item8, item9, item10);
+        assertThat(requests4.getLast()).isEqualTo(createRequest(10));
+
+        assertThat(streamingBlockNumber).hasValue(11);
+
+        verify(metrics, times(endOfBlockRequest)).recordRequestSent(RequestOneOfType.END_OF_BLOCK);
+        verify(metrics, times(totalRequestsSent - endOfBlockRequest)).recordRequestSent(RequestOneOfType.BLOCK_ITEMS);
+        verify(metrics, times(totalRequestsSent - endOfBlockRequest)).recordBlockItemsSent(anyInt());
+        verify(metrics, times(totalRequestsSent)).recordRequestLatency(anyLong());
+        verify(connectionManager).recordBlockProofSent(eq(connection.getNodeConfig()), eq(10L), any(Instant.class));
+        verify(bufferService, atLeastOnce()).getBlockState(10);
+        verify(bufferService, atLeastOnce()).getBlockState(11);
+        verify(bufferService, atLeastOnce()).getEarliestAvailableBlockNumber();
+        verifyNoMoreInteractions(metrics);
+        verifyNoMoreInteractions(bufferService);
+        verifyNoMoreInteractions(connectionManager);
+        verifyNoMoreInteractions(requestPipeline);
+    }
+
     // Utilities
 
     private void openConnectionAndResetMocks() {
@@ -908,6 +1030,31 @@ class BlockNodeConnectionComponentTest extends BlockNodeCommunicationTestBase {
             } else {
                 throw new RuntimeException(e);
             }
+        }
+    }
+
+    private void assertRequestContainsItems(final PublishStreamRequest request, final BlockItem... expectedItems) {
+        assertRequestContainsItems(List.of(request), expectedItems);
+    }
+
+    private void assertRequestContainsItems(
+            final List<PublishStreamRequest> requests, final BlockItem... expectedItems) {
+        final List<BlockItem> actualItems = new ArrayList<>();
+        for (final PublishStreamRequest request : requests) {
+            final BlockItemSet bis = request.blockItems();
+            if (bis != null) {
+                actualItems.addAll(bis.blockItems());
+            }
+        }
+
+        assertThat(actualItems).hasSize(expectedItems.length);
+
+        for (int i = 0; i < actualItems.size(); ++i) {
+            final BlockItem actualItem = actualItems.get(i);
+            assertThat(actualItem)
+                    .withFailMessage("Block item at index " + i + " different. Expected: " + expectedItems[i]
+                            + " but found " + actualItem)
+                    .isSameAs(expectedItems[i]);
         }
     }
 }
