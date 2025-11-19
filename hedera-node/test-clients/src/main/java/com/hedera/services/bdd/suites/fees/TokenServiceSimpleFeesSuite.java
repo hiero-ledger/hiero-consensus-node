@@ -6,9 +6,12 @@ import static com.hedera.services.bdd.junit.TestTags.SIMPLE_FEES;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.burnToken;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.mintToken;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenAssociate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenDelete;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenFreeze;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenPause;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenUnfreeze;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenUnpause;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.compareSimpleToOld;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
@@ -17,13 +20,10 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.THREE_MONTHS_IN_SECONDS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
-import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
 
-import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
 import java.util.Arrays;
-import java.util.List;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
@@ -38,8 +38,10 @@ public class TokenServiceSimpleFeesSuite {
     private static final String METADATA_KEY = "metadata-key";
     private static final String SUPPLY_KEY = "supplyKey";
     private static final String PAUSE_KEY = "pauseKey";
+    private static final String FREEZE_KEY = "freezeKey";
     private static final String PAYER = "payer";
     private static final String ADMIN = "admin";
+    private static final String OTHER = "other";
 
     @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
     @DisplayName("compare create fungible token")
@@ -246,6 +248,70 @@ public class TokenServiceSimpleFeesSuite {
                 1);
     }
 
+    @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+    @DisplayName("compare freeze a common token")
+    final Stream<DynamicTest> compareFreezeToken() {
+        return compareSimpleToOld(
+                () -> Arrays.asList(
+                        newKeyNamed(SUPPLY_KEY),
+                        newKeyNamed(FREEZE_KEY),
+                        cryptoCreate(PAYER).balance(ONE_BILLION_HBARS).key(SUPPLY_KEY),
+                        cryptoCreate(OTHER),
+                        tokenCreate(FUNGIBLE_TOKEN)
+                                .tokenType(FUNGIBLE_COMMON)
+                                .initialSupply(0L)
+                                .payingWith(PAYER)
+                                .supplyKey(SUPPLY_KEY)
+                                .freezeKey(FREEZE_KEY)
+                                .fee(ONE_HUNDRED_HBARS)
+                                .hasKnownStatus(SUCCESS),
+                        tokenAssociate(OTHER,FUNGIBLE_TOKEN),
+                        mintToken(FUNGIBLE_TOKEN, 10)
+                                .payingWith(PAYER)
+                                .fee(ONE_HUNDRED_HBARS)
+                                .hasKnownStatus(SUCCESS),
+                        tokenFreeze(FUNGIBLE_TOKEN,OTHER)
+                                .via("freeze-token-txn")),
+                "freeze-token-txn",
+                // TODO: actual result being set to zero for some reason
+                0.002,
+                1,
+                0.001,
+                1);
+    }
+
+    @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+    @DisplayName("compare unfreeze a common token")
+    final Stream<DynamicTest> compareUnfreezeToken() {
+        return compareSimpleToOld(
+                () -> Arrays.asList(
+                        newKeyNamed(SUPPLY_KEY),
+                        cryptoCreate(PAYER).balance(ONE_BILLION_HBARS).key(SUPPLY_KEY),
+                        cryptoCreate(OTHER),
+                        newKeyNamed(FREEZE_KEY),
+                        tokenCreate(FUNGIBLE_TOKEN)
+                                .tokenType(FUNGIBLE_COMMON)
+                                .initialSupply(0L)
+                                .payingWith(PAYER)
+                                .supplyKey(SUPPLY_KEY)
+                                .freezeKey(FREEZE_KEY)
+                                .fee(ONE_HUNDRED_HBARS)
+                                .hasKnownStatus(SUCCESS),
+                        tokenAssociate(OTHER,FUNGIBLE_TOKEN),
+                        mintToken(FUNGIBLE_TOKEN, 10)
+                                .payingWith(PAYER)
+                                .fee(ONE_HUNDRED_HBARS)
+                                .hasKnownStatus(SUCCESS),
+                        tokenFreeze(FUNGIBLE_TOKEN,OTHER),
+                        tokenUnfreeze(FUNGIBLE_TOKEN,OTHER)
+                                .via("unfreeze-token-txn")),
+                "unfreeze-token-txn",
+                // TODO: actual result being set to zero for some reason
+                0.002,
+                1,
+                0.001,
+                1);
+    }
 
     @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
     @DisplayName("compare burn a common token")
