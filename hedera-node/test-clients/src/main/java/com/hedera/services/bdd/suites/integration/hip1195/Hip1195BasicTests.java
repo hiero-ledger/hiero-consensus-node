@@ -110,12 +110,6 @@ public class Hip1195BasicTests {
     @Contract(contract = "FalseTruePrePostHook", creationGas = 5_000_000)
     static SpecContract FALSE_TRUE_ALLOWANCE_HOOK;
 
-    @Contract(contract = "CreateOpHook", creationGas = 5_000_000)
-    static SpecContract CREATE_HOOK;
-
-    @Contract(contract = "Create2OpHook", creationGas = 5_000_000)
-    static SpecContract CREATE2_HOOK;
-
     @Contract(contract = "SelfDestructOpHook", creationGas = 5_000_000)
     static SpecContract SELF_DESTRUCT_HOOK;
 
@@ -126,8 +120,6 @@ public class Hip1195BasicTests {
         testLifecycle.doAdhoc(TRUE_ALLOWANCE_HOOK.getInfo());
         testLifecycle.doAdhoc(TRUE_PRE_POST_ALLOWANCE_HOOK.getInfo());
         testLifecycle.doAdhoc(FALSE_PRE_POST_ALLOWANCE_HOOK.getInfo());
-        testLifecycle.doAdhoc(CREATE_HOOK.getInfo());
-        testLifecycle.doAdhoc(CREATE2_HOOK.getInfo());
         testLifecycle.doAdhoc(SELF_DESTRUCT_HOOK.getInfo());
         testLifecycle.doAdhoc(FALSE_TRUE_ALLOWANCE_HOOK.getInfo());
 
@@ -984,13 +976,22 @@ public class Hip1195BasicTests {
                         .withPreHookFor(OWNER, 124L, 25_000L, "")
                         .payingWith(OWNER)
                         .via("feeTxn"),
-                validateChargedUsd("feeTxn", 0.05),
+                sourcingContextual(spec -> {
+                    final long tinybarGasCost = 25_000L * spec.ratesProvider().currentTinybarGasPrice();
+                    final double usdGasCost = spec.ratesProvider().toUsdWithActiveRates(tinybarGasCost);
+                    return validateChargedUsd("feeTxn", 0.05 + usdGasCost);
+                }),
                 cryptoTransfer(TokenMovement.movingHbar(10).between(OWNER, PAYER))
                         .withPreHookFor(OWNER, 123L, 25_000L, "")
                         .withPrePostHookFor(PAYER, 123L, 25_000L, "")
                         .payingWith(OWNER)
                         .via("feeTxn2"),
-                validateChargedUsd("feeTxn2", 0.05));
+                sourcingContextual(spec -> {
+                    // Pre-post hook is called twice, so gas usage is double the given limit
+                    final long tinybarGasCost = 75_000L * spec.ratesProvider().currentTinybarGasPrice();
+                    final double usdGasCost = spec.ratesProvider().toUsdWithActiveRates(tinybarGasCost);
+                    return validateChargedUsd("feeTxn2", 0.05 + usdGasCost);
+                }));
     }
 
     @HapiTest

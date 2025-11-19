@@ -8,26 +8,26 @@ import java.time.Duration;
 import org.assertj.core.data.Percentage;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.network.BandwidthLimit;
-import org.hiero.otter.fixtures.network.Connection;
-import org.hiero.otter.fixtures.network.DirectionalConnection;
+import org.hiero.otter.fixtures.network.BidirectionalConnection;
+import org.hiero.otter.fixtures.network.UnidirectionalConnection;
 
 /**
- * Implementation of the Connection interface.
+ * Implementation of the BidirectionalConnection interface.
  */
-public class ConnectionImpl implements Connection {
+public class BidirectionalConnectionImpl implements BidirectionalConnection {
 
-    private final DirectionalConnection connection;
-    private final DirectionalConnection reverse;
+    private final UnidirectionalConnection connection;
+    private final UnidirectionalConnection reverse;
 
     /**
-     * Constructs a ConnectionImpl with the specified one-way connections.
+     * Constructs a BidirectionalConnectionImpl with the specified one-way connections.
      *
      * @param connection the one-way connection from node1 to node2
      * @param reverse    the one-way connection from node2 to node1
      * @throws NullPointerException if any of the parameters are null
      */
-    public ConnectionImpl(
-            @NonNull final DirectionalConnection connection, @NonNull final DirectionalConnection reverse) {
+    public BidirectionalConnectionImpl(
+            @NonNull final UnidirectionalConnection connection, @NonNull final UnidirectionalConnection reverse) {
         this.connection = requireNonNull(connection);
         this.reverse = requireNonNull(reverse);
     }
