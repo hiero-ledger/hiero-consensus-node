@@ -4,46 +4,29 @@ package org.hiero.otter.fixtures.network;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import org.assertj.core.data.Percentage;
-import org.hiero.otter.fixtures.Node;
 
 /**
- * Interface representing a connection between two nodes in a network.
+ * Super-interface for {@link UnidirectionalConnection} and {@link BidirectionalConnection} that
+ * defines common behavior for network connections between nodes.
  */
-@SuppressWarnings("unused")
 public interface Connection {
 
     /**
-     * Gets the first node of the connection.
-     *
-     * @return the first node in the connection
-     */
-    @NonNull
-    Node node1();
-
-    /**
-     * Gets the second node of the connection.
-     *
-     * @return the second node in the connection
-     */
-    @NonNull
-    Node node2();
-
-    /**
-     * Disconnects two nodes, preventing bidirectional communication. If the nodes are already disconnected, this method
+     * Disconnects two nodes, preventing communication. If the nodes are already disconnected, this method
      * has no effect.
      */
     void disconnect();
 
     /**
-     * Connects two nodes, establishing bidirectional communication. If the nodes are already connected, this method has
+     * Connects two nodes, establishing communication. If the nodes are already connected, this method has
      * no effect.
      */
     void connect();
 
     /**
-     * Checks if two nodes are currently connected in both directions.
+     * Checks if two nodes are currently connected.
      *
-     * @return true if the nodes are connected, false otherwise
+     * @return {@code true} if the nodes are connected, {@code false} otherwise
      */
     boolean isConnected();
 
@@ -53,26 +36,22 @@ public interface Connection {
     void restoreConnectivity();
 
     /**
-     * Gets the current latency between two nodes.
+     * Gets the current latency of this connection.
      *
-     * <p>If the latency range between both directions differs, the larger latency is returned.
-     *
-     * @return the current latency range
+     * @return the current latency
      */
     @NonNull
     Duration latency();
 
     /**
-     * Sets the latency for bidirectional communication between two nodes.
+     * Sets the latency for this connection.
      *
      * @param latency the latency to apply
      */
     void latency(@NonNull Duration latency);
 
     /**
-     * Gets the current jitter percentage between two nodes.
-     *
-     * <p>If the jitter percentage between both directions differs, the larger jitter is returned.
+     * Gets the current jitter percentage of this connection.
      *
      * @return the current jitter percentage
      */
@@ -80,7 +59,7 @@ public interface Connection {
     Percentage jitter();
 
     /**
-     * Sets the jitter for bidirectional communication between two nodes.
+     * Sets the jitter for this connection.
      *
      * @param jitter the percentage of jitter to apply to the latency
      */
@@ -92,16 +71,14 @@ public interface Connection {
     void restoreLatency();
 
     /**
-     * Sets the bandwidth limit for bidirectional communication between two nodes.
+     * Sets the bandwidth limit for this connection.
      *
      * @param bandwidthLimit the bandwidth limit to apply
      */
     void bandwidthLimit(@NonNull BandwidthLimit bandwidthLimit);
 
     /**
-     * Gets the current bandwidth limit between two nodes.
-     *
-     * <p>If the bandwidth limit between both directions differs, the smaller bandwidth is returned.
+     * Gets the current bandwidth limit of this connection.
      *
      * @return the current bandwidth limit
      */
