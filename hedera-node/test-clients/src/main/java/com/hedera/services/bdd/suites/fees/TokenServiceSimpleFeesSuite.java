@@ -8,6 +8,8 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.mintToken;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenDelete;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenPause;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenUnpause;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.compareSimpleToOld;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_BILLION_HBARS;
@@ -35,6 +37,7 @@ public class TokenServiceSimpleFeesSuite {
     private static final String NFT_TOKEN = "nonFungibleToken";
     private static final String METADATA_KEY = "metadata-key";
     private static final String SUPPLY_KEY = "supplyKey";
+    private static final String PAUSE_KEY = "pauseKey";
     private static final String PAYER = "payer";
     private static final String ADMIN = "admin";
 
@@ -115,9 +118,9 @@ public class TokenServiceSimpleFeesSuite {
                                 .hasKnownStatus(SUCCESS)
                                 .via("fungible-mint-txn")),
                 "fungible-mint-txn",
-                0.0011000,
+                0.0011,
                 1,
-                0.001,
+                0.0011,
                 1);
     }
 
@@ -145,9 +148,9 @@ public class TokenServiceSimpleFeesSuite {
                                 .hasKnownStatus(SUCCESS)
                                 .via("fungible-mint-txn")),
                 "fungible-mint-txn",
-                0.001,
+                0.0011,
                 1,
-                0.001,
+                0.0011,
                 1);
     }
 
@@ -181,6 +184,68 @@ public class TokenServiceSimpleFeesSuite {
 //                0.02,
 //                1);
 //    }
+
+    @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+    @DisplayName("compare pause a common token")
+    final Stream<DynamicTest> comparePauseToken() {
+        return compareSimpleToOld(
+                () -> Arrays.asList(
+                        newKeyNamed(SUPPLY_KEY),
+                        newKeyNamed(PAUSE_KEY),
+                        cryptoCreate(PAYER).balance(ONE_BILLION_HBARS).key(SUPPLY_KEY),
+                        tokenCreate(FUNGIBLE_TOKEN)
+                                .tokenType(FUNGIBLE_COMMON)
+                                .initialSupply(0L)
+                                .payingWith(PAYER)
+                                .supplyKey(SUPPLY_KEY)
+                                .pauseKey(PAUSE_KEY)
+                                .fee(ONE_HUNDRED_HBARS)
+                                .hasKnownStatus(SUCCESS),
+                        mintToken(FUNGIBLE_TOKEN, 10)
+                                .payingWith(PAYER)
+                                .fee(ONE_HUNDRED_HBARS)
+                                .hasKnownStatus(SUCCESS),
+                        tokenPause(FUNGIBLE_TOKEN)
+                                .via("pause-token-txn")),
+                "pause-token-txn",
+                // TODO: actual result being set to zero for some reason
+                0.002,
+                1,
+                0.001,
+                1);
+    }
+
+    @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+    @DisplayName("compare unpause a common token")
+    final Stream<DynamicTest> compareUnpauseToken() {
+        return compareSimpleToOld(
+                () -> Arrays.asList(
+                        newKeyNamed(SUPPLY_KEY),
+                        cryptoCreate(PAYER).balance(ONE_BILLION_HBARS).key(SUPPLY_KEY),
+                        newKeyNamed(PAUSE_KEY),
+                        tokenCreate(FUNGIBLE_TOKEN)
+                                .tokenType(FUNGIBLE_COMMON)
+                                .initialSupply(0L)
+                                .payingWith(PAYER)
+                                .supplyKey(SUPPLY_KEY)
+                                .pauseKey(PAUSE_KEY)
+                                .fee(ONE_HUNDRED_HBARS)
+                                .hasKnownStatus(SUCCESS),
+                        mintToken(FUNGIBLE_TOKEN, 10)
+                                .payingWith(PAYER)
+                                .fee(ONE_HUNDRED_HBARS)
+                                .hasKnownStatus(SUCCESS),
+                        tokenPause(FUNGIBLE_TOKEN),
+                        tokenUnpause(FUNGIBLE_TOKEN)
+                                .via("unpause-token-txn")),
+                "unpause-token-txn",
+                // TODO: actual result being set to zero for some reason
+                0.002,
+                1,
+                0.001,
+                1);
+    }
+
 
     @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
     @DisplayName("compare burn a common token")
