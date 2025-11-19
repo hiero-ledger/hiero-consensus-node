@@ -246,7 +246,7 @@ public class CrystalTransplantCommand extends AbstractCommand {
                 savedStateFiles,
                 v -> {
                     try {
-                        return appMain.stateRootFromVirtualMap(platformContext.getMetrics(), platformContext.getTime())
+                        return appMain.stateRootFromVirtualMap(platformContext.getMetrics())
                                 .apply(v);
                     } catch (UnsupportedOperationException e) {
                         // FUTURE WORK: https://github.com/hiero-ledger/hiero-consensus-node/issues/19003
