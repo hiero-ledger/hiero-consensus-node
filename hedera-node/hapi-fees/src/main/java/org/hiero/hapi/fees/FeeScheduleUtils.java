@@ -31,10 +31,10 @@ public class FeeScheduleUtils {
     }
 
     /** Create a service fee for a specific Hedera service */
-    public static ServiceFeeDefinition makeServiceFee(String name, long baseFee, ExtraFeeReference... reference) {
+    public static ServiceFeeDefinition makeServiceFee(HederaFunctionality name, long baseFee, ExtraFeeReference... reference) {
         return ServiceFeeDefinition.DEFAULT
                 .copyBuilder()
-                .name(name)
+                .name(name.protoName())
                 .baseFee(baseFee)
                 .extras(reference)
                 .build();
