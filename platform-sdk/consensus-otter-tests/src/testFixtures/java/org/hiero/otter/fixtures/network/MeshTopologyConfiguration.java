@@ -7,7 +7,6 @@ import static org.hiero.otter.fixtures.network.BandwidthLimit.UNLIMITED_BANDWIDT
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import org.assertj.core.data.Percentage;
-import org.hiero.otter.fixtures.network.BandwidthLimit;
 
 /**
  * Configuration for a mesh network topology where all nodes are fully connected.

@@ -72,5 +72,4 @@ public interface GeoMeshTopology extends MeshTopology {
      */
     @NonNull
     String getRegion(@NonNull Node node);
-
 }

@@ -182,11 +182,11 @@ public abstract class AbstractNetwork implements Network {
         // Dispatch to appropriate implementation based on configuration type
         this.currentTopology = switch (configuration) {
             case MeshTopologyConfiguration meshConfig ->
-                    new MeshTopologyImpl(meshConfig, this::createNodes, this::createInstrumentedNode);
+                new MeshTopologyImpl(meshConfig, this::createNodes, this::createInstrumentedNode);
             case GeoMeshTopologyConfiguration geoConfig ->
-                    new GeoMeshTopologyImpl(geoConfig, random, this::createNodes, this::createInstrumentedNode);
-            default -> throw new IllegalArgumentException(
-                    "Unknown topology configuration type: " + configuration.getClass());
+                new GeoMeshTopologyImpl(geoConfig, random, this::createNodes, this::createInstrumentedNode);
+            default ->
+                throw new IllegalArgumentException("Unknown topology configuration type: " + configuration.getClass());
         };
 
         return this;
@@ -408,7 +408,8 @@ public abstract class AbstractNetwork implements Network {
     @Override
     @NonNull
     public BidirectionalConnection bidirectionalConnection(@NonNull final Node node1, @NonNull final Node node2) {
-        return new BidirectionalConnectionImpl(unidirectionalConnection(node1, node2), unidirectionalConnection(node2, node1));
+        return new BidirectionalConnectionImpl(
+                unidirectionalConnection(node1, node2), unidirectionalConnection(node2, node1));
     }
 
     /**

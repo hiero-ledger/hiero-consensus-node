@@ -31,9 +31,7 @@ class TopologyConfigurationTest {
         assertThat(config.averageLatency())
                 .as("Default latency should be 200ms")
                 .isEqualTo(Duration.ofMillis(200));
-        assertThat(config.jitter().value)
-                .as("Default jitter should be 5.0%")
-                .isEqualTo(5.0);
+        assertThat(config.jitter().value).as("Default jitter should be 5.0%").isEqualTo(5.0);
         assertThat(config.bandwidth().isUnlimited())
                 .as("Default bandwidth should be unlimited")
                 .isTrue();
@@ -48,9 +46,7 @@ class TopologyConfigurationTest {
         assertThat(config.averageLatency())
                 .as("Latency should be updated to custom value")
                 .isEqualTo(customLatency);
-        assertThat(config.jitter().value)
-                .as("Jitter should remain unchanged")
-                .isEqualTo(5.0);
+        assertThat(config.jitter().value).as("Jitter should remain unchanged").isEqualTo(5.0);
     }
 
     @Test
@@ -92,9 +88,7 @@ class TopologyConfigurationTest {
         assertThat(config.averageLatency())
                 .as("Chained latency should be 300ms")
                 .isEqualTo(Duration.ofMillis(300));
-        assertThat(config.jitter().value)
-                .as("Chained jitter should be 7.0%")
-                .isEqualTo(7.0);
+        assertThat(config.jitter().value).as("Chained jitter should be 7.0%").isEqualTo(7.0);
         assertThat(config.bandwidth().toKilobytesPerSecond())
                 .as("Chained bandwidth should be 5120 KB/s (5 MB/s)") // 5 MB = 5120 KB
                 .isEqualTo(5_120);
