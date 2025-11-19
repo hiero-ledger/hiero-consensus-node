@@ -62,7 +62,7 @@ public record NodeIsolationExperiment(@NonNull Duration minDuration, @NonNull Du
      */
     @Override
     @NonNull
-    public List<Step> create(@NonNull final Network network, final Instant now, @NonNull final Randotron randotron) {
+    public List<Step> start(@NonNull final Network network, final Instant now, @NonNull final Randotron randotron) {
         final List<Node> candidates = network.nodes().stream()
                 .filter(node -> !network.isIsolated(node))
                 .toList();

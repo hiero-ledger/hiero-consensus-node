@@ -23,18 +23,18 @@ public interface Experiment {
     String name();
 
     /**
-     * Create the steps of the experiment.
+     * Starts the experiment and returns the remaining steps.
      *
-     * <p>If the experiment cannot be created (e.g., no suitable target nodes are available), an empty list should be
+     * <p>If the experiment cannot be started (e.g., no suitable target nodes are available), an empty list should be
      * returned.
      *
      * @param network the network to run the experiment on
      * @param now the current time
      * @param randotron the random number generator to use
-     * @return the steps of the experiment
+     * @return the remaining steps of the experiment
      */
     @NonNull
-    List<Step> create(@NonNull Network network, final Instant now, @NonNull Randotron randotron);
+    List<Step> start(@NonNull Network network, @NonNull Instant now, @NonNull Randotron randotron);
 
     /**
      * A step in an experiment.

@@ -94,7 +94,7 @@ public record NetworkPartitionExperiment(
      */
     @Override
     @NonNull
-    public List<Step> create(@NonNull final Network network, final Instant now, @NonNull final Randotron randotron) {
+    public List<Step> start(@NonNull final Network network, final Instant now, @NonNull final Randotron randotron) {
         if (network.networkPartitions().size() >= maxPartitions) {
             log.info(
                     "Network has already the maximum number ({}) of partitions. Skipping network partition experiment.",

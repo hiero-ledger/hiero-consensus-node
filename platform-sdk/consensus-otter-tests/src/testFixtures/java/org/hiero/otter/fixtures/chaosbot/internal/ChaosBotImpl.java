@@ -31,12 +31,28 @@ public class ChaosBotImpl implements ChaosBot {
 
     private static final Logger log = LogManager.getLogger();
 
+    /** The test environment the chaos bot is running in. */
     private final TestEnvironment env;
+
+    /** The minimum interval between experiments. */
     private final Duration minInterval;
+
+    /** The maximum interval between experiments. */
     private final Duration maxInterval;
+
+    /** The list of experiments the chaos bot will run. Experiments are picked randomly. */
     private final List<Experiment> experiments;
+
+    /**
+     * The random number generator used by the chaos bot. May be initialized with a configurable seed to make
+     * the chaos bot's behavior reproducible.
+     */
     private final Randotron randotron;
+
+    /** The scheduled steps of experiments to execute, ordered by their timestamp. */
     private final PriorityQueue<Step> scheduledSteps = new PriorityQueue<>(Comparator.comparing(Step::timestamp));
+
+    /** Statistics about how many times each experiment has been run. */
     private final Map<String, Integer> statistics = new HashMap<>();
 
     /**
@@ -67,7 +83,8 @@ public class ChaosBotImpl implements ChaosBot {
         scheduleNextExperiment();
 
         // This is the main loop of the chaos bot. Note that scheduledSteps is always non-empty because
-        // scheduleNextExperiment() always adds at least one step.
+        // scheduleNextExperiment() always adds at least one step and the moment an experiment is started,
+        // we also call scheduleNextExperiment() to schedule the next experiment.
         while (timeManager.now().isBefore(chaosEndTime)) {
             final Instant nextBreak = scheduledSteps.peek().timestamp();
             timeManager.waitFor(Duration.between(timeManager.now(), nextBreak));
@@ -108,7 +125,16 @@ public class ChaosBotImpl implements ChaosBot {
         }
     }
 
+    /*
+     * This method creates a new {@link Step} and adds it to {@link #scheduledSteps}. The new step will do two things
+     * when executed: it will start a randomly selected experiment, and it will call
+     * {@link #scheduleNextExperiment()} again to schedule the next experiment. In other words, the moment experiment A
+     * is started, the next experiment B is scheduled. This ensures that there is always at least one scheduled step in
+     * the queue.
+     */
     private void scheduleNextExperiment() {
+        // Pick a random delay and a random experiment. Chaos test should be run long enough so that each experiment
+        // will be run at least once without the need to iterate through all experiments.
         final Duration delay = randotron.nextDuration(minInterval, maxInterval);
         final Experiment experiment = experiments.stream()
                 .skip(randotron.nextInt(experiments.size()))
@@ -117,14 +143,18 @@ public class ChaosBotImpl implements ChaosBot {
         log.info("Scheduling experiment {} in {}.", experiment, delay);
 
         final Instant startTime = env.timeManager().now().plus(delay);
+
+        // Create a step that does two things:
         final Step startExperiment = new Step(startTime, () -> {
-            final List<Step> steps = experiment.create(env.network(), startTime, randotron);
-            if (steps.isEmpty()) {
+            // 1. Start the experiment and schedule its remaining steps
+            final List<Step> remainingSteps = experiment.start(env.network(), startTime, randotron);
+            if (remainingSteps.isEmpty()) {
                 log.info("Experiment '{}' could not be started.", experiment.name());
             } else {
-                scheduledSteps.addAll(steps);
+                scheduledSteps.addAll(remainingSteps);
                 statistics.merge(experiment.name(), 1, Integer::sum);
             }
+            // 2. Schedule the next experiment
             scheduleNextExperiment();
         });
         scheduledSteps.add(startExperiment);
