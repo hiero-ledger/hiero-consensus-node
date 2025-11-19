@@ -367,7 +367,7 @@ public class RpcPeerHandler implements GossipRpcReceiver {
         state.shadowWindow = sharedShadowgraphSynchronizer.reserveEventWindow();
         state.myTips = sharedShadowgraphSynchronizer.getTips();
         final List<Hash> tipHashes =
-                state.myTips.stream().map(ShadowEvent::getEventBaseHash).collect(Collectors.toList());
+                state.myTips.stream().map(shadowEvent -> shadowEvent.getBaseHash()).collect(Collectors.toList());
         state.mySyncData = new SyncData(state.shadowWindow.getEventWindow(), tipHashes, ignoreIncomingEvents);
         sender.sendSyncData(state.mySyncData);
         this.syncMetrics.outgoingSyncRequestSent();

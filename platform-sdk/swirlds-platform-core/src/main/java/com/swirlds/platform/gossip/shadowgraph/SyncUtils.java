@@ -69,7 +69,7 @@ public final class SyncUtils {
             @NonNull final List<ShadowEvent> tips) {
         return () -> {
             final List<Hash> tipHashes =
-                    tips.stream().map(ShadowEvent::getEventBaseHash).collect(Collectors.toList());
+                    tips.stream().map(shadowEvent -> shadowEvent.getBaseHash()).collect(Collectors.toList());
 
             serializeEventWindow(connection.getDos(), eventWindow);
 
@@ -478,7 +478,7 @@ public final class SyncUtils {
 
         final long minimumSearchThreshold =
                 Math.max(myEventWindow.expiredThreshold(), theirEventWindow.ancientThreshold());
-        return s -> s.getEvent().getBirthRound() >= minimumSearchThreshold && !knownShadows.contains(s);
+        return s -> s.getPlatformEvent().getBirthRound() >= minimumSearchThreshold && !knownShadows.contains(s);
     }
 
     /**
@@ -496,7 +496,7 @@ public final class SyncUtils {
         // Make a single O(N) where N is the number of tips including all branches. Typically, N will be equal to the
         // number of network nodes.
         for (final ShadowEvent tip : tips) {
-            tipCountByCreator.compute(tip.getEvent().getCreatorId(), (k, v) -> (v != null) ? (v + 1) : 1);
+            tipCountByCreator.compute(tip.getPlatformEvent().getCreatorId(), (k, v) -> (v != null) ? (v + 1) : 1);
         }
 
         // Walk the entrySet() which is O(N) where N is the number network nodes. This is still more efficient than a

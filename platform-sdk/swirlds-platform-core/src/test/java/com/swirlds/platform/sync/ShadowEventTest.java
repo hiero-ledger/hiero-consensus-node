@@ -67,14 +67,14 @@ class ShadowEventTest {
 
         assertTrue(
                 identicalHashes(
-                        s.getSelfParent().getEventBaseHash(), ssp.getEvent().getHash()),
+                        s.getSelfParent().getBaseHash(), ssp.getPlatformEvent().getHash()),
                 "expected SP");
         assertTrue(
                 identicalHashes(
-                        s.getOtherParent().getEvent().getHash(), sop.getEvent().getHash()),
+                        s.getOtherParent().getPlatformEvent().getHash(), sop.getPlatformEvent().getHash()),
                 "expected OP");
 
-        assertSame(s.getEvent(), e, "getting the EventImpl should give the EventImpl instance itself");
+        assertSame(s.getPlatformEvent(), e, "getting the EventImpl should give the EventImpl instance itself");
     }
 
     @Test
@@ -95,7 +95,7 @@ class ShadowEventTest {
 
         assertNotNull(s.getOtherParent(), "OP should not be null before disconnect");
 
-        s.disconnect();
+        s.clear();
 
         assertNull(s.getSelfParent(), "SP should be null after disconnect");
 
@@ -119,7 +119,7 @@ class ShadowEventTest {
         final ShadowEvent s = new ShadowEvent(e, ssp, sop);
 
         // The hash of an event Shadow is the hash of the event
-        assertEquals(e.getHash(), s.getEventBaseHash(), "false");
+        assertEquals(e.getHash(), s.getBaseHash(), "false");
     }
 
     @Test

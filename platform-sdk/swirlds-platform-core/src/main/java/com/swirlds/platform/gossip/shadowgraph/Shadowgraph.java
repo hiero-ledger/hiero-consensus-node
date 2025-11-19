@@ -143,7 +143,7 @@ public class Shadowgraph implements Clearable {
      */
     private void disconnectShadowEvents() {
         for (final ShadowEvent shadow : hashToShadowEvent.values()) {
-            shadow.disconnect();
+            shadow.clear();
         }
     }
 
@@ -228,7 +228,7 @@ public class Shadowgraph implements Clearable {
         for (ShadowEvent event : events) {
             // add ancestors that have not already been found and that pass the predicate
             final Predicate<ShadowEvent> isValidShadowEvent =
-                    e -> !ancestors.contains(e) && !expired(e.getEvent().getDescriptor()) && predicate.test(e);
+                    e -> !ancestors.contains(e) && !expired(e.getPlatformEvent().getDescriptor()) && predicate.test(e);
             findAncestors(ancestors, event, isValidShadowEvent);
         }
         return ancestors;
@@ -272,7 +272,7 @@ public class Shadowgraph implements Clearable {
 
             add it to ancestors and push any non-null parents to the stack
              */
-            if (!expired(testEvent.getEvent().getDescriptor())
+            if (!expired(testEvent.getPlatformEvent().getDescriptor())
                     && predicate.test(testEvent)
                     && ancestors.add(testEvent)) {
                 final ShadowEvent xsp = testEvent.getSelfParent();
@@ -306,7 +306,7 @@ public class Shadowgraph implements Clearable {
         }
         for (long indicator = lowerBound; indicator < upperBound; indicator++) {
             indicatorToShadowEvent.getOrDefault(indicator, Collections.emptySet()).stream()
-                    .map(ShadowEvent::getEvent)
+                    .map(shadowEvent -> shadowEvent.getPlatformEvent())
                     .filter(predicate)
                     .forEach(result::add);
         }
@@ -411,9 +411,9 @@ public class Shadowgraph implements Clearable {
      */
     private void expire(final ShadowEvent shadow) {
         // Remove the shadow from the shadowgraph
-        hashToShadowEvent.remove(shadow.getEventBaseHash());
+        hashToShadowEvent.remove(shadow.getBaseHash());
         // Remove references to parent shadows so this event gets garbage collected
-        shadow.disconnect();
+        shadow.clear();
         tips.remove(shadow);
     }
 
@@ -479,7 +479,7 @@ public class Shadowgraph implements Clearable {
         if (shadow == null) {
             return null;
         } else {
-            return shadow.getEvent();
+            return shadow.getPlatformEvent();
         }
     }
 
@@ -530,7 +530,7 @@ public class Shadowgraph implements Clearable {
                             () -> eventWindow.expiredThreshold(),
                             () -> oldestUnexpiredIndicator,
                             () -> tips.stream()
-                                    .map(sh -> sh.getEvent().getDescriptor().toString())
+                                    .map(sh -> sh.getPlatformEvent().getDescriptor().toString())
                                     .collect(Collectors.joining(",")));
                 }
 
@@ -577,7 +577,7 @@ public class Shadowgraph implements Clearable {
     @Nullable
     public synchronized PlatformEvent getEvent(@Nullable final Hash hash) {
         final ShadowEvent shadowEvent = hashToShadowEvent.get(hash);
-        return shadowEvent == null ? null : shadowEvent.getEvent();
+        return shadowEvent == null ? null : shadowEvent.getPlatformEvent();
     }
 
     /**
@@ -594,7 +594,7 @@ public class Shadowgraph implements Clearable {
 
         final ShadowEvent se = new ShadowEvent(event, sp, op);
 
-        hashToShadowEvent.put(se.getEventBaseHash(), se);
+        hashToShadowEvent.put(se.getBaseHash(), se);
 
         final long ancientIndicator = event.getBirthRound();
         if (!indicatorToShadowEvent.containsKey(ancientIndicator)) {

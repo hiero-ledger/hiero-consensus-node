@@ -143,11 +143,11 @@ class ShadowgraphByBirthRoundTests {
                 .collect(Collectors.toSet());
 
         final Set<Hash> actualAncestors = shadowGraph.findAncestors(generatedShadowsSubset, (e) -> true).stream()
-                .map(ShadowEvent::getEventBaseHash)
+                .map(shadowEvent1 -> shadowEvent1.getBaseHash())
                 .collect(Collectors.toSet());
 
         for (final ShadowEvent shadowEvent : generatedShadowsSubset) {
-            assertSetsContainSameHashes(ancestorsMap.get(shadowEvent.getEventBaseHash()), actualAncestors);
+            assertSetsContainSameHashes(ancestorsMap.get(shadowEvent.getBaseHash()), actualAncestors);
         }
     }
 
@@ -167,7 +167,7 @@ class ShadowgraphByBirthRoundTests {
         final Set<ShadowEvent> allEvents = shadowGraph.findAncestors(shadowGraph.getTips(), (e) -> true);
         for (final ShadowEvent event : allEvents) {
             assertTrue(
-                    event.getEvent().getBirthRound() >= expireBelowBirthRound,
+                    event.getPlatformEvent().getBirthRound() >= expireBelowBirthRound,
                     "Ancestors should not include expired events.");
         }
     }
@@ -359,12 +359,12 @@ class ShadowgraphByBirthRoundTests {
                     assertNull(
                             shadow.getOtherParent(), "Expired events should have their other parent reference nulled.");
                     assertFalse(
-                            shadowGraph.isHashInGraph(shadow.getEventBaseHash()),
+                            shadowGraph.isHashInGraph(shadow.getBaseHash()),
                             "Events in an expire birth round should not be in the shadow graph.");
                 });
             } else {
                 shadowSet.forEach(shadow -> assertTrue(
-                        shadowGraph.isHashInGraph(shadow.getEventBaseHash()),
+                        shadowGraph.isHashInGraph(shadow.getBaseHash()),
                         "Events in a non-expired birth round should be in the shadow graph."));
             }
         });
@@ -426,7 +426,7 @@ class ShadowgraphByBirthRoundTests {
         assertDoesNotThrow(() -> shadowGraph.addEvent(event.getBaseEvent()), "Adding an tip event should succeed.");
         assertEquals(
                 event.getBaseHash(),
-                shadowGraph.shadow(event.getBaseEvent().getDescriptor()).getEventBaseHash(),
+                shadowGraph.shadow(event.getBaseEvent().getDescriptor()).getBaseHash(),
                 "Shadow event hash should match the original event hash.");
     }
 
@@ -455,7 +455,7 @@ class ShadowgraphByBirthRoundTests {
 
         for (final ShadowEvent shadow : shadows) {
             assertTrue(
-                    hashes.contains(shadow.getEventBaseHash()),
+                    hashes.contains(shadow.getBaseHash()),
                     "Each event provided should have a shadow event with the same hash.");
         }
     }
@@ -488,7 +488,7 @@ class ShadowgraphByBirthRoundTests {
             if (knownHashes.contains(hash)) {
                 assertEquals(
                         hash,
-                        shadows.get(i).getEventBaseHash(),
+                        shadows.get(i).getBaseHash(),
                         "Each known hash provided should have a shadow event with the same hash.");
             } else {
                 assertNull(shadows.get(i), "Each unknown hash provided should have a null shadow event.");
@@ -527,8 +527,8 @@ class ShadowgraphByBirthRoundTests {
                 .setExpiredThreshold(ROUND_FIRST + 1)
                 .build());
         birthRoundToShadows.get(ROUND_FIRST).forEach(shadow -> {
-            shadowGraph.addEvent(shadow.getEvent());
-            assertNull(shadowGraph.getEvent(shadow.getEvent().getHash()));
+            shadowGraph.addEvent(shadow.getPlatformEvent());
+            assertNull(shadowGraph.getEvent(shadow.getPlatformEvent().getHash()));
         });
     }
 
@@ -698,11 +698,11 @@ class ShadowgraphByBirthRoundTests {
         long oldestTipBirthRound = Long.MAX_VALUE;
         final List<ShadowEvent> tipsToExpire = new ArrayList<>();
         for (final ShadowEvent tip : shadowGraph.getTips()) {
-            oldestTipBirthRound = Math.min(oldestTipBirthRound, tip.getEvent().getBirthRound());
+            oldestTipBirthRound = Math.min(oldestTipBirthRound, tip.getPlatformEvent().getBirthRound());
         }
 
         for (final ShadowEvent tip : shadowGraph.getTips()) {
-            if (tip.getEvent().getBirthRound() == oldestTipBirthRound) {
+            if (tip.getPlatformEvent().getBirthRound() == oldestTipBirthRound) {
                 tipsToExpire.add(tip);
             }
         }

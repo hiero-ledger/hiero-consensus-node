@@ -4,7 +4,6 @@ package com.swirlds.platform.gossip.shadowgraph;
 import com.swirlds.platform.internal.LinkedEvent;
 import java.util.Objects;
 import java.util.stream.Stream;
-import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.model.event.PlatformEvent;
 
 /**
@@ -49,28 +48,4 @@ public class ShadowEvent extends LinkedEvent<ShadowEvent> {
         this(event, null, null);
     }
 
-    /**
-     * Get the hashgraph event references by this shadow event
-     *
-     * @return the hashgraph event references by this shadow event
-     */
-    public PlatformEvent getEvent() {
-        return getPlatformEvent();
-    }
-
-    /**
-     * The cryptographic hash of an event shadow is the cryptographic hash of the event base
-     *
-     * @return The cryptographic base hash of an event.
-     */
-    public Hash getEventBaseHash() {
-        return getBaseHash();
-    }
-
-    /**
-     * Disconnect this shadow event from its parents. Remove inbound links and outbound links
-     */
-    public void disconnect() {
-        super.clear();
-    }
 }
