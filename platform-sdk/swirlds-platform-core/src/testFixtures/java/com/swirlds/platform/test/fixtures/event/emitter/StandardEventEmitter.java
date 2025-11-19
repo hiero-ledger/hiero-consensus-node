@@ -24,14 +24,13 @@ public class StandardEventEmitter extends AbstractEventEmitter {
      * {@inheritDoc}
      */
     @Override
-    @Deprecated
     public EventImpl emitEvent() {
         final EventImpl event = getGraphGenerator().generateEvent();
         numEventsEmitted++;
         return event;
     }
 
-    public PlatformEvent emit() {
+    public PlatformEvent emitPlatformEvent() {
         return emitEvent().getBaseEvent();
     }
 

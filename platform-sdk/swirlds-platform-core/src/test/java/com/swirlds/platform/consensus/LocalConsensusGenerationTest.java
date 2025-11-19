@@ -34,7 +34,7 @@ class LocalConsensusGenerationTest {
     void simpleGraphTest() {
         final Randotron randotron = Randotron.create();
         // We need a linker to created EventImpl objects that hold the cGen value
-        final ConsensusLinker linker = new ConsensusLinker(new NoOpLinkerLogsAndMetrics());
+        final ConsensusLinker linker = new ConsensusLinker(NoOpLinkerLogsAndMetrics.getInstance());
         // We need an orphan buffer to assign nGen values to the events
         final Configuration configuration =
                 ConfigurationBuilder.create().autoDiscoverExtensions().build();

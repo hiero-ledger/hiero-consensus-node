@@ -7,6 +7,9 @@ import java.time.Instant;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
 
+/**
+ * Logs and metrics for the {@link ConsensusLinker}
+ */
 public interface LinkerLogsAndMetrics {
     /**
      * This method is called when a child event has a missing parent.

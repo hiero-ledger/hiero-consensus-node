@@ -7,7 +7,25 @@ import java.time.Instant;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
 
+/**
+ * A no-operation implementation of {@link LinkerLogsAndMetrics} that does nothing.
+ */
 public class NoOpLinkerLogsAndMetrics implements LinkerLogsAndMetrics {
+    /** The singleton instance */
+    private static final LinkerLogsAndMetrics SINGLETON = new NoOpLinkerLogsAndMetrics();
+
+    /**
+     * Get an instance of the no-op linker logs and metrics.
+     *
+     * @return an instance
+     */
+    public static LinkerLogsAndMetrics getInstance() {
+        return SINGLETON;
+    }
+
+    private NoOpLinkerLogsAndMetrics() {
+        // private constructor to prevent instantiation
+    }
 
     @Override
     public void childHasMissingParent(

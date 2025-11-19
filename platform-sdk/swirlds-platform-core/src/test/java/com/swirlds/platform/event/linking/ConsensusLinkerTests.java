@@ -66,7 +66,7 @@ class ConsensusLinkerTests {
     }
 
     private void inOrderLinkerSetup() {
-        linker = new ConsensusLinker(new NoOpLinkerLogsAndMetrics());
+        linker = new ConsensusLinker(NoOpLinkerLogsAndMetrics.getInstance());
 
         time.tick(Duration.ofSeconds(1));
         cr0genesis = new TestingEventBuilder(random)
@@ -183,6 +183,7 @@ class ConsensusLinkerTests {
     }
 
     @Test
+    @DisplayName("Tests linking with multiple other parents")
     void multipleOtherParents() {
         inOrderLinkerSetup();
 
@@ -352,7 +353,7 @@ class ConsensusLinkerTests {
                 new StandardEventSource());
 
         final List<EventImpl> linkedEvents = new LinkedList<>();
-        final ConsensusLinker linker = new ConsensusLinker(platformContext);
+        final ConsensusLinker linker = new ConsensusLinker(NoOpLinkerLogsAndMetrics.getInstance());
 
         EventWindow eventWindow = EventWindow.getGenesisEventWindow();
 
@@ -425,6 +426,14 @@ class ConsensusLinkerTests {
         }
     }
 
+    /**
+     * Asserts that the given event has the expected parents linked. This method assumes there is at most one other
+     * parent.
+     *
+     * @param toAssert            the event to assert the parents of
+     * @param expectedSelfParent  the expected self parent
+     * @param expectedOtherParent the expected other parent
+     */
     private static void assertParents(
             @Nullable final EventImpl toAssert,
             @Nullable final PlatformEvent expectedSelfParent,
@@ -433,6 +442,13 @@ class ConsensusLinkerTests {
                 toAssert, expectedSelfParent, expectedOtherParent == null ? List.of() : List.of(expectedOtherParent));
     }
 
+    /**
+     * Asserts that the given event has the expected parents linked. This method supports multiple other parents.
+     *
+     * @param toAssert             the event to assert the parents of
+     * @param expectedSelfParent   the expected self parent
+     * @param expectedOtherParents the expected other parents
+     */
     private static void assertParentsMop(
             @Nullable final EventImpl toAssert,
             @Nullable final PlatformEvent expectedSelfParent,
@@ -461,14 +477,14 @@ class ConsensusLinkerTests {
                 expectedOtherParents,
                 toAssert.getOtherParents().stream().map(EventImpl::getBaseEvent).toList(),
                 "Other parents list does not match");
-        for (final EventImpl otherParent : toAssert.getParents()) {
+        for (final EventImpl otherParent : toAssert.getAllParents()) {
             assertNotNull(otherParent, "The list of all parents should not contain nulls");
         }
         assertEquals(
                 Stream.concat(Stream.of(expectedSelfParent), expectedOtherParents.stream())
                         .filter(Objects::nonNull)
                         .toList(),
-                toAssert.getParents().stream().map(EventImpl::getBaseEvent).toList(),
+                toAssert.getAllParents().stream().map(EventImpl::getBaseEvent).toList(),
                 "All parents list does not match");
     }
 }

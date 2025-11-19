@@ -18,7 +18,7 @@ import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
 
 /**
- * Logs and metrics for the {@link ConsensusLinker}
+ * Default implementation of {@link LinkerLogsAndMetrics}
  */
 public class DefaultLinkerLogsAndMetrics implements LinkerLogsAndMetrics {
     /**

@@ -196,7 +196,7 @@ public class StandardGraphGenerator extends AbstractGraphGenerator {
 
     private void initializeInternalConsensus() {
         consensus = new ConsensusImpl(platformContext, new NoOpConsensusMetrics(), roster);
-        linker = new ConsensusLinker(new NoOpLinkerLogsAndMetrics());
+        linker = new ConsensusLinker(NoOpLinkerLogsAndMetrics.getInstance());
         orphanBuffer = new DefaultOrphanBuffer(platformContext.getMetrics(), mock(IntakeEventCounter.class));
     }
 

@@ -51,7 +51,12 @@ import org.junit.jupiter.params.provider.MethodSource;
 
 @DisplayName("Shadowgraph By Birth Round Tests")
 class ShadowgraphByBirthRoundTests {
-
+    /**
+     * In some tests we need to retry multiple times to emit an event to get the type of event we need. This constant
+     * puts a limit on the number of retries to avoid an infinite loop. If everything works as expected, this limit
+     * should never be reached.
+     */
+    private static final int EMIT_RETRIES = 1000;
     private List<EventImpl> generatedEvents;
     private HashMap<Hash, Set<Hash>> ancestorsMap;
     private Shadowgraph shadowGraph;
@@ -530,11 +535,12 @@ class ShadowgraphByBirthRoundTests {
     void testAddEventWithUnknownOtherParent() {
         initShadowGraph(RandomUtils.getRandomPrintSeed(), 100, 4);
 
-        final PlatformEvent parent = emitter.emit();
-        PlatformEvent child = null;
+        final PlatformEvent parent = emitter.emitEvent().getBaseEvent();
 
-        for (int i = 0; i < 1000; i++) {
-            child = emitter.emit();
+        // emit events until we get one that has the above event as an other-parent
+        PlatformEvent child = null;
+        for (int i = 0; i < EMIT_RETRIES; i++) {
+            child = emitter.emitPlatformEvent();
             final Set<Hash> parentsSet = child.getOtherParents().stream()
                     .map(EventDescriptorWrapper::hash)
                     .collect(Collectors.toSet());
@@ -552,12 +558,19 @@ class ShadowgraphByBirthRoundTests {
     void testAddEventWithUnknownSelfParent() {
         initShadowGraph(RandomUtils.getRandomPrintSeed(), 100, 4);
 
-        final EventImpl newEvent = emitter.emitEvent();
-        // newEvent.setSelfParent(emitter.emitEvent());
-        // TODO same here
+        final PlatformEvent parent = emitter.emitEvent().getBaseEvent();
+        // emit events until we get one that has the above event as a self-parent
+        PlatformEvent child = null;
+        for (int i = 0; i < EMIT_RETRIES; i++) {
+            child = emitter.emitPlatformEvent();
+            if (child.getSelfParent() != null && child.getSelfParent().hash().equals(parent.getHash())) {
+                break;
+            }
+        }
 
+        final PlatformEvent finalChild = child;
         assertDoesNotThrow(
-                () -> shadowGraph.addEvent(newEvent.getBaseEvent()),
+                () -> shadowGraph.addEvent(finalChild),
                 "Events with an unknown self parent should be added.");
     }
 

@@ -430,14 +430,10 @@ public class TipsetEventCreator implements EventCreator {
     @NonNull
     private UnsignedEvent assembleEventObject(@Nullable final PlatformEvent otherParent) {
         final List<TimestampedTransaction> transactions = transactionSupplier.getTransactionsForEvent();
-        final List<EventDescriptorWrapper> allParents;
-        if (lastSelfEvent == null) {
-            allParents = otherParent == null ? List.of() : List.of(otherParent.getDescriptor());
-        } else {
-            allParents = otherParent == null
-                    ? List.of(lastSelfEvent.getDescriptor())
-                    : List.of(lastSelfEvent.getDescriptor(), otherParent.getDescriptor());
-        }
+        final List<EventDescriptorWrapper> allParents = Stream.of(lastSelfEvent, otherParent)
+                .filter(Objects::nonNull)
+                .map(PlatformEvent::getDescriptor)
+                .toList();
         final UnsignedEvent event = new UnsignedEvent(
                 selfId,
                 allParents,

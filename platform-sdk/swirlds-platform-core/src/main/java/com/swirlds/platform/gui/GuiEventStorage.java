@@ -53,7 +53,7 @@ public class GuiEventStorage {
         final PlatformContext platformContext = PlatformContext.create(configuration);
 
         this.consensus = new ConsensusImpl(platformContext, new NoOpConsensusMetrics(), roster);
-        this.linker = new ConsensusLinker(new NoOpLinkerLogsAndMetrics());
+        this.linker = new ConsensusLinker(NoOpLinkerLogsAndMetrics.getInstance());
     }
 
     /**
