@@ -44,14 +44,9 @@ import com.hedera.node.config.data.EntitiesConfig;
 import com.hedera.node.config.data.TokensConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import javax.inject.Inject;
 import javax.inject.Singleton;
-import org.hiero.hapi.fees.FeeModelRegistry;
-import org.hiero.hapi.fees.FeeResult;
-import org.hiero.hapi.support.fees.Extra;
 
 /**
  * This class contains all workflow-related functionality regarding {@link
@@ -454,30 +449,5 @@ public class TokenCreateHandler extends BaseTokenHandler implements TransactionH
             case NON_FUNGIBLE_UNIQUE ->
                 hasCustomFees ? SubType.TOKEN_NON_FUNGIBLE_UNIQUE_WITH_CUSTOM_FEES : SubType.TOKEN_NON_FUNGIBLE_UNIQUE;
         };
-    }
-
-    @Override
-    public @NonNull FeeResult calculateFeeResult(@NonNull FeeContext feeContext) {
-        requireNonNull(feeContext);
-        final var body = feeContext.body();
-        final var subType = SubType.DEFAULT;
-        final var entity = FeeModelRegistry.lookupModel(HederaFunctionality.TOKEN_CREATE);
-        var op = body.tokenCreationOrThrow();
-        var keyCount = op.customFees().size();
-        if (op.hasAdminKey()) {
-            keyCount += 1;
-        }
-        Map<Extra, Long> params = new HashMap<>();
-        params.put(Extra.SIGNATURES, (long) feeContext.numTxnSignatures());
-        params.put(Extra.KEYS, (long) keyCount);
-        if (op.tokenType() == TokenType.FUNGIBLE_COMMON) {
-            params.put(Extra.STANDARD_FUNGIBLE_TOKENS, 1L);
-        }
-        if (op.tokenType() == TokenType.NON_FUNGIBLE_UNIQUE) {
-            params.put(Extra.STANDARD_NON_FUNGIBLE_TOKENS, 1L);
-        }
-        params.put(Extra.CUSTOM_FEE, 0L);
-        return entity.computeFee(
-                params, feeContext.feeCalculatorFactory().feeCalculator(subType).getSimpleFeesSchedule());
     }
 }
