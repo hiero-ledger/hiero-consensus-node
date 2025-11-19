@@ -11,41 +11,43 @@ import java.time.Duration;
 import org.assertj.core.data.Percentage;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.network.BandwidthLimit;
-import org.hiero.otter.fixtures.network.DirectionalConnection;
+import org.hiero.otter.fixtures.network.UnidirectionalConnection;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 
 /**
- * Unit tests for {@link ConnectionImpl}.
+ * Unit tests for {@link BidirectionalConnectionImpl}.
  */
-class ConnectionImplTest {
+class BidirectionalConnectionImplTest {
 
-    private DirectionalConnection connection;
-    private DirectionalConnection reverse;
+    private UnidirectionalConnection connection;
+    private UnidirectionalConnection reverse;
     private Node node1;
     private Node node2;
-    private ConnectionImpl subject;
+    private BidirectionalConnectionImpl subject;
 
     @BeforeEach
     void setUp() {
-        connection = mock(DirectionalConnection.class);
-        reverse = mock(DirectionalConnection.class);
+        connection = mock(UnidirectionalConnection.class);
+        reverse = mock(UnidirectionalConnection.class);
         node1 = mock(Node.class);
         node2 = mock(Node.class);
 
         when(connection.sender()).thenReturn(node1);
         when(connection.receiver()).thenReturn(node2);
 
-        subject = new ConnectionImpl(connection, reverse);
+        subject = new BidirectionalConnectionImpl(connection, reverse);
     }
 
     @Test
     @SuppressWarnings("DataFlowIssue")
     void constructorThrowsOnNullConnection() {
-        assertThatThrownBy(() -> new ConnectionImpl(null, reverse)).isInstanceOf(NullPointerException.class);
-        assertThatThrownBy(() -> new ConnectionImpl(connection, null)).isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> new BidirectionalConnectionImpl(null, reverse))
+                .isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> new BidirectionalConnectionImpl(connection, null))
+                .isInstanceOf(NullPointerException.class);
     }
 
     @Test

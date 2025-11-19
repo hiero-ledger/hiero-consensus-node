@@ -2,13 +2,12 @@
 package com.hedera.statevalidation.blockstream;
 
 import static com.hedera.statevalidation.ApplyBlocksCommand.DEFAULT_TARGET_ROUND;
-import static com.swirlds.platform.state.service.PlatformStateFacade.DEFAULT_PLATFORM_STATE_FACADE;
+import static com.swirlds.platform.state.service.PlatformStateUtils.roundOf;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.block.stream.Block;
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.output.StateChanges;
-import com.hedera.node.app.HederaVirtualMapState;
 import com.hedera.node.app.hapi.utils.blocks.BlockStreamAccess;
 import com.hedera.node.app.hapi.utils.blocks.BlockStreamUtils;
 import com.hedera.statevalidation.util.PlatformContextHelper;
@@ -21,6 +20,7 @@ import com.swirlds.platform.state.snapshot.SignedStateFileWriter;
 import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.StateLifecycleManagerImpl;
+import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.spi.CommittableWritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
@@ -79,7 +79,7 @@ public class BlockStreamRecoveryWorkflow {
             @NonNull final NodeId selfId,
             @NonNull final PlatformContext platformContext) {
         AtomicBoolean foundStartingRound = new AtomicBoolean();
-        final long initRound = DEFAULT_PLATFORM_STATE_FACADE.roundOf(state);
+        final long initRound = roundOf(state);
         final long firstRoundToApply = initRound + 1;
         AtomicLong currentRound = new AtomicLong(initRound);
 
@@ -149,21 +149,15 @@ public class BlockStreamRecoveryWorkflow {
                 "BlockStreamWorkflow.applyBlocks()",
                 false,
                 false,
-                false,
-                DEFAULT_PLATFORM_STATE_FACADE);
+                false);
 
         final StateLifecycleManager stateLifecycleManager = new StateLifecycleManagerImpl(
                 platformContext.getMetrics(),
                 platformContext.getTime(),
-                vm -> new HederaVirtualMapState(vm, platformContext.getMetrics(), platformContext.getTime()));
+                vm -> new VirtualMapState(vm, platformContext.getMetrics()));
         try {
             SignedStateFileWriter.writeSignedStateFilesToDirectory(
-                    platformContext,
-                    selfId,
-                    outputPath,
-                    signedState,
-                    DEFAULT_PLATFORM_STATE_FACADE,
-                    stateLifecycleManager);
+                    platformContext, selfId, outputPath, signedState, stateLifecycleManager);
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
