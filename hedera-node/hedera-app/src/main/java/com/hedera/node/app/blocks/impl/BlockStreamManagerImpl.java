@@ -108,6 +108,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.concurrent.AbstractTask;
 import org.hiero.base.crypto.Hash;
+import org.hiero.consensus.model.event.ConsensusEvent;
 import org.hiero.consensus.model.hashgraph.Round;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 
@@ -165,8 +166,8 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     private Bytes lastBlockHash;
     private long lastRoundOfPrevBlock;
     // A block's starting timestamp is defined as the consensus timestamp of the round's first transaction
-    private Instant blockTimestamp;
-    private Instant consensusTimeLastRound;
+    private Timestamp blockTimestamp;
+    private Instant consensusTimeCurrentRound;
     private Timestamp lastUsedTime;
     private BlockItemWriter writer;
 
@@ -387,7 +388,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         // Writer will be null when beginning a new block
         if (writer == null) {
             writer = writerSupplier.get();
-            blockTimestamp = round.getConsensusTimestamp();
+            blockTimestamp = asTimestamp(firstConsensusTimestampOf(round));
             lastUsedTime = asTimestamp(round.getConsensusTimestamp());
 
             final var blockStreamInfo = blockStreamInfoFrom(state);
@@ -419,11 +420,11 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                     .number(blockNumber)
                     .hashAlgorithm(SHA2_384)
                     .softwareVersion(platformStateFacade.creationSemanticVersionOf(state))
-                    .blockTimestamp(asTimestamp(blockTimestamp))
+                    .blockTimestamp(blockTimestamp)
                     .hapiProtoVersion(hapiVersion);
             worker.addItem(BlockItem.newBuilder().blockHeader(header).build());
         }
-        consensusTimeLastRound = round.getConsensusTimestamp();
+        consensusTimeCurrentRound = round.getConsensusTimestamp();
     }
 
     /**
@@ -763,7 +764,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
 
     @Override
     public @NonNull Timestamp blockTimestamp() {
-        return new Timestamp(blockTimestamp.getEpochSecond(), blockTimestamp.getNano());
+        return requireNonNull(blockTimestamp);
     }
 
     @Override
@@ -901,7 +902,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         }
 
         // For time-based blocks, check if enough consensus time has elapsed
-        final var elapsed = Duration.between(blockTimestamp, consensusTimeLastRound);
+        final var elapsed = Duration.between(asInstant(blockTimestamp), consensusTimeCurrentRound);
         return elapsed.compareTo(blockPeriod) >= 0;
     }
 
@@ -1249,6 +1250,36 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             // Level 2 first sibling (right child)
             new MerkleSiblingHash(false, DEPTH_2_NODE_2_COMBINED)
         });
+    }
+
+    private static Instant firstConsensusTimestampOf(final Round round) {
+        Instant earliestEventTimestamp = null;
+        for (final ConsensusEvent consensusEvent : round) {
+            // Find the earliest event timestamp in the round (possibly needed later)
+            if (earliestEventTimestamp == null) {
+                final var eventTimestamp = consensusEvent.getConsensusTimestamp();
+                if (eventTimestamp != null
+                        && eventTimestamp.isAfter(Instant.EPOCH)
+                        && eventTimestamp.isBefore(round.getConsensusTimestamp())) {
+                    earliestEventTimestamp = eventTimestamp;
+                }
+            }
+
+            // Iterate through the transactions in the event to find the first consensus timestamp. If found, return it
+            // immediately.
+            final var consensusIt = consensusEvent.consensusTransactionIterator();
+            if (consensusIt.hasNext()) {
+                return consensusIt.next().getConsensusTimestamp();
+            }
+        }
+
+        // If the round has no transactions, but we found an earliest event timestamp, return that
+        if (earliestEventTimestamp != null) {
+            return earliestEventTimestamp;
+        }
+
+        // If the round has no event timestamps, return the round's timestamp
+        return round.getConsensusTimestamp();
     }
 
     private static int maxReadDepth(@NonNull final Configuration config) {
