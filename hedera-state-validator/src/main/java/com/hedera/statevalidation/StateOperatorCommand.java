@@ -23,7 +23,11 @@ import picocli.CommandLine.Parameters;
         description = "CLI tool with validation and introspection modes.")
 public class StateOperatorCommand implements Runnable {
 
-    private static final Logger log = LogManager.getLogger(StateOperatorCommand.class);
+    private static final Logger log;
+    static {
+        System.setProperty("log4j2.configurationFile", "log4j2-validator.xml");
+        log = LogManager.getLogger(StateOperatorCommand.class);
+    }
 
     @Parameters(index = "0", description = "State directory.")
     private File stateDir;
@@ -44,6 +48,9 @@ public class StateOperatorCommand implements Runnable {
     }
 
     public static void main(String[] args) {
+        System.out.println("Starting StateOperatorCommand...");
+        System.out.println("Log4j2 configuration: " + System.getProperty("log4j2.configurationFile", "default"));
+
         long startTime = System.currentTimeMillis();
         try {
             int exitCode = new CommandLine(new StateOperatorCommand()).execute(args);
