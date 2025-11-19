@@ -27,7 +27,7 @@ public class ReadableEntityIdStoreImpl implements ReadableEntityIdStore {
 
     private final ReadableSingletonState<EntityCounts> entityCountsState;
 
-    private final ReadableSingletonState<NodeId> highestNodeIdState;
+    private final ReadableSingletonState<NodeId> nodeIdState;
 
     /**
      * Create a new {@link ReadableEntityIdStoreImpl} instance.
@@ -38,7 +38,7 @@ public class ReadableEntityIdStoreImpl implements ReadableEntityIdStore {
         requireNonNull(states);
         this.entityIdState = states.getSingleton(ENTITY_ID_STATE_ID);
         this.entityCountsState = states.getSingleton(ENTITY_COUNTS_STATE_ID);
-        this.highestNodeIdState = states.getSingleton(V0690EntityIdSchema.NODE_ID_STATE_ID);
+        this.nodeIdState = states.getSingleton(V0690EntityIdSchema.NODE_ID_STATE_ID);
     }
 
     /**
@@ -54,7 +54,7 @@ public class ReadableEntityIdStoreImpl implements ReadableEntityIdStore {
 
     @Override
     public long peekAtNextNodeId() {
-        final var current = highestNodeIdState.get();
+        final var current = nodeIdState.get();
         return current == null ? 0 : current.id() + 1;
     }
 

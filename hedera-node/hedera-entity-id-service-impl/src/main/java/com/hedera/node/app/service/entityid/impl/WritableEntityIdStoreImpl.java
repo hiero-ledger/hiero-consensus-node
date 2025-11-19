@@ -26,7 +26,7 @@ public class WritableEntityIdStoreImpl extends ReadableEntityIdStoreImpl impleme
     private final WritableSingletonState<EntityNumber> entityIdState;
 
     private final WritableSingletonState<EntityCounts> entityCountsState;
-    private final WritableSingletonState<NodeId> highestNodeIdState;
+    private final WritableSingletonState<NodeId> nodeIdState;
 
     /**
      * Create a new {@link WritableEntityIdStoreImpl} instance.
@@ -38,13 +38,7 @@ public class WritableEntityIdStoreImpl extends ReadableEntityIdStoreImpl impleme
         requireNonNull(states);
         this.entityIdState = states.getSingleton(ENTITY_ID_STATE_ID);
         this.entityCountsState = states.getSingleton(ENTITY_COUNTS_STATE_ID);
-        this.highestNodeIdState = states.getSingleton(NODE_ID_STATE_ID);
-    }
-
-    @Override
-    public long peekAtNextNumber() {
-        final var oldEntityNum = entityIdState.get();
-        return oldEntityNum == null ? 1 : oldEntityNum.number() + 1;
+        this.nodeIdState = states.getSingleton(NODE_ID_STATE_ID);
     }
 
     @Override
@@ -55,16 +49,9 @@ public class WritableEntityIdStoreImpl extends ReadableEntityIdStoreImpl impleme
     }
 
     @Override
-    public long peekAtNextNodeId() {
-        final var current = highestNodeIdState.get();
-        // If null, no node assigned yet; start at 0
-        return current == null ? 0 : current.id() + 1;
-    }
-
-    @Override
     public long incrementHighestNodeIdAndGet() {
         final var next = peekAtNextNodeId();
-        highestNodeIdState.put(new NodeId(next));
+        nodeIdState.put(new NodeId(next));
         return next;
     }
 
