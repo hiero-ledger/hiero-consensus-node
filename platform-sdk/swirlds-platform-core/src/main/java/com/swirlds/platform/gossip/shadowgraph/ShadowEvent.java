@@ -2,6 +2,7 @@
 package com.swirlds.platform.gossip.shadowgraph;
 
 import com.swirlds.platform.internal.LinkedEvent;
+import java.util.List;
 import java.util.Objects;
 import java.util.stream.Stream;
 import org.hiero.consensus.model.event.PlatformEvent;
@@ -45,7 +46,7 @@ public class ShadowEvent extends LinkedEvent<ShadowEvent> {
      * 		the event
      */
     public ShadowEvent(final PlatformEvent event) {
-        this(event, null, null);
+        super(event, List.of());
     }
 
 }
