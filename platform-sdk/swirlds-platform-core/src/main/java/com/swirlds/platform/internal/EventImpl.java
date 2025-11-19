@@ -89,6 +89,12 @@ public class EventImpl implements Clearable {
     /** The deterministic generation, see {@link DeGen} */
     private int deGen = 0;
 
+    /**
+     * Constructor
+     *
+     * @param platformEvent the event we are wrapping
+     * @param allParents    pointers to all parent events
+     */
     public EventImpl(@NonNull final PlatformEvent platformEvent, @NonNull final List<EventImpl> allParents) {
         this.baseEvent = Objects.requireNonNull(platformEvent, "baseEvent");
         this.allParents = Objects.requireNonNull(allParents, "allParents");

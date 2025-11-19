@@ -541,7 +541,7 @@ class ShadowgraphByBirthRoundTests {
         // emit events until we get one that has the above event as an other-parent
         PlatformEvent child = null;
         for (int i = 0; i < EMIT_RETRIES; i++) {
-            child = emitter.emitPlatformEvent();
+            child = emitter.emitEvent().getBaseEvent();
             final Set<Hash> parentsSet = child.getOtherParents().stream()
                     .map(EventDescriptorWrapper::hash)
                     .collect(Collectors.toSet());
@@ -563,7 +563,7 @@ class ShadowgraphByBirthRoundTests {
         // emit events until we get one that has the above event as a self-parent
         PlatformEvent child = null;
         for (int i = 0; i < EMIT_RETRIES; i++) {
-            child = emitter.emitPlatformEvent();
+            child = emitter.emitEvent().getBaseEvent();
             if (child.getSelfParent() != null && child.getSelfParent().hash().equals(parent.getHash())) {
                 break;
             }
