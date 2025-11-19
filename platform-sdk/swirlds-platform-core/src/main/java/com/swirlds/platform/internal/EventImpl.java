@@ -96,7 +96,7 @@ public class EventImpl implements Clearable {
             // this event DOES have a self parent that is linked
             this.selfParent = allParents.getFirst();
             this.otherParents = allParents.subList(1, allParents.size());
-        }else{
+        } else {
             // this event DOESN'T have a self parent that is linked
             this.selfParent = null;
             this.otherParents = allParents;
@@ -104,7 +104,6 @@ public class EventImpl implements Clearable {
         // ConsensusImpl.currMark starts at 1 and counts up, so all events initially count as
         // unmarked
         this.mark = ConsensusConstants.EVENT_UNMARKED;
-
     }
 
     //

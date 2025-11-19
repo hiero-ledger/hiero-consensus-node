@@ -57,6 +57,7 @@ class ShadowgraphByBirthRoundTests {
      * should never be reached.
      */
     private static final int EMIT_RETRIES = 1000;
+
     private List<EventImpl> generatedEvents;
     private HashMap<Hash, Set<Hash>> ancestorsMap;
     private Shadowgraph shadowGraph;
@@ -570,8 +571,7 @@ class ShadowgraphByBirthRoundTests {
 
         final PlatformEvent finalChild = child;
         assertDoesNotThrow(
-                () -> shadowGraph.addEvent(finalChild),
-                "Events with an unknown self parent should be added.");
+                () -> shadowGraph.addEvent(finalChild), "Events with an unknown self parent should be added.");
     }
 
     @Test
