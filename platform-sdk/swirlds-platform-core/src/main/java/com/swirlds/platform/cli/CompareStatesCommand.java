@@ -2,7 +2,6 @@
 package com.swirlds.platform.cli;
 
 import static com.swirlds.common.io.utility.FileUtils.getAbsolutePath;
-import static com.swirlds.platform.state.service.PlatformStateFacade.DEFAULT_PLATFORM_STATE_FACADE;
 
 import com.swirlds.cli.commands.StateCommand;
 import com.swirlds.cli.utility.AbstractCommand;
@@ -126,7 +125,6 @@ public final class CompareStatesCommand extends AbstractCommand {
                             // FUTURE WORK: https://github.com/hiero-ledger/hiero-consensus-node/issues/19003
                             throw new UnsupportedOperationException();
                         },
-                        DEFAULT_PLATFORM_STATE_FACADE,
                         platformContext)
                 .reservedSignedState();
         logger.info(LogMarker.CLI.getMarker(), "Hashing state");
