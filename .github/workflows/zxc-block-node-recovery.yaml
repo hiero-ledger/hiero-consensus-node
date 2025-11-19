@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "ZXC: Block Node Regression"
+name: "ZXC: Block Node Recovery"
 on:
   workflow_call:
     inputs:
@@ -36,16 +36,18 @@ permissions:
 
 env:
   SOLO_CLUSTER_NAME: "solo-block-node-e2e"
-  SOLO_NAMESPACE: "solo-block-node-e2e"
-  SOLO_DEPLOYMENT: "solo-block-node-deployment"
   SOLO_CLUSTER_SETUP_NAMESPACE: "solo-setup"
+  SOLO_DEPLOYMENT: "solo-block-node-deployment"
+  SOLO_NAMESPACE: "solo-block-node-e2e"
+  SOLO_NETWORK_SIZE: "3"
   GRADLE_EXEC: ionice -c 2 -n 2 nice -n 19 ./gradlew
+  NODE_IDENTIFIERS: "node1,node2,node3"
 
 jobs:
-  # Execute Block Node Regression Tests using specified version of hiero-consensus-node
+  # Execute Block Node Tests using specified version of hiero-consensus-node
   block-node-regression:
     name: ${{ inputs.custom-job-name || 'Standard' }}
-    runs-on: hl-cn-citr-lin-lg
+    runs-on: hiero-citr-linux-large
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
@@ -85,8 +87,8 @@ jobs:
           cd block-node
           git fetch --tags
           LATEST_TAG=$(git describe --tags `git rev-list --tags --max-count=1`)
-          echo "Latest Block Node tag: ${LATEST_TAG}"
-          git checkout ${LATEST_TAG}
+          echo "Latest Block Node tag: $LATEST_TAG"
+          git checkout $LATEST_TAG
           echo "BLOCK_NODE_TAG=${LATEST_TAG}" >> "$GITHUB_ENV"
 
       #  Checkout the sdk-tck repository and the TCK SDK Client
@@ -102,9 +104,9 @@ jobs:
         run: |
           cd sdk-tck/regression
           git fetch --tags
-          LATEST_TAG=$(git describe --tags --abbrev=0)
-          echo "Latest TCK tag: ${LATEST_TAG}"
-          git checkout ${LATEST_TAG}
+          LATEST_TAG=$(git describe --tags `git rev-list --tags --max-count=1`)
+          echo "Latest TCK tag: $LATEST_TAG"
+          git checkout $LATEST_TAG
 
       # Checkout the JS-SDK server
       - name: Checkout JS-SDK Server
@@ -119,9 +121,9 @@ jobs:
         run: |
           cd sdk-tck/sdk-server
           git fetch --tags
-          LATEST_TAG=$(git describe --tags --abbrev=0)
-          echo "Latest JS-SDK tag: ${LATEST_TAG}"
-          git checkout ${LATEST_TAG}
+          LATEST_TAG=$(git describe --tags `git rev-list --tags --max-count=1`)
+          echo "Latest JS-SDK tag: $LATEST_TAG"
+          git checkout $LATEST_TAG
 
       # Set up Java Environment
       - name: Setup Java
@@ -143,7 +145,7 @@ jobs:
 
       # Set up the gradle environment
       - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@4d9f0ba0025fe599b4ebab900eb7f3a1d93ef4c2 # v5.0.0
+        uses: gradle/actions/setup-gradle@ac638b010cf58a27ee6c972d7336334ccaf61c96 # v4.4.1
         with:
           cache-read-only: false
 
@@ -165,14 +167,14 @@ jobs:
           # Extract package versions from the parent package.json
           SDK_VERSION=$(node -e "console.log(require('../package.json').version)")
           LONG_VERSION=$(node -e "console.log(require('../package.json').dependencies.long)")
-          PROTO_VERSION=$(node -e "console.log(require('../package.json').dependencies['@hiero-ledger/proto'])")
+          PROTO_VERSION=$(node -e "console.log(require('../package.json').dependencies['@hashgraph/proto'])")
 
-          echo "Using SDK version: ${SDK_VERSION}"
-          echo "Using long version: ${LONG_VERSION}"
-          echo "Using proto version: ${PROTO_VERSION}"
+          echo "Using SDK version: $SDK_VERSION"
+          echo "Using long version: $LONG_VERSION"
+          echo "Using proto version: $PROTO_VERSION"
 
           # Install with the extracted versions
-          pnpm add @hiero-ledger/sdk@^${SDK_VERSION} long@${LONG_VERSION} @hiero-ledger/proto@${PROTO_VERSION}
+          pnpm add @hashgraph/sdk@^${SDK_VERSION} long@${LONG_VERSION} @hashgraph/proto@${PROTO_VERSION}
           pnpm install
           nohup pnpm start &
           server_pid=$!
@@ -196,8 +198,6 @@ jobs:
           wait: 120s
 
       # Create Mirror Values Override File (uses BN service)
-      # This is a temporary workaround until we have a proper release of the mirror node chart that supports block nodes
-      # and the latest version of blockstream in `0.68.0`
       - name: Create Mirror Values Override File
         run: |
           cat <<EOF > mirror-bn-values.yaml
@@ -224,6 +224,72 @@ jobs:
       - name: Print MN Override Values
         run: cat mirror-bn-values.yaml
 
+      - name: Create BN1 Values Override File
+        run: |
+          cat <<EOF > bn1-values.yaml
+          blockNode:
+            config:
+              BACKFILL_BLOCK_NODE_SOURCES_PATH: "/opt/hiero/block-node/backfill/block-node-sources.json"
+              BACKFILL_FETCH_BATCH_SIZE: "10"
+            backfill:
+              path: "/opt/hiero/block-node/backfill"
+              filename: "block-node-sources.json"
+              sources:
+                - address: block-node-2.${{ env.SOLO_NAMESPACE }}.svc.cluster.local
+                  port: 40840
+                  priority: 1
+                - address: block-node-3.${{ env.SOLO_NAMESPACE }}.svc.cluster.local
+                  port: 40840
+                  priority: 2
+          EOF
+
+      - name: Print BN1 Override Values
+        run: cat bn1-values.yaml
+
+      - name: Create BN2 Values Override File
+        run: |
+          cat <<EOF > bn2-values.yaml
+          blockNode:
+            config:
+              BACKFILL_BLOCK_NODE_SOURCES_PATH: "/opt/hiero/block-node/backfill/block-node-sources.json"
+              BACKFILL_FETCH_BATCH_SIZE: "10"
+            backfill:
+              path: "/opt/hiero/block-node/backfill"
+              filename: "block-node-sources.json"
+              sources:
+                - address: block-node-3.${{ env.SOLO_NAMESPACE }}.svc.cluster.local
+                  port: 40840
+                  priority: 1
+                - address: block-node-1.${{ env.SOLO_NAMESPACE }}.svc.cluster.local
+                  port: 40840
+                  priority: 2
+          EOF
+
+      - name: Print BN2 Override Values
+        run: cat bn2-values.yaml
+
+      - name: Create BN3 Values Override File
+        run: |
+          cat <<EOF > bn3-values.yaml
+          blockNode:
+            config:
+              BACKFILL_BLOCK_NODE_SOURCES_PATH: "/opt/hiero/block-node/backfill/block-node-sources.json"
+              BACKFILL_FETCH_BATCH_SIZE: "10"
+            backfill:
+              path: "/opt/hiero/block-node/backfill"
+              filename: "block-node-sources.json"
+              sources:
+                - address: block-node-1.${{ env.SOLO_NAMESPACE }}.svc.cluster.local
+                  port: 40840
+                  priority: 1
+                - address: block-node-2.${{ env.SOLO_NAMESPACE }}.svc.cluster.local
+                  port: 40840
+                  priority: 2
+          EOF
+
+      - name: Print BN3 Override Values
+        run: cat bn3-values.yaml
+
       # ---- Solo with BN Section ----
 
       # cluster setup
@@ -234,18 +300,20 @@ jobs:
           solo init
           solo cluster-ref config connect --cluster-ref kind-${{ env.SOLO_CLUSTER_NAME }} --context kind-${{ env.SOLO_CLUSTER_NAME }}
           solo deployment config create -n "${{ env.SOLO_NAMESPACE }}" --deployment "${{ env.SOLO_DEPLOYMENT }}"
-          solo deployment cluster attach --deployment "${{ env.SOLO_DEPLOYMENT }}" --cluster-ref kind-${{ env.SOLO_CLUSTER_NAME }} --num-consensus-nodes 1
+          solo deployment cluster attach --deployment "${{ env.SOLO_DEPLOYMENT }}" --cluster-ref kind-${{ env.SOLO_CLUSTER_NAME }} --num-consensus-nodes "${{ env.SOLO_NETWORK_SIZE }}"
           solo cluster-ref config setup -s "${{ env.SOLO_CLUSTER_SETUP_NAMESPACE }}"
 
       # node deployment
       - name: Solo Nodes deployment (BN/CN/MN)
         run: |
-          solo block node add --deployment "${{ env.SOLO_DEPLOYMENT }}" --release-tag "${{ env.CN_LATEST_TAG }}" --cluster-ref kind-${{ env.SOLO_CLUSTER_NAME }} --chart-version "${{ env.BLOCK_NODE_TAG }}"
-          solo keys consensus generate --gossip-keys --tls-keys -i node1 --deployment "${{ env.SOLO_DEPLOYMENT }}"
-          solo consensus network deploy -i node1 --deployment "${{ env.SOLO_DEPLOYMENT }}"
-          solo consensus node setup -i node1 --deployment "${{ env.SOLO_DEPLOYMENT }}" --local-build-path ./hedera-node/data
-          solo consensus node start -i node1 --deployment "${{ env.SOLO_DEPLOYMENT }}"
-          solo mirror node add --deployment "${{ env.SOLO_DEPLOYMENT }}" --pinger --cluster-ref kind-${{ env.SOLO_CLUSTER_NAME }} --enable-ingress --mirror-node-version 0.140.0 -f mirror-bn-values.yaml
+          solo block node add --deployment "${{ env.SOLO_DEPLOYMENT }}" --release-tag "${{ env.CN_LATEST_TAG }}" --cluster-ref kind-${{ env.SOLO_CLUSTER_NAME }} --chart-version "${{ env.BLOCK_NODE_TAG }}" -f bn1-values.yaml
+          solo block node add --deployment "${{ env.SOLO_DEPLOYMENT }}" --release-tag "${{ env.CN_LATEST_TAG }}" --cluster-ref kind-${{ env.SOLO_CLUSTER_NAME }} --chart-version "${{ env.BLOCK_NODE_TAG }}" -f bn2-values.yaml
+          solo block node add --deployment "${{ env.SOLO_DEPLOYMENT }}" --release-tag "${{ env.CN_LATEST_TAG }}" --cluster-ref kind-${{ env.SOLO_CLUSTER_NAME }} --chart-version "${{ env.BLOCK_NODE_TAG }}" -f bn3-values.yaml
+          solo keys consensus generate --gossip-keys --tls-keys --deployment "${{ env.SOLO_DEPLOYMENT }}" --node-aliases "${{ env.NODE_IDENTIFIERS }}"
+          solo consensus network deploy --node-aliases "${{ env.NODE_IDENTIFIERS }}" --deployment "${{ env.SOLO_DEPLOYMENT }}" --node-aliases "${{ env.NODE_IDENTIFIERS }}" --block-node-cfg '{"node1":[1], "node2":[2], "node3":[3]}'
+          solo consensus node setup --node-aliases "${{ env.NODE_IDENTIFIERS }}" --deployment "${{ env.SOLO_DEPLOYMENT }}" --local-build-path ./hedera-node/data
+          solo consensus node start --node-aliases "${{ env.NODE_IDENTIFIERS }}" --deployment "${{ env.SOLO_DEPLOYMENT }}"
+          solo mirror node add --deployment "${{ env.SOLO_DEPLOYMENT }}" --pinger --cluster-ref kind-${{ env.SOLO_CLUSTER_NAME }} --enable-ingress --mirror-node-version 0.142.2 -f mirror-bn-values.yaml
 
       # port forwards
       - name: Solo Port forwards
@@ -254,7 +322,39 @@ jobs:
           kubectl port-forward svc/mirror-1-monitor -n "${{ env.SOLO_NAMESPACE }}" 5600:http &
           kubectl port-forward svc/mirror-1-rest -n "${{ env.SOLO_NAMESPACE }}" 5551:http &
           kubectl port-forward svc/mirror-1-restjava -n "${{ env.SOLO_NAMESPACE }}" 8084:http &
-          kubectl port-forward svc/block-node-1 -n "${{ env.SOLO_NAMESPACE }}" 40840:40840 &
+          kubectl port-forward svc/block-node-1 -n "${{ env.SOLO_NAMESPACE }}" 40841:40840 &
+          kubectl port-forward svc/block-node-2 -n "${{ env.SOLO_NAMESPACE }}" 40842:40840 &
+          kubectl port-forward svc/block-node-3 -n "${{ env.SOLO_NAMESPACE }}" 40843:40840 &
+
+      - name: Prepare NLG parameters
+        run: |
+          # Generate the nlg-values.yaml file inline
+          cp "${{ github.workspace }}"/.github/workflows/support/citr/nlg-values.yaml nlg-values.yaml
+
+
+      - name: Run NLG Crypto-Transfer
+        run: |
+          # Run the NLG crypto-transfer rapid-fire command
+          echo "Starting NLG crypto-transfer rapid-fire..."
+
+          solo rapid-fire crypto-transfer start --deployment ${{ env.SOLO_DEPLOYMENT }} \
+          --values-file nlg-values.yaml --args '"-c 5 -a 10 -R -t 10"'
+
+      # After some run time stop BN2 and BN3 to simulate unavailable BNs
+      - name: Scale 2 BNs down to simulate failure
+        run: |
+          sleep 30
+          kubectl scale statefulsets -n ${{ env.SOLO_NAMESPACE }} -l "app.kubernetes.io/name=block-node-1" --replicas=0
+          sleep 30
+          kubectl scale statefulsets -n ${{ env.SOLO_NAMESPACE }} -l "app.kubernetes.io/name=block-node-2" --replicas=0
+          sleep 30          
+
+      - name: Scale 2 BNs back up to simulate restoration
+        run: |
+          kubectl scale statefulsets -n ${{ env.SOLO_NAMESPACE }} -l "app.kubernetes.io/name=block-node-1" --replicas=1
+          kubectl scale statefulsets -n ${{ env.SOLO_NAMESPACE }} -l "app.kubernetes.io/name=block-node-2" --replicas=1
+          sleep 30
+
 
       # ---- BN verification with grpcurl ----
 
@@ -285,8 +385,8 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y jq
 
-      # Verify the BN is getting blocks
-      - name: Get ServerStatus from Block Node
+        # Verify the BN1 is getting blocks
+      - name: Get ServerStatus from Block Node 1
         working-directory: block-node
         run: |
           # Call serverStatus once
@@ -296,7 +396,7 @@ jobs:
             -import-path protobuf-sources/proto \
             -proto block-node/api/node_service.proto \
             -d '{}' \
-            localhost:40840 \
+            localhost:40841 \
             org.hiero.block.api.BlockNodeService/serverStatus)
 
           # Extract values
@@ -317,29 +417,119 @@ jobs:
           fi
 
           # Export for later steps
-          echo "FIRST_AVAILABLE_BLOCK=$FIRST_AVAILABLE_BLOCK" >> $GITHUB_ENV
-          echo "LAST_AVAILABLE_BLOCK=$LAST_AVAILABLE_BLOCK" >> $GITHUB_ENV
+          echo "BN1_FIRST_AVAILABLE_BLOCK=$FIRST_AVAILABLE_BLOCK" >> $GITHUB_ENV
+          echo "BN1_LAST_AVAILABLE_BLOCK=$LAST_AVAILABLE_BLOCK" >> $GITHUB_ENV
 
-      # Start the TCK client. Run a subset of the service tests expanding over time.
-      - name: Start tck-client
-        env:
-          OPERATOR_ACCOUNT_ID: "0.0.2"
-          OPERATOR_ACCOUNT_PRIVATE_KEY: "302e020100300506032b65700422042091132178e72057a1d7528025956fe39b0b847f200ab59b2fdd367017f3087137"
-          JSON_RPC_SERVER_URL: "http://127.0.0.1:8544"
-          NODE_IP: "127.0.0.1:50211"
-          MIRROR_NODE_REST_URL: "http://127.0.0.1:5551"
-          MIRROR_NODE_REST_JAVA_URL: "http://127.0.0.1:8084"
+        # Verify the BN2 is getting blocks
+      - name: Get ServerStatus from Block Node 2
+        working-directory: block-node
         run: |
-          solo ledger account create --dev --ed25519-private-key "${{ env.OPERATOR_ACCOUNT_PRIVATE_KEY }}" --deployment ${{ env.SOLO_DEPLOYMENT }} --hbar-amount 1000000
-          cp .env.custom_node .env
-          npm run test:file src/tests/contract-service/test-contract-execute-transaction.ts
-        working-directory: sdk-tck/regression # required
+          # Call serverStatus once
+          STATUS_JSON=$(grpcurl \
+            -plaintext \
+            -emit-defaults \
+            -import-path protobuf-sources/proto \
+            -proto block-node/api/node_service.proto \
+            -d '{}' \
+            localhost:40842 \
+            org.hiero.block.api.BlockNodeService/serverStatus)
+
+          # Extract values
+          FIRST_AVAILABLE_BLOCK=$(echo "$STATUS_JSON" | jq -r '.firstAvailableBlock')
+          LAST_AVAILABLE_BLOCK=$(echo "$STATUS_JSON" | jq -r '.lastAvailableBlock')
+
+          echo "First available block is $FIRST_AVAILABLE_BLOCK"
+          echo "Last available block is $LAST_AVAILABLE_BLOCK"
+
+          # Validate
+          if [[ "$FIRST_AVAILABLE_BLOCK" != "0" ]]; then
+              echo "First available block is not 0"
+              exit 1
+          fi
+          if (( LAST_AVAILABLE_BLOCK < 1 )); then
+              echo "Last available block is less than 1"
+              exit 1
+          fi
+
+          # Export for later steps
+          echo "BN2_FIRST_AVAILABLE_BLOCK=$FIRST_AVAILABLE_BLOCK" >> $GITHUB_ENV
+          echo "BN2_LAST_AVAILABLE_BLOCK=$LAST_AVAILABLE_BLOCK" >> $GITHUB_ENV
+
+        # Verify the BN3 is getting blocks
+      - name: Get ServerStatus from Block Node 3
+        working-directory: block-node
+        run: |
+          # Call serverStatus once
+          STATUS_JSON=$(grpcurl \
+            -plaintext \
+            -emit-defaults \
+            -import-path protobuf-sources/proto \
+            -proto block-node/api/node_service.proto \
+            -d '{}' \
+            localhost:40843 \
+            org.hiero.block.api.BlockNodeService/serverStatus)
+
+          # Extract values
+          FIRST_AVAILABLE_BLOCK=$(echo "$STATUS_JSON" | jq -r '.firstAvailableBlock')
+          LAST_AVAILABLE_BLOCK=$(echo "$STATUS_JSON" | jq -r '.lastAvailableBlock')
+
+          echo "First available block is $FIRST_AVAILABLE_BLOCK"
+          echo "Last available block is $LAST_AVAILABLE_BLOCK"
+
+          # Validate
+          if [[ "$FIRST_AVAILABLE_BLOCK" != "0" ]]; then
+              echo "First available block is not 0"
+              exit 1
+          fi
+          if (( LAST_AVAILABLE_BLOCK < 1 )); then
+              echo "Last available block is less than 1"
+              exit 1
+          fi
+
+          # Export for later steps
+          echo "BN3_FIRST_AVAILABLE_BLOCK=$FIRST_AVAILABLE_BLOCK" >> $GITHUB_ENV
+          echo "BN3_LAST_AVAILABLE_BLOCK=$LAST_AVAILABLE_BLOCK" >> $GITHUB_ENV
+
+        # Verify the available blocks from BNs 1-3 are within a reasonable range to showcase catchup
+      - name: Validate server status block ranges
+        working-directory: block-node
+        run: |          
+          # Calculate min and max first available blocks
+          min_first_available=${{ env.BN1_FIRST_AVAILABLE_BLOCK }} < ${{ env.BN2_FIRST_AVAILABLE_BLOCK }} ? ${{ env.BN1_FIRST_AVAILABLE_BLOCK }} : ${{ env.BN2_FIRST_AVAILABLE_BLOCK }}
+          min_first_available=min_available < ${{ env.BN3_FIRST_AVAILABLE_BLOCK }} ? min_available : ${{ env.BN3_FIRST_AVAILABLE_BLOCK }}
+          max_first_available=${{ env.BN1_FIRST_AVAILABLE_BLOCK }} > ${{ env.BN2_FIRST_AVAILABLE_BLOCK }} ? ${{ env.BN1_FIRST_AVAILABLE_BLOCK }} : ${{ env.BN2_FIRST_AVAILABLE_BLOCK }}
+          max_first_available=min_available > ${{ env.BN3_FIRST_AVAILABLE_BLOCK }} ? min_available : ${{ env.BN3_FIRST_AVAILABLE_BLOCK }}
+          
+          echo "Minimum first available block among BNs: $min_first_available"
+          echo "Maximum first available block among BNs: $max_first_available"
+          range=$((max_first_available - min_first_available))
+          echo "Range of first available blocks: $range"
+          if (( range > 20 )); then
+              echo "Range of first available blocks ($range) exceeds acceptable limit."
+              exit 1
+          fi
+          
+          # Calculate min and max last available blocks
+          min_last_available=${{ env.BN1_LAST_AVAILABLE_BLOCK }} < ${{ env.BN2_LAST_AVAILABLE_BLOCK }} ? ${{ env.BN1_LAST_AVAILABLE_BLOCK }} : ${{ env.BN2_LAST_AVAILABLE_BLOCK }}
+          min_last_available=min_available < ${{ env.BN3_LAST_AVAILABLE_BLOCK }} ? min_available : ${{ env.BN3_LAST_AVAILABLE_BLOCK }}
+          max_last_available=${{ env.BN1_LAST_AVAILABLE_BLOCK }} > ${{ env.BN2_LAST_AVAILABLE_BLOCK }} ? ${{ env.BN1_LAST_AVAILABLE_BLOCK }} : ${{ env.BN2_LAST_AVAILABLE_BLOCK }}
+          max_last_available=min_available > ${{ env.BN3_LAST_AVAILABLE_BLOCK }} ? min_available : ${{ env.BN3_LAST_AVAILABLE_BLOCK }}
+          
+          echo "Minimum last available block among BNs: $min_last_available"
+          echo "Maximum last available block among BNs: $max_last_available"
+          range=$((max_last_available - min_last_available))
+          echo "Range of last available blocks: $range"
+          if (( range > 20 )); then
+              echo "Range of last available blocks ($range) exceeds acceptable limit."
+              exit 1
+          fi
+          
 
       - name: BN Based - SDK TCK Regression Test Report
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: ${{ !cancelled() }}
         with:
-          name: SDK TCK Regression Test Report for BN
+          name: SDK TCK Regression Test Report
           path: "**/sdk-tck/regression/mochawesome-report/mochawesome.*"
           retention-days: 7
 
@@ -347,7 +537,9 @@ jobs:
         if: always()
         run: |
           # Get BN Logs
-          kubectl logs -n ${{ env.SOLO_NAMESPACE }} -l "app.kubernetes.io/name=block-node-1" --all-containers --since=24h --timestamps --prefix --tail=-1 > bn0-logs.log
+          kubectl logs -n ${{ env.SOLO_NAMESPACE }} -l "app.kubernetes.io/name=block-node-1" --all-containers --since=24h --timestamps --prefix --tail=-1 > bn1-logs.log
+          kubectl logs -n ${{ env.SOLO_NAMESPACE }} -l "app.kubernetes.io/name=block-node-2" --all-containers --since=24h --timestamps --prefix --tail=-1 > bn2-logs.log
+          kubectl logs -n ${{ env.SOLO_NAMESPACE }} -l "app.kubernetes.io/name=block-node-3" --all-containers --since=24h --timestamps --prefix --tail=-1 > bn3-logs.log
 
           # Get MN Logs
           kubectl logs -n ${{ env.SOLO_NAMESPACE }} -l "app.kubernetes.io/instance=mirror-1,app.kubernetes.io/component=importer" --all-containers --since=24h --timestamps --prefix --tail=-1 > mn0-logs.log
@@ -370,7 +562,9 @@ jobs:
         with:
           name: bn-mn-log
           path: |
-            bn0-logs.log
+            bn1-logs.log
+            bn2-logs.log
+            bn3-logs.log
             mn0-logs.log
 
       - name: Upload CN Logs
@@ -407,7 +601,7 @@ jobs:
 
   report-block-node-regression-status:
     name: ${{ inputs.custom-job-name || 'Standard' }} Slack Report
-    runs-on: hl-cn-citr-lin-sm
+    runs-on: hiero-citr-linux-medium
     needs: block-node-regression
     if: ${{ always() }}
     steps:

@@ -33,6 +33,10 @@ on:
         type: string
         description: "Run Block Node Regression Panel"
         default: "false"
+      enable-block-node-recovery-panel:
+        type: string
+        description: "Run Block Node Recovery Panel"
+        default: "false"
       solo-version:
         type: string
         description: "The solo version to use for the regression panels"
@@ -304,6 +308,18 @@ jobs:
       access-token: ${{ secrets.regression-access-token }}
       slack-detailed-report-webhook: ${{ secrets.slack-citr-details-token }}
 
+  block-node-recovery-panel:
+    name: Block Node Recovery Panel
+    if: ${{ inputs.enable-block-node-recovery-panel == 'true' && inputs.solo-ge-0440 == 'true' }}
+    uses: ./.github/workflows/zxc-block-node-recovery.yaml
+    with:
+      ref: ${{ inputs.commit_sha }} # pass the xts-candidate tag to the BN panel for checkout
+      custom-job-name: "${{ inputs.custom-job-label }} Block Node Recovery"
+      solo-version: ${{ inputs.solo-version }}
+    secrets:
+      access-token: ${{ secrets.regression-access-token }}
+      slack-detailed-report-webhook: ${{ secrets.slack-citr-details-token }}
+
   set-failure-mode:
     name: Set Failure Mode
     runs-on: hl-cn-citr-lin-sm
@@ -322,6 +338,7 @@ jobs:
       - mirror-node-regression-panel
       - json-rpc-relay-regression-panel
       - block-node-regression-panel
+      - block-node-recovery-panel
     if: ${{ !cancelled() && always() }} # always run unless cancelled
     steps:
       - name: Initialize GitHub Job
@@ -392,6 +409,7 @@ jobs:
             ${{ needs.mirror-node-regression-panel.result || 'skipped' }}
             ${{ needs.json-rpc-relay-regression-panel.result || 'skipped' }}
             ${{ needs.block-node-regression-panel.result || 'skipped' }}
+            ${{ needs.block-node-recovery-panel.result || 'skipped' }}
           )
           panel_names=(
             "hedera-node-jrs-panel"

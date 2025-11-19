@@ -44,6 +44,11 @@ on:
         type: boolean
         default: true
         description: "Execute the State Validator Uber JAR build job"
+      enable-block-node-recovery-panel:
+        required: true
+        type: boolean
+        default: true
+        description: "Run Block Node Recovery Panel"
 
 permissions:
   id-token: write
@@ -85,6 +90,7 @@ jobs:
           echo "Enable Mirror Node Regression Panel: ${{ inputs.enable-mirror-node-regression-panel }}" | tee -a "${GITHUB_STEP_SUMMARY}"
           echo "Enable JSON-RPC Relay Regression Panel: ${{ inputs.enable-rpc-relay-regression-panel }}" | tee -a "${GITHUB_STEP_SUMMARY}"
           echo "Enable Block Node Regression Panel: ${{ inputs.enable-block-node-regression-panel }}" | tee -a "${GITHUB_STEP_SUMMARY}"
+          echo "Enable Block Node Recovery Panel: ${{ inputs.enable-block-node-recovery-panel }}" | tee -a "${GITHUB_STEP_SUMMARY}"
           echo "Solo Version: ${{ vars.ADHOC_XTS_SOLO_VERSION }}" | tee -a "${GITHUB_STEP_SUMMARY}"
           echo "Helm Release Name: ${HELM_NAME}" | tee -a "${GITHUB_STEP_SUMMARY}"
 
@@ -117,6 +123,7 @@ jobs:
       enable-mirror-node-regression-panel: ${{ inputs.enable-mirror-node-regression-panel }}
       enable-rpc-relay-regression-panel: ${{ inputs.enable-rpc-relay-regression-panel }}
       enable-block-node-regression-panel: ${{ inputs.enable-block-node-regression-panel }}
+      enable-block-node-recovery-panel: ${{ inputs.enable-block-node-recovery-panel }}
       custom-job-label: "XTS (Dry Run):"
     secrets:
       access-token: ${{ secrets.GITHUB_TOKEN }}
