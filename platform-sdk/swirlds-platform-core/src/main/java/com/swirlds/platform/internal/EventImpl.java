@@ -23,17 +23,11 @@ import org.hiero.consensus.model.node.NodeId;
  * This class that stores temporary data that is used while calculating consensus inside the platform.
  * This data is not relevant after consensus has been calculated.
  */
-public class EventImpl implements Clearable {
+public class EventImpl extends LinkedEvent<EventImpl> implements Clearable {
     /** The base event information, including some gossip specific information */
     private final PlatformEvent baseEvent;
     /** the round number in which this event reached a consensus order */
     private long roundReceived = ConsensusConstants.ROUND_UNDEFINED;
-    /** the self parent of this */
-    private EventImpl selfParent;
-    /** the other-parents of this */
-    private List<EventImpl> otherParents;
-    /** the parents of this */
-    private List<EventImpl> allParents;
     /** has this event been cleared (because it was old and should be discarded)? */
     private boolean cleared = false;
     /** is this a witness? (is round > selfParent's round, or there is no self parent?) */
@@ -96,17 +90,8 @@ public class EventImpl implements Clearable {
      * @param allParents    pointers to all parent events
      */
     public EventImpl(@NonNull final PlatformEvent platformEvent, @NonNull final List<EventImpl> allParents) {
+        super(platformEvent, allParents);
         this.baseEvent = Objects.requireNonNull(platformEvent, "baseEvent");
-        this.allParents = Objects.requireNonNull(allParents, "allParents");
-        if (!allParents.isEmpty() && allParents.getFirst().getCreatorId().equals(this.baseEvent.getCreatorId())) {
-            // this event DOES have a self parent that is linked
-            this.selfParent = allParents.getFirst();
-            this.otherParents = allParents.subList(1, allParents.size());
-        } else {
-            // this event DOESN'T have a self parent that is linked
-            this.selfParent = null;
-            this.otherParents = allParents;
-        }
         // ConsensusImpl.currMark starts at 1 and counts up, so all events initially count as
         // unmarked
         this.mark = ConsensusConstants.EVENT_UNMARKED;
@@ -141,34 +126,14 @@ public class EventImpl implements Clearable {
     }
 
     /**
-     * @return the self parent of this
-     */
-    public @Nullable EventImpl getSelfParent() {
-        return selfParent;
-    }
-
-    /**
      * @return the other parent of this
      */
     public @Nullable EventImpl getOtherParent() {
+        final List<EventImpl> otherParents = getOtherParents();
         if (otherParents.isEmpty()) {
             return null;
         }
         return otherParents.getFirst();
-    }
-
-    /**
-     * @return the other parents of this
-     */
-    public @NonNull List<EventImpl> getOtherParents() {
-        return otherParents;
-    }
-
-    /**
-     * @return all parents of this
-     */
-    public @NonNull List<EventImpl> getAllParents() {
-        return allParents;
     }
 
     public boolean isWitness() {
@@ -466,10 +431,8 @@ public class EventImpl implements Clearable {
             return;
         }
         cleared = true;
+        super.clear();
         EventCounter.decrementLinkedEventCount();
-        selfParent = null;
-        otherParents = List.of();
-        allParents = List.of();
         clearMetadata();
     }
 
