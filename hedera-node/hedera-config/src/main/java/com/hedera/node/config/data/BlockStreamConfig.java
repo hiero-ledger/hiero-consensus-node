@@ -31,7 +31,7 @@ public record BlockStreamConfig(
         @ConfigProperty(defaultValue = "1") @NetworkProperty int roundsPerBlock,
         @ConfigProperty(defaultValue = "2s") @Min(0) @NetworkProperty Duration blockPeriod,
         @ConfigProperty(defaultValue = "8192") @Min(1) @NetworkProperty int receiptEntriesBatchSize,
-        @ConfigProperty(defaultValue = "100") @NodeProperty int maxReadDepth,
+        @ConfigProperty(defaultValue = "512") @NodeProperty int maxReadDepth,
         @ConfigProperty(defaultValue = "500000000") @NodeProperty int maxReadBytesSize) {
 
     /**
