@@ -64,7 +64,7 @@ jobs:
             echo "Skipping prerelease tag: $tag" | tee -a "${GITHUB_STEP_SUMMARY}"
             echo "skip-generate-release-notes=true" >> "${GITHUB_OUTPUT}"
           else
-            echo "Not a prerelease tag: $tag" | tee -a "${GITHUB_STEP_SUMMARY}"
+            echo "Not a prerelease tag: ${tag}" | tee -a "${GITHUB_STEP_SUMMARY}"
             echo "skip-generate-release-notes=false" >> "${GITHUB_OUTPUT}"
           fi
 
