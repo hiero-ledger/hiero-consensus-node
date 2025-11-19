@@ -4,6 +4,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
 import java.util.Objects;
+import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.model.event.PlatformEvent;
 
 public class LinkedEvent<T extends LinkedEvent<T>> {
@@ -41,6 +42,17 @@ public class LinkedEvent<T extends LinkedEvent<T>> {
     }
 
     /**
+     * @return the other parent of this
+     */
+    public @Nullable T getOtherParent() {
+        final List<T> otherParents = getOtherParents();
+        if (otherParents.isEmpty()) {
+            return null;
+        }
+        return otherParents.getFirst();
+    }
+
+    /**
      * @return the other parents of this
      */
     public @NonNull List<T> getOtherParents() {
@@ -55,6 +67,13 @@ public class LinkedEvent<T extends LinkedEvent<T>> {
     }
 
     /**
+     * @return returns {@link PlatformEvent#getHash()}}
+     */
+    public Hash getBaseHash() {
+        return platformEvent.getHash();
+    }
+
+    /**
      * Erase all references to other events within this event. This can be used so other events can
      * be garbage collected, even if this one still has things pointing to it.
      */
@@ -62,5 +81,41 @@ public class LinkedEvent<T extends LinkedEvent<T>> {
         selfParent = null;
         otherParents = List.of();
         allParents = List.of();
+    }
+
+    /**
+     * Two linked events are equal iff their reference platform event hashes are equal.
+     *
+     * @return true iff {@code this} and {@code o} reference platform event hashes that compare equal
+     */
+    @Override
+    public boolean equals(final Object o) {
+        if (this == o) {
+            return true;
+        }
+
+        if (!(o instanceof final LinkedEvent<?> le)) {
+            return false;
+        }
+
+        return getBaseHash().equals(le.getBaseHash());
+    }
+
+    /**
+     * The hash code of a linked event is the hash of the platform event which this linked event references.
+     *
+     * @return the hash code
+     */
+    @Override
+    public int hashCode() {
+        return getBaseHash().hashCode();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public String toString() {
+        return platformEvent.toString();
     }
 }
