@@ -69,12 +69,13 @@ public interface BlockStreamModule {
         return switch (blockStreamConfig.writerMode()) {
             case FILE -> () -> new FileBlockItemWriter(configProvider, selfNodeInfo, fileSystem);
             case GRPC -> () -> new GrpcBlockItemWriter(blockBufferService);
-            case FILE_AND_GRPC -> {
-                final FileBlockItemWriter fileWriter =
-                        new FileBlockItemWriter(configProvider, selfNodeInfo, fileSystem);
-                final GrpcBlockItemWriter grpcWriter = new GrpcBlockItemWriter(blockBufferService);
-                yield () -> new FileAndGrpcBlockItemWriter(configProvider, fileWriter, grpcWriter);
-            }
+            case FILE_AND_GRPC ->
+                () -> {
+                    final FileBlockItemWriter fileWriter =
+                            new FileBlockItemWriter(configProvider, selfNodeInfo, fileSystem);
+                    final GrpcBlockItemWriter grpcWriter = new GrpcBlockItemWriter(blockBufferService);
+                    return new FileAndGrpcBlockItemWriter(configProvider, fileWriter, grpcWriter);
+                };
         };
     }
 
