@@ -17,16 +17,16 @@ import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.otter.fixtures.internal.helpers.Utils;
 import org.hiero.otter.fixtures.network.BandwidthLimit;
-import org.hiero.otter.fixtures.network.Connection;
-import org.hiero.otter.fixtures.network.DirectionalConnection;
+import org.hiero.otter.fixtures.network.BidirectionalConnection;
+import org.hiero.otter.fixtures.network.GeoMeshTopologyConfiguration;
 import org.hiero.otter.fixtures.network.LatencyRange;
 import org.hiero.otter.fixtures.network.MeshTopologyConfiguration;
 import org.hiero.otter.fixtures.network.Partition;
 import org.hiero.otter.fixtures.network.Topology;
 import org.hiero.otter.fixtures.network.Topology.ConnectionState;
 import org.hiero.otter.fixtures.network.TopologyConfiguration;
+import org.hiero.otter.fixtures.network.UnidirectionalConnection;
 import org.hiero.otter.fixtures.network.transactions.OtterTransaction;
-import org.hiero.otter.fixtures.network.GeoMeshTopologyConfiguration;
 import org.hiero.otter.fixtures.result.MultipleNodeConsensusResults;
 import org.hiero.otter.fixtures.result.MultipleNodeEventStreamResults;
 import org.hiero.otter.fixtures.result.MultipleNodeLogResults;
@@ -189,7 +189,7 @@ public interface Network extends Configurable<Network> {
     void sendQuiescenceCommand(@NonNull QuiescenceCommand command);
 
     /**
-     * Returns a {@link Connection} between two nodes in the network which can be used to modify the
+     * Returns a {@link BidirectionalConnection} between two nodes in the network which can be used to modify the
      * properties of a single connection. All properties and methods of the returned object are
      * applied in both directions.
      *
@@ -198,10 +198,10 @@ public interface Network extends Configurable<Network> {
      * @return the bidirectional connection between the two nodes
      */
     @NonNull
-    Connection connection(@NonNull Node node1, @NonNull Node node2);
+    BidirectionalConnection bidirectionalConnection(@NonNull Node node1, @NonNull Node node2);
 
     /**
-     * Returns a {@link DirectionalConnection} from one node to another in the network which can
+     * Returns a {@link UnidirectionalConnection} from one node to another in the network which can
      * be used to modify the properties of a single connection. All properties and methods of the
      * returned object are applied in the specified direction only.
      *
@@ -210,7 +210,7 @@ public interface Network extends Configurable<Network> {
      * @return the unidirectional connection from {@code sender} to {@code receiver}
      */
     @NonNull
-    DirectionalConnection directionalConnection(@NonNull Node sender, @NonNull Node receiver);
+    UnidirectionalConnection unidirectionalConnection(@NonNull Node sender, @NonNull Node receiver);
 
     /**
      * Returns the current connection state between two nodes in the network after all modifications
