@@ -81,7 +81,7 @@ import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.TestMethodOrder;
 
-@Order(9)
+@Order(-2)
 @Tag(INTEGRATION)
 @HapiTestLifecycle
 @TargetEmbeddedMode(REPEATABLE)
@@ -89,7 +89,6 @@ import org.junit.jupiter.api.TestMethodOrder;
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 public class RepeatableLambdaSStoreTests {
 
-    private static final long PURE_HOOK_ID = 123L;
     private static final long LAMBDA_HOOK_ID = 124L;
     private static final long DELETED_HOOK_ID = 125L;
     private static final long MISSING_HOOK_ID = 126L;
