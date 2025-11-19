@@ -7,6 +7,7 @@ import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.mintToken;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.compareSimpleToOld;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithin;
@@ -34,7 +35,7 @@ import org.junit.jupiter.api.Tag;
 @Tag(SIMPLE_FEES)
 @Tag(MATS)
 @HapiTestLifecycle
-public class TokenSimpleServiceFeesSuite {
+public class TokenServiceSimpleFeesSuite {
     private static final String FUNGIBLE_TOKEN = "fungibleToken";
     private static final String NFT_TOKEN = "nonFungibleToken";
     private static final String METADATA_KEY = "metadata-key";
@@ -42,30 +43,10 @@ public class TokenSimpleServiceFeesSuite {
     private static final String PAYER = "payer";
     private static final String ADMIN = "admin";
 
-    @FunctionalInterface
-    public interface OpsProvider {
-        List<SpecOperation> provide();
-    }
-
-    private Stream<DynamicTest> compare(OpsProvider provider) {
-        List<SpecOperation> opsList = new ArrayList<>();
-        opsList.add(overriding("fees.simpleFeesEnabled", "false"));
-        opsList.add(withOpContext((spec, op) -> {
-            System.out.println("old fees");
-        }));
-        opsList.addAll(provider.provide());
-        opsList.add(overriding("fees.simpleFeesEnabled", "true"));
-        opsList.add(withOpContext((spec, op) -> {
-            System.out.println("new fees");
-        }));
-        opsList.addAll(provider.provide());
-        return hapiTest(opsList.toArray(new SpecOperation[opsList.size()]));
-    }
-
     @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
     @DisplayName("compare create fungible token")
     final Stream<DynamicTest> compareCreateFungibleToken() {
-        return compare(() -> Arrays.asList(
+        return compareSimpleToOld(() -> Arrays.asList(
                 cryptoCreate(ADMIN).balance(ONE_BILLION_HBARS),
                 cryptoCreate(PAYER).balance(ONE_BILLION_HBARS),
                 tokenCreate(FUNGIBLE_TOKEN)
@@ -78,15 +59,14 @@ public class TokenSimpleServiceFeesSuite {
                         .autoRenewPeriod(THREE_MONTHS_IN_SECONDS)
                         .logged()
                         .hasKnownStatus(SUCCESS)
-                        .via("create-token-txn"),
-                // actual for current fees is ~900_000 even though the spec says 1.0
-                validateChargedUsdWithin("create-token-txn", 1, 15)));
+                        .via("create-token-txn")),
+                "create-token-txn",1,1,1,1);
     }
 
     @HapiTest
     @DisplayName("compare create non-fungible token")
     final Stream<DynamicTest> compareCreateNonFungibleToken() {
-        return compare(() -> Arrays.asList(
+        return compareSimpleToOld(() -> Arrays.asList(
                 newKeyNamed(SUPPLY_KEY),
                 cryptoCreate(ADMIN).balance(ONE_BILLION_HBARS),
                 cryptoCreate(PAYER).balance(ONE_BILLION_HBARS),
@@ -102,14 +82,14 @@ public class TokenSimpleServiceFeesSuite {
                         .autoRenewPeriod(THREE_MONTHS_IN_SECONDS)
                         .logged()
                         .hasKnownStatus(SUCCESS)
-                        .via("create-token-txn"),
-                validateChargedUsdWithin("create-token-txn", 2.0, 100)));
+                        .via("create-token-txn")),
+                "create-token-txn",2,1,2,1);
     }
 
     @HapiTest
     @DisplayName("compare mint common token")
     final Stream<DynamicTest> compareMintCommonToken() {
-        return compare(() -> Arrays.asList(
+        return compareSimpleToOld(() -> Arrays.asList(
                 newKeyNamed(SUPPLY_KEY),
                 cryptoCreate(ADMIN).balance(ONE_BILLION_HBARS),
                 cryptoCreate(PAYER).balance(ONE_BILLION_HBARS).key(SUPPLY_KEY),
@@ -127,15 +107,14 @@ public class TokenSimpleServiceFeesSuite {
                         .blankMemo()
                         .fee(ONE_HUNDRED_HBARS)
                         .hasKnownStatus(SUCCESS)
-                        .via("fungible-mint-txn"),
-                // base mint for fungible is 0.001
-                validateChargedUsdWithin("fungible-mint-txn", 0.001, 10)));
+                        .via("fungible-mint-txn")),
+                "fungible-mint-txn",0.001,1,0.001,1);
     }
 
     @HapiTest
     @DisplayName("compare mint multiple common tokens")
     final Stream<DynamicTest> compareMintMultipleCommonToken() {
-        return compare(() -> Arrays.asList(
+        return compareSimpleToOld(() -> Arrays.asList(
                 newKeyNamed(SUPPLY_KEY),
                 cryptoCreate(ADMIN).balance(ONE_BILLION_HBARS),
                 cryptoCreate(PAYER).balance(ONE_BILLION_HBARS).key(SUPPLY_KEY),
@@ -153,14 +132,14 @@ public class TokenSimpleServiceFeesSuite {
                         .blankMemo()
                         .fee(ONE_HUNDRED_HBARS)
                         .hasKnownStatus(SUCCESS)
-                        .via("fungible-mint-txn"),
-                validateChargedUsdWithin("fungible-mint-txn", 0.001, 10)));
+                        .via("fungible-mint-txn")),
+                "fungible-mint-txn",0.001,1,0.001,1);
     }
 
     @HapiTest
     @DisplayName("compare mint a unique token")
     final Stream<DynamicTest> compareMintUniqueToken() {
-        return compare(() -> Arrays.asList(
+        return compareSimpleToOld(() -> Arrays.asList(
                 newKeyNamed(SUPPLY_KEY),
                 newKeyNamed(METADATA_KEY),
                 cryptoCreate(ADMIN).balance(ONE_BILLION_HBARS),
@@ -179,7 +158,7 @@ public class TokenSimpleServiceFeesSuite {
                         .blankMemo()
                         .fee(ONE_HUNDRED_HBARS)
                         .hasKnownStatus(SUCCESS)
-                        .via("non-fungible-mint-txn"),
-                validateChargedUsdWithin("non-fungible-mint-txn", 0.02, 1)));
+                        .via("non-fungible-mint-txn")),
+                "non-fungible-mint-txn",0.02,1,0.02,1);
     }
 }
