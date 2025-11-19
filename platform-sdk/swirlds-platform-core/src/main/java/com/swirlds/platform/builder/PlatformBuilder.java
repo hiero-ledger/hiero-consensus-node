@@ -35,7 +35,6 @@ import com.swirlds.platform.reconnect.FallenBehindMonitor;
 import com.swirlds.platform.scratchpad.Scratchpad;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.state.iss.IssScratchpad;
-import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.wiring.PlatformComponents;
@@ -80,7 +79,6 @@ public final class PlatformBuilder {
     private final ReservedSignedState initialState;
 
     private final ConsensusStateEventHandler<MerkleNodeState> consensusStateEventHandler;
-    private final PlatformStateFacade platformStateFacade;
     private final Function<VirtualMap, MerkleNodeState> createStateFromVirtualMap;
 
     private final NodeId selfId;
@@ -152,7 +150,6 @@ public final class PlatformBuilder {
      * @param selfId the ID of this node
      * @param consensusEventStreamName a part of the name of the directory where the consensus event stream is written
      * @param rosterHistory the roster history provided by the application to use at startup
-     * @param platformStateFacade the facade to access the platform state
      * @param createStateFromVirtualMap a function to instantiate the state object from a Virtual Map
      */
     @NonNull
@@ -165,7 +162,6 @@ public final class PlatformBuilder {
             @NonNull final NodeId selfId,
             @NonNull final String consensusEventStreamName,
             @NonNull final RosterHistory rosterHistory,
-            @NonNull final PlatformStateFacade platformStateFacade,
             @NonNull final Function<VirtualMap, MerkleNodeState> createStateFromVirtualMap) {
         return new PlatformBuilder(
                 appName,
@@ -176,7 +172,6 @@ public final class PlatformBuilder {
                 selfId,
                 consensusEventStreamName,
                 rosterHistory,
-                platformStateFacade,
                 createStateFromVirtualMap);
     }
 
@@ -191,7 +186,6 @@ public final class PlatformBuilder {
      * @param selfId the ID of this node
      * @param consensusEventStreamName a part of the name of the directory where the consensus event stream is written
      * @param rosterHistory the roster history provided by the application to use at startup
-     * @param platformStateFacade the facade to access the platform state
      * @param createStateFromVirtualMap a function to instantiate the state object from a Virtual Map
      */
     private PlatformBuilder(
@@ -203,7 +197,6 @@ public final class PlatformBuilder {
             @NonNull final NodeId selfId,
             @NonNull final String consensusEventStreamName,
             @NonNull final RosterHistory rosterHistory,
-            @NonNull final PlatformStateFacade platformStateFacade,
             @NonNull final Function<VirtualMap, MerkleNodeState> createStateFromVirtualMap) {
 
         this.appName = Objects.requireNonNull(appName);
@@ -214,7 +207,6 @@ public final class PlatformBuilder {
         this.selfId = Objects.requireNonNull(selfId);
         this.consensusEventStreamName = Objects.requireNonNull(consensusEventStreamName);
         this.rosterHistory = Objects.requireNonNull(rosterHistory);
-        this.platformStateFacade = Objects.requireNonNull(platformStateFacade);
         this.createStateFromVirtualMap = Objects.requireNonNull(createStateFromVirtualMap);
     }
 
@@ -497,7 +489,6 @@ public final class PlatformBuilder {
                 new AtomicReference<>(),
                 firstPlatform,
                 consensusStateEventHandler,
-                platformStateFacade,
                 execution,
                 createStateFromVirtualMap,
                 new FallenBehindMonitor(rosterHistory.getCurrentRoster(), configuration, platformContext.getMetrics()),

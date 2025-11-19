@@ -29,7 +29,6 @@ import com.swirlds.config.extensions.sources.LegacyFileConfigSource;
 import com.swirlds.platform.cli.utils.HederaUtils;
 import com.swirlds.platform.event.preconsensus.PcesConfig;
 import com.swirlds.platform.state.SavedStateUtils;
-import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.snapshot.SavedStateInfo;
 import com.swirlds.platform.state.snapshot.SavedStateMetadata;
 import com.swirlds.platform.state.snapshot.SignedStateFilePath;
@@ -229,10 +228,7 @@ public class CrystalTransplantCommand extends AbstractCommand {
             throw new RuntimeException(e);
         }
 
-        final PlatformStateFacade platformStateFacade = new PlatformStateFacade();
-
-        final SwirldMain<? extends MerkleNodeState> appMain =
-                HederaUtils.createHederaAppMain(platformContext, platformStateFacade);
+        final SwirldMain<? extends MerkleNodeState> appMain = HederaUtils.createHederaAppMain(platformContext);
         final List<SavedStateInfo> savedStateFiles = SignedStateFilePath.getSavedStateFiles(sourceStatePath);
 
         if (savedStateFiles.isEmpty()) {
@@ -253,7 +249,6 @@ public class CrystalTransplantCommand extends AbstractCommand {
                         return appMain.newStateRoot();
                     }
                 },
-                platformStateFacade,
                 platformContext)) {
             final Hash newHash = rehashTree(
                     platformContext.getMerkleCryptography(),

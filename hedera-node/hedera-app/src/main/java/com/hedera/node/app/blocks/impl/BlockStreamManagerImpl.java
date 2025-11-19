@@ -21,6 +21,7 @@ import static com.hedera.node.app.quiescence.TctProbe.blockStreamInfoFrom;
 import static com.hedera.node.app.records.BlockRecordService.EPOCH;
 import static com.hedera.node.app.records.impl.BlockRecordInfoUtils.HASH_SIZE;
 import static com.hedera.node.app.workflows.handle.HandleWorkflow.ALERT_MESSAGE;
+import static com.swirlds.platform.state.service.PlatformStateUtils.creationSemanticVersionOf;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.consensus.model.quiescence.QuiescenceCommand.QUIESCE;
 
@@ -69,7 +70,6 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Counter;
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.service.PlatformStateService;
 import com.swirlds.platform.state.service.ReadablePlatformStateStore;
 import com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema;
@@ -140,7 +140,6 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     private final ConfigProvider configProvider;
     private final Supplier<BlockItemWriter> writerSupplier;
     private final BoundaryStateChangeListener boundaryStateChangeListener;
-    private final PlatformStateFacade platformStateFacade;
 
     private final Lifecycle lifecycle;
     private final BlockHashManager blockHashManager;
@@ -252,7 +251,6 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             @NonNull final QuiescenceController quiescenceController,
             @NonNull final InitialStateHash initialStateHash,
             @NonNull final SemanticVersion version,
-            @NonNull final PlatformStateFacade platformStateFacade,
             @NonNull final Lifecycle lifecycle,
             @NonNull final QuiescedHeartbeat quiescedHeartbeat,
             @NonNull final Metrics metrics) {
@@ -263,7 +261,6 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         this.writerSupplier = requireNonNull(writerSupplier);
         this.executor = (ForkJoinPool) requireNonNull(executor);
         this.boundaryStateChangeListener = requireNonNull(boundaryStateChangeListener);
-        this.platformStateFacade = requireNonNull(platformStateFacade);
         this.lifecycle = requireNonNull(lifecycle);
         this.configProvider = requireNonNull(configProvider);
         this.quiescedHeartbeat = requireNonNull(quiescedHeartbeat);
@@ -419,7 +416,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             final var header = BlockHeader.newBuilder()
                     .number(blockNumber)
                     .hashAlgorithm(SHA2_384)
-                    .softwareVersion(platformStateFacade.creationSemanticVersionOf(state))
+                    .softwareVersion(creationSemanticVersionOf(state))
                     .blockTimestamp(blockTimestamp)
                     .hapiProtoVersion(hapiVersion);
             worker.addItem(BlockItem.newBuilder().blockHeader(header).build());
@@ -712,8 +709,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                         "Writing network info to disk @ {} (REASON = {})",
                         exportPath.toAbsolutePath(),
                         diskNetworkExport);
-                DiskStartupNetworks.writeNetworkInfo(
-                        state, exportPath, EnumSet.allOf(InfoType.class), platformStateFacade);
+                DiskStartupNetworks.writeNetworkInfo(state, exportPath, EnumSet.allOf(InfoType.class));
             }
 
             // Clear the eventIndexInBlock map for the next block
