@@ -62,12 +62,11 @@ jobs:
           tag="v${{ steps.validate.outputs.release-identifier }}"
           if [[ "${{ github.event_name }}" == "push" && ! "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
             echo "Skipping prerelease tag: $tag" | tee -a "${GITHUB_STEP_SUMMARY}"
-            echo "skip-generate-release-notes=true" >> "${GITHUB_OUTPUT}" 
+            echo "skip-generate-release-notes=true" >> "${GITHUB_OUTPUT}"
           else
             echo "Not a prerelease tag: $tag" | tee -a "${GITHUB_STEP_SUMMARY}"
-            echo "skip-generate-release-notes=false" >> "${GITHUB_OUTPUT}"  
+            echo "skip-generate-release-notes=false" >> "${GITHUB_OUTPUT}"
           fi
-          
 
       - name: Checkout Code
         id: checkout_code
