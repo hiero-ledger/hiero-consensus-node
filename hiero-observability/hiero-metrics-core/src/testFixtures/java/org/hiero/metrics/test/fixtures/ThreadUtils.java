@@ -8,6 +8,9 @@ import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
 import java.util.function.IntFunction;
 
+/**
+ * Utility methods for working with threads in tests.
+ */
 public final class ThreadUtils {
 
     private ThreadUtils() {}

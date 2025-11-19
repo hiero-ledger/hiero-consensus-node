@@ -38,6 +38,12 @@ public class GaugeAdapterTest
                 .withReset(StatContainer::reset);
     }
 
+    protected GaugeAdapter.Builder<IntSupplier, StatContainer> emptyDoubleMetricBuilderWithInit(String name, int init) {
+        return GaugeAdapter.<IntSupplier, StatContainer>builder(
+                        name, () -> init, StatContainer::new, new ToNumberFunction<>(StatContainer::getAverage))
+                .withReset(StatContainer::reset);
+    }
+
     @Test
     void testDefaultInitialValueNoLabels() {
         GaugeAdapter<IntSupplier, StatContainer> metric = emptyMetricBuilder().build();
@@ -96,7 +102,7 @@ public class GaugeAdapterTest
     @ParameterizedTest
     @ValueSource(ints = {-100, -1, 0, 1, 100})
     void testCustomInitialValueWithLabels(int initialValue) {
-        GaugeAdapter<IntSupplier, StatContainer> metric = emptyMetricBuilderWithInit(DEFAULT_NAME, initialValue)
+        GaugeAdapter<IntSupplier, StatContainer> metric = emptyDoubleMetricBuilderWithInit(DEFAULT_NAME, initialValue)
                 .withDynamicLabelNames("label")
                 .build();
 

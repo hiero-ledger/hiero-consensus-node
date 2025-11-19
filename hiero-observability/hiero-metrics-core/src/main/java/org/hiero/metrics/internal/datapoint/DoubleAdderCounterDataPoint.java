@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.metrics.internal.datapoint;
 
+import static org.hiero.metrics.api.stat.StatUtils.ONE;
 import static org.hiero.metrics.api.stat.StatUtils.ZERO;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -36,7 +37,7 @@ public final class DoubleAdderCounterDataPoint implements DoubleCounterDataPoint
 
     @Override
     public void increment() {
-        container.add(1);
+        container.add(ONE);
     }
 
     @Override
