@@ -24,6 +24,7 @@ jobs:
     runs-on: hiero-network-node-linux-medium
     outputs:
       release-identifier: ${{ steps.validate.outputs.release-identifier }}
+      skip-generate-release-notes: ${{ steps.skip-release-candidate.skip-generate-release-notes }}
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
@@ -56,12 +57,17 @@ jobs:
           echo "Validated Input: ${cleaned}" >> "${GITHUB_STEP_SUMMARY}"
 
       - name: Skip Autogen Release Notes on Release Candidate Tag
+        id: skip-release-candidate
         run: |
           tag="v${{ steps.validate.outputs.release-identifier }}"
           if [[ "${{ github.event_name }}" == "push" && ! "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
             echo "Skipping prerelease tag: $tag" | tee -a "${GITHUB_STEP_SUMMARY}"
-            exit 1
+            echo "skip-generate-release-notes=true" >> "${GITHUB_OUTPUT}" 
+          else
+            echo "Not a prerelease tag: $tag" | tee -a "${GITHUB_STEP_SUMMARY}"
+            echo "skip-generate-release-notes=false" >> "${GITHUB_OUTPUT}"  
           fi
+          
 
       - name: Checkout Code
         id: checkout_code
@@ -87,6 +93,7 @@ jobs:
     name: Create Fixes and Feats Release Notes
     needs: validate-input-version
     runs-on: hiero-network-node-linux-medium
+    if: ${{ needs.validate-input-version.outputs.skip-generate-release-notes != 'true' }}
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
@@ -116,6 +123,7 @@ jobs:
     name: Create Full Release Notes
     needs: validate-input-version
     runs-on: hiero-network-node-linux-medium
+    if: ${{ needs.validate-input-version.outputs.skip-generate-release-notes != 'true' }}
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
@@ -153,6 +161,7 @@ jobs:
     name: Full Commit History
     needs: validate-input-version
     runs-on: hiero-network-node-linux-medium
+    if: ${{ needs.validate-input-version.outputs.skip-generate-release-notes != 'true' }}
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
