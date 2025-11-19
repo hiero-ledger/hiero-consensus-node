@@ -40,8 +40,6 @@ import com.hedera.node.app.service.token.impl.calculator.TokenUnfreezeAccountFee
 import com.hedera.node.app.service.token.impl.calculator.TokenUnpauseFeeCalculator;
 import com.hedera.node.app.spi.fees.CalculatorState;
 import com.hedera.node.app.spi.fees.SimpleFeeCalculatorImpl;
-import com.hedera.pbj.runtime.io.buffer.Bytes;
-import java.util.List;
 import java.util.Set;
 import org.hiero.hapi.support.fees.Extra;
 import org.hiero.hapi.support.fees.FeeSchedule;
@@ -109,18 +107,18 @@ public class TokenServiceFeeCalculatorTests {
         assertEquals(TOKEN_CREATE_BASE_FEE, result.total());
     }
 
-//    @Test
-//    void createUniqueToken() {
-//        lenient().when(calculatorState.numTxnSignatures()).thenReturn(1);
-//        final var txBody2 = TransactionBody.newBuilder().tokenCreation(
-//                TokenCreateTransactionBody.newBuilder().tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
-//        ).build();
-//        final var result = feeCalculator.calculateTxFee(txBody2, calculatorState);
-//
-//        assertNotNull(result);
-//        assertEquals(TOKEN_CREATE_BASE_FEE, result.total());
-//    }
-//
+    //    @Test
+    //    void createUniqueToken() {
+    //        lenient().when(calculatorState.numTxnSignatures()).thenReturn(1);
+    //        final var txBody2 = TransactionBody.newBuilder().tokenCreation(
+    //                TokenCreateTransactionBody.newBuilder().tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
+    //        ).build();
+    //        final var result = feeCalculator.calculateTxFee(txBody2, calculatorState);
+    //
+    //        assertNotNull(result);
+    //        assertEquals(TOKEN_CREATE_BASE_FEE, result.total());
+    //    }
+    //
     @Test
     void mintCommonToken() {
         lenient().when(calculatorState.numTxnSignatures()).thenReturn(1);
@@ -136,21 +134,21 @@ public class TokenServiceFeeCalculatorTests {
         assertEquals(TOKEN_MINT_BASE_FEE + COMMON_TOKEN_FEE * 10, result.total());
     }
 
-//    @Test
-//    void mintUniqueToken() {
-//        lenient().when(calculatorState.numTxnSignatures()).thenReturn(1);
-//        final var uniqueToken = TokenID.newBuilder().tokenNum(1234).build();
-//        final var txBody2 = TransactionBody.newBuilder()
-//                .tokenMint(TokenMintTransactionBody.newBuilder()
-//                        .token(uniqueToken)
-//                        .metadata(List.of(Bytes.wrap("Bart Simpson")))
-//                        .build())
-//                .build();
-//        final var result = feeCalculator.calculateTxFee(txBody2, calculatorState);
-//        assertNotNull(result);
-//        assertEquals(TOKEN_MINT_BASE_FEE + UNIQUE_TOKEN_FEE, result.total());
-//    }
-//
+    //    @Test
+    //    void mintUniqueToken() {
+    //        lenient().when(calculatorState.numTxnSignatures()).thenReturn(1);
+    //        final var uniqueToken = TokenID.newBuilder().tokenNum(1234).build();
+    //        final var txBody2 = TransactionBody.newBuilder()
+    //                .tokenMint(TokenMintTransactionBody.newBuilder()
+    //                        .token(uniqueToken)
+    //                        .metadata(List.of(Bytes.wrap("Bart Simpson")))
+    //                        .build())
+    //                .build();
+    //        final var result = feeCalculator.calculateTxFee(txBody2, calculatorState);
+    //        assertNotNull(result);
+    //        assertEquals(TOKEN_MINT_BASE_FEE + UNIQUE_TOKEN_FEE, result.total());
+    //    }
+    //
     @Test
     void freezeToken() {
         final var commonToken = TokenID.newBuilder().tokenNum(1234).build();
@@ -228,8 +226,7 @@ public class TokenServiceFeeCalculatorTests {
         final var tokenId = TokenID.newBuilder().tokenNum(1234).build();
         final var deleteBody =
                 TokenDeleteTransactionBody.newBuilder().token(tokenId).build();
-        final var body =
-                TransactionBody.newBuilder().tokenDeletion(deleteBody).build();
+        final var body = TransactionBody.newBuilder().tokenDeletion(deleteBody).build();
         final var result = feeCalculator.calculateTxFee(body, calculatorState);
         assertNotNull(result);
         assertEquals(TOKEN_DELETE_BASE_FEE, result.total());

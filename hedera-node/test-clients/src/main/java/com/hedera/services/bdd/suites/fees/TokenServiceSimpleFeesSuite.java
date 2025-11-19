@@ -68,33 +68,33 @@ public class TokenServiceSimpleFeesSuite {
                 1);
     }
 
-//    @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
-//    @DisplayName("compare create non-fungible token")
-//    final Stream<DynamicTest> compareCreateNonFungibleToken() {
-//        return compareSimpleToOld(
-//                () -> Arrays.asList(
-//                        newKeyNamed(SUPPLY_KEY),
-//                        cryptoCreate(ADMIN).balance(ONE_BILLION_HBARS),
-//                        cryptoCreate(PAYER).balance(ONE_BILLION_HBARS),
-//                        tokenCreate("uniqueNoFees")
-//                                .blankMemo()
-//                                .payingWith(PAYER)
-//                                .fee(ONE_HUNDRED_HBARS)
-//                                .treasury(ADMIN)
-//                                .tokenType(NON_FUNGIBLE_UNIQUE)
-//                                .initialSupply(0L)
-//                                .supplyKey(SUPPLY_KEY)
-//                                .autoRenewAccount(ADMIN)
-//                                .autoRenewPeriod(THREE_MONTHS_IN_SECONDS)
-//                                .logged()
-//                                .hasKnownStatus(SUCCESS)
-//                                .via("create-token-txn")),
-//                "create-token-txn",
-//                2,
-//                1,
-//                2,
-//                1);
-//    }
+    //    @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+    //    @DisplayName("compare create non-fungible token")
+    //    final Stream<DynamicTest> compareCreateNonFungibleToken() {
+    //        return compareSimpleToOld(
+    //                () -> Arrays.asList(
+    //                        newKeyNamed(SUPPLY_KEY),
+    //                        cryptoCreate(ADMIN).balance(ONE_BILLION_HBARS),
+    //                        cryptoCreate(PAYER).balance(ONE_BILLION_HBARS),
+    //                        tokenCreate("uniqueNoFees")
+    //                                .blankMemo()
+    //                                .payingWith(PAYER)
+    //                                .fee(ONE_HUNDRED_HBARS)
+    //                                .treasury(ADMIN)
+    //                                .tokenType(NON_FUNGIBLE_UNIQUE)
+    //                                .initialSupply(0L)
+    //                                .supplyKey(SUPPLY_KEY)
+    //                                .autoRenewAccount(ADMIN)
+    //                                .autoRenewPeriod(THREE_MONTHS_IN_SECONDS)
+    //                                .logged()
+    //                                .hasKnownStatus(SUCCESS)
+    //                                .via("create-token-txn")),
+    //                "create-token-txn",
+    //                2,
+    //                1,
+    //                2,
+    //                1);
+    //    }
 
     @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
     @DisplayName("compare mint common token")
@@ -156,36 +156,36 @@ public class TokenServiceSimpleFeesSuite {
                 1);
     }
 
-//    @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
-//    @DisplayName("compare mint a unique token")
-//    final Stream<DynamicTest> compareMintUniqueToken() {
-//        return compareSimpleToOld(
-//                () -> Arrays.asList(
-//                        newKeyNamed(SUPPLY_KEY),
-//                        newKeyNamed(METADATA_KEY),
-//                        cryptoCreate(ADMIN).balance(ONE_BILLION_HBARS),
-//                        cryptoCreate(PAYER).balance(ONE_BILLION_HBARS).key(SUPPLY_KEY),
-//                        tokenCreate(NFT_TOKEN)
-//                                .tokenType(NON_FUNGIBLE_UNIQUE)
-//                                .initialSupply(0L)
-//                                .payingWith(PAYER)
-//                                .supplyKey(SUPPLY_KEY)
-//                                .fee(ONE_HUNDRED_HBARS)
-//                                .hasKnownStatus(SUCCESS)
-//                                .via("create-token-txn"),
-//                        mintToken(NFT_TOKEN, List.of(ByteString.copyFromUtf8("Bart Simpson")))
-//                                .payingWith(PAYER)
-//                                .signedBy(SUPPLY_KEY)
-//                                .blankMemo()
-//                                .fee(ONE_HUNDRED_HBARS)
-//                                .hasKnownStatus(SUCCESS)
-//                                .via("non-fungible-mint-txn")),
-//                "non-fungible-mint-txn",
-//                0.02,
-//                1,
-//                0.02,
-//                1);
-//    }
+    //    @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+    //    @DisplayName("compare mint a unique token")
+    //    final Stream<DynamicTest> compareMintUniqueToken() {
+    //        return compareSimpleToOld(
+    //                () -> Arrays.asList(
+    //                        newKeyNamed(SUPPLY_KEY),
+    //                        newKeyNamed(METADATA_KEY),
+    //                        cryptoCreate(ADMIN).balance(ONE_BILLION_HBARS),
+    //                        cryptoCreate(PAYER).balance(ONE_BILLION_HBARS).key(SUPPLY_KEY),
+    //                        tokenCreate(NFT_TOKEN)
+    //                                .tokenType(NON_FUNGIBLE_UNIQUE)
+    //                                .initialSupply(0L)
+    //                                .payingWith(PAYER)
+    //                                .supplyKey(SUPPLY_KEY)
+    //                                .fee(ONE_HUNDRED_HBARS)
+    //                                .hasKnownStatus(SUCCESS)
+    //                                .via("create-token-txn"),
+    //                        mintToken(NFT_TOKEN, List.of(ByteString.copyFromUtf8("Bart Simpson")))
+    //                                .payingWith(PAYER)
+    //                                .signedBy(SUPPLY_KEY)
+    //                                .blankMemo()
+    //                                .fee(ONE_HUNDRED_HBARS)
+    //                                .hasKnownStatus(SUCCESS)
+    //                                .via("non-fungible-mint-txn")),
+    //                "non-fungible-mint-txn",
+    //                0.02,
+    //                1,
+    //                0.02,
+    //                1);
+    //    }
 
     @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
     @DisplayName("compare pause a common token")
@@ -207,8 +207,7 @@ public class TokenServiceSimpleFeesSuite {
                                 .payingWith(PAYER)
                                 .fee(ONE_HUNDRED_HBARS)
                                 .hasKnownStatus(SUCCESS),
-                        tokenPause(FUNGIBLE_TOKEN)
-                                .via("pause-token-txn")),
+                        tokenPause(FUNGIBLE_TOKEN).via("pause-token-txn")),
                 "pause-token-txn",
                 // TODO: actual result being set to zero for some reason
                 0.002,
@@ -238,8 +237,7 @@ public class TokenServiceSimpleFeesSuite {
                                 .fee(ONE_HUNDRED_HBARS)
                                 .hasKnownStatus(SUCCESS),
                         tokenPause(FUNGIBLE_TOKEN),
-                        tokenUnpause(FUNGIBLE_TOKEN)
-                                .via("unpause-token-txn")),
+                        tokenUnpause(FUNGIBLE_TOKEN).via("unpause-token-txn")),
                 "unpause-token-txn",
                 // TODO: actual result being set to zero for some reason
                 0.002,
@@ -265,13 +263,12 @@ public class TokenServiceSimpleFeesSuite {
                                 .freezeKey(FREEZE_KEY)
                                 .fee(ONE_HUNDRED_HBARS)
                                 .hasKnownStatus(SUCCESS),
-                        tokenAssociate(OTHER,FUNGIBLE_TOKEN),
+                        tokenAssociate(OTHER, FUNGIBLE_TOKEN),
                         mintToken(FUNGIBLE_TOKEN, 10)
                                 .payingWith(PAYER)
                                 .fee(ONE_HUNDRED_HBARS)
                                 .hasKnownStatus(SUCCESS),
-                        tokenFreeze(FUNGIBLE_TOKEN,OTHER)
-                                .via("freeze-token-txn")),
+                        tokenFreeze(FUNGIBLE_TOKEN, OTHER).via("freeze-token-txn")),
                 "freeze-token-txn",
                 // TODO: actual result being set to zero for some reason
                 0.002,
@@ -297,14 +294,13 @@ public class TokenServiceSimpleFeesSuite {
                                 .freezeKey(FREEZE_KEY)
                                 .fee(ONE_HUNDRED_HBARS)
                                 .hasKnownStatus(SUCCESS),
-                        tokenAssociate(OTHER,FUNGIBLE_TOKEN),
+                        tokenAssociate(OTHER, FUNGIBLE_TOKEN),
                         mintToken(FUNGIBLE_TOKEN, 10)
                                 .payingWith(PAYER)
                                 .fee(ONE_HUNDRED_HBARS)
                                 .hasKnownStatus(SUCCESS),
-                        tokenFreeze(FUNGIBLE_TOKEN,OTHER),
-                        tokenUnfreeze(FUNGIBLE_TOKEN,OTHER)
-                                .via("unfreeze-token-txn")),
+                        tokenFreeze(FUNGIBLE_TOKEN, OTHER),
+                        tokenUnfreeze(FUNGIBLE_TOKEN, OTHER).via("unfreeze-token-txn")),
                 "unfreeze-token-txn",
                 // TODO: actual result being set to zero for some reason
                 0.002,
