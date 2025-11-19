@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.blocks;
 
+import static org.hiero.base.crypto.Cryptography.NULL_HASH;
+
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.node.app.spi.records.BlockRecordInfo;
@@ -28,7 +30,7 @@ import org.hiero.consensus.model.hashgraph.Round;
  * Merkle trees will be in the order they are written.
  */
 public interface BlockStreamManager extends BlockRecordInfo, StateHashedListener {
-    Bytes ZERO_BLOCK_HASH = Bytes.wrap(new byte[48]);
+    Bytes ZERO_BLOCK_HASH = NULL_HASH.getBytes();
 
     /**
      * The types of work that may be identified as pending within a block.

@@ -29,9 +29,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.BlockProof;
 import com.hedera.hapi.block.stream.ChainOfTrustProof;
-import com.hedera.hapi.block.stream.MerklePath;
 import com.hedera.hapi.block.stream.MerkleSiblingHash;
-import com.hedera.hapi.block.stream.StateProof;
 import com.hedera.hapi.block.stream.SubMerkleTree;
 import com.hedera.hapi.block.stream.TssSignedBlockProof;
 import com.hedera.hapi.block.stream.output.BlockHeader;
@@ -65,7 +63,6 @@ import com.hedera.node.config.data.StakingConfig;
 import com.hedera.node.config.data.TssConfig;
 import com.hedera.node.config.data.VersionConfig;
 import com.hedera.node.config.types.DiskNetworkExport;
-import com.hedera.node.internal.network.PendingProof;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Counter;
@@ -81,15 +78,14 @@ import com.swirlds.state.spi.CommittableWritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.ByteBuffer;
-import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.security.MessageDigest;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Queue;
 import java.util.concurrent.CompletableFuture;
@@ -116,13 +112,12 @@ import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 public class BlockStreamManagerImpl implements BlockStreamManager {
     private static final Logger log = LogManager.getLogger(BlockStreamManagerImpl.class);
 
-    public static final Bytes NULL_HASH = Bytes.wrap(new byte[HASH_SIZE]);
     private static final Bytes DEPTH_2_NODE_2_COMBINED;
 
     static {
         // For the future reserved roots, compute the combined hash of the subroot at depth 2,node 2. This hash will
         // then combine with the subroot containing the block data at the end of each round
-        final Bytes combinedNullHash = BlockImplUtils.combine(NULL_HASH, NULL_HASH);
+        final Bytes combinedNullHash = BlockImplUtils.combine(ZERO_BLOCK_HASH, ZERO_BLOCK_HASH);
         final Bytes depth3Node3 = BlockImplUtils.combine(combinedNullHash, combinedNullHash);
         final Bytes depth3Node4 = BlockImplUtils.combine(combinedNullHash, combinedNullHash);
         DEPTH_2_NODE_2_COMBINED = BlockImplUtils.combine(depth3Node3, depth3Node4);
@@ -147,6 +142,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     private final Platform platform;
     private final QuiescenceController quiescenceController;
     private final QuiescedHeartbeat quiescedHeartbeat;
+    private final BlockStateProofGenerator stateProofGenerator;
 
     // The status of pending work
     private PendingWork pendingWork = NONE;
@@ -181,40 +177,6 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     private BlockStreamManagerTask worker;
     private final boolean hintsEnabled;
     private final boolean quiescenceEnabled;
-
-    /**
-     * Represents a block pending completion by the block hash signature needed for its block proof.
-     *
-     * @param number the block number
-     * @param contentsPath the path to the block contents file, if not null
-     * @param blockHash the block hash
-     * @param proofBuilder the block proof builder
-     * @param writer the block item writer
-     * @param siblingHashes the sibling hashes needed for an indirect block proof of an earlier block
-     */
-    private record PendingBlock(
-            long number,
-            @Nullable Path contentsPath,
-            @NonNull Bytes blockHash,
-            @NonNull BlockProof.Builder proofBuilder,
-            @NonNull BlockItemWriter writer,
-            @NonNull MerkleSiblingHash... siblingHashes) {
-        /**
-         * Flushes this pending block to disk, optionally including the sibling hashes needed
-         * for an indirect proof of its preceding block(s).
-         *
-         * @param withSiblingHashes whether to include sibling hashes for an indirect proof
-         */
-        public void flushPending(final boolean withSiblingHashes) {
-            final var pendingProof = PendingProof.newBuilder()
-                    .block(number)
-                    .blockHash(blockHash)
-                    // Sibling hashes are needed in case an indirect state proof is required
-                    .siblingHashesFromPrevBlockRoot(withSiblingHashes ? List.of(siblingHashes) : List.of())
-                    .build();
-            writer.flushPendingBlock(pendingProof);
-        }
-    }
 
     /**
      * Blocks awaiting proof via ledger signature on their block hash (or a subsequent block hash).
@@ -277,6 +239,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         this.diskNetworkExportFile = networkAdminConfig.diskNetworkExportFile();
         this.blockHashManager = new BlockHashManager(config);
         this.runningHashManager = new RunningHashManager();
+        this.stateProofGenerator = new BlockStateProofGenerator();
         this.lastRoundOfPrevBlock = initialStateHash.roundNum();
         final var hashFuture = initialStateHash.hashFuture();
         endRoundStateHashes.put(lastRoundOfPrevBlock, hashFuture);
@@ -474,8 +437,10 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                             block.number(),
                             block.contentsPath(),
                             blockHash,
+                            block.pendingProof().previousBlockHash(),
                             block.proofBuilder(),
                             pendingWriter,
+                            block.pendingProof().blockTimestamp(),
                             block.siblingHashesIfUseful()));
                     log.info("Recovered pending block #{}", block.number());
                 } catch (Exception e) {
@@ -655,8 +620,10 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                     blockNumber,
                     null,
                     finalBlockRootHash,
+                    lastBlockHash,
                     blockProofBuilder,
                     writer,
+                    blockTimestamp,
                     rootAndSiblingHashes.siblingHashes()));
 
             // Update in-memory state to prepare for the next block
@@ -669,12 +636,22 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             if (hintsEnabled && roundNum == freezeRoundNumber) {
                 final var hasPrecedingUnproven = new AtomicBoolean(false);
                 // In case the id of the next hinTS construction changed since a block ended
-                pendingBlocks.forEach(block -> block.flushPending(hasPrecedingUnproven.getAndSet(true)));
+                pendingBlocks.forEach(block -> {
+                    final var pendingProof = block.asPendingProof(hasPrecedingUnproven.getAndSet(true));
+                    writer.flushPendingBlock(pendingProof);
+                });
             } else {
                 final var attempt = blockHashSigner.sign(finalBlockRootHash);
                 attempt.signatureFuture().thenAcceptAsync(signature -> {
-                    finishProofWithSignature(
-                            finalBlockRootHash, signature, attempt.verificationKey(), attempt.chainOfTrustProof());
+                    if (signature == null || Objects.equals(signature, Bytes.EMPTY)) {
+                        log.debug(
+                                "Signature future completed with empty signature for block num {}, final block hash {}",
+                                blockNumber,
+                                finalBlockRootHash);
+                    } else {
+                        finishProofWithSignature(
+                                finalBlockRootHash, signature, attempt.verificationKey(), attempt.chainOfTrustProof());
+                    }
                     if (quiescenceEnabled) {
                         final var lastCommand = lastQuiescenceCommand.get();
                         final var commandNow = quiescenceController.getQuiescenceStatus();
@@ -774,7 +751,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
      * Synchronized to ensure that block proofs are always written in order, even in edge cases where multiple
      * pending block proofs become available at the same time.
      *
-     * @param blockHash the block hash to finish the block proof for
+     * @param blockHash the block hash of the latest signed block. May be for a block later than the one being proven.
      * @param blockSignature the signature to use in the block proof
      * @param verificationKey if hinTS is enabled, the verification key to use in the block proof
      * @param chainOfTrustProof if history proofs are enabled, the chain of trust proof to use in the block proof
@@ -784,20 +761,13 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             @NonNull final Bytes blockSignature,
             @Nullable final Bytes verificationKey,
             @Nullable final ChainOfTrustProof chainOfTrustProof) {
-        // Find the block whose hash is the signed message, tracking any sibling hashes
-        // needed for indirect proofs of earlier blocks along the way
+        // Find the block whose hash is the signed message
         long blockNumber = Long.MIN_VALUE;
-        boolean impliesIndirectProof = false;
-        final List<List<MerkleSiblingHash>> siblingHashes = new ArrayList<>();
         for (final var block : pendingBlocks) {
-            if (impliesIndirectProof) {
-                siblingHashes.add(List.of(block.siblingHashes()));
-            }
             if (block.blockHash().equals(blockHash)) {
                 blockNumber = block.number();
                 break;
             }
-            impliesIndirectProof = true;
         }
         if (blockNumber == Long.MIN_VALUE) {
             log.debug("Ignoring signature on already proven block hash '{}'", blockHash);
@@ -807,23 +777,21 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         final var latestSignedBlockProof =
                 TssSignedBlockProof.newBuilder().blockSignature(blockSignature).build();
         while (!pendingBlocks.isEmpty() && pendingBlocks.peek().number() <= blockNumber) {
-            final var block = pendingBlocks.poll();
+            final var currentPendingBlock = pendingBlocks.poll();
             final BlockProof.Builder proof;
-            if (block.number() == blockNumber) {
-                // This must a TssSignedBlockProof since there's a block signature
-                proof = block.proofBuilder().signedBlockProof(latestSignedBlockProof);
+            if (currentPendingBlock.number() == blockNumber) {
+                // Block signatures on the current block will always produce a TssSignedBlockProof
+                proof = currentPendingBlock.proofBuilder().signedBlockProof(latestSignedBlockProof);
             } else {
-                // This is an indirect proof, thereby requiring a certain number of sibling hashes
-
-                // (FUTURE) Replace this static indirect proof with the correct three Merkle paths required for a state
-                // proof to the current block's previous block hash subroot
-                proof = block.proofBuilder()
-                        .blockStateProof(StateProof.newBuilder()
-                                .paths(MerklePath.newBuilder().build())
-                                .signedBlockProof(latestSignedBlockProof)
-                                .build())
-                        .siblingHashes(
-                                siblingHashes.stream().flatMap(List::stream).toList());
+                // This is a pending block whose block number precedes the signed block number, so we construct an
+                // indirect state proof
+                final var stateProof = stateProofGenerator.generateStateProof(
+                        currentPendingBlock,
+                        blockNumber,
+                        blockSignature,
+                        // Pass the remaining pending blocks, but don't remove them from the queue
+                        pendingBlocks.stream());
+                proof = currentPendingBlock.proofBuilder().blockStateProof(stateProof);
 
                 // Update the metrics
                 indirectProofCounter.increment();
@@ -836,17 +804,14 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                 }
             }
             final var proofItem = BlockItem.newBuilder().blockProof(proof).build();
-            block.writer().writePbjItemAndBytes(proofItem, BlockItem.PROTOBUF.toBytes(proofItem));
-            block.writer().closeCompleteBlock();
+            currentPendingBlock.writer().writePbjItemAndBytes(proofItem, BlockItem.PROTOBUF.toBytes(proofItem));
+            currentPendingBlock.writer().closeCompleteBlock();
             // Only report signatures to the quiescence controller if they were created in-memory first
-            if (quiescenceEnabled && block.contentsPath() == null) {
-                quiescenceController.blockFullySigned(block.number());
+            if (quiescenceEnabled && currentPendingBlock.contentsPath() == null) {
+                quiescenceController.blockFullySigned(currentPendingBlock.number());
             }
-            if (block.number() != blockNumber) {
-                siblingHashes.removeFirst();
-            }
-            if (block.contentsPath() != null) {
-                cleanUpPendingBlock(block.contentsPath());
+            if (currentPendingBlock.contentsPath() != null) {
+                cleanUpPendingBlock(currentPendingBlock.contentsPath());
             }
         }
     }

@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.blocks.impl;
 
+import static com.hedera.node.app.blocks.BlockStreamManager.ZERO_BLOCK_HASH;
+
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.security.MessageDigest;
 import java.util.LinkedList;
@@ -61,7 +63,7 @@ public class IncrementalStreamingHasher {
      */
     public byte[] computeRootHash() {
         if (hashList.isEmpty()) {
-            return Bytes.EMPTY.toByteArray();
+            return ZERO_BLOCK_HASH.toByteArray();
         }
         if (hashList.size() == 1) {
             return hashList.getFirst();
