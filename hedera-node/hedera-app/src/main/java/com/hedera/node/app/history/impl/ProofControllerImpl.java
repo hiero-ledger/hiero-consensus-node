@@ -3,15 +3,12 @@ package com.hedera.node.app.history.impl;
 
 import static com.hedera.hapi.util.HapiUtils.asInstant;
 import static com.hedera.node.app.history.impl.WrapsController.State.FINISHED;
-import static com.hedera.node.app.history.impl.WrapsController.State.RUNNING;
 import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.groupingBy;
 import static java.util.stream.Collectors.summingLong;
 import static java.util.stream.Collectors.toMap;
 
 import com.hedera.hapi.block.stream.ChainOfTrustProof;
-import com.hedera.hapi.block.stream.NodeSignature;
-import com.hedera.hapi.block.stream.NodeSignatures;
 import com.hedera.hapi.node.state.history.History;
 import com.hedera.hapi.node.state.history.HistoryProof;
 import com.hedera.hapi.node.state.history.HistoryProofConstruction;
@@ -206,84 +203,33 @@ public class ProofControllerImpl implements ProofController {
         }
         targetMetadata = metadata;
         if (targetMetadata == null) {
+            // Still waiting for the hinTS verification key
             if (isActive) {
                 ensureProofKeyPublished();
             }
         } else if (construction.hasAssemblyStartTime()) {
-            // We never start an assembly without creating its WRAPS controller
+            // Ready to assemble the WRAPS proof inputs when they are available
             requireNonNull(wrapsController);
             final var wrapsState = wrapsController.advanceProtocol(now);
-            boolean stillCollectingSignatures = true;
-            final long elapsedSeconds = Math.max(
-                    1,
-                    now.getEpochSecond()
-                            - construction.assemblyStartTimeOrThrow().seconds());
-            if (elapsedSeconds % INSUFFICIENT_SIGNATURES_CHECK_RETRY_SECS == 0) {
-                stillCollectingSignatures = couldStillGetSufficientSignatures();
-            }
-            if (wrapsState == FINISHED && isActive) {
-                if (!votes.containsKey(selfId) && proofFuture == null) {
-                    // The aggregate signature and signers mask are the witnesses to the SNARK prover algorithm
-                    final var wrapsResult = wrapsController.resultOrThrow();
-                    final var choice = requireNonNull(firstSufficientSignatures());
-                    // These are the witnesses for the SNARK prover algorithm
-                    final var signatures = verificationFutures.headMap(choice.cutoff(), true).values().stream()
-                            .map(CompletableFuture::join)
-                            .filter(v -> choice.history().equals(v.history()) && v.isValid())
-                            .collect(toMap(
-                                    Verification::nodeId,
-                                    v -> v.historySignature().signature(),
-                                    (a, b) -> a,
-                                    TreeMap::new));
-                    // We only use recursive proofs after the ledger id is known and proved via list-of-signatures
-                    if (ledgerId != null && wrapsEnabled) {
-                        if (RUNNING_PROOF_FUTURE != null && !RUNNING_PROOF_FUTURE.isDone()) {
-                            log.warn(
-                                    "Proof future for construction #{} must wait until previous finished",
-                                    construction.constructionId());
-                        }
-                        proofFuture = Optional.ofNullable(RUNNING_PROOF_FUTURE)
-                                .orElse(CompletableFuture.completedFuture(null))
-                                .thenCompose(ignore -> startRecursiveProofFuture(wrapsResult));
-                        log.info("Created proof future for construction #{}", construction.constructionId());
-                    } else {
-                        // Convert the ordered set of signatures into a list-of-signatures proof
-                        final var chainOfTrustProof = ChainOfTrustProof.newBuilder()
-                                .nodeSignatures(new NodeSignatures(signatures.entrySet().stream()
-                                        .map(e -> new NodeSignature(e.getKey(), e.getValue()))
-                                        .toList()))
-                                .build();
-                        // Note the proof keys are frozen at this time (can only be updated before assembly start)
-                        final var targetHash = HistoryLibrary.computeHash(
-                                library,
-                                weights.targetNodeIds(),
-                                weights::targetWeightOf,
-                                id -> targetProofKeys.getOrDefault(id, EMPTY_PUBLIC_KEY));
-                        // Build the history proof
-                        final var proof = HistoryProof.newBuilder()
-                                .targetProofKeys(proofKeyListFrom(targetProofKeys))
-                                .targetHistory(new History(targetHash, requireNonNull(targetMetadata)))
-                                .chainOfTrustProof(chainOfTrustProof)
-                                .build();
-                        // And synchronously write it to state (either block zero proof or WRAPS disabled)
-                        finishProof(historyStore, proof);
-                    }
+            if (wrapsState == FINISHED && isActive && !votes.containsKey(selfId) && proofFuture == null) {
+                // The aggregate signature and signers mask are the witnesses to the SNARK prover algorithm
+                final var wrapsResult = wrapsController.resultOrThrow();
+                if (RUNNING_PROOF_FUTURE != null && !RUNNING_PROOF_FUTURE.isDone()) {
+                    log.warn(
+                            "Proof future for construction #{} must wait until previous finished",
+                            construction.constructionId());
                 }
-            } else if (!stillCollectingSignatures) {
-                log.info(
-                        "Failed construction #{} due to {}",
-                        construction.constructionId(),
-                        INSUFFICIENT_SIGNATURES_FAILURE_REASON);
-                construction = historyStore.failForReason(
-                        construction.constructionId(), INSUFFICIENT_SIGNATURES_FAILURE_REASON);
+                proofFuture = Optional.ofNullable(RUNNING_PROOF_FUTURE)
+                        .orElse(CompletableFuture.completedFuture(null))
+                        .thenCompose(ignore -> startRecursiveProofFuture(wrapsResult));
+                log.info("Created proof future for construction #{}", construction.constructionId());
             }
         } else {
+            // Making sure everyone has published their proof keys before starting WRAPS
             if (shouldAssemble(now)) {
                 log.info("Assembly start time for construction #{} is {}", construction.constructionId(), now);
                 construction = historyStore.setAssemblyTime(construction.constructionId(), now);
-                if (isActive) {
-                    signingFuture = startSigningFuture();
-                }
+                wrapsController = wrapsControllerFactory.create(weights.targetNodeWeights(), targetProofKeys, now);
             } else if (isActive) {
                 ensureProofKeyPublished();
             }
@@ -524,7 +470,7 @@ public class ProofControllerImpl implements ProofController {
                                     sourceProofKeysArray,
                                     targetWeights,
                                     targetProofKeysArray,
-                                    new byte[][] { {} },
+                                    new byte[][] {{}},
                                     targetMetadataHash);
                             log.info("Finished recursive chain-of-trust proof for construction #{}", inProgressId);
                             final var chainOfTrustProof = ChainOfTrustProof.newBuilder()
