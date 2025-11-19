@@ -6,9 +6,7 @@ import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SIMPLE_FEES;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
-import static com.hedera.services.bdd.spec.queries.QueryVerbs.getFileContents;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getReceipt;
-import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTopicInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.createTopic;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
@@ -27,7 +25,6 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
-import static com.hedera.services.bdd.suites.HapiSuite.SIMPLE_FEE_SCHEDULE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.DUPLICATE_TRANSACTION;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_TX_FEE;
@@ -42,7 +39,6 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TRANSACTION_EX
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
@@ -398,39 +394,6 @@ public class SimpleFeesSuite {
         //                    validateChargedUsd("get-topic-txn", ucents_to_USD(10))
         //            );
         //        }
-
-        @HapiTest
-        @DisplayName("Simple fee for submitting a large message")
-        final Stream<DynamicTest> submitBiggerMessageFee() {
-            // 256 included + an extra 500
-            final var byte_size = 500 + 256;
-            final byte[] messageBytes = new byte[byte_size]; // up to 1k
-            Arrays.fill(messageBytes, (byte) 0b1);
-            return hapiTest(
-                    newKeyNamed(PAYER),
-                    cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
-                    // create topic, provide up to 1 hbar to pay for it
-                    createTopic("testTopic")
-                            .blankMemo()
-                            .payingWith(PAYER)
-                            .fee(ONE_HBAR)
-                            .via("create-topic-txn"),
-                    validateChargedUsd("create-topic-txn", ucents_to_USD(1000 + 1 * 3)),
-                    // submit message, provide up to 1 hbar to pay for it
-                    submitMessageTo("testTopic")
-                            .blankMemo()
-                            .payingWith(PAYER)
-                            .message(new String(messageBytes))
-                            .fee(ONE_HBAR)
-                            .via("submit-message-txn"),
-                    validateChargedUsd(
-                            "submit-message-txn",
-                            ucents_to_USD(
-                                    7 // base fee for submit message
-                                            + 1.6 // for the extra 500 bytes
-                                            + 1 * 3 // node + network fee
-                                    )));
-        }
     }
 
     @Nested

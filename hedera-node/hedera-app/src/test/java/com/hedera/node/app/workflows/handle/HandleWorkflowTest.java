@@ -32,7 +32,7 @@ import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.hints.HintsService;
 import com.hedera.node.app.history.HistoryService;
 import com.hedera.node.app.quiescence.QuiescenceController;
-import com.hedera.node.app.records.BlockRecordManager;
+import com.hedera.node.app.records.impl.BlockRecordManagerImpl;
 import com.hedera.node.app.service.schedule.ScheduleService;
 import com.hedera.node.app.service.token.impl.handlers.staking.StakeInfoHelper;
 import com.hedera.node.app.service.token.impl.handlers.staking.StakePeriodManager;
@@ -110,7 +110,7 @@ class HandleWorkflowTest {
     private ConfigProvider configProvider;
 
     @Mock
-    private BlockRecordManager blockRecordManager;
+    private BlockRecordManagerImpl blockRecordManager;
 
     @Mock
     private BlockStreamManager blockStreamManager;
