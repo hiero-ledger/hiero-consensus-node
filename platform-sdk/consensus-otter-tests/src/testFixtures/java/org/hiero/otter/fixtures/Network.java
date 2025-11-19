@@ -16,10 +16,14 @@ import java.util.Set;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.otter.fixtures.internal.helpers.Utils;
+import org.hiero.otter.fixtures.network.BandwidthLimit;
+import org.hiero.otter.fixtures.network.BidirectionalConnection;
+import org.hiero.otter.fixtures.network.LatencyRange;
 import org.hiero.otter.fixtures.network.Partition;
 import org.hiero.otter.fixtures.network.Topology;
-import org.hiero.otter.fixtures.network.utils.BandwidthLimit;
-import org.hiero.otter.fixtures.network.utils.LatencyRange;
+import org.hiero.otter.fixtures.network.Topology.ConnectionState;
+import org.hiero.otter.fixtures.network.UnidirectionalConnection;
+import org.hiero.otter.fixtures.network.transactions.OtterTransaction;
 import org.hiero.otter.fixtures.result.MultipleNodeConsensusResults;
 import org.hiero.otter.fixtures.result.MultipleNodeEventStreamResults;
 import org.hiero.otter.fixtures.result.MultipleNodeLogResults;
@@ -32,7 +36,6 @@ import org.hiero.otter.fixtures.result.MultipleNodeReconnectResults;
  *
  * <p>This interface provides methods to add and remove nodes, start the network, and add instrumented nodes.
  */
-@SuppressWarnings("unused")
 public interface Network extends Configurable<Network> {
 
     /**
@@ -160,6 +163,40 @@ public interface Network extends Configurable<Network> {
     void sendQuiescenceCommand(@NonNull QuiescenceCommand command);
 
     /**
+     * Returns a {@link BidirectionalConnection} between two nodes in the network which can be used to modify the
+     * properties of a single connection. All properties and methods of the returned object are
+     * applied in both directions.
+     *
+     * @param node1 the first node
+     * @param node2 the second node
+     * @return the bidirectional connection between the two nodes
+     */
+    @NonNull
+    BidirectionalConnection bidirectionalConnection(@NonNull Node node1, @NonNull Node node2);
+
+    /**
+     * Returns a {@link UnidirectionalConnection} from one node to another in the network which can
+     * be used to modify the properties of a single connection. All properties and methods of the
+     * returned object are applied in the specified direction only.
+     *
+     * @param sender the source node
+     * @param receiver the destination node
+     * @return the unidirectional connection from {@code sender} to {@code receiver}
+     */
+    @NonNull
+    UnidirectionalConnection unidirectionalConnection(@NonNull Node sender, @NonNull Node receiver);
+
+    /**
+     * Returns the current connection state between two nodes in the network after all modifications
+     * (partitions, latencies, bandwidth limits, etc.) have been applied.
+     *
+     * @param sender the source node
+     * @param receiver the destination node
+     * @return the current {@link ConnectionState}
+     */
+    ConnectionState connectionState(@NonNull Node sender, @NonNull Node receiver);
+
+    /**
      * Creates a network partition containing the specified nodes. Nodes within the partition remain connected to each
      * other, but are disconnected from all nodes outside the partition.
      *
@@ -256,12 +293,26 @@ public interface Network extends Configurable<Network> {
     void setLatencyForAllConnections(@NonNull Node node, @NonNull LatencyRange latencyRange);
 
     /**
+     * Restores the default latency for all connections from this node. The default is determined by the topology.
+     *
+     * @param node the node for which to remove custom latencies
+     */
+    void restoreLatencyForAllConnections(@NonNull Node node);
+
+    /**
      * Sets the bandwidth limit for all connections from and to this node.
      *
      * @param node the node for which to set the bandwidth limit
      * @param bandwidthLimit the bandwidth limit to apply to all connections
      */
     void setBandwidthForAllConnections(@NonNull Node node, @NonNull BandwidthLimit bandwidthLimit);
+
+    /**
+     * Restores the default bandwidth limit for all connections from this node. The default is determined by the topology.
+     *
+     * @param node the node for which to remove bandwidth limits
+     */
+    void restoreBandwidthLimitsForAllConnections(@NonNull Node node);
 
     /**
      * Restore the network connectivity to its original/default state. Removes all partitions, cliques, and custom
@@ -280,6 +331,22 @@ public interface Network extends Configurable<Network> {
      * {@code FREEZE_COMPLETE} state. The default can be overridden by calling {@link #withTimeout(Duration)}.
      */
     void freeze();
+
+    /**
+     * Submits a single transaction to the first active node found in the network.
+     *
+     * @param transaction the transaction to submit
+     */
+    default void submitTransaction(@NonNull final OtterTransaction transaction) {
+        submitTransactions(List.of(transaction));
+    }
+
+    /**
+     * Submits the transactions to the first active node found in the network.
+     *
+     * @param transactions the transactions to submit
+     */
+    void submitTransactions(@NonNull List<OtterTransaction> transactions);
 
     /**
      * Triggers a catastrophic ISS. All nodes in the network will calculate different hashes for an upcoming round.

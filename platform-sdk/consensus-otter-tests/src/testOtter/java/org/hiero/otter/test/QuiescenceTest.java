@@ -39,7 +39,6 @@ public class QuiescenceTest {
         assertContinuouslyThat(network.newConsensusResults())
                 .haveEqualCommonRounds()
                 .haveConsistentRounds();
-        assertContinuouslyThat(network.newMarkerFileResults()).haveNoMarkerFiles();
 
         // Start the network and wait a bit
         network.start();

@@ -118,6 +118,7 @@ import java.util.Spliterators;
 import java.util.function.Function;
 import java.util.stream.StreamSupport;
 import org.apache.tuweni.bytes.Bytes32;
+import org.hiero.consensus.crypto.SigningSchema;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.roster.AddressBook;
 import org.hyperledger.besu.evm.EVM;
@@ -605,7 +606,8 @@ public class TransactionExecutorsTest {
             final KeyPair rsaKeyPair1 = rsaKeyGen.generateKeyPair();
 
             final String name = "CN=Bob";
-            return CryptoStatic.generateCertificate(name, rsaKeyPair1, name, rsaKeyPair1, secureRandom);
+            return CryptoStatic.generateCertificate(
+                    name, rsaKeyPair1, name, rsaKeyPair1, secureRandom, SigningSchema.RSA.getSigningAlgorithm());
         } catch (Exception e) {
             throw new RuntimeException(e);
         }

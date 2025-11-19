@@ -25,14 +25,15 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.hiero.base.crypto.internal.DetRandomProvider;
+import org.hiero.consensus.crypto.SigningSchema;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.Node;
-import org.hiero.otter.fixtures.OtterSpecs;
 import org.hiero.otter.fixtures.OtterTest;
 import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
+import org.hiero.otter.fixtures.specs.OtterSpecs;
 import org.hiero.otter.fixtures.util.OtterSavedStateUtils;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -127,7 +128,8 @@ public class StartFromStateTest {
         final SecureRandom secureRandom = DetRandomProvider.getDetRandom();
         secureRandom.setSeed(new byte[] {1, 2, 3});
         for (final Node node : network.nodes()) {
-            node.keysAndCerts(KeysAndCertsGenerator.generate(node.selfId(), secureRandom, secureRandom));
+            node.keysAndCerts(
+                    KeysAndCertsGenerator.generate(node.selfId(), SigningSchema.RSA, secureRandom, secureRandom));
         }
 
         // Setup continuous assertions

@@ -6,9 +6,9 @@ import static com.hedera.services.bdd.junit.hedera.ExternalPath.DATA_CONFIG_DIR;
 import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.utilops.BlockNodeVerbs.blockNode;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertBlockNodeCommsLogContains;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertBlockNodeCommsLogContainsText;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertBlockNodeCommsLogContainsTimeframe;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertBlockNodeCommsLogDoesNotContain;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertBlockNodeCommsLogDoesNotContainText;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitForActive;
@@ -48,8 +48,6 @@ import org.junit.jupiter.api.Tag;
 @Tag(BLOCK_NODE)
 @OrderedInIsolation
 public class BlockNodeSuite {
-
-    private static final int BLOCK_TTL_MINUTES = 2;
     private static final int BLOCK_PERIOD_SECONDS = 2;
 
     @HapiTest
@@ -88,7 +86,8 @@ public class BlockNodeSuite {
                     // Create a new block-nodes.json file at runtime with localhost and the correct port
                     final var node0Port = spec.getBlockNodePortById(0);
                     final List<com.hedera.node.internal.network.BlockNodeConfig> blockNodes = new ArrayList<>();
-                    blockNodes.add(new com.hedera.node.internal.network.BlockNodeConfig("localhost", node0Port, 0));
+                    blockNodes.add(new com.hedera.node.internal.network.BlockNodeConfig(
+                            "localhost", node0Port, 0, null, null));
                     final BlockNodeConnectionInfo connectionInfo = new BlockNodeConnectionInfo(blockNodes);
                     try {
                         // Write the config to this consensus node's block-nodes.json
@@ -116,7 +115,8 @@ public class BlockNodeSuite {
                 // Update block-nodes.json to have an invalid entry
                 doingContextual((spec) -> {
                     final List<com.hedera.node.internal.network.BlockNodeConfig> blockNodes = new ArrayList<>();
-                    blockNodes.add(new com.hedera.node.internal.network.BlockNodeConfig("26dsfg2364", 1234, 0));
+                    blockNodes.add(
+                            new com.hedera.node.internal.network.BlockNodeConfig("26dsfg2364", 1234, 0, null, null));
                     final BlockNodeConnectionInfo connectionInfo = new BlockNodeConnectionInfo(blockNodes);
                     try {
                         // Write the config to this consensus node's block-nodes.json
@@ -196,7 +196,8 @@ public class BlockNodeSuite {
                     // Create a new block-nodes.json file at runtime with localhost and the correct port
                     final var node0Port = spec.getBlockNodePortById(0);
                     final List<com.hedera.node.internal.network.BlockNodeConfig> blockNodes = new ArrayList<>();
-                    blockNodes.add(new com.hedera.node.internal.network.BlockNodeConfig("localhost", node0Port, 0));
+                    blockNodes.add(new com.hedera.node.internal.network.BlockNodeConfig(
+                            "localhost", node0Port, 0, null, null));
                     final BlockNodeConnectionInfo connectionInfo = new BlockNodeConnectionInfo(blockNodes);
                     try {
                         // Write the config to this consensus node's block-nodes.json
@@ -238,7 +239,7 @@ public class BlockNodeSuite {
                         String.format(
                                 "Active block node connection updated to: localhost:%s", portNumbers.getFirst()))),
                 waitUntilNextBlocks(10).withBackgroundTraffic(true),
-                assertBlockNodeCommsLogDoesNotContain(byNodeId(0), "ERROR", Duration.ofSeconds(5)));
+                assertBlockNodeCommsLogDoesNotContainText(byNodeId(0), "ERROR", Duration.ofSeconds(5)));
     }
 
     @HapiTest
@@ -433,6 +434,12 @@ public class BlockNodeSuite {
                         String.format(
                                 "/localhost:%s/ACTIVE] Connection state transitioned from PENDING to ACTIVE.",
                                 portNumbers.get(1)),
+                        String.format(
+                                "/localhost:%s/ACTIVE] Connection will be closed at the next block boundary",
+                                portNumbers.get(3)),
+                        String.format(
+                                "/localhost:%s/ACTIVE] Block boundary reached; closing connection (finished sending block)",
+                                portNumbers.get(3)),
                         String.format("/localhost:%s/CLOSING] Closing connection.", portNumbers.get(3)),
                         String.format(
                                 "/localhost:%s/CLOSING] Connection state transitioned from ACTIVE to CLOSING.",
@@ -496,10 +503,16 @@ public class BlockNodeSuite {
                         blockNodeIds = {0, 1},
                         blockNodePriorities = {0, 1},
                         applicationPropertiesOverrides = {
-                            "blockStream.buffer.blockTtl", "1m",
-                            "blockNode.forcedSwitchRescheduleDelay", "30s",
-                            "blockStream.streamMode", "BLOCKS",
-                            "blockStream.writerMode", "FILE_AND_GRPC"
+                            "blockStream.buffer.maxBlocks",
+                            "30",
+                            "blockStream.blockPeriod",
+                            BLOCK_PERIOD_SECONDS + "s",
+                            "blockStream.streamMode",
+                            "BLOCKS",
+                            "blockStream.writerMode",
+                            "FILE_AND_GRPC",
+                            "blockNode.forcedSwitchRescheduleDelay",
+                            "30s"
                         })
             })
     @Order(6)
@@ -642,7 +655,7 @@ public class BlockNodeSuite {
                         "Running connection task.",
                         "Connection state transitioned from UNINITIALIZED to PENDING.",
                         "Connection state transitioned from PENDING to ACTIVE.")),
-                assertBlockNodeCommsLogDoesNotContain(byNodeId(0), "ERROR", Duration.ofSeconds(5)));
+                assertBlockNodeCommsLogDoesNotContainText(byNodeId(0), "ERROR", Duration.ofSeconds(5)));
     }
 
     @HapiTest
@@ -657,7 +670,7 @@ public class BlockNodeSuite {
                         applicationPropertiesOverrides = {
                             "blockStream.streamMode", "BLOCKS",
                             "blockStream.writerMode", "FILE_AND_GRPC",
-                            "blockStream.buffer.blockTtl", BLOCK_TTL_MINUTES + "m",
+                            "blockStream.buffer.maxBlocks", "60",
                             "blockStream.buffer.isBufferPersistenceEnabled", "true",
                             "blockStream.blockPeriod", BLOCK_PERIOD_SECONDS + "s",
                             "blockNode.streamResetPeriod", "20s",
@@ -675,10 +688,9 @@ public class BlockNodeSuite {
         7. Wait for the blocks to be acked and the consensus node recovers
          */
         final AtomicReference<Instant> timeRef = new AtomicReference<>();
-        final Duration blockTtl = Duration.ofMinutes(BLOCK_TTL_MINUTES);
-        final Duration blockPeriod = Duration.ofSeconds(BLOCK_PERIOD_SECONDS);
-        final int maxBufferSize = (int) blockTtl.dividedBy(blockPeriod);
+        final int maxBufferSize = 60;
         final int halfBufferSize = Math.max(1, maxBufferSize / 2);
+        final Duration duration = Duration.ofSeconds(maxBufferSize * BLOCK_PERIOD_SECONDS);
 
         return hapiTest(
                 // create some blocks to establish a baseline
@@ -692,8 +704,8 @@ public class BlockNodeSuite {
                         spec -> assertBlockNodeCommsLogContainsTimeframe(
                                 byNodeId(0),
                                 timeRef::get,
-                                blockTtl,
-                                blockTtl,
+                                duration,
+                                duration,
                                 "Attempting to forcefully switch block node connections due to increasing block buffer saturation")),
                 doingContextual(spec -> timeRef.set(Instant.now())),
                 // restart the consensus node
@@ -928,118 +940,118 @@ public class BlockNodeSuite {
                 waitUntilNextBlocks(blocksToWait).withBackgroundTraffic(true),
 
                 // General error assertions
-                assertBlockNodeCommsLogDoesNotContain(byNodeId(0), "ERROR", Duration.ofSeconds(5)),
+                assertBlockNodeCommsLogDoesNotContainText(byNodeId(0), "ERROR", Duration.ofSeconds(5)),
 
                 // Block node connection error assertions
-                assertBlockNodeCommsLogDoesNotContain(byNodeId(0), "Error received", Duration.ofSeconds(0)),
-                assertBlockNodeCommsLogDoesNotContain(
+                assertBlockNodeCommsLogDoesNotContainText(byNodeId(0), "Error received", Duration.ofSeconds(0)),
+                assertBlockNodeCommsLogDoesNotContainText(
                         byNodeId(0), "Exception caught in block stream worker loop", Duration.ofSeconds(0)),
-                assertBlockNodeCommsLogDoesNotContain(
+                assertBlockNodeCommsLogDoesNotContainText(
                         byNodeId(0), "UncheckedIOException caught in block stream worker loop", Duration.ofSeconds(0)),
-                assertBlockNodeCommsLogDoesNotContain(
+                assertBlockNodeCommsLogDoesNotContainText(
                         byNodeId(0), "Failed to establish connection to block node", Duration.ofSeconds(0)),
-                assertBlockNodeCommsLogDoesNotContain(
+                assertBlockNodeCommsLogDoesNotContainText(
                         byNodeId(0), "Failed to schedule connection task for block node", Duration.ofSeconds(0)),
-                assertBlockNodeCommsLogDoesNotContain(
+                assertBlockNodeCommsLogDoesNotContainText(
                         byNodeId(0), "Failed to reschedule connection attempt", Duration.ofSeconds(0)),
-                assertBlockNodeCommsLogDoesNotContain(
+                assertBlockNodeCommsLogDoesNotContainText(
                         byNodeId(0),
                         "Closing and rescheduling connection for reconnect attempt",
                         Duration.ofSeconds(0)),
-                assertBlockNodeCommsLogDoesNotContain(
+                assertBlockNodeCommsLogDoesNotContainText(
                         byNodeId(0), "No available block nodes found for streaming", Duration.ofSeconds(0)),
 
                 // EndOfStream error assertions
-                assertBlockNodeCommsLogDoesNotContain(
+                assertBlockNodeCommsLogDoesNotContainText(
                         byNodeId(0), "Block node reported an error at block", Duration.ofSeconds(0)),
-                assertBlockNodeCommsLogDoesNotContain(
+                assertBlockNodeCommsLogDoesNotContainText(
                         byNodeId(0), "Block node reported an unknown error at block", Duration.ofSeconds(0)),
-                assertBlockNodeCommsLogDoesNotContain(
+                assertBlockNodeCommsLogDoesNotContainText(
                         byNodeId(0),
                         "Block node has exceeded the allowed number of EndOfStream responses",
                         Duration.ofSeconds(0)),
-                assertBlockNodeCommsLogDoesNotContain(
+                assertBlockNodeCommsLogDoesNotContainText(
                         byNodeId(0),
                         "Block node reported status indicating immediate restart should be attempted",
                         Duration.ofSeconds(0)),
-                assertBlockNodeCommsLogDoesNotContain(
+                assertBlockNodeCommsLogDoesNotContainText(
                         byNodeId(0), "Block node reported it is behind", Duration.ofSeconds(0)),
-                assertBlockNodeCommsLogDoesNotContain(
+                assertBlockNodeCommsLogDoesNotContainText(
                         byNodeId(0), "Block node is behind and block state is not available", Duration.ofSeconds(0)),
-                assertBlockNodeCommsLogDoesNotContain(
+                assertBlockNodeCommsLogDoesNotContainText(
                         byNodeId(0), "Received EndOfStream response", Duration.ofSeconds(0)),
-                assertBlockNodeCommsLogDoesNotContain(byNodeId(0), "Sending EndStream (code=", Duration.ofSeconds(0)),
+                assertBlockNodeCommsLogDoesNotContainText(
+                        byNodeId(0), "Sending EndStream (code=", Duration.ofSeconds(0)),
 
                 // Connection state transition error assertions
-                assertBlockNodeCommsLogDoesNotContain(byNodeId(0), "Handling failed stream", Duration.ofSeconds(0)),
-                assertBlockNodeCommsLogDoesNotContain(
+                assertBlockNodeCommsLogDoesNotContainText(byNodeId(0), "Handling failed stream", Duration.ofSeconds(0)),
+                assertBlockNodeCommsLogDoesNotContainText(
                         byNodeId(0), "Failed to transition state from ", Duration.ofSeconds(0)),
-                assertBlockNodeCommsLogDoesNotContain(
+                assertBlockNodeCommsLogDoesNotContainText(
                         byNodeId(0), "Stream completed unexpectedly", Duration.ofSeconds(0)),
-                assertBlockNodeCommsLogDoesNotContain(
+                assertBlockNodeCommsLogDoesNotContainText(
                         byNodeId(0), "Error while completing request pipeline", Duration.ofSeconds(0)),
-                assertBlockNodeCommsLogDoesNotContain(
+                assertBlockNodeCommsLogDoesNotContainText(
                         byNodeId(0), "onNext invoked but connection is already closed", Duration.ofSeconds(0)),
-                assertBlockNodeCommsLogDoesNotContain(
+                assertBlockNodeCommsLogDoesNotContainText(
                         byNodeId(0),
                         "Cannot run connection task, connection manager has shutdown.",
                         Duration.ofSeconds(0)),
-                assertBlockNodeCommsLogDoesNotContain(
+                assertBlockNodeCommsLogDoesNotContainText(
                         byNodeId(0), "onComplete invoked but connection is already closed", Duration.ofSeconds(0)),
-                assertBlockNodeCommsLogDoesNotContain(
+                assertBlockNodeCommsLogDoesNotContainText(
                         byNodeId(0), "Error occurred while attempting to close connection", Duration.ofSeconds(0)),
-                assertBlockNodeCommsLogDoesNotContain(
+                assertBlockNodeCommsLogDoesNotContainText(
                         byNodeId(0), "Unexpected response received", Duration.ofSeconds(0)),
-                assertBlockNodeCommsLogDoesNotContain(
+                assertBlockNodeCommsLogDoesNotContainText(
                         byNodeId(0), "Failed to shutdown current active connection", Duration.ofSeconds(0)),
 
                 // Block buffer saturation and backpressure assertions
-                assertBlockNodeCommsLogDoesNotContain(
+                assertBlockNodeCommsLogDoesNotContainText(
                         byNodeId(0), "Block buffer is saturated; backpressure is being enabled", Duration.ofSeconds(0)),
-                assertBlockNodeCommsLogDoesNotContain(
+                assertBlockNodeCommsLogDoesNotContainText(
                         byNodeId(0),
                         "!!! Block buffer is saturated; blocking thread until buffer is no longer saturated",
                         Duration.ofSeconds(0)),
-                assertBlockNodeCommsLogDoesNotContain(
+                assertBlockNodeCommsLogDoesNotContainText(
                         byNodeId(0), "Block buffer still not available to accept new blocks", Duration.ofSeconds(0)),
-                assertBlockNodeCommsLogDoesNotContain(
+                assertBlockNodeCommsLogDoesNotContainText(
                         byNodeId(0),
                         "Attempting to forcefully switch block node connections due to increasing block buffer saturation",
                         Duration.ofSeconds(0)),
-                assertBlockNodeCommsLogDoesNotContain(
+                assertBlockNodeCommsLogDoesNotContainText(
                         byNodeId(0),
                         "Buffer saturation is below or equal to the recovery threshold; back pressure will be disabled.",
                         Duration.ofSeconds(0)),
-                assertBlockNodeCommsLogDoesNotContain(
+                assertBlockNodeCommsLogDoesNotContainText(
                         byNodeId(0),
                         "Attempted to disable back pressure, but buffer saturation is not less than or equal to recovery threshold",
                         Duration.ofSeconds(0)),
 
                 // Block processing error assertions
-                assertBlockNodeCommsLogDoesNotContain(
+                assertBlockNodeCommsLogDoesNotContainText(
                         byNodeId(0), " not found in buffer (latestBlock=", Duration.ofSeconds(0)),
-                assertBlockNodeCommsLogDoesNotContain(
+                assertBlockNodeCommsLogDoesNotContainText(
                         byNodeId(0), "Received SkipBlock response for block ", Duration.ofSeconds(0)),
-                assertBlockNodeCommsLogDoesNotContain(
+                assertBlockNodeCommsLogDoesNotContainText(
                         byNodeId(0), "Received ResendBlock response for block ", Duration.ofSeconds(0)),
-                assertBlockNodeCommsLogDoesNotContain(
+                assertBlockNodeCommsLogDoesNotContainText(
                         byNodeId(0),
                         "that block does not exist on this consensus node. Closing connection and will retry later.",
                         Duration.ofSeconds(0)),
 
                 // Configuration and setup error assertions
-                assertBlockNodeCommsLogDoesNotContain(byNodeId(0), "streaming is not enabled", Duration.ofSeconds(0)),
-                assertBlockNodeCommsLogDoesNotContain(
+                assertBlockNodeCommsLogDoesNotContainText(
+                        byNodeId(0), "streaming is not enabled", Duration.ofSeconds(0)),
+                assertBlockNodeCommsLogDoesNotContainText(
                         byNodeId(0), "Failed to read block node configuration from", Duration.ofSeconds(0)),
-                assertBlockNodeCommsLogDoesNotContain(
+                assertBlockNodeCommsLogDoesNotContainText(
                         byNodeId(0), "Failed to resolve block node host", Duration.ofSeconds(0)),
 
                 // High latency assertions
-                assertBlockNodeCommsLogDoesNotContain(
+                assertBlockNodeCommsLogDoesNotContainText(
                         byNodeId(0), "Block node has exceeded high latency threshold", Duration.ofSeconds(0)),
-                assertBlockNodeCommsLogContains(
-                        byNodeId(0),
-                        "Sending ad hoc request to block node (type=END_OF_BLOCK)",
-                        Duration.ofSeconds(0)));
+                assertBlockNodeCommsLogContainsText(
+                        byNodeId(0), "Sending request to block node (type=END_OF_BLOCK)", Duration.ofSeconds(0)));
     }
 }

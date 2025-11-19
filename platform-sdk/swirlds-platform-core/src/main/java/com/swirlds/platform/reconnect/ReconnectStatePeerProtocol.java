@@ -21,10 +21,10 @@ import com.swirlds.platform.network.Connection;
 import com.swirlds.platform.network.NetworkProtocolException;
 import com.swirlds.platform.network.protocol.PeerProtocol;
 import com.swirlds.platform.network.protocol.ReservedSignedStateResultPromise;
-import com.swirlds.platform.state.SwirldStateManager;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.state.MerkleNodeState;
+import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
@@ -82,7 +82,7 @@ public class ReconnectStatePeerProtocol implements PeerProtocol {
     private final Time time;
     private final PlatformContext platformContext;
     private final ReservedSignedStateResultPromise reservedSignedStateResultPromise;
-    private final SwirldStateManager swirldStateManager;
+    private final StateLifecycleManager stateLifecycleManager;
     private final Function<VirtualMap, MerkleNodeState> createStateFromVirtualMap;
 
     /**
@@ -112,7 +112,7 @@ public class ReconnectStatePeerProtocol implements PeerProtocol {
             @NonNull final Time time,
             @NonNull final PlatformStateFacade platformStateFacade,
             @NonNull final ReservedSignedStateResultPromise reservedSignedStateResultPromise,
-            @NonNull final SwirldStateManager swirldStateManager,
+            @NonNull final StateLifecycleManager stateLifecycleManager,
             @NonNull final Function<VirtualMap, MerkleNodeState> createStateFromVirtualMap) {
 
         this.platformContext = Objects.requireNonNull(platformContext);
@@ -126,7 +126,7 @@ public class ReconnectStatePeerProtocol implements PeerProtocol {
         this.platformStatusSupplier = Objects.requireNonNull(platformStatusSupplier);
         this.platformStateFacade = Objects.requireNonNull(platformStateFacade);
         this.reservedSignedStateResultPromise = Objects.requireNonNull(reservedSignedStateResultPromise);
-        this.swirldStateManager = Objects.requireNonNull(swirldStateManager);
+        this.stateLifecycleManager = Objects.requireNonNull(stateLifecycleManager);
         this.createStateFromVirtualMap = Objects.requireNonNull(createStateFromVirtualMap);
         Objects.requireNonNull(time);
 
@@ -311,7 +311,7 @@ public class ReconnectStatePeerProtocol implements PeerProtocol {
     private void learner(final Connection connection) {
         try {
 
-            final MerkleNodeState consensusState = swirldStateManager.getConsensusState();
+            final MerkleNodeState consensusState = stateLifecycleManager.getMutableState();
             final ReconnectStateLearner learner = new ReconnectStateLearner(
                     platformContext,
                     threadManager,

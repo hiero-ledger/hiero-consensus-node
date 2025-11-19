@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.fees;
 
+import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CALL;
 import static com.hedera.hapi.node.base.HederaFunctionality.FREEZE;
 import static com.hedera.hapi.node.base.HederaFunctionality.GET_ACCOUNT_DETAILS;
+import static com.hedera.hapi.node.base.HederaFunctionality.LAMBDA_S_STORE;
 import static com.hedera.hapi.node.base.HederaFunctionality.NETWORK_GET_EXECUTION_TIME;
 import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_GET_ACCOUNT_NFT_INFOS;
 import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_GET_NFT_INFOS;
@@ -23,6 +25,9 @@ import com.hedera.hapi.node.base.TransactionFeeSchedule;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.fees.congestion.CongestionMultipliers;
 import com.hedera.node.app.spi.fees.FeeCalculator;
+import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
+import com.hedera.node.app.spi.fees.SimpleFeeCalculator;
+import com.hedera.node.app.spi.fees.SimpleFeeCalculatorImpl;
 import com.hedera.node.app.store.ReadableStoreFactory;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -51,6 +56,11 @@ import org.apache.logging.log4j.Logger;
 public final class FeeManager {
     private static final Logger logger = LogManager.getLogger(FeeManager.class);
     private org.hiero.hapi.support.fees.FeeSchedule simpleFeesSchedule;
+
+    @Nullable
+    private SimpleFeeCalculator simpleFeeCalculator;
+
+    private final Set<ServiceFeeCalculator> serviceFeeCalculators;
 
     private record Entry(HederaFunctionality function, SubType subType) {}
 
@@ -90,9 +100,11 @@ public final class FeeManager {
     @Inject
     public FeeManager(
             @NonNull final ExchangeRateManager exchangeRateManager,
-            @NonNull CongestionMultipliers congestionMultipliers) {
+            @NonNull CongestionMultipliers congestionMultipliers,
+            @NonNull Set<ServiceFeeCalculator> serviceFeeCalculators) {
         this.exchangeRateManager = requireNonNull(exchangeRateManager);
         this.congestionMultipliers = requireNonNull(congestionMultipliers);
+        this.serviceFeeCalculators = requireNonNull(serviceFeeCalculators);
     }
 
     /**
@@ -173,6 +185,7 @@ public final class FeeManager {
                     org.hiero.hapi.support.fees.FeeSchedule.PROTOBUF.parse(bytes);
             if (isValid(schedule)) {
                 this.simpleFeesSchedule = schedule;
+                this.simpleFeeCalculator = new SimpleFeeCalculatorImpl(schedule, serviceFeeCalculators);
                 return SUCCESS;
             } else {
                 logger.warn("Unable to validate fee schedule.");
@@ -190,7 +203,7 @@ public final class FeeManager {
     public FeeCalculator createFeeCalculator(
             @Nullable final TransactionBody txBody,
             @Nullable final Key payerKey,
-            @Nullable final HederaFunctionality functionality,
+            @Nullable HederaFunctionality functionality,
             final int numVerifications,
             final int signatureMapSize,
             @NonNull final Instant consensusTime,
@@ -201,6 +214,9 @@ public final class FeeManager {
         if (txBody == null || payerKey == null || functionality == null) {
             return NoOpFeeCalculator.INSTANCE;
         }
+
+        // LambdaSStore is charged based on the equivalent gas cost in an EVM transaction, so it inherits EthTx prices
+        functionality = functionality == LAMBDA_S_STORE ? CONTRACT_CALL : functionality;
 
         // Determine which fee schedule to use, based on the consensus time
         // If it is not known, that is, if we have no fee data for that transaction, then we MUST NOT execute that
@@ -294,5 +310,10 @@ public final class FeeManager {
                         t.hederaFunctionality());
             }
         });
+    }
+
+    @Nullable
+    public SimpleFeeCalculator getSimpleFeeCalculator() {
+        return simpleFeeCalculator;
     }
 }

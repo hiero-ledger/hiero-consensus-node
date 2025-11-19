@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.junit.support.translators.inputs;
 
-import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CALL;
+import static com.hedera.hapi.node.base.HederaFunctionality.CONTRACT_CREATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_TRANSFER;
+import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.block.stream.output.StateChange;
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.HookEntityId;
 import com.hedera.hapi.node.base.HookId;
@@ -19,6 +21,8 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
@@ -33,9 +37,11 @@ public record BlockTransactionalUnit(
     /**
      * Returns all (possibly hook-scoped) trace data in this unit.
      */
-    public List<ScopedTraceData> allScopedTraces(final Map<Bytes, AccountID> autoCreations) {
+    public List<ScopedTraceData> allScopedTraces(@NonNull final Map<Bytes, AccountID> aliases) {
+        requireNonNull(aliases);
         final List<ScopedTraceData> scopedTraces = new ArrayList<>();
-        final List<HookId> execHookIds = allHookExecIds(autoCreations);
+        final var hookMetadata = maybeHookMetadata(aliases);
+        final List<HookId> execHookIds = hookMetadata == null ? null : hookMetadata.execHookIds();
         for (final var parts : blockTransactionParts) {
             if (!parts.hasTraces()) {
                 continue;
@@ -57,7 +63,8 @@ public record BlockTransactionalUnit(
     /**
      * If applicable to this unit, returns the hook execution ids for all hook executions in the unit.
      */
-    public @Nullable List<HookId> allHookExecIds(final Map<Bytes, AccountID> autoCreations) {
+    public @Nullable HookMetadata maybeHookMetadata(@NonNull final Map<Bytes, AccountID> aliases) {
+        requireNonNull(aliases);
         CryptoTransferTransactionBody op = null;
         int numHookDispatches = 0;
         for (final var parts : blockTransactionParts) {
@@ -68,7 +75,7 @@ public record BlockTransactionalUnit(
                     break;
                 }
             } else {
-                if (parts.functionality() == CONTRACT_CALL) {
+                if (parts.isHookCall()) {
                     numHookDispatches++;
                 }
             }
@@ -79,7 +86,7 @@ public record BlockTransactionalUnit(
             final List<HookId> allowPostExecHookIds = new ArrayList<>(numHookDispatches);
             for (final var aa : op.transfersOrElse(TransferList.DEFAULT).accountAmounts()) {
                 final var accountId = aa.accountIDOrThrow().hasAlias()
-                        ? autoCreations.get(aa.accountIDOrThrow().aliasOrThrow())
+                        ? aliases.get(aa.accountIDOrThrow().aliasOrThrow())
                         : aa.accountIDOrThrow();
                 if (aa.hasPreTxAllowanceHook()) {
                     allowExecHookIds.add(HookId.newBuilder()
@@ -98,7 +105,7 @@ public record BlockTransactionalUnit(
             for (final var ttl : op.tokenTransfers()) {
                 for (final var aa : ttl.transfers()) {
                     final var accountId = aa.accountIDOrThrow().hasAlias()
-                            ? autoCreations.get(aa.accountIDOrThrow().aliasOrThrow())
+                            ? aliases.get(aa.accountIDOrThrow().aliasOrThrow())
                             : aa.accountIDOrThrow();
                     if (aa.hasPreTxAllowanceHook()) {
                         allowExecHookIds.add(HookId.newBuilder()
@@ -116,7 +123,7 @@ public record BlockTransactionalUnit(
                 }
                 for (final NftTransfer nft : ttl.nftTransfers()) {
                     final var senderId = nft.senderAccountIDOrThrow().hasAlias()
-                            ? autoCreations.get(nft.senderAccountIDOrThrow().aliasOrThrow())
+                            ? aliases.get(nft.senderAccountIDOrThrow().aliasOrThrow())
                             : nft.senderAccountIDOrThrow();
                     if (nft.hasPreTxSenderAllowanceHook()) {
                         allowExecHookIds.add(HookId.newBuilder()
@@ -133,7 +140,7 @@ public record BlockTransactionalUnit(
                         allowPostExecHookIds.add(hookId);
                     }
                     final var receiverId = nft.receiverAccountIDOrThrow().hasAlias()
-                            ? autoCreations.get(nft.receiverAccountIDOrThrow().aliasOrThrow())
+                            ? aliases.get(nft.receiverAccountIDOrThrow().aliasOrThrow())
                             : nft.receiverAccountIDOrThrow();
                     if (nft.hasPreTxReceiverAllowanceHook()) {
                         allowExecHookIds.add(HookId.newBuilder()
@@ -155,7 +162,33 @@ public record BlockTransactionalUnit(
             execHookIds.addAll(allowExecHookIds);
             execHookIds.addAll(allowPreExecHookIds);
             execHookIds.addAll(allowPostExecHookIds);
-            return execHookIds.subList(0, numHookDispatches);
+
+            final Map<HookId, List<List<ContractID>>> hookCreations = new HashMap<>();
+            final Iterator<HookId> iter = execHookIds.iterator();
+            HookId executingHookId = null;
+            List<ContractID> createdThisExecution = null;
+            for (final var parts : blockTransactionParts) {
+                if (parts.isHookCall()) {
+                    if (executingHookId != null) {
+                        hookCreations
+                                .computeIfAbsent(executingHookId, k -> new ArrayList<>())
+                                .add(createdThisExecution);
+                    }
+                    executingHookId = iter.next();
+                    createdThisExecution = new ArrayList<>();
+                } else if (parts.functionality() == CONTRACT_CREATE) {
+                    requireNonNull(createdThisExecution)
+                            .add(parts.createContractOutputOrThrow()
+                                    .evmTransactionResultOrThrow()
+                                    .contractIdOrThrow());
+                }
+            }
+            if (executingHookId != null) {
+                hookCreations
+                        .computeIfAbsent(executingHookId, k -> new ArrayList<>())
+                        .add(createdThisExecution);
+            }
+            return new HookMetadata(execHookIds.subList(0, numHookDispatches), hookCreations);
         } else {
             return null;
         }

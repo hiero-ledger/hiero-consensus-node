@@ -13,6 +13,7 @@ module org.hiero.consensus.model {
     exports org.hiero.consensus.model.status;
     exports org.hiero.consensus.model.stream;
     exports org.hiero.consensus.model.transaction;
+    exports org.hiero.consensus.model.gossip;
 
     requires transitive com.hedera.node.hapi;
     requires transitive com.hedera.pbj.runtime;

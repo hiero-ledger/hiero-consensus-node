@@ -47,7 +47,7 @@ public class DefaultStateSigner implements StateSigner {
 
             final Hash stateHash =
                     Objects.requireNonNull(reservedSignedState.get().getState().getHash());
-            final Bytes signature = signer.signImmutable(stateHash);
+            final Bytes signature = signer.sign(stateHash.getBytes());
             Objects.requireNonNull(signature);
 
             return StateSignatureTransaction.newBuilder()

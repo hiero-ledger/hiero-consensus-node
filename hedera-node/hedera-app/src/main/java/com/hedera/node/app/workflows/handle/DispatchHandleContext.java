@@ -437,14 +437,15 @@ public class DispatchHandleContext implements HandleContext, FeeContext, FeeChar
             final var batchInnerTxnBytes = options.dispatchMetadata()
                     .getMetadata(INNER_TRANSACTION_BYTES, Bytes.class)
                     .orElseThrow();
-            childPreHandleResult = preHandleWorkflow.preHandleTransaction(
-                    creatorInfo,
-                    storeFactory.asReadOnly(),
-                    storeFactory.readableStore(ReadableAccountStore.class),
-                    batchInnerTxnBytes,
-                    maybeReusablePreHandleResult,
-                    (s, b) -> {},
-                    InnerTransaction.YES);
+            childPreHandleResult = requireNonNull(preHandleWorkflow)
+                    .preHandleTransaction(
+                            creatorInfo,
+                            storeFactory.asReadOnly(),
+                            storeFactory.readableStore(ReadableAccountStore.class),
+                            batchInnerTxnBytes,
+                            maybeReusablePreHandleResult,
+                            (s, b) -> {},
+                            InnerTransaction.YES);
         }
 
         final var childDispatch = childDispatchFactory.createChildDispatch(

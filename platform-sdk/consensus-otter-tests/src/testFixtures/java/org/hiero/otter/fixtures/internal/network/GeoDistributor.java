@@ -13,7 +13,7 @@ import java.util.TreeMap;
 import java.util.stream.Collectors;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.internal.network.GeoMeshTopologyImpl.Location;
-import org.hiero.otter.fixtures.network.utils.GeographicLatencyConfiguration;
+import org.hiero.otter.fixtures.network.GeographicLatencyConfiguration;
 
 /**
  * Utility class for distributing nodes geographically based on a target latency configuration.

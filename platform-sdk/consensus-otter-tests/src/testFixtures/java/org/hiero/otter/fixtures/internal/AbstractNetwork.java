@@ -56,7 +56,6 @@ import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.TransactionFactory;
 import org.hiero.otter.fixtures.TransactionGenerator;
-import org.hiero.otter.fixtures.app.OtterTransaction;
 import org.hiero.otter.fixtures.internal.helpers.Utils;
 import org.hiero.otter.fixtures.internal.network.ConnectionKey;
 import org.hiero.otter.fixtures.internal.network.GeoMeshTopologyImpl;
@@ -66,11 +65,14 @@ import org.hiero.otter.fixtures.internal.result.MultipleNodeLogResultsImpl;
 import org.hiero.otter.fixtures.internal.result.MultipleNodePcesResultsImpl;
 import org.hiero.otter.fixtures.internal.result.MultipleNodePlatformStatusResultsImpl;
 import org.hiero.otter.fixtures.internal.result.MultipleNodeReconnectResultsImpl;
+import org.hiero.otter.fixtures.network.BandwidthLimit;
+import org.hiero.otter.fixtures.network.BidirectionalConnection;
+import org.hiero.otter.fixtures.network.LatencyRange;
 import org.hiero.otter.fixtures.network.Partition;
 import org.hiero.otter.fixtures.network.Topology;
-import org.hiero.otter.fixtures.network.Topology.ConnectionData;
-import org.hiero.otter.fixtures.network.utils.BandwidthLimit;
-import org.hiero.otter.fixtures.network.utils.LatencyRange;
+import org.hiero.otter.fixtures.network.Topology.ConnectionState;
+import org.hiero.otter.fixtures.network.UnidirectionalConnection;
+import org.hiero.otter.fixtures.network.transactions.OtterTransaction;
 import org.hiero.otter.fixtures.result.MultipleNodeConsensusResults;
 import org.hiero.otter.fixtures.result.MultipleNodeEventStreamResults;
 import org.hiero.otter.fixtures.result.MultipleNodeLogResults;
@@ -120,6 +122,7 @@ public abstract class AbstractNetwork implements Network {
 
     private final Random random;
     private final Map<NodeId, PartitionImpl> networkPartitions = new HashMap<>();
+    private final Map<ConnectionKey, Boolean> connected = new HashMap<>();
     private final Map<ConnectionKey, LatencyOverride> latencyOverrides = new HashMap<>();
     private final Map<ConnectionKey, BandwidthLimit> bandwidthOverrides = new HashMap<>();
     private final Topology topology;
@@ -369,6 +372,51 @@ public abstract class AbstractNetwork implements Network {
      */
     @Override
     @NonNull
+    public BidirectionalConnection bidirectionalConnection(@NonNull final Node node1, @NonNull final Node node2) {
+        return new BidirectionalConnectionImpl(
+                unidirectionalConnection(node1, node2), unidirectionalConnection(node2, node1));
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    public UnidirectionalConnection unidirectionalConnection(@NonNull final Node sender, @NonNull final Node receiver) {
+        return new UnidirectionalConnectionImpl(sender, receiver);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    public ConnectionState connectionState(@NonNull final Node sender, @NonNull final Node receiver) {
+        final ConnectionKey key = new ConnectionKey(sender.selfId(), receiver.selfId());
+        ConnectionState connectionState = topology().getConnectionData(sender, receiver);
+        if (getNetworkPartitionContaining(sender) != getNetworkPartitionContaining(receiver)) {
+            connectionState = connectionState.withConnected(false);
+        }
+        final Boolean isConnected = connected.get(key);
+        if (isConnected != null) {
+            connectionState = connectionState.withConnected(isConnected);
+        }
+        final LatencyOverride latencyOverride = latencyOverrides.get(key);
+        if (latencyOverride != null) {
+            connectionState = connectionState.withLatencyAndJitter(latencyOverride.latency(), latencyOverride.jitter());
+        }
+        final BandwidthLimit bandwidthOverride = bandwidthOverrides.get(key);
+        if (bandwidthOverride != null) {
+            connectionState = connectionState.withBandwidthLimit(bandwidthOverride);
+        }
+        return connectionState;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
     public Partition createNetworkPartition(@NonNull final Collection<Node> partitionNodes) {
         log.info("Creating network partition...");
         if (partitionNodes.isEmpty()) {
@@ -476,12 +524,27 @@ public abstract class AbstractNetwork implements Network {
      * {@inheritDoc}
      */
     @Override
-    public void setLatencyForAllConnections(@NonNull final Node sender, @NonNull final LatencyRange latencyRange) {
-        log.info("Setting latency for all connections from node {} to range {}", sender.selfId(), latencyRange);
-        for (final Node receiver : nodes()) {
-            if (!receiver.equals(sender)) {
-                setLatencyRange(sender, receiver, latencyRange);
-                setLatencyRange(receiver, sender, latencyRange);
+    public void setLatencyForAllConnections(@NonNull final Node node, @NonNull final LatencyRange latencyRange) {
+        log.info("Setting latency for all connections from node {} to range {}", node.selfId(), latencyRange);
+        for (final Node otherNode : nodes()) {
+            if (!node.equals(otherNode)) {
+                setLatencyRange(node, otherNode, latencyRange);
+                setLatencyRange(otherNode, node, latencyRange);
+            }
+        }
+        updateConnections();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void restoreLatencyForAllConnections(@NonNull final Node node) {
+        log.info("Restoring latency for all connections from node {}", node);
+        for (final Node otherNode : nodes()) {
+            if (!node.equals(otherNode)) {
+                latencyOverrides.remove(new ConnectionKey(node.selfId(), otherNode.selfId()));
+                latencyOverrides.remove(new ConnectionKey(otherNode.selfId(), node.selfId()));
             }
         }
         updateConnections();
@@ -502,13 +565,24 @@ public abstract class AbstractNetwork implements Network {
      * {@inheritDoc}
      */
     @Override
-    public void setBandwidthForAllConnections(
-            @NonNull final Node sender, @NonNull final BandwidthLimit bandwidthLimit) {
-        log.info("Setting bandwidth for all connections from node {} to {}", sender.selfId(), bandwidthLimit);
-        for (final Node receiver : nodes()) {
-            if (!receiver.equals(sender)) {
-                bandwidthOverrides.put(new ConnectionKey(sender.selfId(), receiver.selfId()), bandwidthLimit);
-                bandwidthOverrides.put(new ConnectionKey(receiver.selfId(), sender.selfId()), bandwidthLimit);
+    public void setBandwidthForAllConnections(@NonNull final Node node, @NonNull final BandwidthLimit bandwidthLimit) {
+        log.info("Setting bandwidth for all connections from node {} to {}", node.selfId(), bandwidthLimit);
+        for (final Node otherNode : nodes()) {
+            if (!node.equals(otherNode)) {
+                bandwidthOverrides.put(new ConnectionKey(node.selfId(), otherNode.selfId()), bandwidthLimit);
+                bandwidthOverrides.put(new ConnectionKey(otherNode.selfId(), node.selfId()), bandwidthLimit);
+            }
+        }
+        updateConnections();
+    }
+
+    @Override
+    public void restoreBandwidthLimitsForAllConnections(@NonNull final Node node) {
+        log.info("Restoring bandwidth for all connections from node {}", node);
+        for (final Node otherNode : nodes()) {
+            if (!node.equals(otherNode)) {
+                bandwidthOverrides.remove(new ConnectionKey(node.selfId(), otherNode.selfId()));
+                bandwidthOverrides.remove(new ConnectionKey(otherNode.selfId(), node.selfId()));
             }
         }
         updateConnections();
@@ -596,17 +670,15 @@ public abstract class AbstractNetwork implements Network {
     }
 
     /**
-     * Submits the transaction to the first active node found in the network.
-     *
-     * @param transaction the transaction to submit
+     * {@inheritDoc}
      */
-    private void submitTransaction(@NonNull final OtterTransaction transaction) {
+    public void submitTransactions(@NonNull final List<OtterTransaction> transactions) {
         nodes().stream()
                 .filter(Node::isActive)
                 .findFirst()
                 .map(node -> (AbstractNode) node)
                 .orElseThrow(() -> new AssertionError("No active node found to send transaction to."))
-                .submitTransaction(transaction);
+                .submitTransactions(transactions);
     }
 
     /**
@@ -684,7 +756,8 @@ public abstract class AbstractNetwork implements Network {
      * {@inheritDoc}
      */
     @Override
-    public @NotNull Network withConfigValue(@NotNull final String key, final double value) {
+    @NonNull
+    public Network withConfigValue(@NonNull final String key, final double value) {
         throwIfInLifecycle(Lifecycle.RUNNING, "Configuration modification is not allowed when the network is running.");
         networkConfiguration.withConfigValue(key, value);
         nodes().forEach(node -> node.configuration().withConfigValue(key, value));
@@ -695,7 +768,8 @@ public abstract class AbstractNetwork implements Network {
      * {@inheritDoc}
      */
     @Override
-    public @NotNull Network withConfigValue(@NotNull final String key, @NotNull final Enum<?> value) {
+    @NonNull
+    public Network withConfigValue(@NonNull final String key, @NonNull final Enum<?> value) {
         throwIfInLifecycle(Lifecycle.RUNNING, "Configuration modification is not allowed when the network is running.");
         networkConfiguration.withConfigValue(key, value);
         nodes().forEach(node -> node.configuration().withConfigValue(key, value));
@@ -706,7 +780,8 @@ public abstract class AbstractNetwork implements Network {
      * {@inheritDoc}
      */
     @Override
-    public @NotNull Network withConfigValue(@NotNull final String key, final List<String> values) {
+    @NonNull
+    public Network withConfigValue(@NonNull final String key, @NonNull final List<String> values) {
         throwIfInLifecycle(Lifecycle.RUNNING, "Configuration modification is not allowed when the network is running.");
         networkConfiguration.withConfigValue(key, values);
         nodes().forEach(node -> node.configuration().withConfigValue(key, values));
@@ -717,8 +792,8 @@ public abstract class AbstractNetwork implements Network {
      * {@inheritDoc}
      */
     @Override
-    public @NotNull Network withConfigValue(
-            @NotNull final String key, @NotNull final TaskSchedulerConfiguration value) {
+    @NonNull
+    public Network withConfigValue(@NonNull final String key, @NonNull final TaskSchedulerConfiguration value) {
         throwIfInLifecycle(Lifecycle.RUNNING, "Configuration modification is not allowed when the network is running.");
         networkConfiguration.withConfigValue(key, value);
         nodes().forEach(node -> node.configuration().withConfigValue(key, value));
@@ -931,28 +1006,15 @@ public abstract class AbstractNetwork implements Network {
     }
 
     private void updateConnections() {
-        final Map<ConnectionKey, ConnectionData> connections = new HashMap<>();
+        final Map<ConnectionKey, ConnectionState> connections = new HashMap<>();
         for (final Node sender : nodes()) {
             for (final Node receiver : nodes()) {
                 if (sender.selfId().equals(receiver.selfId())) {
                     continue; // Skip self-connections
                 }
                 final ConnectionKey key = new ConnectionKey(sender.selfId(), receiver.selfId());
-                ConnectionData connectionData = topology().getConnectionData(sender, receiver);
-                if (getNetworkPartitionContaining(sender) != getNetworkPartitionContaining(receiver)) {
-                    connectionData = connectionData.withConnected(false);
-                }
-                final LatencyOverride latencyOverride = latencyOverrides.get(key);
-                if (latencyOverride != null) {
-                    connectionData =
-                            connectionData.withLatencyAndJitter(latencyOverride.latency(), latencyOverride.jitter());
-                }
-                final BandwidthLimit bandwidthOverride = bandwidthOverrides.get(key);
-                if (bandwidthOverride != null) {
-                    connectionData = connectionData.withBandwidthLimit(bandwidthOverride);
-                }
-                // add other effects (e.g., clique, latency) on connections here
-                connections.put(key, connectionData);
+                final ConnectionState connectionState = connectionState(sender, receiver);
+                connections.put(key, connectionState);
             }
         }
         onConnectionsChanged(connections);
@@ -966,7 +1028,7 @@ public abstract class AbstractNetwork implements Network {
      *
      * @param connections a map of connections representing the current state of the network
      */
-    protected abstract void onConnectionsChanged(@NonNull final Map<ConnectionKey, ConnectionData> connections);
+    protected abstract void onConnectionsChanged(@NonNull final Map<ConnectionKey, ConnectionState> connections);
 
     /**
      * Default implementation of {@link AsyncNetworkActions}
@@ -1068,6 +1130,151 @@ public abstract class AbstractNetwork implements Network {
          */
         public int size() {
             return nodes.size();
+        }
+    }
+
+    /**
+     * Implementation of the UnidirectionalConnection interface.
+     */
+    private class UnidirectionalConnectionImpl implements UnidirectionalConnection {
+
+        private final Node sender;
+        private final Node receiver;
+        private final ConnectionKey connectionKey;
+
+        /**
+         * Constructs a UnidirectionalConnectionImpl with the specified start and end nodes and a supplier for base connection data.
+         *
+         * @param sender         the starting node of the connection
+         * @param receiver           the ending node of the connection
+         * @throws NullPointerException if any of the parameters are null
+         */
+        public UnidirectionalConnectionImpl(@NonNull final Node sender, @NonNull final Node receiver) {
+            this.sender = requireNonNull(sender);
+            this.receiver = requireNonNull(receiver);
+            this.connectionKey = new ConnectionKey(sender.selfId(), receiver.selfId());
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        @NonNull
+        public Node sender() {
+            return sender;
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        @NonNull
+        public Node receiver() {
+            return receiver;
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public void disconnect() {
+            connected.put(connectionKey, false);
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public void connect() {
+            connected.put(connectionKey, true);
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public boolean isConnected() {
+            return connectionState(sender, receiver).connected();
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public void restoreConnectivity() {
+            connected.remove(connectionKey);
+            restoreLatency();
+            restoreBandwidthLimit();
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        @NonNull
+        public Duration latency() {
+            return connectionState(sender, receiver).latency();
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public void latency(@NonNull final Duration latency) {
+            requireNonNull(latency);
+            latencyOverrides.put(connectionKey, new LatencyOverride(latency, jitter()));
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        @NonNull
+        public Percentage jitter() {
+            return connectionState(sender, receiver).jitter();
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public void jitter(@NonNull final Percentage jitter) {
+            requireNonNull(jitter);
+            latencyOverrides.put(connectionKey, new LatencyOverride(latency(), jitter));
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public void restoreLatency() {
+            latencyOverrides.remove(connectionKey);
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        @NonNull
+        public BandwidthLimit bandwidthLimit() {
+            return connectionState(sender, receiver).bandwidthLimit();
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public void bandwidthLimit(@NonNull final BandwidthLimit bandwidthLimit) {
+            requireNonNull(bandwidthLimit);
+            bandwidthOverrides.put(connectionKey, bandwidthLimit);
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public void restoreBandwidthLimit() {
+            bandwidthOverrides.remove(connectionKey);
         }
     }
 

@@ -18,6 +18,9 @@ import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.state.snapshot.DeserializedSignedState;
 import com.swirlds.platform.state.snapshot.SignedStateFileWriter;
 import com.swirlds.state.MerkleNodeState;
+import com.swirlds.state.StateLifecycleManager;
+import com.swirlds.state.merkle.StateLifecycleManagerImpl;
+import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.spi.CommittableWritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
@@ -149,9 +152,18 @@ public class BlockStreamRecoveryWorkflow {
                 false,
                 DEFAULT_PLATFORM_STATE_FACADE);
 
+        final StateLifecycleManager stateLifecycleManager = new StateLifecycleManagerImpl(
+                platformContext.getMetrics(),
+                platformContext.getTime(),
+                vm -> new VirtualMapState(vm, platformContext.getMetrics()));
         try {
             SignedStateFileWriter.writeSignedStateFilesToDirectory(
-                    platformContext, selfId, outputPath, signedState, DEFAULT_PLATFORM_STATE_FACADE);
+                    platformContext,
+                    selfId,
+                    outputPath,
+                    signedState,
+                    DEFAULT_PLATFORM_STATE_FACADE,
+                    stateLifecycleManager);
         } catch (IOException e) {
             throw new RuntimeException(e);
         }

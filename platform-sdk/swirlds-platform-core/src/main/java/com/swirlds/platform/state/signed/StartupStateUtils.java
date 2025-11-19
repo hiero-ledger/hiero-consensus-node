@@ -5,7 +5,7 @@ import static com.swirlds.common.merkle.utility.MerkleUtils.rehashTree;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static com.swirlds.platform.state.signed.ReservedSignedState.createNullReservation;
-import static com.swirlds.platform.state.snapshot.SignedStateFileReader.readStateFile;
+import static com.swirlds.platform.state.snapshot.SignedStateFileReader.readState;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.SemanticVersion;
@@ -204,17 +204,17 @@ public final class StartupStateUtils {
     /**
      * Log the states that were discovered on disk.
      *
-     * @param savedStateFiles the states that were discovered on disk
+     * @param savedStateInfoList the states that were discovered on disk
      */
-    private static void logStatesFound(@NonNull final List<SavedStateInfo> savedStateFiles) {
-        if (savedStateFiles.isEmpty()) {
+    private static void logStatesFound(@NonNull final List<SavedStateInfo> savedStateInfoList) {
+        if (savedStateInfoList.isEmpty()) {
             logger.info(STARTUP.getMarker(), "No saved states were found on disk.");
             return;
         }
         final StringBuilder sb = new StringBuilder();
         sb.append("The following saved states were found on disk:");
-        for (final SavedStateInfo savedStateFile : savedStateFiles) {
-            sb.append("\n  - ").append(savedStateFile.stateFile());
+        for (final SavedStateInfo savedStateInfo : savedStateInfoList) {
+            sb.append("\n  - ").append(savedStateInfo.stateDirectory());
         }
         logger.info(STARTUP.getMarker(), sb.toString());
     }
@@ -224,14 +224,14 @@ public final class StartupStateUtils {
      * state is found or there are no more states to try.
      *
      * @param currentSoftwareVersion the current software version
-     * @param savedStateFiles        the saved states to try
+     * @param savedStateList        the saved states to try
      * @param createStateFromVirtualMap a function to instantiate the state object from a Virtual Map
      * @return the loaded state
      */
     public static ReservedSignedState loadLatestState(
             @NonNull final RecycleBin recycleBin,
             @NonNull final SemanticVersion currentSoftwareVersion,
-            @NonNull final List<SavedStateInfo> savedStateFiles,
+            @NonNull final List<SavedStateInfo> savedStateList,
             @NonNull final Function<VirtualMap, MerkleNodeState> createStateFromVirtualMap,
             @NonNull final PlatformStateFacade platformStateFacade,
             @NonNull final PlatformContext platformContext)
@@ -239,11 +239,11 @@ public final class StartupStateUtils {
 
         logger.info(STARTUP.getMarker(), "Loading latest state from disk.");
 
-        for (final SavedStateInfo savedStateFile : savedStateFiles) {
+        for (final SavedStateInfo savedStateInfo : savedStateList) {
             final ReservedSignedState state = loadStateFile(
                     recycleBin,
                     currentSoftwareVersion,
-                    savedStateFile,
+                    savedStateInfo,
                     createStateFromVirtualMap,
                     platformStateFacade,
                     platformContext);
@@ -260,7 +260,7 @@ public final class StartupStateUtils {
      * Load the requested state from file. If state can not be loaded, recycle the file and return null.
      *
      * @param currentSoftwareVersion the current software version
-     * @param savedStateFile         the state to load
+     * @param savedStateInfo         the state to load
      * @param createStateFromVirtualMap a function to instantiate the state root object from a Virtual Map
      * @return the loaded state, or null if the state could not be loaded. Will be fully hashed if non-null.
      */
@@ -268,25 +268,25 @@ public final class StartupStateUtils {
     private static ReservedSignedState loadStateFile(
             @NonNull final RecycleBin recycleBin,
             @NonNull final SemanticVersion currentSoftwareVersion,
-            @NonNull final SavedStateInfo savedStateFile,
+            @NonNull final SavedStateInfo savedStateInfo,
             @NonNull final Function<VirtualMap, MerkleNodeState> createStateFromVirtualMap,
             @NonNull final PlatformStateFacade platformStateFacade,
             @NonNull final PlatformContext platformContext)
             throws SignedStateLoadingException {
 
-        logger.info(STARTUP.getMarker(), "Loading signed state from disk: {}", savedStateFile.stateFile());
+        logger.info(STARTUP.getMarker(), "Loading signed state from disk: {}", savedStateInfo.stateDirectory());
 
         final DeserializedSignedState deserializedSignedState;
         final Configuration configuration = platformContext.getConfiguration();
         try {
-            deserializedSignedState = readStateFile(
-                    savedStateFile.stateFile(), createStateFromVirtualMap, platformStateFacade, platformContext);
+            deserializedSignedState = readState(
+                    savedStateInfo.stateDirectory(), createStateFromVirtualMap, platformStateFacade, platformContext);
         } catch (final IOException e) {
-            logger.error(EXCEPTION.getMarker(), "unable to load state file {}", savedStateFile.stateFile(), e);
+            logger.error(EXCEPTION.getMarker(), "unable to load state file {}", savedStateInfo.stateDirectory(), e);
 
             final StateConfig stateConfig = configuration.getConfigData(StateConfig.class);
             if (stateConfig.deleteInvalidStateFiles()) {
-                recycleState(recycleBin, savedStateFile);
+                recycleState(recycleBin, savedStateInfo);
                 return null;
             } else {
                 throw new SignedStateLoadingException("unable to load state, this is unrecoverable");
@@ -306,18 +306,18 @@ public final class StartupStateUtils {
         } else if (HapiUtils.SEMANTIC_VERSION_COMPARATOR.compare(loadedVersion, currentSoftwareVersion) == 0) {
             logger.error(
                     EXCEPTION.getMarker(),
-                    "The saved state file {} was created with the current version of the software, "
+                    "The saved state {} was created with the current version of the software, "
                             + "but the state hash has changed. Unless the state was intentionally modified, "
                             + "this is a good indicator that there is probably a bug.",
-                    savedStateFile.stateFile());
+                    savedStateInfo.stateDirectory());
         } else {
             logger.warn(
                     STARTUP.getMarker(),
-                    "The saved state file {} was created with version {}, which is different than the "
+                    "The saved state {} was created with version {}, which is different than the "
                             + "current version {}. The hash of the loaded state is different than the hash of the "
                             + "state when it was first created, which is not abnormal if there have been data "
                             + "migrations.",
-                    savedStateFile.stateFile(),
+                    savedStateInfo.stateDirectory(),
                     loadedVersion,
                     currentSoftwareVersion);
         }
@@ -332,9 +332,9 @@ public final class StartupStateUtils {
      * @param stateInfo  the state to recycle
      */
     private static void recycleState(@NonNull final RecycleBin recycleBin, @NonNull final SavedStateInfo stateInfo) {
-        logger.warn(STARTUP.getMarker(), "Moving state {} to the recycle bin.", stateInfo.stateFile());
+        logger.warn(STARTUP.getMarker(), "Moving state {} to the recycle bin.", stateInfo.stateDirectory());
         try {
-            recycleBin.recycle(stateInfo.getDirectory());
+            recycleBin.recycle(stateInfo.stateDirectory());
         } catch (final IOException e) {
             throw new UncheckedIOException("unable to recycle state", e);
         }
