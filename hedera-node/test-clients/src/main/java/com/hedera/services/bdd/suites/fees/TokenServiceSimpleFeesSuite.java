@@ -3,9 +3,11 @@ package com.hedera.services.bdd.suites.fees;
 
 import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SIMPLE_FEES;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.burnToken;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.mintToken;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenDelete;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.compareSimpleToOld;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_BILLION_HBARS;
@@ -16,7 +18,6 @@ import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
 import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
 
 import com.google.protobuf.ByteString;
-import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
 import java.util.Arrays;
@@ -62,7 +63,7 @@ public class TokenServiceSimpleFeesSuite {
                 1);
     }
 
-    @HapiTest
+    @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
     @DisplayName("compare create non-fungible token")
     final Stream<DynamicTest> compareCreateNonFungibleToken() {
         return compareSimpleToOld(
@@ -90,7 +91,7 @@ public class TokenServiceSimpleFeesSuite {
                 1);
     }
 
-    @HapiTest
+    @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
     @DisplayName("compare mint common token")
     final Stream<DynamicTest> compareMintCommonToken() {
         return compareSimpleToOld(
@@ -120,7 +121,7 @@ public class TokenServiceSimpleFeesSuite {
                 1);
     }
 
-    @HapiTest
+    @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
     @DisplayName("compare mint multiple common tokens")
     final Stream<DynamicTest> compareMintMultipleCommonToken() {
         return compareSimpleToOld(
@@ -150,7 +151,7 @@ public class TokenServiceSimpleFeesSuite {
                 1);
     }
 
-    @HapiTest
+    @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
     @DisplayName("compare mint a unique token")
     final Stream<DynamicTest> compareMintUniqueToken() {
         return compareSimpleToOld(
@@ -178,6 +179,68 @@ public class TokenServiceSimpleFeesSuite {
                 0.02,
                 1,
                 0.02,
+                1);
+    }
+
+    @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+    @DisplayName("compare burn a common token")
+    final Stream<DynamicTest> compareBurnToken() {
+        return compareSimpleToOld(
+                () -> Arrays.asList(
+                        newKeyNamed(SUPPLY_KEY),
+                        cryptoCreate(PAYER).balance(ONE_BILLION_HBARS).key(SUPPLY_KEY),
+                        tokenCreate(FUNGIBLE_TOKEN)
+                                .tokenType(FUNGIBLE_COMMON)
+                                .initialSupply(0L)
+                                .payingWith(PAYER)
+                                .supplyKey(SUPPLY_KEY)
+                                .fee(ONE_HUNDRED_HBARS)
+                                .hasKnownStatus(SUCCESS),
+                        mintToken(FUNGIBLE_TOKEN, 10)
+                                .payingWith(PAYER)
+                                .fee(ONE_HUNDRED_HBARS)
+                                .hasKnownStatus(SUCCESS),
+                        burnToken(FUNGIBLE_TOKEN, 10)
+                                .payingWith(PAYER)
+                                .hasKnownStatus(SUCCESS)
+                                .via("burn-token-txn")),
+                "burn-token-txn",
+                1,
+                1,
+                1,
+                1);
+    }
+
+    @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+    @DisplayName("compare delete a common token")
+    final Stream<DynamicTest> compareDeleteToken() {
+        return compareSimpleToOld(
+                () -> Arrays.asList(
+                        newKeyNamed(SUPPLY_KEY),
+                        cryptoCreate(ADMIN).balance(ONE_BILLION_HBARS),
+                        cryptoCreate(PAYER).balance(ONE_BILLION_HBARS).key(SUPPLY_KEY),
+                        tokenCreate(FUNGIBLE_TOKEN)
+                                .tokenType(FUNGIBLE_COMMON)
+                                .initialSupply(0L)
+                                .payingWith(PAYER)
+                                .adminKey(ADMIN)
+                                .supplyKey(SUPPLY_KEY)
+                                .fee(ONE_HUNDRED_HBARS)
+                                .hasKnownStatus(SUCCESS),
+                        mintToken(FUNGIBLE_TOKEN, 10)
+                                .payingWith(PAYER)
+                                .fee(ONE_HUNDRED_HBARS)
+                                .hasKnownStatus(SUCCESS),
+                        tokenDelete(FUNGIBLE_TOKEN)
+                                .purging()
+                                .payingWith(PAYER)
+                                .fee(ONE_HUNDRED_HBARS)
+                                .hasKnownStatus(SUCCESS)
+                                .via("delete-token-txn")),
+                "delete-token-txn",
+                1,
+                1,
+                1,
                 1);
     }
 }
