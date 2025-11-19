@@ -14,7 +14,7 @@ There are several test suites that are run in the CITR environment, each with it
 | SDLT        | Single Day Longevity Tests       | Longevity tests to ensure stability over extended periods                              | X         |
 | SDPT        | Single Day Performance Tests     | Performance-focused tests to evaluate system responsiveness                            | X         |
 | MDLT        | Multi Day Longevity Tests        | Extended longevity tests over multiple days                                            | X         |
-| MQLT        | Merge Queue Longevity Tests      | Combined performance, verification and longevity tests                                 | X         |
+| MQLT        | Merge Queue Longevity Tests      | Combined performance, verification and longevity tests for use in Merge Queues         | X         |
 | Shortgevity | Short Longevity Tests            | Short-term longevity tests for checking performance against a mainnet-like environment |           |
 
 ## MATS
