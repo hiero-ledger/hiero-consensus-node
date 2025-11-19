@@ -12,6 +12,7 @@ import static com.hedera.services.bdd.junit.hedera.ExternalPath.BLOCK_NODE_COMMS
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.ensureDir;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccount;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccountString;
+import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.TargetNetworkType.EMBEDDED_NETWORK;
 import static com.hedera.services.bdd.spec.assertions.ContractInfoAsserts.contractWith;
 import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
@@ -252,6 +253,7 @@ import org.hiero.base.utility.CommonUtils;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.DynamicTest;
 
 public class UtilVerbs {
     public static final int DEFAULT_COLLISION_AVOIDANCE_FACTOR = 2;
@@ -2094,6 +2096,40 @@ public class UtilVerbs {
                     actualFeeCharged,
                     String.format("%s fee (%s) is different than expected!", actualFeeCharged, txn));
         });
+    }
+
+    public static CustomSpecAssert validateChargedSimpleFees(
+            String name, String txn, double expectedUsd, double allowedPercentDiff) {
+        return assertionsHold((spec, assertLog) -> {
+            final var actualUsdCharged = getChargedUsed(spec, txn);
+            assertEquals(
+                    expectedUsd,
+                    actualUsdCharged,
+                    (allowedPercentDiff / 100.0) * expectedUsd,
+                    String.format(
+                            "%s: %s fee (%s) more than %.2f percent different than expected!",
+                            name, sdec(actualUsdCharged, 4), txn, allowedPercentDiff));
+        });
+    }
+
+    @FunctionalInterface
+    public interface OpsProvider {
+        List<SpecOperation> provide();
+    }
+
+    public static Stream<DynamicTest> compareSimpleToOld(
+            OpsProvider provider, String txName, double simpleFee, double simpleDiff, double oldFee, double oldDiff) {
+        List<SpecOperation> opsList = new ArrayList<>();
+
+        opsList.add(overriding("fees.simpleFeesEnabled", "true"));
+        opsList.addAll(provider.provide());
+        opsList.add(validateChargedSimpleFees("Simple Fees", txName, simpleFee, simpleDiff));
+
+        opsList.add(overriding("fees.simpleFeesEnabled", "false"));
+        opsList.addAll(provider.provide());
+        opsList.add(validateChargedSimpleFees("Old Fees", txName, oldFee, oldDiff));
+
+        return hapiTest(opsList.toArray(new SpecOperation[opsList.size()]));
     }
 
     public static CustomSpecAssert validateChargedUsdWithChild(

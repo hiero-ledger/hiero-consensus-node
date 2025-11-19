@@ -7,6 +7,7 @@ import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.getMet
 import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.initLogging;
 import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.setupGlobalMetrics;
 import static com.swirlds.platform.state.signed.StartupStateUtils.loadInitialState;
+import static org.hiero.otter.fixtures.app.OtterStateUtils.createGenesisState;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
@@ -32,6 +33,7 @@ import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
 import com.swirlds.platform.util.BootstrapUtils;
 import com.swirlds.platform.wiring.PlatformComponents;
 import com.swirlds.state.MerkleNodeState;
+import com.swirlds.state.merkle.VirtualMapState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.Random;
@@ -46,7 +48,6 @@ import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.roster.RosterUtils;
 import org.hiero.otter.fixtures.app.OtterApp;
-import org.hiero.otter.fixtures.app.OtterAppState;
 import org.hiero.otter.fixtures.app.OtterExecutionLayer;
 
 /**
@@ -121,14 +122,13 @@ public class ConsensusNodeManager {
         final HashedReservedSignedState reservedState = loadInitialState(
                 recycleBin,
                 version,
-                () -> OtterAppState.createGenesisState(
-                        platformConfig, metrics, time, activeRoster, version, otterApp.allServices()),
+                () -> createGenesisState(platformConfig, metrics, activeRoster, version, otterApp.allServices()),
                 OtterApp.APP_NAME,
                 OtterApp.SWIRLD_NAME,
                 selfId,
                 platformStateFacade,
                 platformContext,
-                virtualMap -> new OtterAppState(virtualMap, metrics, time));
+                virtualMap -> new VirtualMapState(virtualMap, metrics));
         final ReservedSignedState initialState = reservedState.state();
         final MerkleNodeState state = initialState.get().getState();
 
@@ -149,7 +149,7 @@ public class ConsensusNodeManager {
                         Long.toString(selfId.id()),
                         rosterHistory,
                         platformStateFacade,
-                        virtualMap -> new OtterAppState(virtualMap, metrics, time))
+                        virtualMap -> new VirtualMapState(virtualMap, metrics))
                 .withPlatformContext(platformContext)
                 .withConfiguration(platformConfig)
                 .withKeysAndCerts(keysAndCerts)
