@@ -369,9 +369,11 @@ public class HandleWorkflow {
                     stateSignatureTxnCallback.accept(scopedTxn);
                 }
 
-                final var txnItem =
-                        BlockItem.newBuilder().signedTransaction(bytes).build();
-                blockStreamManager.writeItem(txnItem);
+                if (streamMode != RECORDS) {
+                    final var txnItem =
+                            BlockItem.newBuilder().signedTransaction(bytes).build();
+                    blockStreamManager.writeItem(txnItem);
+                }
             };
 
             // log start of event to transaction state log
