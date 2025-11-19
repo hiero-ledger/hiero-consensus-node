@@ -84,13 +84,13 @@ public class ContractCallHandler extends AbstractContractTransactionHandler {
             if (op.contractID().hasEvmAddress()) {
                 final var evmAddress = op.contractID().evmAddressOrThrow();
                 validateTruePreCheck(evmAddress.length() == EVM_ADDRESS_LENGTH_AS_INT, INVALID_CONTRACT_ID);
-                // call to zero address means no sense, and we are not supporting it
+                // call to zero address make no sense, and we are not supporting it
                 validateFalsePreCheck(
                         Arrays.equals(ConstantUtils.ZERO_ADDRESS_BYTE_ARRAY, evmAddress.toByteArray()),
                         INVALID_CONTRACT_ID);
             } else if (op.contractID().hasContractNum()) {
                 final var contractId = op.contractID();
-                // call to zero address means no sense, and we are not supporting it
+                // call to zero address make no sense, and we are not supporting it
                 validateFalsePreCheck(ConstantUtils.ZERO_CONTRACT_ID.equals(contractId), INVALID_CONTRACT_ID);
             }
 
