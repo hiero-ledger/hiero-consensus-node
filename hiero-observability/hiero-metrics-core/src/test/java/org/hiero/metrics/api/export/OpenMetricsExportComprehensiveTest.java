@@ -4,7 +4,7 @@ package org.hiero.metrics.api.export;
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.IntSupplier;
-import org.hiero.metrics.TestExporterContext;
+import org.hiero.metrics.TestWriterContext;
 import org.hiero.metrics.api.BooleanGauge;
 import org.hiero.metrics.api.DoubleCounter;
 import org.hiero.metrics.api.DoubleGauge;
@@ -29,7 +29,7 @@ public class OpenMetricsExportComprehensiveTest {
 
     @Test
     void testEmptyMetrics() throws IOException {
-        TestExporterContext context = new TestExporterContext(OpenMetricsSnapshotsWriter.DEFAULT);
+        TestWriterContext context = new TestWriterContext(OpenMetricsSnapshotsWriter.DEFAULT);
         context.exportAndVerify("""
                 # EOF
                 """);
@@ -44,7 +44,7 @@ public class OpenMetricsExportComprehensiveTest {
     @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
     class BooleanGaugeTest {
 
-        private static final TestExporterContext context = new TestExporterContext(OpenMetricsSnapshotsWriter.DEFAULT);
+        private static final TestWriterContext context = new TestWriterContext(OpenMetricsSnapshotsWriter.DEFAULT);
 
         private static BooleanGauge onlyName;
         private static BooleanGauge nameAndCategory;
@@ -260,7 +260,7 @@ public class OpenMetricsExportComprehensiveTest {
     @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
     class DoubleCounterTest {
 
-        private static final TestExporterContext context = new TestExporterContext(OpenMetricsSnapshotsWriter.DEFAULT);
+        private static final TestWriterContext context = new TestWriterContext(OpenMetricsSnapshotsWriter.DEFAULT);
 
         private static DoubleCounter onlyName;
         private static DoubleCounter nameAndCategory;
@@ -472,7 +472,7 @@ public class OpenMetricsExportComprehensiveTest {
     @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
     class LongCounterTest {
 
-        private static final TestExporterContext context = new TestExporterContext(OpenMetricsSnapshotsWriter.DEFAULT);
+        private static final TestWriterContext context = new TestWriterContext(OpenMetricsSnapshotsWriter.DEFAULT);
 
         private static LongCounter onlyName;
         private static LongCounter nameAndCategory;
@@ -682,7 +682,7 @@ public class OpenMetricsExportComprehensiveTest {
     @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
     class DoubleGaugeTest {
 
-        private static final TestExporterContext context = new TestExporterContext(OpenMetricsSnapshotsWriter.DEFAULT);
+        private static final TestWriterContext context = new TestWriterContext(OpenMetricsSnapshotsWriter.DEFAULT);
 
         private static DoubleGauge onlyName;
         private static DoubleGauge nameAndDescriptionMaxReset;
@@ -926,7 +926,7 @@ public class OpenMetricsExportComprehensiveTest {
     @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
     class StatelessMetricTest {
 
-        private static final TestExporterContext context = new TestExporterContext(OpenMetricsSnapshotsWriter.DEFAULT);
+        private static final TestWriterContext context = new TestWriterContext(OpenMetricsSnapshotsWriter.DEFAULT);
 
         private static StatelessMetric onlyName;
         private static StatelessMetric constLabel;

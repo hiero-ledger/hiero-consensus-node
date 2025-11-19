@@ -126,7 +126,7 @@ public class AppendArrayTest {
 
         @Test
         void testSubsequentReadsWithoutReadyToRead() throws InterruptedException {
-            final AppendArray<String> array = new AppendArray<>(10);
+            final AppendArray<UUID> array = new AppendArray<>(10);
             final AtomicBoolean readThreadDone = new AtomicBoolean(false);
 
             final CountDownLatch writerStartedLatch = new CountDownLatch(1);
@@ -134,7 +134,7 @@ public class AppendArrayTest {
             Thread writerThread = new Thread(() -> {
                 writerStartedLatch.countDown();
                 while (!readThreadDone.get()) {
-                    array.add(UUID.randomUUID().toString());
+                    array.add(UUID.randomUUID());
                 }
             });
             writerThread.start();
@@ -144,7 +144,7 @@ public class AppendArrayTest {
 
             int size1 = array.readyToRead();
             assertThat(size1).isGreaterThan(0);
-            final String[] snapshot = new String[size1];
+            final UUID[] snapshot = new UUID[size1];
             for (int i = 0; i < size1; i++) {
                 snapshot[i] = array.get(i);
             }

@@ -31,6 +31,9 @@ public class EmptyLabelValuesTest {
 
         assertThat(empty).isNotEqualTo(notEmpty);
         assertThat(empty.hashCode()).isNotEqualTo(notEmpty.hashCode());
+
+        assertThat(notEmpty).isNotEqualTo(new Object());
+        assertThat(empty).isNotEqualTo(new Object());
     }
 
     @Test

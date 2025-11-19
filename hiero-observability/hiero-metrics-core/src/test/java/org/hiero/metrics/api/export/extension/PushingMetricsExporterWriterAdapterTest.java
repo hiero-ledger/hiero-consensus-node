@@ -3,6 +3,7 @@ package org.hiero.metrics.api.export.extension;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.verify;
@@ -42,6 +43,21 @@ public class PushingMetricsExporterWriterAdapterTest {
     }
 
     @Test
+    void testWriterThrowsIOException() throws IOException {
+        IOException ioException = new IOException("test IO exception");
+        MetricsSnapshot snapshot = mock(MetricsSnapshot.class);
+        MetricsSnapshotsWriter writer = mock(MetricsSnapshotsWriter.class);
+        TestAdapter adapter = new TestAdapter("test", writer);
+
+        doThrow(ioException).when(writer).write(snapshot, adapter.out);
+
+        assertThatThrownBy(() -> adapter.export(snapshot))
+                .isInstanceOf(MetricsExportException.class)
+                .hasCause(ioException)
+                .hasMessage("Error exporting metrics by test");
+    }
+
+    @Test
     void testWriter() throws MetricsExportException, IOException {
         MetricsSnapshot snapshot = mock(MetricsSnapshot.class);
         MetricsSnapshotsWriter writer = mock(MetricsSnapshotsWriter.class);
@@ -54,7 +70,7 @@ public class PushingMetricsExporterWriterAdapterTest {
 
     private static class TestAdapter extends PushingMetricsExporterWriterAdapter {
 
-        private OutputStream out = mock(OutputStream.class);
+        private final OutputStream out = mock(OutputStream.class);
 
         public TestAdapter(@NonNull String name, @NonNull MetricsSnapshotsWriter writer) {
             super(name, writer);

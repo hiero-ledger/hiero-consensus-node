@@ -66,7 +66,7 @@ public final class DefaultMetricsExportManager extends AbstractMetricsExportMana
         logExporters("pulling", pullingExporters);
         logExporters("pushing", pushingExporters);
 
-        registry.register(
+        pushingExportDurationMetric = registry.register(
                 LongGauge.builder(LongGauge.key("push_export_duration").withCategory(EXPORT_METRICS_CATEGORY))
                         .withDescription("Push export duration time")
                         .withDynamicLabelNames(PUSHING_EXPORTER_NAME)

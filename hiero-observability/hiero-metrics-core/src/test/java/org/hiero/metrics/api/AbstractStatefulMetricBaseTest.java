@@ -19,6 +19,15 @@ public abstract class AbstractStatefulMetricBaseTest<
     class DataPointsTests {
 
         @Test
+        void testGetOrCreateLabeledThrowsWhenNoDynamicLabelsDefined() {
+            M metric = emptyMetricBuilder().build();
+
+            assertThatThrownBy(() -> metric.getOrCreateLabeled(null, new String[] {}))
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessage("This metric has no dynamic labels, so you must call getOrCreateNotLabeled()");
+        }
+
+        @Test
         void testGetOrCreateNotLabeledThrowsWhenDynamicLabelsDefined() {
             M metric = emptyMetricBuilder().withDynamicLabelNames("label").build();
 

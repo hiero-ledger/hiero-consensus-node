@@ -75,7 +75,7 @@ public final class TestUtils {
         };
     }
 
-    public static void verifySnapshotHasMetrics(MetricsSnapshot snapshot, String... metrics) {
+    public static void verifySnapshotHasMetricsInOrder(MetricsSnapshot snapshot, String... metrics) {
         snapshotHasMetricsAssertion(snapshot).containsExactly(metrics);
     }
 
