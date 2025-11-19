@@ -49,7 +49,7 @@ designated in the transaction's `TransactionID`.)
 There are three kinds of privileges,
 1. _Authorization_ - some transaction types, such as `Freeze`, require authorization to submit to the network. All such transactions will be rejected with the status `UNAUTHORIZED` unless they are privileged.
 2. _Waived signing requirements_ - all unprivileged `CryptoUpdate` and `FileUpdate` transactions must be signed with the target entity's key, or they will fail with status `INVALID_SIGNATURE`. The network waives this requirement for certain privileged updates.
-2. _Increased transaction size limit_ - all transactions that are paid by either the treasury account or the system admin account, will have their transaction size limit increased from 6KB to 130KB.
+2. _Increased transaction size limit_ - all transactions that are paid by either the treasury account or any of the accounts between 42 and 799 inclusive, will have their transaction size limit increased from 6KB to 130KB.
 
 This document lists the privileged transactions recognized by the Hedera network.
 
@@ -140,12 +140,11 @@ treasury account always requires the new key to sign.
 
 ## Increased transaction size limit
 
-This class of privileges applies to all transactions that are paid by either the treasury account or the system admin account. These privileges waive the enforced standard limit of 6KB for the transaction size and increase it to 130KB.
+This class of privileges applies to all transactions that are paid by either the treasury account or any of the accounts between 42 and 799 inclusive. These privileges waive the enforced standard limit of 6KB for the transaction size and increase it to 130KB.
 
-|                                        Payer                                        | All transaction types have their size limit increased to 130KB |
-|-------------------------------------------------------------------------------------|:--------------------------------------------------------------:|
-| [`accounts.treasury=2`](../hedera-node/src/main/resources/bootstrap.properties)     |                               X                                |
-| [`accounts.systemAdmin=50`](../hedera-node/src/main/resources/bootstrap.properties) |                               X                                |
+|                                                Payer                                                 | All transaction types have their size limit increased to 130KB |
+|------------------------------------------------------------------------------------------------------|:--------------------------------------------------------------:|
+| [`accounts.governanceTransactions=2,42-799`](../hedera-node/src/main/resources/bootstrap.properties) |                               X                                |
 
 # Miscellanea
 

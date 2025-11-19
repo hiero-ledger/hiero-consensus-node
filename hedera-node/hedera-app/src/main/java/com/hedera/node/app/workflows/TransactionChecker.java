@@ -94,10 +94,7 @@ public class TransactionChecker {
     /** The {@link Counter} used to track the number of oversized transactions from a non-privileged payer. */
     private final Counter nonPrivilegedOversizedTransactionsCounter;
 
-    private final HederaConfig hederaConfig;
-    private final JumboTransactionsConfig jumboTransactionsConfig;
-    private final AccountsConfig accountsConfig;
-    private final GovernanceTransactionsConfig governanceTransactionsConfig;
+    private final ConfigProvider configProvider;
 
     // TODO We need to incorporate the check for "TRANSACTION_TOO_MANY_LAYERS". "maxProtoMessageDepth" is a property
     //  passed to StructuralPrecheck used for this purpose. We will need to add this to PBJ as an argument to the
@@ -112,6 +109,9 @@ public class TransactionChecker {
      */
     @Inject
     public TransactionChecker(@NonNull final ConfigProvider configProvider, @NonNull final Metrics metrics) {
+        requireNonNull(metrics, "metrics must not be null");
+        this.configProvider = requireNonNull(configProvider, "configProvider must not be null");
+
         this.deprecatedCounter = metrics.getOrCreate(new Counter.Config("app", COUNTER_DEPRECATED_TXNS_NAME)
                 .withDescription(COUNTER_RECEIVED_DEPRECATED_DESC));
         this.superDeprecatedCounter = metrics.getOrCreate(new Counter.Config("app", COUNTER_SUPER_DEPRECATED_TXNS_NAME)
@@ -119,12 +119,6 @@ public class TransactionChecker {
         this.nonPrivilegedOversizedTransactionsCounter =
                 metrics.getOrCreate(new Counter.Config("app", COUNTER_NON_PRIVILEGED_OVERSIZED_TXNS)
                         .withDescription(NON_PRIVILEGED_OVERSIZED_TXNS_DESC));
-
-        hederaConfig = configProvider.getConfiguration().getConfigData(HederaConfig.class);
-        accountsConfig = configProvider.getConfiguration().getConfigData(AccountsConfig.class);
-        jumboTransactionsConfig = configProvider.getConfiguration().getConfigData(JumboTransactionsConfig.class);
-        governanceTransactionsConfig =
-                configProvider.getConfiguration().getConfigData(GovernanceTransactionsConfig.class);
     }
 
     /**
@@ -365,7 +359,7 @@ public class TransactionChecker {
     private void checkTransactionBody(@NonNull final TransactionBody txBody, HederaFunctionality functionality)
             throws PreCheckException {
         checkTransactionID(txBody.transactionIDOrThrow());
-        checkMemo(txBody.memo(), hederaConfig.transactionMaxMemoUtf8Bytes());
+        checkMemo(txBody.memo(), hederaConfig().transactionMaxMemoUtf8Bytes());
         checkMaxCustomFees(txBody.maxCustomFees(), functionality);
 
         // You cannot have a negative transaction fee!! We're not paying you, buddy.
@@ -385,14 +379,14 @@ public class TransactionChecker {
     public void checkTransactionSize(@NonNull final TransactionInfo txInfo) throws PreCheckException {
         final int txSize = txInfo.signedTx().protobufSize();
         final HederaFunctionality functionality = txInfo.functionality();
-        final boolean isJumboTxnEnabled = jumboTransactionsConfig.isEnabled();
-        final boolean isGovernanceTxnEnabled = governanceTransactionsConfig.isEnabled();
+        final boolean isJumboTxnEnabled = jumboTransactionsConfig().isEnabled();
+        final boolean isGovernanceTxnEnabled = governanceTransactionsConfig().isEnabled();
         boolean exceedsLimit;
 
         // If neither jumbo nor governance features are enabled, use basic validation
         if (!isJumboTxnEnabled && !isGovernanceTxnEnabled) {
             // Allow NON_JUMBO_TRANSACTIONS_BIGGER_THAN_6_KB to exceed the standard limit
-            exceedsLimit = txSize > hederaConfig.transactionMaxBytes()
+            exceedsLimit = txSize > hederaConfig().transactionMaxBytes()
                     && !NON_JUMBO_TRANSACTIONS_BIGGER_THAN_6_KB.contains(functionality);
         }
         // For jumbo enabled and governance disabled, only ETHEREUM_TRANSACTION can exceed standard limits
@@ -403,7 +397,7 @@ public class TransactionChecker {
         // (since payer-based limits are applied in checkTransactionSizeLimitBasedOnPayer)
         // Only reject extremely oversized transactions that exceed governance limits
         else {
-            exceedsLimit = txSize > governanceTransactionsConfig.maxTxnSize();
+            exceedsLimit = txSize > governanceTransactionsConfig().maxTxnSize();
         }
 
         if (exceedsLimit) throw new PreCheckException(TRANSACTION_OVERSIZE);
@@ -420,17 +414,17 @@ public class TransactionChecker {
         final int txSize = txInfo.signedTx().protobufSize();
         // Check if the payer is privileged (treasury or systemAdmin)
         final boolean isPrivilegedPayer =
-                accountsConfig.governanceTransactions().contains(payerAccountId.accountNumOrElse(0L));
+                accountsConfig().governanceTransactions().contains(payerAccountId.accountNumOrElse(0L));
 
         if (isPrivilegedPayer) {
-            exceedsLimit = txSize > governanceTransactionsConfig.maxTxnSize();
+            exceedsLimit = txSize > governanceTransactionsConfig().maxTxnSize();
         } else {
             // Non-privileged payers follow jumbo logic when the jumbo feature is enabled
-            if (jumboTransactionsConfig.isEnabled()) {
+            if (jumboTransactionsConfig().isEnabled()) {
                 exceedsLimit = checkJumboRequirements(txInfo);
             } else {
                 // Only governance enabled, non-privileged payers are limited to standard size
-                exceedsLimit = txSize > hederaConfig.transactionMaxBytes()
+                exceedsLimit = txSize > hederaConfig().transactionMaxBytes()
                         && !NON_JUMBO_TRANSACTIONS_BIGGER_THAN_6_KB.contains(txInfo.functionality());
             }
         }
@@ -451,10 +445,10 @@ public class TransactionChecker {
     private boolean checkJumboRequirements(@NonNull final TransactionInfo txInfo) {
         final int txSize = txInfo.signedTx().protobufSize();
         final HederaFunctionality functionality = txInfo.functionality();
-        final var allowedJumboHederaFunctionalities = jumboTransactionsConfig.allowedHederaFunctionalities();
+        final var allowedJumboHederaFunctionalities = jumboTransactionsConfig().allowedHederaFunctionalities();
 
         return !allowedJumboHederaFunctionalities.contains(fromPbj(txInfo.functionality()))
-                && txSize > hederaConfig.transactionMaxBytes()
+                && txSize > hederaConfig().transactionMaxBytes()
                 && !NON_JUMBO_TRANSACTIONS_BIGGER_THAN_6_KB.contains(functionality);
     }
 
@@ -485,10 +479,10 @@ public class TransactionChecker {
         final var duration = txBody.transactionValidDurationOrThrow();
 
         // Get the configured boundaries
-        final var min = hederaConfig.transactionMinValidDuration();
-        final var max = hederaConfig.transactionMaxValidDuration();
+        final var min = hederaConfig().transactionMinValidDuration();
+        final var max = hederaConfig().transactionMaxValidDuration();
         final var minValidityBufferSecs = requireMinValidLifetimeBuffer == RequireMinValidLifetimeBuffer.YES
-                ? hederaConfig.transactionMinValidityBufferSecs()
+                ? hederaConfig().transactionMinValidityBufferSecs()
                 : 0;
 
         // The transaction duration must not be longer than the configured maximum transaction duration
@@ -522,8 +516,8 @@ public class TransactionChecker {
         // alias payer account is not allowed to submit transactions.
         final var accountID = txnId.accountID();
         final var isPlausibleAccount = accountID != null
-                && accountID.shardNum() == hederaConfig.shard()
-                && accountID.realmNum() == hederaConfig.realm()
+                && accountID.shardNum() == hederaConfig().shard()
+                && accountID.realmNum() == hederaConfig().realm()
                 && accountID.hasAccountNum()
                 && accountID.accountNumOrElse(0L) > 0;
 
@@ -677,5 +671,33 @@ public class TransactionChecker {
             return 0;
         });
         return sortedList;
+    }
+
+    /**
+     * @return the current Hedera configuration
+     */
+    private HederaConfig hederaConfig() {
+        return configProvider.getConfiguration().getConfigData(HederaConfig.class);
+    }
+
+    /**
+     * @return the current accounts configuration
+     */
+    private AccountsConfig accountsConfig() {
+        return configProvider.getConfiguration().getConfigData(AccountsConfig.class);
+    }
+
+    /**
+     * @return the current jumbo transactions configuration
+     */
+    private JumboTransactionsConfig jumboTransactionsConfig() {
+        return configProvider.getConfiguration().getConfigData(JumboTransactionsConfig.class);
+    }
+
+    /**
+     * @return the current governance transactions configuration
+     */
+    private GovernanceTransactionsConfig governanceTransactionsConfig() {
+        return configProvider.getConfiguration().getConfigData(GovernanceTransactionsConfig.class);
     }
 }

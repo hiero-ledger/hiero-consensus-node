@@ -7,6 +7,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.createTopic;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.noOp;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.SYSTEM_ADMIN;
@@ -54,10 +55,85 @@ public class GovernanceTransactionsTests implements LifecycleTest {
                 Map.of("hedera.transaction.maxMemoUtf8Bytes", OVERSIZED_TXN_SIZE + "")); // to avoid memo size limit
     }
 
-    // --- Tests to examine the behavior before turning on the feature flag ---
+    // --- Tests to examine the behavior when the feature flag is turned on ---
 
     @HapiTest
     @Order(0)
+    @DisplayName("Normal account still cannot submit more than 6KB transactions when the feature is enabled")
+    public Stream<DynamicTest> nonPrivilegedAccountCannotSubmitLargeSizeTransactionsIfEnabled() {
+        final var largeSizeMemo = new String(randomMemoBytes, StandardCharsets.UTF_8);
+        return hapiTest(
+                cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
+                cryptoCreate(RECEIVER).balance(0L),
+                newKeyNamed(SUBMIT_KEY),
+                createTopic(TOPIC)
+                        .submitKeyName(SUBMIT_KEY)
+                        .payingWith(PAYER)
+                        .memo(largeSizeMemo)
+                        .hasPrecheck(TRANSACTION_OVERSIZE)
+                        // the submitted transaction exceeds 6144 bytes and will have its
+                        // gRPC request terminated immediately
+                        .orUnavailableStatus());
+    }
+
+    @HapiTest
+    @Order(1)
+    @DisplayName("Treasury and system admin accounts can submit more than 6KB transactions when the feature is enabled")
+    public Stream<DynamicTest> privilegedAccountCanSubmitLargeSizeTransactions() {
+        final var largeSizeMemo = new String(randomMemoBytes, StandardCharsets.UTF_8);
+        return hapiTest(
+                cryptoCreate(RECEIVER).balance(0L),
+                newKeyNamed(SUBMIT_KEY),
+                newKeyNamed(SUBMIT_KEY2),
+                createTopic(TOPIC)
+                        .submitKeyName(SUBMIT_KEY)
+                        .payingWith(GENESIS)
+                        .memo(largeSizeMemo)
+                        .hasKnownStatus(SUCCESS),
+                createTopic(TOPIC2)
+                        .submitKeyName(SUBMIT_KEY2)
+                        .payingWith(SYSTEM_ADMIN)
+                        .memo(largeSizeMemo)
+                        .hasKnownStatus(SUCCESS));
+    }
+
+    @HapiTest
+    @Order(2)
+    @DisplayName("Treasury and system admin accounts can submit more than 6KB transactions when the feature is enabled")
+    public Stream<DynamicTest> privilegedAccountCannotSubmitLargeSizeTransactionsWhenDisabledDynamically() {
+        final var largeSizeMemo = new String(randomMemoBytes, StandardCharsets.UTF_8);
+        return hapiTest(
+                cryptoCreate(RECEIVER).balance(0L),
+                newKeyNamed(SUBMIT_KEY),
+                newKeyNamed(SUBMIT_KEY2),
+                overriding("governanceTransactions.isEnabled", "false"),
+                createTopic(TOPIC)
+                        .submitKeyName(SUBMIT_KEY)
+                        .payingWith(GENESIS)
+                        .memo(largeSizeMemo)
+                        .hasKnownStatus(TRANSACTION_OVERSIZE),
+                createTopic(TOPIC2)
+                        .submitKeyName(SUBMIT_KEY2)
+                        .payingWith(SYSTEM_ADMIN)
+                        .memo(largeSizeMemo)
+                        .hasKnownStatus(TRANSACTION_OVERSIZE));
+    }
+
+    // --- Disable the governance transactions feature and test nothing has changed in the previous behavior ---
+
+    @HapiTest
+    @Order(3)
+    @DisplayName("Update the governance config to enable governance transactions")
+    public Stream<DynamicTest> updateTheConfig() {
+        return hapiTest(
+                // The feature flag is only used once at startup (when building gRPC ServiceDefinitions),
+                // so we can't toggle it via overriding(). Instead, we need to upgrade to the config version.
+                prepareFakeUpgrade(),
+                upgradeToNextConfigVersion(Map.of("governanceTransactions.isEnabled", "false"), noOp()));
+    }
+
+    @HapiTest
+    @Order(4)
     @DisplayName("Normal account cannot submit more than 6KB transactions when the feature is disabled")
     public Stream<DynamicTest> nonPrivilegedAccountCannotSubmitLargeSizeTransactions() {
         final var largeSizeMemo = new String(randomMemoBytes, StandardCharsets.UTF_8);
@@ -76,7 +152,7 @@ public class GovernanceTransactionsTests implements LifecycleTest {
     }
 
     @HapiTest
-    @Order(1)
+    @Order(5)
     @DisplayName(
             "Treasury and system admin accounts cannot submit more than 6KB transactions when the feature is disabled")
     public Stream<DynamicTest> privilegedAccountsCannotSubmitLargeSizeTransactions() {
@@ -101,58 +177,5 @@ public class GovernanceTransactionsTests implements LifecycleTest {
                         // the submitted transaction exceeds 6144 bytes and will have its
                         // gRPC request terminated immediately
                         .orUnavailableStatus());
-    }
-
-    // --- Enable the governance transactions feature and test the new behavior ---
-
-    @HapiTest
-    @Order(2)
-    @DisplayName("Update the governance config to enable governance transactions")
-    public Stream<DynamicTest> updateTheConfig() {
-        return hapiTest(
-                // The feature flag is only used once at startup (when building gRPC ServiceDefinitions),
-                // so we can't toggle it via overriding(). Instead, we need to upgrade to the config version.
-                prepareFakeUpgrade(),
-                upgradeToNextConfigVersion(Map.of("governanceTransactions.isEnabled", "true"), noOp()));
-    }
-
-    @HapiTest
-    @Order(3)
-    @DisplayName("Normal account still cannot submit more than 6KB transactions when the feature is enabled")
-    public Stream<DynamicTest> nonPrivilegedAccountStillCannotSubmitLargeSizeTransactionsIfEnabled() {
-        final var largeSizeMemo = new String(randomMemoBytes, StandardCharsets.UTF_8);
-        return hapiTest(
-                cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
-                cryptoCreate(RECEIVER).balance(0L),
-                newKeyNamed(SUBMIT_KEY),
-                createTopic(TOPIC)
-                        .submitKeyName(SUBMIT_KEY)
-                        .payingWith(PAYER)
-                        .memo(largeSizeMemo)
-                        .hasPrecheck(TRANSACTION_OVERSIZE)
-                        // the submitted transaction exceeds 6144 bytes and will have its
-                        // gRPC request terminated immediately
-                        .orUnavailableStatus());
-    }
-
-    @HapiTest
-    @Order(4)
-    @DisplayName("Treasury and system admin accounts can submit more than 6KB transactions when the feature is enabled")
-    public Stream<DynamicTest> privilegedAccountCanSubmitLargeSizeTransactions() {
-        final var largeSizeMemo = new String(randomMemoBytes, StandardCharsets.UTF_8);
-        return hapiTest(
-                cryptoCreate(RECEIVER).balance(0L),
-                newKeyNamed(SUBMIT_KEY),
-                newKeyNamed(SUBMIT_KEY2),
-                createTopic(TOPIC)
-                        .submitKeyName(SUBMIT_KEY)
-                        .payingWith(GENESIS)
-                        .memo(largeSizeMemo)
-                        .hasKnownStatus(SUCCESS),
-                createTopic(TOPIC2)
-                        .submitKeyName(SUBMIT_KEY2)
-                        .payingWith(SYSTEM_ADMIN)
-                        .memo(largeSizeMemo)
-                        .hasKnownStatus(SUCCESS));
     }
 }

@@ -2,7 +2,7 @@
 
 ## Purpose
 
-- Allow privileged accounts ([`accounts.treasury=2`](../hedera-node/src/main/resources/bootstrap.properties) and [`accounts.systemAdmin=50`](../hedera-node/src/main/resources/bootstrap.properties)) to submit transactions up to 130KB in size.
+- Allow privileged accounts ([`accounts.governanceTransactions=2,42-799`](../hedera-node/src/main/resources/bootstrap.properties)) to submit transactions up to 130KB in size.
 - Non-privileged accounts remain constraint to the standard limit of 6KB transaction size.
 - Apply size limits in ingest after parsing the payer account.
 - Differentiate from [jumbo transactions](./design/services/smart-contract-service/jumbo-transactions.md) which apply to Ethereum transaction types regardless of payer.
@@ -121,7 +121,7 @@ void checkTransactionSize(TransactionInfo txInfo) throws PreCheckException {
 #### Phase 2: Payer-specific size validation (after payer is known)
 
 - Additionally, check the transaction size limit based on the payer account in `TransactionChecker.checkTransactionSizeLimitBasedOnPayer`
-- When governance transactions are enabled, allow privileged payers ([`accounts.treasury=2`](../hedera-node/src/main/resources/bootstrap.properties) and [`accounts.systemAdmin=50`](../hedera-node/src/main/resources/bootstrap.properties)) up to governance limits (130KB) for any transaction type
+- When governance transactions are enabled, allow privileged payers ([`accounts.governanceTransactions=2,42-799`](../hedera-node/src/main/resources/bootstrap.properties)) up to governance limits (130KB) for any transaction type
 - Non-privileged payers remain limited to standard limits (6KB), except for allowed jumbo Ethereum transactions
 
 ```java

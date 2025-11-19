@@ -7,5 +7,5 @@ import com.swirlds.config.api.ConfigProperty;
 
 @ConfigData("governanceTransactions")
 public record GovernanceTransactionsConfig(
-        @ConfigProperty(defaultValue = "false") @NetworkProperty boolean isEnabled,
+        @ConfigProperty(defaultValue = "true") @NetworkProperty boolean isEnabled,
         @ConfigProperty(defaultValue = "133120") @NetworkProperty int maxTxnSize) {}
