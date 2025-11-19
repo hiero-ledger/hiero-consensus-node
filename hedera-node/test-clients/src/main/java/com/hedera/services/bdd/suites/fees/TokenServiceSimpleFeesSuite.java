@@ -3,15 +3,11 @@ package com.hedera.services.bdd.suites.fees;
 
 import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SIMPLE_FEES;
-import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.mintToken;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.compareSimpleToOld;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdWithin;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_BILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.THREE_MONTHS_IN_SECONDS;
@@ -23,8 +19,6 @@ import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
-import com.hedera.services.bdd.spec.SpecOperation;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Stream;
@@ -46,119 +40,144 @@ public class TokenServiceSimpleFeesSuite {
     @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
     @DisplayName("compare create fungible token")
     final Stream<DynamicTest> compareCreateFungibleToken() {
-        return compareSimpleToOld(() -> Arrays.asList(
-                cryptoCreate(ADMIN).balance(ONE_BILLION_HBARS),
-                cryptoCreate(PAYER).balance(ONE_BILLION_HBARS),
-                tokenCreate(FUNGIBLE_TOKEN)
-                        .blankMemo()
-                        .payingWith(PAYER)
-                        .fee(ONE_BILLION_HBARS)
-                        .treasury(ADMIN)
-                        .tokenType(FUNGIBLE_COMMON)
-                        .autoRenewAccount(ADMIN)
-                        .autoRenewPeriod(THREE_MONTHS_IN_SECONDS)
-                        .logged()
-                        .hasKnownStatus(SUCCESS)
-                        .via("create-token-txn")),
-                "create-token-txn",1,1,1,1);
+        return compareSimpleToOld(
+                () -> Arrays.asList(
+                        cryptoCreate(ADMIN).balance(ONE_BILLION_HBARS),
+                        cryptoCreate(PAYER).balance(ONE_BILLION_HBARS),
+                        tokenCreate(FUNGIBLE_TOKEN)
+                                .blankMemo()
+                                .payingWith(PAYER)
+                                .fee(ONE_BILLION_HBARS)
+                                .treasury(ADMIN)
+                                .tokenType(FUNGIBLE_COMMON)
+                                .autoRenewAccount(ADMIN)
+                                .autoRenewPeriod(THREE_MONTHS_IN_SECONDS)
+                                .logged()
+                                .hasKnownStatus(SUCCESS)
+                                .via("create-token-txn")),
+                "create-token-txn",
+                1,
+                1,
+                1,
+                1);
     }
 
     @HapiTest
     @DisplayName("compare create non-fungible token")
     final Stream<DynamicTest> compareCreateNonFungibleToken() {
-        return compareSimpleToOld(() -> Arrays.asList(
-                newKeyNamed(SUPPLY_KEY),
-                cryptoCreate(ADMIN).balance(ONE_BILLION_HBARS),
-                cryptoCreate(PAYER).balance(ONE_BILLION_HBARS),
-                tokenCreate("uniqueNoFees")
-                        .blankMemo()
-                        .payingWith(PAYER)
-                        .fee(ONE_HUNDRED_HBARS)
-                        .treasury(ADMIN)
-                        .tokenType(NON_FUNGIBLE_UNIQUE)
-                        .initialSupply(0L)
-                        .supplyKey(SUPPLY_KEY)
-                        .autoRenewAccount(ADMIN)
-                        .autoRenewPeriod(THREE_MONTHS_IN_SECONDS)
-                        .logged()
-                        .hasKnownStatus(SUCCESS)
-                        .via("create-token-txn")),
-                "create-token-txn",2,1,2,1);
+        return compareSimpleToOld(
+                () -> Arrays.asList(
+                        newKeyNamed(SUPPLY_KEY),
+                        cryptoCreate(ADMIN).balance(ONE_BILLION_HBARS),
+                        cryptoCreate(PAYER).balance(ONE_BILLION_HBARS),
+                        tokenCreate("uniqueNoFees")
+                                .blankMemo()
+                                .payingWith(PAYER)
+                                .fee(ONE_HUNDRED_HBARS)
+                                .treasury(ADMIN)
+                                .tokenType(NON_FUNGIBLE_UNIQUE)
+                                .initialSupply(0L)
+                                .supplyKey(SUPPLY_KEY)
+                                .autoRenewAccount(ADMIN)
+                                .autoRenewPeriod(THREE_MONTHS_IN_SECONDS)
+                                .logged()
+                                .hasKnownStatus(SUCCESS)
+                                .via("create-token-txn")),
+                "create-token-txn",
+                2,
+                1,
+                2,
+                1);
     }
 
     @HapiTest
     @DisplayName("compare mint common token")
     final Stream<DynamicTest> compareMintCommonToken() {
-        return compareSimpleToOld(() -> Arrays.asList(
-                newKeyNamed(SUPPLY_KEY),
-                cryptoCreate(ADMIN).balance(ONE_BILLION_HBARS),
-                cryptoCreate(PAYER).balance(ONE_BILLION_HBARS).key(SUPPLY_KEY),
-                tokenCreate(FUNGIBLE_TOKEN)
-                        .tokenType(FUNGIBLE_COMMON)
-                        .initialSupply(0L)
-                        .payingWith(PAYER)
-                        .supplyKey(SUPPLY_KEY)
-                        .fee(ONE_HUNDRED_HBARS)
-                        .hasKnownStatus(SUCCESS)
-                        .via("create-token-txn"),
-                mintToken(FUNGIBLE_TOKEN, 1)
-                        .payingWith(PAYER)
-                        .signedBy(SUPPLY_KEY)
-                        .blankMemo()
-                        .fee(ONE_HUNDRED_HBARS)
-                        .hasKnownStatus(SUCCESS)
-                        .via("fungible-mint-txn")),
-                "fungible-mint-txn",0.001,1,0.001,1);
+        return compareSimpleToOld(
+                () -> Arrays.asList(
+                        newKeyNamed(SUPPLY_KEY),
+                        cryptoCreate(ADMIN).balance(ONE_BILLION_HBARS),
+                        cryptoCreate(PAYER).balance(ONE_BILLION_HBARS).key(SUPPLY_KEY),
+                        tokenCreate(FUNGIBLE_TOKEN)
+                                .tokenType(FUNGIBLE_COMMON)
+                                .initialSupply(0L)
+                                .payingWith(PAYER)
+                                .supplyKey(SUPPLY_KEY)
+                                .fee(ONE_HUNDRED_HBARS)
+                                .hasKnownStatus(SUCCESS)
+                                .via("create-token-txn"),
+                        mintToken(FUNGIBLE_TOKEN, 1)
+                                .payingWith(PAYER)
+                                .signedBy(SUPPLY_KEY)
+                                .blankMemo()
+                                .fee(ONE_HUNDRED_HBARS)
+                                .hasKnownStatus(SUCCESS)
+                                .via("fungible-mint-txn")),
+                "fungible-mint-txn",
+                0.001,
+                1,
+                0.001,
+                1);
     }
 
     @HapiTest
     @DisplayName("compare mint multiple common tokens")
     final Stream<DynamicTest> compareMintMultipleCommonToken() {
-        return compareSimpleToOld(() -> Arrays.asList(
-                newKeyNamed(SUPPLY_KEY),
-                cryptoCreate(ADMIN).balance(ONE_BILLION_HBARS),
-                cryptoCreate(PAYER).balance(ONE_BILLION_HBARS).key(SUPPLY_KEY),
-                tokenCreate(FUNGIBLE_TOKEN)
-                        .tokenType(FUNGIBLE_COMMON)
-                        .initialSupply(0L)
-                        .payingWith(PAYER)
-                        .supplyKey(SUPPLY_KEY)
-                        .fee(ONE_HUNDRED_HBARS)
-                        .hasKnownStatus(SUCCESS)
-                        .via("create-token-txn"),
-                mintToken(FUNGIBLE_TOKEN, 10)
-                        .payingWith(PAYER)
-                        .signedBy(SUPPLY_KEY)
-                        .blankMemo()
-                        .fee(ONE_HUNDRED_HBARS)
-                        .hasKnownStatus(SUCCESS)
-                        .via("fungible-mint-txn")),
-                "fungible-mint-txn",0.001,1,0.001,1);
+        return compareSimpleToOld(
+                () -> Arrays.asList(
+                        newKeyNamed(SUPPLY_KEY),
+                        cryptoCreate(ADMIN).balance(ONE_BILLION_HBARS),
+                        cryptoCreate(PAYER).balance(ONE_BILLION_HBARS).key(SUPPLY_KEY),
+                        tokenCreate(FUNGIBLE_TOKEN)
+                                .tokenType(FUNGIBLE_COMMON)
+                                .initialSupply(0L)
+                                .payingWith(PAYER)
+                                .supplyKey(SUPPLY_KEY)
+                                .fee(ONE_HUNDRED_HBARS)
+                                .hasKnownStatus(SUCCESS)
+                                .via("create-token-txn"),
+                        mintToken(FUNGIBLE_TOKEN, 10)
+                                .payingWith(PAYER)
+                                .signedBy(SUPPLY_KEY)
+                                .blankMemo()
+                                .fee(ONE_HUNDRED_HBARS)
+                                .hasKnownStatus(SUCCESS)
+                                .via("fungible-mint-txn")),
+                "fungible-mint-txn",
+                0.001,
+                1,
+                0.001,
+                1);
     }
 
     @HapiTest
     @DisplayName("compare mint a unique token")
     final Stream<DynamicTest> compareMintUniqueToken() {
-        return compareSimpleToOld(() -> Arrays.asList(
-                newKeyNamed(SUPPLY_KEY),
-                newKeyNamed(METADATA_KEY),
-                cryptoCreate(ADMIN).balance(ONE_BILLION_HBARS),
-                cryptoCreate(PAYER).balance(ONE_BILLION_HBARS).key(SUPPLY_KEY),
-                tokenCreate(NFT_TOKEN)
-                        .tokenType(NON_FUNGIBLE_UNIQUE)
-                        .initialSupply(0L)
-                        .payingWith(PAYER)
-                        .supplyKey(SUPPLY_KEY)
-                        .fee(ONE_HUNDRED_HBARS)
-                        .hasKnownStatus(SUCCESS)
-                        .via("create-token-txn"),
-                mintToken(NFT_TOKEN, List.of(ByteString.copyFromUtf8("Bart Simpson")))
-                        .payingWith(PAYER)
-                        .signedBy(SUPPLY_KEY)
-                        .blankMemo()
-                        .fee(ONE_HUNDRED_HBARS)
-                        .hasKnownStatus(SUCCESS)
-                        .via("non-fungible-mint-txn")),
-                "non-fungible-mint-txn",0.02,1,0.02,1);
+        return compareSimpleToOld(
+                () -> Arrays.asList(
+                        newKeyNamed(SUPPLY_KEY),
+                        newKeyNamed(METADATA_KEY),
+                        cryptoCreate(ADMIN).balance(ONE_BILLION_HBARS),
+                        cryptoCreate(PAYER).balance(ONE_BILLION_HBARS).key(SUPPLY_KEY),
+                        tokenCreate(NFT_TOKEN)
+                                .tokenType(NON_FUNGIBLE_UNIQUE)
+                                .initialSupply(0L)
+                                .payingWith(PAYER)
+                                .supplyKey(SUPPLY_KEY)
+                                .fee(ONE_HUNDRED_HBARS)
+                                .hasKnownStatus(SUCCESS)
+                                .via("create-token-txn"),
+                        mintToken(NFT_TOKEN, List.of(ByteString.copyFromUtf8("Bart Simpson")))
+                                .payingWith(PAYER)
+                                .signedBy(SUPPLY_KEY)
+                                .blankMemo()
+                                .fee(ONE_HUNDRED_HBARS)
+                                .hasKnownStatus(SUCCESS)
+                                .via("non-fungible-mint-txn")),
+                "non-fungible-mint-txn",
+                0.02,
+                1,
+                0.02,
+                1);
     }
 }
