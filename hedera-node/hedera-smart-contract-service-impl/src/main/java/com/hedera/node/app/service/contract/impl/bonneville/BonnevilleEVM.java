@@ -56,6 +56,8 @@ public class BonnevilleEVM extends EVM {
  * BonnevilleEVM so it can be changed without impacting anything else.
  */
 class BEVM {
+    final StringBuilder _trace;
+
     @NonNull final GasCalculator _gasCalc;
     @NonNull final MessageFrame _frame;
 
@@ -88,6 +90,7 @@ class BEVM {
     byte[] _callData;
 
     BEVM( GasCalculator gasCalc, MessageFrame frame, FeatureFlags flags ) {
+        _trace = null; // new StringBuilder(); // = null;
         _gasCalc = gasCalc;
         if( _gasCalc.getVeryLowTierGasCost() > 10 )
             throw new TODO("Need to restructure how gas is computed");
@@ -122,8 +125,10 @@ class BEVM {
     public BEVM run() {
         // TODO: setup
         var halt = _run();
-        if( halt != ExceptionalHaltReason.NONE )
+        if( halt != ExceptionalHaltReason.NONE ) {
             _frame.setExceptionalHaltReason(Optional.of(halt));
+            _frame.setState(MessageFrame.State.EXCEPTIONAL_HALT);
+        }
         return this;
     }
 
@@ -233,7 +238,15 @@ class BEVM {
         ExceptionalHaltReason halt = null;
 
         while( halt==null ) {
-            int op = _codes[pc++] & 0xFF;
+            int op = _codes[pc] & 0xFF;
+            if( _trace !=null ) {
+                _trace.append("0x");
+                Memory.hex(pc,Memory.hex(pc>>8,_trace)).append(" ");
+                Memory.hex(op,_trace).append(" ").append(OPNAME(op)).append(" ");
+                _trace.append(_sp).append(" -> ");
+            }
+            pc++;
+
             halt = switch( op ) {
 
             case 0x00 -> stop();
@@ -243,11 +256,11 @@ class BEVM {
             case 0x02 -> mul();
             case 0x03 -> sub();
             case 0x04 -> div();
+            case 0x0A -> exp();
             case 0x10 -> ult();
             case 0x11 -> ugt();
             case 0x12 -> slt();
             case 0x13 -> sgt();
-            case 0x0A -> exp();
             case 0x14 -> eq ();
             case 0x15 -> eqz();
             case 0x16 -> and();
@@ -300,7 +313,19 @@ class BEVM {
             default ->
                 throw new TODO(String.format("Unhandled bytecode 0x%02X",op));
             };
+
+            if( _trace != null ) {
+                _trace.append(_sp);
+                if( halt!=null )
+                    _trace.append(" ").append(halt);
+                System.out.println(_trace.toString());
+                _trace.setLength(0);
+            }
         }
+
+        if( _trace != null )
+            System.out.println();
+
         return halt;
     }
 
@@ -838,4 +863,20 @@ class BEVM {
         return null;
     }
 
+    private static String OPNAME(int op) {
+        if( op < 0x60 ) return OPNAMES[op];
+        if( op < 0x80 ) return "psh"+(op-0x60+1);
+        if( op < 0x90 ) return "dup"+(op-0x80+1);
+        if( op < 0xA0 ) return "swp"+(op-0x90+1);
+        if( op == 0xF3 ) return "ret ";
+        return String.format("%x",op);
+    }
+    private static final String[] OPNAMES = new String[]{
+        /* 00 */ "stop", "add ", "mul ", "sub ", "div ", "05  ", "06  ", "07  ", "08  ", "09  ", "exp ", "0B  ", "0C  ", "0D  ", "0E  ", "0F  ",
+        /* 10 */ "ult ", "ugt ", "slt ", "sgt ", "eq  ", "eq0 ", "and ", "or  ", "18  ", "not ", "1A  ", "1B  ", "shr ", "1D  ", "1E  ", "1F  ",
+        /* 20 */ "20  ", "21  ", "22  ", "23  ", "24  ", "25  ", "26  ", "27  ", "28  ", "29  ", "2A  ", "2B  ", "2C  ", "2D  ", "2E  ", "2F  ",
+        /* 30 */ "30  ", "31  ", "32  ", "33  ", "callVal", "callLoad", "callSize", "37", "38", "codeCopy", "3A" , "3B", "3C", "3D", "3E", "3F",
+        /* 40 */ "40  ", "41  ", "42  ", "43  ", "44  ", "45  ", "46  ", "47  ", "48  ", "49  ", "4A  ", "4B  ", "4C  ", "4D  ", "4E  ", "4F  ",
+        /* 50 */ "pop ", "51  ", "mst ", "53  ", "Csld", "Csst", "jmp ", "jmpi", "58  ", "59  ", "5A  ", "noop", "5C  ", "5D  ", "5E  ", "psh0",
+        };
 }

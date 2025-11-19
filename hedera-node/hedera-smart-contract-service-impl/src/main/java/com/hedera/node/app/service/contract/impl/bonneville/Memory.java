@@ -66,11 +66,12 @@ public class Memory {
     }
 
     // Pretty print
-    private static void hex( int s, StringBuilder sb) {
+    static StringBuilder hex( int s, StringBuilder sb ) {
         int digit = (s>>4) & 0xf;
         sb.append((char)((digit <= 9 ? '0' : ('A'-10))+digit));
         digit = s & 0xf;
         sb.append((char)((digit <= 9 ? '0' : ('A'-10))+digit));
+        return sb;
     }
 
     @Override public String toString() {
