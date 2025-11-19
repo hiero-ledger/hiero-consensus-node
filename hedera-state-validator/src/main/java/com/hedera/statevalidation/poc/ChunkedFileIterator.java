@@ -5,6 +5,7 @@ import static com.hedera.pbj.runtime.ProtoParserTools.TAG_FIELD_OFFSET;
 import static com.swirlds.merkledb.files.DataFileCommon.FIELD_DATAFILE_ITEMS;
 import static com.swirlds.merkledb.files.DataFileCommon.FIELD_DATAFILE_METADATA;
 
+import com.hedera.pbj.runtime.ProtoConstants;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
@@ -25,10 +26,12 @@ import java.nio.file.StandardOpenOption;
 import java.util.concurrent.atomic.AtomicLong;
 
 public class ChunkedFileIterator implements AutoCloseable {
+    private final static int BUFFER_SIZE = 128 * 1024;
+
     private final FileChannel channel;
     private final DataFileMetadata metadata;
 
-    private final long startByte;
+    private long startByte;
     private final long endByte;
 
     private final ItemData.Type dataType;
@@ -38,8 +41,6 @@ public class ChunkedFileIterator implements AutoCloseable {
     private BufferedData dataItemBuffer;
     private long currentDataItemFilePosition;
     private boolean closed = false;
-
-    private long boundaryOffset = 0L;
 
     public ChunkedFileIterator(
             Path path, DataFileMetadata metadata, Type dataType, long startByte, long endByte,
@@ -56,11 +57,11 @@ public class ChunkedFileIterator implements AutoCloseable {
         if (startByte > 0) {
             // Find boundary, then position channel and open streams
             long startTime = System.currentTimeMillis();
-            this.boundaryOffset = findBoundaryOffset();
+            this.startByte += findBoundaryOffset();
             long boundaryOffsetSearchTime = System.currentTimeMillis() - startTime;
 //            System.out.println("Found boundary offset in:" + boundaryOffsetSearchTime + " ms");
             totalBoundarySearchMillis.addAndGet(boundaryOffsetSearchTime);
-            channel.position(startByte + boundaryOffset);
+            channel.position(this.startByte);
             openStreams();
         } else {
             // At file start
@@ -71,16 +72,14 @@ public class ChunkedFileIterator implements AutoCloseable {
 
     private void openStreams() {
         var channelStream = Channels.newInputStream(channel);
-        // 16777216 took from MerkleDbConfig.iteratorInputBufferBytes
-        this.bufferedInputStream = new BufferedInputStream(channelStream, 16777216);
+        this.bufferedInputStream = new BufferedInputStream(channelStream, BUFFER_SIZE);
         this.in = new ReadableStreamingData(bufferedInputStream);
     }
 
     private long findBoundaryOffset() throws IOException {
         // Use buffer to minimize disk I/O and channel repositioning
         // It should account for boundary + full data item to validate its proto schema
-        // 16777216 took from MerkleDbConfig.iteratorInputBufferBytes
-        ByteBuffer scanBuffer = ByteBuffer.allocate(16777216);
+        ByteBuffer scanBuffer = ByteBuffer.allocate(BUFFER_SIZE);
 
         // Read large chunk at current position
         scanBuffer.clear();
@@ -101,11 +100,12 @@ public class ChunkedFileIterator implements AutoCloseable {
                 int tag = bufferData.readVarInt(false);
                 int fieldNum = tag >> TAG_FIELD_OFFSET;
 
-                if (fieldNum == FIELD_DATAFILE_ITEMS.number()) {
+                if ((fieldNum == FIELD_DATAFILE_ITEMS.number())
+                        && ((tag & ProtoConstants.TAG_WIRE_TYPE_MASK) == ProtoConstants.WIRE_TYPE_DELIMITED.ordinal())) {
                     int dataItemSize = bufferData.readVarInt(false);
                     long dataStartPosition = bufferData.position();
 
-                    if (dataItemSize > 0) {
+                    if (dataItemSize > 0 && (dataStartPosition + dataItemSize <= bufferData.limit())) {
                         bufferData.limit(dataStartPosition + dataItemSize);
                         long savedPos = bufferData.position();
 
@@ -185,7 +185,7 @@ public class ChunkedFileIterator implements AutoCloseable {
         }
 
         while (in.hasRemaining()) {
-            currentDataItemFilePosition = startByte + boundaryOffset + in.position();
+            currentDataItemFilePosition = startByte + in.position();
 
             if (currentDataItemFilePosition >= endByte) {
                 return false;
