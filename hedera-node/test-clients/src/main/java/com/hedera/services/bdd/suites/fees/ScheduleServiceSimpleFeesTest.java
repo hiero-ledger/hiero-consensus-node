@@ -16,7 +16,6 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
-import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.schedule.ScheduleUtils.OTHER_PAYER;
 import static com.hedera.services.bdd.suites.schedule.ScheduleUtils.PAYING_SENDER;
 import static com.hedera.services.bdd.suites.schedule.ScheduleUtils.RECEIVER;
@@ -61,12 +60,12 @@ public class ScheduleServiceSimpleFeesTest {
                         .via("canonicalCreation")
                         .fee(ONE_HBAR),
                 scheduleSign(SCHEDULE_NAME)
-                        .fee(ONE_HUNDRED_HBARS)
+                        .fee(ONE_HBAR)
                         .via("canonicalSigning")
                         .payingWith(PAYING_SENDER)
                         .signedBy(PAYING_SENDER),
                 scheduleSign(SCHEDULE_NAME)
-                        .fee(ONE_HUNDRED_HBARS)
+                        .fee(ONE_HBAR)
                         .via("multiScheduleSign")
                         .payingWith(PAYING_SENDER)
                         .signedBy(RECEIVER, PAYING_SENDER),
@@ -75,7 +74,7 @@ public class ScheduleServiceSimpleFeesTest {
                                 cryptoTransfer(tinyBarsFromTo(PAYING_SENDER, RECEIVER, 1L))
                                         .memo("")
                                         .fee(ONE_HBAR))
-                        .fee(ONE_HUNDRED_HBARS)
+                        .fee(ONE_HBAR)
                         .payingWith(PAYING_SENDER)
                         .adminKey(PAYING_SENDER),
                 scheduleDelete("tbd")
@@ -91,7 +90,7 @@ public class ScheduleServiceSimpleFeesTest {
                                         .memo("")
                                         .fee(ONE_HBAR))
                         .payingWith(OTHER_PAYER)
-                        .fee(ONE_HUNDRED_HBARS)
+                        .fee(ONE_HBAR)
                         .via("canonicalContractCall")
                         .adminKey(OTHER_PAYER),
                 getScheduleInfo(SCHEDULE_NAME)
