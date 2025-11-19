@@ -10,8 +10,6 @@ import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_ROSTE
 import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_ROSTER_STATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.HINTS_PARTIAL_SIGNATURE;
 import static com.hedera.hapi.util.HapiUtils.asInstant;
-import static com.hedera.node.app.blocks.impl.BlockImplUtils.combine;
-import static com.hedera.node.app.blocks.impl.BlockStreamManagerImpl.NULL_HASH;
 import static com.hedera.node.app.hapi.utils.CommonUtils.inputOrNullHash;
 import static com.hedera.node.app.hapi.utils.CommonUtils.noThrowSha384HashOf;
 import static com.hedera.node.app.hapi.utils.CommonUtils.sha384DigestOrThrow;
@@ -32,6 +30,7 @@ import static com.swirlds.platform.system.InitTrigger.GENESIS;
 import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.toMap;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.hapi.block.stream.Block;
@@ -197,6 +196,13 @@ public class StateChangesValidator implements BlockStreamValidator {
      * The history proof contexts for each hinTS verification key when it first appeared in a next hinTS construction.
      */
     private final Map<Bytes, HistoryContext> vkContexts = new HashMap<>();
+
+    /**
+     * Tracks a sequence of indirect state proofs preceding a signed block proof. This field should <b>not</b>
+     * be used to track non-contiguous state proofs.
+     */
+    @Nullable
+    private IndirectProofSequenceValidator indirectProofSeq;
 
     public enum HintsEnabled {
         YES,
@@ -366,8 +372,10 @@ public class StateChangesValidator implements BlockStreamValidator {
         incrementalBlockHashes.addLeaf(BlockStreamManager.ZERO_BLOCK_HASH.toByteArray());
         for (int i = 0; i < n; i++) {
             final var block = blocks.get(i);
-            final var shouldVerifyProof =
-                    i == 0 || i == lastVerifiableIndex || RANDOM.nextDouble() < PROOF_VERIFICATION_PROB;
+            final var shouldVerifyProof = i == 0
+                    || i == lastVerifiableIndex
+                    || indirectProofSeq != null
+                    || RANDOM.nextDouble() < PROOF_VERIFICATION_PROB;
             if (i != 0 && shouldVerifyProof) {
                 final var stateToBeCopied = state;
                 this.state = stateToBeCopied.copy();
@@ -432,6 +440,8 @@ public class StateChangesValidator implements BlockStreamValidator {
                     }
                 }
             }
+            assertNotNull(firstConsensusTimestamp, "No parseable timestamp found for block #" + i);
+
             if (i <= lastVerifiableIndex) {
                 final var footer = block.items().get(block.items().size() - 2);
                 assertTrue(footer.hasBlockFooter());
@@ -476,7 +486,9 @@ public class StateChangesValidator implements BlockStreamValidator {
                             footer.blockFooterOrThrow(),
                             blockProof,
                             expectedBlockHash,
-                            startOfStateHash);
+                            startOfStateHash,
+                            previousBlockHash,
+                            firstConsensusTimestamp);
                     previousBlockHash = expectedBlockHash;
                 } else {
                     final var nextBlock = blocks.get(i + 1);
@@ -625,7 +637,8 @@ public class StateChangesValidator implements BlockStreamValidator {
         final var depth4Node3 = BlockImplUtils.combine(inputTreeHash, outputTreeHash);
         final var depth4Node4 = BlockImplUtils.combine(finalStateChangesHash, traceDataHash);
 
-        final var combinedNulls = BlockImplUtils.combine(NULL_HASH, NULL_HASH);
+        final var combinedNulls =
+                BlockImplUtils.combine(BlockStreamManager.ZERO_BLOCK_HASH, BlockStreamManager.ZERO_BLOCK_HASH);
         // Nodes 5-8 for depth four are all combined null hashes, but enumerated for clarity
         final var depth4Node5 = combinedNulls;
         final var depth4Node6 = combinedNulls;
@@ -651,38 +664,57 @@ public class StateChangesValidator implements BlockStreamValidator {
         return BlockImplUtils.combine(depth1Node0, depth1Node1);
     }
 
+    private boolean indirectProofsNeedVerification() {
+        return indirectProofSeq != null && indirectProofSeq.containsIndirectProofs();
+    }
+
     private void validateBlockProof(
-            final long number,
+            final long blockNumber,
             final long firstRound,
             @NonNull final BlockFooter footer,
             @NonNull final BlockProof proof,
             @NonNull final Bytes blockHash,
-            @NonNull final Bytes startOfStateHash) {
-        assertEquals(number, proof.block());
+            @NonNull final Bytes startOfStateHash,
+            @NonNull final Bytes previousBlockHash,
+            @NonNull final Timestamp blockTimestamp) {
+        assertEquals(blockNumber, proof.block());
         assertEquals(
-                footer.startOfBlockStateRootHash(), startOfStateHash, "Wrong start of state hash for block #" + number);
-        var provenHash = blockHash;
-        final var siblingHashes = proof.siblingHashes();
-        if (!siblingHashes.isEmpty()) {
-            for (final var siblingHash : siblingHashes) {
-                // Our indirect proofs always provide right sibling hashes
-                provenHash = combine(provenHash, siblingHash.siblingHash());
+                footer.startOfBlockStateRootHash(),
+                startOfStateHash,
+                "Wrong start of state hash for block #" + blockNumber);
+
+        // Our proof method will be different depending on whether this is a direct or indirect proof.
+        // Direct proofs have a signed block proof; indirect proofs do not.
+        if (!proof.hasSignedBlockProof()) {
+            // This is an indirect proof, so a block state proof must be present
+            assertTrue(
+                    proof.hasBlockStateProof(),
+                    "Indirect proof for block #%s is missing a block state proof".formatted(blockNumber));
+
+            // If we don't currently have an indirect proof sequence, create one
+            if (indirectProofSeq == null) {
+                indirectProofSeq = new IndirectProofSequenceValidator();
             }
-            // FUTURE: When Merkle Paths are populated, stop returning and verify indirect proofs
+
+            // We can't verify the indirect proof until we have a signed block proof, so store the indirect proof for
+            // later verification and short-circuit the remainder of the proof verification
+            indirectProofSeq.registerProof(blockNumber, proof, blockHash, previousBlockHash, blockTimestamp);
             return;
+        } else if (indirectProofsNeedVerification()) {
+            indirectProofSeq.registerProof(blockNumber, proof, blockHash, previousBlockHash, blockTimestamp);
         }
+
+        // If hints are enabled, verify the signature using the hints library
         if (hintsLibrary != null) {
-            if (!proof.hasSignedBlockProof()) {
-                return;
-            }
             final var signature = proof.signedBlockProofOrThrow().blockSignature();
             final var vk = proof.verificationKey();
-            final boolean valid = hintsLibrary.verifyAggregate(signature, provenHash, vk, 1, hintsThresholdDenominator);
+            final boolean valid = hintsLibrary.verifyAggregate(signature, blockHash, vk, 1, hintsThresholdDenominator);
             if (!valid) {
                 Assertions.fail(() -> "Invalid signature in proof (start round #" + firstRound + ") - " + proof);
             } else {
                 logger.info("Verified signature on #{}", proof.block());
             }
+            // If history proofs are enabled, verify the history proof
             if (historyLibrary != null) {
                 assertTrue(
                         proof.hasVerificationKeyProof(),
@@ -712,8 +744,14 @@ public class StateChangesValidator implements BlockStreamValidator {
                     }
                 }
             }
+
+            if (indirectProofsNeedVerification()) {
+                logger.info("Verifying contiguous indirect proofs prior to block {}", blockNumber);
+                indirectProofSeq.verify();
+                indirectProofSeq = null; // Clear out the indirect proof sequence after verification
+            }
         } else {
-            final var expectedSignature = Bytes.wrap(noThrowSha384HashOf(provenHash.toByteArray()));
+            final var expectedSignature = Bytes.wrap(noThrowSha384HashOf(blockHash.toByteArray()));
             assertEquals(
                     expectedSignature,
                     proof.signedBlockProofOrThrow().blockSignature(),
