@@ -6,16 +6,16 @@ This document outlines the configuration settings for the CITR (Continuous Integ
 
 There are several test suites that are run in the CITR environment, each with its own configuration settings. The main test suites include:
 
-| Test Suite  | Name                             | Description                                                                            | Automated |
-|-------------|----------------------------------|----------------------------------------------------------------------------------------|-----------|
-| MATS        | Minimal Acceptable Test Suite    | Basic checks against main branch when changes are made                                 | X         |
-| XTS         | Extended Test Suite              | More comprehensive tests run on a scheduled basis                                      | X         |
-| SDCT        | Single Day Canonical Tests       | More comprehensive tests that focus on load, throughput and E2E latency                | X         |
-| SDLT        | Single Day Longevity Tests       | Longevity tests to ensure stability over extended periods                              | X         |
-| SDPT        | Single Day Performance Tests     | Performance-focused tests to evaluate system responsiveness                            | X         |
-| MDLT        | Multi Day Longevity Tests        | Extended longevity tests over multiple days                                            | X         |
-| MQLT        | Merge Queue Longevity Tests      | Combined performance, verification and longevity tests for use in Merge Queues         | X         |
-| Shortgevity | Short Longevity Tests            | Short-term longevity tests for checking performance against a mainnet-like environment |           |
+| Test Suite  |             Name              |                                      Description                                       | Automated |
+|-------------|-------------------------------|----------------------------------------------------------------------------------------|-----------|
+| MATS        | Minimal Acceptable Test Suite | Basic checks against main branch when changes are made                                 | X         |
+| XTS         | Extended Test Suite           | More comprehensive tests run on a scheduled basis                                      | X         |
+| SDCT        | Single Day Canonical Tests    | More comprehensive tests that focus on load, throughput and E2E latency                | X         |
+| SDLT        | Single Day Longevity Tests    | Longevity tests to ensure stability over extended periods                              | X         |
+| SDPT        | Single Day Performance Tests  | Performance-focused tests to evaluate system responsiveness                            | X         |
+| MDLT        | Multi Day Longevity Tests     | Extended longevity tests over multiple days                                            | X         |
+| MQLT        | Merge Queue Longevity Tests   | Combined performance, verification and longevity tests for use in Merge Queues         | X         |
+| Shortgevity | Short Longevity Tests         | Short-term longevity tests for checking performance against a mainnet-like environment |           |
 
 ## MATS
 
