@@ -41,6 +41,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
+import static com.hedera.services.bdd.suites.HapiSuite.THOUSAND_HBAR;
 import static com.hedera.services.bdd.suites.contract.Utils.asHexedSolidityAddress;
 import static com.hedera.services.bdd.suites.contract.Utils.asSolidityAddress;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_REVERT_EXECUTED;
@@ -278,7 +279,7 @@ public class Hip1195EnabledTest {
     @HapiTest
     final Stream<DynamicTest> transfersWithHooksGasThrottled() {
         return hapiTest(
-                cryptoCreate(PAYER),
+                cryptoCreate(PAYER).balance(100 * THOUSAND_HBAR),
                 cryptoCreate(OWNER)
                         .withHooks(
                                 accountAllowanceHook(123L, TRUE_ALLOWANCE_HOOK.name()),
@@ -288,10 +289,12 @@ public class Hip1195EnabledTest {
                 cryptoTransfer(TokenMovement.movingHbar(10).between(OWNER, GENESIS))
                         .withPreHookFor(OWNER, 124L, 15000000000000L, "")
                         .payingWith(PAYER)
+                        .fee(THOUSAND_HBAR)
                         .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK)
                         .via("payerTxnGasLimitExceeded"),
                 cryptoTransfer(TokenMovement.movingHbar(10).between(OWNER, GENESIS))
                         .withPreHookFor(OWNER, 124L, 15000000000000L, "")
+                        .fee(THOUSAND_HBAR)
                         .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK)
                         .via("defaultPayerMaxGasLimitExceededTxn"),
                 getTxnRecord("payerTxnGasLimitExceeded")
