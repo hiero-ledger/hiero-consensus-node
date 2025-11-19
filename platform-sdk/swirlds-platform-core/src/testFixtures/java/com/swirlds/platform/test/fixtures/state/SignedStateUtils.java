@@ -2,12 +2,12 @@
 package com.swirlds.platform.test.fixtures.state;
 
 import static com.swirlds.platform.test.fixtures.PlatformStateUtils.randomPlatformState;
+import static com.swirlds.state.test.fixtures.merkle.VirtualMapStateTestUtils.createTestState;
 
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.platform.crypto.CryptoStatic;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.state.MerkleNodeState;
-import com.swirlds.state.test.fixtures.merkle.TestVirtualMapState;
 import java.util.Random;
 import org.hiero.base.crypto.test.fixtures.CryptoRandomUtils;
 
@@ -19,7 +19,7 @@ public class SignedStateUtils {
 
     public static SignedState randomSignedState(Random random) {
         TestPlatformStateFacade platformStateFacade = new TestPlatformStateFacade();
-        MerkleNodeState root = new TestVirtualMapState();
+        MerkleNodeState root = createTestState();
         TestingAppStateInitializer.initPlatformState(root);
         randomPlatformState(random, root, platformStateFacade);
         boolean shouldSaveToDisk = random.nextBoolean();
