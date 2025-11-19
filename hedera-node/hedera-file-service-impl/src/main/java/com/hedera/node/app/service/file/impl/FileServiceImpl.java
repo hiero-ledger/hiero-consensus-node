@@ -50,7 +50,7 @@ public final class FileServiceImpl implements FileService {
         fileSchema.createGenesisAddressBookAndNodeDetails(context, nodeStore);
         fileSchema.createGenesisFeeSchedule(context);
         fileSchema.createGenesisExchangeRate(context);
-        if (context.configuration().getConfigData(FeesConfig.class).simpleFeesEnabled()) {
+        if (context.configuration().getConfigData(FeesConfig.class).createSimpleFeeSchedule()) {
             fileSchema.createGenesisSimpleFeesSchedule(context);
         }
         fileSchema.createGenesisNetworkProperties(context);
