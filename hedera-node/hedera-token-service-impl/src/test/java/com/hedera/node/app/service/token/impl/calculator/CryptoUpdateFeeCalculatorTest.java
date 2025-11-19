@@ -264,7 +264,8 @@ class CryptoUpdateFeeCalculatorTest {
                     .accountIDToUpdate(AccountID.newBuilder().accountNum(1001L).build())
                     .hookCreationDetails(hook1, hook2)
                     .build();
-            final var body = TransactionBody.newBuilder().cryptoUpdateAccount(op).build();
+            final var body =
+                    TransactionBody.newBuilder().cryptoUpdateAccount(op).build();
 
             // When
             final var result = feeCalculator.calculateTxFee(body, calculatorState);
@@ -284,7 +285,8 @@ class CryptoUpdateFeeCalculatorTest {
                     .accountIDToUpdate(AccountID.newBuilder().accountNum(1001L).build())
                     .hookIdsToDelete(100L, 200L)
                     .build();
-            final var body = TransactionBody.newBuilder().cryptoUpdateAccount(op).build();
+            final var body =
+                    TransactionBody.newBuilder().cryptoUpdateAccount(op).build();
 
             // When
             final var result = feeCalculator.calculateTxFee(body, calculatorState);
@@ -306,7 +308,8 @@ class CryptoUpdateFeeCalculatorTest {
                     .hookCreationDetails(hook)
                     .hookIdsToDelete(100L)
                     .build();
-            final var body = TransactionBody.newBuilder().cryptoUpdateAccount(op).build();
+            final var body =
+                    TransactionBody.newBuilder().cryptoUpdateAccount(op).build();
 
             // When
             final var result = feeCalculator.calculateTxFee(body, calculatorState);

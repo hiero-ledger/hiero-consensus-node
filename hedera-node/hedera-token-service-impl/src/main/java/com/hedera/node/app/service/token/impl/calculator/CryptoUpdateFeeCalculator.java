@@ -30,7 +30,8 @@ public class CryptoUpdateFeeCalculator implements ServiceFeeCalculator {
         if (op.hasKey()) {
             addExtraFee(feeResult, serviceDef, KEYS, feeSchedule, countKeys(op.key()));
         }
-        final int hookOperations = op.hookCreationDetails().size() + op.hookIdsToDelete().size();
+        final int hookOperations =
+                op.hookCreationDetails().size() + op.hookIdsToDelete().size();
         if (hookOperations > 0) {
             addExtraFee(feeResult, serviceDef, HOOKS, feeSchedule, hookOperations);
         }

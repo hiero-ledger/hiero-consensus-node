@@ -241,7 +241,8 @@ class CryptoCreateFeeCalculatorTest {
             final var op = CryptoCreateTransactionBody.newBuilder()
                     .hookCreationDetails(hook)
                     .build();
-            final var body = TransactionBody.newBuilder().cryptoCreateAccount(op).build();
+            final var body =
+                    TransactionBody.newBuilder().cryptoCreateAccount(op).build();
 
             // When
             final var result = feeCalculator.calculateTxFee(body, calculatorState);
@@ -263,7 +264,8 @@ class CryptoCreateFeeCalculatorTest {
             final var op = CryptoCreateTransactionBody.newBuilder()
                     .hookCreationDetails(hook1, hook2, hook3)
                     .build();
-            final var body = TransactionBody.newBuilder().cryptoCreateAccount(op).build();
+            final var body =
+                    TransactionBody.newBuilder().cryptoCreateAccount(op).build();
 
             // When
             final var result = feeCalculator.calculateTxFee(body, calculatorState);

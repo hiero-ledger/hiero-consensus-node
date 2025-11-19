@@ -17,11 +17,9 @@ import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import edu.umd.cs.findbugs.annotations.NonNull;
-
 import java.util.Arrays;
 import java.util.Map;
 import java.util.stream.Stream;
-
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
@@ -41,8 +39,7 @@ public class CryptoSimpleFeesSuite {
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
         testLifecycle.overrideInClass(Map.of(
                 "fees.simpleFeesEnabled", "true",
-                "hooks.hooksEnabled", "true")
-        );
+                "hooks.hooksEnabled", "true"));
     }
 
     @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
@@ -51,12 +48,12 @@ public class CryptoSimpleFeesSuite {
         return compareSimpleToOld(
                 () -> Arrays.asList(
                         cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
-                        cryptoCreate("newAccount")
-                                .payingWith(PAYER)
-                                .via("createAccountTxn")),
+                        cryptoCreate("newAccount").payingWith(PAYER).via("createAccountTxn")),
                 "createAccountTxn",
-                0.05, 1.0,
-                0.05, 1.0);
+                0.05,
+                1.0,
+                0.05,
+                1.0);
     }
 
     @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
@@ -71,8 +68,10 @@ public class CryptoSimpleFeesSuite {
                                 .payingWith(PAYER)
                                 .via("createAccountKeyTxn")),
                 "createAccountKeyTxn",
-                0.05, 1.0,
-                0.05, 1.0);
+                0.05,
+                1.0,
+                0.05,
+                1.0);
     }
 
     @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
@@ -89,8 +88,10 @@ public class CryptoSimpleFeesSuite {
                                 .blankMemo()
                                 .via("deleteAccountTxn")),
                 "deleteAccountTxn",
-                0.005, 1.0,
-                0.005, 1.0);
+                0.005,
+                1.0,
+                0.005,
+                1.0);
     }
 
     @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
@@ -98,8 +99,7 @@ public class CryptoSimpleFeesSuite {
     final Stream<DynamicTest> cryptoUpdateBasic() {
         return compareSimpleToOld(
                 () -> Arrays.asList(
-                        cryptoCreate("accountToUpdate")
-                                .balance(ONE_HBAR),
+                        cryptoCreate("accountToUpdate").balance(ONE_HBAR),
                         cryptoUpdate("accountToUpdate")
                                 .memo("Updated memo")
                                 .payingWith("accountToUpdate")
@@ -107,8 +107,10 @@ public class CryptoSimpleFeesSuite {
                                 .fee(ONE_HBAR)
                                 .via("updateAccountBasicTxn")),
                 "updateAccountBasicTxn",
-                0.00022, 1.0,
-                0.00022, 1.0);
+                0.00022,
+                1.0,
+                0.00022,
+                1.0);
     }
 
     @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
@@ -117,8 +119,7 @@ public class CryptoSimpleFeesSuite {
         return compareSimpleToOld(
                 () -> Arrays.asList(
                         newKeyNamed("newAccountKey"),
-                        cryptoCreate("accountToUpdate")
-                                .balance(ONE_HBAR),
+                        cryptoCreate("accountToUpdate").balance(ONE_HBAR),
                         cryptoUpdate("accountToUpdate")
                                 .key("newAccountKey")
                                 .payingWith("accountToUpdate")
@@ -126,8 +127,10 @@ public class CryptoSimpleFeesSuite {
                                 .fee(ONE_HBAR)
                                 .via("updateAccountKeyTxn")),
                 "updateAccountKeyTxn",
-                0.00122, 1.0,
-                0.00122, 1.0);
+                0.00122,
+                1.0,
+                0.00122,
+                1.0);
     }
 
     @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
@@ -135,9 +138,7 @@ public class CryptoSimpleFeesSuite {
     final Stream<DynamicTest> cryptoUpdateMemo() {
         return compareSimpleToOld(
                 () -> Arrays.asList(
-                        cryptoCreate("accountToUpdate")
-                                .balance(ONE_HBAR)
-                                .memo("Original memo"),
+                        cryptoCreate("accountToUpdate").balance(ONE_HBAR).memo("Original memo"),
                         cryptoUpdate("accountToUpdate")
                                 .memo("Updated memo text")
                                 .payingWith("accountToUpdate")
@@ -145,8 +146,10 @@ public class CryptoSimpleFeesSuite {
                                 .fee(ONE_HBAR)
                                 .via("updateAccountMemoTxn")),
                 "updateAccountMemoTxn",
-                0.00022, 1.0,
-                0.00022, 1.0);
+                0.00022,
+                1.0,
+                0.00022,
+                1.0);
     }
 
     @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
@@ -155,9 +158,7 @@ public class CryptoSimpleFeesSuite {
         return compareSimpleToOld(
                 () -> Arrays.asList(
                         newKeyNamed("combinedKey"),
-                        cryptoCreate("accountToUpdate")
-                                .balance(ONE_HBAR)
-                                .memo("Original"),
+                        cryptoCreate("accountToUpdate").balance(ONE_HBAR).memo("Original"),
                         cryptoUpdate("accountToUpdate")
                                 .key("combinedKey")
                                 .memo("Updated with key")
@@ -166,8 +167,10 @@ public class CryptoSimpleFeesSuite {
                                 .fee(ONE_HBAR)
                                 .via("updateAccountCombinedTxn")),
                 "updateAccountCombinedTxn",
-                0.00122, 1.0,
-                0.00122, 1.0);
+                0.00122,
+                1.0,
+                0.00122,
+                1.0);
     }
 
     @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled", "hooks.hooksEnabled"})
@@ -185,8 +188,10 @@ public class CryptoSimpleFeesSuite {
                                 .via("createWithHookTxn")
                                 .hasKnownStatus(SUCCESS)),
                 "createWithHookTxn",
-                1.05, 1.0,
-                1.05, 1.0);
+                1.05,
+                1.0,
+                1.05,
+                1.0);
     }
 
     @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled", "hooks.hooksEnabled"})
@@ -205,8 +210,10 @@ public class CryptoSimpleFeesSuite {
                                 .via("createWith2HooksTxn")
                                 .hasKnownStatus(SUCCESS)),
                 "createWith2HooksTxn",
-                2.05, 1.0,
-                2.05, 1.0);
+                2.05,
+                1.0,
+                2.05,
+                1.0);
     }
 
     @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled", "hooks.hooksEnabled"})
@@ -229,8 +236,10 @@ public class CryptoSimpleFeesSuite {
                                 .via("createWith5HooksTxn")
                                 .hasKnownStatus(SUCCESS)),
                 "createWith5HooksTxn",
-                5.05, 1.0,
-                5.05, 1.0);
+                5.05,
+                1.0,
+                5.05,
+                1.0);
     }
 
     @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled", "hooks.hooksEnabled"})
@@ -251,8 +260,10 @@ public class CryptoSimpleFeesSuite {
                                 .via("createWithHooksKeysTxn")
                                 .hasKnownStatus(SUCCESS)),
                 "createWithHooksKeysTxn",
-                2.05, 1.0,
-                2.05, 1.0);
+                2.05,
+                1.0,
+                2.05,
+                1.0);
     }
 
     @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled", "hooks.hooksEnabled"})
@@ -263,8 +274,7 @@ public class CryptoSimpleFeesSuite {
                         uploadInitCode(HOOK_CONTRACT),
                         contractCreate(HOOK_CONTRACT).gas(5_000_000),
                         cryptoCreate(PAYER).balance(THOUSAND_HBAR),
-                        cryptoCreate("accountToUpdate")
-                                .payingWith(PAYER),
+                        cryptoCreate("accountToUpdate").payingWith(PAYER),
                         cryptoUpdate("accountToUpdate")
                                 .payingWith("accountToUpdate")
                                 .signedBy("accountToUpdate")
@@ -273,8 +283,10 @@ public class CryptoSimpleFeesSuite {
                                 .fee(ONE_HUNDRED_HBARS)
                                 .hasKnownStatus(SUCCESS)),
                 "updateWithHookTxn",
-                1.00022, 1.0,
-                1.00022, 1.0);
+                1.00022,
+                1.0,
+                1.00022,
+                1.0);
     }
 
     @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled", "hooks.hooksEnabled"})
@@ -295,8 +307,10 @@ public class CryptoSimpleFeesSuite {
                                 .via("updateWith2HooksTxn")
                                 .hasKnownStatus(SUCCESS)),
                 "updateWith2HooksTxn",
-                2.00022, 1.0,
-                2.00022, 1.0);
+                2.00022,
+                1.0,
+                2.00022,
+                1.0);
     }
 
     @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled", "hooks.hooksEnabled"})
@@ -318,8 +332,10 @@ public class CryptoSimpleFeesSuite {
                                 .fee(ONE_HUNDRED_HBARS)
                                 .hasKnownStatus(SUCCESS)),
                 "updateDeleteHookTxn",
-                1.00022, 1.0,
-                1.00022, 1.0);
+                1.00022,
+                1.0,
+                1.00022,
+                1.0);
     }
 
     @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled", "hooks.hooksEnabled"})
@@ -341,8 +357,10 @@ public class CryptoSimpleFeesSuite {
                                 .via("updateCreateDeleteHookTxn")
                                 .hasKnownStatus(SUCCESS)),
                 "updateCreateDeleteHookTxn",
-                2.00022, 1.0,
-                2.00022, 1.0);
+                2.00022,
+                1.0,
+                2.00022,
+                1.0);
     }
 
     @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled", "hooks.hooksEnabled"})
@@ -363,7 +381,9 @@ public class CryptoSimpleFeesSuite {
                                 .fee(ONE_HUNDRED_HBARS)
                                 .hasKnownStatus(SUCCESS)),
                 "updateHookAndKeyTxn",
-                1.00122, 1.0,
-                1.00122, 1.0);
+                1.00122,
+                1.0,
+                1.00122,
+                1.0);
     }
 }
