@@ -36,9 +36,11 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+/*
+ * Unit tests for {@link TokenCreateFeeCalculator} and {@link TokenMintFeeCalculator}.
+ */
 @ExtendWith(MockitoExtension.class)
-@DisplayName("Token Handler Fee Tests")
-public class TokenServicesFeeTests {
+public class TokenServiceFeeCalculatorTests {
     private static final long TOKEN_CREATE_BASE_FEE = 15;
     private static final long TOKEN_MINT_BASE_FEE = 20;
     private static final long COMMON_TOKEN_FEE = 5;
