@@ -125,17 +125,6 @@ public class EventImpl extends LinkedEvent<EventImpl> implements Clearable {
         this.roundReceived = roundReceived;
     }
 
-    /**
-     * @return the other parent of this
-     */
-    public @Nullable EventImpl getOtherParent() {
-        final List<EventImpl> otherParents = getOtherParents();
-        if (otherParents.isEmpty()) {
-            return null;
-        }
-        return otherParents.getFirst();
-    }
-
     public boolean isWitness() {
         return isWitness;
     }
@@ -485,13 +474,6 @@ public class EventImpl extends LinkedEvent<EventImpl> implements Clearable {
      */
     public Instant getTimeCreated() {
         return baseEvent.getTimeCreated();
-    }
-
-    /**
-     * @return returns {@link PlatformEvent#getHash()}}
-     */
-    public Hash getBaseHash() {
-        return baseEvent.getHash();
     }
 
     /**
