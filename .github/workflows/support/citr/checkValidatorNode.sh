@@ -14,12 +14,12 @@ java -Xms16g -Xmx64g -XX:+UnlockExperimentalVMOptions -XX:+UseZGC -XX:ZAllocatio
      -XX:ZMarkStackSpaceLimit=16g -XX:MaxDirectMemorySize=32g -XX:NativeMemoryTracking=detail -XX:MetaspaceSize=100M \
      -XX:+ZGenerational -Dthread.num=16 \
      -jar /tmp/hedera-state-validator-*-all.jar ../com.hedera.services.ServicesMain/${node_id}/123/${currentRound} \
-     validate rehash stateAnalyzer account tokenRelations internal leaf > validator.log 2>&1
+     validate rehash stateAnalyzer account tokenRelations internal leaf > validatorRun.log 2>&1
 result=${?}
 if [[ ${result} -eq 0 ]]
 then
   echo "Node: ${node_id} validation of round ${currentRound} is OK"
-  grep -i -E 'time.* taken' validator.log
+  grep -i -E 'time.* taken' validator.log validatorRun.log
 else
   echo "Node: ${node_id} validation of round ${currentRound} failed"
 fi
