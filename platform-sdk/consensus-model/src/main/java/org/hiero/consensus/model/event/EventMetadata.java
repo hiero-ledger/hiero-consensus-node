@@ -73,6 +73,7 @@ public class EventMetadata extends AbstractHashable {
 
         Objects.requireNonNull(transactions, "The transactions must not be null");
         this.creatorId = Objects.requireNonNull(creatorId, "The creatorId must not be null");
+        this.allParents = Objects.requireNonNull(allParents, "The allParents must not be null");
         if (!allParents.isEmpty() && allParents.getFirst().creator().equals(creatorId)) {
             // this event has a self parent
             this.selfParent = allParents.getFirst();
@@ -82,7 +83,6 @@ public class EventMetadata extends AbstractHashable {
             this.selfParent = null;
             this.otherParents = allParents;
         }
-        this.allParents = List.copyOf(allParents); // checks for null values and makes a copy
         this.timeCreated = Objects.requireNonNull(timeCreated, "The timeCreated must not be null");
         this.transactions = Objects.requireNonNull(transactions, "transactions must not be null").stream()
                 .map(TransactionWrapper::new)
