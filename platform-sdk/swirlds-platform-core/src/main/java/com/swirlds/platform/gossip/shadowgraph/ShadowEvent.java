@@ -2,14 +2,13 @@
 package com.swirlds.platform.gossip.shadowgraph;
 
 import com.swirlds.platform.internal.LinkedEvent;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
-import java.util.Objects;
-import java.util.stream.Stream;
 import org.hiero.consensus.model.event.PlatformEvent;
 
 /**
  * A shadow event wraps a hashgraph event, and provides parent pointers to shadow events.
- *
+ * <p>
  * The shadow event type is the vertex type of the shadow graph. This is the elemental type of {@link Shadowgraph}.
  * It provides a reference to a hashgraph event instance and the following operations:
  *
@@ -20,7 +19,7 @@ import org.hiero.consensus.model.event.PlatformEvent;
  * </ul>
  *
  * All linking and unlinking of a shadow event is implemented by this type.
- *
+ * <p>
  * A shadow event never modifies the fields in a hashgraph event.
  */
 public class ShadowEvent extends LinkedEvent<ShadowEvent> {
@@ -28,15 +27,13 @@ public class ShadowEvent extends LinkedEvent<ShadowEvent> {
     /**
      * Construct a shadow event from an event and the shadow events of its parents
      *
-     * @param event
+     * @param platformEvent
      * 		the event
-     * @param selfParent
-     * 		the self-parent event's shadow
-     * @param otherParent
-     * 		the other-parent event's shadow
+     * @param allParents
+     * 		the parent event's shadows
      */
-    public ShadowEvent(final PlatformEvent event, final ShadowEvent selfParent, final ShadowEvent otherParent) {
-        super(event, Stream.of(selfParent, otherParent).filter(Objects::nonNull).toList());
+    public ShadowEvent(@NonNull final PlatformEvent platformEvent, @NonNull final List<ShadowEvent> allParents) {
+        super(platformEvent, allParents);
     }
 
     /**

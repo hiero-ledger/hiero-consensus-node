@@ -2,6 +2,7 @@
 package com.swirlds.platform.test.fixtures.sync;
 
 import com.swirlds.platform.gossip.shadowgraph.ShadowEvent;
+import com.swirlds.platform.internal.LinkedEvent;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
 import java.util.Random;
@@ -27,7 +28,7 @@ public class EventFactory {
 
         final long maxParentsBirthRound = Stream.of(selfParent, otherParent)
                 .filter(Objects::nonNull)
-                .map(shadowEvent -> shadowEvent.getPlatformEvent())
+                .map(LinkedEvent::getPlatformEvent)
                 .mapToLong(PlatformEvent::getBirthRound)
                 .max()
                 .orElse(ConsensusConstants.ROUND_FIRST - 1);
@@ -38,6 +39,6 @@ public class EventFactory {
                 .setBirthRound(maxParentsBirthRound + 1)
                 .build();
 
-        return new ShadowEvent(platformEvent, selfParent, otherParent);
+        return new ShadowEvent(platformEvent, Stream.of(selfParent, otherParent).filter(Objects::nonNull).toList());
     }
 }

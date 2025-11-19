@@ -246,14 +246,8 @@ public class Shadowgraph implements Clearable {
             final HashSet<ShadowEvent> ancestors, final ShadowEvent event, final Predicate<ShadowEvent> predicate) {
         final Deque<ShadowEvent> todoStack = new ArrayDeque<>();
 
-        final ShadowEvent sp = event.getSelfParent();
-        if (sp != null) {
-            todoStack.push(sp);
-        }
-
-        final ShadowEvent op = event.getOtherParent();
-        if (op != null) {
-            todoStack.push(op);
+        for (final ShadowEvent parent : event.getAllParents()) {
+            todoStack.push(parent);
         }
 
         // perform a depth first search of self and other parents
@@ -275,13 +269,8 @@ public class Shadowgraph implements Clearable {
             if (!expired(testEvent.getPlatformEvent().getDescriptor())
                     && predicate.test(testEvent)
                     && ancestors.add(testEvent)) {
-                final ShadowEvent xsp = testEvent.getSelfParent();
-                if (xsp != null) {
-                    todoStack.push(xsp);
-                }
-                final ShadowEvent xop = testEvent.getOtherParent();
-                if (xop != null) {
-                    todoStack.push(xop);
+                for (final ShadowEvent parent : testEvent.getAllParents()) {
+                    todoStack.push(parent);
                 }
             }
         }
@@ -415,26 +404,6 @@ public class Shadowgraph implements Clearable {
         // Remove references to parent shadows so this event gets garbage collected
         shadow.clear();
         tips.remove(shadow);
-    }
-
-    /**
-     * Get the shadow event that references a hashgraph otherParent instance.
-     *
-     * @param otherParentsDescriptors List of event descriptors.
-     * @return the shadow event that references an event, or null if {@code otherParentsDescriptors} is empty
-     * @throws IllegalArgumentException if {@code otherParentsDescriptors} contains more than one event descriptor
-     */
-    @Nullable
-    private synchronized ShadowEvent shadow(@NonNull final List<EventDescriptorWrapper> otherParentsDescriptors) {
-        if (otherParentsDescriptors.isEmpty()) {
-            return null;
-        }
-
-        if (otherParentsDescriptors.size() > 1) {
-            throw new IllegalArgumentException("Only one otherParent descriptor is supported");
-        }
-
-        return hashToShadowEvent.get(otherParentsDescriptors.getFirst().hash());
     }
 
     /**
@@ -589,10 +558,12 @@ public class Shadowgraph implements Clearable {
      */
     @NonNull
     private ShadowEvent insert(@NonNull final PlatformEvent event) {
-        final ShadowEvent sp = shadow(event.getSelfParent());
-        final ShadowEvent op = shadow(event.getOtherParents());
-
-        final ShadowEvent se = new ShadowEvent(event, sp, op);
+        final List<ShadowEvent> allParents = event.getAllParents()
+                .stream()
+                .map(this::shadow)
+                .filter(Objects::nonNull)
+                .toList();
+        final ShadowEvent se = new ShadowEvent(event, allParents);
 
         hashToShadowEvent.put(se.getBaseHash(), se);
 
@@ -674,25 +645,25 @@ public class Shadowgraph implements Clearable {
 
         // If e has an unexpired parent that is not already referenced by the shadowgraph, then we log an error. This
         // is only a sanity check, so there is no need to prevent insertion
-        if (hasOP) {
-            if (e.getOtherParents().size() > 1) {
-                throw new IllegalStateException("Only one otherParent descriptor is supported");
-            }
-            final EventDescriptorWrapper otherParent = e.getOtherParents().getFirst();
-            final boolean knownOP = shadow(otherParent) != null;
-            final boolean expiredOP = expired(otherParent);
-            if (!knownOP && !expiredOP) {
-                logger.info(STARTUP.getMarker(), "Missing non-expired other parent for {}", e);
-            }
-        }
-
-        if (hasSP) {
-            final boolean knownSP = shadow(e.getSelfParent()) != null;
-            final boolean expiredSP = expired(e.getSelfParent());
-            if (!knownSP && !expiredSP) {
-                logger.info(STARTUP.getMarker(), "Missing non-expired self parent for {}", e);
-            }
-        }
+//        if (hasOP) {
+//            if (e.getOtherParents().size() > 1) {
+//                throw new IllegalStateException("Only one otherParent descriptor is supported");
+//            }
+//            final EventDescriptorWrapper otherParent = e.getOtherParents().getFirst();
+//            final boolean knownOP = shadow(otherParent) != null;
+//            final boolean expiredOP = expired(otherParent);
+//            if (!knownOP && !expiredOP) {
+//                logger.info(STARTUP.getMarker(), "Missing non-expired other parent for {}", e);
+//            }
+//        }
+//
+//        if (hasSP) {
+//            final boolean knownSP = shadow(e.getSelfParent()) != null;
+//            final boolean expiredSP = expired(e.getSelfParent());
+//            if (!knownSP && !expiredSP) {
+//                logger.info(STARTUP.getMarker(), "Missing non-expired self parent for {}", e);
+//            }
+//        }
 
         // If both parents are null, then insertion is allowed. This will create
         // a new tree in the forest view of the graph.
