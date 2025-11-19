@@ -9,7 +9,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.util.Map;
 import org.assertj.core.data.Percentage;
-import org.hiero.otter.fixtures.network.utils.BandwidthLimit;
+import org.hiero.otter.fixtures.network.BandwidthLimit;
 
 /**
  * Represents a network toxin that can be applied to a proxy to simulate network conditions.

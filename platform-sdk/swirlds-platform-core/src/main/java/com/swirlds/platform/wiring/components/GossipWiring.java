@@ -13,6 +13,7 @@ import com.swirlds.platform.wiring.PlatformSchedulersConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import org.hiero.consensus.model.event.PlatformEvent;
+import org.hiero.consensus.model.gossip.SyncProgress;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.status.PlatformStatus;
 
@@ -49,7 +50,7 @@ public class GossipWiring {
     /**
      * Average sync lag is reported over this wire
      */
-    private final StandardOutputWire<Double> syncLagOutput;
+    private final StandardOutputWire<SyncProgress> syncProgressOutput;
 
     /**
      * This wire is used to start gossip.
@@ -98,7 +99,7 @@ public class GossipWiring {
         eventInput = scheduler.buildInputWire("events to gossip");
         eventWindowInput = scheduler.buildInputWire("event window");
         eventOutput = scheduler.buildSecondaryOutputWire();
-        syncLagOutput = scheduler.buildSecondaryOutputWire();
+        syncProgressOutput = scheduler.buildSecondaryOutputWire();
 
         startInput = scheduler.buildInputWire("start");
         stopInput = scheduler.buildInputWire("stop");
@@ -127,7 +128,7 @@ public class GossipWiring {
                 resumeInput,
                 systemHealthInput,
                 platformStatusInput,
-                syncLagOutput);
+                syncProgressOutput);
     }
 
     /**
@@ -165,8 +166,8 @@ public class GossipWiring {
      *
      * @return the output wire for sync lag
      */
-    public OutputWire<Double> getSyncLagOutput() {
-        return syncLagOutput;
+    public OutputWire<SyncProgress> getSyncProgressOutput() {
+        return syncProgressOutput;
     }
 
     /**

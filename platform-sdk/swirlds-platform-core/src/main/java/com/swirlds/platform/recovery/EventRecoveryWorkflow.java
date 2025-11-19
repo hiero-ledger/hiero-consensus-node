@@ -89,7 +89,7 @@ public final class EventRecoveryWorkflow {
      * disk.
      *
      * @param platformContext         the platform context
-     * @param signedStateFile         the bootstrap signed state file
+     * @param signedStateDir         the bootstrap signed state file
      * @param configurationFiles      files containing configuration
      * @param eventStreamDirectory    a directory containing the event stream
      * @param mainClassName           the fully qualified class name of the {@link SwirldMain} for the app
@@ -104,7 +104,7 @@ public final class EventRecoveryWorkflow {
      */
     public static void recoverState(
             @NonNull final PlatformContext platformContext,
-            @NonNull final Path signedStateFile,
+            @NonNull final Path signedStateDir,
             @NonNull final List<Path> configurationFiles,
             @NonNull final Path eventStreamDirectory,
             @NonNull final String mainClassName,
@@ -116,7 +116,7 @@ public final class EventRecoveryWorkflow {
             @NonNull final PlatformStateFacade platformStateFacade)
             throws IOException {
         Objects.requireNonNull(platformContext);
-        Objects.requireNonNull(signedStateFile, "signedStateFile must not be null");
+        Objects.requireNonNull(signedStateDir, "signedStateDir must not be null");
         Objects.requireNonNull(configurationFiles, "configurationFiles must not be null");
         Objects.requireNonNull(eventStreamDirectory, "eventStreamDirectory must not be null");
         Objects.requireNonNull(mainClassName, "mainClassName must not be null");
@@ -147,21 +147,21 @@ public final class EventRecoveryWorkflow {
             Files.createDirectories(resultingStateDirectory);
         }
 
-        logger.info(STARTUP.getMarker(), "Loading state from {}", signedStateFile);
+        logger.info(STARTUP.getMarker(), "Loading state from {}", signedStateDir);
         // FUTURE-WORK: Follow Browser approach
         final SwirldMain<? extends MerkleNodeState> hederaApp =
                 HederaUtils.createHederaAppMain(platformContext, platformStateFacade);
 
-        final DeserializedSignedState deserializedSignedState = SignedStateFileReader.readStateFile(
-                signedStateFile,
+        final DeserializedSignedState deserializedSignedState = SignedStateFileReader.readState(
+                signedStateDir,
                 v -> hederaApp
-                        .stateRootFromVirtualMap(platformContext.getMetrics(), platformContext.getTime())
+                        .stateRootFromVirtualMap(platformContext.getMetrics())
                         .apply(v),
                 platformStateFacade,
                 platformContext);
         final StateLifecycleManager stateLifecycleManager = new StateLifecycleManagerImpl(
                 platformContext.getMetrics(), platformContext.getTime(), (Function<VirtualMap, MerkleNodeState>)
-                        hederaApp.stateRootFromVirtualMap(platformContext.getMetrics(), platformContext.getTime()));
+                        hederaApp.stateRootFromVirtualMap(platformContext.getMetrics()));
         try (final ReservedSignedState initialState = deserializedSignedState.reservedSignedState()) {
             HederaUtils.updateStateHash(hederaApp, deserializedSignedState);
 

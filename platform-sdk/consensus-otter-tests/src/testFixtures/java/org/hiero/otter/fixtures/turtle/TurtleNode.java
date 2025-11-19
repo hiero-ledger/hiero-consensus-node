@@ -7,6 +7,7 @@ import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.setupG
 import static com.swirlds.platform.state.signed.StartupStateUtils.loadInitialState;
 import static java.util.Objects.requireNonNull;
 import static org.assertj.core.api.Assertions.fail;
+import static org.hiero.otter.fixtures.app.OtterStateUtils.createGenesisState;
 import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.DESTROYED;
 import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.RUNNING;
 import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.SHUTDOWN;
@@ -36,6 +37,7 @@ import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.wiring.PlatformComponents;
 import com.swirlds.state.MerkleNodeState;
+import com.swirlds.state.merkle.VirtualMapState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
@@ -60,9 +62,7 @@ import org.hiero.otter.fixtures.NodeConfiguration;
 import org.hiero.otter.fixtures.ProfilerEvent;
 import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.app.OtterApp;
-import org.hiero.otter.fixtures.app.OtterAppState;
 import org.hiero.otter.fixtures.app.OtterExecutionLayer;
-import org.hiero.otter.fixtures.app.OtterTransaction;
 import org.hiero.otter.fixtures.internal.AbstractNode;
 import org.hiero.otter.fixtures.internal.NetworkConfiguration;
 import org.hiero.otter.fixtures.internal.result.NodeResultsCollector;
@@ -72,6 +72,7 @@ import org.hiero.otter.fixtures.internal.result.SingleNodeReconnectResultImpl;
 import org.hiero.otter.fixtures.logging.context.NodeLoggingContext;
 import org.hiero.otter.fixtures.logging.context.NodeLoggingContext.LoggingContextScope;
 import org.hiero.otter.fixtures.logging.internal.InMemorySubscriptionManager;
+import org.hiero.otter.fixtures.network.transactions.OtterTransaction;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
 import org.hiero.otter.fixtures.result.SingleNodeEventStreamResult;
 import org.hiero.otter.fixtures.result.SingleNodeLogResult;
@@ -82,7 +83,6 @@ import org.hiero.otter.fixtures.turtle.gossip.SimulatedGossip;
 import org.hiero.otter.fixtures.turtle.gossip.SimulatedNetwork;
 import org.hiero.otter.fixtures.turtle.logging.TurtleLogging;
 import org.hiero.otter.fixtures.util.OtterSavedStateUtils;
-import org.hiero.otter.fixtures.util.SecureRandomBuilder;
 
 /**
  * A node in the turtle network.
@@ -170,9 +170,17 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
 
             logToConsole(() -> log.info("Starting node {}...", selfId));
 
+            InMemorySubscriptionManager.INSTANCE.subscribe(logEntry -> {
+                if (Objects.equals(logEntry.nodeId(), selfId)) {
+                    resultsCollector.addLogEntry(logEntry);
+                }
+                return lifeCycle == DESTROYED ? UNSUBSCRIBE : CONTINUE;
+            });
+
             // Log the startup message using the same STARTUP marker and message as production nodes
             // Uses a platform logger to ensure it routes through per-node appenders
             startupLogger.info(LogMarker.STARTUP.getMarker(), "\n\n" + StaticPlatformBuilder.STARTUP_MESSAGE + "\n");
+
             if (savedStateDirectory != null) {
                 try {
                     OtterSavedStateUtils.copySaveState(selfId, savedStateDirectory, outputDirectory);
@@ -222,19 +230,13 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
             final HashedReservedSignedState reservedState = loadInitialState(
                     recycleBin,
                     version,
-                    () -> OtterAppState.createGenesisState(
-                            currentConfiguration,
-                            metrics,
-                            timeManager.time(),
-                            roster(),
-                            version,
-                            otterApp.allServices()),
+                    () -> createGenesisState(currentConfiguration, metrics, roster(), version, otterApp.allServices()),
                     OtterApp.APP_NAME,
                     OtterApp.SWIRLD_NAME,
                     selfId,
                     platformStateFacade,
                     platformContext,
-                    virtualMap -> new OtterAppState(virtualMap, metrics, timeManager.time()));
+                    virtualMap -> new VirtualMapState(virtualMap, metrics));
 
             final ReservedSignedState initialState = reservedState.state();
             final MerkleNodeState state = initialState.get().getState();
@@ -260,7 +262,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
                             eventStreamLoc,
                             rosterHistory,
                             platformStateFacade,
-                            virtualMap -> new OtterAppState(virtualMap, metrics, timeManager.time()))
+                            virtualMap -> new VirtualMapState(virtualMap, metrics))
                     .withPlatformContext(platformContext)
                     .withConfiguration(currentConfiguration)
                     .withKeysAndCerts(keysAndCerts)
@@ -295,13 +297,6 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
                             "nodePlatformStatusCollector",
                             "platformStatus",
                             wrapConsumerWithNodeContext(this::handlePlatformStatusChange));
-
-            InMemorySubscriptionManager.INSTANCE.subscribe(logEntry -> {
-                if (Objects.equals(logEntry.nodeId(), selfId)) {
-                    resultsCollector.addLogEntry(logEntry);
-                }
-                return lifeCycle == DESTROYED ? UNSUBSCRIBE : CONTINUE;
-            });
 
             platform = platformComponentBuilder.build();
             platformStatus = PlatformStatus.STARTING_UP;

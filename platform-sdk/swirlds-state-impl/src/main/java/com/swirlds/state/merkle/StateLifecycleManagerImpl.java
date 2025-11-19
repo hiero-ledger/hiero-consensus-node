@@ -195,7 +195,7 @@ public class StateLifecycleManagerImpl implements StateLifecycleManager {
         state.throwIfMutable();
         state.throwIfDestroyed();
         final long startTime = time.currentTimeMillis();
-        MerkleTreeSnapshotWriter.createSnapshot(state.getRoot(), targetPath, state.toString());
+        MerkleTreeSnapshotWriter.createSnapshot(state.getRoot(), targetPath);
         snapshotMetrics.updateWriteStateToDiskTimeMetric(time.currentTimeMillis() - startTime);
     }
 
@@ -207,7 +207,7 @@ public class StateLifecycleManagerImpl implements StateLifecycleManager {
     public MerkleNodeState loadSnapshot(@NonNull final Path targetPath) {
         final MerkleNode root;
         try {
-            root = MerkleTreeSnapshotReader.readStateFileData(targetPath).stateRoot();
+            root = MerkleTreeSnapshotReader.readStateFileData(targetPath);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }

@@ -2,7 +2,7 @@
 package com.swirlds.platform;
 
 import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyEquals;
-import static com.swirlds.platform.state.snapshot.SignedStateFileReader.readStateFile;
+import static com.swirlds.platform.state.snapshot.SignedStateFileReader.readState;
 import static com.swirlds.platform.state.snapshot.StateToDiskReason.FATAL_ERROR;
 import static com.swirlds.platform.state.snapshot.StateToDiskReason.ISS;
 import static com.swirlds.platform.state.snapshot.StateToDiskReason.PERIODIC_SNAPSHOT;
@@ -43,7 +43,7 @@ import com.swirlds.platform.state.snapshot.StateSnapshotManager;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.StateLifecycleManagerImpl;
-import com.swirlds.state.test.fixtures.merkle.TestVirtualMapState;
+import com.swirlds.state.test.fixtures.merkle.VirtualMapStateTestUtils;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -100,8 +100,8 @@ class StateFileManagerTests {
                 .build();
         signedStateFilePath =
                 new SignedStateFilePath(context.getConfiguration().getConfigData(StateCommonConfig.class));
-        stateLifecycleManager =
-                new StateLifecycleManagerImpl(context.getMetrics(), context.getTime(), TestVirtualMapState::new);
+        stateLifecycleManager = new StateLifecycleManagerImpl(
+                context.getMetrics(), context.getTime(), VirtualMapStateTestUtils::createTestStateWithVM);
     }
 
     @AfterEach
@@ -137,9 +137,9 @@ class StateFileManagerTests {
 
         assertEquals(-1, originalState.getReservationCount(), "invalid reservation count");
 
-        final DeserializedSignedState deserializedSignedState = readStateFile(
-                stateFile,
-                TestVirtualMapState::new,
+        final DeserializedSignedState deserializedSignedState = readState(
+                stateDirectory,
+                VirtualMapStateTestUtils::createTestStateWithVM,
                 TEST_PLATFORM_STATE_FACADE,
                 TestPlatformContextBuilder.create().build());
         SignedState signedState = deserializedSignedState.reservedSignedState().get();
@@ -306,9 +306,9 @@ class StateFileManagerTests {
                     final SavedStateInfo savedStateInfo = currentStatesOnDisk.get(index);
 
                     final SignedState stateFromDisk = assertDoesNotThrow(
-                            () -> SignedStateFileReader.readStateFile(
-                                            savedStateInfo.stateFile(),
-                                            TestVirtualMapState::new,
+                            () -> SignedStateFileReader.readState(
+                                            savedStateInfo.stateDirectory(),
+                                            VirtualMapStateTestUtils::createTestStateWithVM,
                                             TEST_PLATFORM_STATE_FACADE,
                                             context)
                                     .reservedSignedState()
@@ -435,8 +435,8 @@ class StateFileManagerTests {
 
     void initLifecycleManagerAndMakeStateImmutable(SignedState state, boolean createNewStateLifecycleManager) {
         if (createNewStateLifecycleManager) {
-            stateLifecycleManager =
-                    new StateLifecycleManagerImpl(context.getMetrics(), context.getTime(), TestVirtualMapState::new);
+            stateLifecycleManager = new StateLifecycleManagerImpl(
+                    context.getMetrics(), context.getTime(), VirtualMapStateTestUtils::createTestStateWithVM);
         }
 
         stateLifecycleManager.initState(state.getState(), false);

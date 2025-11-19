@@ -13,6 +13,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.util.function.Consumer;
 import org.hiero.consensus.model.event.PlatformEvent;
+import org.hiero.consensus.model.gossip.SyncProgress;
 import org.hiero.consensus.model.node.NodeId;
 
 /**
@@ -60,7 +61,7 @@ public class RpcShadowgraphSynchronizer extends AbstractShadowgraphSynchronizer 
             @NonNull final FallenBehindMonitor fallenBehindMonitor,
             @NonNull final IntakeEventCounter intakeEventCounter,
             @NonNull final NodeId selfId,
-            @NonNull final Consumer<Double> syncLagHandler) {
+            @NonNull final Consumer<SyncProgress> syncLagHandler) {
 
         super(
                 platformContext,

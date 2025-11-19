@@ -43,9 +43,9 @@ public class GenesisPlatformStateCommand extends AbstractCommand {
     /**
      * The path to state to edit
      */
-    @CommandLine.Parameters(description = "The path to the state to edit", index = "0")
+    @CommandLine.Parameters(description = "The path to the directory of the state to edit", index = "0")
     private void setStatePath(final Path statePath) {
-        this.statePath = pathMustExist(statePath.toAbsolutePath());
+        this.statePath = dirMustExist(statePath.toAbsolutePath());
     }
 
     /**
@@ -70,7 +70,7 @@ public class GenesisPlatformStateCommand extends AbstractCommand {
 
         System.out.printf("Reading from %s %n", statePath.toAbsolutePath());
         final PlatformStateFacade stateFacade = DEFAULT_PLATFORM_STATE_FACADE;
-        final DeserializedSignedState deserializedSignedState = SignedStateFileReader.readStateFile(
+        final DeserializedSignedState deserializedSignedState = SignedStateFileReader.readState(
                 statePath,
                 (virtualMap) -> {
                     // FUTURE WORK: https://github.com/hiero-ledger/hiero-consensus-node/issues/19003
