@@ -29,9 +29,11 @@ import com.hedera.pbj.runtime.grpc.Pipeline;
 import com.hedera.pbj.runtime.grpc.ServiceInterface.RequestOptions;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import io.helidon.webclient.api.WebClient;
+import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodHandles.Lookup;
 import java.lang.invoke.VarHandle;
+import java.lang.reflect.Method;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -67,6 +69,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 class BlockNodeConnectionComponentTest extends BlockNodeCommunicationTestBase {
     private static final VarHandle streamingBlockNumberHandle;
     private static final VarHandle workerThreadRefHandle;
+    private static final MethodHandle sendRequestHandle;
 
     static {
         try {
@@ -75,6 +78,11 @@ class BlockNodeConnectionComponentTest extends BlockNodeCommunicationTestBase {
                     .findVarHandle(BlockNodeConnection.class, "streamingBlockNumber", AtomicLong.class);
             workerThreadRefHandle = MethodHandles.privateLookupIn(BlockNodeConnection.class, lookup)
                     .findVarHandle(BlockNodeConnection.class, "workerThreadRef", AtomicReference.class);
+
+            final Method sendRequest =
+                    BlockNodeConnection.class.getDeclaredMethod("sendRequest", BlockNodeConnection.StreamRequest.class);
+            sendRequest.setAccessible(true);
+            sendRequestHandle = lookup.unreflect(sendRequest);
         } catch (final Exception e) {
             throw new RuntimeException(e);
         }
@@ -796,7 +804,7 @@ class BlockNodeConnectionComponentTest extends BlockNodeCommunicationTestBase {
         // Send request in a separate thread
         final Thread testThread = Thread.ofVirtual().start(() -> {
             try {
-                connection.sendRequest(request);
+                sendRequest(new BlockNodeConnection.BlockItemsStreamRequest(request, 1L, 1, 1, false));
             } catch (RuntimeException e) {
                 exceptionRef.set(e);
             }
@@ -885,5 +893,21 @@ class BlockNodeConnectionComponentTest extends BlockNodeCommunicationTestBase {
     @SuppressWarnings("unchecked")
     private AtomicReference<Thread> workerThreadRef() {
         return (AtomicReference<Thread>) workerThreadRefHandle.get(connection);
+    }
+
+    private void sendRequest(final BlockNodeConnection.StreamRequest request) {
+        sendRequest(connection, request);
+    }
+
+    private void sendRequest(final BlockNodeConnection connection, final BlockNodeConnection.StreamRequest request) {
+        try {
+            sendRequestHandle.invoke(connection, request);
+        } catch (final Throwable e) {
+            if (e instanceof final RuntimeException re) {
+                throw re;
+            } else {
+                throw new RuntimeException(e);
+            }
+        }
     }
 }
