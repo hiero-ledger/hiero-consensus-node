@@ -1,5 +1,5 @@
 |                   Current File Name                   |                       Current Workflow Name                       | Future File Name | Future Workflow Name |
-|-------------------------------------------------------|-------------------------------------------------------------------|------------------|----------------------|
+|-------------------------------------------------------|-------------------------------------------------------------------|------------------|----------------------|---|---------------------------------------|--------------------------|---|---|
 | # Cron                                                |                                                                   |                  |                      |
 | zxcron-extended-test-suite.yaml                       | ZXCron: [CITR] Extended Test Suite                                |                  |                      |
 | zxcron-promote-build-candidate.yaml                   | ZXCron: [CITR] Promote Build Candidate                            |                  |                      |
@@ -21,7 +21,7 @@
 | zxc-single-day-longevity-test.yaml                    | ZXC: [CITR] Single Day Longevity Test                             |                  |                      |
 | zxc-single-day-performance-test.yaml                  | ZXC: [CITR] Single Day Performance Test                           |                  |                      |
 | zxc-tck-regression.yaml                               | ZXC: TCK Regression                                               |                  |                      |
-| zxc-execute-otter-tests.yaml                          | ZXC: Execute Otter Tests                                          |                  |                      || platform-zxc-launch-jrs-workflow.yaml                 | ZXC: Launch JRS Workflow                                          |                  |                      |
+| zxc-execute-otter-tests.yaml                          | ZXC: Execute Otter Tests                                          |                  |                         || platform-zxc-launch-jrs-workflow.yaml | ZXC: Launch JRS Workflow |   |   |
 | node-zxc-build-release-artifact.yaml                  | ZXC: [Node] Deploy Release Artifacts                              |                  |                      |
 | node-zxc-compile-application-code.yaml                | ZXC: [Node] Compile Application Code                              |                  |                      |
 | node-zxc-deploy-preview.yaml                          | ZXC: [Node] Deploy Preview Network Release                        |                  |                      |
