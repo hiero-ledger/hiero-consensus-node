@@ -27,14 +27,14 @@ public class EventFactory {
 
         final long maxParentsBirthRound = Stream.of(selfParent, otherParent)
                 .filter(Objects::nonNull)
-                .map(ShadowEvent::getEvent)
+                .map(shadowEvent -> shadowEvent.getPlatformEvent())
                 .mapToLong(PlatformEvent::getBirthRound)
                 .max()
                 .orElse(ConsensusConstants.ROUND_FIRST - 1);
         final TestingEventBuilder eventBuilder = new TestingEventBuilder(random);
         final PlatformEvent platformEvent = eventBuilder
-                .setSelfParent(selfParent == null ? null : selfParent.getEvent())
-                .setOtherParent(otherParent == null ? null : otherParent.getEvent())
+                .setSelfParent(selfParent == null ? null : selfParent.getPlatformEvent())
+                .setOtherParent(otherParent == null ? null : otherParent.getPlatformEvent())
                 .setBirthRound(maxParentsBirthRound + 1)
                 .build();
 

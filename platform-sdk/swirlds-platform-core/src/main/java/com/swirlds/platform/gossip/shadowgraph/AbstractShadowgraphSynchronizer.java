@@ -190,7 +190,7 @@ public class AbstractShadowgraphSynchronizer {
         sendSet.addAll(unknownTips);
 
         final List<PlatformEvent> eventsTheyMayNeed =
-                sendSet.stream().map(ShadowEvent::getEvent).collect(Collectors.toCollection(ArrayList::new));
+                sendSet.stream().map(shadowEvent -> shadowEvent.getPlatformEvent()).collect(Collectors.toCollection(ArrayList::new));
 
         SyncUtils.sort(eventsTheyMayNeed);
 
