@@ -66,12 +66,12 @@ import org.hiero.otter.fixtures.internal.result.MultipleNodePcesResultsImpl;
 import org.hiero.otter.fixtures.internal.result.MultipleNodePlatformStatusResultsImpl;
 import org.hiero.otter.fixtures.internal.result.MultipleNodeReconnectResultsImpl;
 import org.hiero.otter.fixtures.network.BandwidthLimit;
-import org.hiero.otter.fixtures.network.Connection;
-import org.hiero.otter.fixtures.network.DirectionalConnection;
+import org.hiero.otter.fixtures.network.BidirectionalConnection;
 import org.hiero.otter.fixtures.network.LatencyRange;
 import org.hiero.otter.fixtures.network.Partition;
 import org.hiero.otter.fixtures.network.Topology;
 import org.hiero.otter.fixtures.network.Topology.ConnectionState;
+import org.hiero.otter.fixtures.network.UnidirectionalConnection;
 import org.hiero.otter.fixtures.network.transactions.OtterTransaction;
 import org.hiero.otter.fixtures.result.MultipleNodeConsensusResults;
 import org.hiero.otter.fixtures.result.MultipleNodeEventStreamResults;
@@ -372,8 +372,9 @@ public abstract class AbstractNetwork implements Network {
      */
     @Override
     @NonNull
-    public Connection connection(@NonNull final Node node1, @NonNull final Node node2) {
-        return new ConnectionImpl(directionalConnection(node1, node2), directionalConnection(node2, node1));
+    public BidirectionalConnection bidirectionalConnection(@NonNull final Node node1, @NonNull final Node node2) {
+        return new BidirectionalConnectionImpl(
+                unidirectionalConnection(node1, node2), unidirectionalConnection(node2, node1));
     }
 
     /**
@@ -381,8 +382,8 @@ public abstract class AbstractNetwork implements Network {
      */
     @Override
     @NonNull
-    public DirectionalConnection directionalConnection(@NonNull final Node sender, @NonNull final Node receiver) {
-        return new DirectionalConnectionImpl(sender, receiver);
+    public UnidirectionalConnection unidirectionalConnection(@NonNull final Node sender, @NonNull final Node receiver) {
+        return new UnidirectionalConnectionImpl(sender, receiver);
     }
 
     /**
@@ -1133,22 +1134,22 @@ public abstract class AbstractNetwork implements Network {
     }
 
     /**
-     * Implementation of the DirectionalConnection interface.
+     * Implementation of the UnidirectionalConnection interface.
      */
-    private class DirectionalConnectionImpl implements DirectionalConnection {
+    private class UnidirectionalConnectionImpl implements UnidirectionalConnection {
 
         private final Node sender;
         private final Node receiver;
         private final ConnectionKey connectionKey;
 
         /**
-         * Constructs a DirectionalConnectionImpl with the specified start and end nodes and a supplier for base connection data.
+         * Constructs a UnidirectionalConnectionImpl with the specified start and end nodes and a supplier for base connection data.
          *
          * @param sender         the starting node of the connection
          * @param receiver           the ending node of the connection
          * @throws NullPointerException if any of the parameters are null
          */
-        public DirectionalConnectionImpl(@NonNull final Node sender, @NonNull final Node receiver) {
+        public UnidirectionalConnectionImpl(@NonNull final Node sender, @NonNull final Node receiver) {
             this.sender = requireNonNull(sender);
             this.receiver = requireNonNull(receiver);
             this.connectionKey = new ConnectionKey(sender.selfId(), receiver.selfId());
