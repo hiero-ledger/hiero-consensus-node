@@ -1,11 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.hip1261.utils;
 
-import static com.hedera.hapi.node.base.HederaFunctionality.CONSENSUS_CREATE_TOPIC;
-import static com.hedera.hapi.node.base.HederaFunctionality.CONSENSUS_DELETE_TOPIC;
-import static com.hedera.hapi.node.base.HederaFunctionality.CONSENSUS_GET_TOPIC_INFO;
-import static com.hedera.hapi.node.base.HederaFunctionality.CONSENSUS_SUBMIT_MESSAGE;
-import static com.hedera.hapi.node.base.HederaFunctionality.CONSENSUS_UPDATE_TOPIC;
 import static java.lang.Math.toIntExact;
 import static org.hiero.hapi.fees.FeeScheduleUtils.makeExtraDef;
 import static org.hiero.hapi.fees.FeeScheduleUtils.makeExtraIncluded;
@@ -14,8 +9,6 @@ import static org.hiero.hapi.fees.FeeScheduleUtils.makeServiceFee;
 
 import com.hedera.hapi.node.base.HederaFunctionality;
 import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Map;
 import org.hiero.hapi.support.fees.Extra;
 import org.hiero.hapi.support.fees.ExtraFeeDefinition;
 import org.hiero.hapi.support.fees.ExtraFeeReference;
@@ -28,29 +21,25 @@ import org.hiero.hapi.support.fees.ServiceFeeSchedule;
 public class JsonToFeeScheduleConverter {
 
     /**
-     * Mapping from JSON API names to HederaFunctionality enums.
+     * Mapping from JSON API names to HederaFunctionality.
      */
-    private static final Map<String, HederaFunctionality> API_NAME_MAP = Map.ofEntries(
-            Map.entry("ConsensusCreateTopic", CONSENSUS_CREATE_TOPIC),
-            Map.entry("ConsensusUpdateTopic", CONSENSUS_UPDATE_TOPIC),
-            Map.entry("ConsensusDeleteTopic", CONSENSUS_DELETE_TOPIC),
-            Map.entry("ConsensusSubmitMessage", CONSENSUS_SUBMIT_MESSAGE),
-            Map.entry("ConsensusGetTopicInfo", CONSENSUS_GET_TOPIC_INFO),
-            Map.entry("CryptoCreate", HederaFunctionality.CRYPTO_CREATE),
-            Map.entry("CryptoTransfer", HederaFunctionality.CRYPTO_TRANSFER),
-            Map.entry("CryptoUpdate", HederaFunctionality.CRYPTO_UPDATE),
-            Map.entry("CryptoDelete", HederaFunctionality.CRYPTO_DELETE));
+    private static HederaFunctionality parseApiName(String name) {
+        try {
+            return HederaFunctionality.fromString(name);
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
+    }
 
     /**
-     * Extra name mapping (string -> enum).
+     * Mapping from JSON extra names to Extra enums.
      */
-    private static final Map<String, Extra> EXTRA_NAME_MAP = new HashMap<>();
-
-    static {
-        EXTRA_NAME_MAP.put("SIGNATURES", Extra.SIGNATURES);
-        EXTRA_NAME_MAP.put("BYTES", Extra.BYTES);
-        EXTRA_NAME_MAP.put("KEYS", Extra.KEYS);
-        EXTRA_NAME_MAP.put("ACCOUNTS", Extra.ACCOUNTS);
+    private static Extra parseExtraName(String name) {
+        try {
+            return Extra.valueOf(name.toUpperCase());
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
     }
 
     /**
@@ -66,7 +55,7 @@ public class JsonToFeeScheduleConverter {
                 if (extraEntry == null || extraEntry.name == null) {
                     continue;
                 }
-                final var extra = EXTRA_NAME_MAP.get(extraEntry.name);
+                final Extra extra = parseExtraName(extraEntry.name);
                 if (extra != null) {
                     extraDefinitions.add(makeExtraDef(extra, extraEntry.fee));
                 }
@@ -82,7 +71,7 @@ public class JsonToFeeScheduleConverter {
                     if (includedExtra == null || includedExtra.name == null) {
                         continue;
                     }
-                    final var extra = EXTRA_NAME_MAP.get(includedExtra.name);
+                    final Extra extra = parseExtraName(includedExtra.name);
                     if (extra != null && includedExtra.includedCount > 0) {
                         nodeBuilder.extras(makeExtraIncluded(extra, toIntExact(includedExtra.includedCount)));
                     }
@@ -118,7 +107,7 @@ public class JsonToFeeScheduleConverter {
                     }
 
                     // Map API name to HederaFunctionality
-                    final var functionality = API_NAME_MAP.get(apiFeeEntry.name);
+                    final HederaFunctionality functionality = parseApiName(apiFeeEntry.name);
                     if (functionality == null) {
                         continue;
                     }
@@ -130,7 +119,7 @@ public class JsonToFeeScheduleConverter {
                             if (includedExtra == null || includedExtra.name == null) {
                                 continue;
                             }
-                            final var extra = EXTRA_NAME_MAP.get(includedExtra.name);
+                            final Extra extra = parseExtraName(includedExtra.name);
                             if (extra != null && includedExtra.includedCount > 0) {
                                 included.add(makeExtraIncluded(extra, toIntExact(includedExtra.includedCount)));
                             }

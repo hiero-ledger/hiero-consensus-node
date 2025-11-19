@@ -15,6 +15,9 @@ public enum SimpleFeesChargePolicy {
     /** Unhandled txn - payer charged Node + Network + Service fees*/
     UNHANDLED_TXN_FULL_CHARGE,
 
+    /** Unhandled txn - payer charged Node + Network fees only*/
+    UNHANDLED_TXN_NODE_AND_NETWORK_CHARGE,
+
     /** Successful handled txn - payer charged Node + Network + Service fees*/
     SUCCESS_TXN_FULL_CHARGE
 }

@@ -47,39 +47,6 @@ public class SimpleFeesReferenceTestCalculator {
         public long total() {
             return safeAdd(safeAdd(node, network), service);
         }
-
-        // nodeExtras + serviceExtras in tinycents
-        public long totalExtras() {
-            return safeAdd(nodeExtras, serviceExtras);
-        }
-
-        public double nodeUsd() {
-            return toUsd(node);
-        }
-
-        public double networkUsd() {
-            return toUsd(network);
-        }
-
-        public double serviceUsd() {
-            return toUsd(service);
-        }
-
-        public double totalUsd() {
-            return toUsd(total());
-        }
-
-        public double nodeExtrasUsd() {
-            return toUsd(nodeExtras);
-        }
-
-        public double serviceExtrasUsd() {
-            return toUsd(serviceExtras);
-        }
-
-        public double totalExtrasUsd() {
-            return toUsd(totalExtras());
-        }
     }
 
     /**
@@ -293,7 +260,7 @@ public class SimpleFeesReferenceTestCalculator {
                             INVALID_TXN_AT_INGEST_ZERO_PAYER,
                             INVALID_TXN_AT_PRE_HANDLE_ZERO_PAYER -> 0L;
                     case UNHANDLED_TXN_FULL_CHARGE, SUCCESS_TXN_FULL_CHARGE -> rawFees.total();
-                    default -> throw new IllegalArgumentException("Unknown SimpleFeesChargePolicy: " + policy);
+                    case UNHANDLED_TXN_NODE_AND_NETWORK_CHARGE -> safeAdd(rawFees.node(), rawFees.network());
                 };
 
         return new Charges(

@@ -6,7 +6,7 @@ import java.util.concurrent.Callable;
 import picocli.CommandLine;
 
 @CommandLine.Command(
-        name = "hip1261",
+        name = "fees",
         subcommands = {picocli.CommandLine.HelpCommand.class, FeeBasePriceCommand.class},
         description = "Reports network fees")
 public class FeesCommand implements Callable<Integer> {
