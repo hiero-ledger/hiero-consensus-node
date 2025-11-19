@@ -723,7 +723,7 @@ message SingletonUpdateChange {
         /**
          * A change to the highest node id singleton.
          */
-        com.hedera.hapi.platform.state.NodeId highest_node_id = 19;
+        com.hedera.hapi.platform.state.NodeId node_id_value = 19;
     }
 }
 

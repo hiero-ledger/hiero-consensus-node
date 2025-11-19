@@ -20,8 +20,8 @@ import static com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSch
 import static com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_LABEL;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_LABEL;
-import static com.hedera.node.app.service.entityid.impl.schemas.V0690EntityIdSchema.HIGHEST_NODE_ID_STATE_ID;
-import static com.hedera.node.app.service.entityid.impl.schemas.V0690EntityIdSchema.HIGHEST_NODE_ID_STATE_LABEL;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0690EntityIdSchema.NODE_ID_STATE_ID;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0690EntityIdSchema.NODE_ID_STATE_LABEL;
 import static com.hedera.node.app.service.schedule.impl.schemas.V0490ScheduleSchema.SCHEDULES_BY_ID_STATE_ID;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_STATE_ID;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_STATE_LABEL;
@@ -340,7 +340,7 @@ class ThrottleAccumulatorTest {
                         ENTITY_COUNTS_STATE_ID, ENTITY_COUNTS_STATE_LABEL, () -> EntityCounts.newBuilder()
                                 .build()))
                 .state(new FunctionReadableSingletonState<Object>(
-                        HIGHEST_NODE_ID_STATE_ID, HIGHEST_NODE_ID_STATE_LABEL, () -> NodeId.newBuilder()
+                        NODE_ID_STATE_ID, NODE_ID_STATE_LABEL, () -> NodeId.newBuilder()
                                 .build()))
                 .build();
         given(state.getReadableStates(EntityIdService.NAME)).willReturn(entityIdStates);
@@ -393,7 +393,7 @@ class ThrottleAccumulatorTest {
                         ENTITY_COUNTS_STATE_ID, ENTITY_COUNTS_STATE_LABEL, () -> EntityNumber.newBuilder()
                                 .build()))
                 .state(new FunctionReadableSingletonState<Object>(
-                        HIGHEST_NODE_ID_STATE_ID, HIGHEST_NODE_ID_STATE_LABEL, () -> NodeId.newBuilder()
+                        NODE_ID_STATE_ID, NODE_ID_STATE_LABEL, () -> NodeId.newBuilder()
                                 .build()))
                 .build();
         given(state.getReadableStates(EntityIdService.NAME)).willReturn(entityIdStates);

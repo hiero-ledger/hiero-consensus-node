@@ -38,7 +38,7 @@ public class ReadableEntityIdStoreImpl implements ReadableEntityIdStore {
         requireNonNull(states);
         this.entityIdState = states.getSingleton(ENTITY_ID_STATE_ID);
         this.entityCountsState = states.getSingleton(ENTITY_COUNTS_STATE_ID);
-        this.highestNodeIdState = states.getSingleton(V0690EntityIdSchema.HIGHEST_NODE_ID_STATE_ID);
+        this.highestNodeIdState = states.getSingleton(V0690EntityIdSchema.NODE_ID_STATE_ID);
     }
 
     /**

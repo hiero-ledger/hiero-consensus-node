@@ -24,9 +24,9 @@ public class V0690EntityIdSchema extends Schema<SemanticVersion> {
     private static final SemanticVersion VERSION =
             SemanticVersion.newBuilder().major(0).minor(69).patch(0).build();
 
-    public static final String HIGHEST_NODE_ID_KEY = "HIGHEST_NODE_ID";
-    public static final int HIGHEST_NODE_ID_STATE_ID = SingletonType.ENTITYIDSERVICE_I_HIGHEST_NODE_ID.protoOrdinal();
-    public static final String HIGHEST_NODE_ID_STATE_LABEL = computeLabel(EntityIdService.NAME, HIGHEST_NODE_ID_KEY);
+    public static final String NODE_ID_KEY = "NODE_ID";
+    public static final int NODE_ID_STATE_ID = SingletonType.ENTITYIDSERVICE_I_NODE_ID.protoOrdinal();
+    public static final String NODE_ID_STATE_LABEL = computeLabel(EntityIdService.NAME, NODE_ID_KEY);
 
     public V0690EntityIdSchema() {
         super(VERSION, SEMANTIC_VERSION_COMPARATOR);
@@ -35,12 +35,12 @@ public class V0690EntityIdSchema extends Schema<SemanticVersion> {
     @NonNull
     @Override
     public Set<StateDefinition> statesToCreate() {
-        return Set.of(StateDefinition.singleton(HIGHEST_NODE_ID_STATE_ID, HIGHEST_NODE_ID_KEY, NodeId.PROTOBUF));
+        return Set.of(StateDefinition.singleton(NODE_ID_STATE_ID, NODE_ID_KEY, NodeId.PROTOBUF));
     }
 
     @Override
     public void migrate(@NonNull final MigrationContext ctx) {
-        final var highestNodeIdState = ctx.newStates().getSingleton(HIGHEST_NODE_ID_STATE_ID);
+        final var highestNodeIdState = ctx.newStates().getSingleton(NODE_ID_STATE_ID);
         final var entityCountsState = (EntityCounts)
                 ctx.previousStates().getSingleton(ENTITY_COUNTS_STATE_ID).get();
         highestNodeIdState.put(

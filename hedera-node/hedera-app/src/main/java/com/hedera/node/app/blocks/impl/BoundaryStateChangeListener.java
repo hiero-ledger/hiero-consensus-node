@@ -257,7 +257,7 @@ public class BoundaryStateChangeListener implements StateChangeListener {
                 return new OneOf<>(SingletonUpdateChange.NewValueOneOfType.CRS_STATE_VALUE, crsState);
             }
             case NodeId highestNodeId -> {
-                return new OneOf<>(SingletonUpdateChange.NewValueOneOfType.HIGHEST_NODE_ID, highestNodeId);
+                return new OneOf<>(SingletonUpdateChange.NewValueOneOfType.NODE_ID_VALUE, highestNodeId);
             }
             default ->
                 throw new IllegalArgumentException(

@@ -5,8 +5,8 @@ import static com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSch
 import static com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_LABEL;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_LABEL;
-import static com.hedera.node.app.service.entityid.impl.schemas.V0690EntityIdSchema.HIGHEST_NODE_ID_STATE_ID;
-import static com.hedera.node.app.service.entityid.impl.schemas.V0690EntityIdSchema.HIGHEST_NODE_ID_STATE_LABEL;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0690EntityIdSchema.NODE_ID_STATE_ID;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0690EntityIdSchema.NODE_ID_STATE_LABEL;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.STAKING_INFOS_STATE_ID;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.STAKING_INFOS_STATE_LABEL;
 import static org.mockito.Mockito.mock;
@@ -58,9 +58,8 @@ public class WritableStakingInfoStoreImplTest {
                 ENTITY_COUNTS_STATE_ID,
                 new FunctionWritableSingletonState<>(
                         ENTITY_COUNTS_STATE_ID, ENTITY_COUNTS_STATE_LABEL, () -> null, c -> {}),
-                HIGHEST_NODE_ID_STATE_ID,
-                new FunctionWritableSingletonState<>(
-                        HIGHEST_NODE_ID_STATE_ID, HIGHEST_NODE_ID_STATE_LABEL, () -> null, c -> {}))));
+                NODE_ID_STATE_ID,
+                new FunctionWritableSingletonState<>(NODE_ID_STATE_ID, NODE_ID_STATE_LABEL, () -> null, c -> {}))));
         subject = new WritableStakingInfoStore(
                 new MapWritableStates(Map.of(STAKING_INFOS_STATE_ID, wrappedState)), entityIdStore);
     }

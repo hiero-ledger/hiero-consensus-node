@@ -3,7 +3,7 @@ package com.hedera.node.app.service.entityid.impl;
 
 import static com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_ID;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
-import static com.hedera.node.app.service.entityid.impl.schemas.V0690EntityIdSchema.HIGHEST_NODE_ID_STATE_ID;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0690EntityIdSchema.NODE_ID_STATE_ID;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.state.common.EntityNumber;
@@ -38,7 +38,7 @@ public class WritableEntityIdStoreImpl extends ReadableEntityIdStoreImpl impleme
         requireNonNull(states);
         this.entityIdState = states.getSingleton(ENTITY_ID_STATE_ID);
         this.entityCountsState = states.getSingleton(ENTITY_COUNTS_STATE_ID);
-        this.highestNodeIdState = states.getSingleton(HIGHEST_NODE_ID_STATE_ID);
+        this.highestNodeIdState = states.getSingleton(NODE_ID_STATE_ID);
     }
 
     @Override

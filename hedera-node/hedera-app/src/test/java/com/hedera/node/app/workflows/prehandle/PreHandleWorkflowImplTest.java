@@ -11,7 +11,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.PAYER_ACCOUNT_NOT_FOUND
 import static com.hedera.hapi.node.base.ResponseCodeEnum.UNKNOWN;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_ID;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
-import static com.hedera.node.app.service.entityid.impl.schemas.V0690EntityIdSchema.HIGHEST_NODE_ID_STATE_ID;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0690EntityIdSchema.NODE_ID_STATE_ID;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ACCOUNTS_STATE_ID;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ALIASES_STATE_ID;
 import static com.hedera.node.app.workflows.TransactionScenarioBuilder.scenario;
@@ -147,7 +147,7 @@ final class PreHandleWorkflowImplTest extends AppTestBase implements Scenarios {
                         new AtomicReference<>(EntityNumber.newBuilder().build()),
                         ENTITY_COUNTS_STATE_ID,
                         new AtomicReference<>(EntityCounts.DEFAULT),
-                        HIGHEST_NODE_ID_STATE_ID,
+                        NODE_ID_STATE_ID,
                         new AtomicReference<>(NodeId.DEFAULT)));
         storeFactory = new ReadableStoreFactory(fakeMerkleState);
 

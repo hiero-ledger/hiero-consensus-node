@@ -14,8 +14,8 @@ import static com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSch
 import static com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_LABEL;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_LABEL;
-import static com.hedera.node.app.service.entityid.impl.schemas.V0690EntityIdSchema.HIGHEST_NODE_ID_STATE_ID;
-import static com.hedera.node.app.service.entityid.impl.schemas.V0690EntityIdSchema.HIGHEST_NODE_ID_STATE_LABEL;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0690EntityIdSchema.NODE_ID_STATE_ID;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0690EntityIdSchema.NODE_ID_STATE_LABEL;
 import static com.hedera.node.app.service.roster.impl.ActiveRosters.Phase.BOOTSTRAP;
 import static com.hedera.node.app.service.roster.impl.ActiveRosters.Phase.HANDOFF;
 import static com.hedera.node.app.service.roster.impl.ActiveRosters.Phase.TRANSITION;
@@ -141,10 +141,10 @@ class WritableHintsStoreImplTest {
                         ENTITY_COUNTS_STATE_LABEL,
                         () -> EntityCounts.newBuilder().numNodes(2).build(),
                         c -> {}),
-                HIGHEST_NODE_ID_STATE_ID,
+                NODE_ID_STATE_ID,
                 new FunctionWritableSingletonState<>(
-                        HIGHEST_NODE_ID_STATE_ID,
-                        HIGHEST_NODE_ID_STATE_LABEL,
+                        NODE_ID_STATE_ID,
+                        NODE_ID_STATE_LABEL,
                         () -> NodeId.newBuilder().id(1L).build(),
                         c -> {}))));
         subject = new WritableHintsStoreImpl(state.getWritableStates(HintsService.NAME), writableEntityIdStore);

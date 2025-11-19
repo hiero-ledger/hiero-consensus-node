@@ -169,7 +169,7 @@ class UtilizationScaledThrottleMultiplierTest {
                                 new AtomicReference<>(EntityCounts.newBuilder()
                                         .numAccounts(1L)
                                         .build()),
-                                V0690EntityIdSchema.HIGHEST_NODE_ID_STATE_ID,
+                                V0690EntityIdSchema.NODE_ID_STATE_ID,
                                 new AtomicReference<>(NodeId.DEFAULT)));
 
         var storeFactory = new ReadableStoreFactory(state);
@@ -208,7 +208,7 @@ class UtilizationScaledThrottleMultiplierTest {
                                 new AtomicReference<>(EntityCounts.newBuilder()
                                         .numContractBytecodes(1L)
                                         .build()),
-                                V0690EntityIdSchema.HIGHEST_NODE_ID_STATE_ID,
+                                V0690EntityIdSchema.NODE_ID_STATE_ID,
                                 new AtomicReference<>(NodeId.DEFAULT)));
 
         var storeFactory = new ReadableStoreFactory(state);
@@ -244,7 +244,7 @@ class UtilizationScaledThrottleMultiplierTest {
                                 V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID,
                                 new AtomicReference<>(
                                         EntityCounts.newBuilder().numFiles(1L).build()),
-                                V0690EntityIdSchema.HIGHEST_NODE_ID_STATE_ID,
+                                V0690EntityIdSchema.NODE_ID_STATE_ID,
                                 new AtomicReference<>(NodeId.DEFAULT)));
 
         var storeFactory = new ReadableStoreFactory(state);
@@ -293,7 +293,7 @@ class UtilizationScaledThrottleMultiplierTest {
                                 V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID,
                                 new AtomicReference<>(
                                         EntityCounts.newBuilder().numNfts(1L).build()),
-                                V0690EntityIdSchema.HIGHEST_NODE_ID_STATE_ID,
+                                V0690EntityIdSchema.NODE_ID_STATE_ID,
                                 new AtomicReference<>(NodeId.DEFAULT)));
 
         var storeFactory = new ReadableStoreFactory(state);
@@ -353,7 +353,7 @@ class UtilizationScaledThrottleMultiplierTest {
                                 V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID,
                                 new AtomicReference<>(
                                         EntityCounts.newBuilder().numTokens(1L).build()),
-                                V0690EntityIdSchema.HIGHEST_NODE_ID_STATE_ID,
+                                V0690EntityIdSchema.NODE_ID_STATE_ID,
                                 new AtomicReference<>(NodeId.DEFAULT)));
 
         var storeFactory = new ReadableStoreFactory(state);
@@ -388,7 +388,7 @@ class UtilizationScaledThrottleMultiplierTest {
                                 new AtomicReference<>(EntityCounts.newBuilder()
                                         .numAirdrops(1L)
                                         .build()),
-                                V0690EntityIdSchema.HIGHEST_NODE_ID_STATE_ID,
+                                V0690EntityIdSchema.NODE_ID_STATE_ID,
                                 new AtomicReference<>(NodeId.DEFAULT)));
 
         var storeFactory = new ReadableStoreFactory(state);
@@ -429,7 +429,7 @@ class UtilizationScaledThrottleMultiplierTest {
                                 new AtomicReference<>(EntityCounts.newBuilder()
                                         .numTokenRelations(1L)
                                         .build()),
-                                V0690EntityIdSchema.HIGHEST_NODE_ID_STATE_ID,
+                                V0690EntityIdSchema.NODE_ID_STATE_ID,
                                 new AtomicReference<>(NodeId.DEFAULT)));
 
         var storeFactory = new ReadableStoreFactory(state);
@@ -465,7 +465,7 @@ class UtilizationScaledThrottleMultiplierTest {
                                 V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID,
                                 new AtomicReference<>(
                                         EntityCounts.newBuilder().numTopics(1L).build()),
-                                V0690EntityIdSchema.HIGHEST_NODE_ID_STATE_ID,
+                                V0690EntityIdSchema.NODE_ID_STATE_ID,
                                 new AtomicReference<>(NodeId.DEFAULT)));
 
         var storeFactory = new ReadableStoreFactory(state);

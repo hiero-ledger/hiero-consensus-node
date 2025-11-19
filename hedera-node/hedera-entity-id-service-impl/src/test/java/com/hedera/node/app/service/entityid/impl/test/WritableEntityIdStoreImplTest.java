@@ -5,8 +5,8 @@ import static com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSch
 import static com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_LABEL;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_LABEL;
-import static com.hedera.node.app.service.entityid.impl.schemas.V0690EntityIdSchema.HIGHEST_NODE_ID_STATE_ID;
-import static com.hedera.node.app.service.entityid.impl.schemas.V0690EntityIdSchema.HIGHEST_NODE_ID_STATE_LABEL;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0690EntityIdSchema.NODE_ID_STATE_ID;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0690EntityIdSchema.NODE_ID_STATE_LABEL;
 import static org.junit.jupiter.api.Assertions.*;
 
 import com.hedera.hapi.node.state.common.EntityNumber;
@@ -32,7 +32,7 @@ class WritableEntityIdStoreImplTest {
     private final WritableSingletonState<EntityCounts> entityCountsState = new FunctionWritableSingletonState<>(
             ENTITY_COUNTS_STATE_ID, ENTITY_COUNTS_STATE_LABEL, entityCounts::get, entityCounts::set);
     private final WritableSingletonState<NodeId> highestNodeIdState = new FunctionWritableSingletonState<>(
-            HIGHEST_NODE_ID_STATE_ID, HIGHEST_NODE_ID_STATE_LABEL, nextHighestNodeId::get, nextHighestNodeId::set);
+            NODE_ID_STATE_ID, NODE_ID_STATE_LABEL, nextHighestNodeId::get, nextHighestNodeId::set);
     private WritableEntityIdStoreImpl subject;
 
     @BeforeEach
@@ -44,7 +44,7 @@ class WritableEntityIdStoreImplTest {
                 entityIdState,
                 ENTITY_COUNTS_STATE_ID,
                 entityCountsState,
-                HIGHEST_NODE_ID_STATE_ID,
+                NODE_ID_STATE_ID,
                 highestNodeIdState));
         subject = new WritableEntityIdStoreImpl(writableStates);
     }

@@ -351,11 +351,6 @@ message StateValue {
     proto.EntityNumber EntityIdService_I_ENTITY_ID = 1;
 
     /**
-     * A state identifier for the highest node identifier allocated so far.
-     */
-    com.hedera.hapi.platform.state.NodeId EntityIdService_I_HIGHEST_NODE_ID = 54;
-
-    /**
      * A state identifier for the Accounts state.
      */
     proto.Account TokenService_I_ACCOUNTS = 2;
@@ -612,6 +607,11 @@ message StateValue {
     com.hedera.hapi.platform.state.NodeId AddressBookService_I_ACCOUNT_NODE_REL = 53;
 
     /**
+     * A state identifier for the next node Identifier.
+     */
+    com.hedera.hapi.platform.state.NodeId EntityIdService_I_NODE_ID = 54;
+
+    /**
      * Metadata of the round receipts queue.
      */
     proto.TransactionReceiptEntries RecordCache_I_TRANSACTION_RECEIPTS = 126;
@@ -694,11 +694,6 @@ enum SingletonType {
    * A state identifier for the next entity Identifier.
    */
   EntityIdService_I_ENTITY_ID = 1;
-
-  /**
-   * A state identifier for the highest node identifier allocated so far.
-   */
-  EntityIdService_I_HIGHEST_NODE_ID = 54;
 
   /**
    * A state identifier for network staking rewards.
@@ -794,6 +789,11 @@ enum SingletonType {
    * A state identifier for the node rewards. Singleton state.
    */
   TokenService_I_NODE_REWARDS = 50;
+
+  /**
+   * A state identifier for the highest node identifier allocated so far.
+   */
+  EntityIdService_I_NODE_ID = 54;
 
   // Queue metadata
 

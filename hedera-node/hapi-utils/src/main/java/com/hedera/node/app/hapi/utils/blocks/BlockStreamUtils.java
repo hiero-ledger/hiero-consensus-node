@@ -113,7 +113,7 @@ public final class BlockStreamUtils {
             case ENTITY_COUNTS_VALUE -> singletonUpdateChange.entityCountsValueOrThrow();
             case HISTORY_PROOF_CONSTRUCTION_VALUE -> singletonUpdateChange.historyProofConstructionValueOrThrow();
             case CRS_STATE_VALUE -> singletonUpdateChange.crsStateValueOrThrow();
-            case HIGHEST_NODE_ID -> singletonUpdateChange.highestNodeIdOrThrow();
+            case NODE_ID_VALUE -> singletonUpdateChange.nodeIdValueOrThrow();
         };
     }
 
