@@ -3,11 +3,17 @@ package org.hiero.metrics.api.export;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.hiero.metrics.TestUtils.verifySnapshotHasMetrics;
+import static org.hiero.metrics.TestUtils.verifySnapshotHasMetricsInOrder;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 import com.swirlds.config.api.Configuration;
@@ -15,6 +21,9 @@ import com.swirlds.config.api.ConfigurationBuilder;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Optional;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 import org.hiero.metrics.api.LongCounter;
 import org.hiero.metrics.api.core.MetricRegistry;
@@ -161,7 +170,7 @@ public class MetricsExportManagerTest {
     }
 
     @Test
-    void testAllExportersAreFilteredOrFailedToCreate() {
+    void testAllExportersAreFilteredOrFailedToCreate() throws MetricsExportException {
         MetricRegistry registry = MetricRegistry.builder("test_registry").build();
 
         Configuration configuration = configBuilder()
@@ -196,11 +205,16 @@ public class MetricsExportManagerTest {
                 emptyExporterFactory,
                 disabledExporterFactory);
 
+        // wrap in try block to ensure close is called even if exceptions are thrown
         try (exportManager) {
             verifyNoOp(exportManager);
+
             verify(failingExporterFactory).createExporter("test_registry", configuration);
             verify(emptyExporterFactory).createExporter("test_registry", configuration);
+
             verify(disabledExporterFactory, never()).createExporter("test_registry", configuration);
+            verify(disabledPushingExporter, never()).export(any());
+            verify(disabledPullingExporter, never()).setSnapshotProvider(any());
         }
     }
 
@@ -214,20 +228,190 @@ public class MetricsExportManagerTest {
         MetricsExportManager exportManager =
                 MetricsExportManager.builder().addExporter(pullingExporter).build(registry);
 
-        assertThat(exportManager.hasRunningExportThread()).isFalse();
-        assertThat(exportManager.registry()).isSameAs(registry);
+        // wrap in try block to ensure close is called even if exceptions are thrown
+        try (exportManager) {
+            assertThat(exportManager.hasRunningExportThread()).isFalse();
+            assertThat(exportManager.registry()).isSameAs(registry);
 
-        ArgumentCaptor<Supplier<Optional<MetricsSnapshot>>> snapshotSupplierCaptor =
-                ArgumentCaptor.forClass(Supplier.class);
-        verify(pullingExporter).setSnapshotProvider(snapshotSupplierCaptor.capture());
-        Supplier<Optional<MetricsSnapshot>> snapshotSupplier = snapshotSupplierCaptor.getValue();
-        Optional<MetricsSnapshot> optionalSnapshot = snapshotSupplier.get();
-        assertThat(optionalSnapshot).isNotEmpty();
-        verifySnapshotHasMetrics(optionalSnapshot.get(), "test_counter");
+            ArgumentCaptor<Supplier<Optional<MetricsSnapshot>>> snapshotSupplierCaptor =
+                    ArgumentCaptor.forClass(Supplier.class);
+            verify(pullingExporter).setSnapshotProvider(snapshotSupplierCaptor.capture());
+            Supplier<Optional<MetricsSnapshot>> snapshotSupplier = snapshotSupplierCaptor.getValue();
+            Optional<MetricsSnapshot> optionalSnapshot = snapshotSupplier.get();
+            assertThat(optionalSnapshot).isNotEmpty();
+            verifySnapshotHasMetricsInOrder(optionalSnapshot.get(), "test_counter");
 
-        // close manager
-        exportManager.shutdown();
-        verify(pullingExporter).close();
+            exportManager.shutdown();
+            verify(pullingExporter).close();
+        }
+    }
+
+    @Test
+    void testMockedScheduledExecutorForPushingExporter() throws IOException {
+        PushingMetricsExporter pushingExporter = mockPushing("pushing-exporter");
+        MetricRegistry registry = MetricRegistry.builder("test_registry").build();
+
+        ScheduledFuture exportThreadFuture = mock(ScheduledFuture.class);
+        when(exportThreadFuture.isDone()).thenReturn(false);
+
+        ScheduledExecutorService executorService = mock(ScheduledExecutorService.class);
+        when(executorService.scheduleAtFixedRate(any(), anyLong(), anyLong(), any()))
+                .thenReturn(exportThreadFuture);
+        Supplier<ScheduledExecutorService> executorServiceFactory = () -> executorService;
+
+        MetricsExportManager exportManager = MetricsExportManager.builder()
+                .addExporter(pushingExporter)
+                .withExportIntervalSeconds(15)
+                .withExecutorServiceFactory(executorServiceFactory)
+                .build(registry);
+
+        // wrap in try block to ensure close is called even if exceptions are thrown
+        try (exportManager) {
+            assertThat(exportManager.hasRunningExportThread()).isTrue();
+            assertThat(exportManager.registry()).isSameAs(registry);
+
+            verify(executorService).scheduleAtFixedRate(any(Runnable.class), eq(0L), eq(15L), eq(TimeUnit.SECONDS));
+
+            exportManager.shutdown();
+            verify(exportThreadFuture).isDone();
+            verify(exportThreadFuture).cancel(false);
+
+            // try to shut down again to verify idempotency
+            exportManager.shutdown();
+            verifyNoMoreInteractions(exportThreadFuture);
+            verifyNoMoreInteractions(executorService);
+            verify(pushingExporter, times(1)).close(); // closed only once
+        }
+    }
+
+    @Test
+    void testMockedScheduledExecutorFailingExporters() throws IOException {
+        PushingMetricsExporter pushingExporter = mockPushing("pushing-exporter");
+        doThrow(new RuntimeException()).when(pushingExporter).close();
+
+        PullingMetricsExporter pullingExporter = mockPulling("pulling-exporter");
+        doThrow(new RuntimeException()).when(pullingExporter).setSnapshotProvider(any());
+        doThrow(new RuntimeException()).when(pullingExporter).close();
+
+        MetricRegistry registry = MetricRegistry.builder("test_registry").build();
+
+        ScheduledFuture exportThreadFuture = mock(ScheduledFuture.class);
+        when(exportThreadFuture.isDone()).thenReturn(false);
+
+        ScheduledExecutorService executorService = mock(ScheduledExecutorService.class);
+        when(executorService.scheduleAtFixedRate(any(), anyLong(), anyLong(), any()))
+                .thenReturn(exportThreadFuture);
+        Supplier<ScheduledExecutorService> executorServiceFactory = () -> executorService;
+
+        MetricsExportManager exportManager = MetricsExportManager.builder()
+                .addExporter(pushingExporter)
+                .addExporter(pullingExporter)
+                .withExecutorServiceFactory(executorServiceFactory)
+                .build(registry);
+
+        // wrap in try block to ensure close is called even if exceptions are thrown
+        try (exportManager) {
+            assertThat(exportManager.hasRunningExportThread()).isTrue();
+            assertThat(exportManager.registry()).isSameAs(registry);
+
+            verify(executorService)
+                    .scheduleAtFixedRate(
+                            any(Runnable.class),
+                            eq(0L),
+                            eq(3L), // default interval
+                            eq(TimeUnit.SECONDS));
+
+            exportManager.shutdown();
+            verify(exportThreadFuture).isDone();
+            verify(exportThreadFuture).cancel(false);
+
+            // try to shut down again to verify idempotency
+            exportManager.shutdown();
+            verifyNoMoreInteractions(exportThreadFuture);
+            verifyNoMoreInteractions(executorService);
+            verify(pushingExporter, times(1)).close(); // closed only once
+            verify(pullingExporter, times(1)).close(); // closed only once
+        }
+    }
+
+    @Test
+    void testMockedScheduledExecutorRunnablePropagatesSnapshots() throws MetricsExportException, IOException {
+        MetricRegistry registry = MetricRegistry.builder("test_registry").build();
+        registry.register(LongCounter.builder("test_counter"));
+
+        PushingMetricsExporter pushingExporter = mockPushing("pushing-exporter");
+        PushingMetricsExporter pushingExporterFailingRuntime = mockPushing("pushing-exporter-failing-runtime");
+        doThrow(new RuntimeException()).when(pushingExporterFailingRuntime).export(any());
+        PushingMetricsExporter pushingExporterFailingChecked = mockPushing("pushing-exporter-failing-checked");
+        doThrow(new MetricsExportException(""))
+                .when(pushingExporterFailingChecked)
+                .export(any());
+
+        PullingMetricsExporter pullingExporter = mockPulling("pulling-exporter");
+
+        ScheduledFuture exportThreadFuture = mock(ScheduledFuture.class);
+        when(exportThreadFuture.isDone()).thenReturn(false);
+
+        ScheduledExecutorService executorService = mock(ScheduledExecutorService.class);
+        when(executorService.scheduleAtFixedRate(any(), anyLong(), anyLong(), any()))
+                .thenReturn(exportThreadFuture);
+        Supplier<ScheduledExecutorService> executorServiceFactory = () -> executorService;
+
+        MetricsExportManager exportManager = MetricsExportManager.builder()
+                .addExporter(pushingExporter)
+                .addExporter(pushingExporterFailingRuntime)
+                .addExporter(pushingExporterFailingChecked)
+                .addExporter(pullingExporter)
+                .withExecutorServiceFactory(executorServiceFactory)
+                .build(registry);
+
+        // wrap in try block to ensure close is called even if exceptions are thrown
+        try (exportManager) {
+            assertThat(exportManager.hasRunningExportThread()).isTrue();
+            assertThat(exportManager.registry()).isSameAs(registry);
+
+            ArgumentCaptor<Runnable> captor = ArgumentCaptor.forClass(Runnable.class);
+            verify(executorService).scheduleAtFixedRate(captor.capture(), eq(0L), eq(3L), eq(TimeUnit.SECONDS));
+
+            Runnable exportRunnable = captor.getValue();
+            assertThat(exportRunnable).isNotNull();
+            exportRunnable.run(); // should not fail with failing exporter
+
+            ArgumentCaptor<MetricsSnapshot> snapshotCaptor = ArgumentCaptor.forClass(MetricsSnapshot.class);
+            ArgumentCaptor<Supplier<Optional<MetricsSnapshot>>> snapshotSupplierCaptor =
+                    ArgumentCaptor.forClass(Supplier.class);
+
+            verify(pullingExporter).setSnapshotProvider(snapshotSupplierCaptor.capture());
+            verify(pushingExporterFailingRuntime).export(snapshotCaptor.capture());
+            verify(pushingExporterFailingChecked).export(snapshotCaptor.capture());
+            verify(pushingExporter).export(snapshotCaptor.capture());
+
+            Optional<MetricsSnapshot> optionalSnapshot =
+                    snapshotSupplierCaptor.getValue().get();
+            assertThat(optionalSnapshot).isNotEmpty();
+            MetricsSnapshot snapshot = optionalSnapshot.get();
+            assertThat(snapshot).isSameAs(snapshotCaptor.getValue());
+
+            assertThat(snapshotCaptor.getAllValues()).hasSize(3);
+            assertThat(snapshotCaptor.getAllValues().get(0)).isSameAs(snapshot);
+            assertThat(snapshotCaptor.getAllValues().get(1)).isSameAs(snapshot);
+            assertThat(snapshotCaptor.getAllValues().get(2)).isSameAs(snapshot);
+
+            verifySnapshotHasMetricsInOrder(snapshot, "test_counter", "export:push_export_duration");
+
+            exportManager.shutdown();
+            verify(exportThreadFuture).isDone();
+            verify(exportThreadFuture).cancel(false);
+
+            // try to shut down again to verify idempotency
+            exportManager.shutdown();
+            verifyNoMoreInteractions(exportThreadFuture);
+            verifyNoMoreInteractions(executorService);
+            verify(pushingExporter, times(1)).close(); // closed only once
+            verify(pushingExporterFailingRuntime, times(1)).close(); // closed only once
+            verify(pushingExporterFailingChecked, times(1)).close(); // closed only once
+            verify(pullingExporter, times(1)).close(); // closed only once
+        }
     }
 
     private static PullingMetricsExporter mockPulling(String name) {

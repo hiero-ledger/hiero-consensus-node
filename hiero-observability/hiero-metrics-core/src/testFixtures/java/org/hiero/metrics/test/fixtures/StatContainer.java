@@ -3,6 +3,7 @@ package org.hiero.metrics.test.fixtures;
 
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.IntSupplier;
+import org.hiero.metrics.api.StatsGaugeAdapter;
 import org.hiero.metrics.api.stat.StatUtils;
 
 /**
@@ -50,5 +51,18 @@ public class StatContainer {
 
         counter.set(initialValue);
         sum.set(initialValue);
+    }
+
+    public static StatsGaugeAdapter.Builder<IntSupplier, StatContainer> metricBuilder(String name) {
+        return metricBuilder(name, StatUtils.INT_INIT);
+    }
+
+    public static StatsGaugeAdapter.Builder<IntSupplier, StatContainer> metricBuilder(
+            String name, IntSupplier initializer) {
+        return StatsGaugeAdapter.builder(StatsGaugeAdapter.key(name), initializer, StatContainer::new)
+                .withLongStat("cnt", StatContainer::getCounter)
+                .withLongStat("sum", StatContainer::getSum)
+                .withDoubleStat("avg", StatContainer::getAverage)
+                .withReset(StatContainer::reset);
     }
 }
