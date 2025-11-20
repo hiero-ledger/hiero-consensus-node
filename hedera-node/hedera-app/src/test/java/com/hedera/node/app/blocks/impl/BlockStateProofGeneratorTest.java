@@ -187,9 +187,9 @@ class BlockStateProofGeneratorTest {
         Assertions.assertThat(actualFirstSiblingHashes)
                 .containsExactlyElementsOf(List.of(EXPECTED_FIRST_SIBLING_HASHES));
 
-        // Verify that we have the expected number of pending block files
+        // Verify that we have the expected number of pending block files: 5 indirect blocks, 1 direct block
         final var numProofs = pendingBlocks.size();
-        Assertions.assertThat(numProofs).isEqualTo(EXPECTED_NUM_PROOFS);
+        Assertions.assertThat(numProofs).isEqualTo(EXPECTED_NUM_PROOFS + 1);
 
         // Verify the timestamps of the loaded pending proofs
         for (int i = 0; i < numProofs; i++) {

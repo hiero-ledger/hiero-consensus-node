@@ -112,12 +112,13 @@ import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 public class BlockStreamManagerImpl implements BlockStreamManager {
     private static final Logger log = LogManager.getLogger(BlockStreamManagerImpl.class);
 
+    public static final Bytes NULL_HASH = Bytes.wrap(new byte[HASH_SIZE]);
     private static final Bytes DEPTH_2_NODE_2_COMBINED;
 
     static {
         // For the future reserved roots, compute the combined hash of the subroot at depth 2,node 2. This hash will
         // then combine with the subroot containing the block data at the end of each round
-        final Bytes combinedNullHash = BlockImplUtils.combine(ZERO_BLOCK_HASH, ZERO_BLOCK_HASH);
+        final Bytes combinedNullHash = BlockImplUtils.combine(NULL_HASH, NULL_HASH);
         final Bytes depth3Node3 = BlockImplUtils.combine(combinedNullHash, combinedNullHash);
         final Bytes depth3Node4 = BlockImplUtils.combine(combinedNullHash, combinedNullHash);
         DEPTH_2_NODE_2_COMBINED = BlockImplUtils.combine(depth3Node3, depth3Node4);
@@ -432,11 +433,10 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                     block.items()
                             .forEach(
                                     item -> pendingWriter.writePbjItemAndBytes(item, BlockItem.PROTOBUF.toBytes(item)));
-                    final var blockHash = block.blockHash();
                     pendingBlocks.add(new PendingBlock(
                             block.number(),
                             block.contentsPath(),
-                            blockHash,
+                            block.blockHash(),
                             block.pendingProof().previousBlockHash(),
                             block.proofBuilder(),
                             pendingWriter,
