@@ -501,6 +501,7 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
                     Path.of("build", "container", NODE_IDENTIFIER_FORMAT.formatted(selfId.id()));
             downloadConsensusFiles(localOutputDirectory);
             downloadConsistencyServiceFiles(localOutputDirectory);
+            downloadStateFiles(localOutputDirectory);
         } catch (final IOException e) {
             throw new UncheckedIOException("Failed to copy files from container", e);
         }
@@ -560,6 +561,39 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
         final Path historyFilePath = historyFileDirectory.resolve(consistencyServiceConfig.historyFileName());
         copyFileFromContainerIfExists(
                 localOutputDirectory, historyFilePath.toString(), consistencyServiceConfig.historyFileName());
+    }
+
+    private void downloadStateFiles(@NonNull final Path localOutputDirectory) {
+        final String otterAppRelativePath = "data/saved/OtterApp";
+        final String containerOtterAppDir = CONTAINER_APP_WORKING_DIR + otterAppRelativePath;
+
+        try {
+            // Check if the directory exists in the container
+            final ExecResult result = container.execInContainer("test", "-d", containerOtterAppDir);
+            if (result.getExitCode() != 0) {
+                log.warn("OtterApp directory not found in node {}: {}", selfId.id(), containerOtterAppDir);
+                return;
+            }
+
+            // Create the local directory
+            final Path localOtterAppDir = localOutputDirectory.resolve(otterAppRelativePath);
+            Files.createDirectories(localOtterAppDir);
+
+            // Use Docker cp command to copy the entire directory
+            final String containerId = container.getContainerId();
+            final ProcessBuilder processBuilder = new ProcessBuilder(
+                    "docker",
+                    "cp",
+                    containerId + ":" + containerOtterAppDir + "/.",
+                    localOtterAppDir.toString());
+            final Process process = processBuilder.start();
+            process.waitFor();
+        } catch (final IOException e) {
+            throw new UncheckedIOException("Failed to copy OtterApp files from container", e);
+        } catch (final InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Interrupted while copying OtterApp files from container", e);
+        }
     }
 
     private void copyFileFromContainerIfExists(
