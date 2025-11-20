@@ -695,6 +695,8 @@ jobs:
   publish:
     name: Publish to ${{ inputs.version-policy == 'specified' && 'Maven Central' || 'GCP Registry' }}
     runs-on: hiero-network-node-linux-large
+    outputs:
+      create-release: ${{ steps.set-release-flags.outputs.create-release }}
     needs:
       - validate
     if: ${{ inputs.release-profile != 'none' }}
@@ -862,15 +864,18 @@ jobs:
 
           echo "create-release=${CREATE_RELEASE}" >> "${GITHUB_OUTPUT}"
 
-      - name: Create github release
-        if: ${{ steps.set-gh-release-flags.outputs.create-release == 'true' }}
-        uses: step-security/release-action@03a57407052f15d1537fd5469a6fbbc536aba326 # v1.20.0
-        with:
-          tag: ${{ inputs.ref-name }}
-          prerelease: false
-          draft: false
-          generateReleaseNotes: true
-          skipIfReleaseExists: true
+  create-github-release:
+    name: Create GitHub Release
+    uses: ./.github/workflows/zxc-create-github-release.yaml
+    needs:
+      - publish
+    if: ${{ needs.validate.outputs.create-release == 'true' }}
+    with:
+      release-version: ${{ inputs.ref-name }}
+      release-notes: true
+      create-release: true
+    secrets:
+      gh-access-token: ${{ secrets.GH_ACCESS_TOKEN }}
 
   send-notifications:
     name: Send Release Notifications
