@@ -1086,15 +1086,15 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
 
         // Override getConnectionState to trigger state change on first call
         doAnswer(invocation -> {
-            final ConnectionState result = (ConnectionState) invocation.callRealMethod();
-            if (!stateChanged.get()) {
-                stateChanged.set(true);
-                // Change the actual internal state to cause fail
-                final AtomicReference<ConnectionState> state = connectionState();
-                state.set(ConnectionState.PENDING);
-            }
-            return result;
-        })
+                    final ConnectionState result = (ConnectionState) invocation.callRealMethod();
+                    if (!stateChanged.get()) {
+                        stateChanged.set(true);
+                        // Change the actual internal state to cause fail
+                        final AtomicReference<ConnectionState> state = connectionState();
+                        state.set(ConnectionState.PENDING);
+                    }
+                    return result;
+                })
                 .when(spyConnection)
                 .getConnectionState();
 
