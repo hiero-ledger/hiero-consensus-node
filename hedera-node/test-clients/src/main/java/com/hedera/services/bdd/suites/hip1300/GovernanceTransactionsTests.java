@@ -99,7 +99,8 @@ public class GovernanceTransactionsTests implements LifecycleTest {
 
     @HapiTest
     @Order(2)
-    @DisplayName("Treasury and system admin accounts can submit more than 6KB transactions when the feature is enabled")
+    @DisplayName(
+            "Treasury and system admin accounts cannot submit more than 6KB transactions when the feature is disabled at runtime")
     public Stream<DynamicTest> privilegedAccountCannotSubmitLargeSizeTransactionsWhenDisabledDynamically() {
         final var largeSizeMemo = new String(randomMemoBytes, StandardCharsets.UTF_8);
         return hapiTest(
