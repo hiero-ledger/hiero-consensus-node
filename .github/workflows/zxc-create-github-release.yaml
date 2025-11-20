@@ -1,7 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 name: "ZXC: Create Github Release"
 on:
-  break the workflow
   workflow_call:
     inputs:
       release-version:
