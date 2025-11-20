@@ -72,7 +72,16 @@ for item in data:
   else:
     others.append(desc)
 
-other_commits_exist = build or chore or ci or docs or performance or refactoring or style or tests
+other_commits_exist = any([
+  build,
+  chore,
+  ci,
+  docs,
+  performance,
+  refactoring,
+  style,
+  tests
+])
 
 with open(output_file, "w") as out:
   if features or fixes or other_commits_exist:
