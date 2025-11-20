@@ -212,10 +212,9 @@ public class TokenServiceSimpleFeesSuite {
                                 .fee(ONE_HUNDRED_HBARS)
                                 .via("pause-token-txn")),
                 "pause-token-txn",
-                // TODO: actual result being set to zero for some reason
                 0.002,
                 1,
-                0.001,
+                0.002,
                 1);
     }
 
@@ -245,10 +244,9 @@ public class TokenServiceSimpleFeesSuite {
                                 .fee(ONE_HUNDRED_HBARS)
                                 .via("unpause-token-txn")),
                 "unpause-token-txn",
-                // TODO: actual result being set to zero for some reason
                 0.002,
                 1,
-                0.001,
+                0.002,
                 1);
     }
 
@@ -279,10 +277,9 @@ public class TokenServiceSimpleFeesSuite {
                                 .fee(ONE_HUNDRED_HBARS)
                                 .via("freeze-token-txn")),
                 "freeze-token-txn",
-                // TODO: actual result being set to zero for some reason
                 0.002,
                 1,
-                0.001,
+                0.002,
                 1);
     }
 
@@ -314,10 +311,9 @@ public class TokenServiceSimpleFeesSuite {
                                 .fee(ONE_HUNDRED_HBARS)
                                 .via("unfreeze-token-txn")),
                 "unfreeze-token-txn",
-                // TODO: actual result being set to zero for some reason
                 0.002,
                 1,
-                0.001,
+                0.002,
                 1);
     }
 
