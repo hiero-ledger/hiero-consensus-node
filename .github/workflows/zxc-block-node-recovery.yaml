@@ -275,7 +275,7 @@ jobs:
           # Run the NLG crypto-transfer rapid-fire command
           echo "Starting NLG crypto-transfer rapid-fire..."
 
-          solo rapid-fire crypto-transfer start --deployment ${{ env.SOLO_DEPLOYMENT }} \
+          solo rapid-fire load start --test CryptoTransferLoadTest --deployment ${{ env.SOLO_DEPLOYMENT }} \
           --values-file nlg-values.yaml --args '"-c 5 -a 10 -R -t 10"'
 
       # After some run time stop BN2 and BN3 to simulate unavailable BNs
