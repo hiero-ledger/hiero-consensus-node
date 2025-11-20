@@ -26,5 +26,5 @@ public interface QueryFeeCalculator {
      * Returns the transaction type this calculator is for.
      * @return the transaction type
      */
-    Query.QueryOneOfType getTransactionType();
+    Query.QueryOneOfType getQueryType();
 }

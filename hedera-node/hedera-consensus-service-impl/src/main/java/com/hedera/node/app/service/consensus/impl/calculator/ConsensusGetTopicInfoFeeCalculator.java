@@ -24,11 +24,10 @@ public class ConsensusGetTopicInfoFeeCalculator implements QueryFeeCalculator {
         final ServiceFeeDefinition serviceDef =
                 lookupServiceFee(feeSchedule, HederaFunctionality.CONSENSUS_GET_TOPIC_INFO);
         feeResult.addServiceFee(1, serviceDef.baseFee());
-        System.out.println("Consensus Get Topic Info Fee " + feeResult);
     }
 
     @Override
-    public Query.QueryOneOfType getTransactionType() {
+    public Query.QueryOneOfType getQueryType() {
         return Query.QueryOneOfType.CONSENSUS_GET_TOPIC_INFO;
     }
 }

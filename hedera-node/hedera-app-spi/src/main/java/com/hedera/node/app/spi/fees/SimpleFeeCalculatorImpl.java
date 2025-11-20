@@ -41,7 +41,7 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
         this.serviceFeeCalculators = serviceFeeCalculators.stream()
                 .collect(Collectors.toMap(ServiceFeeCalculator::getTransactionType, Function.identity()));
         this.queryFeeCalculators = queryFeeCalculators.stream()
-                .collect(Collectors.toMap(QueryFeeCalculator::getTransactionType, Function.identity()));
+                .collect(Collectors.toMap(QueryFeeCalculator::getQueryType, Function.identity()));
     }
 
     /**
