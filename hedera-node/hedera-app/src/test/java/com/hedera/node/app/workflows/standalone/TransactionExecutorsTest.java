@@ -10,7 +10,6 @@ import static com.hedera.node.app.spi.fees.NoopFeeCharging.UNIVERSAL_NOOP_FEE_CH
 import static com.hedera.node.app.util.FileUtilities.createFileID;
 import static com.hedera.node.app.workflows.standalone.TransactionExecutors.MAX_SIGNED_TXN_SIZE_PROPERTY;
 import static com.hedera.node.app.workflows.standalone.TransactionExecutors.TRANSACTION_EXECUTORS;
-import static com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade.TEST_PLATFORM_STATE_FACADE;
 import static java.util.Objects.requireNonNull;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -413,8 +412,7 @@ public class TransactionExecutorsTest {
                 config,
                 startupNetworks,
                 storeMetricsService,
-                configProvider,
-                TEST_PLATFORM_STATE_FACADE);
+                configProvider);
         // Create a node
         final var nodeWritableStates = state.getWritableStates(AddressBookService.NAME);
         final var nodes = nodeWritableStates.<EntityNumber, Node>get(NODES_STATE_ID);

@@ -1,6 +1,21 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state.service;
 
+import static com.swirlds.platform.state.service.PlatformStateUtils.ancientThresholdOf;
+import static com.swirlds.platform.state.service.PlatformStateUtils.bulkUpdateOf;
+import static com.swirlds.platform.state.service.PlatformStateUtils.consensusSnapshotOf;
+import static com.swirlds.platform.state.service.PlatformStateUtils.consensusTimestampOf;
+import static com.swirlds.platform.state.service.PlatformStateUtils.creationSoftwareVersionOf;
+import static com.swirlds.platform.state.service.PlatformStateUtils.freezeTimeOf;
+import static com.swirlds.platform.state.service.PlatformStateUtils.getInfoString;
+import static com.swirlds.platform.state.service.PlatformStateUtils.lastFrozenTimeOf;
+import static com.swirlds.platform.state.service.PlatformStateUtils.legacyRunningEventHashOf;
+import static com.swirlds.platform.state.service.PlatformStateUtils.platformStateOf;
+import static com.swirlds.platform.state.service.PlatformStateUtils.roundOf;
+import static com.swirlds.platform.state.service.PlatformStateUtils.setCreationSoftwareVersionTo;
+import static com.swirlds.platform.state.service.PlatformStateUtils.setLegacyRunningEventHashTo;
+import static com.swirlds.platform.state.service.PlatformStateUtils.setSnapshotTo;
+import static com.swirlds.platform.state.service.PlatformStateUtils.updateLastFrozenTime;
 import static com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema.UNINITIALIZED_PLATFORM_STATE;
 import static com.swirlds.platform.test.fixtures.PlatformStateUtils.randomPlatformState;
 import static com.swirlds.state.test.fixtures.merkle.VirtualMapStateTestUtils.createTestStateWithLabel;
@@ -18,7 +33,6 @@ import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.state.PlatformState;
 import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
 import com.swirlds.platform.state.PlatformStateModifier;
-import com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade;
 import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
 import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.State;
@@ -31,9 +45,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
-class PlatformStateFacadeTest {
+class PlatformStateUtilsTest {
 
-    private TestPlatformStateFacade platformStateFacade;
     private MerkleNodeState state;
     private MerkleNodeState emptyState;
     private PlatformStateModifier platformStateModifier;
@@ -41,14 +54,13 @@ class PlatformStateFacadeTest {
     @BeforeEach
     void beforeEach() {
         final String virtualMapLabelForState =
-                "vm-state-" + PlatformStateFacadeTest.class.getSimpleName() + "-" + java.util.UUID.randomUUID();
+                "vm-state-" + PlatformStateUtilsTest.class.getSimpleName() + "-" + java.util.UUID.randomUUID();
         state = createTestStateWithLabel(virtualMapLabelForState);
         TestingAppStateInitializer.initPlatformState(state);
         final String virtualMapLabelForEmptyState =
-                "vm-state-empty-" + PlatformStateFacadeTest.class.getSimpleName() + "-" + java.util.UUID.randomUUID();
+                "vm-state-empty-" + PlatformStateUtilsTest.class.getSimpleName() + "-" + java.util.UUID.randomUUID();
         emptyState = createTestStateWithLabel(virtualMapLabelForEmptyState);
-        platformStateFacade = new TestPlatformStateFacade();
-        platformStateModifier = randomPlatformState(state, platformStateFacade);
+        platformStateModifier = randomPlatformState(state);
     }
 
     @AfterEach
@@ -68,51 +80,49 @@ class PlatformStateFacadeTest {
         final Instant t4 = t3.plusSeconds(1);
 
         // No freeze time set
-        assertFalse(PlatformStateFacade.isInFreezePeriod(t1, null, null));
+        assertFalse(PlatformStateUtils.isInFreezePeriod(t1, null, null));
 
         // No freeze time set, previous freeze time set
-        assertFalse(PlatformStateFacade.isInFreezePeriod(t2, null, t1));
+        assertFalse(PlatformStateUtils.isInFreezePeriod(t2, null, t1));
 
         // Freeze time is in the future, never frozen before
-        assertFalse(PlatformStateFacade.isInFreezePeriod(t2, t3, null));
+        assertFalse(PlatformStateUtils.isInFreezePeriod(t2, t3, null));
 
         // Freeze time is in the future, frozen before
-        assertFalse(PlatformStateFacade.isInFreezePeriod(t2, t3, t1));
+        assertFalse(PlatformStateUtils.isInFreezePeriod(t2, t3, t1));
 
         // Freeze time is in the past, never frozen before
-        assertTrue(PlatformStateFacade.isInFreezePeriod(t2, t1, null));
+        assertTrue(PlatformStateUtils.isInFreezePeriod(t2, t1, null));
 
         // Freeze time is in the past, frozen before at an earlier time
-        assertTrue(PlatformStateFacade.isInFreezePeriod(t3, t2, t1));
+        assertTrue(PlatformStateUtils.isInFreezePeriod(t3, t2, t1));
 
         // Freeze time in the past, already froze at that exact time
-        assertFalse(PlatformStateFacade.isInFreezePeriod(t3, t2, t2));
+        assertFalse(PlatformStateUtils.isInFreezePeriod(t3, t2, t2));
     }
 
     @Test
     void testCreationSoftwareVersionOf() {
-        assertEquals(
-                platformStateModifier.getCreationSoftwareVersion(),
-                platformStateFacade.creationSoftwareVersionOf(state));
+        assertEquals(platformStateModifier.getCreationSoftwareVersion(), creationSoftwareVersionOf(state));
     }
 
     @Test
     void testCreationSoftwareVersionOf_null() {
-        assertNull(platformStateFacade.creationSoftwareVersionOf(emptyState));
+        assertNull(creationSoftwareVersionOf(emptyState));
     }
 
     @Test
     void testRoundOf() {
-        assertEquals(platformStateModifier.getRound(), platformStateFacade.roundOf(state));
+        assertEquals(platformStateModifier.getRound(), roundOf(state));
     }
 
     @Test
     void testPlatformStateOf_noPlatformState() {
         final var virtualMapLabel =
-                "vm-" + PlatformStateFacadeTest.class.getSimpleName() + "-" + java.util.UUID.randomUUID();
+                "vm-" + PlatformStateUtilsTest.class.getSimpleName() + "-" + java.util.UUID.randomUUID();
         final VirtualMapState noPlatformState = createTestStateWithLabel(virtualMapLabel);
         noPlatformState.getReadableStates(PlatformStateService.NAME);
-        assertSame(UNINITIALIZED_PLATFORM_STATE, platformStateFacade.platformStateOf(noPlatformState));
+        assertSame(UNINITIALIZED_PLATFORM_STATE, platformStateOf(noPlatformState));
         noPlatformState.release();
     }
 
@@ -122,45 +132,44 @@ class PlatformStateFacadeTest {
         when(rootOfUnexpectedType.getReadableStates(PlatformStateService.NAME))
                 .thenReturn(EmptyReadableStates.INSTANCE);
 
-        final PlatformState platformState = platformStateFacade.platformStateOf(rootOfUnexpectedType);
+        final PlatformState platformState = platformStateOf(rootOfUnexpectedType);
         assertSame(UNINITIALIZED_PLATFORM_STATE, platformState);
     }
 
     @Test
     void testLegacyRunningEventHashOf() {
-        assertEquals(
-                platformStateModifier.getLegacyRunningEventHash(), platformStateFacade.legacyRunningEventHashOf(state));
+        assertEquals(platformStateModifier.getLegacyRunningEventHash(), legacyRunningEventHashOf(state));
     }
 
     @Test
     void testAncientThresholdOf() {
-        assertEquals(platformStateModifier.getAncientThreshold(), platformStateFacade.ancientThresholdOf(state));
+        assertEquals(platformStateModifier.getAncientThreshold(), ancientThresholdOf(state));
     }
 
     @Test
     void testConsensusSnapshotOf() {
-        assertEquals(platformStateModifier.getSnapshot(), platformStateFacade.consensusSnapshotOf(state));
+        assertEquals(platformStateModifier.getSnapshot(), consensusSnapshotOf(state));
     }
 
     @Test
     void testConsensusTimestampOf() {
-        assertEquals(platformStateModifier.getConsensusTimestamp(), platformStateFacade.consensusTimestampOf(state));
+        assertEquals(platformStateModifier.getConsensusTimestamp(), consensusTimestampOf(state));
     }
 
     @Test
     void testFreezeTimeOf() {
-        assertEquals(platformStateModifier.getFreezeTime(), platformStateFacade.freezeTimeOf(state));
+        assertEquals(platformStateModifier.getFreezeTime(), freezeTimeOf(state));
     }
 
     @Test
     void testUpdateLastFrozenTime() {
         final Instant newFreezeTime = Instant.now();
-        platformStateFacade.bulkUpdateOf(state, v -> {
+        bulkUpdateOf(state, v -> {
             v.setFreezeTime(newFreezeTime);
         });
-        platformStateFacade.updateLastFrozenTime(state);
+        updateLastFrozenTime(state);
         assertEquals(newFreezeTime, platformStateModifier.getLastFrozenTime());
-        assertEquals(newFreezeTime, platformStateFacade.lastFrozenTimeOf(state));
+        assertEquals(newFreezeTime, lastFrozenTimeOf(state));
     }
 
     @Test
@@ -168,7 +177,7 @@ class PlatformStateFacadeTest {
         final Instant newFreezeTime = Instant.now();
         final Instant lastFrozenTime = Instant.now();
         final long round = nextLong();
-        platformStateFacade.bulkUpdateOf(state, v -> {
+        bulkUpdateOf(state, v -> {
             v.setFreezeTime(newFreezeTime);
             v.setRound(round);
             v.setLastFrozenTime(lastFrozenTime);
@@ -181,12 +190,12 @@ class PlatformStateFacadeTest {
     @Test
     void testSetSnapshotTo() {
         final String virtualMapLabel =
-                "vm-" + PlatformStateFacadeTest.class.getSimpleName() + "-" + java.util.UUID.randomUUID();
+                "vm-" + PlatformStateUtilsTest.class.getSimpleName() + "-" + java.util.UUID.randomUUID();
         final VirtualMapState randomState = createTestStateWithLabel(virtualMapLabel);
         TestingAppStateInitializer.initPlatformState(randomState);
-        PlatformStateModifier randomPlatformState = randomPlatformState(randomState, platformStateFacade);
+        PlatformStateModifier randomPlatformState = randomPlatformState(randomState);
         final var newSnapshot = randomPlatformState.getSnapshot();
-        platformStateFacade.setSnapshotTo(state, newSnapshot);
+        setSnapshotTo(state, newSnapshot);
         assertEquals(newSnapshot, platformStateModifier.getSnapshot());
         randomState.release();
     }
@@ -194,7 +203,7 @@ class PlatformStateFacadeTest {
     @Test
     void testSetLegacyRunningEventHashTo() {
         final var newLegacyRunningEventHash = randomHash();
-        platformStateFacade.setLegacyRunningEventHashTo(state, newLegacyRunningEventHash);
+        setLegacyRunningEventHashTo(state, newLegacyRunningEventHash);
         assertEquals(newLegacyRunningEventHash, platformStateModifier.getLegacyRunningEventHash());
     }
 
@@ -203,13 +212,13 @@ class PlatformStateFacadeTest {
         final var newCreationSoftwareVersion =
                 SemanticVersion.newBuilder().major(RandomUtils.nextInt()).build();
 
-        platformStateFacade.setCreationSoftwareVersionTo(state, newCreationSoftwareVersion);
+        setCreationSoftwareVersionTo(state, newCreationSoftwareVersion);
         assertEquals(newCreationSoftwareVersion, platformStateModifier.getCreationSoftwareVersion());
     }
 
     @Test
     void testGetInfoString() {
-        final var infoString = platformStateFacade.getInfoString(state, 1);
+        final var infoString = getInfoString(state, 1);
         System.out.println(infoString);
         assertThat(infoString)
                 .contains("Round:")

@@ -19,7 +19,6 @@ import static com.hedera.node.app.service.entityid.impl.schemas.V0690EntityIdSch
 import static com.hedera.node.app.service.roster.impl.ActiveRosters.Phase.BOOTSTRAP;
 import static com.hedera.node.app.service.roster.impl.ActiveRosters.Phase.HANDOFF;
 import static com.hedera.node.app.service.roster.impl.ActiveRosters.Phase.TRANSITION;
-import static com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade.TEST_PLATFORM_STATE_FACADE;
 import static java.util.Objects.requireNonNull;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.BDDMockito.given;
@@ -494,8 +493,7 @@ class WritableHintsStoreImplTest {
                 DEFAULT_CONFIG,
                 startupNetworks,
                 storeMetricsService,
-                configProvider,
-                TEST_PLATFORM_STATE_FACADE);
+                configProvider);
         return state;
     }
 }

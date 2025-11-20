@@ -129,7 +129,7 @@ public class NodeUpdateTest {
                 nodeUpdate("testNode").gossipCaCertificate(new byte[0]).hasPrecheck(INVALID_GOSSIP_CA_CERTIFICATE));
     }
 
-    @LeakyHapiTest(overrides = "nodes.updateAccountIdAllowed")
+    @LeakyHapiTest(overrides = {"nodes.updateAccountIdAllowed"})
     final Stream<DynamicTest> updateAccountIdNotAllowed() throws CertificateEncodingException {
         final var nodeAccount = "nodeAccount";
         return hapiTest(
@@ -330,12 +330,11 @@ public class NodeUpdateTest {
                 }))));
     }
 
-    @LeakyHapiTest(overrides = "nodes.updateAccountIdAllowed")
+    @HapiTest
     final Stream<DynamicTest> failsAtIngestForUnAuthorizedTxns() throws CertificateEncodingException {
         final String description = "His vorpal blade went snicker-snack!";
         final var nodeAccount = "nodeAccount";
         return hapiTest(
-                overriding("nodes.updateAccountIdAllowed", "false"),
                 newKeyNamed("adminKey"),
                 cryptoCreate("payer").balance(10_000_000_000L),
                 cryptoCreate(nodeAccount),
@@ -348,7 +347,7 @@ public class NodeUpdateTest {
                 nodeUpdate("ntb")
                         .payingWith("payer")
                         .accountId("0.0.1000")
-                        .hasPrecheck(UPDATE_NODE_ACCOUNT_NOT_ALLOWED)
+                        .hasPrecheck(INVALID_SIGNATURE)
                         .fee(ONE_HBAR)
                         .via("updateNode"));
     }

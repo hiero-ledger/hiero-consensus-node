@@ -18,10 +18,9 @@ public class SignedStateUtils {
     }
 
     public static SignedState randomSignedState(Random random) {
-        TestPlatformStateFacade platformStateFacade = new TestPlatformStateFacade();
         MerkleNodeState root = createTestState();
         TestingAppStateInitializer.initPlatformState(root);
-        randomPlatformState(random, root, platformStateFacade);
+        randomPlatformState(random, root);
         boolean shouldSaveToDisk = random.nextBoolean();
         SignedState signedState = new SignedState(
                 TestPlatformContextBuilder.create().build().getConfiguration(),
@@ -30,8 +29,7 @@ public class SignedStateUtils {
                 "test",
                 shouldSaveToDisk,
                 false,
-                false,
-                platformStateFacade);
+                false);
         signedState.getState().setHash(CryptoRandomUtils.randomHash(random));
         return signedState;
     }

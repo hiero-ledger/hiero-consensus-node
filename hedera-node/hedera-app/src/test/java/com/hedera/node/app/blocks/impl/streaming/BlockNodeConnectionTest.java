@@ -1900,7 +1900,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         // Slightly over configuredMax to ensure split/end if not honored
         final BlockItem tooLarge = newBlockTxItem(hardLimitBytes + 10);
         block.addItem(tooLarge);
-        doReturn(block).when(bufferService).getBlockState(5);
+        lenient().doReturn(block).when(bufferService).getBlockState(5);
 
         // Should have sent header, then ended stream due to size violation under configured limit
         verify(requestPipeline, timeout(2_000).atLeast(2)).onNext(any(PublishStreamRequest.class));

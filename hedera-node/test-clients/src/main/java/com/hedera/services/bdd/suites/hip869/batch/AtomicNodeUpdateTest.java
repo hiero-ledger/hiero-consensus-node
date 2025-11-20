@@ -159,7 +159,7 @@ class AtomicNodeUpdateTest {
                         .hasPrecheck(INVALID_GOSSIP_CA_CERTIFICATE));
     }
 
-    @LeakyHapiTest(overrides = "nodes.updateAccountIdAllowed")
+    @LeakyHapiTest(overrides = {"nodes.updateAccountIdAllowed"})
     final Stream<DynamicTest> updateAccountIdNotAllowed() throws CertificateEncodingException {
         final var nodeAccount = "nodeAccount";
         return hapiTest(
@@ -171,7 +171,7 @@ class AtomicNodeUpdateTest {
                         .gossipCaCertificate(gossipCertificates.getFirst().getEncoded()),
                 atomicBatch(nodeUpdate("testNode")
                                 .accountId("0.0.100")
-                                .hasKnownStatus(UPDATE_NODE_ACCOUNT_NOT_ALLOWED)
+                                .hasKnownStatusFrom(UPDATE_NODE_ACCOUNT_NOT_ALLOWED)
                                 .batchKey(BATCH_OPERATOR))
                         .payingWith(BATCH_OPERATOR)
                         .hasKnownStatus(INNER_TRANSACTION_FAILED));
@@ -383,12 +383,11 @@ class AtomicNodeUpdateTest {
                 }))));
     }
 
-    @LeakyHapiTest(overrides = "nodes.updateAccountIdAllowed")
+    @HapiTest
     final Stream<DynamicTest> failsAtIngestForUnAuthorizedTxns() throws CertificateEncodingException {
         final String description = "His vorpal blade went snicker-snack!";
         final var nodeAccount = "nodeAccount";
         return hapiTest(
-                overriding("nodes.updateAccountIdAllowed", "false"),
                 newKeyNamed("adminKey"),
                 cryptoCreate("payer").balance(10_000_000_000L),
                 cryptoCreate(nodeAccount),
@@ -401,7 +400,7 @@ class AtomicNodeUpdateTest {
                 atomicBatch(nodeUpdate("ntb")
                                 .payingWith("payer")
                                 .accountId("0.0.1000")
-                                .hasKnownStatus(UPDATE_NODE_ACCOUNT_NOT_ALLOWED)
+                                .hasKnownStatus(INVALID_SIGNATURE)
                                 .fee(ONE_HBAR)
                                 .via("updateNode")
                                 .batchKey(BATCH_OPERATOR))
