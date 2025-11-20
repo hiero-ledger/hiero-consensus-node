@@ -16,7 +16,7 @@ message InitRequest {
 
 // Request to kill the application immediately.
 message KillImmediatelyRequest {
-  google.protobuf.Empty ignore = 1;
+  uint32 timeout_seconds = 1;
 }
 
 message PingResponse {

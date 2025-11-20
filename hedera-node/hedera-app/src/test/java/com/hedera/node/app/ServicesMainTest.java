@@ -105,10 +105,10 @@ final class ServicesMainTest {
         final Time time = mock(Time.class);
         final Function<VirtualMap, MerkleNodeState> stateRootFromVirtualMapMock = mock(Function.class);
 
-        when(hedera.stateRootFromVirtualMap(metrics, time)).thenReturn(stateRootFromVirtualMapMock);
+        when(hedera.stateRootFromVirtualMap(metrics)).thenReturn(stateRootFromVirtualMapMock);
         when(stateRootFromVirtualMapMock.apply(virtualMapMock)).thenReturn(state);
 
-        assertSame(state, subject.stateRootFromVirtualMap(metrics, time).apply(virtualMapMock));
+        assertSame(state, subject.stateRootFromVirtualMap(metrics).apply(virtualMapMock));
     }
 
     private void withBadCommandLineArgs() {

@@ -3,7 +3,6 @@ package com.swirlds.platform.state.editor;
 
 import static com.swirlds.platform.state.editor.StateEditorUtils.formatNodeType;
 import static com.swirlds.platform.state.editor.StateEditorUtils.formatRoute;
-import static com.swirlds.platform.state.service.PlatformStateFacade.DEFAULT_PLATFORM_STATE_FACADE;
 
 import com.swirlds.cli.utility.CommandBuilder;
 import com.swirlds.common.context.PlatformContext;
@@ -42,26 +41,25 @@ public class StateEditor {
     /**
      * Create a new state editor.
      *
-     * @param statePath the path where the signed state can be found
+     * @param stateDirPath the directory path where the signed state can be found
      */
     @SuppressWarnings("java:S106")
-    public StateEditor(final Path statePath) throws IOException {
+    public StateEditor(final Path stateDirPath) throws IOException {
 
         final Configuration configuration = DefaultConfiguration.buildBasicConfiguration(ConfigurationBuilder.create());
 
         platformContext = PlatformContext.create(configuration);
 
-        final DeserializedSignedState deserializedSignedState = SignedStateFileReader.readStateFile(
-                statePath,
+        final DeserializedSignedState deserializedSignedState = SignedStateFileReader.readState(
+                stateDirPath,
                 (virtualMap) -> {
                     // FUTURE WORK: https://github.com/hiero-ledger/hiero-consensus-node/issues/19003
                     throw new UnsupportedOperationException();
                 },
-                DEFAULT_PLATFORM_STATE_FACADE,
                 platformContext);
 
         try (final ReservedSignedState reservedSignedState = deserializedSignedState.reservedSignedState()) {
-            System.out.println("\nLoading state from " + statePath);
+            System.out.println("\nLoading state from " + stateDirPath);
             signedState.set(reservedSignedState.get(), "StateEditor constructor");
             System.out.println("Hashing state");
             try {
@@ -205,8 +203,7 @@ public class StateEditor {
                     "StateEditor.getSignedStateCopy()",
                     reservedSignedState.get().isFreezeState(),
                     false,
-                    false,
-                    DEFAULT_PLATFORM_STATE_FACADE);
+                    false);
 
             signedState.set(newSignedState, "StateEditor.getSignedStateCopy() 2");
 

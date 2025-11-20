@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.container;
 
+import static java.util.Collections.unmodifiableSet;
 import static org.assertj.core.api.Fail.fail;
 
 import com.swirlds.common.io.utility.FileUtils;
@@ -9,6 +10,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Set;
 import org.hiero.otter.fixtures.Capability;
@@ -16,6 +18,9 @@ import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.TestEnvironment;
 import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.TransactionGenerator;
+import org.hiero.otter.fixtures.chaosbot.ChaosBot;
+import org.hiero.otter.fixtures.chaosbot.ChaosBotConfiguration;
+import org.hiero.otter.fixtures.chaosbot.internal.ChaosBotImpl;
 import org.hiero.otter.fixtures.internal.RegularTimeManager;
 
 /**
@@ -24,11 +29,11 @@ import org.hiero.otter.fixtures.internal.RegularTimeManager;
 public class ContainerTestEnvironment implements TestEnvironment {
 
     /** Capabilities supported by the container test environment */
-    private static final Set<Capability> CAPABILITIES = Set.of(
+    private static final Set<Capability> CAPABILITIES = unmodifiableSet(EnumSet.of(
             Capability.RECONNECT,
             Capability.BACK_PRESSURE,
             Capability.SINGLE_NODE_JVM_SHUTDOWN,
-            Capability.USES_REAL_NETWORK);
+            Capability.USES_REAL_NETWORK));
 
     /** The granularity of time defining how often continuous assertions are checked */
     private static final Duration GRANULARITY = Duration.ofMillis(10);
@@ -111,6 +116,15 @@ public class ContainerTestEnvironment implements TestEnvironment {
     @NonNull
     public TransactionGenerator transactionGenerator() {
         return transactionGenerator;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    public ChaosBot createChaosBot(@NonNull final ChaosBotConfiguration configuration) {
+        return new ChaosBotImpl(this, configuration);
     }
 
     /**

@@ -19,7 +19,7 @@ public class DeterministicHeartbeatSchedulerTests {
     void heartbeatByFrequencyTest() {
         final FakeTime time = new FakeTime();
         final DeterministicWiringModel model = WiringModelBuilder.create(new NoOpMetrics(), time)
-                .withDeterministicModeEnabled(true)
+                .deterministic()
                 .build();
 
         final TaskScheduler<Void> scheduler =
@@ -47,7 +47,7 @@ public class DeterministicHeartbeatSchedulerTests {
     void heartbeatByPeriodTest() {
         final FakeTime time = new FakeTime();
         final DeterministicWiringModel model = WiringModelBuilder.create(new NoOpMetrics(), time)
-                .withDeterministicModeEnabled(true)
+                .deterministic()
                 .build();
 
         final TaskScheduler<Void> scheduler =
@@ -75,7 +75,7 @@ public class DeterministicHeartbeatSchedulerTests {
     void heartbeatsAtDifferentRates() {
         final FakeTime time = new FakeTime();
         final DeterministicWiringModel model = WiringModelBuilder.create(new NoOpMetrics(), time)
-                .withDeterministicModeEnabled(true)
+                .deterministic()
                 .build();
 
         final TaskScheduler<Void> scheduler = model.<Void>schedulerBuilder("test")

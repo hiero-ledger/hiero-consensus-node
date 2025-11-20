@@ -30,17 +30,18 @@ import com.swirlds.platform.gossip.DefaultIntakeEventCounter;
 import com.swirlds.platform.gossip.IntakeEventCounter;
 import com.swirlds.platform.gossip.NoOpIntakeEventCounter;
 import com.swirlds.platform.gossip.sync.config.SyncConfig;
+import com.swirlds.platform.network.protocol.ReservedSignedStateResultPromise;
+import com.swirlds.platform.reconnect.FallenBehindMonitor;
 import com.swirlds.platform.scratchpad.Scratchpad;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
-import com.swirlds.platform.state.SwirldStateManager;
 import com.swirlds.platform.state.iss.IssScratchpad;
-import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.system.Platform;
-import com.swirlds.platform.system.status.StatusActionSubmitter;
 import com.swirlds.platform.wiring.PlatformComponents;
 import com.swirlds.platform.wiring.PlatformWiring;
 import com.swirlds.state.MerkleNodeState;
+import com.swirlds.state.StateLifecycleManager;
+import com.swirlds.state.merkle.StateLifecycleManagerImpl;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
@@ -78,7 +79,6 @@ public final class PlatformBuilder {
     private final ReservedSignedState initialState;
 
     private final ConsensusStateEventHandler<MerkleNodeState> consensusStateEventHandler;
-    private final PlatformStateFacade platformStateFacade;
     private final Function<VirtualMap, MerkleNodeState> createStateFromVirtualMap;
 
     private final NodeId selfId;
@@ -150,7 +150,6 @@ public final class PlatformBuilder {
      * @param selfId the ID of this node
      * @param consensusEventStreamName a part of the name of the directory where the consensus event stream is written
      * @param rosterHistory the roster history provided by the application to use at startup
-     * @param platformStateFacade the facade to access the platform state
      * @param createStateFromVirtualMap a function to instantiate the state object from a Virtual Map
      */
     @NonNull
@@ -163,7 +162,6 @@ public final class PlatformBuilder {
             @NonNull final NodeId selfId,
             @NonNull final String consensusEventStreamName,
             @NonNull final RosterHistory rosterHistory,
-            @NonNull final PlatformStateFacade platformStateFacade,
             @NonNull final Function<VirtualMap, MerkleNodeState> createStateFromVirtualMap) {
         return new PlatformBuilder(
                 appName,
@@ -174,7 +172,6 @@ public final class PlatformBuilder {
                 selfId,
                 consensusEventStreamName,
                 rosterHistory,
-                platformStateFacade,
                 createStateFromVirtualMap);
     }
 
@@ -189,7 +186,6 @@ public final class PlatformBuilder {
      * @param selfId the ID of this node
      * @param consensusEventStreamName a part of the name of the directory where the consensus event stream is written
      * @param rosterHistory the roster history provided by the application to use at startup
-     * @param platformStateFacade the facade to access the platform state
      * @param createStateFromVirtualMap a function to instantiate the state object from a Virtual Map
      */
     private PlatformBuilder(
@@ -201,7 +197,6 @@ public final class PlatformBuilder {
             @NonNull final NodeId selfId,
             @NonNull final String consensusEventStreamName,
             @NonNull final RosterHistory rosterHistory,
-            @NonNull final PlatformStateFacade platformStateFacade,
             @NonNull final Function<VirtualMap, MerkleNodeState> createStateFromVirtualMap) {
 
         this.appName = Objects.requireNonNull(appName);
@@ -212,7 +207,6 @@ public final class PlatformBuilder {
         this.selfId = Objects.requireNonNull(selfId);
         this.consensusEventStreamName = Objects.requireNonNull(consensusEventStreamName);
         this.rosterHistory = Objects.requireNonNull(rosterHistory);
-        this.platformStateFacade = Objects.requireNonNull(platformStateFacade);
         this.createStateFromVirtualMap = Objects.requireNonNull(createStateFromVirtualMap);
     }
 
@@ -432,8 +426,9 @@ public final class PlatformBuilder {
         final ApplicationCallbacks callbacks =
                 new ApplicationCallbacks(preconsensusEventConsumer, snapshotOverrideConsumer, staleEventConsumer);
 
-        final AtomicReference<StatusActionSubmitter> statusActionSubmitterAtomicReference = new AtomicReference<>();
-        final SwirldStateManager swirldStateManager = new SwirldStateManager(platformContext, currentRoster);
+        @SuppressWarnings("unchecked")
+        final StateLifecycleManager stateLifecycleManager = new StateLifecycleManagerImpl(
+                platformContext.getMetrics(), platformContext.getTime(), createStateFromVirtualMap);
 
         if (model == null) {
             final WiringConfig wiringConfig = platformContext.getConfiguration().getConfigData(WiringConfig.class);
@@ -446,15 +441,9 @@ public final class PlatformBuilder {
             logger.info(STARTUP.getMarker(), "Default platform pool parallelism: {}", parallelism);
 
             model = WiringModelBuilder.create(platformContext.getMetrics(), platformContext.getTime())
-                    .withJvmAnchorEnabled(true)
+                    .enableJvmAnchor()
                     .withDefaultPool(defaultPool)
-                    .withHealthMonitorEnabled(wiringConfig.healthMonitorEnabled())
-                    .withHardBackpressureEnabled(wiringConfig.hardBackpressureEnabled())
-                    .withHealthMonitorCapacity(wiringConfig.healthMonitorSchedulerCapacity())
-                    .withHealthMonitorPeriod(wiringConfig.healthMonitorHeartbeatPeriod())
-                    .withHealthLogThreshold(wiringConfig.healthLogThreshold())
-                    .withHealthLogPeriod(wiringConfig.healthLogPeriod())
-                    .withHealthyReportThreshold(wiringConfig.healthyReportThreshold())
+                    .withWiringConfig(wiringConfig)
                     .build();
         }
 
@@ -468,9 +457,10 @@ public final class PlatformBuilder {
             };
         }
 
-        var platformComponentWiring = PlatformComponents.create(platformContext, model, callbacks);
+        var platformComponentWiring = PlatformComponents.create(platformContext, model);
 
-        PlatformWiring.wire(platformContext, execution, platformComponentWiring);
+        PlatformWiring.wire(platformContext, execution, platformComponentWiring, callbacks);
+        PlatformWiring.wireMetrics(platformContext, platformComponentWiring);
 
         final PlatformBuildingBlocks buildingBlocks = new PlatformBuildingBlocks(
                 platformComponentWiring,
@@ -494,16 +484,15 @@ public final class PlatformBuilder {
                 consensusEventStreamName,
                 issScratchpad,
                 NotificationEngine.buildEngine(getStaticThreadManager()),
-                statusActionSubmitterAtomicReference,
-                swirldStateManager,
                 new AtomicReference<>(),
-                new AtomicReference<>(),
+                stateLifecycleManager,
                 new AtomicReference<>(),
                 firstPlatform,
                 consensusStateEventHandler,
-                platformStateFacade,
                 execution,
-                createStateFromVirtualMap);
+                createStateFromVirtualMap,
+                new FallenBehindMonitor(rosterHistory.getCurrentRoster(), configuration, platformContext.getMetrics()),
+                new ReservedSignedStateResultPromise());
 
         return new PlatformComponentBuilder(buildingBlocks);
     }

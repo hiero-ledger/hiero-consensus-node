@@ -8,6 +8,7 @@ import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.utility.throttle.RateLimitedLogger;
 import com.swirlds.config.api.Configuration;
+import com.swirlds.logging.legacy.LogMarker;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -23,8 +24,7 @@ import java.util.function.Function;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.base.crypto.Hash;
-import org.hiero.base.crypto.Signature;
+import org.hiero.base.crypto.BytesSigner;
 import org.hiero.consensus.crypto.PbjStreamHasher;
 import org.hiero.consensus.event.creator.EventCreationConfig;
 import org.hiero.consensus.event.creator.impl.EventCreator;
@@ -47,7 +47,7 @@ public class TipsetEventCreator implements EventCreator {
 
     private final Time time;
     private final SecureRandom random;
-    private final HashSigner signer;
+    private final BytesSigner signer;
     private final NodeId selfId;
     private final TipsetTracker tipsetTracker;
     private final TipsetWeightCalculator tipsetWeightCalculator;
@@ -119,7 +119,7 @@ public class TipsetEventCreator implements EventCreator {
             @NonNull final Metrics metrics,
             @NonNull final Time time,
             @NonNull final SecureRandom random,
-            @NonNull final HashSigner signer,
+            @NonNull final BytesSigner signer,
             @NonNull final Roster roster,
             @NonNull final NodeId selfId,
             @NonNull final EventTransactionSupplier transactionSupplier) {
@@ -216,6 +216,10 @@ public class TipsetEventCreator implements EventCreator {
         } else if (quiescenceCommand == QuiescenceCommand.BREAK_QUIESCENCE && !breakQuiescenceEventCreated) {
             event = createQuiescenceBreakEvent();
             breakQuiescenceEventCreated = true;
+            logger.info(
+                    LogMarker.STARTUP.getMarker(),
+                    "Created quiescence breaking event ({})",
+                    event.getDescriptor()::shortString);
         }
         if (event != null) {
             lastSelfEvent = signEvent(event);
@@ -256,8 +260,7 @@ public class TipsetEventCreator implements EventCreator {
     }
 
     private PlatformEvent signEvent(final UnsignedEvent event) {
-        final Signature signature = signer.sign(event.getHash());
-        return new PlatformEvent(event, signature.getBytes());
+        return new PlatformEvent(event, signer.sign(event.getHash().getBytes()));
     }
 
     /**
@@ -427,10 +430,13 @@ public class TipsetEventCreator implements EventCreator {
     @NonNull
     private UnsignedEvent assembleEventObject(@Nullable final PlatformEvent otherParent) {
         final List<TimestampedTransaction> transactions = transactionSupplier.getTransactionsForEvent();
+        final List<EventDescriptorWrapper> allParents = Stream.of(lastSelfEvent, otherParent)
+                .filter(Objects::nonNull)
+                .map(PlatformEvent::getDescriptor)
+                .toList();
         final UnsignedEvent event = new UnsignedEvent(
                 selfId,
-                lastSelfEvent == null ? null : lastSelfEvent.getDescriptor(),
-                otherParent == null ? Collections.emptyList() : Collections.singletonList(otherParent.getDescriptor()),
+                allParents,
                 eventWindow.newEventBirthRound(),
                 calculateNewEventCreationTime(lastSelfEvent, otherParent, transactions),
                 transactions.stream().map(TimestampedTransaction::transaction).toList(),
@@ -518,17 +524,5 @@ public class TipsetEventCreator implements EventCreator {
         }
 
         return maxReceivedTime;
-    }
-
-    /**
-     * Capable of signing a {@link Hash}
-     */
-    @FunctionalInterface
-    public interface HashSigner {
-        /**
-         * @param hash the hash to sign
-         * @return the signature for the hash provided
-         */
-        Signature sign(Hash hash);
     }
 }

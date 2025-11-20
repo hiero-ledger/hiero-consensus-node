@@ -11,16 +11,16 @@ import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.platform.event.preconsensus.PcesFileTracker;
 import com.swirlds.platform.freeze.FreezeCheckHolder;
 import com.swirlds.platform.gossip.IntakeEventCounter;
+import com.swirlds.platform.network.protocol.ReservedSignedStateResultPromise;
+import com.swirlds.platform.reconnect.FallenBehindMonitor;
 import com.swirlds.platform.scratchpad.Scratchpad;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
-import com.swirlds.platform.state.SwirldStateManager;
 import com.swirlds.platform.state.iss.IssScratchpad;
-import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.ReservedSignedState;
-import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.system.status.StatusActionSubmitter;
 import com.swirlds.platform.wiring.PlatformComponents;
 import com.swirlds.state.MerkleNodeState;
+import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -38,7 +38,7 @@ import org.hiero.consensus.roster.RosterHistory;
  * This record contains core utilities and basic objects needed to build a platform. It should not contain any platform
  * components.
  *
- * @param platformComponents                         the wiring for this platform
+ * @param platformComponents                     the wiring for this platform
  * @param platformContext                        the context for this platform
  * @param model                                  the wiring model for this platform
  * @param keysAndCerts                           an object holding all the public/private key pairs and the CSPRNG state
@@ -65,27 +65,25 @@ import org.hiero.consensus.roster.RosterHistory;
  *                                               underlying data source), this indirection can be removed once states
  *                                               are passed within the wiring framework
  * @param initialPcesFiles                       the initial set of PCES files present when the node starts
- * @param consensusEventStreamName               a part of the name of the directory where the consensus event stream is written
+ * @param consensusEventStreamName               a part of the name of the directory where the consensus event stream is
+ *                                               written
  * @param issScratchpad                          scratchpad storage for ISS recovery
  * @param notificationEngine                     for sending notifications to the application (legacy pattern)
- * @param firstPlatform                          if this is the first platform being built (there is static setup that
- *                                               needs to be done, long term plan is to stop using static variables)
  * @param statusActionSubmitterReference         a reference to the status action submitter, this can be deleted once
  *                                               platform status management is handled by the wiring framework
+ * @param stateLifecycleManager                  responsible for the mutable state, this is exposed here due to
+ *                                               reconnect
  * @param getLatestCompleteStateReference        a reference to a supplier that supplies the latest immutable state,
  *                                               this is exposed here due to reconnect, can be removed once reconnect is
  *                                               made compatible with the wiring framework
- * @param loadReconnectStateReference            a reference to a consumer that loads the state for reconnect, can be
- *                                               removed once reconnect is made compatible with the wiring framework
- * @param clearAllPipelinesForReconnectReference a reference to a runnable that clears all pipelines for reconnect, can
- *                                               be removed once reconnect is made compatible with the wiring framework
- * @param swirldStateManager                     responsible for the mutable state, this is exposed here due to
- *                                               reconnect, can be removed once reconnect is made compatible with the
- *                                               wiring framework
- * @param platformStateFacade                    the facade to access the platform state
+ * @param firstPlatform                          if this is the first platform being built (there is static setup that
+ *                                               needs to be done, long term plan is to stop using static variables)
  * @param execution                              the instance of the execution layer, which allows consensus to interact
  *                                               with the execution layer
  * @param createStateFromVirtualMap              a function to instantiate the state object from a Virtual Map
+ * @param fallenBehindMonitor                    an instance of the fallenBehind Monitor which tracks if the node has fallen behind
+ * @param reservedSignedStateResultPromise             a shared data structure that Gossip and the ReconnectController will use provide
+ *                                               and obtain a reference to a ReservedSignedState
  */
 public record PlatformBuildingBlocks(
         @NonNull PlatformComponents platformComponents,
@@ -110,16 +108,14 @@ public record PlatformBuildingBlocks(
         @NonNull Scratchpad<IssScratchpad> issScratchpad,
         @NonNull NotificationEngine notificationEngine,
         @NonNull AtomicReference<StatusActionSubmitter> statusActionSubmitterReference,
-        @NonNull SwirldStateManager swirldStateManager,
+        @NonNull StateLifecycleManager stateLifecycleManager,
         @NonNull AtomicReference<Supplier<ReservedSignedState>> getLatestCompleteStateReference,
-        @NonNull AtomicReference<Consumer<SignedState>> loadReconnectStateReference,
-        @NonNull AtomicReference<Runnable> clearAllPipelinesForReconnectReference,
         boolean firstPlatform,
         @NonNull ConsensusStateEventHandler consensusStateEventHandler,
-        @NonNull PlatformStateFacade platformStateFacade,
         @NonNull ExecutionLayer execution,
-        @NonNull Function<VirtualMap, MerkleNodeState> createStateFromVirtualMap) {
-
+        @NonNull Function<VirtualMap, MerkleNodeState> createStateFromVirtualMap,
+        @NonNull FallenBehindMonitor fallenBehindMonitor,
+        @NonNull ReservedSignedStateResultPromise reservedSignedStateResultPromise) {
     public PlatformBuildingBlocks {
         requireNonNull(platformComponents);
         requireNonNull(platformContext);
@@ -141,13 +137,12 @@ public record PlatformBuildingBlocks(
         requireNonNull(issScratchpad);
         requireNonNull(notificationEngine);
         requireNonNull(statusActionSubmitterReference);
-        requireNonNull(swirldStateManager);
+        requireNonNull(stateLifecycleManager);
         requireNonNull(getLatestCompleteStateReference);
-        requireNonNull(loadReconnectStateReference);
-        requireNonNull(clearAllPipelinesForReconnectReference);
         requireNonNull(consensusStateEventHandler);
-        requireNonNull(platformStateFacade);
         requireNonNull(execution);
         requireNonNull(createStateFromVirtualMap);
+        requireNonNull(fallenBehindMonitor);
+        requireNonNull(reservedSignedStateResultPromise);
     }
 }

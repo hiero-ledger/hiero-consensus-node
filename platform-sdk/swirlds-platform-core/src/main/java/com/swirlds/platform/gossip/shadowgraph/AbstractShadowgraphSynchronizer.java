@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.gossip.shadowgraph;
 
-import static com.swirlds.logging.legacy.LogMarker.SYNC_INFO;
 import static com.swirlds.platform.gossip.shadowgraph.SyncUtils.filterLikelyDuplicates;
 
 import com.swirlds.base.time.Time;
@@ -9,23 +8,21 @@ import com.swirlds.common.context.PlatformContext;
 import com.swirlds.platform.gossip.IntakeEventCounter;
 import com.swirlds.platform.gossip.sync.config.SyncConfig;
 import com.swirlds.platform.metrics.SyncMetrics;
+import com.swirlds.platform.reconnect.FallenBehindMonitor;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Hash;
-import org.hiero.consensus.gossip.FallenBehindManager;
 import org.hiero.consensus.model.event.PlatformEvent;
+import org.hiero.consensus.model.gossip.SyncProgress;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
 
@@ -58,9 +55,9 @@ public class AbstractShadowgraphSynchronizer {
     protected final Consumer<PlatformEvent> eventHandler;
 
     /**
-     * manages sync related decisions
+     * Keeps track of the FallenBehind status of the local node
      */
-    private final FallenBehindManager fallenBehindManager;
+    protected final FallenBehindMonitor fallenBehindMonitor;
 
     /**
      * Keeps track of how many events from each peer have been received, but haven't yet made it through the intake
@@ -91,12 +88,7 @@ public class AbstractShadowgraphSynchronizer {
      */
     protected final int maximumEventsPerSync;
 
-    /**
-     * Keep track of how much behind or ahead we are compared to peers based on the latestConsensusRound
-     */
-    private final ConcurrentMap<NodeId, Long> consensusLag = new ConcurrentHashMap<>();
-
-    private final Consumer<Double> syncLagHandler;
+    private final Consumer<SyncProgress> syncProgressHandler;
 
     /**
      * Constructs a new ShadowgraphSynchronizer.
@@ -106,9 +98,9 @@ public class AbstractShadowgraphSynchronizer {
      * @param numberOfNodes        number of nodes in the network
      * @param syncMetrics          metrics for sync
      * @param receivedEventHandler events that are received are passed here
-     * @param fallenBehindManager  tracks if we have fallen behind
+     * @param fallenBehindMonitor  an instance of the fallenBehind Monitor which tracks if the node has fallen behind
      * @param intakeEventCounter   used for tracking events in the intake pipeline per peer
-     * @param syncLagHandler       callback for reporting median sync lag
+     * @param syncProgressHandler  callback for reporting sync progress
      */
     public AbstractShadowgraphSynchronizer(
             @NonNull final PlatformContext platformContext,
@@ -116,16 +108,16 @@ public class AbstractShadowgraphSynchronizer {
             final int numberOfNodes,
             @NonNull final SyncMetrics syncMetrics,
             @NonNull final Consumer<PlatformEvent> receivedEventHandler,
-            @NonNull final FallenBehindManager fallenBehindManager,
+            @NonNull final FallenBehindMonitor fallenBehindMonitor,
             @NonNull final IntakeEventCounter intakeEventCounter,
-            @NonNull final Consumer<Double> syncLagHandler) {
+            @NonNull final Consumer<SyncProgress> syncProgressHandler) {
         Objects.requireNonNull(platformContext);
 
         this.time = platformContext.getTime();
         this.shadowGraph = Objects.requireNonNull(shadowGraph);
         this.numberOfNodes = numberOfNodes;
         this.syncMetrics = Objects.requireNonNull(syncMetrics);
-        this.fallenBehindManager = Objects.requireNonNull(fallenBehindManager);
+        this.fallenBehindMonitor = Objects.requireNonNull(fallenBehindMonitor);
         this.intakeEventCounter = Objects.requireNonNull(intakeEventCounter);
 
         this.eventHandler = Objects.requireNonNull(receivedEventHandler);
@@ -135,7 +127,7 @@ public class AbstractShadowgraphSynchronizer {
 
         this.filterLikelyDuplicates = syncConfig.filterLikelyDuplicates();
         this.maximumEventsPerSync = syncConfig.maxSyncEventCount();
-        this.syncLagHandler = Objects.requireNonNull(syncLagHandler);
+        this.syncProgressHandler = Objects.requireNonNull(syncProgressHandler);
     }
 
     @NonNull
@@ -146,56 +138,9 @@ public class AbstractShadowgraphSynchronizer {
         return myTips;
     }
 
-    /**
-     * Decide if we have fallen behind with respect to this peer.
-     *
-     * @param self   our event window
-     * @param other  their event window
-     * @param nodeId node id against which we have fallen behind
-     * @return status about who has fallen behind
-     */
-    protected SyncFallenBehindStatus hasFallenBehind(
+    protected void reportSyncStatus(
             @NonNull final EventWindow self, @NonNull final EventWindow other, @NonNull final NodeId nodeId) {
-        Objects.requireNonNull(self);
-        Objects.requireNonNull(other);
-        Objects.requireNonNull(nodeId);
-
-        final SyncFallenBehindStatus status = SyncFallenBehindStatus.getStatus(self, other);
-        if (status == SyncFallenBehindStatus.SELF_FALLEN_BEHIND) {
-            fallenBehindManager.reportFallenBehind(nodeId);
-        } else {
-            fallenBehindManager.clearFallenBehind(nodeId);
-        }
-
-        if (status != SyncFallenBehindStatus.NONE_FALLEN_BEHIND) {
-            logger.info(SYNC_INFO.getMarker(), "Connection against {} aborting sync due to {}", nodeId, status);
-        }
-
-        return status;
-    }
-
-    protected void reportRoundDifference(
-            @NonNull final EventWindow self, @NonNull final EventWindow other, @NonNull final NodeId nodeId) {
-        final long diff = other.getPendingConsensusRound() - self.getPendingConsensusRound();
-        consensusLag.put(nodeId, diff);
-
-        final var lagArray = consensusLag.values().toArray(Long[]::new);
-        final double medianLag;
-        if (lagArray.length > 0) {
-            Arrays.sort(lagArray);
-            if (lagArray.length % 2 == 1) {
-                medianLag = lagArray[lagArray.length / 2];
-            } else {
-                medianLag = (lagArray[lagArray.length / 2 - 1] + lagArray[lagArray.length / 2]) / 2.0;
-            }
-        } else {
-            medianLag = 0.0;
-        }
-
-        final double clampedMedianLag = Math.max(medianLag, 0);
-
-        syncMetrics.reportMedianLag(clampedMedianLag);
-        syncLagHandler.accept(clampedMedianLag);
+        syncProgressHandler.accept(new SyncProgress(nodeId, self, other));
     }
 
     /**

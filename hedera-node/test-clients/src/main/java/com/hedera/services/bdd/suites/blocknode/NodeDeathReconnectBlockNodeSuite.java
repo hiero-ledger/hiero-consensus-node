@@ -5,11 +5,10 @@ import static com.hedera.services.bdd.junit.TestTags.BLOCK_NODE;
 import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertHgcaaLogDoesNotContain;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertHgcaaLogDoesNotContainText;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.logIt;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitForActive;
-import static com.hedera.services.bdd.suites.regression.system.LifecycleTest.*;
 import static com.hedera.services.bdd.suites.regression.system.MixedOperations.burstOfTps;
 
 import com.hedera.services.bdd.HapiBlockNode;
@@ -91,6 +90,6 @@ public class NodeDeathReconnectBlockNodeSuite implements LifecycleTest {
                 // And validate we can still submit transactions to node2
                 cryptoCreate("somebody").setNode("5"),
                 burstOfTps(MIXED_OPS_BURST_TPS, Duration.ofSeconds(60)),
-                assertHgcaaLogDoesNotContain(byNodeId(0), "ERROR", Duration.ofSeconds(5)));
+                assertHgcaaLogDoesNotContainText(byNodeId(0), "ERROR", Duration.ofSeconds(5)));
     }
 }

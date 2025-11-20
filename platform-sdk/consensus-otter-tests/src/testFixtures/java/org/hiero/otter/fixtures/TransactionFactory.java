@@ -10,11 +10,11 @@ import java.time.Instant;
 import java.util.List;
 import org.hiero.base.utility.CommonUtils;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.otter.fixtures.app.EmptyTransaction;
-import org.hiero.otter.fixtures.app.HashPartition;
-import org.hiero.otter.fixtures.app.OtterFreezeTransaction;
-import org.hiero.otter.fixtures.app.OtterIssTransaction;
-import org.hiero.otter.fixtures.app.OtterTransaction;
+import org.hiero.otter.fixtures.network.transactions.EmptyTransaction;
+import org.hiero.otter.fixtures.network.transactions.HashPartition;
+import org.hiero.otter.fixtures.network.transactions.OtterFreezeTransaction;
+import org.hiero.otter.fixtures.network.transactions.OtterIssTransaction;
+import org.hiero.otter.fixtures.network.transactions.OtterTransaction;
 
 /**
  * Utility class for transaction-related operations.

@@ -1,20 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
+import org.gradlex.javamodule.dependencies.dsl.GradleOnlyDirectives
+
 plugins {
-    id("java-library")
-    id("jacoco")
-    id("org.hiero.gradle.base.jpms-modules")
-    id("org.hiero.gradle.base.lifecycle")
-    id("org.hiero.gradle.base.version")
-    id("org.hiero.gradle.check.dependencies")
-    id("org.hiero.gradle.check.javac-lint")
-    id("org.hiero.gradle.check.spotless")
-    id("org.hiero.gradle.check.spotless-java")
-    id("org.hiero.gradle.check.spotless-kotlin")
-    id("org.hiero.gradle.feature.git-properties-file")
-    id("org.hiero.gradle.feature.java-compile")
-    id("org.hiero.gradle.feature.java-execute")
-    id("org.hiero.gradle.feature.test")
-    id("org.hiero.gradle.report.test-logger")
+    id("org.hiero.gradle.module.library")
     id("org.hiero.gradle.feature.test-fixtures")
     id("org.hiero.gradle.feature.test-integration")
     id("org.hiero.gradle.feature.protobuf")
@@ -22,133 +10,55 @@ plugins {
 
 description = "Consensus Otter Test Framework"
 
+@Suppress("UnstableApiUsage")
+testing {
+    suites.named<JvmTestSuite>("test") {
+        javaModuleTesting.whitebox(this) { sourcesUnderTest = sourceSets.testFixtures }
+    }
+
+    suites.named<JvmTestSuite>("testIntegration") {
+        targets.configureEach { testTask { dependsOn(":consensus-otter-docker-app:assemble") } }
+    }
+
+    suites.register<JvmTestSuite>("testOtter") {
+        // Runs tests against the Container environment
+        targets.register("testContainer") { testTask { systemProperty("otter.env", "container") } }
+
+        // Runs tests against the Turtle environment
+        targets.register("testTurtle") { testTask { systemProperty("otter.env", "turtle") } }
+
+        targets.configureEach { testTask { dependsOn(":consensus-otter-docker-app:assemble") } }
+    }
+}
+
 testModuleInfo {
     requires("com.swirlds.base")
     requires("com.swirlds.base.test.fixtures")
     requires("com.swirlds.common.test.fixtures")
-    requires("com.swirlds.platform.core.test.fixtures")
-    requires("org.hiero.otter.fixtures")
-    requires("org.assertj.core")
-    requires("org.junit.jupiter.params")
-    requires("org.mockito")
-    requires("com.github.spotbugs.annotations")
     requires("com.swirlds.component.framework")
     requires("com.swirlds.metrics.api")
-    requires("org.hiero.consensus.utility")
+    requires("com.swirlds.platform.core.test.fixtures")
     requires("org.apache.logging.log4j")
-}
-
-testing.suites {
-    val testOtter by
-        registering(JvmTestSuite::class) {
-            useJUnitJupiter()
-
-            dependencies {
-                implementation(project())
-                implementation(project.dependencies.testFixtures(project()))
-                implementation(project(":swirlds-common"))
-                implementation(project(":swirlds-platform-core"))
-                implementation(project(":base-crypto"))
-                implementation("org.junit.jupiter:junit-jupiter-params")
-                implementation("com.github.spotbugs:spotbugs-annotations")
-                runtimeOnly("io.grpc:grpc-netty-shaded")
-            }
-
-            targets {
-                all {
-                    testTask.configure {
-                        // Disable all parallelism
-                        systemProperty("junit.jupiter.execution.parallel.enabled", false)
-                        systemProperty(
-                            "junit.jupiter.testclass.order.default",
-                            "org.junit.jupiter.api.ClassOrderer\$OrderAnnotation",
-                        )
-
-                        // Limit heap and number of processors
-                        maxHeapSize = "8g"
-                        jvmArgs("-XX:ActiveProcessorCount=6")
-                    }
-                }
-            }
-        }
-}
-
-testIntegrationModuleInfo {
-    requires("com.swirlds.common.test.fixtures")
-    requires("com.swirlds.logging")
-    requires("org.hiero.otter.fixtures")
     requires("org.assertj.core")
+    requires("org.hiero.consensus.utility")
     requires("org.junit.jupiter.params")
-    requires("com.github.spotbugs.annotations")
-    requires("org.apache.logging.log4j")
-    requires("awaitility")
+    requires("org.mockito")
+    requiresStatic("com.github.spotbugs.annotations")
+}
+
+testIntegrationModuleInfo { //
     runtimeOnly("io.grpc.netty.shaded")
 }
+
+extensions.getByName<GradleOnlyDirectives>("testOtterModuleInfo").apply {
+    runtimeOnly("io.grpc.netty.shaded")
+}
+
+tasks.withType<Test>().configureEach { maxHeapSize = "8g" }
 
 // This should probably not be necessary (Log4j issue?)
 // https://github.com/apache/logging-log4j2/pull/3053
 tasks.compileTestFixturesJava {
     options.compilerArgs.add("-Alog4j.graalvm.groupId=${project.group}")
     options.compilerArgs.add("-Alog4j.graalvm.artifactId=${project.name}")
-}
-
-// Runs tests against the Turtle environment
-tasks.register<Test>("testTurtle") {
-    useJUnitPlatform()
-    testClassesDirs = sourceSets.named("testOtter").get().output.classesDirs
-    classpath = sourceSets.named("testOtter").get().runtimeClasspath
-
-    // Disable all parallelism
-    systemProperty("junit.jupiter.execution.parallel.enabled", false)
-    systemProperty(
-        "junit.jupiter.testclass.order.default",
-        "org.junit.jupiter.api.ClassOrderer\$OrderAnnotation",
-    )
-    // Tell our launcher to target a Turtle network
-    systemProperty("otter.env", "turtle")
-
-    // Limit heap and number of processors
-    maxHeapSize = "8g"
-    jvmArgs("-XX:ActiveProcessorCount=6")
-}
-
-// Runs tests against the Container environment
-tasks.register<Test>("testContainer") {
-    dependsOn(":consensus-otter-docker-app:copyDockerizedApp")
-
-    useJUnitPlatform()
-    testClassesDirs = sourceSets.named("testOtter").get().output.classesDirs
-    classpath = sourceSets.named("testOtter").get().runtimeClasspath
-
-    // Disable all parallelism
-    systemProperty("junit.jupiter.execution.parallel.enabled", false)
-    systemProperty(
-        "junit.jupiter.testclass.order.default",
-        "org.junit.jupiter.api.ClassOrderer\$OrderAnnotation",
-    )
-
-    // Tell our launcher to target a testcontainer-based network
-    systemProperty("otter.env", "container")
-
-    // Limit heap and number of processors
-    maxHeapSize = "8g"
-    jvmArgs("-XX:ActiveProcessorCount=6")
-}
-
-// Configure the default testIntegration task with proper memory settings
-tasks.testIntegration {
-    useJUnitPlatform()
-    testClassesDirs = sourceSets.testIntegration.get().output.classesDirs
-    classpath = sourceSets.testIntegration.get().runtimeClasspath
-
-    // Disable all parallelism
-    systemProperty("junit.jupiter.execution.parallel.enabled", false)
-    systemProperty(
-        "junit.jupiter.testclass.order.default",
-        "org.junit.jupiter.api.ClassOrderer\$OrderAnnotation",
-    )
-
-    // Limit heap and number of processors
-    maxHeapSize = "8g"
-    jvmArgs("-XX:ActiveProcessorCount=6")
 }

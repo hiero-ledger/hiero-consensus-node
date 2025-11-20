@@ -3,6 +3,8 @@ package org.hiero.otter.fixtures;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Set;
+import org.hiero.otter.fixtures.chaosbot.ChaosBot;
+import org.hiero.otter.fixtures.chaosbot.ChaosBotConfiguration;
 
 /**
  * Interface representing the test environment of an Otter test.
@@ -43,6 +45,15 @@ public interface TestEnvironment {
      */
     @NonNull
     TransactionGenerator transactionGenerator();
+
+    /**
+     * Create a chaos bot that can introduce randomized faults into the test environment.
+     *
+     * @param configuration the chaos bot configuration
+     * @return the chaos bot
+     */
+    @NonNull
+    ChaosBot createChaosBot(@NonNull ChaosBotConfiguration configuration);
 
     /**
      * Destroys the test environment. Once this method is called, the test environment and all its

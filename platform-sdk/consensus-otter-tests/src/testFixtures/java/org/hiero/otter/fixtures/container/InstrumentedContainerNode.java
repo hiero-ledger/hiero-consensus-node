@@ -9,6 +9,7 @@ import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.otter.fixtures.InstrumentedNode;
 import org.hiero.otter.fixtures.TimeManager;
+import org.hiero.otter.fixtures.internal.NetworkConfiguration;
 import org.testcontainers.containers.Network;
 import org.testcontainers.images.builder.ImageFromDockerfile;
 
@@ -33,8 +34,9 @@ public class InstrumentedContainerNode extends ContainerNode implements Instrume
             @NonNull final KeysAndCerts keysAndCerts,
             @NonNull final Network network,
             @NonNull final ImageFromDockerfile dockerImage,
-            @NonNull final Path outputDirectory) {
-        super(selfId, timeManager, keysAndCerts, network, dockerImage, outputDirectory);
+            @NonNull final Path outputDirectory,
+            @NonNull final NetworkConfiguration networkConfiguration) {
+        super(selfId, timeManager, keysAndCerts, network, dockerImage, outputDirectory, networkConfiguration);
     }
 
     /**

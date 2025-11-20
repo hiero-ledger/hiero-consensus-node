@@ -47,7 +47,6 @@ class IterableStorageManagerTest {
             ContractID.newBuilder().contractNum(1L).build();
     private final ContractID CONTRACT_2 =
             ContractID.newBuilder().contractNum(2L).build();
-    private final AccountID ACCOUNT_ID_1 = AccountID.newBuilder().accountNum(1L).build();
     private final AccountID ACCOUNT_ID_2 = AccountID.newBuilder().accountNum(2L).build();
     private final Bytes BYTES_1 = tuweniToPbjBytes(UInt256.ONE);
     private final Bytes BYTES_2 = tuweniToPbjBytes(UInt256.valueOf(2L));
@@ -71,7 +70,7 @@ class IterableStorageManagerTest {
     @Mock
     private Account account;
 
-    private EntityIdFactory entityIdFactory = new FakeEntityIdFactoryImpl(0, 0);
+    private final EntityIdFactory entityIdFactory = new FakeEntityIdFactoryImpl(0, 0);
 
     private final IterableStorageManager subject = new IterableStorageManager();
 
@@ -140,7 +139,7 @@ class IterableStorageManagerTest {
     void updatedHookStorageNumberOfSlots() {
         final var hookEntity = HookId.newBuilder()
                 .hookId(1L)
-                .entityId(HookEntityId.newBuilder().contractId(CONTRACT_2).build())
+                .entityId(HookEntityId.newBuilder().accountId(ACCOUNT_ID_2).build())
                 .build();
         final var slotKey = new LambdaSlotKey(hookEntity, BYTES_1);
 

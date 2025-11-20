@@ -7,28 +7,39 @@ import static com.hedera.node.app.records.BlockRecordService.EPOCH;
 import static com.hedera.node.app.records.impl.BlockRecordInfoUtils.HASH_SIZE;
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_STATE_ID;
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.RUNNING_HASHES_STATE_ID;
+import static com.hedera.node.config.types.StreamMode.RECORDS;
 import static com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID;
 import static java.util.Objects.requireNonNull;
+import static org.hiero.consensus.model.quiescence.QuiescenceCommand.DONT_QUIESCE;
+import static org.hiero.consensus.model.quiescence.QuiescenceCommand.QUIESCE;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
 import com.hedera.hapi.node.state.blockrecords.RunningHashes;
 import com.hedera.hapi.platform.state.PlatformState;
+import com.hedera.node.app.quiescence.QuiescedHeartbeat;
+import com.hedera.node.app.quiescence.QuiescenceController;
+import com.hedera.node.app.quiescence.TctProbe;
 import com.hedera.node.app.records.BlockRecordManager;
 import com.hedera.node.app.records.BlockRecordService;
 import com.hedera.node.app.state.SingleTransactionRecord;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockRecordStreamConfig;
+import com.hedera.node.config.data.BlockStreamConfig;
+import com.hedera.node.config.data.StakingConfig;
+import com.hedera.node.config.types.StreamMode;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.stream.LinkedObjectStreamUtilities;
 import com.swirlds.platform.state.service.PlatformStateService;
 import com.swirlds.platform.state.service.WritablePlatformStateStore;
+import com.swirlds.platform.system.Platform;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.WritableSingletonStateBase;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -36,6 +47,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.Hash;
+import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 
 /**
  * An implementation of {@link BlockRecordManager} primarily responsible for managing state ({@link RunningHashes} and
@@ -66,6 +78,14 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
      */
     private final BlockRecordStreamProducer streamFileProducer;
 
+    private final QuiescenceController quiescenceController;
+    private final QuiescedHeartbeat quiescedHeartbeat;
+    private final ConfigProvider configProvider;
+    private final Platform platform;
+
+    private final AtomicReference<QuiescenceCommand> lastQuiescenceCommand = new AtomicReference<>(DONT_QUIESCE);
+    private final StreamMode streamMode;
+
     /**
      * A {@link BlockInfo} of the most recently completed block. This is actually available in state, but there
      * is no reason for us to read it from state every time we need it, we can just recompute and cache this every
@@ -88,9 +108,18 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
     public BlockRecordManagerImpl(
             @NonNull final ConfigProvider configProvider,
             @NonNull final State state,
-            @NonNull final BlockRecordStreamProducer streamFileProducer) {
+            @NonNull final BlockRecordStreamProducer streamFileProducer,
+            @NonNull final QuiescenceController quiescenceController,
+            @NonNull final QuiescedHeartbeat quiescedHeartbeat,
+            @NonNull final Platform platform) {
+        this.platform = platform;
         requireNonNull(state);
+        this.quiescenceController = requireNonNull(quiescenceController);
+        this.quiescedHeartbeat = requireNonNull(quiescedHeartbeat);
         this.streamFileProducer = requireNonNull(streamFileProducer);
+        this.configProvider = requireNonNull(configProvider);
+        final var config = configProvider.getConfiguration();
+        this.streamMode = config.getConfigData(BlockStreamConfig.class).streamMode();
 
         // FUTURE: check if we were started in event recover mode and if event recovery needs to be completed before we
         // write any new records to stream
@@ -172,6 +201,10 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
                     .build();
             putLastBlockInfo(state);
             streamFileProducer.switchBlocks(-1, 0, consensusTime);
+            if (streamMode == RECORDS) {
+                // No-op if quiescence is disabled
+                quiescenceController.startingBlock(0);
+            }
             return true;
         }
 
@@ -233,13 +266,44 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
     /**
      * We need this to preserve unit test expectations written that assumed a bug in the original implementation,
      * in which the first consensus time of the current block was not in state.
-     *
      * @param consensusTime the consensus time at which to switch to the current block
      */
     @VisibleForTesting
     public void switchBlocksAt(@NonNull final Instant consensusTime) {
-        streamFileProducer.switchBlocks(
-                lastBlockInfo.lastBlockNumber(), lastBlockInfo.lastBlockNumber() + 1, consensusTime);
+        final long blockNo = lastBlockInfo.lastBlockNumber() + 1;
+        streamFileProducer.switchBlocks(lastBlockInfo.lastBlockNumber(), blockNo, consensusTime);
+        if (streamMode == RECORDS) {
+            quiescenceController.finishHandlingInProgressBlock();
+            // All no-ops below if quiescence is disabled
+            if (quiescenceController.switchTracker(blockNo)) {
+                // There is no asynchronous signing concept in the record stream, do it now
+                quiescenceController.blockFullySigned(blockNo - 1);
+            }
+        }
+    }
+
+    /**
+     * If called, checks if the quiescence command has changed and updates the platform accordingly.
+     * @param state the state to use
+     */
+    @VisibleForTesting
+    public void maybeQuiesce(@NonNull final State state) {
+        final var lastCommand = lastQuiescenceCommand.get();
+        final var commandNow = quiescenceController.getQuiescenceStatus();
+        if (commandNow != lastCommand && lastQuiescenceCommand.compareAndSet(lastCommand, commandNow)) {
+            logger.info("Updating quiescence command from {} to {}", lastCommand, commandNow);
+            platform.quiescenceCommand(commandNow);
+            if (commandNow == QUIESCE) {
+                final var config = configProvider.getConfiguration();
+                final var blockStreamConfig = config.getConfigData(BlockStreamConfig.class);
+                quiescedHeartbeat.start(
+                        blockStreamConfig.quiescedHeartbeatInterval(),
+                        new TctProbe(
+                                blockStreamConfig.maxConsecutiveScheduleSecondsToProbe(),
+                                config.getConfigData(StakingConfig.class).periodMins(),
+                                state));
+            }
+        }
     }
 
     private void putLastBlockInfo(@NonNull final State state) {

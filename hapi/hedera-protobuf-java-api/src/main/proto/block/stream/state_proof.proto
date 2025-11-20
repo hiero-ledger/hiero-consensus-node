@@ -1,0 +1,157 @@
+/**
+ * # State Proof
+ * A state proof that cryptographically proves one of more nodes in the block
+ * merkle tree.<br/>
+ * Those nodes can represent state, block items or anything else
+ * in the tree.
+ *
+ * All state proofs MUST include the `TimeStamp` leaf at the top of the
+ * block merkle tree so that the point in time that applies to this proof is
+ * also proven.
+ *
+ * ### Keywords
+ * The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+ * "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+ * document are to be interpreted as described in
+ * [RFC2119](https://www.ietf.org/rfc/rfc2119) and clarified in
+ * [RFC8174](https://www.ietf.org/rfc/rfc8174).
+ */
+syntax = "proto3";
+
+package com.hedera.hapi.block.stream;
+
+// SPDX-License-Identifier: Apache-2.0
+option java_package = "com.hedera.hapi.block.stream.protoc";
+// <<<pbj.java_package = "com.hedera.hapi.block.stream">>> This comment is special code for setting PBJ Compiler java package
+option java_multiple_files = true;
+
+import "services/timestamp.proto";
+import "block/stream/record_file_item.proto";
+import "services/state/blockstream/merkle_leaf.proto";
+
+message StateProof {
+    /**
+     * The merkle paths that prove the nodes in the block merkle tree.
+     * This field SHALL contain, in the following order:
+     * - The merkle path from the previous block root (the "left-most"
+     *   node on level 5) to it's (single) internal node parent (on level
+     *   1, adjacent to the block's consensus timestamp).
+     * - The merkle path from the consensus timestamp leaf to the root.
+     * - The merkle path of the root of the entire block merkle tree.
+     */
+    repeated MerklePath paths = 1;
+
+    oneof proof {
+        /**
+         * A proof containing a TSS signature for a single block. This field
+         * SHALL contain the proof of a block with a block number greater
+         * than or equal to the current block; otherwise this field MUST be
+         * omitted.
+         */
+        TssSignedBlockProof signed_block_proof = 2;
+
+        /**
+         * A proof containing RSA signatures from consensus nodes for a record
+         * file. This field MUST contain the proof of the record file only if
+         * the state proof is being provided for a record file; otherwise it
+         * MUST be omitted.
+         */
+        SignedRecordFileProof signed_record_file_proof = 4;
+    }
+}
+
+/**
+ * A proof containing a TSS signature for a single block.
+ */
+message TssSignedBlockProof {
+    /**
+     * A TSS signature for one block.<br/>
+     * This is a single signature representing the collection of partial
+     * signatures from nodes holding strictly greater than 2/3 of the
+     * current network "weight" in aggregate. The signature is produced by
+     * cryptographic "aggregation" of the partial signatures to produce a
+     * single signature that can be verified with the network public key,
+     * but could not be produced by fewer nodes than required to meet the
+     * threshold for network stake "weight".
+     * <p>
+     * This message MUST make use of a threshold signature scheme like `BLS`
+     * which provides the necessary cryptographic guarantees.<br/>
+     * This signature SHALL use a TSS signature to provide a single signature
+     * that represents the consensus signature of consensus nodes.<br/>
+     * The exact subset of nodes that signed SHALL neither be known nor
+     * tracked, but it SHALL be cryptographically verifiable that the
+     * threshold was met if the signature itself can be validated with
+     * the network public key (a.k.a `LedgerID`).
+     */
+    bytes block_signature = 1;
+}
+
+/**
+ * A proof containing RSA signatures from consensus nodes for a record file.
+ */
+message SignedRecordFileProof {
+    /**
+     * A collection of RSA signatures from consensus nodes.<br/>
+     * These signatures validate the hash of the record_file_contents field.
+     */
+    repeated RecordFileSignature record_file_signatures = 1;
+}
+
+/**
+ * A path from a node in a Merkle tree to the root of that tree.
+ *
+ * MerklePath represents a section of a merkle path from a leaf node to merkle
+ * tree root. There are 3 kinds of merkle paths.
+ * 1. Merkle paths starting from a leaf. For these the `leaf` field is set.
+ * 2. Merkle paths starting from an internal node hash like for proving a
+ *    block root hash. For these the `hash` field is set.
+ * 3. Merkle paths in the middle between another merkle path and the root. For
+ *    these neither `leaf` for `hash` fields are set.
+ * Merkle paths can only include sibling nodes for binary internal nodes. If
+ * there is a unary node in the path a new MerklePath must be started.
+ */
+message MerklePath {
+
+    oneof content {
+        /**
+         * Optional leaf, if this path starts from a leaf
+         */
+        com.hedera.hapi.node.state.blockstream.MerkleLeaf leaf = 1;
+
+        /**
+         * Optional hash content for a path with no leaf that hashes paths below
+         * it. Needed for cases like proving a block root hash from another block.
+         */
+        bytes hash = 2;
+    }
+
+    /**
+     * Array of sibling nodes ordered from bottom of tree to top
+     */
+    repeated SiblingNode siblings = 3;
+
+    /**
+     * The next parent path of this path going up the tree. Expressed as an index
+     * into the array of MerklePaths in the StatePoof. For example 0 being first
+     * in list etc. If this is the root path then the value is UINT32_MAX
+     * (this is `-1` in Java; 0xFFFFFFFF).
+     */
+    uint32 nextPathIndex = 4;
+}
+
+/**
+ * Sibling Node, this represents the hash of a sibling node in a MerklePath
+ */
+message SiblingNode {
+    /**
+     * True when this sibling is on the left of the merkle path, False if on
+     * the right side of the merkle path
+     */
+    bool is_left = 1;
+
+    /**
+     * The hash of the sibling node that can be combined with the merkle path
+     * computed hashes as the proof is validated.
+     */
+    bytes hash = 2;
+}
