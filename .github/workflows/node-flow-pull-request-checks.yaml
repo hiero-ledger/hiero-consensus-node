@@ -26,47 +26,23 @@ concurrency:
 jobs:
   build:
     name: Code
-    uses: ./.github/workflows/node-zxc-compile-application-code.yaml
+    uses: ./.github/workflows/zxc-compile-code.yaml
     with:
-      enable-spotless-check: false
-    secrets:
-      access-token: ${{ secrets.GITHUB_TOKEN }}
-      gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
-      gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
-
-  dependency-check:
-    name: Dependency (Module Info)
-    uses: ./.github/workflows/node-zxc-compile-application-code.yaml
-    needs:
-      - build
-    with:
-      custom-job-label: "Check"
+      custom-job-label: "Build"
       enable-dependency-check: true
-    secrets:
-      access-token: ${{ secrets.GITHUB_TOKEN }}
-      gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
-      gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
-
-  spotless:
-    name: Spotless
-    uses: ./.github/workflows/node-zxc-compile-application-code.yaml
-    needs:
-      - build
-    with:
-      custom-job-label: "Check"
-      enable-unit-tests: false
       enable-spotless-check: true
+      enable-snyk-scan: true
     secrets:
       access-token: ${{ secrets.GITHUB_TOKEN }}
       gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
       gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
+      snyk-token: ${{ secrets.SNYK_TOKEN }}
 
   mats-pr-checks:
     name: MATS
-    uses: ./.github/workflows/zxc-mats-tests.yaml
     needs:
-      - dependency-check
-      - spotless
+      - build
+    uses: ./.github/workflows/zxc-mats-tests.yaml
     with:
       ref: ${{ github.event.pull_request.head.sha }}
       enable-unit-tests: "true"
@@ -83,15 +59,13 @@ jobs:
       codecov-token: ${{ secrets.CODECOV_TOKEN }}
       gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
       gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
-      snyk-token: ${{ secrets.SNYK_TOKEN }}
 
   mats-determinism-checks:
     name: MATS Determinism
-    uses: ./.github/workflows/zxc-mats-tests.yaml
     needs:
-      - dependency-check
-      - spotless
+      - build
     if: ${{ github.actor != 'dependabot[bot]' && github.event.pull_request.head.repo.full_name == github.repository }}
+    uses: ./.github/workflows/zxc-mats-tests.yaml
     with:
       ref: ${{ github.event.pull_request.head.sha }}
       enable-docker-determinism: "true"
@@ -111,8 +85,6 @@ jobs:
     runs-on: hiero-network-node-linux-medium
     needs:
       - build
-      - dependency-check
-      - spotless
       - mats-pr-checks
       - mats-determinism-checks
     if: ${{ !cancelled() && always() }}
@@ -142,8 +114,6 @@ jobs:
             echo "------------------------------------"
             echo "### Results"
             echo "- **Build:** ${{ needs.build.result }}"
-            echo "- **Dependency Check:** ${{ needs.dependency-check.result }}"
-            echo "- **Spotless:** ${{ needs.spotless.result }}"
             echo "- **MATS Tests:** ${{ needs.mats-pr-checks.result }}"
             echo "- **MATS Determinism Checks:** ${{ needs.mats-determinism-checks.result }}"
             echo "------------------------------------"

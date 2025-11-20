@@ -1,0 +1,159 @@
+# SPDX-License-Identifier: Apache-2.0
+name: "ZXC: Run Unit Tests"
+on:
+  workflow_call:
+    inputs:
+      enable-network-log-capture:
+        description: "Network Log Capture Enabled"
+        type: boolean
+        required: false
+        default: false
+      java-distribution:
+        description: "Java JDK Distribution:"
+        type: string
+        required: false
+        default: "temurin"
+      java-version:
+        description: "Java JDK Version:"
+        type: string
+        required: false
+        default: "21.0.6"
+      node-version:
+        description: "NodeJS Version:"
+        type: string
+        required: false
+        default: "20"
+      custom-job-label:
+        description: "Custom Job Label:"
+        type: string
+        required: false
+        default: "Compiles"
+      ref:
+        description: "The branch, tag or SHA to checkout."
+        required: false
+        type: string
+      mats-suffix:
+        description: "MATS Tag Suffix designation"
+        type: string
+        required: false
+        default: ""
+
+    secrets:
+      access-token:
+        description: "The Github access token used to checkout the repository, submodules, and make GitHub API calls."
+        required: true
+      gradle-cache-username:
+        description: "The username used to authenticate with the Gradle Build Cache Node."
+        required: true
+      gradle-cache-password:
+        description: "The password used to authenticate with the Gradle Build Cache Node."
+        required: true
+      codacy-project-token:
+        description: "The Codacy project token used to report code coverage."
+        required: false
+      codecov-token:
+        description: "The Codecov token used to report code coverage."
+        required: false
+
+    outputs:
+      failure-mode:
+        description: "Indicates the failure mode of the job, if any."
+        value: ${{ jobs.unit-tests.outputs.failure-mode }}
+
+defaults:
+  run:
+    shell: bash
+
+permissions:
+  id-token: write
+  actions: read
+  pull-requests: write
+  statuses: write
+  checks: write
+  contents: read
+
+env:
+  GRADLE_CACHE_USERNAME: ${{ secrets.gradle-cache-username }}
+  GRADLE_CACHE_PASSWORD: ${{ secrets.gradle-cache-password }}
+  GRADLE_EXEC: ionice -c 2 -n 2 nice -n 19 ./gradlew
+  CG_EXEC: ionice -c 2 -n 2 nice -n 19
+
+jobs:
+  unit-tests:
+    name: ${{ inputs.custom-job-label || 'Unit Tests' }}
+    runs-on: hiero-network-node-linux-large
+    outputs:
+      failure-mode: ${{ steps.set-failure-mode.outputs.mode }}
+    steps:
+      - name: Initialize Job
+        id: initialize
+        uses: pandaswhocode/initialize-github-job@89e4edd83df490f0cc6f3dca22bebf076cea94a6 # v1.0.0
+        with:
+          checkout: true
+          checkout-token: ${{ secrets.access-token }}
+          checkout-fetch-depth: "0"
+          checkout-ref: ${{ inputs.ref }}
+          setup-java: true
+          java-version: ${{ inputs.java-version }}
+          java-distribution: ${{ inputs.java-distribution }}
+          setup-node: true
+          node-version: ${{ inputs.node-version }}
+          setup-gradle: true
+          gradle-cache-read-only: false
+
+      - name: Unit Testing
+        id: gradle-test
+        run: ${GRADLE_EXEC} :aggregation:testCodeCoverageReport --continue
+
+      - name: Publish Unit Test Report
+        uses: step-security/publish-unit-test-result-action@5d195d4dec0b9fa7b51a3dbc4298362a021247c7 # v2.20.4
+        with:
+          check_name: "Node: Unit Test Results"
+          json_thousands_separator: ","
+          junit_files: "**/build/test-results/test/TEST-*.xml"
+          comment_mode: errors # only comment if we could not find or parse the JUnit XML files
+
+      - name: Upload Unit Test Report Artifacts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: Unit Test Report
+          path: "**/build/test-results/test/TEST-*.xml"
+          retention-days: 7
+
+      - name: Publish To Codecov
+        if: ${{ !cancelled() }}
+        uses: codecov/codecov-action@5c47607acb93fed5485fdbf7232e8a31425f672a # v5.0.2
+        with:
+          token: ${{ secrets.codecov-token }}
+          files: gradle/aggregation/build/reports/jacoco/testCodeCoverageReport/testCodeCoverageReport.xml
+
+      - name: Publish to Codacy
+        env:
+          CODACY_PROJECT_TOKEN: ${{ secrets.codacy-project-token }}
+        if: ${{ !cancelled() && !github.event.pull_request.head.repo.fork }}
+        run: bash <(curl -Ls https://coverage.codacy.com/get.sh) report -l Java -r gradle/aggregation/build/reports/jacoco/testCodeCoverageReport/testCodeCoverageReport.xml
+
+      - name: Upload Test Reports
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: ${{ !cancelled() }}
+        with:
+          name: Test Reports
+          path: "**/build/reports/tests/**"
+
+      - name: Set Failure Mode
+        id: set-failure-mode
+        if: ${{ !cancelled() && always() }}
+        run: |
+          mode="none"
+          if [[ "${{ steps.initialize.conclusion }}" == "failure" ]]; then
+            mode="workflow"
+          fi
+          if [[ "${{ steps.gradle-build.conclusion }}" == "failure" ]] || \
+             [[ "${{ steps.spotless-check.conclusion }}" == "failure" ]] || \
+             [[ "${{ steps.check-dependency-scopes.conclusion }}" == "failure" ]]; then
+            if [[ "${mode}" == "none" ]]; then
+              mode="general"
+            fi
+          fi
+
+          echo "mode=${mode}" >> "${GITHUB_OUTPUT}"

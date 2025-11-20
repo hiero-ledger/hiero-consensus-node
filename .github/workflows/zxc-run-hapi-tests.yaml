@@ -1,33 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "ZXC: [Node] Compile Application Code"
+name: "ZXC: Run HAPI Tests"
 on:
   workflow_call:
     inputs:
-      enable-unit-tests:
-        description: "Unit Testing Enabled"
-        type: boolean
-        required: false
-        default: false
-      enable-timing-sensitive-tests:
-        description: "Unit Test (Timing Sensitive) Enabled"
-        type: boolean
-        required: false
-        default: false
-      enable-time-consuming-tests:
-        description: "Unit Test (Time Consuming) Enabled"
-        type: boolean
-        required: false
-        default: false
-      enable-hammer-tests:
-        description: "Hammer Testing Enabled"
-        type: boolean
-        required: false
-        default: false
-      enable-integration-tests:
-        description: "Integration Testing Enabled"
-        type: boolean
-        required: false
-        default: false
       enable-hapi-tests-misc:
         description: "HAPI Testing (misc) Enabled"
         type: boolean
@@ -83,21 +58,6 @@ on:
         type: boolean
         required: false
         default: false
-      enable-spotless-check:
-        description: "Spotless Check Enabled"
-        type: boolean
-        required: false
-        default: false
-      enable-dependency-check:
-        description: "Dependency Scope Check Enabled"
-        type: boolean
-        required: false
-        default: false
-      enable-snyk-scan:
-        description: "Snyk Scan Enabled"
-        type: boolean
-        required: false
-        default: false
       enable-network-log-capture:
         description: "Network Log Capture Enabled"
         type: boolean
@@ -143,9 +103,6 @@ on:
       gradle-cache-password:
         description: "The password used to authenticate with the Gradle Build Cache Node."
         required: true
-      snyk-token:
-        description: "The Snyk access token is used by Snyk to analyze the code for vulnerabilities "
-        required: false
       codacy-project-token:
         description: "The Codacy project token used to report code coverage."
         required: false
@@ -177,426 +134,10 @@ env:
   CG_EXEC: ionice -c 2 -n 2 nice -n 19
 
 jobs:
-  compile:
-    name: ${{ inputs.custom-job-label || 'Compiles' }}
-    runs-on: hiero-network-node-linux-large
-    outputs:
-      failure-mode: ${{ steps.set-failure-mode.outputs.mode }}
-    steps:
-      - name: Initialize Job
-        id: initialize
-        uses: pandaswhocode/initialize-github-job@89e4edd83df490f0cc6f3dca22bebf076cea94a6 # v1.0.0
-        with:
-          checkout: true
-          checkout-token: ${{ secrets.access-token }}
-          checkout-fetch-depth: "0"
-          checkout-ref: ${{ inputs.ref }}
-          setup-java: true
-          java-version: ${{ inputs.java-version }}
-          java-distribution: ${{ inputs.java-distribution }}
-          setup-node: true
-          node-version: ${{ inputs.node-version }}
-          setup-gradle: true
-          gradle-cache-read-only: false
-
-      - name: Compile
-        id: gradle-build
-        run: ${GRADLE_EXEC} assemble :yahcli:assemble
-
-      - name: Spotless Check
-        id: spotless-check
-        if: ${{ inputs.enable-spotless-check && !cancelled() }}
-        run: ${GRADLE_EXEC} spotlessCheck
-
-      - name: Gradle Dependency Scopes Check
-        id: check-dependency-scopes
-        if: ${{ inputs.enable-dependency-check && steps.gradle-build.conclusion == 'success' && !cancelled() }}
-        run: ${GRADLE_EXEC} checkAllModuleInfo validatePomFiles --continue --no-build-cache
-
-      - name: Set Failure Mode
-        id: set-failure-mode
-        if: ${{ !cancelled() && always() }}
-        run: |
-          mode="none"
-          if [[ "${{ steps.initialize.conclusion }}" == "failure" ]]; then
-            mode="workflow"
-          fi
-          if [[ "${{ steps.gradle-build.conclusion }}" == "failure" ]] || \
-             [[ "${{ steps.spotless-check.conclusion }}" == "failure" ]] || \
-             [[ "${{ steps.check-dependency-scopes.conclusion }}" == "failure" ]]; then
-            if [[ "${mode}" == "none" ]]; then
-              mode="general"
-            fi
-          fi
-
-          echo "mode=${mode}" >> "${GITHUB_OUTPUT}"
-
-  unit-tests:
-    name: ${{ inputs.custom-job-label || 'Unit Tests' }}
-    runs-on: hiero-network-node-linux-large
-    if: ${{ inputs.enable-unit-tests && needs.compile.result == 'success' && !cancelled() }}
-    needs:
-      - compile
-    outputs:
-      failure-mode: ${{ steps.set-failure-mode.outputs.mode }}
-    steps:
-      - name: Initialize Job
-        id: initialize
-        uses: pandaswhocode/initialize-github-job@89e4edd83df490f0cc6f3dca22bebf076cea94a6 # v1.0.0
-        with:
-          checkout: true
-          checkout-token: ${{ secrets.access-token }}
-          checkout-fetch-depth: "0"
-          checkout-ref: ${{ inputs.ref }}
-          setup-java: true
-          java-version: ${{ inputs.java-version }}
-          java-distribution: ${{ inputs.java-distribution }}
-          setup-node: true
-          node-version: ${{ inputs.node-version }}
-          setup-gradle: true
-          gradle-cache-read-only: false
-
-      - name: Unit Testing
-        id: gradle-test
-        run: ${GRADLE_EXEC} :aggregation:testCodeCoverageReport --continue
-
-      - name: Publish Unit Test Report
-        uses: step-security/publish-unit-test-result-action@5d195d4dec0b9fa7b51a3dbc4298362a021247c7 # v2.20.4
-        with:
-          check_name: "Node: Unit Test Results"
-          json_thousands_separator: ","
-          junit_files: "**/build/test-results/test/TEST-*.xml"
-          comment_mode: errors # only comment if we could not find or parse the JUnit XML files
-
-      - name: Upload Unit Test Report Artifacts
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: Unit Test Report
-          path: "**/build/test-results/test/TEST-*.xml"
-          retention-days: 7
-
-      - name: Publish To Codecov
-        if: ${{ !cancelled() }}
-        uses: codecov/codecov-action@5c47607acb93fed5485fdbf7232e8a31425f672a # v5.0.2
-        with:
-          token: ${{ secrets.codecov-token }}
-          files: gradle/aggregation/build/reports/jacoco/testCodeCoverageReport/testCodeCoverageReport.xml
-
-      - name: Publish to Codacy
-        env:
-          CODACY_PROJECT_TOKEN: ${{ secrets.codacy-project-token }}
-        if: ${{ !cancelled() && !github.event.pull_request.head.repo.fork }}
-        run: bash <(curl -Ls https://coverage.codacy.com/get.sh) report -l Java -r gradle/aggregation/build/reports/jacoco/testCodeCoverageReport/testCodeCoverageReport.xml
-
-      - name: Upload Test Reports
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: ${{ !cancelled() }}
-        with:
-          name: Test Reports
-          path: "**/build/reports/tests/**"
-
-      - name: Set Failure Mode
-        id: set-failure-mode
-        if: ${{ !cancelled() && always() }}
-        run: |
-          mode="none"
-          if [[ "${{ steps.initialize.conclusion }}" == "failure" ]]; then
-            mode="workflow"
-          fi
-          if [[ "${{ steps.gradle-build.conclusion }}" == "failure" ]] || \
-             [[ "${{ steps.spotless-check.conclusion }}" == "failure" ]] || \
-             [[ "${{ steps.check-dependency-scopes.conclusion }}" == "failure" ]]; then
-            if [[ "${mode}" == "none" ]]; then
-              mode="general"
-            fi
-          fi
-
-          echo "mode=${mode}" >> "${GITHUB_OUTPUT}"
-
-  timing-sensitive-tests:
-    name: ${{ inputs.custom-job-label || 'Timing Sensitive Tests' }}
-    runs-on: hiero-network-node-linux-large
-    if: ${{ inputs.enable-timing-sensitive-tests && needs.compile.result == 'success' && !cancelled() }}
-    needs:
-      - compile
-    outputs:
-      failure-mode: ${{ steps.set-failure-mode.outputs.mode }}
-    steps:
-      - name: Initialize Job
-        id: initialize
-        uses: pandaswhocode/initialize-github-job@89e4edd83df490f0cc6f3dca22bebf076cea94a6 # v1.0.0
-        with:
-          checkout: true
-          checkout-token: ${{ secrets.access-token }}
-          checkout-fetch-depth: "0"
-          checkout-ref: ${{ inputs.ref }}
-          setup-java: true
-          java-version: ${{ inputs.java-version }}
-          java-distribution: ${{ inputs.java-distribution }}
-          setup-node: true
-          node-version: ${{ inputs.node-version }}
-          setup-gradle: true
-          gradle-cache-read-only: false
-
-      - name: Timing Sensitive Tests
-        id: gradle-timing-sensitive
-        run: ${GRADLE_EXEC} timingSensitive --continue
-
-      - name: Publish Unit Test (Timing Sensitive) Report
-        id: publish-timing-sensitive-test-report
-        uses: step-security/publish-unit-test-result-action@5d195d4dec0b9fa7b51a3dbc4298362a021247c7 # v2.20.4
-        with:
-          check_name: "Node: Timing Sensitive Unit Test Results"
-          json_thousands_separator: ","
-          junit_files: "**/build/test-results/timingSensitive/TEST-*.xml"
-          comment_mode: errors # only comment if we could not find or parse the JUnit XML files
-
-      - name: Upload Unit Test (Timing Sensitive) Report Artifacts
-        id: publish-timing-sensitive-test-artifacts
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: Unit Test Report (Timing Sensitive)
-          path: "**/build/test-results/timingSensitive/TEST-*.xml"
-          retention-days: 7
-
-      - name: Set Failure Mode
-        id: set-failure-mode
-        if: ${{ !cancelled() && always() }}
-        run: |
-          mode="none"
-          if [[ "${{ steps.initialize.conclusion }}" == "failure" ]]; then
-            mode="workflow"
-          fi
-          if [[ "${{ steps.gradle-timing-sensitive.conclusion }}" == "failure" ]] || \
-            [[ "${{ steps.publish-timing-sensitive-test-report.conclusion }}" == "failure" ]] || \
-            [[ "${{ steps.publish-timing-sensitive-test-artifacts.conclusion }}" == "failure" ]]; then
-            if [[ "${mode}" == "none" ]]; then
-              mode="general"
-            fi
-          fi
-
-          echo "mode=${mode}" >> "${GITHUB_OUTPUT}"
-
-  time-consuming-tests:
-    name: ${{ inputs.custom-job-label || 'Time Consuming Tests' }}
-    runs-on: hiero-network-node-linux-large
-    if: ${{ inputs.enable-time-consuming-tests && needs.compile.result == 'success' && !cancelled() }}
-    needs:
-      - compile
-    outputs:
-      failure-mode: ${{ steps.set-failure-mode.outputs.mode }}
-    steps:
-      - name: Initialize Job
-        id: initialize
-        uses: pandaswhocode/initialize-github-job@89e4edd83df490f0cc6f3dca22bebf076cea94a6 # v1.0.0
-        with:
-          checkout: true
-          checkout-token: ${{ secrets.access-token }}
-          checkout-fetch-depth: "0"
-          checkout-ref: ${{ inputs.ref }}
-          setup-java: true
-          java-version: ${{ inputs.java-version }}
-          java-distribution: ${{ inputs.java-distribution }}
-          setup-node: true
-          node-version: ${{ inputs.node-version }}
-          setup-gradle: true
-          gradle-cache-read-only: false
-
-      - name: Time Consuming Tests
-        id: gradle-time-consuming
-        run: ${GRADLE_EXEC} timeConsuming --continue
-
-      - name: Publish Unit Test (Time Consuming) Report
-        id: publish-time-consuming-test-report
-        uses: step-security/publish-unit-test-result-action@5d195d4dec0b9fa7b51a3dbc4298362a021247c7 # v2.20.4
-        with:
-          check_name: "Node: Time Consuming Unit Test Results"
-          json_thousands_separator: ","
-          junit_files: "**/build/test-results/timeConsuming/TEST-*.xml"
-          comment_mode: errors # only comment if we could not find or parse the JUnit XML files
-
-      - name: Upload Unit Test (Time Consuming) Report Artifacts
-        id: publish-time-consuming-test-artifacts
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: Unit Test Report (Time Consuming)
-          path: "**/build/test-results/timeConsuming/TEST-*.xml"
-          retention-days: 7
-
-      - name: Set Failure Mode
-        id: set-failure-mode
-        if: ${{ !cancelled() && always() }}
-        run: |
-          mode="none"
-          if [[ "${{ steps.initialize.conclusion }}" == "failure" ]]; then
-            mode="workflow"
-          fi
-          if [[ "${{ steps.gradle-time-consuming.conclusion }}" == "failure" ]] || \
-            [[ "${{ steps.publish-time-consuming-test-report.conclusion }}" == "failure" ]] || \
-            [[ "${{ steps.publish-time-consuming-test-artifacts.conclusion }}" == "failure" ]]; then
-            if [[ "${mode}" == "none" ]]; then
-              mode="general"
-            fi
-          fi
-
-          echo "mode=${mode}" >> "${GITHUB_OUTPUT}"
-
-  hammer-tests:
-    name: ${{ inputs.custom-job-label || 'Hammer Tests' }}
-    runs-on: hiero-network-node-linux-large
-    if: ${{ inputs.enable-hammer-tests && needs.compile.result == 'success' && !cancelled() }}
-    needs:
-      - compile
-    outputs:
-      failure-mode: ${{ steps.set-failure-mode.outputs.mode }}
-    steps:
-      - name: Initialize Job
-        id: initialize
-        uses: pandaswhocode/initialize-github-job@89e4edd83df490f0cc6f3dca22bebf076cea94a6 # v1.0.0
-        with:
-          checkout: true
-          checkout-token: ${{ secrets.access-token }}
-          checkout-fetch-depth: "0"
-          checkout-ref: ${{ inputs.ref }}
-          setup-java: true
-          java-version: ${{ inputs.java-version }}
-          java-distribution: ${{ inputs.java-distribution }}
-          setup-node: true
-          node-version: ${{ inputs.node-version }}
-          setup-gradle: true
-          gradle-cache-read-only: false
-
-      - name: Hammer Tests
-        id: gradle-hammer-tests
-        run: ${GRADLE_EXEC} hammer --continue
-
-      - name: Publish Hammer Test Report
-        id: publish-hammer-test-report
-        uses: step-security/publish-unit-test-result-action@5d195d4dec0b9fa7b51a3dbc4298362a021247c7 # v2.20.4
-        with:
-          check_name: "Node: Hammer Test Results"
-          json_thousands_separator: ","
-          junit_files: "**/build/test-results/hammer/TEST-*.xml"
-          comment_mode: errors # only comment if we could not find or parse the JUnit XML files
-
-      - name: Upload Hammer Test Report Artifacts
-        id: publish-hammer-test-artifacts
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: Hammer Test Report
-          path: "**/build/test-results/hammer/TEST-*.xml"
-          retention-days: 7
-
-      - name: Set Failure Mode
-        id: set-failure-mode
-        if: ${{ !cancelled() && always() }}
-        run: |
-          mode="none"
-          if [[ "${{ steps.initialize.conclusion }}" == "failure" ]]; then
-            mode="workflow"
-          fi
-          if [[ "${{ steps.gradle-hammer-tests.conclusion }}" == "failure" ]] || \
-            [[ "${{ steps.publish-hammer-test-report.conclusion }}" == "failure" ]] || \
-            [[ "${{ steps.publish-hammer-test-artifacts.conclusion }}" == "failure" ]]; then
-            if [[ "${mode}" == "none" ]]; then
-              mode="general"
-            fi
-          fi
-
-          echo "mode=${mode}" >> "${GITHUB_OUTPUT}"
-
-  integration-tests:
-    name: ${{ inputs.custom-job-label || 'Integration Tests' }}
-    runs-on: hiero-network-node-linux-large
-    if: ${{ inputs.enable-integration-tests && needs.compile.result == 'success' && !cancelled() }}
-    needs:
-      - compile
-    outputs:
-      failure-mode: ${{ steps.set-failure-mode.outputs.mode }}
-    steps:
-      - name: Initialize Job
-        id: initialize
-        uses: pandaswhocode/initialize-github-job@89e4edd83df490f0cc6f3dca22bebf076cea94a6 # v1.0.0
-        with:
-          checkout: true
-          checkout-token: ${{ secrets.access-token }}
-          checkout-fetch-depth: "0"
-          checkout-ref: ${{ inputs.ref }}
-          setup-java: true
-          java-version: ${{ inputs.java-version }}
-          java-distribution: ${{ inputs.java-distribution }}
-          setup-node: true
-          node-version: ${{ inputs.node-version }}
-          setup-gradle: true
-          gradle-cache-read-only: false
-
-      - name: Integration Tests
-        id: gradle-integration-tests
-        run: ${GRADLE_EXEC} testIntegration --continue
-
-      - name: Publish Integration Test Report
-        id: publish-integration-test-report
-        uses: step-security/publish-unit-test-result-action@5d195d4dec0b9fa7b51a3dbc4298362a021247c7 # v2.20.4
-        with:
-          check_name: "Node: Integration Test Results"
-          json_thousands_separator: ","
-          junit_files: "**/build/test-results/testIntegration/TEST-*.xml"
-          comment_mode: errors # only comment if we could not find or parse the JUnit XML files
-
-      - name: Upload Integration Test Report Artifacts
-        id: publish-integration-test-artifacts
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: Integration Test Report
-          path: "**/build/test-results/testIntegration/TEST-*.xml"
-          retention-days: 7
-
-      - name: Upload Otter Integration Tests Turtle Logs
-        id: otter-integration-tests-turtle-logs
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: ${{ inputs.enable-integration-tests && inputs.enable-network-log-capture && steps.gradle-integration-tests.conclusion == 'failure' && !cancelled() }}
-        with:
-          name: Otter Integration Tests Turtle Logs
-          path: |
-            platform-sdk/consensus-otter-tests/build/turtle/**
-          retention-days: 7
-
-      - name: Upload Otter Integration Tests Container Logs
-        id: otter-integration-tests-container-logs
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: ${{ inputs.enable-integration-tests && inputs.enable-network-log-capture && steps.gradle-integration-tests.conclusion == 'failure' && !cancelled() }}
-        with:
-          name: Otter Integration Tests Container Logs
-          path: |
-            platform-sdk/consensus-otter-tests/build/container/**
-          retention-days: 7
-
-      - name: Set Failure Mode
-        id: set-failure-mode
-        if: ${{ !cancelled() && always() }}
-        run: |
-          mode="none"
-          if [[ "${{ steps.initialize.conclusion }}" == "failure" ]]; then
-            mode="workflow"
-          fi
-          if [[ "${{ steps.gradle-integration-tests.conclusion }}" == "failure" ]] || \
-            [[ "${{ steps.publish-integration-test-report.conclusion }}" == "failure" ]] || \
-            [[ "${{ steps.publish-integration-test-artifacts.conclusion }}" == "failure" ]] || \
-            [[ "${{ steps.otter-integration-tests-turtle-logs.conclusion }}" == "failure" ]] || \
-            [[ "${{ steps.otter-integration-tests-container-logs.conclusion }}" == "failure" ]]; then
-            if [[ "${mode}" == "none" ]]; then
-              mode="general"
-            fi
-          fi
-
-          echo "mode=${mode}" >> "${GITHUB_OUTPUT}"
-
   hapi-tests-misc:
     name: ${{ inputs.custom-job-label || 'HAPI Tests (Misc)' }}
     runs-on: hiero-network-node-linux-large
-    if: ${{ inputs.hapi-tests-misc && needs.compile.result == 'success' && !cancelled() }}
-    needs:
-      - compile
+    if: ${{ inputs.enable-hapi-tests-misc }}
     outputs:
       failure-mode: ${{ steps.set-failure-mode.outputs.mode }}
     steps:
@@ -675,9 +216,7 @@ jobs:
   hapi-tests-misc-records:
     name: ${{ inputs.custom-job-label || 'Hapi Tests (Misc Records)' }}
     runs-on: hiero-network-node-linux-large
-    if: ${{ inputs.hapi-tests-misc && needs.compile.result == 'success' && !cancelled() }}
-    needs:
-      - compile
+    if: ${{ inputs.enable-hapi-tests-misc-records && !cancelled() }}
     outputs:
       failure-mode: ${{ steps.set-failure-mode.outputs.mode }}
     steps:
@@ -699,7 +238,6 @@ jobs:
 
       - name: HAPI Testing (Misc Records)
         id: gradle-hapi-misc-records
-        if: ${{ inputs.enable-hapi-tests-misc-records && steps.gradle-build.conclusion == 'success' && !cancelled() }}
         env:
           LC_ALL: en.UTF-8
           LANG: en_US.UTF-8
@@ -708,7 +246,6 @@ jobs:
       - name: Publish HAPI Test (Misc Records) Report
         id: publish-hapi-misc-records-report
         uses: step-security/publish-unit-test-result-action@5d195d4dec0b9fa7b51a3dbc4298362a021247c7 # v2.20.4
-        if: ${{ inputs.enable-hapi-tests-misc-records && steps.gradle-build.conclusion == 'success' && !cancelled() }}
         with:
           check_name: "Node: HAPI Test (Misc Records) Results"
           json_thousands_separator: ","
@@ -718,7 +255,6 @@ jobs:
       - name: Upload HAPI Test (Misc Records) Report Artifacts
         id: publish-hapi-misc-records-artifacts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: ${{ inputs.enable-hapi-tests-misc-records && steps.gradle-build.conclusion == 'success' && !cancelled() }}
         with:
           name: HAPI Test (Misc Records) Report
           path: "**/test-clients/build/test-results/**/TEST-*.xml"
@@ -758,9 +294,7 @@ jobs:
   hapi-tests-crypto:
     name: ${{ inputs.custom-job-label || 'Hapi Tests (Crypto)' }}
     runs-on: hiero-network-node-linux-large
-    if: ${{ inputs.enable-hapi-tests-crypto && needs.compile.result == 'success' && !cancelled() }}
-    needs:
-      - compile
+    if: ${{ inputs.enable-hapi-tests-crypto && !cancelled() }}
     outputs:
       failure-mode: ${{ steps.set-failure-mode.outputs.mode }}
     steps:
@@ -838,9 +372,7 @@ jobs:
   hapi-tests-simplefees:
     name: ${{ inputs.custom-job-label || 'Hapi Tests (Simple Fees)' }}
     runs-on: hiero-network-node-linux-large
-    if: ${{ inputs.enable-hapi-tests-simplefees && needs.compile.result == 'success' && !cancelled() }}
-    needs:
-      - compile
+    if: ${{ inputs.enable-hapi-tests-simplefees && !cancelled() }}
     outputs:
       failure-mode: ${{ steps.set-failure-mode.outputs.mode }}
     steps:
@@ -918,9 +450,7 @@ jobs:
   hapi-tests-token:
     name: ${{ inputs.custom-job-label || 'Hapi Tests (Token)' }}
     runs-on: hiero-network-node-linux-large
-    if: ${{ inputs.enable-hapi-tests-token && needs.compile.result == 'success' && !cancelled() }}
-    needs:
-      - compile
+    if: ${{ inputs.enable-hapi-tests-token && !cancelled() }}
     outputs:
       failure-mode: ${{ steps.set-failure-mode.outputs.mode }}
     steps:
@@ -998,9 +528,7 @@ jobs:
   hapi-tests-smart-contract:
     name: ${{ inputs.custom-job-label || 'Hapi Tests (Smart Contract)' }}
     runs-on: hiero-network-node-linux-large
-    if: ${{ inputs.enable-hapi-tests-smart-contract && needs.compile.result == 'success' && !cancelled() }}
-    needs:
-      - compile
+    if: ${{ inputs.enable-hapi-tests-smart-contract && !cancelled() }}
     outputs:
       failure-mode: ${{ steps.set-failure-mode.outputs.mode }}
     steps:
@@ -1078,9 +606,7 @@ jobs:
   hapi-tests-time-consuming:
     name: ${{ inputs.custom-job-label || 'Hapi Tests (Time Consuming)' }}
     runs-on: hiero-network-node-linux-large
-    if: ${{ inputs.enable-hapi-tests-time-consuming && needs.compile.result == 'success' && !cancelled() }}
-    needs:
-      - compile
+    if: ${{ inputs.enable-hapi-tests-time-consuming && !cancelled() }}
     outputs:
       failure-mode: ${{ steps.set-failure-mode.outputs.mode }}
     steps:
@@ -1158,9 +684,7 @@ jobs:
   hapi-tests-restart:
     name: ${{ inputs.custom-job-label || 'Hapi Tests (Restart)' }}
     runs-on: hiero-network-node-linux-large
-    if: ${{ inputs.enable-hapi-tests-restart && needs.compile.result == 'success' && !cancelled() }}
-    needs:
-      - compile
+    if: ${{ inputs.enable-hapi-tests-restart && !cancelled() }}
     outputs:
       failure-mode: ${{ steps.set-failure-mode.outputs.mode }}
     steps:
@@ -1238,9 +762,7 @@ jobs:
   hapi-tests-nd-reconnect:
     name: ${{ inputs.custom-job-label || 'Hapi Tests (Node Death Reconnect)' }}
     runs-on: hiero-network-node-linux-large
-    if: ${{ inputs.enable-hapi-tests-nd-reconnect && needs.compile.result == 'success' && !cancelled() }}
-    needs:
-      - compile
+    if: ${{ inputs.enable-hapi-tests-nd-reconnect && !cancelled() }}
     outputs:
       failure-mode: ${{ steps.set-failure-mode.outputs.mode }}
     steps:
@@ -1318,9 +840,7 @@ jobs:
   hapi-tests-iss:
     name: ${{ inputs.custom-job-label || 'Hapi Tests (ISS)' }}
     runs-on: hiero-network-node-linux-large
-    if: ${{ inputs.enable-hapi-tests-iss && needs.compile.result == 'success' && !cancelled() }}
-    needs:
-      - compile
+    if: ${{ inputs.enable-hapi-tests-iss && !cancelled() }}
     outputs:
       failure-mode: ${{ steps.set-failure-mode.outputs.mode }}
     steps:
@@ -1398,9 +918,7 @@ jobs:
   hapi-tests-bn-communication:
     name: ${{ inputs.custom-job-label || 'Hapi Tests (Block Node Communications)' }}
     runs-on: hiero-network-node-linux-large
-    if: ${{ inputs.enable-hapi-tests-bn-communication && needs.compile.result == 'success' && !cancelled() }}
-    needs:
-      - compile
+    if: ${{ inputs.enable-hapi-tests-bn-communication && !cancelled() }}
     outputs:
       failure-mode: ${{ steps.set-failure-mode.outputs.mode }}
     steps:
@@ -1473,116 +991,11 @@ jobs:
 
           echo "mode=${mode}" >> "${GITHUB_OUTPUT}"
 
-  snyk-checks:
-    name: ${{ inputs.custom-job-label || 'Hapi Tests (Smart Contract)' }}
-    runs-on: hiero-network-node-linux-large
-    if: >-
-      ${{
-        inputs.enable-snyk-scan &&
-        needs.compile.result == 'success' &&
-        github.event.pull_request.head.repo.full_name == github.repository &&
-        !cancelled()
-      }}
-    needs:
-      - compile
-    outputs:
-      failure-mode: ${{ steps.set-failure-mode.outputs.mode }}
-    steps:
-      - name: Initialize Job
-        id: initialize
-        uses: pandaswhocode/initialize-github-job@89e4edd83df490f0cc6f3dca22bebf076cea94a6 # v1.0.0
-        with:
-          checkout: true
-          checkout-token: ${{ secrets.access-token }}
-          checkout-fetch-depth: "0"
-          checkout-ref: ${{ inputs.ref }}
-          setup-java: true
-          java-version: ${{ inputs.java-version }}
-          java-distribution: ${{ inputs.java-distribution }}
-          setup-node: true
-          node-version: ${{ inputs.node-version }}
-          setup-gradle: true
-          gradle-cache-read-only: false
-
-      - name: Setup Snyk
-        id: setup-snyk
-        run: ${CG_EXEC} npm install -g snyk snyk-to-html @wcj/html-to-markdown-cli
-
-      - name: Snyk Version
-        id: snyk-version
-        run: snyk --version
-
-      - name: Snyk Scan
-        id: snyk-scan
-        env:
-          SNYK_TOKEN: ${{ secrets.snyk-token }}
-        run: ${CG_EXEC} snyk test --subProject=aggregation --configuration-matching=mainRuntimeClasspath --severity-threshold=high --policy-path=.snyk --json-file-output=snyk-test.json --org=hiero-consensus-node
-
-      - name: Snyk Code
-        id: snyk-code
-        env:
-          SNYK_TOKEN: ${{ secrets.snyk-token }}
-        run: ${CG_EXEC} snyk code test --severity-threshold=high --json-file-output=snyk-code.json --org=hiero-consensus-node
-
-      - name: Publish Snyk Results
-        id: publish-snyk-results
-        run: |
-          if [[ -f "snyk-test.json" && -n "$(cat snyk-test.json | tr -d '[:space:]')" ]]; then
-            snyk-to-html -i snyk-test.json -o snyk-test.html --summary
-            html-to-markdown snyk-test.html -o snyk
-            cat snyk/snyk-test.html.md >> $GITHUB_STEP_SUMMARY
-          fi
-
-          if [[ -f "snyk-code.json" && -n "$(cat snyk-code.json | tr -d '[:space:]')" ]]; then
-            snyk-to-html -i snyk-code.json -o snyk-code.html --summary
-            html-to-markdown snyk-code.html -o snyk
-            cat snyk/snyk-code.html.md >> $GITHUB_STEP_SUMMARY
-          fi
-
-      - name: Check Snyk Files
-        id: check-snyk-files
-        if: ${{ always() }}
-        run: |
-          echo "::group::Snyk File List"
-            ls -lah snyk* || true
-          echo "::endgroup::"
-
-          echo "::group::Snyk Test Contents"
-            cat snyk-test.json || true
-          echo "::endgroup::"
-
-          echo "::group::Snyk Code Contents"
-            cat snyk-code.json || true
-          echo "::endgroup::"
-
-      - name: Set Failure Mode
-        id: set-failure-mode
-        if: ${{ !cancelled() && always() }}
-        run: |
-          mode="none"
-          if [[ "${{ steps.initialize.conclusion }}" == "failure" ]] || \
-            [[ "${{ steps.setup-snyk.conclusion }}" == "failure" ]] || \
-            [[ "${{ steps.snyk-version.conclusion }}" == "failure" ]] || \
-            [[ "${{ steps.snyk-scan.conclusion }}" == "failure" ]] || \
-            [[ "${{ steps.snyk-code.conclusion }}" == "failure" ]] || \
-            [[ "${{ steps.publish-snyk-results.conclusion }}" == "failure" ]] || \
-            [[ "${{ steps.check-snyk-files.conclusion }}" == "failure" ]]; then
-            mode="workflow"
-          fi
-
-          echo "mode=${mode}" >> "${GITHUB_OUTPUT}"
-
   calculate-failure-mode:
     name: ${{ inputs.custom-job-label || 'Calculate Failure Mode' }}
     runs-on: hiero-network-node-linux-large
     if: ${{ always() }}
     needs:
-      - compile
-      - unit-tests
-      - timing-sensitive-tests
-      - time-consuming-tests
-      - hammer-tests
-      - integration-tests
       - hapi-tests-misc
       - hapi-tests-misc-records
       - hapi-tests-crypto
@@ -1594,7 +1007,6 @@ jobs:
       - hapi-tests-nd-reconnect
       - hapi-tests-iss
       - hapi-tests-bn-communication
-      - snyk-checks
     outputs:
       failure-mode: ${{ steps.calculate-failure-mode.outputs.failure-mode }}
     steps:
@@ -1619,11 +1031,6 @@ jobs:
         run: |
           ci_cd_modes=(
             "${{ needs.compile.outputs.failure-mode || 'none' }}"
-            "${{ needs.unit-tests.outputs.failure-mode || 'none' }}"
-            "${{ needs.timing-sensitive-tests.outputs.failure-mode || 'none' }}"
-            "${{ needs.time-consuming-tests.outputs.failure-mode || 'none' }}"
-            "${{ needs.hammer-tests.outputs.failure-mode || 'none' }}"
-            "${{ needs.integration-tests.outputs.failure-mode || 'none' }}"
             "${{ needs.hapi-tests-misc.outputs.failure-mode || 'none' }}"
             "${{ needs.hapi-tests-misc-records.outputs.failure-mode || 'none' }}"
             "${{ needs.hapi-tests-crypto.outputs.failure-mode || 'none' }}"

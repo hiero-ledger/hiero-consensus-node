@@ -1,0 +1,281 @@
+# SPDX-License-Identifier: Apache-2.0
+name: "ZXC: Compile Code"
+on:
+  workflow_call:
+    inputs:
+      enable-spotless-check:
+        description: "Spotless Check Enabled"
+        type: boolean
+        required: false
+        default: false
+      enable-dependency-check:
+        description: "Dependency Scope Check Enabled"
+        type: boolean
+        required: false
+        default: false
+      enable-snyk-scan:
+        description: "Snyk Scan Enabled"
+        type: boolean
+        required: false
+        default: false
+      java-distribution:
+        description: "Java JDK Distribution:"
+        type: string
+        required: false
+        default: "temurin"
+      java-version:
+        description: "Java JDK Version:"
+        type: string
+        required: false
+        default: "21.0.6"
+      node-version:
+        description: "NodeJS Version:"
+        type: string
+        required: false
+        default: "20"
+      custom-job-label:
+        description: "Custom Job Label:"
+        type: string
+        required: false
+        default: "Compiles"
+      ref:
+        description: "The branch, tag or SHA to checkout."
+        required: false
+        type: string
+
+    secrets:
+      access-token:
+        description: "The Github access token used to checkout the repository, submodules, and make GitHub API calls."
+        required: true
+      gradle-cache-username:
+        description: "The username used to authenticate with the Gradle Build Cache Node."
+        required: true
+      gradle-cache-password:
+        description: "The password used to authenticate with the Gradle Build Cache Node."
+        required: true
+      snyk-token:
+        description: "The Snyk access token is used by Snyk to analyze the code for vulnerabilities "
+        required: false
+
+    outputs:
+      failure-mode:
+        description: "Indicates the failure mode of the job, if any."
+        value: ${{ jobs.calculate-failure-mode.outputs.failure-mode }}
+
+defaults:
+  run:
+    shell: bash
+
+permissions:
+  id-token: write
+  actions: read
+  pull-requests: write
+  statuses: write
+  checks: write
+  contents: read
+
+env:
+  GRADLE_CACHE_USERNAME: ${{ secrets.gradle-cache-username }}
+  GRADLE_CACHE_PASSWORD: ${{ secrets.gradle-cache-password }}
+  GRADLE_EXEC: ionice -c 2 -n 2 nice -n 19 ./gradlew
+  CG_EXEC: ionice -c 2 -n 2 nice -n 19
+
+jobs:
+  compile:
+    name: ${{ inputs.custom-job-label || 'Compiles' }}
+    runs-on: hiero-network-node-linux-large
+    outputs:
+      failure-mode: ${{ steps.set-failure-mode.outputs.mode }}
+    steps:
+      - name: Initialize Job
+        id: initialize
+        uses: pandaswhocode/initialize-github-job@89e4edd83df490f0cc6f3dca22bebf076cea94a6 # v1.0.0
+        with:
+          checkout: true
+          checkout-token: ${{ secrets.access-token }}
+          checkout-fetch-depth: "0"
+          checkout-ref: ${{ inputs.ref }}
+          setup-java: true
+          java-version: ${{ inputs.java-version }}
+          java-distribution: ${{ inputs.java-distribution }}
+          setup-node: true
+          node-version: ${{ inputs.node-version }}
+          setup-gradle: true
+          gradle-cache-read-only: false
+
+      - name: Compile
+        id: gradle-build
+        run: ${GRADLE_EXEC} assemble :yahcli:assemble
+
+      - name: Spotless Check
+        id: spotless-check
+        if: ${{ inputs.enable-spotless-check && !cancelled() }}
+        run: ${GRADLE_EXEC} spotlessCheck
+
+      - name: Gradle Dependency Scopes Check
+        id: check-dependency-scopes
+        if: ${{ inputs.enable-dependency-check && steps.gradle-build.conclusion == 'success' && !cancelled() }}
+        run: ${GRADLE_EXEC} checkAllModuleInfo validatePomFiles --continue --no-build-cache
+
+      - name: Set Failure Mode
+        id: set-failure-mode
+        if: ${{ !cancelled() && always() }}
+        run: |
+          mode="none"
+          if [[ "${{ steps.initialize.conclusion }}" == "failure" ]]; then
+            mode="workflow"
+          fi
+          if [[ "${{ steps.gradle-build.conclusion }}" == "failure" ]] || \
+             [[ "${{ steps.spotless-check.conclusion }}" == "failure" ]] || \
+             [[ "${{ steps.check-dependency-scopes.conclusion }}" == "failure" ]]; then
+            if [[ "${mode}" == "none" ]]; then
+              mode="general"
+            fi
+          fi
+
+          echo "mode=${mode}" >> "${GITHUB_OUTPUT}"
+
+  snyk-checks:
+    name: ${{ inputs.custom-job-label || 'Hapi Tests (Smart Contract)' }}
+    runs-on: hiero-network-node-linux-large
+    if: >-
+      ${{
+        inputs.enable-snyk-scan &&
+        needs.compile.result == 'success' &&
+        github.event.pull_request.head.repo.full_name == github.repository &&
+        !cancelled()
+      }}
+    needs:
+      - compile
+    outputs:
+      failure-mode: ${{ steps.set-failure-mode.outputs.mode }}
+    steps:
+      - name: Initialize Job
+        id: initialize
+        uses: pandaswhocode/initialize-github-job@89e4edd83df490f0cc6f3dca22bebf076cea94a6 # v1.0.0
+        with:
+          checkout: true
+          checkout-token: ${{ secrets.access-token }}
+          checkout-fetch-depth: "0"
+          checkout-ref: ${{ inputs.ref }}
+          setup-java: true
+          java-version: ${{ inputs.java-version }}
+          java-distribution: ${{ inputs.java-distribution }}
+          setup-node: true
+          node-version: ${{ inputs.node-version }}
+          setup-gradle: true
+          gradle-cache-read-only: false
+
+      - name: Setup Snyk
+        id: setup-snyk
+        run: ${CG_EXEC} npm install -g snyk snyk-to-html @wcj/html-to-markdown-cli
+
+      - name: Snyk Version
+        id: snyk-version
+        run: snyk --version
+
+      - name: Snyk Scan
+        id: snyk-scan
+        env:
+          SNYK_TOKEN: ${{ secrets.snyk-token }}
+        run: ${CG_EXEC} snyk test --subProject=aggregation --configuration-matching=mainRuntimeClasspath --severity-threshold=high --policy-path=.snyk --json-file-output=snyk-test.json --org=hiero-consensus-node
+
+      - name: Snyk Code
+        id: snyk-code
+        env:
+          SNYK_TOKEN: ${{ secrets.snyk-token }}
+        run: ${CG_EXEC} snyk code test --severity-threshold=high --json-file-output=snyk-code.json --org=hiero-consensus-node
+
+      - name: Publish Snyk Results
+        id: publish-snyk-results
+        run: |
+          if [[ -f "snyk-test.json" && -n "$(cat snyk-test.json | tr -d '[:space:]')" ]]; then
+            snyk-to-html -i snyk-test.json -o snyk-test.html --summary
+            html-to-markdown snyk-test.html -o snyk
+            cat snyk/snyk-test.html.md >> $GITHUB_STEP_SUMMARY
+          fi
+
+          if [[ -f "snyk-code.json" && -n "$(cat snyk-code.json | tr -d '[:space:]')" ]]; then
+            snyk-to-html -i snyk-code.json -o snyk-code.html --summary
+            html-to-markdown snyk-code.html -o snyk
+            cat snyk/snyk-code.html.md >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Check Snyk Files
+        id: check-snyk-files
+        if: ${{ always() }}
+        run: |
+          echo "::group::Snyk File List"
+            ls -lah snyk* || true
+          echo "::endgroup::"
+
+          echo "::group::Snyk Test Contents"
+            cat snyk-test.json || true
+          echo "::endgroup::"
+
+          echo "::group::Snyk Code Contents"
+            cat snyk-code.json || true
+          echo "::endgroup::"
+
+      - name: Set Failure Mode
+        id: set-failure-mode
+        if: ${{ !cancelled() && always() }}
+        run: |
+          mode="none"
+          if [[ "${{ steps.initialize.conclusion }}" == "failure" ]] || \
+            [[ "${{ steps.setup-snyk.conclusion }}" == "failure" ]] || \
+            [[ "${{ steps.snyk-version.conclusion }}" == "failure" ]] || \
+            [[ "${{ steps.snyk-scan.conclusion }}" == "failure" ]] || \
+            [[ "${{ steps.snyk-code.conclusion }}" == "failure" ]] || \
+            [[ "${{ steps.publish-snyk-results.conclusion }}" == "failure" ]] || \
+            [[ "${{ steps.check-snyk-files.conclusion }}" == "failure" ]]; then
+            mode="workflow"
+          fi
+
+          echo "mode=${mode}" >> "${GITHUB_OUTPUT}"
+
+  calculate-failure-mode:
+    name: ${{ inputs.custom-job-label || 'Calculate Failure Mode' }}
+    runs-on: hiero-network-node-linux-large
+    if: ${{ always() }}
+    needs:
+      - compile
+      - snyk-checks
+    outputs:
+      failure-mode: ${{ steps.calculate-failure-mode.outputs.failure-mode }}
+    steps:
+      - name: Initialize Job
+        id: initialize
+        uses: pandaswhocode/initialize-github-job@89e4edd83df490f0cc6f3dca22bebf076cea94a6 # v1.0.0
+        with:
+          checkout: true
+          checkout-token: ${{ secrets.access-token }}
+          checkout-fetch-depth: "0"
+          checkout-ref: ${{ inputs.ref }}
+          setup-java: true
+          java-version: ${{ inputs.java-version }}
+          java-distribution: ${{ inputs.java-distribution }}
+          setup-node: true
+          node-version: ${{ inputs.node-version }}
+          setup-gradle: true
+          gradle-cache-read-only: false
+
+      - name: Check Results
+        id: calculate-failure-mode
+        run: |
+          ci_cd_modes=(
+            "${{ needs.compile.outputs.failure-mode || 'none' }}"
+            "${{ needs.snyk-checks.outputs.failure-mode || 'none' }}"
+          )
+
+          # Check if failure mode is set.
+          # Return the first encountered failure mode.
+          failure_mode="none"
+          for mode in ${ci_cd_modes[@]}; do
+            if [[ "${mode}" != "workflow" ]]; then
+              failure_mode="${mode}"
+              break
+            fi
+          done
+
+          echo "failure-mode=${failure_mode}" >> "${GITHUB_OUTPUT}"

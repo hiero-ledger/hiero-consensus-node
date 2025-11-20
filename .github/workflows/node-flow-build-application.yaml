@@ -21,49 +21,24 @@ permissions:
 jobs:
   code:
     name: Compile Code
-    uses: ./.github/workflows/node-zxc-compile-application-code.yaml
+    uses: ./.github/workflows/zxc-compile-code.yaml
     with:
       java-version: "21.0.6"
       java-distribution: "temurin"
-      enable-spotless-check: false
-    secrets:
-      access-token: ${{ secrets.GITHUB_TOKEN }}
-      gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
-      gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
-
-  dependency-check:
-    name: Dependency (Module Info)
-    uses: ./.github/workflows/node-zxc-compile-application-code.yaml
-    needs:
-      - code
-    with:
-      custom-job-label: "Check"
       enable-dependency-check: true
-    secrets:
-      access-token: ${{ secrets.GITHUB_TOKEN }}
-      gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
-      gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
-
-  spotless:
-    name: Spotless
-    uses: ./.github/workflows/node-zxc-compile-application-code.yaml
-    needs:
-      - code
-    with:
-      custom-job-label: "Check"
-      enable-unit-tests: false
       enable-spotless-check: true
+      enable-snyk-scan: true
     secrets:
       access-token: ${{ secrets.GITHUB_TOKEN }}
       gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
       gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
+      snyk-token: ${{ secrets.SNYK_TOKEN }}
 
   mats-tests:
     name: MATS Tests
     uses: ./.github/workflows/zxc-mats-tests.yaml
     needs:
-      - dependency-check
-      - spotless
+      - code
     with:
       ref: ${{ github.ref }}
       enable-unit-tests: "true"
@@ -83,7 +58,6 @@ jobs:
       codecov-token: ${{ secrets.CODECOV_TOKEN }}
       gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
       gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
-      snyk-token: ${{ secrets.SNYK_TOKEN }}
 
   deploy-ci-trigger:
     name: Trigger CI Flows
@@ -115,29 +89,22 @@ jobs:
     runs-on: hiero-citr-linux-medium
     needs:
       - code
-      - dependency-check
-      - spotless
       - mats-tests
       - deploy-ci-trigger
     if: ${{ (needs.code.result != 'success' ||
-      needs.dependency-check.result != 'success' ||
-      needs.spotless.result != 'success' ||
       needs.mats-tests.result != 'success' ||
       needs.deploy-ci-trigger.result != 'success') &&
       !cancelled() && always() }}
 
     steps:
-      - name: Harden Runner
-        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+      - name: Initialize Job
+        id: initialize
+        uses: pandaswhocode/initialize-github-job@89e4edd83df490f0cc6f3dca22bebf076cea94a6 # v1.0.0
         with:
-          egress-policy: audit
-
-      - name: Checkout Code
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          fetch-depth: "0"
-          ref: main
-          token: ${{ secrets.GH_ACCESS_TOKEN }}
+          checkout: true
+          checkout-token: ${{ secrets.GH_ACCESS_TOKEN }}
+          checkout-fetch-depth: "0"
+          checkout-ref: main
 
       - name: Collect run logs in a log file
         env:
