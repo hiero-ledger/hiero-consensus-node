@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.virtualmap.internal.hash;
 
+import com.swirlds.virtualmap.datasource.VirtualHashChunk;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import org.hiero.base.crypto.Hash;
 
 /**
@@ -28,6 +30,8 @@ public interface VirtualHashListener {
      * 		A non-null node hash
      */
     default void onNodeHashed(final long path, final Hash hash) {}
+
+    default void onHashChunkHashed(@NonNull final VirtualHashChunk chunk) {}
 
     /**
      * Called after each leaf node on a rank is hashed. This is called between

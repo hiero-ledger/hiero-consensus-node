@@ -386,7 +386,7 @@ public final class DataFileReader implements AutoCloseable, Comparable<DataFileR
     private BufferedData read(final long byteOffsetInFile) throws IOException {
         // Buffer size to read data item tag and size. If the whole item is small and
         // fits into this buffer, there is no need to make an extra file read
-        final int PRE_READ_BUF_SIZE = 2048;
+        final int PRE_READ_BUF_SIZE = 4096;
         ByteBuffer readBB = BUFFER_CACHE.get();
         BufferedData readBuf = BUFFEREDDATA_CACHE.get();
         if (readBuf == null) {
