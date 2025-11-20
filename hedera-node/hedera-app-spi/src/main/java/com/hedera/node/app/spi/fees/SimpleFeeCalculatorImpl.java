@@ -27,11 +27,21 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
 
     protected final FeeSchedule feeSchedule;
     private final Map<TransactionBody.DataOneOfType, ServiceFeeCalculator> serviceFeeCalculators;
+    private final Map<Query.QueryOneOfType, QueryFeeCalculator> queryFeeCalculators;
 
     public SimpleFeeCalculatorImpl(FeeSchedule feeSchedule, Set<ServiceFeeCalculator> serviceFeeCalculators) {
+        this(feeSchedule, serviceFeeCalculators, Set.of());
+    }
+
+    public SimpleFeeCalculatorImpl(
+            FeeSchedule feeSchedule,
+            Set<ServiceFeeCalculator> serviceFeeCalculators,
+            Set<QueryFeeCalculator> queryFeeCalculators) {
         this.feeSchedule = feeSchedule;
         this.serviceFeeCalculators = serviceFeeCalculators.stream()
                 .collect(Collectors.toMap(ServiceFeeCalculator::getTransactionType, Function.identity()));
+        this.queryFeeCalculators = queryFeeCalculators.stream()
+                .collect(Collectors.toMap(QueryFeeCalculator::getTransactionType, Function.identity()));
     }
 
     /**
@@ -139,7 +149,20 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
     @Override
     @NonNull
     public FeeResult calculateQueryFee(@NonNull final Query query, @Nullable final CalculatorState calculatorState) {
-        throw new UnsupportedOperationException(
-                "Query fee calculation not supported for " + getClass().getSimpleName());
+        final long signatures = calculatorState != null ? calculatorState.numTxnSignatures() : 0;
+        final long bytes = Query.PROTOBUF.toBytes(query).length();
+
+        final var result = new FeeResult();
+        // Add node base + extras
+        result.addNodeFee(1, feeSchedule.node().baseFee());
+        addExtraFees(result, "Node", feeSchedule.node().extras(), signatures, bytes, 0);
+
+        // Add network fee
+        final int multiplier = feeSchedule.network().multiplier();
+        result.addNetworkFee(result.node * multiplier);
+
+        final var queryFeeCalculator = queryFeeCalculators.get(query.query().kind());
+        queryFeeCalculator.accumulateServiceFee(query, calculatorState, result, feeSchedule);
+        return result;
     }
 }
