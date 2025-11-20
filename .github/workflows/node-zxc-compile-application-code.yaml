@@ -244,7 +244,7 @@ jobs:
         with:
           check_name: "Node: Unit Test Results"
           json_thousands_separator: ","
-          files: "**/build/test-results/test/TEST-*.xml"
+          junit_files: "**/build/test-results/test/TEST-*.xml"
           comment_mode: errors # only comment if we could not find or parse the JUnit XML files
 
       - name: Upload Unit Test Report Artifacts
@@ -266,7 +266,7 @@ jobs:
         with:
           check_name: "Node: Timing Sensitive Unit Test Results"
           json_thousands_separator: ","
-          files: "**/build/test-results/timingSensitive/TEST-*.xml"
+          junit_files: "**/build/test-results/timingSensitive/TEST-*.xml"
           comment_mode: errors # only comment if we could not find or parse the JUnit XML files
 
       - name: Upload Unit Test (Timing Sensitive) Report Artifacts
@@ -288,7 +288,7 @@ jobs:
         with:
           check_name: "Node: Time Consuming Unit Test Results"
           json_thousands_separator: ","
-          files: "**/build/test-results/timeConsuming/TEST-*.xml"
+          junit_files: "**/build/test-results/timeConsuming/TEST-*.xml"
           comment_mode: errors # only comment if we could not find or parse the JUnit XML files
 
       - name: Upload Unit Test (Time Consuming) Report Artifacts
@@ -310,7 +310,7 @@ jobs:
         with:
           check_name: "Node: Hammer Test Results"
           json_thousands_separator: ","
-          files: "**/build/test-results/hammer/TEST-*.xml"
+          junit_files: "**/build/test-results/hammer/TEST-*.xml"
           comment_mode: errors # only comment if we could not find or parse the JUnit XML files
 
       - name: Upload Hammer Test Report Artifacts
@@ -332,7 +332,7 @@ jobs:
         with:
           check_name: "Node: Integration Test Results"
           json_thousands_separator: ","
-          files: "**/build/test-results/testIntegration/TEST-*.xml"
+          junit_files: "**/build/test-results/testIntegration/TEST-*.xml"
           comment_mode: errors # only comment if we could not find or parse the JUnit XML files
 
       - name: Upload Integration Test Report Artifacts
@@ -343,12 +343,20 @@ jobs:
           path: "**/build/test-results/testIntegration/TEST-*.xml"
           retention-days: 7
 
-      - name: Upload Otter Integration Tests Logs
+      - name: Upload Otter Integration Tests Turtle Logs
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: ${{ inputs.enable-integration-tests && inputs.enable-network-log-capture && steps.gradle-integration-tests.conclusion == 'failure' && !cancelled() }}
         with:
-          name: Otter Integration Tests Logs
-          path: platform-sdk/consensus-otter-tests/build/aggregateTestIntegration
+          name: Otter Integration Tests Turtle Logs
+          path: platform-sdk/consensus-otter-tests/build/turtle
+          retention-days: 7
+
+      - name: Upload Otter Integration Tests Container Logs
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: ${{ inputs.enable-integration-tests && inputs.enable-network-log-capture && steps.gradle-integration-tests.conclusion == 'failure' && !cancelled() }}
+        with:
+          name: Otter Integration Tests Container Logs
+          path: platform-sdk/consensus-otter-tests/build/container
           retention-days: 7
 
       - name: HAPI Testing (Misc)
@@ -366,7 +374,7 @@ jobs:
         with:
           check_name: "Node: HAPI Test (Misc) Results"
           json_thousands_separator: ","
-          files: "**/test-clients/build/test-results/**/TEST-*.xml"
+          junit_files: "**/test-clients/build/test-results/**/TEST-*.xml"
           comment_mode: errors # only comment if we could not find or parse the JUnit XML files
 
       - name: Upload HAPI Test (Misc) Report Artifacts
@@ -402,7 +410,7 @@ jobs:
         with:
           check_name: "Node: HAPI Test (Misc Records) Results"
           json_thousands_separator: ","
-          files: "**/test-clients/build/test-results/testSubprocess/TEST-*.xml"
+          junit_files: "**/test-clients/build/test-results/testSubprocess/TEST-*.xml"
           comment_mode: errors # only comment if we could not find or parse the JUnit XML files
 
       - name: Upload HAPI Test (Misc Records) Report Artifacts
@@ -438,7 +446,7 @@ jobs:
         with:
           check_name: "Node: HAPI Test (Crypto) Results"
           json_thousands_separator: ","
-          files: "**/test-clients/build/test-results/testSubprocess/TEST-*.xml"
+          junit_files: "**/test-clients/build/test-results/testSubprocess/TEST-*.xml"
           comment_mode: errors # only comment if we could not find or parse the JUnit XML files
 
       - name: Upload HAPI Test (Crypto) Report Artifacts
@@ -474,7 +482,7 @@ jobs:
         with:
           check_name: "Node: HAPI Test (Simple Fees) Results"
           json_thousands_separator: ","
-          files: "**/test-clients/build/test-results/testSubprocess/TEST-*.xml"
+          junit_files: "**/test-clients/build/test-results/testSubprocess/TEST-*.xml"
           comment_mode: errors # only comment if we could not find or parse the JUnit XML files
 
       - name: Upload HAPI Test (Simple Fees) Report Artifacts
@@ -510,7 +518,7 @@ jobs:
         with:
           check_name: "Node: HAPI Test (Token) Results"
           json_thousands_separator: ","
-          files: "**/test-clients/build/test-results/testSubprocess/TEST-*.xml"
+          junit_files: "**/test-clients/build/test-results/testSubprocess/TEST-*.xml"
           comment_mode: errors # only comment if we could not find or parse the JUnit XML files
 
       - name: Upload HAPI Test (Token) Report Artifacts
@@ -546,7 +554,7 @@ jobs:
         with:
           check_name: "Node: HAPI Test (Smart Contract) Results"
           json_thousands_separator: ","
-          files: "**/test-clients/build/test-results/testSubprocess/TEST-*.xml"
+          junit_files: "**/test-clients/build/test-results/testSubprocess/TEST-*.xml"
           comment_mode: errors # only comment if we could not find or parse the JUnit XML files
 
       - name: Upload HAPI Test (Smart Contract) Report Artifacts
@@ -582,7 +590,7 @@ jobs:
         with:
           check_name: "Node: HAPI Test (Time Consuming) Results"
           json_thousands_separator: ","
-          files: "**/test-clients/build/test-results/testSubprocess/TEST-*.xml"
+          junit_files: "**/test-clients/build/test-results/testSubprocess/TEST-*.xml"
           comment_mode: errors # only comment if we could not find or parse the JUnit XML files
 
       - name: Upload HAPI Test (Time Consuming) Report Artifacts
@@ -618,7 +626,7 @@ jobs:
         with:
           check_name: "Node: HAPI Test (Restart) Results"
           json_thousands_separator: ","
-          files: "**/test-clients/build/test-results/testSubprocess/TEST-*.xml"
+          junit_files: "**/test-clients/build/test-results/testSubprocess/TEST-*.xml"
           comment_mode: errors # only comment if we could not find or parse the JUnit XML files
 
       - name: Upload HAPI Test (Restart) Report Artifacts
@@ -654,7 +662,7 @@ jobs:
         with:
           check_name: "Node: HAPI Test (Node Death Reconnect) Results"
           json_thousands_separator: ","
-          files: "**/test-clients/build/test-results/testSubprocess/TEST-*.xml"
+          junit_files: "**/test-clients/build/test-results/testSubprocess/TEST-*.xml"
           comment_mode: errors # only comment if we could not find or parse the JUnit XML files
 
       - name: Upload HAPI Test (Node Death Reconnect) Report Artifacts
@@ -690,7 +698,7 @@ jobs:
         with:
           check_name: "Node: HAPI Test (ISS) Results"
           json_thousands_separator: ","
-          files: "**/test-clients/build/test-results/testSubprocess/TEST-*.xml"
+          junit_files: "**/test-clients/build/test-results/testSubprocess/TEST-*.xml"
           comment_mode: errors # only comment if we could not find or parse the JUnit XML files
 
       - name: Upload HAPI Test (ISS) Report Artifacts
@@ -726,7 +734,7 @@ jobs:
         with:
           check_name: "Node: HAPI Test (Block Node Communication) Results"
           json_thousands_separator: ","
-          files: "**/test-clients/build/test-results/testSubprocess/TEST-*.xml"
+          junit_files: "**/test-clients/build/test-results/testSubprocess/TEST-*.xml"
           comment_mode: errors # only comment if we could not find or parse the JUnit XML files
 
       - name: Upload HAPI Test (Block Node Communication) Report Artifacts

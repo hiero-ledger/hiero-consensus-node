@@ -28,7 +28,7 @@ import org.hiero.otter.fixtures.internal.RegularTimeManager;
  */
 public class ContainerTestEnvironment implements TestEnvironment {
 
-    private static final String ENV_NAME = "Container";
+    private static final String ENV_NAME = "container";
 
     /** Capabilities supported by the container test environment */
     private static final Set<Capability> CAPABILITIES = unmodifiableSet(EnumSet.of(

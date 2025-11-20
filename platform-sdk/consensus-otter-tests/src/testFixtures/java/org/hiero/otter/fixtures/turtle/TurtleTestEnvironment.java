@@ -48,7 +48,7 @@ public class TurtleTestEnvironment implements TestEnvironment {
 
     private static final Logger log = LogManager.getLogger(TurtleTestEnvironment.class);
 
-    private static final String ENV_NAME = "Turtle";
+    private static final String ENV_NAME = "turtle";
 
     /** Capabilities supported by the Turtle test environment */
     private static final Set<Capability> CAPABILITIES = unmodifiableSet(EnumSet.of(Capability.DETERMINISTIC_EXECUTION));

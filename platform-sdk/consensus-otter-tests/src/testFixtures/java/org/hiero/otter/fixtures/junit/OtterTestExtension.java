@@ -273,7 +273,7 @@ public class OtterTestExtension
                 AnnotationSupport.findAnnotation(extensionContext.getElement(), TurtleSpecs.class);
         final long randomSeed = turtleSpecs.map(TurtleSpecs::randomSeed).orElse(0L);
 
-        final var outputDirectory = EnvironmentUtils.getDefaultOutputDirectory("Turtle", extensionContext);
+        final var outputDirectory = EnvironmentUtils.getDefaultOutputDirectory("turtle", extensionContext);
         return new TurtleTestEnvironment(randomSeed, randomNodeIds, outputDirectory);
     }
 
@@ -290,7 +290,7 @@ public class OtterTestExtension
                 AnnotationSupport.findAnnotation(extensionContext.getElement(), OtterSpecs.class);
         final boolean randomNodeIds = otterSpecs.map(OtterSpecs::randomNodeIds).orElse(true);
 
-        final var outputDirectory = EnvironmentUtils.getDefaultOutputDirectory("Container", extensionContext);
+        final var outputDirectory = EnvironmentUtils.getDefaultOutputDirectory("container", extensionContext);
         return new ContainerTestEnvironment(randomNodeIds, outputDirectory);
     }
 

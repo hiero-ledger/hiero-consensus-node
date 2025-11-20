@@ -36,7 +36,7 @@ public class EnvironmentUtils {
             effectiveMethodName = testMethodName + "_" + System.currentTimeMillis();
         }
 
-        return Path.of("build", "aggregateTest" + envName, testClassName, effectiveMethodName);
+        return Path.of("build", envName, testClassName, effectiveMethodName);
     }
 
     /**
@@ -89,7 +89,7 @@ public class EnvironmentUtils {
         // If a test method name found, use it as sub directory; otherwise use default
         return Path.of(
                 "build",
-                "aggregateTest" + envName,
+                envName,
                 Objects.requireNonNullElse(testClassName, "unknownClass"),
                 Objects.requireNonNullElse(testMethodName, "unknownTest"));
     }
