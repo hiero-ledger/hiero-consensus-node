@@ -19,6 +19,6 @@ class ChaosTest {
         network.addNodes(4);
         network.start();
 
-        env.createChaosBot().runChaos(Duration.ofMinutes(5L));
+        env.createChaosBot().runChaos(Duration.ofMinutes(60L));
     }
 }
