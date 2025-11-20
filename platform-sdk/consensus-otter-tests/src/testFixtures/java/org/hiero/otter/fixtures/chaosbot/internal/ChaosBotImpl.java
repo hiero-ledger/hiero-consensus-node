@@ -67,6 +67,8 @@ public class ChaosBotImpl implements ChaosBot {
      */
     @Override
     public void runChaos(@NonNull final Duration duration) {
+        log.info("Run chaos bot for {}", duration);
+
         final Network network = env.network();
         final TimeManager timeManager = env.timeManager();
         final Instant endTime = timeManager.now().plus(duration);
