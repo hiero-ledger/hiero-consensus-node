@@ -29,28 +29,14 @@ import org.hiero.consensus.model.hashgraph.Round;
  * {@link State}, it can find an instance of {@link PlatformStateAccessor} or {@link PlatformStateModifier} and provide
  * access to particular properties of the platform state.
  */
-public class PlatformStateFacade {
-
-    public static final PlatformStateFacade DEFAULT_PLATFORM_STATE_FACADE = new PlatformStateFacade();
-
-    /**
-     * Given a {@link State}, returns the creation version of the platform state if it exists.
-     *
-     * @param state the state to extract the creation version from
-     * @return the creation version of the platform state, or null if the state is a genesis state
-     */
-    public SemanticVersion creationSemanticVersionOf(@NonNull final State state) {
-        requireNonNull(state);
-        final PlatformState platformState = platformStateOf(state);
-        return platformState == null ? null : platformState.creationSoftwareVersion();
-    }
+public final class PlatformStateUtils {
 
     /**
      * @param state the state to extract value from
      * @param round the round to check
      * @return true if the round is a freeze round
      */
-    public boolean isFreezeRound(@NonNull final State state, @NonNull final Round round) {
+    public static boolean isFreezeRound(@NonNull final State state, @NonNull final Round round) {
         final var platformState = platformStateOf(state);
         return isInFreezePeriod(
                 round.getConsensusTimestamp(),
@@ -59,24 +45,36 @@ public class PlatformStateFacade {
     }
 
     /**
+     * Given a {@link State}, returns the creation version of the platform state if it exists.
+     *
+     * @param state the state to extract the creation version from
+     * @return the creation version of the platform state, or null if the state is a genesis state
+     */
+    public static SemanticVersion creationSemanticVersionOf(@NonNull final State state) {
+        requireNonNull(state);
+        final PlatformState platformState = platformStateOf(state);
+        return platformState == null ? null : platformState.creationSoftwareVersion();
+    }
+
+    /**
      * Determines if the provided {@code state} is a genesis state.
      *
      * @param state the state to check
      * @return true if the state is a genesis state
      */
-    public boolean isGenesisStateOf(@NonNull final State state) {
+    public static boolean isGenesisStateOf(@NonNull final State state) {
         return readablePlatformStateStore(state).getRound() == GENESIS_ROUND;
     }
 
     /**
      * Determines if a {@code timestamp} is in a freeze period according to the provided timestamps.
      *
-     * @param consensusTime  the consensus time to check
-     * @param state     the state object to extract the data from
+     * @param consensusTime the consensus time to check
+     * @param state         the state object to extract the data from
      * @return true is the {@code timestamp} is in a freeze period
      */
-    public boolean isInFreezePeriod(@NonNull final Instant consensusTime, @NonNull final MerkleNodeState state) {
-        return PlatformStateFacade.isInFreezePeriod(consensusTime, freezeTimeOf(state), lastFrozenTimeOf(state));
+    public static boolean isInFreezePeriod(@NonNull final Instant consensusTime, @NonNull final MerkleNodeState state) {
+        return isInFreezePeriod(consensusTime, freezeTimeOf(state), lastFrozenTimeOf(state));
     }
 
     /**
@@ -111,7 +109,7 @@ public class PlatformStateFacade {
      * @return the version of the state if it was deserialized, otherwise null
      */
     @Nullable
-    public SemanticVersion creationSoftwareVersionOf(@NonNull final State state) {
+    public static SemanticVersion creationSoftwareVersionOf(@NonNull final State state) {
         requireNonNull(state);
         if (isPlatformStateEmpty(state)) {
             return null;
@@ -129,7 +127,7 @@ public class PlatformStateFacade {
      * @param root the root to extract the round number from
      * @return the round number of the platform state, or zero if the state is a genesis state
      */
-    public long roundOf(@NonNull final State root) {
+    public static long roundOf(@NonNull final State root) {
         requireNonNull(root);
         return readablePlatformStateStore(root).getRound();
     }
@@ -141,7 +139,8 @@ public class PlatformStateFacade {
      * @return the platform state, or null if the state is a genesis state
      */
     @SuppressWarnings("unchecked")
-    public @Nullable PlatformState platformStateOf(@NonNull final State state) {
+    @Nullable
+    public static PlatformState platformStateOf(@NonNull final State state) {
         final ReadableStates readableStates = state.getReadableStates(NAME);
         if (readableStates.isEmpty()) {
             return UNINITIALIZED_PLATFORM_STATE;
@@ -158,7 +157,7 @@ public class PlatformStateFacade {
      * @return the legacy running event hash, or null if the state is a genesis state
      */
     @Nullable
-    public Hash legacyRunningEventHashOf(@NonNull final State state) {
+    public static Hash legacyRunningEventHashOf(@NonNull final State state) {
         return readablePlatformStateStore(state).getLegacyRunningEventHash();
     }
 
@@ -169,7 +168,7 @@ public class PlatformStateFacade {
      * @param state the state to extract the ancient threshold from
      * @return the ancient threshold, or zero if the state is a genesis state
      */
-    public long ancientThresholdOf(@NonNull final State state) {
+    public static long ancientThresholdOf(@NonNull final State state) {
         return readablePlatformStateStore(state).getAncientThreshold();
     }
 
@@ -180,7 +179,7 @@ public class PlatformStateFacade {
      * @return the consensus snapshot, or null if the state is a genesis state
      */
     @Nullable
-    public ConsensusSnapshot consensusSnapshotOf(@NonNull final State root) {
+    public static ConsensusSnapshot consensusSnapshotOf(@NonNull final State root) {
         return readablePlatformStateStore(root).getSnapshot();
     }
 
@@ -191,7 +190,7 @@ public class PlatformStateFacade {
      * @return the consensus timestamp, or null if the state is a genesis state
      */
     @Nullable
-    public Instant consensusTimestampOf(@NonNull final State state) {
+    public static Instant consensusTimestampOf(@NonNull final State state) {
         return readablePlatformStateStore(state).getConsensusTimestamp();
     }
 
@@ -201,7 +200,7 @@ public class PlatformStateFacade {
      * @param state the state to extract the freeze time from
      * @return the freeze time, or null if the state is a genesis state
      */
-    public Instant freezeTimeOf(@NonNull final State state) {
+    public static Instant freezeTimeOf(@NonNull final State state) {
         return readablePlatformStateStore(state).getFreezeTime();
     }
 
@@ -210,7 +209,7 @@ public class PlatformStateFacade {
      *
      * @param state the state to update
      */
-    public void updateLastFrozenTime(@NonNull final State state) {
+    public static void updateLastFrozenTime(@NonNull final State state) {
         getWritablePlatformStateOf(state).setLastFrozenTime(freezeTimeOf(state));
     }
 
@@ -221,7 +220,7 @@ public class PlatformStateFacade {
      * @return the last frozen time, or null if the state is a genesis state
      */
     @Nullable
-    public Instant lastFrozenTimeOf(@NonNull final State state) {
+    public static Instant lastFrozenTimeOf(@NonNull final State state) {
         return readablePlatformStateStore(state).getLastFrozenTime();
     }
 
@@ -230,7 +229,7 @@ public class PlatformStateFacade {
      * @param state the state to extract the last freeze round from
      * @return the last freeze round
      */
-    public long latestFreezeRoundOf(@NonNull final State state) {
+    public static long latestFreezeRoundOf(@NonNull final State state) {
         return readablePlatformStateStore(state).getLatestFreezeRound();
     }
 
@@ -241,7 +240,7 @@ public class PlatformStateFacade {
      * @return mutable platform state
      */
     @NonNull
-    protected PlatformStateModifier getWritablePlatformStateOf(@NonNull final State state) {
+    public static PlatformStateModifier getWritablePlatformStateOf(@NonNull final State state) {
         if (state.isImmutable()) {
             throw new IllegalStateException("Cannot get writable platform state when state is immutable");
         }
@@ -253,14 +252,14 @@ public class PlatformStateFacade {
      *
      * @param updater a consumer that updates the platform state
      */
-    public void bulkUpdateOf(@NonNull final State state, @NonNull Consumer<PlatformStateModifier> updater) {
+    public static void bulkUpdateOf(@NonNull final State state, @NonNull Consumer<PlatformStateModifier> updater) {
         getWritablePlatformStateOf(state).bulkUpdate(updater);
     }
 
     /**
      * @param snapshot the consensus snapshot for this round
      */
-    public void setSnapshotTo(@NonNull final State state, @NonNull ConsensusSnapshot snapshot) {
+    public static void setSnapshotTo(@NonNull final State state, @NonNull ConsensusSnapshot snapshot) {
         getWritablePlatformStateOf(state).setSnapshot(snapshot);
     }
 
@@ -269,7 +268,7 @@ public class PlatformStateFacade {
      *
      * @param legacyRunningEventHash a running hash of events
      */
-    public void setLegacyRunningEventHashTo(@NonNull final State state, @Nullable Hash legacyRunningEventHash) {
+    public static void setLegacyRunningEventHashTo(@NonNull final State state, @Nullable Hash legacyRunningEventHash) {
         getWritablePlatformStateOf(state).setLegacyRunningEventHash(legacyRunningEventHash);
     }
 
@@ -278,7 +277,8 @@ public class PlatformStateFacade {
      *
      * @param creationVersion the creation version
      */
-    public void setCreationSoftwareVersionTo(@NonNull final State state, @NonNull SemanticVersion creationVersion) {
+    public static void setCreationSoftwareVersionTo(
+            @NonNull final State state, @NonNull SemanticVersion creationVersion) {
         getWritablePlatformStateOf(state).setCreationSoftwareVersion(creationVersion);
     }
 
@@ -288,7 +288,7 @@ public class PlatformStateFacade {
      * @param hashDepth the depth of the tree to visit and print
      */
     @NonNull
-    public String getInfoString(@NonNull final State state, final int hashDepth) {
+    public static String getInfoString(@NonNull final State state, final int hashDepth) {
         final MerkleNodeState merkleNodeState = (MerkleNodeState) state;
         return createInfoString(
                         hashDepth,
@@ -298,7 +298,7 @@ public class PlatformStateFacade {
                 .concat(merkleNodeState.getInfoJson());
     }
 
-    private PlatformStateAccessor readablePlatformStateStore(@NonNull final State state) {
+    private static PlatformStateAccessor readablePlatformStateStore(@NonNull final State state) {
         final ReadableStates readableStates = state.getReadableStates(NAME);
         if (readableStates.isEmpty()) {
             return new SnapshotPlatformStateAccessor(UNINITIALIZED_PLATFORM_STATE);
@@ -306,7 +306,12 @@ public class PlatformStateFacade {
         return new ReadablePlatformStateStore(readableStates);
     }
 
-    private WritablePlatformStateStore writablePlatformStateStore(@NonNull final State state) {
+    private static WritablePlatformStateStore writablePlatformStateStore(@NonNull final State state) {
         return new WritablePlatformStateStore(state.getWritableStates(NAME));
     }
+
+    /**
+     * Default constructor
+     */
+    private PlatformStateUtils() {}
 }

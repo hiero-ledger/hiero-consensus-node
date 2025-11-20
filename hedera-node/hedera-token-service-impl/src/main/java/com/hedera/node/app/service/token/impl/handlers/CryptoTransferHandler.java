@@ -55,6 +55,7 @@ import com.hedera.node.app.spi.workflows.TransactionHandler;
 import com.hedera.node.app.spi.workflows.WarmupContext;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.config.data.AccountsConfig;
+import com.hedera.node.config.data.ContractsConfig;
 import com.hedera.node.config.data.FeesConfig;
 import com.hedera.node.config.data.HooksConfig;
 import com.hedera.node.config.data.LedgerConfig;
@@ -286,12 +287,18 @@ public class CryptoTransferHandler extends TransferExecutor implements Transacti
                 triedAndFailedToUseCustomFees,
                 hookInfo.usesHooks());
         if (hookInfo.usesHooks()) {
+            // Avoid overflow in by clamping effective limit (out-of-bound txs will be failed or throttled anyway)
+            final long effectiveGasLimit = Math.max(
+                    0,
+                    Math.min(
+                            config.getConfigData(ContractsConfig.class).maxGasPerSec(),
+                            hookInfo.totalGasLimitOfHooks()));
             return feeContext
                     .feeCalculatorFactory()
                     .feeCalculator(subType)
                     .addVerificationsPerTransaction(Math.max(0, feeContext.numTxnSignatures() - 1))
                     .addStorageBytesSeconds(HOUR_TO_SECOND_MULTIPLIER)
-                    .addGas(hookInfo.totalGasLimitOfHooks())
+                    .addGas(effectiveGasLimit)
                     .calculate();
         }
         return feeContext
