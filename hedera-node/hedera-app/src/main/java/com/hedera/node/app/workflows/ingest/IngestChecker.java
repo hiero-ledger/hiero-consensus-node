@@ -42,7 +42,7 @@ import com.hedera.hapi.node.base.TransferList;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.hapi.node.token.TokenAirdropTransactionBody;
-import com.hedera.node.app.blocks.BlockStreamManager;
+import com.hedera.node.app.blocks.BlockHashSigner;
 import com.hedera.node.app.fees.FeeContextImpl;
 import com.hedera.node.app.fees.FeeManager;
 import com.hedera.node.app.hapi.utils.EthSigsUtils;
@@ -109,7 +109,7 @@ public final class IngestChecker {
             EnumSet.of(FREEZE, SYSTEM_DELETE, SYSTEM_UNDELETE);
 
     private final CurrentPlatformStatus currentPlatformStatus;
-    private final BlockStreamManager blockStreamManager;
+    private final BlockHashSigner blockHashSigner;
     private final TransactionChecker transactionChecker;
     private final SolvencyPreCheck solvencyPreCheck;
     private final SignatureVerifier signatureVerifier;
@@ -157,6 +157,7 @@ public final class IngestChecker {
      *
      * @param networkInfo the {@link NetworkInfo} that contains information about the network
      * @param currentPlatformStatus the {@link CurrentPlatformStatus} that contains the current status of the platform
+     * @param blockHashSigner the {@link BlockHashSigner} that signs block hashes
      * @param transactionChecker the {@link TransactionChecker} that pre-processes the bytes of a transaction
      * @param solvencyPreCheck the {@link SolvencyPreCheck} that checks payer balance
      * @param signatureExpander the {@link SignatureExpander} that expands signatures
@@ -172,7 +173,7 @@ public final class IngestChecker {
     public IngestChecker(
             @NonNull final NetworkInfo networkInfo,
             @NonNull final CurrentPlatformStatus currentPlatformStatus,
-            @NonNull final BlockStreamManager blockStreamManager,
+            @NonNull final BlockHashSigner blockHashSigner,
             @NonNull final TransactionChecker transactionChecker,
             @NonNull final SolvencyPreCheck solvencyPreCheck,
             @NonNull final SignatureExpander signatureExpander,
@@ -187,7 +188,7 @@ public final class IngestChecker {
             @Nullable final AtomicBoolean systemEntitiesCreatedFlag) {
         this.networkInfo = requireNonNull(networkInfo, "networkInfo must not be null");
         this.currentPlatformStatus = requireNonNull(currentPlatformStatus, "currentPlatformStatus must not be null");
-        this.blockStreamManager = requireNonNull(blockStreamManager, "blockStreamManager must not be null");
+        this.blockHashSigner = blockHashSigner;
         this.transactionChecker = requireNonNull(transactionChecker, "transactionChecker must not be null");
         this.solvencyPreCheck = requireNonNull(solvencyPreCheck, "solvencyPreCheck must not be null");
         this.signatureVerifier = requireNonNull(signatureVerifier, "signatureVerifier must not be null");
@@ -224,7 +225,7 @@ public final class IngestChecker {
         if (systemEntitiesCreatedFlag != null && !systemEntitiesCreatedFlag.get()) {
             throw new PreCheckException(CREATING_SYSTEM_ENTITIES);
         }
-        if (!blockStreamManager.hasLedgerId()) {
+        if (!blockHashSigner.isReady()) {
             throw new PreCheckException(WAITING_FOR_LEDGER_ID);
         }
     }

@@ -4,6 +4,7 @@ package com.swirlds.platform.reconnect;
 import static com.swirlds.common.formatting.StringFormattingUtils.formattedList;
 import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
 import static com.swirlds.platform.reconnect.ReconnectStateLearner.endReconnectHandshake;
+import static com.swirlds.platform.state.service.PlatformStateUtils.getInfoString;
 
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
@@ -18,7 +19,6 @@ import com.swirlds.logging.legacy.payload.ReconnectStartPayload;
 import com.swirlds.platform.config.StateConfig;
 import com.swirlds.platform.metrics.ReconnectMetrics;
 import com.swirlds.platform.network.Connection;
-import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.SignedState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
@@ -57,8 +57,6 @@ public class ReconnectStateTeacher {
     private final Time time;
     private final PlatformContext platformContext;
 
-    private final PlatformStateFacade platformStateFacade;
-
     /**
      * @param platformContext        the platform context
      * @param threadManager          responsible for managing thread lifecycles
@@ -68,7 +66,6 @@ public class ReconnectStateTeacher {
      * @param otherId                the learner's ID
      * @param lastRoundReceived      the round of the state
      * @param statistics             reconnect metrics
-     * @param platformStateFacade    the facade to access the platform state
      */
     public ReconnectStateTeacher(
             @NonNull final PlatformContext platformContext,
@@ -79,8 +76,7 @@ public class ReconnectStateTeacher {
             @NonNull final NodeId selfId,
             @NonNull final NodeId otherId,
             final long lastRoundReceived,
-            @NonNull final ReconnectMetrics statistics,
-            @NonNull final PlatformStateFacade platformStateFacade) {
+            @NonNull final ReconnectMetrics statistics) {
 
         this.platformContext = Objects.requireNonNull(platformContext);
         this.time = Objects.requireNonNull(time);
@@ -93,7 +89,6 @@ public class ReconnectStateTeacher {
         this.lastRoundReceived = lastRoundReceived;
         this.statistics = Objects.requireNonNull(statistics);
         this.configuration = Objects.requireNonNull(platformContext.getConfiguration());
-        this.platformStateFacade = platformStateFacade;
     }
 
     /**
@@ -183,7 +178,7 @@ public class ReconnectStateTeacher {
                 """
                         The following state will be sent to the learner:
                         {}""",
-                () -> platformStateFacade.getInfoString(signedState.getState(), stateConfig.debugHashDepth()));
+                () -> getInfoString(signedState.getState(), stateConfig.debugHashDepth()));
     }
 
     private void logReconnectFinish() {

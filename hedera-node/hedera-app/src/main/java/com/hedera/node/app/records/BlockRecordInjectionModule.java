@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.records;
 
+import com.hedera.node.app.quiescence.QuiescedHeartbeat;
+import com.hedera.node.app.quiescence.QuiescenceController;
 import com.hedera.node.app.records.impl.BlockRecordManagerImpl;
 import com.hedera.node.app.records.impl.BlockRecordStreamProducer;
 import com.hedera.node.app.records.impl.producers.BlockRecordFormat;
@@ -13,6 +15,7 @@ import com.hedera.node.app.records.impl.producers.formats.v7.BlockRecordFormatV7
 import com.hedera.node.app.state.WorkingStateAccessor;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockRecordStreamConfig;
+import com.swirlds.platform.system.Platform;
 import dagger.Binds;
 import dagger.Module;
 import dagger.Provides;
@@ -61,12 +64,16 @@ public abstract class BlockRecordInjectionModule {
     public static BlockRecordManager provideBlockRecordManager(
             @NonNull final ConfigProvider configProvider,
             @NonNull final WorkingStateAccessor state,
-            @NonNull final BlockRecordStreamProducer streamFileProducer) {
+            @NonNull final BlockRecordStreamProducer streamFileProducer,
+            @NonNull final QuiescenceController quiescenceController,
+            @NonNull final QuiescedHeartbeat quiescedHeartbeat,
+            @NonNull final Platform platform) {
         final var merkleState = state.getState();
         if (merkleState == null) {
             throw new IllegalStateException("Merkle state is null");
         }
-        return new BlockRecordManagerImpl(configProvider, merkleState, streamFileProducer);
+        return new BlockRecordManagerImpl(
+                configProvider, merkleState, streamFileProducer, quiescenceController, quiescedHeartbeat, platform);
     }
 
     @Provides

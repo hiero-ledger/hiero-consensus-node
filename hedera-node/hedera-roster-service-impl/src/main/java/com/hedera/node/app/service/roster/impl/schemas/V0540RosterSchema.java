@@ -2,6 +2,7 @@
 package com.hedera.node.app.service.roster.impl.schemas;
 
 import static com.hedera.hapi.util.HapiUtils.SEMANTIC_VERSION_COMPARATOR;
+import static com.swirlds.platform.state.service.PlatformStateUtils.roundOf;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.SemanticVersion;
@@ -11,7 +12,6 @@ import com.hedera.node.app.spi.migrate.HederaMigrationContext;
 import com.hedera.node.app.spi.migrate.StartupNetworks;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.VersionConfig;
-import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.service.schemas.V0540RosterBaseSchema;
 import com.swirlds.state.State;
 import com.swirlds.state.lifecycle.MigrationContext;
@@ -69,20 +69,16 @@ public class V0540RosterSchema extends Schema<SemanticVersion> implements Roster
     @Deprecated
     private final Supplier<State> stateSupplier;
 
-    private final PlatformStateFacade platformStateFacade;
-
     public V0540RosterSchema(
             @NonNull final BiConsumer<Roster, Roster> onAdopt,
             @NonNull final Predicate<Roster> canAdopt,
             @NonNull final Function<WritableStates, WritableRosterStore> rosterStoreFactory,
-            @NonNull final Supplier<State> stateSupplier,
-            @NonNull final PlatformStateFacade platformStateFacade) {
+            @NonNull final Supplier<State> stateSupplier) {
         super(VERSION, SEMANTIC_VERSION_COMPARATOR);
         this.onAdopt = requireNonNull(onAdopt);
         this.canAdopt = requireNonNull(canAdopt);
         this.rosterStoreFactory = requireNonNull(rosterStoreFactory);
         this.stateSupplier = requireNonNull(stateSupplier);
-        this.platformStateFacade = platformStateFacade;
     }
 
     @Override
@@ -104,7 +100,7 @@ public class V0540RosterSchema extends Schema<SemanticVersion> implements Roster
             } else if (rosterStore.getActiveRoster() == null) {
                 // (FUTURE) Once there are no production states without a roster, we can remove this branch
                 final State state = stateSupplier.get();
-                final long round = platformStateFacade.roundOf(state);
+                final long round = roundOf(state);
                 final var previousRoster = requireNonNull(RosterRetriever.retrieveActive(state, round));
                 rosterStore.putActiveRoster(previousRoster, 0);
                 final var currentRoster =

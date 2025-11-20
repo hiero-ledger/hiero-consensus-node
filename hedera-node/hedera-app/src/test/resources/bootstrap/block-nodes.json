@@ -4,7 +4,7 @@
       "address": "localhost",
       "port": 40840,
       "priority": 1,
-      "maxMessageSizeBytes": 2097152
+      "messageSizeSoftLimitBytes": 2097152
     },
     { "address": "localhost", "port": 8081, "priority": 1 }
   ]

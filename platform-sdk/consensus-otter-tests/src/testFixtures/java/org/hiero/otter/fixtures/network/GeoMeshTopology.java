@@ -5,7 +5,6 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import org.hiero.otter.fixtures.InstrumentedNode;
 import org.hiero.otter.fixtures.Node;
-import org.hiero.otter.fixtures.network.utils.GeographicLatencyConfiguration;
 
 /**
  * Interface for a mesh network topology that simulates realistic latency and jitter based on geographic distribution.
@@ -73,16 +72,4 @@ public interface GeoMeshTopology extends MeshTopology {
      */
     @NonNull
     String getRegion(@NonNull Node node);
-
-    /**
-     * Sets realistic latency and jitter based on geographic distribution. Applies different latency characteristics for
-     * same-region, same-continent, and intercontinental connections based on the provided configuration.
-     *
-     * <p>If no {@link GeographicLatencyConfiguration} is set, the default
-     * {@link GeographicLatencyConfiguration#DEFAULT} is used.
-     *
-     * @param configuration the geographic latency configuration to apply
-     * @throws NullPointerException if {@code config} is {@code null}
-     */
-    void setGeographicLatencyConfiguration(@NonNull GeographicLatencyConfiguration configuration);
 }

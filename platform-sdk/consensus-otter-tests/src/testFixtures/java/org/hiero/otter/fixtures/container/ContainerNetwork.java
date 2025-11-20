@@ -27,7 +27,7 @@ import org.hiero.otter.fixtures.container.network.NetworkBehavior;
 import org.hiero.otter.fixtures.internal.AbstractNetwork;
 import org.hiero.otter.fixtures.internal.RegularTimeManager;
 import org.hiero.otter.fixtures.internal.network.ConnectionKey;
-import org.hiero.otter.fixtures.network.Topology.ConnectionData;
+import org.hiero.otter.fixtures.network.Topology.ConnectionState;
 import org.testcontainers.containers.Network;
 import org.testcontainers.images.builder.ImageFromDockerfile;
 
@@ -93,7 +93,7 @@ public class ContainerNetwork extends AbstractNetwork {
      * {@inheritDoc}
      */
     @Override
-    protected void onConnectionsChanged(@NonNull final Map<ConnectionKey, ConnectionData> connections) {
+    protected void onConnectionsChanged(@NonNull final Map<ConnectionKey, ConnectionState> connections) {
         networkBehavior.onConnectionsChanged(nodes(), connections);
     }
 

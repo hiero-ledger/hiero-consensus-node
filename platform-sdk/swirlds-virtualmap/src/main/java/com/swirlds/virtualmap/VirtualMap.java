@@ -435,8 +435,6 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
             dataSource = dataSourceBuilder.build(metadata.getLabel(), null, true, false);
         }
 
-        updateShouldBeFlushed();
-
         this.records = new RecordAccessor(this.metadata, cache, dataSource);
         if (statistics == null) {
             // Only create statistics instance if we don't yet have statistics. During a reconnect operation.
@@ -833,21 +831,20 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
     }
 
     /**
-     * Sets flush threshold for this virtual root. When a copy of this virtual root is created,
+     * Sets a flush threshold for this virtual root. When a copy of this virtual root is created,
      * it inherits the threshold value.
      *
-     * If this virtual root is explicitly marked to flush using {@link #enableFlush()}, changing
-     * flush threshold doesn't have any effect.
+     * <p>If this virtual root is explicitly marked to flush using {@link #enableFlush()}, changing
+     * the flush threshold doesn't have any effect.
      *
      * @param value The flush threshold, in bytes
      */
     public void setFlushCandidateThreshold(long value) {
         flushCandidateThreshold.set(value);
-        updateShouldBeFlushed();
     }
 
     /**
-     * Gets flush threshold for this virtual root.
+     * Gets the flush threshold for this virtual root.
      *
      * @return The flush threshold, in bytes
      */
@@ -875,17 +872,6 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
     @Override
     public boolean isFlushed() {
         return flushed.get();
-    }
-
-    /**
-     * If flush threshold isn't set for this virtual root, marks the root to flush based on
-     * {@link VirtualMapConfig#flushInterval()} setting.
-     */
-    private void updateShouldBeFlushed() {
-        if (flushCandidateThreshold.get() <= 0) {
-            // If copy size flush threshold is not set, use flush interval
-            this.shouldBeFlushed.set(fastCopyVersion != 0 && fastCopyVersion % virtualMapConfig.flushInterval() == 0);
-        }
     }
 
     /**

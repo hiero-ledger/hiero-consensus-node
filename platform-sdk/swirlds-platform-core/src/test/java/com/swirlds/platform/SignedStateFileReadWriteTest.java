@@ -12,7 +12,6 @@ import static com.swirlds.platform.state.snapshot.SignedStateFileWriter.writeHas
 import static com.swirlds.platform.state.snapshot.SignedStateFileWriter.writeSignatureSetFile;
 import static com.swirlds.platform.state.snapshot.SignedStateFileWriter.writeSignedStateToDisk;
 import static com.swirlds.platform.test.fixtures.config.ConfigUtils.CONFIGURATION;
-import static com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade.TEST_PLATFORM_STATE_FACADE;
 import static com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer.registerConstructablesForStorage;
 import static java.nio.file.Files.exists;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -32,7 +31,6 @@ import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.platform.config.StateConfig;
-import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.state.snapshot.DeserializedSignedState;
 import com.swirlds.platform.state.snapshot.SignedStateFileUtils;
@@ -41,7 +39,7 @@ import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
 import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.StateLifecycleManagerImpl;
-import com.swirlds.state.test.fixtures.merkle.TestVirtualMapState;
+import com.swirlds.state.test.fixtures.merkle.VirtualMapStateTestUtils;
 import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.IOException;
@@ -61,7 +59,6 @@ class SignedStateFileReadWriteTest {
     Path testDirectory;
 
     private static SemanticVersion platformVersion;
-    private static PlatformStateFacade stateFacade;
     private StateLifecycleManager stateLifecycleManager;
 
     @BeforeAll
@@ -75,14 +72,13 @@ class SignedStateFileReadWriteTest {
         registry.registerConstructables("com.swirlds.virtualmap");
         registry.registerConstructables("com.swirlds.merkledb");
         registerConstructablesForStorage(CONFIGURATION);
-        stateFacade = new PlatformStateFacade();
     }
 
     @BeforeEach
     void beforeEach() throws IOException {
         testDirectory = LegacyTemporaryFileBuilder.buildTemporaryFile("SignedStateFileReadWriteTest", CONFIGURATION);
-        stateLifecycleManager =
-                new StateLifecycleManagerImpl(new NoOpMetrics(), new FakeTime(), TestVirtualMapState::new);
+        stateLifecycleManager = new StateLifecycleManagerImpl(
+                new NoOpMetrics(), new FakeTime(), VirtualMapStateTestUtils::createTestStateWithVM);
         LegacyTemporaryFileBuilder.overrideTemporaryFileLocation(testDirectory.resolve("tmp"));
     }
 
@@ -100,7 +96,7 @@ class SignedStateFileReadWriteTest {
                 .setSoftwareVersion(platformVersion)
                 .build();
         final MerkleNodeState state = signedState.getState();
-        writeHashInfoFile(platformContext, testDirectory, state, stateFacade);
+        writeHashInfoFile(platformContext, testDirectory, state);
         final StateConfig stateConfig =
                 new TestConfigBuilder().getOrCreateConfig().getConfigData(StateConfig.class);
 
@@ -143,7 +139,7 @@ class SignedStateFileReadWriteTest {
         final PlatformContext platformContext =
                 TestPlatformContextBuilder.create().build();
         final DeserializedSignedState deserializedSignedState =
-                readState(testDirectory, TestVirtualMapState::new, TEST_PLATFORM_STATE_FACADE, platformContext);
+                readState(testDirectory, VirtualMapStateTestUtils::createTestStateWithVM, platformContext);
         hashState(deserializedSignedState.reservedSignedState().get());
 
         assertNotNull(deserializedSignedState.originalHash(), "hash should not be null");
@@ -188,7 +184,6 @@ class SignedStateFileReadWriteTest {
                 directory,
                 StateToDiskReason.PERIODIC_SNAPSHOT,
                 signedState,
-                stateFacade,
                 stateLifecycleManager);
 
         assertTrue(exists(stateFile), "state file should exist");

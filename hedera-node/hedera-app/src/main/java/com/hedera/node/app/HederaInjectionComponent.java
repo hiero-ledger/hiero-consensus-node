@@ -25,8 +25,11 @@ import com.hedera.node.app.history.HistoryService;
 import com.hedera.node.app.info.CurrentPlatformStatus;
 import com.hedera.node.app.metrics.MetricsInjectionModule;
 import com.hedera.node.app.platform.PlatformModule;
+import com.hedera.node.app.quiescence.QuiescenceController;
+import com.hedera.node.app.quiescence.TxPipelineTracker;
 import com.hedera.node.app.records.BlockRecordInjectionModule;
 import com.hedera.node.app.records.BlockRecordManager;
+import com.hedera.node.app.service.consensus.impl.ConsensusServiceImpl;
 import com.hedera.node.app.service.contract.impl.ContractServiceImpl;
 import com.hedera.node.app.service.file.impl.FileServiceImpl;
 import com.hedera.node.app.service.schedule.impl.ScheduleServiceImpl;
@@ -58,7 +61,6 @@ import com.hedera.node.app.workflows.query.annotations.UserQueries;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.listeners.ReconnectCompleteListener;
 import com.swirlds.platform.listeners.StateWriteToDiskCompleteListener;
-import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.state.notifications.AsyncFatalIssListener;
@@ -122,6 +124,8 @@ public interface HederaInjectionComponent {
 
     IngestWorkflow ingestWorkflow();
 
+    TxPipelineTracker txPipelineTracker();
+
     @UserQueries
     QueryWorkflow queryWorkflow();
 
@@ -154,10 +158,15 @@ public interface HederaInjectionComponent {
 
     CurrentPlatformStatus currentPlatformStatus();
 
+    QuiescenceController quiescenceController();
+
     @Component.Builder
     interface Builder {
         @BindsInstance
         Builder tokenServiceImpl(TokenServiceImpl tokenService);
+
+        @BindsInstance
+        Builder consensusServiceImpl(ConsensusServiceImpl consensusService);
 
         @BindsInstance
         Builder utilServiceImpl(UtilServiceImpl utilService);
@@ -233,9 +242,6 @@ public interface HederaInjectionComponent {
 
         @BindsInstance
         Builder startupNetworks(StartupNetworks startupNetworks);
-
-        @BindsInstance
-        Builder platformStateFacade(PlatformStateFacade platformStateFacade);
 
         @BindsInstance
         Builder appContext(AppContext appContext);

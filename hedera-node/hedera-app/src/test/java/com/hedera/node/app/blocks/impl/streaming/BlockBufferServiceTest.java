@@ -1610,6 +1610,70 @@ class BlockBufferServiceTest extends BlockNodeCommunicationTestBase {
         }
     }
 
+    @Test
+    void testPersistBuffer_recordsMode() throws Throwable {
+        final Configuration config = HederaTestConfigBuilder.create()
+                .withConfigDataType(BlockStreamConfig.class)
+                .withConfigDataType(BlockBufferConfig.class)
+                .withValue("blockStream.writerMode", "GRPC")
+                .withValue("blockStream.streamMode", "RECORDS")
+                .withValue("blockStream.blockPeriod", Duration.ofSeconds(1))
+                .withValue("blockStream.buffer.isBufferPersistenceEnabled", true)
+                .withValue("blockStream.buffer.bufferDirectory", testDir)
+                .getOrCreateConfig();
+        when(configProvider.getConfiguration()).thenReturn(new VersionedConfigImpl(config, 1));
+
+        Files.createDirectories(testDirFile.toPath());
+
+        blockBufferService = initBufferService(configProvider);
+
+        // create a block
+        final long BLOCK_1 = 1L;
+        blockBufferService.openBlock(BLOCK_1);
+        final List<BlockItem> block1Items = generateBlockItems(60, BLOCK_1, Set.of(10L, 11L));
+        block1Items.forEach(item -> blockBufferService.addItem(BLOCK_1, item));
+        blockBufferService.closeBlock(BLOCK_1);
+
+        blockBufferService.persistBuffer();
+
+        persistBufferHandle.invoke(blockBufferService);
+
+        // verify nothing on disk - should not persist when streamMode != BLOCKS
+        try (final Stream<Path> stream = Files.list(testDirFile.toPath())) {
+            assertThat(stream.count()).isZero();
+        }
+    }
+
+    @Test
+    void testPersistBuffer_notStarted() throws Throwable {
+        final Configuration config = HederaTestConfigBuilder.create()
+                .withConfigDataType(BlockStreamConfig.class)
+                .withConfigDataType(BlockBufferConfig.class)
+                .withValue("blockStream.writerMode", "GRPC")
+                .withValue("blockStream.streamMode", "BLOCKS")
+                .withValue("blockStream.blockPeriod", Duration.ofSeconds(1))
+                .withValue("blockStream.buffer.isBufferPersistenceEnabled", true)
+                .withValue("blockStream.buffer.bufferDirectory", testDir)
+                .getOrCreateConfig();
+        when(configProvider.getConfiguration()).thenReturn(new VersionedConfigImpl(config, 1));
+
+        Files.createDirectories(testDirFile.toPath());
+
+        // Create service but don't start it
+        blockBufferService = new BlockBufferService(configProvider, blockStreamMetrics);
+        blockBufferService.setBlockNodeConnectionManager(connectionManager);
+        // Note: not calling initBufferService which would set isStarted to true
+
+        // Try to persist - should do nothing since not started
+        blockBufferService.persistBuffer();
+        persistBufferHandle.invoke(blockBufferService);
+
+        // verify nothing on disk
+        try (final Stream<Path> stream = Files.list(testDirFile.toPath())) {
+            assertThat(stream.count()).isZero();
+        }
+    }
+
     // Utilities
 
     void setupState(final int numBlockUnacked, final boolean reconnectExpected) throws Throwable {

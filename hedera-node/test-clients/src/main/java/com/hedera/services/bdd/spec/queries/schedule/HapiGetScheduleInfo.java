@@ -7,6 +7,7 @@ import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.schedule.HapiScheduleCreate.correspondingScheduledTxnId;
 import static com.hedera.services.bdd.spec.transactions.schedule.HapiScheduleCreate.getRelativeExpiry;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
+import static java.util.Objects.requireNonNull;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -24,15 +25,18 @@ import com.hederahashgraph.api.proto.java.KeyList;
 import com.hederahashgraph.api.proto.java.Query;
 import com.hederahashgraph.api.proto.java.ResponseType;
 import com.hederahashgraph.api.proto.java.ScheduleGetInfoQuery;
+import com.hederahashgraph.api.proto.java.ScheduleInfo;
 import com.hederahashgraph.api.proto.java.Timestamp;
 import com.hederahashgraph.api.proto.java.Transaction;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
+import java.util.function.Consumer;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -42,8 +46,6 @@ public class HapiGetScheduleInfo extends HapiQueryOp<HapiGetScheduleInfo> {
 
     private static final Comparator<Key> KEY_COMPARATOR =
             (a, b) -> ByteString.unsignedLexicographicalComparator().compare(a.toByteString(), b.toByteString());
-    private static final Comparator<CustomFeeLimit> CUSTOM_FEE_LIMIT_COMPARATOR = Comparator.comparing(
-            limit -> limit.hasAccountId() ? limit.getAccountId().toString() : "");
 
     String schedule;
 
@@ -70,8 +72,16 @@ public class HapiGetScheduleInfo extends HapiQueryOp<HapiGetScheduleInfo> {
     private List<BiConsumer<HapiSpec, List<CustomFeeLimit>>> expectedCustomFeeLimits = new ArrayList<>();
     private long expectedExpiry = -1;
 
+    @Nullable
+    private Consumer<ScheduleInfo> onInfo;
+
     public HapiGetScheduleInfo hasScheduledTxnIdSavedBy(String creation) {
         expectedScheduledTxnId = Optional.of(creation);
+        return this;
+    }
+
+    public HapiGetScheduleInfo exposingInfoTo(@NonNull final Consumer<ScheduleInfo> onInfo) {
+        this.onInfo = requireNonNull(onInfo);
         return this;
     }
 
@@ -169,6 +179,8 @@ public class HapiGetScheduleInfo extends HapiQueryOp<HapiGetScheduleInfo> {
     @SuppressWarnings("java:S5960")
     protected void assertExpectationsGiven(HapiSpec spec) {
         var actualInfo = response.getScheduleGetInfo().getScheduleInfo();
+
+        Optional.ofNullable(onInfo).ifPresent(info -> info.accept(actualInfo));
 
         expectedScheduledTxnId.ifPresent(n -> assertEquals(
                 spec.registry().getTxnId(correspondingScheduledTxnId(n)),
