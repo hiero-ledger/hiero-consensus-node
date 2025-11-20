@@ -124,7 +124,7 @@ jobs:
     with:
       test-asset: "${{ inputs.test-asset }}"
       ref: "${{ github.ref }}"
-      solo-version: "${{ vars.ADHOC_SOLO_VERSION }}"
+      solo-version: "${{ vars.ADHOC_XTS_SOLO_VERSION }}"
       nlg-accounts: "${{ inputs.nlg-accounts }}"
       nlg-time: "${{ inputs.nlg-time }}"
       add-app-props: "${{ inputs.add-app-props }}"
