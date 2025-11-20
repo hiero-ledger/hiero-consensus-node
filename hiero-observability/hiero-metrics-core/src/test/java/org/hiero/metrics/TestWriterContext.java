@@ -3,6 +3,7 @@ package org.hiero.metrics;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import org.hiero.metrics.api.core.Label;
 import org.hiero.metrics.api.core.MetricRegistry;
@@ -27,6 +28,6 @@ public class TestWriterContext {
     public void exportAndVerify(String expected) throws IOException {
         UnsynchronizedByteArrayOutputStream outputStream = new UnsynchronizedByteArrayOutputStream();
         snapshotsWriter.write(snapshotProvider.get(), outputStream);
-        assertThat(outputStream.toString()).isEqualTo(expected);
+        assertThat(new ByteArrayInputStream(outputStream.toByteArray())).hasContent(expected);
     }
 }
