@@ -32,8 +32,10 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.atomic.LongAdder;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.BiConsumer;
+import java.util.function.Function;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -469,6 +471,14 @@ public final class VirtualNodeCache implements FastCopyable {
             releaseLock.unlock();
         }
 
+//        logger.info(
+//                VIRTUAL_MERKLE_STATS.getMarker(),
+//                "Release {}: {} / {} / {}",
+//                getFastCopyVersion(),
+//                estimatedHashesSizeInBytes.get(),
+//                estimatedLeavesSizeInBytes.get(),
+//                estimatedLeafPathsSizeInBytes.get());
+
         // Fire off the cleaning threads to go and clear out data in the indexes that doesn't need
         // to be there anymore.
         purge(dirtyLeaves, keyToDirtyLeafIndex, virtualMapConfig);
@@ -505,6 +515,13 @@ public final class VirtualNodeCache implements FastCopyable {
      * 		it is merging into are not sealed.
      */
     public void merge() {
+//        logger.info(
+//                VIRTUAL_MERKLE_STATS.getMarker(),
+//                "Merge {}: {} / {} / {}",
+//                getFastCopyVersion(),
+//                estimatedHashesSizeInBytes.get(),
+//                estimatedLeavesSizeInBytes.get(),
+//                estimatedLeafPathsSizeInBytes.get());
         releaseLock.lock();
         try {
             // We only permit you to merge a cache if it is no longer being used for hashing.
@@ -526,17 +543,24 @@ public final class VirtualNodeCache implements FastCopyable {
             p.estimatedLeavesSizeInBytes.addAndGet(estimatedLeavesSizeInBytes.get());
             p.estimatedLeafPathsSizeInBytes.addAndGet(estimatedLeafPathsSizeInBytes.get());
             p.estimatedHashesSizeInBytes.addAndGet(estimatedHashesSizeInBytes.get());
-//            logger.info(VIRTUAL_MERKLE_STATS.getMarker(), "Merge into {} size old {}",
-//            p.getFastCopyVersion(), p.getEstimatedSize());
-//            if (next.get() == null) {
-//                p.estimatedLeafPathsSizeInBytes.addAndGet(-p.purgeOnMerge(dirtyLeafPaths, Bytes::length));
+//            logger.info(
+//                    VIRTUAL_MERKLE_STATS.getMarker(),
+//                    "Merge into {} size old {}",
+//                    p.getFastCopyVersion(),
+//                    p.getEstimatedSize());
+            if (next.get() == null) {
+//                p.estimatedLeafPathsSizeInBytes.addAndGet(-p.purgeOnMerge(p.dirtyLeafPaths, Bytes::length));
 //                final long oneHashChunkSize =
 //                        (long) VirtualHashChunk.getChunkSize(hashChunkHeight) *
 //                        Cryptography.DEFAULT_DIGEST_TYPE.digestLength();
-//                p.estimatedHashesSizeInBytes.addAndGet(-p.purgeOnMerge(dirtyHashChunks, t -> oneHashChunkSize));
-//                logger.info(VIRTUAL_MERKLE_STATS.getMarker(), "Merge into {} size new {}",
-//                        p.getFastCopyVersion(), p.getEstimatedSize());
-//            }
+                p.estimatedHashesSizeInBytes.addAndGet(-p.purgeOnMerge(
+                        p.dirtyHashChunks,
+                        t -> (long) t.getChunkSize() * Cryptography.DEFAULT_DIGEST_TYPE.digestLength()));
+//                logger.info(VIRTUAL_MERKLE_STATS.getMarker(),
+//                        "Merge into {} size new {}",
+//                        p.getFastCopyVersion(),
+//                        p.getEstimatedSize());
+            }
             p.mergedCopy.set(true);
 
             // Remove this cache from the chain and wire the prev and next caches together.
@@ -1389,11 +1413,10 @@ public final class VirtualNodeCache implements FastCopyable {
         });
     }
 
-    /*
+
     private <V> long purgeOnMerge(
             final ConcurrentArray<Mutation<Long, V>> array,
             final Function<V, Long> sizeFunction) {
-        final AtomicInteger purged = new AtomicInteger(0);
         final LongAdder sizeDelta = new LongAdder();
         final BiConsumer<Integer, Mutation<Long, V>> action = (i, mutation) -> {
             if (mutation == null) {
@@ -1409,19 +1432,17 @@ public final class VirtualNodeCache implements FastCopyable {
             } else if (!mutation.notFiltered()) {
                 sizeDelta.add(sizeFunction.apply(mutation.value));
                 array.set(i, null);
-                purged.incrementAndGet();
             }
         };
         try {
             array.parallelTraverse(getCleaningPool(virtualMapConfig), action).getAndRethrow();
-            logger.info(VIRTUAL_MERKLE_STATS.getMarker(), "Purged {}", purged.get());
             return sizeDelta.sum();
         } catch (final InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new RuntimeException(e);
         }
     }
-    */
+
 
     /**
      * Node cache contains lists of hash and leaf mutations for every cache version. When caches
