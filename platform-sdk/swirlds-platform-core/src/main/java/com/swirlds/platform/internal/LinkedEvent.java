@@ -9,6 +9,7 @@ import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.model.event.PlatformEvent;
 
 public class LinkedEvent<T extends LinkedEvent<T>> {
+    /** the event we are wrapping with links */
     private final PlatformEvent platformEvent;
     /** the self parent of this */
     private T selfParent;
@@ -17,6 +18,14 @@ public class LinkedEvent<T extends LinkedEvent<T>> {
     /** the parents of this */
     private List<T> allParents;
 
+    /**
+     * Create a new linked event
+     *
+     * @param platformEvent
+     * 		the platform event to wrap
+     * @param allParents
+     * 		all parents of this event, including self parent if it exists
+     */
     public LinkedEvent(@NonNull final PlatformEvent platformEvent, @NonNull final List<T> allParents) {
         this.platformEvent = Objects.requireNonNull(platformEvent);
         this.allParents = Objects.requireNonNull(allParents, "allParents");
@@ -32,6 +41,9 @@ public class LinkedEvent<T extends LinkedEvent<T>> {
         }
     }
 
+    /**
+     * @return the platform event wrapped by this
+     */
     public PlatformEvent getPlatformEvent() {
         return platformEvent;
     }

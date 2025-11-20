@@ -6,12 +6,14 @@ import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
 import com.swirlds.common.context.PlatformContext;
+import com.swirlds.common.test.fixtures.Randotron;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
@@ -23,7 +25,9 @@ import com.swirlds.platform.gossip.shadowgraph.ShadowgraphInsertionException;
 import com.swirlds.platform.internal.EventImpl;
 import com.swirlds.platform.test.fixtures.event.emitter.EventEmitterBuilder;
 import com.swirlds.platform.test.fixtures.event.emitter.StandardEventEmitter;
+import com.swirlds.platform.test.fixtures.graph.SimpleGraphs;
 import com.swirlds.platform.test.fixtures.sync.SyncTestUtils;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -64,7 +68,6 @@ class ShadowgraphByBirthRoundTests {
     private Map<Long, Set<ShadowEvent>> birthRoundToShadows;
     private long maxBirthRound;
     private StandardEventEmitter emitter;
-    private PlatformContext platformContext;
 
     private static Stream<Arguments> graphSizes() {
         return Stream.of(
@@ -86,7 +89,7 @@ class ShadowgraphByBirthRoundTests {
     private void initShadowGraph(final Random random, final int numEvents, final int numNodes) {
         final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
 
-        platformContext = TestPlatformContextBuilder.create()
+        final PlatformContext platformContext = TestPlatformContextBuilder.create()
                 .withConfiguration(configuration)
                 .build();
         emitter = EventEmitterBuilder.newBuilder()
@@ -421,7 +424,7 @@ class ShadowgraphByBirthRoundTests {
     @Test
     void testShadow() {
         initShadowGraph(RandomUtils.getRandomPrintSeed(), 0, 4);
-        assertNull(shadowGraph.shadow((EventDescriptorWrapper) null), "Passing null should return null.");
+        assertNull(shadowGraph.shadow(null), "Passing null should return null.");
         final EventImpl event = emitter.emitEvent();
         assertDoesNotThrow(() -> shadowGraph.addEvent(event.getBaseEvent()), "Adding an tip event should succeed.");
         assertEquals(
@@ -468,9 +471,9 @@ class ShadowgraphByBirthRoundTests {
                 () -> shadowGraph.addEvent(e.getBaseEvent()), "Adding new tip events should succeed."));
 
         final List<Hash> knownHashes =
-                events.stream().map(EventImpl::getBaseHash).collect(Collectors.toList());
+                events.stream().map(EventImpl::getBaseHash).toList();
         final List<Hash> unknownHashes =
-                emitter.emitEvents(10).stream().map(EventImpl::getBaseHash).collect(Collectors.toList());
+                emitter.emitEvents(10).stream().map(EventImpl::getBaseHash).toList();
 
         final List<Hash> allHashes = new ArrayList<>(knownHashes.size() + unknownHashes.size());
         allHashes.addAll(knownHashes);
@@ -501,7 +504,7 @@ class ShadowgraphByBirthRoundTests {
         initShadowGraph(RandomUtils.getRandomPrintSeed(), 0, 4);
         assertThrows(
                 NullPointerException.class,
-                () -> shadowGraph.addEvent((PlatformEvent) null),
+                () -> shadowGraph.addEvent(null),
                 "A null event should not be added to the shadow graph.");
     }
 
@@ -720,5 +723,66 @@ class ShadowgraphByBirthRoundTests {
                 numTipsBeforeExpiry - tipsToExpire.size(),
                 shadowGraph.getTips().size(),
                 "Shadow graph tips should be included in expiry.");
+    }
+
+    /**
+     * Checks that the shadowgraph works correctly when events have multiple other-parents.
+     */
+    @Test
+    void testMultipleOtherParents(){
+        final Randotron randotron = Randotron.create();
+        initShadowGraph(randotron, 0, 4);
+        final List<PlatformEvent> events = SimpleGraphs.mopGraph(randotron);
+
+        // add all events to shadow graph
+        events.forEach(shadowGraph::addEvent);
+
+        // check the tips
+        final Set<PlatformEvent> tips = shadowGraph.getTips().stream().map(ShadowEvent::getPlatformEvent).collect(
+                Collectors.toSet());
+        assertEquals(
+                indicesToSet(events, 8,9,10,11),
+                tips,"Tips should be the last row of events in the MOP graph");
+
+        checkAncestors(1, events);
+        checkAncestors(5, events, 0,1,2);
+        checkAncestors(10, events, 0,1,2, 3,5,6,7);
+    }
+
+    /**
+     * Check that the ancestors of the event at the given index match the expected ancestors.
+     *
+     * @param indexToCheck            the index of the event to check
+     * @param allEvents               the list of all events
+     * @param expectedAncestorIndices the indices of the expected ancestors
+     */
+    private void checkAncestors(final int indexToCheck, @NonNull final List<PlatformEvent> allEvents,
+            final int ... expectedAncestorIndices) {
+
+        final ShadowEvent shadow = shadowGraph.shadow(allEvents.get(indexToCheck).getDescriptor());
+        assertNotNull(shadow, "Shadow event for event %d should exist in the shadow graph".formatted(indexToCheck));
+        final Set<PlatformEvent> ancestors = shadowGraph.findAncestors(List.of(shadow), e -> true).stream()
+                .map(ShadowEvent::getPlatformEvent).collect(
+                        Collectors.toSet());
+
+        assertEquals(
+                indicesToSet(allEvents, expectedAncestorIndices),
+                ancestors,
+                "Ancestors for event %d do not match expected ancestors".formatted(indexToCheck)
+        );
+    }
+
+    /**
+     * Convert indices into a set of events from the provided list
+     * @param allEvents the list of all events
+     * @param indices the indices of events to include in the set
+     * @return the set of events
+     */
+    private static Set<PlatformEvent> indicesToSet(@NonNull final List<PlatformEvent> allEvents, final int ... indices) {
+        final Set<PlatformEvent> eventSet = new HashSet<>();
+        for (final int index : indices) {
+            eventSet.add(allEvents.get(index));
+        }
+        return eventSet;
     }
 }

@@ -28,7 +28,7 @@ public class EventFactory {
 
         final long maxParentsBirthRound = Stream.of(selfParent, otherParent)
                 .filter(Objects::nonNull)
-                .map(LinkedEvent::getPlatformEvent)
+                .map(ShadowEvent::getPlatformEvent)
                 .mapToLong(PlatformEvent::getBirthRound)
                 .max()
                 .orElse(ConsensusConstants.ROUND_FIRST - 1);
