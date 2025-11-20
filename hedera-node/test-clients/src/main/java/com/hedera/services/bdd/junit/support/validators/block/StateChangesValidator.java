@@ -679,7 +679,7 @@ public class StateChangesValidator implements BlockStreamValidator {
                 footer.startOfBlockStateRootHash(),
                 startOfStateHash,
                 "Wrong start of state hash for block #" + blockNumber);
-        // First calculate the proven hash based on the proof's sibling hashes + TODO otherinfohere TODO
+        // First calculate the proven hash based on the proof's sibling hashes
         var provenHash = blockHash;
         final var siblingHashes = proof.siblingHashes();
         if (!siblingHashes.isEmpty()) {
@@ -1095,7 +1095,6 @@ public class StateChangesValidator implements BlockStreamValidator {
         private final Map<Long, StateProof> actualIndirectProofs = new HashMap<>();
 
         private final Map<Long, Bytes> expectedBlockRootHashes = new HashMap<>();
-        private final Map<Long, Bytes> expectedPreviousBlockHashesSubroots = new HashMap<>();
 
         private boolean endOfSequenceReached = false;
 
@@ -1197,10 +1196,6 @@ public class StateChangesValidator implements BlockStreamValidator {
 
             // Also track this block's _previous_ block hash for chain of hashes verification later
             expectedBlockRootHashes.put(blockNumber - 1, previousBlockHash);
-
-            // Also track this block's block hashes subroot
-            expectedPreviousBlockHashesSubroots.put(
-                    blockNumber, siblingHashes.getFirst().siblingHash());
         }
 
         /**

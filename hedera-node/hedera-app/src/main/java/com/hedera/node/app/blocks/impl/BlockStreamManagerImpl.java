@@ -602,7 +602,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             final var blockFooter = com.hedera.hapi.block.stream.output.BlockFooter.newBuilder()
                     // 1. previousBlockRootHash - Root hash of the previous block (N-1)
                     .previousBlockRootHash(lastBlockHash)
-                    // 2. rootHashOfAllBlockHashesTree - RootStreaming tree of all block hashes 0..N-1
+                    // 2. rootHashOfAllBlockHashesTree - Root streaming tree of all block hashes 0..N-1
                     .rootHashOfAllBlockHashesTree(prevBlockRootsHash)
                     // 3. startOfBlockStateRootHash - State hash at the beginning of current block
                     .startOfBlockStateRootHash(blockStartStateHash)

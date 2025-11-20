@@ -22,7 +22,7 @@ import java.util.List;
  * @param proofBuilder the block proof builder
  * @param writer the block item writer
  * @param blockTimestamp the block timestamp
- * @param siblingHashes the sibling hashes needed for an indirect block proof of an earlier block
+ * @param siblingHashes the sibling hashes needed to compute a block's root hash for an indirect proof
  */
 public record PendingBlock(
         long number,
@@ -35,7 +35,7 @@ public record PendingBlock(
         @NonNull MerkleSiblingHash... siblingHashes) {
     /**
      * Flushes this pending block to disk, optionally including the sibling hashes needed
-     * for an indirect proof of its preceding block(s).
+     * for a sequence of indirect proofs.
      *
      * @param withSiblingHashes whether to include sibling hashes for an indirect proof
      */

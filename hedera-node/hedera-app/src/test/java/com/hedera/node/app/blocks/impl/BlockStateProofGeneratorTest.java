@@ -49,11 +49,12 @@ class BlockStateProofGeneratorTest {
                         pp.siblingHashesFromPrevBlockRoot().toArray(new MerkleSiblingHash[0])))
                 .toList();
         verifyLoadedBlocks(pendingBlocks);
+        verifyLoadedProofs(loadExpectedStateProofs());
 
         // Generate and verify the proofs
         final var pendingBlocksByBlockNum =
                 pendingBlocks.stream().collect(Collectors.toMap(PendingBlock::number, pb -> pb));
-        final var latestSignedBlockNum = EXPECTED_NUM_PROOFS + MIN_INDIRECT_BLOCK_NUM;
+        final var latestSignedBlockNum = MAX_BLOCK_NUM;
         var outerCurrentBlockNum = MIN_INDIRECT_BLOCK_NUM;
         while (outerCurrentBlockNum < latestSignedBlockNum) {
             final var currentBlock = pendingBlocksByBlockNum.remove(outerCurrentBlockNum);
@@ -160,6 +161,10 @@ class BlockStateProofGeneratorTest {
                 finalHash = BlockImplUtils.combine(hashedTs, finalHash);
 
                 Assertions.assertThat(finalHash).isEqualTo(EXPECTED_BLOCK_HASHES.get(currentInnerBlockNum));
+
+                // Verify that the produced state proof matches the expected state proof for this block
+                Assertions.assertThat(result)
+                        .isEqualTo(loadExpectedStateProofs().get(outerCurrentBlockNum));
             }
             // 3. The final computed hash should equal the previous block hash for the latest signed block
             Assertions.assertThat(finalHash).isEqualTo(EXPECTED_BLOCK_HASHES.get(latestSignedBlockNum - 1));
@@ -189,7 +194,7 @@ class BlockStateProofGeneratorTest {
 
         // Verify that we have the expected number of pending block files: 5 indirect blocks, 1 direct block
         final var numProofs = pendingBlocks.size();
-        Assertions.assertThat(numProofs).isEqualTo(EXPECTED_NUM_PROOFS + 1);
+        Assertions.assertThat(numProofs).isEqualTo(EXPECTED_NUM_INDIRECT_PROOFS + 1);
 
         // Verify the timestamps of the loaded pending proofs
         for (int i = 0; i < numProofs - 1; i++) {
@@ -197,10 +202,13 @@ class BlockStateProofGeneratorTest {
             final var expectedTs = EXPECTED_BLOCK_TIMESTAMPS.get(i + MIN_INDIRECT_BLOCK_NUM);
             Assertions.assertThat(currentPendingBlock.blockTimestamp()).isEqualTo(expectedTs);
         }
+    }
 
-        // Verify that we have the expected number of proof files
-        final var expectedProofs = loadExpectedProofs();
-        Assertions.assertThat(expectedProofs.size()).isEqualTo(EXPECTED_NUM_PROOFS);
+    private void verifyLoadedProofs(@NonNull final Map<Long, StateProof> expectedIndirectProofs) {
+        // Verify that we have the expected number of proof files, including the final signed block proof
+        Assertions.assertThat(expectedIndirectProofs.size()).isEqualTo(EXPECTED_NUM_INDIRECT_PROOFS);
+        expectedIndirectProofs.values().forEach(sp -> Assertions.assertThat(sp.signedBlockProof())
+                .isEqualTo(EXPECTED_TSS_PROOF));
     }
 
     private List<PendingProof> loadPendingProofs() {
@@ -224,7 +232,7 @@ class BlockStateProofGeneratorTest {
         }
     }
 
-    private Map<Long, StateProof> loadExpectedProofs() {
+    private Map<Long, StateProof> loadExpectedStateProofs() {
         try {
             final Path dir = stateProofResourceDir();
 
@@ -260,7 +268,7 @@ class BlockStateProofGeneratorTest {
         return dir;
     }
 
-    private static final int EXPECTED_NUM_PROOFS = 5;
+    private static final int EXPECTED_NUM_INDIRECT_PROOFS = 5;
     private static final Bytes FINAL_SIGNATURE = Bytes.fromHex(
             "ddc656d5bd85ca85ec3efd403421505352a2aa46f12f9dfd34abe4276529096f555492bdff46b4b703dced92db0c5a22");
     private static final Bytes FIRST_EXPECTED_PREVIOUS_BLOCK_HASH = Bytes.fromHex(
