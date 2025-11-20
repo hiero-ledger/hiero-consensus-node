@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.state.merkle;
 
-import static com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade.TEST_PLATFORM_STATE_FACADE;
 import static com.swirlds.state.test.fixtures.merkle.MerkleStateRoot.MINIMUM_SUPPORTED_VERSION;
 import static com.swirlds.state.test.fixtures.merkle.VirtualMapStateTestUtils.createTestStateWithVM;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -280,8 +279,7 @@ class SerializationTest extends MerkleTestBase {
                 config,
                 new HashMap<>(),
                 migrationStateChanges,
-                startupNetworks,
-                TEST_PLATFORM_STATE_FACADE);
+                startupNetworks);
         loadedTree.getRoot().migrate(MINIMUM_SUPPORTED_VERSION);
     }
 
@@ -296,15 +294,7 @@ class SerializationTest extends MerkleTestBase {
         final var originalRegistry = new MerkleSchemaRegistry(FIRST_SERVICE, new SchemaApplications());
         originalRegistry.register(schemaV1);
         originalRegistry.migrate(
-                originalTreeCopy,
-                null,
-                v1,
-                config,
-                config,
-                new HashMap<>(),
-                migrationStateChanges,
-                startupNetworks,
-                TEST_PLATFORM_STATE_FACADE);
+                originalTreeCopy, null, v1, config, config, new HashMap<>(), migrationStateChanges, startupNetworks);
 
         final StateLifecycleManager stateLifecycleManager = new StateLifecycleManagerImpl(
                 new NoOpMetrics(), new FakeTime(), VirtualMapStateTestUtils::createTestStateWithVM);

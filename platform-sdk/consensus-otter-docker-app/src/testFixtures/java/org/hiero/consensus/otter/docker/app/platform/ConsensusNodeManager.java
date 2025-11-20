@@ -23,7 +23,6 @@ import com.swirlds.platform.builder.PlatformBuilder;
 import com.swirlds.platform.builder.PlatformBuildingBlocks;
 import com.swirlds.platform.builder.PlatformComponentBuilder;
 import com.swirlds.platform.listeners.PlatformStatusChangeListener;
-import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.service.PlatformStateService;
 import com.swirlds.platform.state.service.ReadablePlatformStateStore;
 import com.swirlds.platform.state.signed.HashedReservedSignedState;
@@ -105,7 +104,6 @@ public class ConsensusNodeManager {
 
         setupGlobalMetrics(platformConfig);
         final Metrics metrics = getMetricsProvider().createPlatformMetrics(selfId);
-        final PlatformStateFacade platformStateFacade = new PlatformStateFacade();
 
         log.info(STARTUP.getMarker(), "Creating node {} with version {}", selfId, version);
 
@@ -126,7 +124,6 @@ public class ConsensusNodeManager {
                 OtterApp.APP_NAME,
                 OtterApp.SWIRLD_NAME,
                 selfId,
-                platformStateFacade,
                 platformContext,
                 virtualMap -> new VirtualMapState(virtualMap, metrics));
         final ReservedSignedState initialState = reservedState.state();
@@ -148,7 +145,6 @@ public class ConsensusNodeManager {
                         selfId,
                         Long.toString(selfId.id()),
                         rosterHistory,
-                        platformStateFacade,
                         virtualMap -> new VirtualMapState(virtualMap, metrics))
                 .withPlatformContext(platformContext)
                 .withConfiguration(platformConfig)

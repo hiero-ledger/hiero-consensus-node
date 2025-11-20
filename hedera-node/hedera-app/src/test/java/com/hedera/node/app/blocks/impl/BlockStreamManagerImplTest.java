@@ -15,7 +15,6 @@ import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
 import static com.hedera.node.app.hapi.utils.CommonUtils.noThrowSha384HashOf;
 import static com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID;
 import static com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema.PLATFORM_STATE_STATE_LABEL;
-import static com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade.TEST_PLATFORM_STATE_FACADE;
 import static java.time.Instant.EPOCH;
 import static java.util.concurrent.CompletableFuture.completedFuture;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
@@ -258,7 +257,6 @@ class BlockStreamManagerImplTest {
                 quiescenceController,
                 hashInfo,
                 SemanticVersion.DEFAULT,
-                TEST_PLATFORM_STATE_FACADE,
                 lifecycle,
                 quiescedHeartbeat,
                 metrics);
@@ -284,7 +282,6 @@ class BlockStreamManagerImplTest {
                 quiescenceController,
                 hashInfo,
                 SemanticVersion.DEFAULT,
-                TEST_PLATFORM_STATE_FACADE,
                 lifecycle,
                 quiescedHeartbeat,
                 metrics);
@@ -1311,7 +1308,6 @@ class BlockStreamManagerImplTest {
                 quiescenceController,
                 hashInfo,
                 SemanticVersion.DEFAULT,
-                TEST_PLATFORM_STATE_FACADE,
                 lifecycle,
                 quiescedHeartbeat,
                 metrics);

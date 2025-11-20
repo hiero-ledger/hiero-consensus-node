@@ -126,7 +126,7 @@ public class SpecEntityExtension implements ParameterResolver, BeforeAllCallback
                 .map(Account::name)
                 .filter(n -> !n.isBlank())
                 .orElse(defaultName);
-        final var account = new SpecAccount(name);
+        final var account = annotation == null ? new SpecAccount(name) : new SpecAccount(name, annotation.hooks());
         if (annotation != null) {
             final var builder = account.builder();
             if (annotation.centBalance() > 0L) {

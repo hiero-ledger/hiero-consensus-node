@@ -54,7 +54,6 @@ import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
 import java.time.InstantSource;
@@ -87,9 +86,6 @@ class IngestComponentTest {
 
     @Mock
     private BlockHashSigner blockHashSigner;
-
-    @Mock
-    private PlatformStateFacade platformStateFacade;
 
     private HederaInjectionComponent app;
 
@@ -169,7 +165,6 @@ class IngestComponentTest {
                 .historyService(historyService)
                 .tokenServiceImpl(new TokenServiceImpl(appContext))
                 .consensusServiceImpl(new ConsensusServiceImpl())
-                .platformStateFacade(platformStateFacade)
                 .build();
 
         final var state = new FakeState();

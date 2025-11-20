@@ -7,7 +7,6 @@ import static com.swirlds.platform.state.snapshot.StateToDiskReason.FATAL_ERROR;
 import static com.swirlds.platform.state.snapshot.StateToDiskReason.ISS;
 import static com.swirlds.platform.state.snapshot.StateToDiskReason.PERIODIC_SNAPSHOT;
 import static com.swirlds.platform.test.fixtures.config.ConfigUtils.CONFIGURATION;
-import static com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade.TEST_PLATFORM_STATE_FACADE;
 import static com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer.registerConstructablesForStorage;
 import static java.nio.file.Files.exists;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
@@ -140,7 +139,6 @@ class StateFileManagerTests {
         final DeserializedSignedState deserializedSignedState = readState(
                 stateDirectory,
                 VirtualMapStateTestUtils::createTestStateWithVM,
-                TEST_PLATFORM_STATE_FACADE,
                 TestPlatformContextBuilder.create().build());
         SignedState signedState = deserializedSignedState.reservedSignedState().get();
         hashState(signedState);
@@ -170,8 +168,8 @@ class StateFileManagerTests {
             Files.createFile(savedDir);
         }
 
-        final StateSnapshotManager manager = new DefaultStateSnapshotManager(
-                context, MAIN_CLASS_NAME, SELF_ID, SWIRLD_NAME, TEST_PLATFORM_STATE_FACADE, stateLifecycleManager);
+        final StateSnapshotManager manager =
+                new DefaultStateSnapshotManager(context, MAIN_CLASS_NAME, SELF_ID, SWIRLD_NAME, stateLifecycleManager);
 
         final StateSavingResult stateSavingResult = manager.saveStateTask(signedState.reserve("test"));
 
@@ -188,8 +186,8 @@ class StateFileManagerTests {
     void saveISSignedState() throws IOException {
         final SignedState signedState = new RandomSignedStateGenerator().build();
 
-        final StateSnapshotManager manager = new DefaultStateSnapshotManager(
-                context, MAIN_CLASS_NAME, SELF_ID, SWIRLD_NAME, TEST_PLATFORM_STATE_FACADE, stateLifecycleManager);
+        final StateSnapshotManager manager =
+                new DefaultStateSnapshotManager(context, MAIN_CLASS_NAME, SELF_ID, SWIRLD_NAME, stateLifecycleManager);
         signedState.markAsStateToSave(ISS);
         initLifecycleManagerAndMakeStateImmutable(signedState);
         hashState(signedState);
@@ -230,8 +228,8 @@ class StateFileManagerTests {
         final int averageTimeBetweenStates = 10;
         final double standardDeviationTimeBetweenStates = 0.5;
 
-        final StateSnapshotManager manager = new DefaultStateSnapshotManager(
-                context, MAIN_CLASS_NAME, SELF_ID, SWIRLD_NAME, TEST_PLATFORM_STATE_FACADE, stateLifecycleManager);
+        final StateSnapshotManager manager =
+                new DefaultStateSnapshotManager(context, MAIN_CLASS_NAME, SELF_ID, SWIRLD_NAME, stateLifecycleManager);
         final SavedStateController controller = new DefaultSavedStateController(context);
 
         Instant timestamp;
@@ -309,7 +307,6 @@ class StateFileManagerTests {
                             () -> SignedStateFileReader.readState(
                                             savedStateInfo.stateDirectory(),
                                             VirtualMapStateTestUtils::createTestStateWithVM,
-                                            TEST_PLATFORM_STATE_FACADE,
                                             context)
                                     .reservedSignedState()
                                     .get(),
@@ -354,8 +351,8 @@ class StateFileManagerTests {
 
         final int count = 10;
 
-        final StateSnapshotManager manager = new DefaultStateSnapshotManager(
-                context, MAIN_CLASS_NAME, SELF_ID, SWIRLD_NAME, TEST_PLATFORM_STATE_FACADE, stateLifecycleManager);
+        final StateSnapshotManager manager =
+                new DefaultStateSnapshotManager(context, MAIN_CLASS_NAME, SELF_ID, SWIRLD_NAME, stateLifecycleManager);
 
         final Path statesDirectory =
                 signedStateFilePath.getSignedStatesDirectoryForSwirld(MAIN_CLASS_NAME, SELF_ID, SWIRLD_NAME);
