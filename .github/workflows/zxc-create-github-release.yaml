@@ -17,6 +17,11 @@ on:
         type: boolean
         required: false
         default: false
+      dry-run:
+        description: "Perform Dry Run"
+        type: boolean
+        required: false
+        default: false
     secrets:
       gh-access-token:
         description: "The Github access token used to create the release."
@@ -42,6 +47,14 @@ jobs:
         uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
         with:
           egress-policy: audit
+
+      - name: Print Parameters
+        run: |
+          echo "Input Parameters:"
+          echo "  Release Version: ${{ inputs.release-version }}"
+          echo "  Create Release Notes: ${{ inputs.create-release-notes }}"
+          echo "  Create Release: ${{ inputs.create-release }}"
+          echo "  Dry Run: ${{ inputs.dry-run }}"
 
       - name: Extract the Input Version
         id: extract-version
@@ -88,7 +101,7 @@ jobs:
             exit 1
           fi
 
-  full-release-notes:
+  generate-release-notes:
     name: Create Full Release Notes
     needs: validate-input-version
     runs-on: hiero-network-node-linux-medium
@@ -124,6 +137,12 @@ jobs:
           echo "" | tee -a "${GITHUB_STEP_SUMMARY}"
           cat RELEASE_NOTES.md | tee -a "${GITHUB_STEP_SUMMARY}"
 
+      - name: Upload release notes as artifact
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+        with:
+          name: release-notes
+          path: RELEASE_NOTES.md
+
   full-commit-history:
     name: Full Commit History
     needs: validate-input-version
@@ -151,9 +170,9 @@ jobs:
 
   create-github-release:
     name: Create Github Release
-    needs: full-release-notes
+    needs: generate-release-notes
     runs-on: hiero-network-node-linux-medium
-    if: ${{ inputs.create-release == 'true' }}
+    if: ${{ inputs.create-release == 'true' || inputs.dry-run == 'true' }}
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
@@ -167,14 +186,24 @@ jobs:
           fetch-depth: "0"
           token: ${{ secrets.gh-access-token }}
 
-      - name: Create github release - output logging
-        run: echo "Creating the GitHub Release for version v${{ needs.validate-input-version.outputs.release-identifier }}"
+      - name: Download release notes artifact
+        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
+        with:
+          name: release-notes
+          path: RELEASE_NOTES.md
 
-#      - name: Create github release
-#        uses: step-security/release-action@03a57407052f15d1537fd5469a6fbbc536aba326 # v1.20.0
-#        with:
-#          tag: ${{ inputs.ref-name }}
-#          prerelease: false
-#          draft: false
-#          generateReleaseNotes: true
-#          skipIfReleaseExists: true
+      - name: Create github release - output logging
+        run: |
+          echo "Creating the GitHub Release for version v${{ needs.validate-input-version.outputs.release-identifier }}"
+          echo "Downloaded Release Notes artifact:"
+          cat RELEASE_NOTES.md
+
+      - name: Create github release
+        if: ${{ inputs.create-release == 'true' && inputs.dry-run == 'false' }}
+        uses: step-security/release-action@03a57407052f15d1537fd5469a6fbbc536aba326 # v1.20.0
+        with:
+          tag: ${{ inputs.ref-name }}
+          prerelease: false
+          draft: false
+          generateReleaseNotes: true
+          skipIfReleaseExists: true

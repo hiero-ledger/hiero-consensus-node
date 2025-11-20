@@ -10,6 +10,11 @@ on:
         description: "Release Version Number (ex: 0.59.2):"
         type: string
         required: true
+      dry-run-enabled:
+        description: "Perform Dry Run"
+        type: boolean
+        required: false
+        default: false
 
 defaults:
   run:
@@ -28,5 +33,6 @@ jobs:
       release-version: ${{ github.event_name == 'push' && github.ref_name || github.event.inputs.version }}
       create-release-notes: true
       create-release: false
+      dry-run: ${{ inputs.dry-run-enabled }}
     secrets:
       gh-access-token: ${{ secrets.GH_ACCESS_TOKEN }}
