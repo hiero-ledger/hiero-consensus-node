@@ -65,7 +65,6 @@ import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.junit.extensions.NetworkTargetingExtension;
 import com.hedera.services.bdd.junit.hedera.BlockNodeMode;
 import com.hedera.services.bdd.junit.hedera.BlockNodeNetwork;
-import com.hedera.services.bdd.junit.hedera.DualNetwork;
 import com.hedera.services.bdd.junit.hedera.HederaNetwork;
 import com.hedera.services.bdd.junit.hedera.HederaNode;
 import com.hedera.services.bdd.junit.hedera.NetworkRole;
@@ -1355,8 +1354,9 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
                         .withPrioritySetup(setupOverrides))));
     }
 
-    public static DualNetworkSpecBuilder dualHapiTest(@NonNull final DualNetwork dualNetwork) {
-        return new DualNetworkSpecBuilder(requireNonNull(dualNetwork));
+    public static DualNetworkSpecBuilder dualHapiTest(
+            @NonNull final HederaNetwork primaryNetwork, @NonNull final HederaNetwork peerNetwork) {
+        return new DualNetworkSpecBuilder(requireNonNull(primaryNetwork), requireNonNull(peerNetwork));
     }
 
     public static DynamicTest namedHapiTest(String name, @NonNull final SpecOperation... ops) {
@@ -1513,10 +1513,13 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
 
     public static final class DualNetworkSpecBuilder {
         private final List<NetworkStep> steps = new ArrayList<>();
-        private final DualNetwork dualNetwork;
+        private final HederaNetwork primaryNetwork;
+        private final HederaNetwork peerNetwork;
 
-        private DualNetworkSpecBuilder(@NonNull final DualNetwork dualNetwork) {
-            this.dualNetwork = requireNonNull(dualNetwork);
+        private DualNetworkSpecBuilder(
+                @NonNull final HederaNetwork primaryNetwork, @NonNull final HederaNetwork peerNetwork) {
+            this.primaryNetwork = requireNonNull(primaryNetwork);
+            this.peerNetwork = requireNonNull(peerNetwork);
         }
 
         public DualNetworkSpecBuilder onPrimary(@NonNull final SpecOperation... ops) {
@@ -1551,8 +1554,8 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
                     continue;
                 }
                 final var specName = String.format(
-                        "%s-%s-step-%d", displayName, step.role().name().toLowerCase(Locale.ROOT), index++);
-                final var network = step.role() == NetworkRole.PRIMARY ? dualNetwork.primary() : dualNetwork.peer();
+                        "%s-%s-step-%d", displayName, roleLabel(step.role()), index++);
+                final var network = networkFor(step.role());
                 runSpec(specName, step.operations(), network);
             }
         }
@@ -1583,6 +1586,15 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
         }
 
         private record NetworkStep(NetworkRole role, List<SpecOperation> operations) {}
+
+        private HederaNetwork networkFor(@NonNull final NetworkRole role) {
+            return role == NetworkRole.PRIMARY ? primaryNetwork : peerNetwork;
+        }
+
+        private String roleLabel(@NonNull final NetworkRole role) {
+            final var network = networkFor(role);
+            return network.role().orElse(role).name().toLowerCase(Locale.ROOT);
+        }
     }
 
     @Override

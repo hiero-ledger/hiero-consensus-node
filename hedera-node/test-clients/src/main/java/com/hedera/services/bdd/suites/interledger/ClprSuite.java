@@ -14,8 +14,8 @@ import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.DualNetworkHapiTest;
 import com.hedera.services.bdd.junit.HapiTest;
-import com.hedera.services.bdd.junit.hedera.DualNetwork;
 import com.hedera.services.bdd.junit.hedera.ExternalPath;
+import com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork;
 import com.hedera.services.bdd.spec.queries.QueryVerbs;
 import com.hedera.services.bdd.spec.transactions.TxnVerbs;
 import com.hederahashgraph.api.proto.java.Timestamp;
@@ -53,11 +53,12 @@ public class ClprSuite {
     @DualNetworkHapiTest(primarySize = 5, peerSize = 1)
     @HapiTest
     @DisplayName("dual-network-isolation")
-    final Stream<DynamicTest> dualNetworkIsolation(final DualNetwork dualNetwork) {
+    final Stream<DynamicTest> dualNetworkIsolation(
+            final SubProcessNetwork primaryNetwork, final SubProcessNetwork peerNetwork) {
         final var primaryAccountId = new AtomicReference<String>();
         final var peerAccountId = new AtomicReference<String>();
 
-        return dualHapiTest(dualNetwork)
+        return dualHapiTest(primaryNetwork, peerNetwork)
                 .onPrimary(
                         TxnVerbs.cryptoCreate("primaryAccount")
                                 .balance(ONE_HBAR)

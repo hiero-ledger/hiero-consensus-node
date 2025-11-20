@@ -32,6 +32,10 @@ public abstract class AbstractNetwork implements HederaNetwork {
     private final HapiPropertySource startupProperties;
     protected final String networkName;
     protected final List<HederaNode> nodes;
+    @Nullable
+    private NetworkRole networkRole;
+    @Nullable
+    private HederaNetwork peerNetwork;
 
     protected AbstractNetwork(@NonNull final String networkName, @NonNull final List<HederaNode> nodes) {
         this.networkName = requireNonNull(networkName);
@@ -55,6 +59,24 @@ public abstract class AbstractNetwork implements HederaNetwork {
     @Override
     public @NonNull HapiPropertySource startupProperties() {
         return startupProperties;
+    }
+
+    @Override
+    public Optional<NetworkRole> role() {
+        return Optional.ofNullable(networkRole);
+    }
+
+    @Override
+    public Optional<HederaNetwork> peer() {
+        return Optional.ofNullable(peerNetwork);
+    }
+
+    public void setRole(@NonNull final NetworkRole role) {
+        this.networkRole = requireNonNull(role);
+    }
+
+    public void setPeer(@NonNull final HederaNetwork peerNetwork) {
+        this.peerNetwork = requireNonNull(peerNetwork);
     }
 
     /**
