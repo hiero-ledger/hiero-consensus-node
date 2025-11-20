@@ -29,7 +29,6 @@ import com.swirlds.platform.builder.PlatformBuilder;
 import com.swirlds.platform.builder.PlatformBuildingBlocks;
 import com.swirlds.platform.builder.PlatformComponentBuilder;
 import com.swirlds.platform.builder.internal.StaticPlatformBuilder;
-import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.service.PlatformStateService;
 import com.swirlds.platform.state.service.ReadablePlatformStateStore;
 import com.swirlds.platform.state.signed.HashedReservedSignedState;
@@ -194,7 +193,6 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
 
             setupGlobalMetrics(currentConfiguration);
 
-            final PlatformStateFacade platformStateFacade = new PlatformStateFacade();
             try {
                 // If a previous test didn't clean up properly, remove any existing metrics for this node
                 // This can happen if a test fails during platform initialization
@@ -234,7 +232,6 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
                     OtterApp.APP_NAME,
                     OtterApp.SWIRLD_NAME,
                     selfId,
-                    platformStateFacade,
                     platformContext,
                     virtualMap -> new VirtualMapState(virtualMap, metrics));
 
@@ -261,7 +258,6 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
                             selfId,
                             eventStreamLoc,
                             rosterHistory,
-                            platformStateFacade,
                             virtualMap -> new VirtualMapState(virtualMap, metrics))
                     .withPlatformContext(platformContext)
                     .withConfiguration(currentConfiguration)

@@ -3,6 +3,7 @@ package com.hedera.node.app.workflows.handle;
 
 import static com.hedera.node.config.types.StreamMode.BOTH;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
+import static com.swirlds.platform.state.service.PlatformStateService.NAME;
 import static java.util.Collections.emptyIterator;
 import static java.util.Collections.emptyList;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -20,6 +21,7 @@ import com.hedera.hapi.block.stream.input.EventHeader;
 import com.hedera.hapi.block.stream.input.ParentEventReference;
 import com.hedera.hapi.block.stream.output.StateChange;
 import com.hedera.hapi.block.stream.output.StateChanges;
+import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.platform.event.EventCore;
 import com.hedera.hapi.platform.event.EventDescriptor;
@@ -53,10 +55,11 @@ import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.node.config.types.BlockStreamWriterMode;
 import com.hedera.node.config.types.StreamMode;
-import com.swirlds.platform.state.service.PlatformStateFacade;
+import com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.ReadableSingletonState;
+import com.swirlds.state.spi.ReadableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.List;
@@ -70,6 +73,7 @@ import org.hiero.consensus.model.hashgraph.Round;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.model.transaction.ConsensusTransaction;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -167,9 +171,6 @@ class HandleWorkflowTest {
     private NodeRewardManager nodeRewardManager;
 
     @Mock
-    private PlatformStateFacade platformStateFacade;
-
-    @Mock
     private BlockBufferService blockBufferService;
 
     @Mock
@@ -179,6 +180,20 @@ class HandleWorkflowTest {
     private PlatformState platformState;
 
     private HandleWorkflow subject;
+
+    @BeforeEach
+    void setUp() {
+        final ReadableStates readableStates = mock(ReadableStates.class);
+        final ReadableSingletonState singletonState = mock(ReadableSingletonState.class);
+        given(singletonState.get())
+                .willReturn(PlatformState.newBuilder()
+                        .creationSoftwareVersion(
+                                SemanticVersion.newBuilder().minor(1).build())
+                        .build());
+        given(state.getReadableStates(NAME)).willReturn(readableStates);
+        given(readableStates.getSingleton(V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID))
+                .willReturn(singletonState);
+    }
 
     @Test
     void doesntSkipEventWithMissingCreator() {
@@ -495,7 +510,6 @@ class HandleWorkflowTest {
                 blockHashSigner,
                 null,
                 nodeRewardManager,
-                platformStateFacade,
                 blockBufferService,
                 Map.of(),
                 quiescenceController);
