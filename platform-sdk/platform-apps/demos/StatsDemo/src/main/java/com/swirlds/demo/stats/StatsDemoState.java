@@ -12,7 +12,7 @@ package com.swirlds.demo.stats;
  */
 
 import static com.swirlds.demo.stats.StatsDemoMain.CONFIGURATION;
-import static com.swirlds.platform.state.service.PlatformStateFacade.DEFAULT_PLATFORM_STATE_FACADE;
+import static com.swirlds.platform.state.service.PlatformStateUtils.roundOf;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.time.Time;
@@ -67,7 +67,7 @@ public class StatsDemoState extends MerkleStateRoot<StatsDemoState> implements M
      */
     @Override
     public long getRound() {
-        return DEFAULT_PLATFORM_STATE_FACADE.roundOf(this);
+        return roundOf(this);
     }
 
     /**

@@ -8,7 +8,8 @@ import com.swirlds.common.test.fixtures.Randotron;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.platform.event.linking.SimpleLinker;
+import com.swirlds.platform.event.linking.ConsensusLinker;
+import com.swirlds.platform.event.linking.NoOpLinkerLogsAndMetrics;
 import com.swirlds.platform.event.orphan.DefaultOrphanBuffer;
 import com.swirlds.platform.gossip.IntakeEventCounter;
 import com.swirlds.platform.internal.EventImpl;
@@ -33,7 +34,7 @@ class LocalConsensusGenerationTest {
     void simpleGraphTest() {
         final Randotron randotron = Randotron.create();
         // We need a linker to created EventImpl objects that hold the cGen value
-        final SimpleLinker linker = new SimpleLinker();
+        final ConsensusLinker linker = new ConsensusLinker(NoOpLinkerLogsAndMetrics.getInstance());
         // We need an orphan buffer to assign nGen values to the events
         final Configuration configuration =
                 ConfigurationBuilder.create().autoDiscoverExtensions().build();

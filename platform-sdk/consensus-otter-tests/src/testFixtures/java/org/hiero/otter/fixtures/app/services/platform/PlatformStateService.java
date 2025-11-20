@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.app.services.platform;
 
-import static com.swirlds.platform.state.service.PlatformStateFacade.isInFreezePeriod;
+import static com.swirlds.platform.state.service.PlatformStateUtils.isInFreezePeriod;
 
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;

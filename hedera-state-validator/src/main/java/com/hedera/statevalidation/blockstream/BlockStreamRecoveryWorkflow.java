@@ -2,7 +2,7 @@
 package com.hedera.statevalidation.blockstream;
 
 import static com.hedera.statevalidation.ApplyBlocksCommand.DEFAULT_TARGET_ROUND;
-import static com.swirlds.platform.state.service.PlatformStateFacade.DEFAULT_PLATFORM_STATE_FACADE;
+import static com.swirlds.platform.state.service.PlatformStateUtils.roundOf;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.block.stream.Block;
@@ -79,7 +79,7 @@ public class BlockStreamRecoveryWorkflow {
             @NonNull final NodeId selfId,
             @NonNull final PlatformContext platformContext) {
         AtomicBoolean foundStartingRound = new AtomicBoolean();
-        final long initRound = DEFAULT_PLATFORM_STATE_FACADE.roundOf(state);
+        final long initRound = roundOf(state);
         final long firstRoundToApply = initRound + 1;
         AtomicLong currentRound = new AtomicLong(initRound);
 
@@ -149,8 +149,7 @@ public class BlockStreamRecoveryWorkflow {
                 "BlockStreamWorkflow.applyBlocks()",
                 false,
                 false,
-                false,
-                DEFAULT_PLATFORM_STATE_FACADE);
+                false);
 
         final StateLifecycleManager stateLifecycleManager = new StateLifecycleManagerImpl(
                 platformContext.getMetrics(),
@@ -158,12 +157,7 @@ public class BlockStreamRecoveryWorkflow {
                 vm -> new VirtualMapState(vm, platformContext.getMetrics()));
         try {
             SignedStateFileWriter.writeSignedStateFilesToDirectory(
-                    platformContext,
-                    selfId,
-                    outputPath,
-                    signedState,
-                    DEFAULT_PLATFORM_STATE_FACADE,
-                    stateLifecycleManager);
+                    platformContext, selfId, outputPath, signedState, stateLifecycleManager);
         } catch (IOException e) {
             throw new RuntimeException(e);
         }

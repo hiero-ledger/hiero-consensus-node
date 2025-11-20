@@ -15,6 +15,7 @@ import static com.hedera.node.app.workflows.handle.TransactionType.ORDINARY_TRAN
 import static com.hedera.node.app.workflows.handle.TransactionType.POST_UPGRADE_TRANSACTION;
 import static com.hedera.node.config.types.StreamMode.BLOCKS;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
+import static com.swirlds.platform.state.service.PlatformStateUtils.isFreezeRound;
 import static com.swirlds.platform.system.InitTrigger.EVENT_STREAM_RECOVERY;
 import static java.time.Instant.EPOCH;
 import static java.util.Objects.requireNonNull;
@@ -44,6 +45,7 @@ import com.hedera.node.app.info.CurrentPlatformStatus;
 import com.hedera.node.app.quiescence.QuiescenceController;
 import com.hedera.node.app.records.BlockRecordManager;
 import com.hedera.node.app.records.BlockRecordService;
+import com.hedera.node.app.records.impl.BlockRecordManagerImpl;
 import com.hedera.node.app.service.entityid.EntityIdService;
 import com.hedera.node.app.service.entityid.impl.WritableEntityIdStoreImpl;
 import com.hedera.node.app.service.roster.RosterService;
@@ -77,12 +79,10 @@ import com.hedera.node.app.workflows.handle.steps.StakePeriodChanges;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.ConsensusConfig;
-import com.hedera.node.config.data.QuiescenceConfig;
 import com.hedera.node.config.data.SchedulingConfig;
 import com.hedera.node.config.data.TssConfig;
 import com.hedera.node.config.types.StreamMode;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.service.PlatformStateService;
 import com.swirlds.platform.state.service.ReadablePlatformStateStore;
 import com.swirlds.platform.state.service.WritablePlatformStateStore;
@@ -124,7 +124,6 @@ public class HandleWorkflow {
     public static final String ALERT_MESSAGE = "Possibly CATASTROPHIC failure";
     public static final String SYSTEM_ENTITIES_CREATED_MSG = "System entities created";
 
-    private final boolean quiescenceEnabled;
     private final StreamMode streamMode;
     private final NetworkInfo networkInfo;
     private final StakePeriodChanges stakePeriodChanges;
@@ -163,7 +162,6 @@ public class HandleWorkflow {
     // The last second for which this workflow has confirmed all scheduled transactions are executed
     private long lastExecutedSecond;
     private final NodeRewardManager nodeRewardManager;
-    private final PlatformStateFacade platformStateFacade;
     // Flag to indicate whether we have checked for transplant updates after JVM started
     private boolean checkedForTransplant;
 
@@ -196,7 +194,6 @@ public class HandleWorkflow {
             @NonNull final BlockHashSigner blockHashSigner,
             @Nullable final AtomicBoolean systemEntitiesCreatedFlag,
             @NonNull final NodeRewardManager nodeRewardManager,
-            @NonNull final PlatformStateFacade platformStateFacade,
             @NonNull final BlockBufferService blockBufferService,
             @NonNull final Map<Class<?>, ServiceApiProvider<?>> apiProviders,
             @NonNull final QuiescenceController quiescenceController) {
@@ -224,14 +221,12 @@ public class HandleWorkflow {
         this.quiescenceController = requireNonNull(quiescenceController);
         final var config = configProvider.getConfiguration();
         this.streamMode = config.getConfigData(BlockStreamConfig.class).streamMode();
-        this.quiescenceEnabled = config.getConfigData(QuiescenceConfig.class).enabled();
         this.hintsService = requireNonNull(hintsService);
         this.historyService = requireNonNull(historyService);
         this.blockHashSigner = requireNonNull(blockHashSigner);
         this.currentPlatformStatus = requireNonNull(currentPlatformStatus);
         this.nodeRewardManager = requireNonNull(nodeRewardManager);
         this.systemEntitiesCreatedFlag = systemEntitiesCreatedFlag;
-        this.platformStateFacade = requireNonNull(platformStateFacade);
         this.blockBufferService = requireNonNull(blockBufferService);
         this.apiProviders = requireNonNull(apiProviders);
     }
@@ -331,7 +326,7 @@ public class HandleWorkflow {
             }
 
             // Update the latest freeze round after everything is handled
-            if (platformStateFacade.isFreezeRound(state, round)) {
+            if (isFreezeRound(state, round)) {
                 // If this is a freeze round, we need to update the freeze info state
                 final var platformStateStore =
                         new WritablePlatformStateStore(state.getWritableStates(PlatformStateService.NAME));
@@ -364,9 +359,7 @@ public class HandleWorkflow {
             if (streamMode != RECORDS) {
                 writeEventHeader(event);
             }
-
             final var creator = networkInfo.nodeInfo(event.getCreatorId().id());
-
             final BiConsumer<StateSignatureTransaction, Bytes> shortCircuitTxnCallback = (txn, bytes) -> {
                 if (txn != null) {
                     final var scopedTxn =
@@ -374,11 +367,12 @@ public class HandleWorkflow {
                     stateSignatureTxnCallback.accept(scopedTxn);
                 }
 
-                final var txnItem =
-                        BlockItem.newBuilder().signedTransaction(bytes).build();
-                blockStreamManager.writeItem(txnItem);
+                if (streamMode != RECORDS) {
+                    final var txnItem =
+                            BlockItem.newBuilder().signedTransaction(bytes).build();
+                    blockStreamManager.writeItem(txnItem);
+                }
             };
-
             logStartEvent(event, creator);
             for (final var it = event.consensusTransactionIterator(); it.hasNext(); ) {
                 final var platformTxn = it.next();
@@ -408,6 +402,12 @@ public class HandleWorkflow {
                     receiptEntriesBatchSize,
                     blockStreamManager,
                     streamMode);
+            // If using just a record stream, we check for quiescence after every round instead of after every block;
+            // since with streamMode=RECORDS, "blocks" (.rcd files) stop being created exactly when we want to quiesce
+            // (when there are no user txs being created)
+            if (streamMode == RECORDS) {
+                ((BlockRecordManagerImpl) blockRecordManager).maybeQuiesce(state);
+            }
         }
         final boolean isGenesis =
                 switch (streamMode) {
@@ -559,10 +559,21 @@ public class HandleWorkflow {
         return true;
     }
 
+    /**
+     * Executes all scheduled transactions that are due to expire in the interval
+     * {@code [lastIntervalProcessTime, consensusNow]} and returns whether any were executed.
+     * @param state the state to execute scheduled transactions from
+     * @param consensusNow the current consensus time
+     * @param proximalCreatorInfo the node info of the "closest" event creator
+     * @return whether any scheduled transactions were executed
+     */
     private boolean executeScheduledTransactions(
             @NonNull final State state,
             @NonNull final Instant consensusNow,
-            @NonNull final NodeInfo proximalCreatorInfo) {
+            @Nullable final NodeInfo proximalCreatorInfo) {
+        if (proximalCreatorInfo == null) {
+            return false;
+        }
         var executionStart = streamMode == RECORDS
                 ? blockRecordManager.lastIntervalProcessTime()
                 : blockStreamManager.lastIntervalProcessTime();
