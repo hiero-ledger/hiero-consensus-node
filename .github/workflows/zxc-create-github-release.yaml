@@ -196,7 +196,7 @@ jobs:
           echo "Creating the GitHub Release for version ${{ inputs.release-version  }}"
           echo "Downloaded Release Notes artifact:"
           ls
-          cat RELEASE_NOTES.md
+          cat ${{ github.workspace }}/RELEASE_NOTES.md
 
       - name: Create Official Github Release
         if: ${{ inputs.create-release == 'true' && inputs.dry-run == 'false' }}
@@ -207,4 +207,4 @@ jobs:
           draft: false
           generateReleaseNotes: true
           skipIfReleaseExists: true
-          bodyFile: RELEASE_NOTES.md
+          bodyFile: ${{ github.workspace }}/RELEASE_NOTES.md
