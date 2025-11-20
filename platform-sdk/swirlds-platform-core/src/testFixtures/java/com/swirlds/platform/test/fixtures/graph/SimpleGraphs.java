@@ -140,7 +140,7 @@ public class SimpleGraphs {
      *
      * </pre>
      */
-    public static List<EventImpl> graph9e3n(final Random random) {
+    public static List<EventImpl> graph9e3n(final Random random) {//TODO return SimpleGraph
         // generation 0
         final EventImpl e0 = createEventImpl(
                 new TestingEventBuilder(random)
