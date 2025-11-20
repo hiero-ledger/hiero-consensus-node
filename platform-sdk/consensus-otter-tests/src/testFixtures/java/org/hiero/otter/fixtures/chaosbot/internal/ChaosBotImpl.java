@@ -76,6 +76,8 @@ public class ChaosBotImpl implements ChaosBot {
     @SuppressWarnings("DataFlowIssue")
     @Override
     public void runChaos(@NonNull final Duration duration) {
+        log.info("Run chaos bot for {}", duration);
+
         final Network network = env.network();
         final TimeManager timeManager = env.timeManager();
         final Instant chaosEndTime = timeManager.now().plus(duration);
