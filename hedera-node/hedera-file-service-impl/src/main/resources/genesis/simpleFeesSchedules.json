@@ -30,7 +30,9 @@
     { "name":  "CUSTOM_FEE",                     "fee": 0 },
     { "name":  "GAS",                            "fee": 1 },
     { "name":  "ALLOWANCES",                     "fee": 2000 },
-    { "name":  "AIRDROPS",                       "fee": 8800 }
+    { "name":  "AIRDROPS",                       "fee": 8800 },
+    { "name":  "CONSENSUS_CREATE_TOPIC_WITH_CUSTOM_FEE", "fee": 19999000000},
+    { "name":  "CONSENSUS_SUBMIT_MESSAGE_WITH_CUSTOM_FEE", "fee": 500000000}
   ],
   "services": [
     {
@@ -74,7 +76,8 @@
           "name": "ConsensusCreateTopic",
           "baseFee": 99000000,
           "extras": [
-            { "name": "KEYS", "includedCount": 0 }
+            { "name": "KEYS", "includedCount": 0 },
+            { "name": "CONSENSUS_CREATE_TOPIC_WITH_CUSTOM_FEE", "includedCount": 0}
           ]
         },
         {
@@ -88,7 +91,8 @@
           "name": "ConsensusSubmitMessage",
           "baseFee": 0,
           "extras": [
-            { "name": "BYTES",      "includedCount": 100 }
+            { "name": "BYTES",      "includedCount": 100 },
+            { "name": "CONSENSUS_SUBMIT_MESSAGE_WITH_CUSTOM_FEE", "includedCount": 0}
           ]
         },
         {
