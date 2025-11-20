@@ -10,6 +10,7 @@ import com.swirlds.platform.ConsensusImpl;
 import com.swirlds.platform.consensus.ConsensusConfig;
 import com.swirlds.platform.consensus.EventWindowUtils;
 import com.swirlds.platform.event.linking.ConsensusLinker;
+import com.swirlds.platform.event.linking.DefaultLinkerLogsAndMetrics;
 import com.swirlds.platform.freeze.FreezeCheckHolder;
 import com.swirlds.platform.internal.EventImpl;
 import com.swirlds.platform.metrics.ConsensusEngineMetrics;
@@ -71,7 +72,9 @@ public class DefaultConsensusEngine implements ConsensusEngine {
         final ConsensusMetrics consensusMetrics = new ConsensusMetricsImpl(selfId, platformContext.getMetrics());
         consensus = new ConsensusImpl(platformContext, consensusMetrics, rosterHistory.getCurrentRoster());
 
-        linker = new ConsensusLinker(platformContext, rosterHistory);
+        linker = new ConsensusLinker(
+                new DefaultLinkerLogsAndMetrics(platformContext.getMetrics(), platformContext.getTime()),
+                rosterHistory);
         futureEventBuffer = new FutureEventBuffer(
                 platformContext.getMetrics(), FutureEventBufferingOption.PENDING_CONSENSUS_ROUND, "consensus");
         roundsNonAncient = platformContext

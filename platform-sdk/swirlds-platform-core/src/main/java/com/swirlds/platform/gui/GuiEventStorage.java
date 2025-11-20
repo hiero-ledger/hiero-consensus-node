@@ -4,15 +4,18 @@ package com.swirlds.platform.gui;
 import static org.hiero.consensus.model.event.EventConstants.FIRST_GENERATION;
 
 import com.hedera.hapi.node.state.roster.Roster;
+import com.hedera.hapi.node.state.roster.RoundRosterPair;
 import com.hedera.hapi.platform.event.GossipEvent;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.Consensus;
 import com.swirlds.platform.ConsensusImpl;
 import com.swirlds.platform.consensus.ConsensusConfig;
-import com.swirlds.platform.consensus.RoundCalculationUtils;
-import com.swirlds.platform.event.linking.SimpleLinker;
+import com.swirlds.platform.consensus.EventWindowUtils;
+import com.swirlds.platform.event.linking.ConsensusLinker;
+import com.swirlds.platform.event.linking.NoOpLinkerLogsAndMetrics;
 import com.swirlds.platform.internal.EventImpl;
 import com.swirlds.platform.metrics.NoOpConsensusMetrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -22,7 +25,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import org.hiero.consensus.model.event.PlatformEvent;
+import org.hiero.consensus.model.hashgraph.ConsensusConstants;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
+import org.hiero.consensus.roster.RosterHistory;
+import org.hiero.consensus.roster.RosterUtils;
 
 /**
  * This class is responsible for storing events utilized by the GUI.
@@ -35,7 +41,7 @@ public class GuiEventStorage {
     private long maxGeneration = FIRST_GENERATION;
 
     private final Consensus consensus;
-    private final SimpleLinker linker;
+    private final ConsensusLinker linker;
     private final Configuration configuration;
     private ConsensusRound lastConsensusRound;
     private Map<GossipEvent, BranchedEventMetadata> branchedEventsMetadata = new HashMap<>();
@@ -44,7 +50,7 @@ public class GuiEventStorage {
      * Creates an empty instance
      *
      * @param configuration this node's configuration
-     * @param roster   the network's roster
+     * @param roster the network's roster
      */
     public GuiEventStorage(@NonNull final Configuration configuration, @NonNull final Roster roster) {
 
@@ -52,18 +58,28 @@ public class GuiEventStorage {
         final PlatformContext platformContext = PlatformContext.create(configuration);
 
         this.consensus = new ConsensusImpl(platformContext, new NoOpConsensusMetrics(), roster);
-        this.linker = new SimpleLinker();
+        this.linker = new ConsensusLinker(NoOpLinkerLogsAndMetrics.getInstance(), createRosterHistory(roster));
+    }
+
+    private RosterHistory createRosterHistory(@NonNull final Roster roster) {
+        final Bytes rosterHash = RosterUtils.hash(roster).getBytes();
+        final RoundRosterPair pair = RoundRosterPair.newBuilder()
+                .roundNumber(ConsensusConstants.ROUND_FIRST)
+                .activeRosterHash(rosterHash)
+                .build();
+        return new RosterHistory(List.of(pair), Map.of(rosterHash, roster));
     }
 
     /**
      * Creates an instance with the given consensus, linker, and configuration.
+     *
      * @param consensus the consensus object
      * @param linker the linker object
      * @param configuration the configuration object
      */
     public GuiEventStorage(
             @NonNull final Consensus consensus,
-            @NonNull final SimpleLinker linker,
+            @NonNull final ConsensusLinker linker,
             @NonNull final Configuration configuration) {
         this.consensus = consensus;
         this.linker = linker;
@@ -104,7 +120,7 @@ public class GuiEventStorage {
         }
         lastConsensusRound = rounds.getLast();
 
-        linker.setNonAncientThreshold(rounds.getLast().getEventWindow().ancientThreshold());
+        linker.setEventWindow(rounds.getLast().getEventWindow());
     }
 
     /**
@@ -116,8 +132,8 @@ public class GuiEventStorage {
     public synchronized void handleSnapshotOverride(@NonNull final ConsensusSnapshot snapshot) {
         consensus.loadSnapshot(snapshot);
         linker.clear();
-        linker.setNonAncientThreshold(RoundCalculationUtils.getAncientThreshold(
-                configuration.getConfigData(ConsensusConfig.class).roundsNonAncient(), snapshot));
+        linker.setEventWindow(EventWindowUtils.createEventWindow(
+                snapshot, configuration.getConfigData(ConsensusConfig.class).roundsNonAncient()));
         lastConsensusRound = null;
     }
 

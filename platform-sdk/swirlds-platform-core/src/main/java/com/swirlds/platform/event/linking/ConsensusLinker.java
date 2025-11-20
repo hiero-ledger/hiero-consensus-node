@@ -14,6 +14,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.stream.Stream;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
@@ -67,10 +69,11 @@ public class ConsensusLinker {
     /**
      * Constructor
      *
-     * @param platformContext the platform context
+     * @param logsAndMetrics the logs and metrics
+     * @param rosterHistory the roster history
      */
-    public ConsensusLinker(@NonNull final PlatformContext platformContext, @NonNull final RosterHistory rosterHistory) {
-        this.logsAndMetrics = new LinkerLogsAndMetrics(platformContext.getMetrics(), platformContext.getTime());
+    public ConsensusLinker(@NonNull final LinkerLogsAndMetrics logsAndMetrics, @NonNull final RosterHistory rosterHistory) {
+        this.logsAndMetrics =requireNonNull(logsAndMetrics);
         this.rosterHistory = requireNonNull(rosterHistory);
         this.eventWindow = EventWindow.getGenesisEventWindow();
         this.parentDescriptorMap =
@@ -90,14 +93,8 @@ public class ConsensusLinker {
             return null;
         }
 
-        final EventImpl selfParent = getParentToLink(event, event.getSelfParent());
-
-        // FUTURE WORK: Extend other parent linking to support multiple other parents.
-        // Until then, take the first parent in the list.
-        final List<EventDescriptorWrapper> otherParents = getOtherParents(event);
-        final EventImpl otherParent = otherParents.isEmpty() ? null : getParentToLink(event, otherParents.getFirst());
-
-        final EventImpl linkedEvent = new EventImpl(event, selfParent, otherParent);
+        final List<EventImpl> parents = getParents(event);
+        final EventImpl linkedEvent = new EventImpl(event, parents);
         EventCounter.incrementLinkedEventCount();
 
         final EventDescriptorWrapper eventDescriptorWrapper = event.getDescriptor();
@@ -108,12 +105,12 @@ public class ConsensusLinker {
     }
 
     /**
-     * Get the other parents for the given event, taking into account special handling for size 1 networks.
+     * Get the parents for the given event, taking into account special handling for size 1 networks.
      *
      * @param event the event to get other parents for
      * @return the other parents to use
      */
-    private List<EventDescriptorWrapper> getOtherParents(@NonNull final PlatformEvent event) {
+    private List<EventImpl> getParents(@NonNull final PlatformEvent event) {
         final Roster roster = rosterHistory.getRosterForRound(event.getBirthRound());
         if (roster == null) {
             logsAndMetrics.missingRosterForEvent(event, rosterHistory);
@@ -121,13 +118,19 @@ public class ConsensusLinker {
         }
 
         if (roster.rosterEntries().size() > 1) {
-            return event.getOtherParents();
+            return event.getAllParents().stream()
+                    .map(ed -> getParentToLink(event, ed))
+                    .filter(Objects::nonNull)
+                    .toList();
         } else if (event.getSelfParent() != null) {
             // There is a quirk in size 1 networks where we can only
-            // reach consensus if the self parent is also the other parent.
+            // reach consensus if the self-parent is also the other parent.
             // Unexpected, but harmless. So just use the same event
             // as both parents until that issue is resolved.
-            return List.of(event.getSelfParent());
+            return Stream.of(event.getSelfParent(), event.getSelfParent())
+                    .map(ed -> getParentToLink(event, ed))
+                    .filter(Objects::nonNull)
+                    .toList();
         }
 
         return List.of();
@@ -152,6 +155,16 @@ public class ConsensusLinker {
     }
 
     /**
+     * Get all non-ancient events tracked by this linker.
+     *
+     * @return all non-ancient events
+     */
+    @NonNull
+    public List<EventImpl> getNonAncientEvents() {
+        return parentHashMap.values().stream().toList();
+    }
+
+    /**
      * Clear the internal state of this linker.
      */
     public void clear() {
@@ -170,7 +183,7 @@ public class ConsensusLinker {
      *     <li>The parent's time created is greater than or equal to the child's time created</li>
      * </ul>
      *
-     * @param child            the child event
+     * @param child the child event
      * @param parentDescriptor the event descriptor for the claimed parent
      * @return the parent to link, or null if no parent should be linked
      */
