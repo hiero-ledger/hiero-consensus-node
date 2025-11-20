@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.cli;
 
-import static com.swirlds.platform.state.service.PlatformStateFacade.DEFAULT_PLATFORM_STATE_FACADE;
+import static com.swirlds.platform.state.service.PlatformStateUtils.bulkUpdateOf;
 import static com.swirlds.platform.state.snapshot.SavedStateMetadata.NO_NODE_ID;
 import static com.swirlds.platform.state.snapshot.SignedStateFileWriter.writeSignedStateFilesToDirectory;
 
@@ -14,7 +14,6 @@ import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.platform.config.DefaultConfiguration;
 import com.swirlds.platform.consensus.SyntheticSnapshot;
 import com.swirlds.platform.state.PlatformStateAccessor;
-import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.snapshot.DeserializedSignedState;
 import com.swirlds.platform.state.snapshot.SignedStateFileReader;
@@ -69,17 +68,15 @@ public class GenesisPlatformStateCommand extends AbstractCommand {
                 });
 
         System.out.printf("Reading from %s %n", statePath.toAbsolutePath());
-        final PlatformStateFacade stateFacade = DEFAULT_PLATFORM_STATE_FACADE;
         final DeserializedSignedState deserializedSignedState = SignedStateFileReader.readState(
                 statePath,
                 (virtualMap) -> {
                     // FUTURE WORK: https://github.com/hiero-ledger/hiero-consensus-node/issues/19003
                     throw new UnsupportedOperationException();
                 },
-                stateFacade,
                 platformContext);
         try (final ReservedSignedState reservedSignedState = deserializedSignedState.reservedSignedState()) {
-            stateFacade.bulkUpdateOf(reservedSignedState.get().getState(), v -> {
+            bulkUpdateOf(reservedSignedState.get().getState(), v -> {
                 System.out.printf("Replacing platform data %n");
                 v.setRound(PlatformStateAccessor.GENESIS_ROUND);
                 v.setSnapshot(SyntheticSnapshot.getGenesisSnapshot());
@@ -99,12 +96,7 @@ public class GenesisPlatformStateCommand extends AbstractCommand {
                     .get();
             System.out.printf("Writing modified state to %s %n", outputDir.toAbsolutePath());
             writeSignedStateFilesToDirectory(
-                    platformContext,
-                    NO_NODE_ID,
-                    outputDir,
-                    reservedSignedState.get(),
-                    stateFacade,
-                    stateLifecycleManager);
+                    platformContext, NO_NODE_ID, outputDir, reservedSignedState.get(), stateLifecycleManager);
         }
 
         return 0;

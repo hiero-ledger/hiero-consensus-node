@@ -7,6 +7,9 @@ import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.STATE_TO_DISK;
 import static com.swirlds.platform.config.internal.PlatformConfigUtils.writeSettingsUsed;
 import static com.swirlds.platform.event.preconsensus.BestEffortPcesFileCopy.copyPcesFilesRetryOnFailure;
+import static com.swirlds.platform.state.service.PlatformStateUtils.ancientThresholdOf;
+import static com.swirlds.platform.state.service.PlatformStateUtils.getInfoString;
+import static com.swirlds.platform.state.service.PlatformStateUtils.roundOf;
 import static com.swirlds.platform.state.snapshot.SignedStateFileUtils.CURRENT_ROSTER_FILE_NAME;
 import static com.swirlds.platform.state.snapshot.SignedStateFileUtils.HASH_INFO_FILE_NAME;
 import static com.swirlds.platform.state.snapshot.SignedStateFileUtils.INIT_SIG_SET_FILE_VERSION;
@@ -20,7 +23,6 @@ import com.swirlds.common.merkle.utility.MerkleTreeVisualizer;
 import com.swirlds.logging.legacy.payload.StateSavedToDiskPayload;
 import com.swirlds.platform.config.StateConfig;
 import com.swirlds.platform.recovery.emergencyfile.EmergencyRecoveryFile;
-import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.SigSet;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.state.MerkleNodeState;
@@ -57,11 +59,10 @@ public final class SignedStateFileWriter {
     public static void writeHashInfoFile(
             @NonNull final PlatformContext platformContext,
             @NonNull final Path directory,
-            @NonNull final MerkleNodeState state,
-            @NonNull final PlatformStateFacade platformStateFacade)
+            @NonNull final MerkleNodeState state)
             throws IOException {
         final StateConfig stateConfig = platformContext.getConfiguration().getConfigData(StateConfig.class);
-        final String platformInfo = platformStateFacade.getInfoString(state, stateConfig.debugHashDepth());
+        final String platformInfo = getInfoString(state, stateConfig.debugHashDepth());
 
         logger.info(
                 STATE_TO_DISK.getMarker(),
@@ -88,18 +89,14 @@ public final class SignedStateFileWriter {
      * @param signedState the signed state being written
      */
     private static void writeMetadataFile(
-            @Nullable final NodeId selfId,
-            @NonNull final Path directory,
-            @NonNull final SignedState signedState,
-            @NonNull final PlatformStateFacade platformStateFacade)
+            @Nullable final NodeId selfId, @NonNull final Path directory, @NonNull final SignedState signedState)
             throws IOException {
         requireNonNull(directory, "directory must not be null");
         requireNonNull(signedState, "signedState must not be null");
 
         final Path metadataFile = directory.resolve(SavedStateMetadata.FILE_NAME);
 
-        SavedStateMetadata.create(signedState, selfId, Instant.now(), platformStateFacade)
-                .write(metadataFile);
+        SavedStateMetadata.create(signedState, selfId, Instant.now()).write(metadataFile);
     }
 
     /**
@@ -131,7 +128,6 @@ public final class SignedStateFileWriter {
      * @param platformContext the platform context
      * @param selfId          the id of the platform
      * @param directory       the directory where all files should be placed
-     * @param platformStateFacade the facade to access the platform state
      * @param stateLifecycleManager the state lifecycle manager
      */
     public static void writeSignedStateFilesToDirectory(
@@ -139,16 +135,14 @@ public final class SignedStateFileWriter {
             @Nullable final NodeId selfId,
             @NonNull final Path directory,
             @NonNull final SignedState signedState,
-            @NonNull final PlatformStateFacade platformStateFacade,
             @NonNull final StateLifecycleManager stateLifecycleManager)
             throws IOException {
         requireNonNull(platformContext);
         requireNonNull(directory);
         requireNonNull(signedState);
-        requireNonNull(platformStateFacade);
         requireNonNull(stateLifecycleManager);
 
-        final long round = platformStateFacade.roundOf(signedState.getState());
+        final long round = roundOf(signedState.getState());
         try {
             logger.info(STATE_TO_DISK.getMarker(), "Creating a snapshot on demand in {} for {}", directory, round);
             stateLifecycleManager.createSnapshot(signedState.getState(), directory);
@@ -163,8 +157,8 @@ public final class SignedStateFileWriter {
         }
 
         writeSignatureSetFile(directory, signedState);
-        writeHashInfoFile(platformContext, directory, signedState.getState(), platformStateFacade);
-        writeMetadataFile(selfId, directory, signedState, platformStateFacade);
+        writeHashInfoFile(platformContext, directory, signedState.getState());
+        writeMetadataFile(selfId, directory, signedState);
         writeEmergencyRecoveryFile(directory, signedState);
         final Roster currentRoster = signedState.getRoster();
         writeRosterFile(directory, currentRoster);
@@ -175,7 +169,7 @@ public final class SignedStateFileWriter {
                     platformContext,
                     selfId,
                     directory,
-                    platformStateFacade.ancientThresholdOf(signedState.getState()),
+                    ancientThresholdOf(signedState.getState()),
                     signedState.getRound());
         }
     }
@@ -203,7 +197,6 @@ public final class SignedStateFileWriter {
      * @param selfId              the id of the platform
      * @param savedStateDirectory the directory where the state will be stored
      * @param stateToDiskReason   the reason the state is being written to disk
-     * @param platformStateFacade the facade to access the platform state
      * @param stateLifecycleManager the state lifecycle manager
      */
     public static void writeSignedStateToDisk(
@@ -212,7 +205,6 @@ public final class SignedStateFileWriter {
             @NonNull final Path savedStateDirectory,
             @Nullable final StateToDiskReason stateToDiskReason,
             @NonNull final SignedState signedState,
-            @NonNull final PlatformStateFacade platformStateFacade,
             @NonNull final StateLifecycleManager stateLifecycleManager)
             throws IOException {
 
@@ -232,12 +224,7 @@ public final class SignedStateFileWriter {
             executeAndRename(
                     savedStateDirectory,
                     directory -> writeSignedStateFilesToDirectory(
-                            platformContext,
-                            selfId,
-                            directory,
-                            signedState,
-                            platformStateFacade,
-                            stateLifecycleManager),
+                            platformContext, selfId, directory, signedState, stateLifecycleManager),
                     platformContext.getConfiguration());
 
             logger.info(STATE_TO_DISK.getMarker(), () -> new StateSavedToDiskPayload(

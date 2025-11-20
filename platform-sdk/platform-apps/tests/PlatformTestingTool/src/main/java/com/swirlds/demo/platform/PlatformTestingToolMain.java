@@ -72,7 +72,6 @@ import com.swirlds.platform.ParameterProvider;
 import com.swirlds.platform.listeners.ReconnectCompleteListener;
 import com.swirlds.platform.listeners.StateWriteToDiskCompleteListener;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
-import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.system.DefaultSwirldMain;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.SystemExitCode;
@@ -321,7 +320,7 @@ public class PlatformTestingToolMain extends DefaultSwirldMain<PlatformTestingTo
     public PlatformTestingToolMain() {
         // the config needs to be loaded before the init() method
         config = PlatformConfig.getDefault();
-        consensusStateEventHandler = new PlatformTestingToolConsensusStateEventHandler(new PlatformStateFacade());
+        consensusStateEventHandler = new PlatformTestingToolConsensusStateEventHandler();
     }
 
     /**
