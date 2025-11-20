@@ -8,7 +8,6 @@ import com.swirlds.platform.metrics.ReconnectMetrics;
 import com.swirlds.platform.reconnect.FallenBehindMonitor;
 import com.swirlds.platform.reconnect.ReconnectStatePeerProtocol;
 import com.swirlds.platform.reconnect.ReconnectStateTeacherThrottle;
-import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.StateLifecycleManager;
@@ -33,7 +32,6 @@ public class ReconnectStateSyncProtocol implements Protocol {
     private final ReconnectMetrics reconnectMetrics;
     private final ThreadManager threadManager;
     private final FallenBehindMonitor fallenBehindManager;
-    private final PlatformStateFacade platformStateFacade;
 
     private final Time time;
     private final PlatformContext platformContext;
@@ -50,7 +48,6 @@ public class ReconnectStateSyncProtocol implements Protocol {
             @NonNull final Duration reconnectSocketTimeout,
             @NonNull final ReconnectMetrics reconnectMetrics,
             @NonNull final FallenBehindMonitor fallenBehindManager,
-            @NonNull final PlatformStateFacade platformStateFacade,
             @NonNull final ReservedSignedStateResultPromise reservedSignedStateResultPromise,
             @NonNull final StateLifecycleManager stateLifecycleManager,
             @NonNull final Function<VirtualMap, MerkleNodeState> createStateFromVirtualMap) {
@@ -62,7 +59,6 @@ public class ReconnectStateSyncProtocol implements Protocol {
         this.reconnectSocketTimeout = Objects.requireNonNull(reconnectSocketTimeout);
         this.reconnectMetrics = Objects.requireNonNull(reconnectMetrics);
         this.fallenBehindManager = Objects.requireNonNull(fallenBehindManager);
-        this.platformStateFacade = platformStateFacade;
         this.time = Objects.requireNonNull(platformContext.getTime());
         this.reservedSignedStateResultPromise = Objects.requireNonNull(reservedSignedStateResultPromise);
         this.stateLifecycleManager = Objects.requireNonNull(stateLifecycleManager);
@@ -86,7 +82,6 @@ public class ReconnectStateSyncProtocol implements Protocol {
                 fallenBehindManager,
                 platformStatus::get,
                 time,
-                platformStateFacade,
                 reservedSignedStateResultPromise,
                 stateLifecycleManager,
                 createStateFromVirtualMap);

@@ -198,7 +198,7 @@ final class BlockRecordManagerTest extends AppTestBase {
                 quiescedHeartbeat,
                 platform)) {
             if (!startMode.equals("GENESIS")) {
-                blockRecordManager.switchBlocksAt(FORCED_BLOCK_SWITCH_TIME, state);
+                blockRecordManager.switchBlocksAt(FORCED_BLOCK_SWITCH_TIME);
             }
             assertThat(blockRecordManager.blockTimestamp()).isNotNull();
             assertThat(blockRecordManager.blockNo()).isEqualTo(blockRecordManager.lastBlockNo() + 1);
@@ -289,7 +289,7 @@ final class BlockRecordManagerTest extends AppTestBase {
                 quiescenceController,
                 quiescedHeartbeat,
                 platform)) {
-            blockRecordManager.switchBlocksAt(FORCED_BLOCK_SWITCH_TIME, state);
+            blockRecordManager.switchBlocksAt(FORCED_BLOCK_SWITCH_TIME);
             // write a blocks & record files
             int transactionCount = 0;
             Bytes runningHash = STARTING_RUNNING_HASH_OBJ.hash();

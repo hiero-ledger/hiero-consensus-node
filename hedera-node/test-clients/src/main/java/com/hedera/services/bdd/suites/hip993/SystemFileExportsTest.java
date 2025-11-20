@@ -415,7 +415,7 @@ public class SystemFileExportsTest {
         final AtomicReference<Map<FileID, Bytes>> preGenesisContents = new AtomicReference<>();
         return hapiTest(
                 eventuallyAssertingExplicitPassWithReplay(
-                        selectedItems(validatorFor(preGenesisContents), 17, (ignore, item) -> item.getRecord()
+                        selectedItems(validatorFor(preGenesisContents), 18, (ignore, item) -> item.getRecord()
                                 .getReceipt()
                                 .hasFileID()),
                         Duration.ofSeconds(10)),

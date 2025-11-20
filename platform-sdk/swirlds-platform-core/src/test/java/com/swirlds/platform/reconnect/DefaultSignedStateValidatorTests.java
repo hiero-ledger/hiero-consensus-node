@@ -2,7 +2,6 @@
 package com.swirlds.platform.reconnect;
 
 import static com.swirlds.common.utility.Threshold.MAJORITY;
-import static com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade.TEST_PLATFORM_STATE_FACADE;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -255,11 +254,10 @@ class DefaultSignedStateValidatorTests {
         final PlatformContext platformContext =
                 TestPlatformContextBuilder.create().build();
 
-        validator = new DefaultSignedStateValidator(platformContext, TEST_PLATFORM_STATE_FACADE);
+        validator = new DefaultSignedStateValidator(platformContext);
 
         final SignedState signedState = stateSignedByNodes(signingNodes);
-        final SignedStateValidationData originalData =
-                new SignedStateValidationData(signedState.getState(), roster, TEST_PLATFORM_STATE_FACADE);
+        final SignedStateValidationData originalData = new SignedStateValidationData(signedState.getState(), roster);
 
         final boolean shouldSucceed = stateHasEnoughWeight(nodes, signingNodes);
         if (shouldSucceed) {

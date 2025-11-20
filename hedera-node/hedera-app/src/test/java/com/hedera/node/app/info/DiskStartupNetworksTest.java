@@ -8,7 +8,6 @@ import static com.hedera.node.app.info.DiskStartupNetworks.OVERRIDE_NETWORK_JSON
 import static com.hedera.node.app.info.DiskStartupNetworks.fromLegacyAddressBook;
 import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema.NODES_STATE_ID;
 import static com.swirlds.platform.state.service.PlatformStateService.PLATFORM_STATE_SERVICE;
-import static com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade.TEST_PLATFORM_STATE_FACADE;
 import static java.util.Objects.requireNonNull;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThatNoException;
@@ -270,7 +269,7 @@ class DiskStartupNetworksTest {
     void writesExpectedStateInfo() throws IOException, ParseException {
         final var state = stateContainingInfoFrom(NETWORK);
         final var loc = tempDir.resolve("reproduced-network.json");
-        DiskStartupNetworks.writeNetworkInfo(state, loc, EnumSet.allOf(InfoType.class), TEST_PLATFORM_STATE_FACADE);
+        DiskStartupNetworks.writeNetworkInfo(state, loc, EnumSet.allOf(InfoType.class));
         try (final var fin = Files.newInputStream(loc)) {
             final var network = Network.JSON.parse(new ReadableStreamingData(fin));
             Assertions.assertThat(network).isEqualTo(NETWORK);
@@ -298,7 +297,7 @@ class DiskStartupNetworksTest {
                         tssBaseService,
                         PLATFORM_STATE_SERVICE,
                         new EntityIdServiceImpl(),
-                        new RosterServiceImpl(roster -> true, (r, b) -> {}, () -> state, TEST_PLATFORM_STATE_FACADE),
+                        new RosterServiceImpl(roster -> true, (r, b) -> {}, () -> state),
                         new AddressBookServiceImpl())
                 .forEach(servicesRegistry::register);
         final var migrator = new FakeServiceMigrator();
@@ -311,8 +310,7 @@ class DiskStartupNetworksTest {
                 DEFAULT_CONFIG,
                 startupNetworks,
                 storeMetricsService,
-                configProvider,
-                TEST_PLATFORM_STATE_FACADE);
+                configProvider);
         addRosterInfo(state, network);
         addAddressBookInfo(state, network);
         return state;
