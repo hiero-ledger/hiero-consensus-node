@@ -96,6 +96,11 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
                 embedding = Embedding.NA;
                 return;
             }
+            if (hasAnnotatedTestNode(testPlan, Set.of(DualNetworkHapiTest.class))) {
+                log.info("Test plan includes DualNetworkHapiTest annotation, skipping shared network startup.");
+                embedding = Embedding.NA;
+                return;
+            }
             // Do nothing if the test plan has no HapiTests of any kind
             if (!hasAnnotatedTestNode(
                     testPlan,

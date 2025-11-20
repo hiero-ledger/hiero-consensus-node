@@ -95,7 +95,6 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
     private static int nextExternalGossipPort;
     private static int nextPrometheusPort;
     private static boolean nextPortsInitialized = false;
-
     private final Map<Long, AccountID> pendingNodeAccounts = new HashMap<>();
     private final AtomicReference<DeferredRun> ready = new AtomicReference<>();
 
@@ -196,6 +195,21 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
         final var sharedNetwork = liveNetwork(networkName, size, shard, realm);
         NetworkTargetingExtension.SHARED_NETWORK.set(sharedNetwork);
         return sharedNetwork;
+    }
+
+    /**
+     * Creates an isolated subprocess network that is not registered as the shared network.
+     *
+     * @param networkName the name of the network
+     * @param size the number of nodes
+     * @param shard the shard id
+     * @param realm the realm id
+     * @return the isolated subprocess network
+     */
+    public static synchronized SubProcessNetwork newIsolatedNetwork(
+            @NonNull final String networkName, final int size, final long shard, final long realm) {
+        requireNonNull(networkName);
+        return liveNetwork(networkName, size, shard, realm);
     }
 
     /**
@@ -445,7 +459,7 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
      * @param size the number of nodes in the network
      * @return the network
      */
-    private static synchronized HederaNetwork liveNetwork(
+    static synchronized SubProcessNetwork liveNetwork(
             @NonNull final String name, final int size, final long shard, final long realm) {
         if (!nextPortsInitialized) {
             initializeNextPortsForNetwork(size);
@@ -557,8 +571,9 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
                 .build();
     }
 
-    private static void initializeNextPortsForNetwork(final int size) {
-        initializeNextPortsForNetwork(size, randomPortAfter(FIRST_CANDIDATE_PORT, size * PORTS_PER_NODE));
+    private static synchronized void initializeNextPortsForNetwork(final int size) {
+        final int firstGrpcPort = randomPortAfter(FIRST_CANDIDATE_PORT, size * PORTS_PER_NODE);
+        initializeNextPortsForNetwork(size, firstGrpcPort);
     }
 
     /**
@@ -567,7 +582,7 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
      * @param size the number of nodes in the network
      * @param firstGrpcPort the first gRPC port
      */
-    public static void initializeNextPortsForNetwork(final int size, final int firstGrpcPort) {
+    public static synchronized void initializeNextPortsForNetwork(final int size, final int firstGrpcPort) {
         // Suppose firstGrpcPort is 10000 with 4 nodes in the network, then the port assignments are,
         //   - grpcPort = 10000, 10002, 10004, 10006
         //   - nodeOperatorPort = 10008, 10009, 10010, 10011

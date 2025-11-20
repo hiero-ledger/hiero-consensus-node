@@ -65,8 +65,10 @@ import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.junit.extensions.NetworkTargetingExtension;
 import com.hedera.services.bdd.junit.hedera.BlockNodeMode;
 import com.hedera.services.bdd.junit.hedera.BlockNodeNetwork;
+import com.hedera.services.bdd.junit.hedera.DualNetwork;
 import com.hedera.services.bdd.junit.hedera.HederaNetwork;
 import com.hedera.services.bdd.junit.hedera.HederaNode;
+import com.hedera.services.bdd.junit.hedera.NetworkRole;
 import com.hedera.services.bdd.junit.hedera.NodeSelector;
 import com.hedera.services.bdd.junit.hedera.embedded.EmbeddedHedera;
 import com.hedera.services.bdd.junit.hedera.embedded.EmbeddedNetwork;
@@ -112,6 +114,7 @@ import java.util.Collections;
 import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -1352,6 +1355,10 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
                         .withPrioritySetup(setupOverrides))));
     }
 
+    public static DualNetworkSpecBuilder dualHapiTest(@NonNull final DualNetwork dualNetwork) {
+        return new DualNetworkSpecBuilder(requireNonNull(dualNetwork));
+    }
+
     public static DynamicTest namedHapiTest(String name, @NonNull final SpecOperation... ops) {
         return DynamicTest.dynamicTest(
                 name,
@@ -1502,6 +1509,80 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
         interface Then {
             Stream<DynamicTest> then(SpecOperation... ops);
         }
+    }
+
+    public static final class DualNetworkSpecBuilder {
+        private final List<NetworkStep> steps = new ArrayList<>();
+        private final DualNetwork dualNetwork;
+
+        private DualNetworkSpecBuilder(@NonNull final DualNetwork dualNetwork) {
+            this.dualNetwork = requireNonNull(dualNetwork);
+        }
+
+        public DualNetworkSpecBuilder onPrimary(@NonNull final SpecOperation... ops) {
+            return addStep(NetworkRole.PRIMARY, ops);
+        }
+
+        public DualNetworkSpecBuilder onPeer(@NonNull final SpecOperation... ops) {
+            return addStep(NetworkRole.PEER, ops);
+        }
+
+        public Stream<DynamicTest> asDynamicTests(@NonNull final String displayName) {
+            requireNonNull(displayName);
+            if (steps.isEmpty()) {
+                throw new IllegalStateException("dualHapiTest requires at least one network step");
+            }
+            return Stream.of(DynamicTest.dynamicTest(displayName, () -> executeSteps(displayName)));
+        }
+
+        private DualNetworkSpecBuilder addStep(@NonNull final NetworkRole role, @NonNull final SpecOperation... ops) {
+            requireNonNull(role);
+            requireNonNull(ops);
+            if (ops.length > 0) {
+                steps.add(new NetworkStep(role, List.of(ops)));
+            }
+            return this;
+        }
+
+        private void executeSteps(final String displayName) {
+            int index = 1;
+            for (final var step : steps) {
+                if (step.operations().isEmpty()) {
+                    continue;
+                }
+                final var specName = String.format(
+                        "%s-%s-step-%d", displayName, step.role().name().toLowerCase(Locale.ROOT), index++);
+                final var network = step.role() == NetworkRole.PRIMARY ? dualNetwork.primary() : dualNetwork.peer();
+                runSpec(specName, step.operations(), network);
+            }
+        }
+
+        private void runSpec(final String specName, final List<SpecOperation> operations, final HederaNetwork network) {
+            final var preserved =
+                    Optional.ofNullable(PROPERTIES_TO_PRESERVE.get()).orElse(List.of());
+            final var spec = new HapiSpec(
+                    specName,
+                    setupFrom(getDefaultPropertySource()),
+                    new SpecOperation[0],
+                    new SpecOperation[0],
+                    operations.toArray(new SpecOperation[0]),
+                    preserved);
+            final var previousTarget = TARGET_NETWORK.get();
+            try {
+                TARGET_NETWORK.set(network);
+                targeted(spec).execute();
+            } catch (Throwable t) {
+                throw new RuntimeException("Failed executing dual-network step '" + specName + "'", t);
+            } finally {
+                if (previousTarget == null) {
+                    TARGET_NETWORK.remove();
+                } else {
+                    TARGET_NETWORK.set(previousTarget);
+                }
+            }
+        }
+
+        private record NetworkStep(NetworkRole role, List<SpecOperation> operations) {}
     }
 
     @Override

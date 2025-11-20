@@ -1,15 +1,20 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.interledger;
 
+import static com.hedera.services.bdd.spec.HapiPropertySource.asAccountString;
 import static com.hedera.services.bdd.spec.HapiSpec.customizedHapiTest;
+import static com.hedera.services.bdd.spec.HapiSpec.dualHapiTest;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
+import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.hedera.services.bdd.junit.DualNetworkHapiTest;
 import com.hedera.services.bdd.junit.HapiTest;
+import com.hedera.services.bdd.junit.hedera.DualNetwork;
 import com.hedera.services.bdd.junit.hedera.ExternalPath;
 import com.hedera.services.bdd.spec.queries.QueryVerbs;
 import com.hedera.services.bdd.spec.transactions.TxnVerbs;
@@ -24,12 +29,14 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.hiero.hapi.interledger.state.clpr.ClprEndpoint;
 import org.hiero.hapi.interledger.state.clpr.ClprLedgerConfiguration;
 import org.hiero.hapi.interledger.state.clpr.ClprLedgerId;
 import org.hiero.interledger.clpr.impl.client.ClprClientImpl;
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 
 public class ClprSuite {
@@ -42,6 +49,31 @@ public class ClprSuite {
     private static final String FETCH_FAILURE_MESSAGE = "CLPR Endpoint: Failed to fetch local configuration via client";
     private static final String INVALID_STATUS_TOKEN = "(status=FAIL_INVALID)";
     private static final String INVALID_BODY_STATUS_TOKEN = "(status=INVALID_TRANSACTION_BODY)";
+
+    @DualNetworkHapiTest(primarySize = 5, peerSize = 1)
+    @HapiTest
+    @DisplayName("dual-network-isolation")
+    final Stream<DynamicTest> dualNetworkIsolation(final DualNetwork dualNetwork) {
+        final var primaryAccountId = new AtomicReference<String>();
+        final var peerAccountId = new AtomicReference<String>();
+
+        return dualHapiTest(dualNetwork)
+                .onPrimary(
+                        TxnVerbs.cryptoCreate("primaryAccount")
+                                .balance(ONE_HBAR)
+                                .exposingCreatedIdTo(id -> primaryAccountId.set(asAccountString(id))),
+                        QueryVerbs.getAccountBalance(primaryAccountId::get).hasTinyBars(ONE_HBAR))
+                .onPeer(QueryVerbs.getAccountBalance(primaryAccountId::get)
+                        .hasAnswerOnlyPrecheck(com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ACCOUNT_ID))
+                .onPeer(
+                        TxnVerbs.cryptoCreate("peerAccount")
+                                .balance(ONE_HBAR)
+                                .exposingCreatedIdTo(id -> peerAccountId.set(asAccountString(id))),
+                        QueryVerbs.getAccountBalance(peerAccountId::get).hasTinyBars(ONE_HBAR))
+                .onPrimary(QueryVerbs.getAccountBalance(peerAccountId::get)
+                        .hasAnswerOnlyPrecheck(com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ACCOUNT_ID))
+                .asDynamicTests("dual-network-isolation");
+    }
 
     @HapiTest
     final Stream<DynamicTest> createsClprLedgerConfig() {
@@ -58,7 +90,7 @@ public class ClprSuite {
     }
 
     @HapiTest
-    final Stream<DynamicTest> exchangesConfigurationsViaRealClient() {
+    final Stream<DynamicTest> updatesConfigurationsViaClprClientImpl() {
         final var ledgerIdString = "clpr-ledger-" + Instant.now().toEpochMilli();
         final var ledgerId = ClprLedgerId.newBuilder()
                 .ledgerId(Bytes.wrap(ledgerIdString.getBytes(StandardCharsets.UTF_8)))
