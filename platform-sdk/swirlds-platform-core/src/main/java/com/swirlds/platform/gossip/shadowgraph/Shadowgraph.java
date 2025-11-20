@@ -558,11 +558,20 @@ public class Shadowgraph implements Clearable {
      */
     @NonNull
     private ShadowEvent insert(@NonNull final PlatformEvent event) {
-        final List<ShadowEvent> allParents = event.getAllParents()
-                .stream()
-                .map(this::shadow)
-                .filter(Objects::nonNull)
-                .toList();
+        final List<ShadowEvent> allParents = new ArrayList<>(event.getAllParents().size());
+        // If e has an unexpired parent that is not already referenced by the shadowgraph, then we log an error. This
+        // is only a sanity check, so there is no need to prevent insertion
+        for (final EventDescriptorWrapper parent : event.getAllParents()) {
+            final ShadowEvent shadow = shadow(parent);
+            final boolean known = shadow != null;
+            final boolean expired = expired(parent);
+            if (!known && !expired) {
+                logger.info(STARTUP.getMarker(), "Missing non-expired other parent for {}", event);
+            }
+            if(known){
+                allParents.add(shadow);
+            }
+        }
         final ShadowEvent se = new ShadowEvent(event, allParents);
 
         hashToShadowEvent.put(se.getBaseHash(), se);
@@ -640,32 +649,7 @@ public class Shadowgraph implements Clearable {
             return InsertableStatus.EXPIRED_EVENT;
         }
 
-        final boolean hasOP = !e.getOtherParents().isEmpty();
-        final boolean hasSP = e.getSelfParent() != null;
-
-        // If e has an unexpired parent that is not already referenced by the shadowgraph, then we log an error. This
-        // is only a sanity check, so there is no need to prevent insertion
-//        if (hasOP) {
-//            if (e.getOtherParents().size() > 1) {
-//                throw new IllegalStateException("Only one otherParent descriptor is supported");
-//            }
-//            final EventDescriptorWrapper otherParent = e.getOtherParents().getFirst();
-//            final boolean knownOP = shadow(otherParent) != null;
-//            final boolean expiredOP = expired(otherParent);
-//            if (!knownOP && !expiredOP) {
-//                logger.info(STARTUP.getMarker(), "Missing non-expired other parent for {}", e);
-//            }
-//        }
-//
-//        if (hasSP) {
-//            final boolean knownSP = shadow(e.getSelfParent()) != null;
-//            final boolean expiredSP = expired(e.getSelfParent());
-//            if (!knownSP && !expiredSP) {
-//                logger.info(STARTUP.getMarker(), "Missing non-expired self parent for {}", e);
-//            }
-//        }
-
-        // If both parents are null, then insertion is allowed. This will create
+        // If all parents are null, then insertion is allowed. This will create
         // a new tree in the forest view of the graph.
         return InsertableStatus.INSERTABLE;
     }

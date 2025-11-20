@@ -7,6 +7,7 @@ import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.platform.gossip.IntakeEventCounter;
 import com.swirlds.platform.gossip.sync.config.SyncConfig;
+import com.swirlds.platform.internal.LinkedEvent;
 import com.swirlds.platform.metrics.SyncMetrics;
 import com.swirlds.platform.reconnect.FallenBehindMonitor;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -190,7 +191,7 @@ public class AbstractShadowgraphSynchronizer {
         sendSet.addAll(unknownTips);
 
         final List<PlatformEvent> eventsTheyMayNeed =
-                sendSet.stream().map(shadowEvent -> shadowEvent.getPlatformEvent()).collect(Collectors.toCollection(ArrayList::new));
+                sendSet.stream().map(ShadowEvent::getPlatformEvent).collect(Collectors.toCollection(ArrayList::new));
 
         SyncUtils.sort(eventsTheyMayNeed);
 

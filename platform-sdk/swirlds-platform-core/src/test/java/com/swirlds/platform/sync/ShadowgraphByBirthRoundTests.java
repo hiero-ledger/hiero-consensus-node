@@ -21,6 +21,7 @@ import com.swirlds.platform.gossip.shadowgraph.ShadowEvent;
 import com.swirlds.platform.gossip.shadowgraph.Shadowgraph;
 import com.swirlds.platform.gossip.shadowgraph.ShadowgraphInsertionException;
 import com.swirlds.platform.internal.EventImpl;
+import com.swirlds.platform.internal.LinkedEvent;
 import com.swirlds.platform.test.fixtures.event.emitter.EventEmitterBuilder;
 import com.swirlds.platform.test.fixtures.event.emitter.StandardEventEmitter;
 import com.swirlds.platform.test.fixtures.sync.SyncTestUtils;
@@ -143,7 +144,7 @@ class ShadowgraphByBirthRoundTests {
                 .collect(Collectors.toSet());
 
         final Set<Hash> actualAncestors = shadowGraph.findAncestors(generatedShadowsSubset, (e) -> true).stream()
-                .map(shadowEvent1 -> shadowEvent1.getBaseHash())
+                .map(ShadowEvent::getBaseHash)
                 .collect(Collectors.toSet());
 
         for (final ShadowEvent shadowEvent : generatedShadowsSubset) {

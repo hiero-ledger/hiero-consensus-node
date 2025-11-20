@@ -7,6 +7,7 @@ import static org.hiero.base.CompareTo.isGreaterThan;
 import com.hedera.hapi.platform.event.GossipEvent;
 import com.swirlds.platform.gossip.IntakeEventCounter;
 import com.swirlds.platform.gossip.SyncException;
+import com.swirlds.platform.internal.LinkedEvent;
 import com.swirlds.platform.metrics.SyncMetrics;
 import com.swirlds.platform.network.ByteConstants;
 import com.swirlds.platform.network.Connection;
@@ -69,7 +70,7 @@ public final class SyncUtils {
             @NonNull final List<ShadowEvent> tips) {
         return () -> {
             final List<Hash> tipHashes =
-                    tips.stream().map(shadowEvent -> shadowEvent.getBaseHash()).collect(Collectors.toList());
+                    tips.stream().map(ShadowEvent::getBaseHash).collect(Collectors.toList());
 
             serializeEventWindow(connection.getDos(), eventWindow);
 
