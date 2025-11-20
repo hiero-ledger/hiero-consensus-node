@@ -141,7 +141,7 @@ import "block/stream/output/block_footer.proto";
  */
 message BlockItem {
     // Reserved for future items that require separate handling for block hash purposes.
-    reserved 13,14,15,16,17,18,19,20;
+    reserved 13,14,15,16,17,18,20;
 
     oneof item {
         /**
@@ -260,7 +260,12 @@ message BlockItem {
          * One or more Block Proof items SHALL follow this item.
          */
         com.hedera.hapi.block.stream.output.BlockFooter block_footer = 12;
-  }
+
+        /**
+         * A block item intentionally redacted from the stream.
+         */
+        RedactedItem redacted_item = 19;
+    }
 }
 
 /**

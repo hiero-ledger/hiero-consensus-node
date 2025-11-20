@@ -12,6 +12,7 @@ import static com.swirlds.merkle.test.fixtures.map.lifecycle.SaveExpectedMapHand
 import static com.swirlds.merkle.test.fixtures.map.lifecycle.SaveExpectedMapHandler.createExpectedMapName;
 import static com.swirlds.merkle.test.fixtures.map.lifecycle.SaveExpectedMapHandler.serialize;
 import static com.swirlds.metrics.api.FloatFormats.FORMAT_11_0;
+import static com.swirlds.platform.state.service.PlatformStateUtils.isFreezeRound;
 import static org.hiero.base.utility.CommonUtils.hex;
 
 import com.google.protobuf.ByteString;
@@ -51,7 +52,6 @@ import com.swirlds.merkle.test.fixtures.map.pta.MapKey;
 import com.swirlds.platform.ParameterProvider;
 import com.swirlds.platform.Utilities;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
-import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
@@ -166,7 +166,6 @@ public class PlatformTestingToolConsensusStateEventHandler
     private static RunningAverageMetric htFCQRecords;
 
     private static long htFCQRecordsCount;
-    private final PlatformStateFacade platformStateFacade;
     ///////////////////////////////////////////
     // Non copyable shared variables
     private Platform platform;
@@ -192,10 +191,6 @@ public class PlatformTestingToolConsensusStateEventHandler
 
     /** The round number of the freeze round */
     private final AtomicLong freezeRound = new AtomicLong(-1);
-
-    public PlatformTestingToolConsensusStateEventHandler(@NonNull final PlatformStateFacade platformStateFacade) {
-        this.platformStateFacade = platformStateFacade;
-    }
 
     /**
      * startup any statistics
@@ -699,7 +694,7 @@ public class PlatformTestingToolConsensusStateEventHandler
      */
     private void handleFreezeTransaction(final TestTransaction testTransaction, final State state) {
         final FreezeTransaction freezeTx = testTransaction.getFreezeTransaction();
-        FreezeTransactionHandler.freeze(freezeTx, platformStateFacade, state);
+        FreezeTransactionHandler.freeze(freezeTx, state);
     }
 
     /**
@@ -751,7 +746,7 @@ public class PlatformTestingToolConsensusStateEventHandler
         updateTransactionCounters(state);
         round.forEachEventTransaction((event, transaction) ->
                 handleConsensusTransaction(event, transaction, state, stateSignatureTransactionCallback));
-        if (platformStateFacade.isFreezeRound(state, round)) {
+        if (isFreezeRound(state, round)) {
             freezeRound.set(round.getRoundNum());
         }
     }

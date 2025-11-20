@@ -102,12 +102,13 @@ public class MultipleNodeLogResultsAssert extends AbstractAssert<MultipleNodeLog
     }
 
     /**
-     * Verifies that any log message contains the specified content.
+     * Verifies that every node part of these results contain a message with the specified content.
      *
-     * @param searchString the substring that should not be present
+     * @param searchString the substring that should be present
      * @return this assertion object for method chaining
      */
-    public MultipleNodeLogResultsAssert haveMessageContaining(final String searchString) {
+    @NonNull
+    public MultipleNodeLogResultsAssert allNodesHaveMessageContaining(@NonNull final String searchString) {
         isNotNull();
 
         for (final SingleNodeLogResult result : actual.results()) {

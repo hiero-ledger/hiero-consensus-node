@@ -15,12 +15,18 @@ import java.util.List;
 import java.util.Set;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.consensus.model.status.PlatformStatus;
-import org.hiero.otter.fixtures.app.OtterTransaction;
 import org.hiero.otter.fixtures.internal.helpers.Utils;
+import org.hiero.otter.fixtures.network.BandwidthLimit;
+import org.hiero.otter.fixtures.network.BidirectionalConnection;
+import org.hiero.otter.fixtures.network.GeoMeshTopologyConfiguration;
+import org.hiero.otter.fixtures.network.LatencyRange;
+import org.hiero.otter.fixtures.network.MeshTopologyConfiguration;
 import org.hiero.otter.fixtures.network.Partition;
 import org.hiero.otter.fixtures.network.Topology;
-import org.hiero.otter.fixtures.network.utils.BandwidthLimit;
-import org.hiero.otter.fixtures.network.utils.LatencyRange;
+import org.hiero.otter.fixtures.network.Topology.ConnectionState;
+import org.hiero.otter.fixtures.network.TopologyConfiguration;
+import org.hiero.otter.fixtures.network.UnidirectionalConnection;
+import org.hiero.otter.fixtures.network.transactions.OtterTransaction;
 import org.hiero.otter.fixtures.result.MultipleNodeConsensusResults;
 import org.hiero.otter.fixtures.result.MultipleNodeEventStreamResults;
 import org.hiero.otter.fixtures.result.MultipleNodeLogResults;
@@ -33,7 +39,6 @@ import org.hiero.otter.fixtures.result.MultipleNodeReconnectResults;
  *
  * <p>This interface provides methods to add and remove nodes, start the network, and add instrumented nodes.
  */
-@SuppressWarnings("unused")
 public interface Network extends Configurable<Network> {
 
     /**
@@ -57,6 +62,29 @@ public interface Network extends Configurable<Network> {
      */
     @NonNull
     Topology topology();
+
+    /**
+     * Configures the network topology with the specified configuration.
+     *
+     * <p>This method must be called before any nodes are added to the network. It configures the topology with the
+     * characteristics defined by the provided configuration object. Supported configurations include:
+     * <ul>
+     *   <li>{@link MeshTopologyConfiguration} - for uniform mesh topology with specified latency, jitter, and
+     *       bandwidth</li>
+     *   <li>{@link GeoMeshTopologyConfiguration} - for realistic geographic latency simulation</li>
+     * </ul>
+     *
+     * <p>If this method is not called, a default geographic mesh topology configuration is used.
+     *
+     * @param configuration the topology configuration to apply (must implement {@link TopologyConfiguration})
+     * @return this {@code Network} instance for method chaining
+     * @throws NullPointerException if {@code configuration} is {@code null}
+     * @throws IllegalStateException if any nodes have already been added to the network or if the network is already
+     *         running
+     * @throws IllegalArgumentException if the configuration type is not supported
+     */
+    @NonNull
+    Network topology(@NonNull TopologyConfiguration configuration);
 
     /**
      * Adds a single node to the network.
@@ -161,6 +189,40 @@ public interface Network extends Configurable<Network> {
     void sendQuiescenceCommand(@NonNull QuiescenceCommand command);
 
     /**
+     * Returns a {@link BidirectionalConnection} between two nodes in the network which can be used to modify the
+     * properties of a single connection. All properties and methods of the returned object are
+     * applied in both directions.
+     *
+     * @param node1 the first node
+     * @param node2 the second node
+     * @return the bidirectional connection between the two nodes
+     */
+    @NonNull
+    BidirectionalConnection bidirectionalConnection(@NonNull Node node1, @NonNull Node node2);
+
+    /**
+     * Returns a {@link UnidirectionalConnection} from one node to another in the network which can
+     * be used to modify the properties of a single connection. All properties and methods of the
+     * returned object are applied in the specified direction only.
+     *
+     * @param sender the source node
+     * @param receiver the destination node
+     * @return the unidirectional connection from {@code sender} to {@code receiver}
+     */
+    @NonNull
+    UnidirectionalConnection unidirectionalConnection(@NonNull Node sender, @NonNull Node receiver);
+
+    /**
+     * Returns the current connection state between two nodes in the network after all modifications
+     * (partitions, latencies, bandwidth limits, etc.) have been applied.
+     *
+     * @param sender the source node
+     * @param receiver the destination node
+     * @return the current {@link ConnectionState}
+     */
+    ConnectionState connectionState(@NonNull Node sender, @NonNull Node receiver);
+
+    /**
      * Creates a network partition containing the specified nodes. Nodes within the partition remain connected to each
      * other, but are disconnected from all nodes outside the partition.
      *
@@ -257,12 +319,26 @@ public interface Network extends Configurable<Network> {
     void setLatencyForAllConnections(@NonNull Node node, @NonNull LatencyRange latencyRange);
 
     /**
+     * Restores the default latency for all connections from this node. The default is determined by the topology.
+     *
+     * @param node the node for which to remove custom latencies
+     */
+    void restoreLatencyForAllConnections(@NonNull Node node);
+
+    /**
      * Sets the bandwidth limit for all connections from and to this node.
      *
      * @param node the node for which to set the bandwidth limit
      * @param bandwidthLimit the bandwidth limit to apply to all connections
      */
     void setBandwidthForAllConnections(@NonNull Node node, @NonNull BandwidthLimit bandwidthLimit);
+
+    /**
+     * Restores the default bandwidth limit for all connections from this node. The default is determined by the topology.
+     *
+     * @param node the node for which to remove bandwidth limits
+     */
+    void restoreBandwidthLimitsForAllConnections(@NonNull Node node);
 
     /**
      * Restore the network connectivity to its original/default state. Removes all partitions, cliques, and custom

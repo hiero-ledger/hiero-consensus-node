@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 plugins {
-    id("org.hiero.gradle.build") version "0.6.1"
+    id("org.hiero.gradle.build") version "0.6.2"
     id("com.hedera.pbj.pbj-compiler") version "0.12.2" apply false
 }
 

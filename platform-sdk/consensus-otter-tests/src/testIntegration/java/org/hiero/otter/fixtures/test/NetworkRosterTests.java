@@ -7,16 +7,19 @@ import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.platform.crypto.KeyGeneratingException;
 import com.swirlds.platform.crypto.KeysAndCertsGenerator;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.security.NoSuchAlgorithmException;
 import java.security.NoSuchProviderException;
 import java.security.SecureRandom;
 import java.security.cert.CertificateEncodingException;
 import java.util.List;
+import org.hiero.consensus.crypto.SigningSchema;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.turtle.TurtleTestEnvironment;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 
 /**
  * Tests for verifying that the network roster correctly incorporates node parameters into the network roster.
@@ -26,8 +29,9 @@ public class NetworkRosterTests {
      * Tests that when nodes are created with overridden keys and certificates, the network roster correctly reflects
      * those certificates.
      */
-    @Test
-    void testCertificates()
+    @ParameterizedTest
+    @EnumSource(SigningSchema.class)
+    void testCertificates(@NonNull final SigningSchema schema)
             throws NoSuchAlgorithmException, KeyGeneratingException, NoSuchProviderException,
                     CertificateEncodingException {
         final TurtleTestEnvironment env = new TurtleTestEnvironment();
@@ -40,8 +44,10 @@ public class NetworkRosterTests {
 
             // Override the keys and certs for each node
             final SecureRandom secureRandom = SecureRandom.getInstanceStrong();
-            final KeysAndCerts kac0 = KeysAndCertsGenerator.generate(node0.selfId(), secureRandom, secureRandom);
-            final KeysAndCerts kac1 = KeysAndCertsGenerator.generate(node0.selfId(), secureRandom, secureRandom);
+            final KeysAndCerts kac0 =
+                    KeysAndCertsGenerator.generate(node0.selfId(), schema, secureRandom, secureRandom);
+            final KeysAndCerts kac1 =
+                    KeysAndCertsGenerator.generate(node0.selfId(), schema, secureRandom, secureRandom);
             node0.keysAndCerts(kac0);
             node1.keysAndCerts(kac1);
 

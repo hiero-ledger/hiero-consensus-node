@@ -122,10 +122,9 @@ public class WritableEvmHookStore extends ReadableEvmHookStoreImpl {
     }
 
     private void unlinkNeighbors(@NonNull final EvmHookState state) {
-        final var hookId = state.hookId();
+        final var hookId = state.hookIdOrThrow();
         final var prevId = state.previousHookId();
         final var nextId = state.nextHookId();
-
         if (prevId != null) {
             final var prev = HookId.newBuilder()
                     .hookId(prevId)

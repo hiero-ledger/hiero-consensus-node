@@ -317,10 +317,10 @@ public class TransferExecutor extends BaseTokenHandler {
      * @param function the ABI function to use for encoding
      */
     private void dispatchHookCalls(
-            final HookContext hookContext,
-            final List<HookInvocation> hookInvocations,
-            final HandleContext handleContext,
-            com.esaulpaugh.headlong.abi.Function function) {
+            @NonNull final HookContext hookContext,
+            @NonNull final List<HookInvocation> hookInvocations,
+            @NonNull final HandleContext handleContext,
+            @NonNull final com.esaulpaugh.headlong.abi.Function function) {
         final boolean isolated = hookInvocations.size() == 1;
         for (final var hookInvocation : hookInvocations) {
             byte[] calldata;

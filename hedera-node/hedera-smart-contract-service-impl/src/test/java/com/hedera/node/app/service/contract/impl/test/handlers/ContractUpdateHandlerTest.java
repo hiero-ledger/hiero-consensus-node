@@ -741,7 +741,8 @@ class ContractUpdateHandlerTest extends ContractHandlerTestBase {
         given(context.dispatch(any(DispatchOptions.class))).willReturn(streamBuilder);
         given(streamBuilder.status()).willReturn(SUCCESS);
 
-        final var contractAccount = Account.newBuilder().build();
+        final var contractAccount =
+                Account.newBuilder().accountId(AccountID.DEFAULT).build();
         final var op = ContractUpdateTransactionBody.newBuilder()
                 .adminKey(A_COMPLEX_KEY)
                 .expirationTime(Timestamp.newBuilder().seconds(10))

@@ -13,6 +13,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.util.function.Consumer;
 import org.hiero.consensus.model.event.PlatformEvent;
+import org.hiero.consensus.model.gossip.SyncProgress;
 import org.hiero.consensus.model.node.NodeId;
 
 /**
@@ -60,7 +61,7 @@ public class RpcShadowgraphSynchronizer extends AbstractShadowgraphSynchronizer 
             @NonNull final FallenBehindMonitor fallenBehindMonitor,
             @NonNull final IntakeEventCounter intakeEventCounter,
             @NonNull final NodeId selfId,
-            @NonNull final Consumer<Double> syncLagHandler) {
+            @NonNull final Consumer<SyncProgress> syncLagHandler) {
 
         super(
                 platformContext,
@@ -101,14 +102,5 @@ public class RpcShadowgraphSynchronizer extends AbstractShadowgraphSynchronizer 
                 syncGuard,
                 fallenBehindMonitor);
         return rpcPeerHandler;
-    }
-
-    /**
-     * Called when given handler is being destroyed due to connection collapsing or other similar event.
-     *
-     * @param rpcPeerHandler handler which should be removed from internal structures
-     */
-    public void deregisterPeerHandler(final RpcPeerHandler rpcPeerHandler) {
-        // no-op for now
     }
 }

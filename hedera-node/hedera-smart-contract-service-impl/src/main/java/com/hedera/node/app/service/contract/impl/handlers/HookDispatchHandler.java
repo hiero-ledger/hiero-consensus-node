@@ -24,7 +24,6 @@ import com.hedera.node.app.service.contract.impl.state.EvmFrameStates;
 import com.hedera.node.app.service.contract.impl.state.WritableEvmHookStore;
 import com.hedera.node.app.service.contract.impl.state.hooks.HookEvmFrameStateFactory;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
-import com.hedera.node.app.service.token.api.TokenServiceApi;
 import com.hedera.node.app.service.token.records.HookDispatchStreamBuilder;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
@@ -112,7 +111,6 @@ public class HookDispatchHandler extends AbstractContractTransactionHandler impl
                 final var hook = evmHookStore.getEvmHook(hookKey);
                 validateTrue(hook != null, HOOK_NOT_FOUND);
 
-                final var tokenServiceApi = context.storeFactory().serviceApi(TokenServiceApi.class);
                 // Build the strategy that will produce a HookEvmFrameStateFactory for this transaction
                 final EvmFrameStates evmFrameStates = (ops, nativeOps, codeFactory) ->
                         new HookEvmFrameStateFactory(ops, nativeOps, codeFactory, hook);
