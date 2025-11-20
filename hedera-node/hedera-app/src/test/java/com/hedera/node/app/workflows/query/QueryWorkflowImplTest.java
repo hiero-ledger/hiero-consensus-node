@@ -37,10 +37,12 @@ import com.hedera.hapi.node.base.ResponseType;
 import com.hedera.hapi.node.base.SignatureMap;
 import com.hedera.hapi.node.base.Transaction;
 import com.hedera.hapi.node.base.TransactionID;
+import com.hedera.hapi.node.consensus.ConsensusGetTopicInfoQuery;
 import com.hedera.hapi.node.file.FileGetInfoQuery;
 import com.hedera.hapi.node.file.FileGetInfoResponse;
 import com.hedera.hapi.node.network.NetworkGetExecutionTimeQuery;
 import com.hedera.hapi.node.network.NetworkGetExecutionTimeResponse;
+import com.hedera.hapi.node.transaction.ExchangeRate;
 import com.hedera.hapi.node.transaction.Query;
 import com.hedera.hapi.node.transaction.Response;
 import com.hedera.hapi.node.transaction.SignedTransaction;
@@ -52,8 +54,10 @@ import com.hedera.node.app.hapi.utils.CommonPbjConverters;
 import com.hedera.node.app.service.file.impl.handlers.FileGetInfoHandler;
 import com.hedera.node.app.service.networkadmin.impl.handlers.NetworkGetExecutionTimeHandler;
 import com.hedera.node.app.spi.authorization.Authorizer;
+import com.hedera.node.app.spi.fees.ExchangeRateInfo;
 import com.hedera.node.app.spi.fees.FeeCalculator;
 import com.hedera.node.app.spi.fees.Fees;
+import com.hedera.node.app.spi.fees.SimpleFeeCalculator;
 import com.hedera.node.app.spi.records.RecordCache;
 import com.hedera.node.app.spi.workflows.InsufficientBalanceException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
@@ -66,6 +70,7 @@ import com.hedera.node.app.workflows.ingest.SubmissionManager;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.VersionedConfiguration;
+import com.hedera.node.config.data.FeesConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.ParseException;
@@ -74,17 +79,25 @@ import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.utility.AutoCloseableWrapper;
+import com.swirlds.config.api.Configuration;
 import com.swirlds.state.State;
 import io.grpc.Status;
 import io.grpc.StatusRuntimeException;
 import java.time.InstantSource;
 import java.util.List;
 import java.util.function.Function;
+import java.util.stream.Stream;
+
+import org.hiero.hapi.fees.FeeResult;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
@@ -1059,5 +1072,153 @@ class QueryWorkflowImplTest extends AppTestBase {
 
     private static BufferedData newEmptyBuffer() {
         return BufferedData.allocate(BUFFER_SIZE);
+    }
+
+    @Nested
+    @DisplayName("Simple Fees Tests")
+    class SimpleFeesTests {
+        @Mock
+        private ExchangeRateInfo testExchangeRateInfo;
+
+        private ExchangeRate testExchangeRate;
+
+        /**
+         * Provides test data for query types that use simple fees.
+         * <p><b>To enable a new query type:</b> Add a new Arguments entry here with:
+         * <ol>
+         *   <li>Descriptive name (for test display)</li>
+         *   <li>TransactionBody with the transaction type set</li>
+         * </ol>
+         */
+        static Stream<Arguments> simpleFeesEnabledTransactions() {
+            return Stream.of(
+                    Arguments.of(
+                            "CONSENSUS_GET_TOPIC_INFO",
+                            Query.newBuilder().consensusGetTopicInfo(
+                                    ConsensusGetTopicInfoQuery.newBuilder().build()
+                            ).build()
+                    ));
+        }
+
+
+        @Mock
+        private QueryContext queryContext;
+        @Mock
+        private FeesConfig feesConfig;
+        @Mock
+        private SimpleFeeCalculator simpleFeeCalculator;
+        @Mock
+        private Configuration configuration;
+
+        @BeforeEach
+        void setUp() {
+            testExchangeRate = ExchangeRate.newBuilder().hbarEquiv(1).centEquiv(12).build();
+//            testExchangeRateInfo =  new ExchangeRateInfoImpl(ExchangeRateSet.DEFAULT);
+        }
+
+        @ParameterizedTest(name = "{0} uses simple fees when enabled")
+        @MethodSource("simpleFeesEnabledTransactions")
+        @DisplayName("Transaction types use simple fees when enabled")
+        void testTransactionUsesSimpleFees(String queryName, Query query) {
+            // Given: Simple fees are enabled
+
+            given(queryContext.configuration()).willReturn(configuration);
+            given(configuration.getConfigData(FeesConfig.class)).willReturn(feesConfig);
+            given(feesConfig.simpleFeesEnabled()).willReturn(true);
+
+            given(queryContext.query()).willReturn(query);
+            given(queryContext.exchangeRateInfo()).willReturn(testExchangeRateInfo);
+
+            final var feeResult = new FeeResult();
+            feeResult.node = 100000L; // 100K tinycents
+            feeResult.network = 200000L; // 200K tinycents
+            feeResult.service = 498500000L; // 498.5M tinycents
+            given(feeManager.getSimpleFeeCalculator()).willReturn(simpleFeeCalculator);
+            given(simpleFeeCalculator.calculateQueryFee(query, queryContext)).willReturn(feeResult);
+
+            boolean shouldCharge = true;
+            workflow = new QueryWorkflowImpl(
+                    stateAccessor,
+                    submissionManager,
+                    queryChecker,
+                    ingestChecker,
+                    dispatcher,
+                    queryParser,
+                    configProvider,
+                    recordCache,
+                    authorizer,
+                    exchangeRateManager,
+                    feeManager,
+                    synchronizedThrottleAccumulator,
+                    instantSource,
+                    opWorkflowMetrics,
+                    shouldCharge);
+//            given(handler.computeFees(any(QueryContext.class))).willReturn(new Fees(100L, 0L, 100L));
+            given(handler.requiresNodePayment(any())).willReturn(true);
+
+            // When
+            final var responseBuffer = newEmptyBuffer();
+            workflow.handleQuery(requestBuffer,responseBuffer);
+
+            // Then: Should use simple fee calculator
+            verify(simpleFeeCalculator).calculateQueryFee(query, queryContext);
+
+            // Verify fees are converted from tinycents to tinybars (divide by 12)
+//            assertThat(result).isNotNull();
+//            assertThat(result.nodeFee()).isEqualTo(8333L); // 100000/12
+//            assertThat(result.networkFee()).isEqualTo(16666L); // 200000/12
+//            assertThat(result.serviceFee()).isEqualTo(41541666L); // 498500000/12
+
+        }
+
+        @Test
+        @DisplayName("Simple fees not used when feature is disabled")
+        void testSimpleFeesNotUsedWhenFeatureDisabled() throws PreCheckException {
+            // Given: Simple fees are DISABLED
+            given(testExchangeRateInfo.activeRate(any())).willReturn(testExchangeRate);
+            given(queryContext.configuration()).willReturn(configuration);
+            given(configuration.getConfigData(FeesConfig.class)).willReturn(feesConfig);
+            given(feesConfig.simpleFeesEnabled()).willReturn(false);
+
+            doAnswer(invocationOnMock -> {
+                final var result = invocationOnMock.getArgument(3, IngestChecker.Result.class);
+                result.setThrottleUsages(List.of());
+                result.setTxnInfo(transactionInfo);
+                return null;
+            })
+                    .when(ingestChecker)
+                    .runAllChecks(any(), any(), any(), any());
+
+            boolean shouldCharge = true;
+            workflow = new QueryWorkflowImpl(
+                    stateAccessor,
+                    submissionManager,
+                    queryChecker,
+                    ingestChecker,
+                    dispatcher,
+                    queryParser,
+                    configProvider,
+                    recordCache,
+                    authorizer,
+                    exchangeRateManager,
+                    feeManager,
+                    synchronizedThrottleAccumulator,
+                    instantSource,
+                    opWorkflowMetrics,
+                    shouldCharge);
+//            given(handler.computeFees(any(QueryContext.class))).willReturn(new Fees(100L, 0L, 100L));
+            given(handler.requiresNodePayment(any())).willReturn(true);
+//            when(handler.findResponse(any(), any()))
+//                    .thenReturn(Response.newBuilder()
+//                            .fileGetInfo(FileGetInfoResponse.newBuilder()
+//                                    .header(ResponseHeader.newBuilder().build())
+//                                    .build())
+//                            .build());
+            final var responseBuffer = newEmptyBuffer();
+            // when
+            workflow.handleQuery(requestBuffer, responseBuffer);
+            verify(feeManager, never()).getSimpleFeeCalculator();
+        }
+
     }
 }
