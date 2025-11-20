@@ -14,6 +14,7 @@ open module com.swirlds.platform.core.test.fixtures {
     requires transitive org.hiero.base.utility;
     requires transitive org.hiero.consensus.model.test.fixtures;
     requires transitive org.hiero.consensus.model;
+    requires transitive org.hiero.consensus.utility;
     requires transitive org.assertj.core;
     requires transitive org.junit.jupiter.api;
     requires com.swirlds.base.test.fixtures;
@@ -27,7 +28,6 @@ open module com.swirlds.platform.core.test.fixtures {
     requires com.swirlds.virtualmap;
     requires org.hiero.base.crypto.test.fixtures;
     requires org.hiero.base.utility.test.fixtures;
-    requires org.hiero.consensus.utility;
     requires com.github.spotbugs.annotations;
     requires com.google.common;
     requires java.desktop;
