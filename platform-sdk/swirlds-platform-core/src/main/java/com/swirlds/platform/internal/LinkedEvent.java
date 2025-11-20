@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.internal;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -19,7 +20,8 @@ public class LinkedEvent<T extends LinkedEvent<T>> {
     public LinkedEvent(@NonNull final PlatformEvent platformEvent, @NonNull final List<T> allParents) {
         this.platformEvent = Objects.requireNonNull(platformEvent);
         this.allParents = Objects.requireNonNull(allParents, "allParents");
-        if (!allParents.isEmpty() && allParents.getFirst().getPlatformEvent().getCreatorId().equals(platformEvent.getCreatorId())) {
+        if (!allParents.isEmpty()
+                && allParents.getFirst().getPlatformEvent().getCreatorId().equals(platformEvent.getCreatorId())) {
             // this event DOES have a self parent that is linked
             this.selfParent = allParents.getFirst();
             this.otherParents = allParents.subList(1, allParents.size());

@@ -15,7 +15,6 @@ import com.swirlds.platform.gossip.permits.SyncGuard;
 import com.swirlds.platform.gossip.rpc.GossipRpcReceiver;
 import com.swirlds.platform.gossip.rpc.GossipRpcSender;
 import com.swirlds.platform.gossip.rpc.SyncData;
-import com.swirlds.platform.internal.LinkedEvent;
 import com.swirlds.platform.metrics.SyncMetrics;
 import com.swirlds.platform.reconnect.FallenBehindMonitor;
 import com.swirlds.platform.reconnect.FallenBehindStatus;

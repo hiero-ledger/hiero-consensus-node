@@ -39,6 +39,8 @@ public class EventFactory {
                 .setBirthRound(maxParentsBirthRound + 1)
                 .build();
 
-        return new ShadowEvent(platformEvent, Stream.of(selfParent, otherParent).filter(Objects::nonNull).toList());
+        return new ShadowEvent(
+                platformEvent,
+                Stream.of(selfParent, otherParent).filter(Objects::nonNull).toList());
     }
 }

@@ -45,5 +45,4 @@ public class ShadowEvent extends LinkedEvent<ShadowEvent> {
     public ShadowEvent(final PlatformEvent event) {
         super(event, List.of());
     }
-
 }

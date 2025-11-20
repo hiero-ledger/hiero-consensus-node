@@ -499,7 +499,9 @@ public class Shadowgraph implements Clearable {
                             () -> eventWindow.expiredThreshold(),
                             () -> oldestUnexpiredIndicator,
                             () -> tips.stream()
-                                    .map(sh -> sh.getPlatformEvent().getDescriptor().toString())
+                                    .map(sh -> sh.getPlatformEvent()
+                                            .getDescriptor()
+                                            .toString())
                                     .collect(Collectors.joining(",")));
                 }
 
@@ -558,7 +560,8 @@ public class Shadowgraph implements Clearable {
      */
     @NonNull
     private ShadowEvent insert(@NonNull final PlatformEvent event) {
-        final List<ShadowEvent> allParents = new ArrayList<>(event.getAllParents().size());
+        final List<ShadowEvent> allParents =
+                new ArrayList<>(event.getAllParents().size());
         // If e has an unexpired parent that is not already referenced by the shadowgraph, then we log an error. This
         // is only a sanity check, so there is no need to prevent insertion
         for (final EventDescriptorWrapper parent : event.getAllParents()) {
@@ -568,7 +571,7 @@ public class Shadowgraph implements Clearable {
             if (!known && !expired) {
                 logger.info(STARTUP.getMarker(), "Missing non-expired other parent for {}", event);
             }
-            if(known){
+            if (known) {
                 allParents.add(shadow);
             }
         }

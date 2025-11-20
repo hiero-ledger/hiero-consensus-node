@@ -21,7 +21,6 @@ import com.swirlds.platform.gossip.shadowgraph.ShadowEvent;
 import com.swirlds.platform.gossip.shadowgraph.Shadowgraph;
 import com.swirlds.platform.gossip.shadowgraph.ShadowgraphInsertionException;
 import com.swirlds.platform.internal.EventImpl;
-import com.swirlds.platform.internal.LinkedEvent;
 import com.swirlds.platform.test.fixtures.event.emitter.EventEmitterBuilder;
 import com.swirlds.platform.test.fixtures.event.emitter.StandardEventEmitter;
 import com.swirlds.platform.test.fixtures.sync.SyncTestUtils;
@@ -699,7 +698,8 @@ class ShadowgraphByBirthRoundTests {
         long oldestTipBirthRound = Long.MAX_VALUE;
         final List<ShadowEvent> tipsToExpire = new ArrayList<>();
         for (final ShadowEvent tip : shadowGraph.getTips()) {
-            oldestTipBirthRound = Math.min(oldestTipBirthRound, tip.getPlatformEvent().getBirthRound());
+            oldestTipBirthRound =
+                    Math.min(oldestTipBirthRound, tip.getPlatformEvent().getBirthRound());
         }
 
         for (final ShadowEvent tip : shadowGraph.getTips()) {

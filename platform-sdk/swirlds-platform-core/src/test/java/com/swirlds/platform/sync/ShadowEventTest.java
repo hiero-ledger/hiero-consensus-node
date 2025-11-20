@@ -72,7 +72,8 @@ class ShadowEventTest {
                 "expected SP");
         assertTrue(
                 identicalHashes(
-                        s.getOtherParent().getPlatformEvent().getHash(), sop.getPlatformEvent().getHash()),
+                        s.getOtherParent().getPlatformEvent().getHash(),
+                        sop.getPlatformEvent().getHash()),
                 "expected OP");
 
         assertSame(s.getPlatformEvent(), e, "getting the EventImpl should give the EventImpl instance itself");
