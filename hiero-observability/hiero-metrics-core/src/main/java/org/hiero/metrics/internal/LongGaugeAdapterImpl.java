@@ -2,6 +2,7 @@
 package org.hiero.metrics.internal;
 
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 import java.util.function.ToLongFunction;
 import org.hiero.metrics.api.GaugeAdapter;
 import org.hiero.metrics.internal.core.AbstractStatefulMetric;
@@ -9,16 +10,16 @@ import org.hiero.metrics.internal.core.LabelValues;
 import org.hiero.metrics.internal.datapoint.DataPointHolder;
 import org.hiero.metrics.internal.export.snapshot.LongValueDataPointSnapshotImpl;
 
-public final class LongGaugeAdapterImpl<I, D> extends AbstractStatefulMetric<I, D, LongValueDataPointSnapshotImpl>
-        implements GaugeAdapter<I, D> {
+public final class LongGaugeAdapterImpl<D>
+        extends AbstractStatefulMetric<Supplier<D>, D, LongValueDataPointSnapshotImpl> implements GaugeAdapter<D> {
 
     private final ToLongFunction<D> exportGetter;
     private final Consumer<D> reset;
 
-    public LongGaugeAdapterImpl(GaugeAdapter.Builder<I, D> builder) {
+    public LongGaugeAdapterImpl(GaugeAdapter.Builder<D> builder) {
         super(builder);
 
-        exportGetter = builder.getValueConverter().getToLongFunction();
+        exportGetter = builder.getExportGetter().getToLongFunction();
         reset = builder.getReset() != null ? builder.getReset() : container -> {};
     }
 

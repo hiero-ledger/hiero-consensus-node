@@ -24,6 +24,10 @@ public class StatContainer {
         sum = new AtomicInteger(initialValue);
     }
 
+    public StatContainer(int initialValue) {
+        this(() -> initialValue);
+    }
+
     public StatContainer() {
         this(StatUtils.INT_INIT);
     }
@@ -53,13 +57,12 @@ public class StatContainer {
         sum.set(initialValue);
     }
 
-    public static StatsGaugeAdapter.Builder<IntSupplier, StatContainer> metricBuilder(String name) {
+    public static StatsGaugeAdapter.Builder<StatContainer> metricBuilder(String name) {
         return metricBuilder(name, StatUtils.INT_INIT);
     }
 
-    public static StatsGaugeAdapter.Builder<IntSupplier, StatContainer> metricBuilder(
-            String name, IntSupplier initializer) {
-        return StatsGaugeAdapter.builder(StatsGaugeAdapter.key(name), initializer, StatContainer::new)
+    public static StatsGaugeAdapter.Builder<StatContainer> metricBuilder(String name, IntSupplier initializer) {
+        return StatsGaugeAdapter.builder(StatsGaugeAdapter.key(name), () -> new StatContainer(initializer))
                 .withLongStat("cnt", StatContainer::getCounter)
                 .withLongStat("sum", StatContainer::getSum)
                 .withDoubleStat("avg", StatContainer::getAverage)

@@ -36,22 +36,21 @@ public final class MovingAverageStat implements DoubleSupplier {
         reset();
     }
 
-    public static MetricKey<GaugeAdapter<DoubleSupplier, MovingAverageStat>> key(String name) {
+    public static MetricKey<GaugeAdapter<MovingAverageStat>> key(String name) {
         return MetricKey.of(name, GaugeAdapter.class);
     }
 
-    public static GaugeAdapter.Builder<DoubleSupplier, MovingAverageStat> metricBuilder(
-            double halfLife, Time time, MetricKey<GaugeAdapter<DoubleSupplier, MovingAverageStat>> key) {
+    public static GaugeAdapter.Builder<MovingAverageStat> metricBuilder(
+            double halfLife, Time time, MetricKey<GaugeAdapter<MovingAverageStat>> key) {
         return GaugeAdapter.builder(
                         key,
-                        StatUtils.asInitializer(halfLife),
-                        init -> new MovingAverageStat(init.getAsDouble(), time),
+                        () -> new MovingAverageStat(halfLife, time),
                         new ToNumberFunction<>(MovingAverageStat::getAsDouble))
                 .withReset(MovingAverageStat::reset);
     }
 
-    public static GaugeAdapter.Builder<DoubleSupplier, MovingAverageStat> metricBuilder(
-            double halfLife, MetricKey<GaugeAdapter<DoubleSupplier, MovingAverageStat>> key) {
+    public static GaugeAdapter.Builder<MovingAverageStat> metricBuilder(
+            double halfLife, MetricKey<GaugeAdapter<MovingAverageStat>> key) {
         return metricBuilder(halfLife, Time.getCurrent(), key);
     }
 

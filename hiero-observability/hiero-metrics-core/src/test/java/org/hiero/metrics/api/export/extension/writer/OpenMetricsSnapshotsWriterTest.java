@@ -8,7 +8,6 @@ import java.io.IOException;
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.IntSupplier;
 import java.util.stream.Stream;
 import org.hiero.metrics.TestWriterContext;
 import org.hiero.metrics.api.BooleanGauge;
@@ -24,7 +23,6 @@ import org.hiero.metrics.api.StatsGaugeAdapter;
 import org.hiero.metrics.api.core.Label;
 import org.hiero.metrics.api.core.NumberSupplier;
 import org.hiero.metrics.api.core.ToNumberFunction;
-import org.hiero.metrics.api.stat.StatUtils;
 import org.hiero.metrics.api.stat.container.AtomicDouble;
 import org.hiero.metrics.api.utils.Unit;
 import org.hiero.metrics.test.fixtures.MetricsSnapshotProvider;
@@ -100,8 +98,8 @@ public class OpenMetricsSnapshotsWriterTest {
         static DoubleGauge doubleGaugeMin;
         static GenericGauge<Duration> durationGauge;
         static StateSet<SateSetEnum> stateSet;
-        static StatsGaugeAdapter<IntSupplier, StatContainer> statsGauge;
-        static GaugeAdapter<IntSupplier, StatContainer> gaugeAdapter;
+        static StatsGaugeAdapter<StatContainer> statsGauge;
+        static GaugeAdapter<StatContainer> gaugeAdapter;
         static StatelessMetric statelessMetric;
 
         static final AtomicLong longContainer = new AtomicLong(0);
@@ -148,10 +146,7 @@ public class OpenMetricsSnapshotsWriterTest {
                     .register(snapshotProvider.getRegistry());
 
             gaugeAdapter = GaugeAdapter.builder(
-                            "gauge_adapter",
-                            StatUtils.INT_INIT,
-                            StatContainer::new,
-                            new ToNumberFunction<>(StatContainer::getCounter))
+                            "gauge_adapter", StatContainer::new, new ToNumberFunction<>(StatContainer::getCounter))
                     .register(snapshotProvider.getRegistry());
 
             statsGauge = StatContainer.metricBuilder("stats_gauge")

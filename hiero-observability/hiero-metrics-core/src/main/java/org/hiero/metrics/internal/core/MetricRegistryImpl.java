@@ -54,13 +54,12 @@ public final class MetricRegistryImpl implements SnapshotableMetricsRegistry {
 
     @NonNull
     @Override
-    @SuppressWarnings("unchecked")
     public <M extends Metric, B extends Metric.Builder<?, M>> M register(final @NonNull B builder) {
         Objects.requireNonNull(builder, "metric builder must not be null");
 
         final MetricKey<M> metricKey = builder.key();
 
-        return (M) metrics.compute(metricKey.name(), (name, existingMetric) -> {
+        return metricKey.type().cast(metrics.compute(metricKey.name(), (name, existingMetric) -> {
             if (existingMetric != null) {
                 throw new IllegalArgumentException(
                         "Duplicate metric name: " + metricKey + ". Existing metric: " + existingMetric.metadata());
@@ -73,7 +72,7 @@ public final class MetricRegistryImpl implements SnapshotableMetricsRegistry {
                 snapshot.add(snapshotableMetric);
             }
             return metric;
-        });
+        }));
     }
 
     @NonNull

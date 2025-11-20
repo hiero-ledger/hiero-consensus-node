@@ -66,7 +66,7 @@ To identify a metric in the registry a [MetricKey](../src/main/java/org/hiero/me
 which contains metric name and class of the metric interface, used to validate metric type and cast to required metric interface when retrieving by key.
 
 `MetricsRegistry.Builder` is used to create instances of Metric Registry.
-It's `withDiscoveredMetricProviders()` method allows to discover all available `MetricsRegistrationProvider`s via SPI and register provided metrics.
+Its `withDiscoveredMetricProviders()` method allows to discover all available `MetricsRegistrationProvider`s via SPI and register provided metrics.
 To be discovered by SPI mechanism implementations of this interface should be registered either in
 `META-INF/services/org.hiero.metrics.api.core.MetricsRegistrationProvider` or `module-info.java` file of the module.
 
@@ -78,7 +78,7 @@ Metric registry should be explicitly provided to the binder.
 
 1. Use global labels in Metric Registry only if they cannot be added during metrics ingestion.
    Usually ingesters like OTEL Collector are able to attach environment or instance labels to all metrics, when collecting them.
-2. **DO NOT** use high-cardinality values (like IDs, hashes, timestamps, etc.) for dynamic labels of the metric.
+2. **DO NOT** use high-cardinality objects (like IDs, hashes, timestamps, etc.) as dynamic label values of the metric.
 3. API allows to create multiple metric registries, but usually one registry per application is enough.
 4. Metric must be registered once in a registry and may be use in different places in the code.
    Use [MetricsRegistrationProvider](../src/main/java/org/hiero/metrics/api/core/MetricsRegistrationProvider.java) for metrics registration
