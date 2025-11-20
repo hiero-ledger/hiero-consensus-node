@@ -192,7 +192,7 @@ class BlockStateProofGeneratorTest {
         Assertions.assertThat(numProofs).isEqualTo(EXPECTED_NUM_PROOFS + 1);
 
         // Verify the timestamps of the loaded pending proofs
-        for (int i = 0; i < numProofs; i++) {
+        for (int i = 0; i < numProofs - 1; i++) {
             final var currentPendingBlock = pendingBlocks.get(i);
             final var expectedTs = EXPECTED_BLOCK_TIMESTAMPS.get(i + MIN_INDIRECT_BLOCK_NUM);
             Assertions.assertThat(currentPendingBlock.blockTimestamp()).isEqualTo(expectedTs);
@@ -267,6 +267,7 @@ class BlockStateProofGeneratorTest {
             "27130540fdaefd0f2ca260e14977feaa65e3f0a7d4fe8ef41b98fdb8270777059686935749cfcf772756e177fe3905c3");
 
     private static final long MIN_INDIRECT_BLOCK_NUM = 2L;
+    private static final long MAX_BLOCK_NUM = 7L; // Includes the final signed block
 
     private static final Bytes[] EXPECTED_FIRST_SIBLING_HASHES = new Bytes[] {
         Bytes.fromHex(
@@ -318,6 +319,7 @@ class BlockStateProofGeneratorTest {
                 previousBlockHashesByBlock.put(k, EXPECTED_BLOCK_HASHES.get(k - 1));
             }
         });
+        previousBlockHashesByBlock.put(MAX_BLOCK_NUM, EXPECTED_BLOCK_HASHES.get(MAX_BLOCK_NUM - 1));
         EXPECTED_PREVIOUS_BLOCK_HASHES = previousBlockHashesByBlock;
     }
 

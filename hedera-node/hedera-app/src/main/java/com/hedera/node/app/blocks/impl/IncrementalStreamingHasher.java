@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.blocks.impl;
 
-import static com.hedera.node.app.blocks.impl.BlockStreamManagerImpl.NULL_HASH;
-
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.security.MessageDigest;
 import java.util.LinkedList;
