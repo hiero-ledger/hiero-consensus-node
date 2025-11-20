@@ -57,8 +57,8 @@ module org.hiero.otter.fixtures {
     exports org.hiero.otter.fixtures.app to
             com.swirlds.config.extensions,
             com.swirlds.config.impl,
-            org.hiero.consensus.otter.docker.app,
-            org.hiero.otter.test;
+            org.hiero.otter.test,
+            org.hiero.consensus.otter.docker.app;
     exports org.hiero.otter.fixtures.app.services.consistency to
             com.swirlds.config.extensions,
             com.swirlds.config.impl;
