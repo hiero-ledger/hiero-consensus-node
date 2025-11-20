@@ -2,6 +2,7 @@
 package org.hiero.metrics.internal;
 
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 import org.hiero.metrics.api.StatsGaugeAdapter;
 import org.hiero.metrics.api.core.ToNumberFunction;
 import org.hiero.metrics.internal.core.AbstractStatefulMetric;
@@ -9,8 +10,9 @@ import org.hiero.metrics.internal.core.LabelValues;
 import org.hiero.metrics.internal.datapoint.DataPointHolder;
 import org.hiero.metrics.internal.export.snapshot.MultiValueDataPointSnapshotImpl;
 
-public final class StatsGaugeAdapterImpl<I, D> extends AbstractStatefulMetric<I, D, MultiValueDataPointSnapshotImpl>
-        implements StatsGaugeAdapter<I, D> {
+public final class StatsGaugeAdapterImpl<D>
+        extends AbstractStatefulMetric<Supplier<D>, D, MultiValueDataPointSnapshotImpl>
+        implements StatsGaugeAdapter<D> {
 
     private final String statLabelName;
     private final String[] statLabelValues;
@@ -19,7 +21,7 @@ public final class StatsGaugeAdapterImpl<I, D> extends AbstractStatefulMetric<I,
     private final Consumer<D> reset;
 
     @SuppressWarnings("unchecked")
-    public StatsGaugeAdapterImpl(StatsGaugeAdapter.Builder<I, D> builder) {
+    public StatsGaugeAdapterImpl(StatsGaugeAdapter.Builder<D> builder) {
         super(builder);
 
         statLabelName = builder.getStatLabel();

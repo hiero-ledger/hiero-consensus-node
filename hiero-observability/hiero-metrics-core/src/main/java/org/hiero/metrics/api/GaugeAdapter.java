@@ -1,13 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.metrics.api;
 
-import static org.hiero.metrics.api.stat.StatUtils.NO_DEFAULT_INITIALIZER;
-
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Objects;
 import java.util.function.Consumer;
-import java.util.function.Function;
 import java.util.function.Supplier;
 import org.hiero.metrics.api.core.MetricKey;
 import org.hiero.metrics.api.core.MetricType;
@@ -29,70 +26,27 @@ import org.hiero.metrics.internal.LongGaugeAdapterImpl;
  * It is responsibility of the client to ensure that external data point is thread safe and provides atomic updates,
  * if needed.
  *
- * @param <I> the type of the initializer used to create the data point
  * @param <D> the type of the data point used to hold the gauge value and provide method for observations
  *           and numerical value state access
  */
-public interface GaugeAdapter<I, D> extends StatefulMetric<I, D> {
+public interface GaugeAdapter<D> extends StatefulMetric<Supplier<D>, D> {
 
     /**
      * Create a metric key for a {@link GaugeAdapter} with the given name.<br>
      * See {@link org.hiero.metrics.api.utils.MetricUtils#validateNameCharacters(String)} for name requirements.
      *
      * @param name the name of the metric
-     * @param <I>  the type of the initializer used to create the data point
      * @param <D>  the type of the data point
      * @return the metric key
      */
     @NonNull
-    static <I, D> MetricKey<GaugeAdapter<I, D>> key(@NonNull String name) {
+    static <D> MetricKey<GaugeAdapter<D>> key(@NonNull String name) {
         return MetricKey.of(name, GaugeAdapter.class);
     }
 
     /**
      * Create a builder for a {@link GaugeAdapter} with the given metric key.
-     *
-     * @param key                the metric key
-     * @param defaultInitializer the default initializer used to create the data point
-     * @param dataPointFactory   the factory function to create the data point using the initializer
-     * @param exportGetter       the function to get the numerical value from the data point for export
-     * @param <I>                the type of the initializer used to create the data point
-     * @param <D>                the type of the data point
-     * @return the builder
-     */
-    @NonNull
-    static <I, D> Builder<I, D> builder(
-            @NonNull MetricKey<GaugeAdapter<I, D>> key,
-            @NonNull I defaultInitializer,
-            @NonNull Function<I, D> dataPointFactory,
-            @NonNull ToNumberFunction<D> exportGetter) {
-        return new Builder<>(key, defaultInitializer, dataPointFactory, exportGetter);
-    }
-
-    /**
-     * Create a builder for a {@link GaugeAdapter} with the given metric name.<br>
-     * See {@link org.hiero.metrics.api.utils.MetricUtils#validateNameCharacters(String)} for name requirements.
-     *
-     * @param name               the metric name
-     * @param defaultInitializer the default initializer used to create the data point
-     * @param dataPointFactory   the factory function to create the data point using the initializer
-     * @param exportGetter       the function to get the numerical value from the data point for export
-     * @param <I>                the type of the initializer used to create the data point
-     * @param <D>                the type of the data point
-     * @return the builder
-     */
-    @NonNull
-    static <I, D> Builder<I, D> builder(
-            @NonNull String name,
-            @NonNull I defaultInitializer,
-            @NonNull Function<I, D> dataPointFactory,
-            @NonNull ToNumberFunction<D> exportGetter) {
-        return builder(key(name), defaultInitializer, dataPointFactory, exportGetter);
-    }
-
-    /**
-     * Create a builder for a {@link GaugeAdapter} with the given metric key.
-     * The data point will be created using the given factory function without any initializer.
+     * The data point will be created using the given factory.
      *
      * @param key              the metric key
      * @param dataPointFactory the factory function to create the data point
@@ -101,16 +55,16 @@ public interface GaugeAdapter<I, D> extends StatefulMetric<I, D> {
      * @return the builder
      */
     @NonNull
-    static <D> Builder<Object, D> builder(
-            @NonNull MetricKey<GaugeAdapter<Object, D>> key,
+    static <D> Builder<D> builder(
+            @NonNull MetricKey<GaugeAdapter<D>> key,
             @NonNull Supplier<D> dataPointFactory,
             @NonNull ToNumberFunction<D> exportGetter) {
-        return new Builder<>(key, NO_DEFAULT_INITIALIZER, init -> dataPointFactory.get(), exportGetter);
+        return new Builder<>(key, dataPointFactory, exportGetter);
     }
 
     /**
      * Create a builder for a {@link GaugeAdapter} with the given metric name.
-     * The data point will be created using the given factory function without any initializer.<br>
+     * The data point will be created using the given factory.<br>
      * See {@link org.hiero.metrics.api.utils.MetricUtils#validateNameCharacters(String)} for name requirements.
      *
      * @param name             the metric name
@@ -119,7 +73,7 @@ public interface GaugeAdapter<I, D> extends StatefulMetric<I, D> {
      * @param <D>              the type of the data point
      * @return the builder
      */
-    static <D> Builder<Object, D> builder(
+    static <D> Builder<D> builder(
             @NonNull String name, @NonNull Supplier<D> dataPointFactory, @NonNull ToNumberFunction<D> exportGetter) {
         return builder(key(name), dataPointFactory, exportGetter);
     }
@@ -127,26 +81,24 @@ public interface GaugeAdapter<I, D> extends StatefulMetric<I, D> {
     /**
      * Builder for {@link GaugeAdapter}.
      */
-    final class Builder<I, D> extends StatefulMetric.Builder<I, D, Builder<I, D>, GaugeAdapter<I, D>> {
+    final class Builder<D> extends StatefulMetric.Builder<Supplier<D>, D, Builder<D>, GaugeAdapter<D>> {
 
-        private final ToNumberFunction<D> valueConverter;
+        private final ToNumberFunction<D> exportGetter;
         private Consumer<D> reset;
 
         /**
          * Create a builder for a {@link GaugeAdapter} with the given metric key.
          *
          * @param key                the metric key
-         * @param defaultInitializer the default initializer used to create the data point
-         * @param dataPointFactory   the factory function to create the data point using the initializer
-         * @param valueConverter     the function to get the {@code double} value from the data point for export
+         * @param dataPointFactory   the factory function to create the data point
+         * @param exportGetter     the function to get the {@code double} value from the data point for export
          */
         private Builder(
-                @NonNull MetricKey<GaugeAdapter<I, D>> key,
-                @NonNull I defaultInitializer,
-                @NonNull Function<I, D> dataPointFactory,
-                @NonNull ToNumberFunction<D> valueConverter) {
-            super(MetricType.GAUGE, key, defaultInitializer, dataPointFactory);
-            this.valueConverter = Objects.requireNonNull(valueConverter, "valueConverter cannot be null");
+                @NonNull MetricKey<GaugeAdapter<D>> key,
+                @NonNull Supplier<D> dataPointFactory,
+                @NonNull ToNumberFunction<D> exportGetter) {
+            super(MetricType.GAUGE, key, dataPointFactory, Supplier::get);
+            this.exportGetter = Objects.requireNonNull(exportGetter, "exportGetter cannot be null");
         }
 
         /**
@@ -155,8 +107,8 @@ public interface GaugeAdapter<I, D> extends StatefulMetric<I, D> {
          * @return the value converter function
          */
         @NonNull
-        public ToNumberFunction<D> getValueConverter() {
-            return valueConverter;
+        public ToNumberFunction<D> getExportGetter() {
+            return exportGetter;
         }
 
         /**
@@ -177,7 +129,7 @@ public interface GaugeAdapter<I, D> extends StatefulMetric<I, D> {
          * @return this builder
          */
         @NonNull
-        public Builder<I, D> withReset(@NonNull Consumer<D> reset) {
+        public Builder<D> withReset(@NonNull Consumer<D> reset) {
             this.reset = Objects.requireNonNull(reset, "Value reset must not be null");
             return this;
         }
@@ -189,8 +141,8 @@ public interface GaugeAdapter<I, D> extends StatefulMetric<I, D> {
          */
         @NonNull
         @Override
-        protected GaugeAdapter<I, D> buildMetric() {
-            if (valueConverter.isFloatingPointFunction()) {
+        protected GaugeAdapter<D> buildMetric() {
+            if (exportGetter.isFloatingPointFunction()) {
                 return new DoubleGaugeAdapterImpl<>(this);
             } else {
                 return new LongGaugeAdapterImpl<>(this);
@@ -202,7 +154,7 @@ public interface GaugeAdapter<I, D> extends StatefulMetric<I, D> {
          */
         @NonNull
         @Override
-        protected Builder<I, D> self() {
+        protected Builder<D> self() {
             return this;
         }
     }

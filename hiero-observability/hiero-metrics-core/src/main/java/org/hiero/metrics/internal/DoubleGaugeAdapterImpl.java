@@ -2,6 +2,7 @@
 package org.hiero.metrics.internal;
 
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 import java.util.function.ToDoubleFunction;
 import org.hiero.metrics.api.GaugeAdapter;
 import org.hiero.metrics.internal.core.AbstractStatefulMetric;
@@ -9,16 +10,16 @@ import org.hiero.metrics.internal.core.LabelValues;
 import org.hiero.metrics.internal.datapoint.DataPointHolder;
 import org.hiero.metrics.internal.export.snapshot.DoubleValueDataPointSnapshotImpl;
 
-public final class DoubleGaugeAdapterImpl<I, D> extends AbstractStatefulMetric<I, D, DoubleValueDataPointSnapshotImpl>
-        implements GaugeAdapter<I, D> {
+public final class DoubleGaugeAdapterImpl<D>
+        extends AbstractStatefulMetric<Supplier<D>, D, DoubleValueDataPointSnapshotImpl> implements GaugeAdapter<D> {
 
     private final ToDoubleFunction<D> exportGetter;
     private final Consumer<D> reset;
 
-    public DoubleGaugeAdapterImpl(GaugeAdapter.Builder<I, D> builder) {
+    public DoubleGaugeAdapterImpl(GaugeAdapter.Builder<D> builder) {
         super(builder);
 
-        exportGetter = builder.getValueConverter().getToDoubleFunction();
+        exportGetter = builder.getExportGetter().getToDoubleFunction();
         reset = builder.getReset() != null ? builder.getReset() : container -> {};
     }
 
