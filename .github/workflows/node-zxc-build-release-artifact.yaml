@@ -875,7 +875,7 @@ jobs:
       create-release-notes: true
       create-release: true
     secrets:
-      gh-access-token: ${{ secrets.GH_ACCESS_TOKEN }}
+      gh-access-token: ${{ secrets.access-token }}
 
   send-notifications:
     name: Send Release Notifications
