@@ -66,7 +66,6 @@ public interface ProofController {
     /**
      * Incorporates the given history signature, if this construction still needs a proof, and does
      * not already have a signature published by the associated node.
-     *
      * @param publication the proof key publication
      * @return if the signature was added
      */

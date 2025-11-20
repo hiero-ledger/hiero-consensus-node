@@ -76,8 +76,7 @@ public class ProofControllers {
             if (controller != null) {
                 controller.cancelPendingWork();
             }
-            controller =
-                    newControllerFor(activeRosters, construction, historyStore, activeHintsConstruction, wrapsEnabled);
+            controller = newControllerFor(activeRosters, construction, historyStore, activeHintsConstruction);
         }
         return requireNonNull(controller);
     }
@@ -110,15 +109,13 @@ public class ProofControllers {
      * @param construction the proof construction
      * @param historyStore the history store
      * @param activeHintsConstruction the active hinTS construction, if any
-     * @param wrapsEnabled whether recursive chain-of-trust proofs are enabled
      * @return the controller
      */
     private ProofController newControllerFor(
             @NonNull final ActiveRosters activeRosters,
             @NonNull final HistoryProofConstruction construction,
             @NonNull final ReadableHistoryStore historyStore,
-            @Nullable final HintsConstruction activeHintsConstruction,
-            final boolean wrapsEnabled) {
+            @Nullable final HintsConstruction activeHintsConstruction) {
         final var weights = activeRosters.transitionWeights(maybeWeightsFrom(activeHintsConstruction));
         if (!weights.sourceNodesHaveTargetThreshold()) {
             return new InertProofController(construction.constructionId());
@@ -131,19 +128,16 @@ public class ProofControllers {
             final var schnorrKeyPair = keyAccessor.getOrCreateSchnorrKeyPair(construction.constructionId());
             return new ProofControllerImpl(
                     selfId,
-                    wrapsEnabled,
                     schnorrKeyPair,
-                    historyStore.getLedgerId(),
                     construction,
                     weights,
                     executor,
-                    library,
                     submissions,
                     keyPublications,
                     signaturePublications,
                     votes,
                     historyService,
-                    (w, pks, now) -> new WrapsControllerImpl());
+                    null);
         }
     }
 
