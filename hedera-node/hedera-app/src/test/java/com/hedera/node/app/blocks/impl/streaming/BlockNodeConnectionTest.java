@@ -1224,13 +1224,13 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
     }
 
     @Test
-    void testConnectionWorker_switchBlock_initializeToHighestAckedBlock() throws Exception {
+    void testConnectionWorker_switchBlock_initialValue() throws Exception {
         openConnectionAndResetMocks();
         connection.createRequestPipeline();
         connection.updateConnectionState(ConnectionState.ACTIVE);
         final AtomicLong streamingBlockNumber = streamingBlockNumber();
 
-        doReturn(100L).when(bufferService).getHighestAckedBlockNumber();
+        doReturn(101L).when(bufferService).getLastBlockNumberProduced();
         doReturn(new BlockState(101)).when(bufferService).getBlockState(101);
 
         assertThat(streamingBlockNumber).hasValue(-1);
@@ -1241,36 +1241,8 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
 
         assertThat(streamingBlockNumber).hasValue(101);
 
-        verify(bufferService).getHighestAckedBlockNumber();
+        verify(bufferService).getLastBlockNumberProduced();
         verify(bufferService).getBlockState(101);
-        verifyNoMoreInteractions(bufferService);
-        verifyNoInteractions(connectionManager);
-        verifyNoInteractions(metrics);
-        verifyNoInteractions(requestPipeline);
-    }
-
-    @Test
-    void testConnectionWorker_switchBlock_initializeToEarliestBlock() throws Exception {
-        openConnectionAndResetMocks();
-        connection.createRequestPipeline();
-        connection.updateConnectionState(ConnectionState.ACTIVE);
-        final AtomicLong streamingBlockNumber = streamingBlockNumber();
-
-        doReturn(-1L).when(bufferService).getHighestAckedBlockNumber();
-        doReturn(12L).when(bufferService).getEarliestAvailableBlockNumber();
-        doReturn(new BlockState(12)).when(bufferService).getBlockState(12);
-
-        assertThat(streamingBlockNumber).hasValue(-1);
-
-        // Call doWork directly instead of starting the worker thread
-        final Object worker = createWorker();
-        invokeDoWork(worker);
-
-        assertThat(streamingBlockNumber).hasValue(12);
-
-        verify(bufferService).getHighestAckedBlockNumber();
-        verify(bufferService).getEarliestAvailableBlockNumber();
-        verify(bufferService).getBlockState(12);
         verifyNoMoreInteractions(bufferService);
         verifyNoInteractions(connectionManager);
         verifyNoInteractions(metrics);
@@ -1284,8 +1256,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         connection.updateConnectionState(ConnectionState.ACTIVE);
         final AtomicLong streamingBlockNumber = streamingBlockNumber();
 
-        doReturn(-1L).when(bufferService).getHighestAckedBlockNumber();
-        doReturn(-1L).when(bufferService).getEarliestAvailableBlockNumber();
+        doReturn(-1L).when(bufferService).getLastBlockNumberProduced();
 
         assertThat(streamingBlockNumber).hasValue(-1);
 
@@ -1294,8 +1265,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
 
         assertThat(streamingBlockNumber).hasValue(-1);
 
-        verify(bufferService).getHighestAckedBlockNumber();
-        verify(bufferService).getEarliestAvailableBlockNumber();
+        verify(bufferService).getLastBlockNumberProduced();
         verifyNoMoreInteractions(bufferService);
         verifyNoInteractions(connectionManager);
         verifyNoInteractions(metrics);
@@ -2331,7 +2301,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
      * @param worker the worker instance (from createWorker())
      * @throws Exception if reflection or doWork() execution fails
      */
-    private void invokeDoWork(Object worker) throws Exception {
+    private void invokeDoWork(final Object worker) throws Exception {
         final Method doWorkMethod = worker.getClass().getDeclaredMethod("doWork");
         doWorkMethod.setAccessible(true);
         doWorkMethod.invoke(worker);
