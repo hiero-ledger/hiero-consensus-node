@@ -65,6 +65,8 @@ public record ChaosBotConfiguration(
     /**
      * Create a new configuration with the specified maximum Interval.
      *
+     * <p>If the new maximum interval is less than the current minimum interval, the minimum interval is adjusted to be equal to the new maximum interval.
+     *
      * @param newMaxInterval the new maximum interval
      * @return the new configuration
      */

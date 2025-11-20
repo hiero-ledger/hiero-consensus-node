@@ -47,7 +47,7 @@ public interface Experiment {
         /**
          * Create a new step.
          *
-         * @param timestamp `
+         * @param timestamp the time at which to execute the action
          * @param action the action to execute
          */
         public Step {
