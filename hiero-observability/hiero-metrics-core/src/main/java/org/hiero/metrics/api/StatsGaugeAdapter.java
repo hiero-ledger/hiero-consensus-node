@@ -2,7 +2,6 @@
 package org.hiero.metrics.api;
 
 import static org.hiero.metrics.api.stat.StatUtils.DEFAULT_STAT_LABEL;
-import static org.hiero.metrics.api.stat.StatUtils.NO_DEFAULT_INITIALIZER;
 
 import com.swirlds.base.ArgumentUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -12,7 +11,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Consumer;
-import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.function.ToDoubleFunction;
 import java.util.function.ToLongFunction;
@@ -36,46 +34,26 @@ import org.hiero.metrics.internal.StatsGaugeAdapterImpl;
  * It is responsibility of the client to ensure that external data point is thread safe and provides atomic updates,
  * if needed.
  *
- * @param <I> the type of the initializer used to create the data point
  * @param <D> the type of the data point held by the metric
  */
-public interface StatsGaugeAdapter<I, D> extends StatefulMetric<I, D> {
+public interface StatsGaugeAdapter<D> extends StatefulMetric<Supplier<D>, D> {
 
     /**
      * Create a metric key for a {@link StatsGaugeAdapter} with the given name. <br>
      * See {@link MetricUtils#validateNameCharacters(String)} for name requirements.
      *
      * @param name the name of the metric
-     * @param <I>  the type of the initializer used to create the data point
      * @param <D>  the type of the data point
      * @return the metric key
      */
     @NonNull
-    static <I, D> MetricKey<StatsGaugeAdapter<I, D>> key(@NonNull String name) {
+    static <D> MetricKey<StatsGaugeAdapter<D>> key(@NonNull String name) {
         return MetricKey.of(name, StatsGaugeAdapter.class);
     }
 
     /**
      * Create a builder for a {@link StatsGaugeAdapter} with the given metric key.
-     *
-     * @param key                the metric key
-     * @param defaultInitializer the default initializer used to create the data point
-     * @param dataPointFactory   the factory function to create the data point using the initializer
-     * @param <I>                the type of the initializer used to create the data point
-     * @param <D>                the type of the data point
-     * @return the builder
-     */
-    @NonNull
-    static <I, D> Builder<I, D> builder(
-            @NonNull MetricKey<StatsGaugeAdapter<I, D>> key,
-            @NonNull I defaultInitializer,
-            @NonNull Function<I, D> dataPointFactory) {
-        return new Builder<>(key, defaultInitializer, dataPointFactory);
-    }
-
-    /**
-     * Create a builder for a {@link StatsGaugeAdapter} with the given metric key.
-     * The data point is created using the provided factory without any initializer.
+     * The data point is created using the provided factory.
      *
      * @param key              the metric key
      * @param dataPointFactory the factory function to create the data point
@@ -83,9 +61,8 @@ public interface StatsGaugeAdapter<I, D> extends StatefulMetric<I, D> {
      * @return the builder
      */
     @NonNull
-    static <D> Builder<Object, D> builder(
-            @NonNull MetricKey<StatsGaugeAdapter<Object, D>> key, @NonNull Supplier<D> dataPointFactory) {
-        return new Builder<>(key, NO_DEFAULT_INITIALIZER, init -> dataPointFactory.get());
+    static <D> Builder<D> builder(@NonNull MetricKey<StatsGaugeAdapter<D>> key, @NonNull Supplier<D> dataPointFactory) {
+        return new Builder<>(key, dataPointFactory);
     }
 
     /**
@@ -94,21 +71,17 @@ public interface StatsGaugeAdapter<I, D> extends StatefulMetric<I, D> {
      * Default additional label for export is {@value StatUtils#DEFAULT_STAT_LABEL}, and can be changed via
      * {@link #withStatLabel(String)}.
      *
-     * @param <I> the type of the initializer used to create the data point
      * @param <D> the type of the data point held by the metric
      */
-    final class Builder<I, D> extends StatefulMetric.Builder<I, D, Builder<I, D>, StatsGaugeAdapter<I, D>> {
+    final class Builder<D> extends StatefulMetric.Builder<Supplier<D>, D, Builder<D>, StatsGaugeAdapter<D>> {
 
         private String statLabel = DEFAULT_STAT_LABEL;
         private final List<String> statNames = new ArrayList<>();
         private final List<ToNumberFunction<D>> statExportGetters = new ArrayList<>();
         private Consumer<D> reset;
 
-        private Builder(
-                @NonNull MetricKey<StatsGaugeAdapter<I, D>> key,
-                @NonNull I defaultInitializer,
-                @NonNull Function<I, D> dataPointFactory) {
-            super(MetricType.GAUGE, key, defaultInitializer, dataPointFactory);
+        private Builder(@NonNull MetricKey<StatsGaugeAdapter<D>> key, @NonNull Supplier<D> dataPointFactory) {
+            super(MetricType.GAUGE, key, dataPointFactory, Supplier::get);
         }
 
         /**
@@ -153,7 +126,7 @@ public interface StatsGaugeAdapter<I, D> extends StatefulMetric<I, D> {
          * @return this builder
          */
         @NonNull
-        public Builder<I, D> withReset(@NonNull Consumer<D> reset) {
+        public Builder<D> withReset(@NonNull Consumer<D> reset) {
             this.reset = Objects.requireNonNull(reset, "Container stats reset must not be null");
             return this;
         }
@@ -169,7 +142,7 @@ public interface StatsGaugeAdapter<I, D> extends StatefulMetric<I, D> {
          * @throws IllegalArgumentException if the stat label is blank
          */
         @NonNull
-        public Builder<I, D> withStatLabel(@NonNull String statLabel) {
+        public Builder<D> withStatLabel(@NonNull String statLabel) {
             this.statLabel = MetricUtils.validateNameCharacters(statLabel);
             return this;
         }
@@ -184,7 +157,7 @@ public interface StatsGaugeAdapter<I, D> extends StatefulMetric<I, D> {
          * @throws IllegalArgumentException if the stat name is blank or if the export getter is {@code null}
          */
         @NonNull
-        public Builder<I, D> withDoubleStat(@NonNull String statName, @NonNull ToDoubleFunction<D> exportGetter) {
+        public Builder<D> withDoubleStat(@NonNull String statName, @NonNull ToDoubleFunction<D> exportGetter) {
             return withStat(statName, new ToNumberFunction<>(exportGetter));
         }
 
@@ -198,12 +171,12 @@ public interface StatsGaugeAdapter<I, D> extends StatefulMetric<I, D> {
          * @throws IllegalArgumentException if the stat name is blank or if the export getter is {@code null}
          */
         @NonNull
-        public Builder<I, D> withLongStat(@NonNull String statName, @NonNull ToLongFunction<D> exportGetter) {
+        public Builder<D> withLongStat(@NonNull String statName, @NonNull ToLongFunction<D> exportGetter) {
             return withStat(statName, new ToNumberFunction<>(exportGetter));
         }
 
         @NonNull
-        private Builder<I, D> withStat(@NonNull String statName, @NonNull ToNumberFunction<D> exportGetter) {
+        private Builder<D> withStat(@NonNull String statName, @NonNull ToNumberFunction<D> exportGetter) {
             statNames.add(ArgumentUtils.throwArgBlank(statName, "stat name"));
             statExportGetters.add(Objects.requireNonNull(exportGetter, "Export getter must not be null"));
             return this;
@@ -216,7 +189,7 @@ public interface StatsGaugeAdapter<I, D> extends StatefulMetric<I, D> {
          */
         @NonNull
         @Override
-        protected StatsGaugeAdapter<I, D> buildMetric() {
+        protected StatsGaugeAdapter<D> buildMetric() {
             if (statExportGetters.isEmpty()) {
                 throw new IllegalStateException("At least one stat must be defined");
             }
@@ -244,7 +217,7 @@ public interface StatsGaugeAdapter<I, D> extends StatefulMetric<I, D> {
          */
         @NonNull
         @Override
-        protected Builder<I, D> self() {
+        protected Builder<D> self() {
             return this;
         }
     }

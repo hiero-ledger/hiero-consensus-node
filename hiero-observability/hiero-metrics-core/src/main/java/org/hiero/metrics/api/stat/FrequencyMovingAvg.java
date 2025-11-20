@@ -45,23 +45,22 @@ public final class FrequencyMovingAvg implements DoubleSupplier {
         reset();
     }
 
-    public static MetricKey<GaugeAdapter<DoubleSupplier, FrequencyMovingAvg>> key(String name) {
+    public static MetricKey<GaugeAdapter<FrequencyMovingAvg>> key(String name) {
         return MetricKey.of(name, GaugeAdapter.class);
     }
 
-    public static GaugeAdapter.Builder<DoubleSupplier, FrequencyMovingAvg> metricBuilder(
-            double halfLife, Time time, MetricKey<GaugeAdapter<DoubleSupplier, FrequencyMovingAvg>> key) {
+    public static GaugeAdapter.Builder<FrequencyMovingAvg> metricBuilder(
+            double halfLife, Time time, MetricKey<GaugeAdapter<FrequencyMovingAvg>> key) {
         return GaugeAdapter.builder(
                         key,
-                        StatUtils.asInitializer(halfLife),
-                        init -> new FrequencyMovingAvg(init.getAsDouble(), time),
+                        () -> new FrequencyMovingAvg(halfLife, time),
                         new ToNumberFunction<>(FrequencyMovingAvg::getAsDouble))
                 .withReset(FrequencyMovingAvg::reset)
                 .withUnit(Unit.FREQUENCY_UNIT);
     }
 
-    public static GaugeAdapter.Builder<DoubleSupplier, FrequencyMovingAvg> metricBuilder(
-            double halfLife, MetricKey<GaugeAdapter<DoubleSupplier, FrequencyMovingAvg>> key) {
+    public static GaugeAdapter.Builder<FrequencyMovingAvg> metricBuilder(
+            double halfLife, MetricKey<GaugeAdapter<FrequencyMovingAvg>> key) {
         return metricBuilder(halfLife, Time.getCurrent(), key);
     }
 

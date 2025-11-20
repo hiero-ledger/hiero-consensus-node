@@ -4,7 +4,6 @@ package org.hiero.metrics.api;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import java.util.function.IntSupplier;
 import org.hiero.metrics.api.core.Label;
 import org.hiero.metrics.api.core.MetricType;
 import org.hiero.metrics.api.stat.StatUtils;
@@ -16,7 +15,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 
 public class StatsGaugeAdapterTest
         extends AbstractStatefulMetricBaseTest<
-                StatsGaugeAdapter<IntSupplier, StatContainer>, StatsGaugeAdapter.Builder<IntSupplier, StatContainer>> {
+                StatsGaugeAdapter<StatContainer>, StatsGaugeAdapter.Builder<StatContainer>> {
 
     @Override
     protected MetricType metricType() {
@@ -25,18 +24,17 @@ public class StatsGaugeAdapterTest
 
     @Override
     @SuppressWarnings("unchecked")
-    protected Class<StatsGaugeAdapter<IntSupplier, StatContainer>> metricClassType() {
-        return (Class<StatsGaugeAdapter<IntSupplier, StatContainer>>) (Class<?>) StatsGaugeAdapter.class;
+    protected Class<StatsGaugeAdapter<StatContainer>> metricClassType() {
+        return (Class<StatsGaugeAdapter<StatContainer>>) (Class<?>) StatsGaugeAdapter.class;
     }
 
     @Override
-    protected StatsGaugeAdapter.Builder<IntSupplier, StatContainer> emptyMetricBuilder(String name) {
+    protected StatsGaugeAdapter.Builder<StatContainer> emptyMetricBuilder(String name) {
         return emptyMetricBuilderWithInit(name, 0);
     }
 
-    protected StatsGaugeAdapter.Builder<IntSupplier, StatContainer> emptyMetricBuilderWithInit(String name, int init) {
-        return StatsGaugeAdapter.<IntSupplier, StatContainer>builder(
-                        StatsGaugeAdapter.key(name), () -> init, StatContainer::new)
+    protected StatsGaugeAdapter.Builder<StatContainer> emptyMetricBuilderWithInit(String name, int init) {
+        return StatsGaugeAdapter.builder(StatsGaugeAdapter.key(name), () -> new StatContainer(init))
                 .withLongStat("cnt", StatContainer::getCounter)
                 .withLongStat("sum", StatContainer::getSum)
                 .withReset(StatContainer::reset);
@@ -49,32 +47,22 @@ public class StatsGaugeAdapterTest
 
     @Test
     void testNullMetricKeyBuilder() {
-        assertThatThrownBy(
-                        () -> StatsGaugeAdapter.<IntSupplier, StatContainer>builder(null, () -> 0, StatContainer::new))
+        assertThatThrownBy(() -> StatsGaugeAdapter.builder(null, StatContainer::new))
                 .isInstanceOf(NullPointerException.class)
                 .hasMessage("key must not be null");
     }
 
     @Test
-    void testNullInitializerBuilder() {
-        assertThatThrownBy(() -> StatsGaugeAdapter.<IntSupplier, StatContainer>builder(
-                        StatsGaugeAdapter.key("test"), null, StatContainer::new))
+    void testNullFactoryBuilderThrows() {
+        assertThatThrownBy(() -> StatsGaugeAdapter.<StatContainer>builder(StatsGaugeAdapter.key("test"), null))
                 .isInstanceOf(NullPointerException.class)
                 .hasMessage("Default initializer must not be null");
     }
 
     @Test
-    void testNullFactoryBuilder() {
-        assertThatThrownBy(() -> StatsGaugeAdapter.<IntSupplier, StatContainer>builder(
-                        StatsGaugeAdapter.key("test"), () -> 0, null))
-                .isInstanceOf(NullPointerException.class)
-                .hasMessage("Data point factory must not be null");
-    }
-
-    @Test
     void testNoStatsDefinedThrows() {
-        StatsGaugeAdapter.Builder<IntSupplier, StatContainer> builder =
-                StatsGaugeAdapter.builder(StatsGaugeAdapter.key(DEFAULT_NAME), () -> 0, StatContainer::new);
+        StatsGaugeAdapter.Builder<StatContainer> builder =
+                StatsGaugeAdapter.builder(StatsGaugeAdapter.key(DEFAULT_NAME), StatContainer::new);
 
         assertThatThrownBy(builder::build)
                 .isInstanceOf(IllegalStateException.class)
@@ -83,7 +71,7 @@ public class StatsGaugeAdapterTest
 
     @Test
     void testDuplicateStatNamesThrows() {
-        StatsGaugeAdapter.Builder<IntSupplier, StatContainer> builder = emptyMetricBuilder()
+        StatsGaugeAdapter.Builder<StatContainer> builder = emptyMetricBuilder()
                 .withLongStat("mystat", StatContainer::getCounter)
                 .withDoubleStat("mystat", StatContainer::getAverage);
 
@@ -94,7 +82,7 @@ public class StatsGaugeAdapterTest
 
     @Test
     void testStatLabelConflictingConstantLabelThrows() {
-        StatsGaugeAdapter.Builder<IntSupplier, StatContainer> builder = emptyMetricBuilder()
+        StatsGaugeAdapter.Builder<StatContainer> builder = emptyMetricBuilder()
                 .withConstantLabel(new Label("mystat", "value"))
                 .withStatLabel("mystat")
                 .withLongStat("counter", StatContainer::getCounter);
@@ -106,7 +94,7 @@ public class StatsGaugeAdapterTest
 
     @Test
     void testDefaultStatLabelConflictingConstantLabelThrows() {
-        StatsGaugeAdapter.Builder<IntSupplier, StatContainer> builder = emptyMetricBuilder()
+        StatsGaugeAdapter.Builder<StatContainer> builder = emptyMetricBuilder()
                 .withConstantLabel(new Label(StatUtils.DEFAULT_STAT_LABEL, "value"))
                 .withLongStat("counter", StatContainer::getCounter);
 
@@ -117,7 +105,7 @@ public class StatsGaugeAdapterTest
 
     @Test
     void testStatLabelConflictingDynamicLabelNameThrows() {
-        StatsGaugeAdapter.Builder<IntSupplier, StatContainer> builder = emptyMetricBuilder()
+        StatsGaugeAdapter.Builder<StatContainer> builder = emptyMetricBuilder()
                 .withDynamicLabelNames("mystat")
                 .withStatLabel("mystat")
                 .withLongStat("counter", StatContainer::getCounter);
@@ -129,7 +117,7 @@ public class StatsGaugeAdapterTest
 
     @Test
     void testDefaultStatLabelConflictingDynamicLabelNameThrows() {
-        StatsGaugeAdapter.Builder<IntSupplier, StatContainer> builder = emptyMetricBuilder()
+        StatsGaugeAdapter.Builder<StatContainer> builder = emptyMetricBuilder()
                 .withDynamicLabelNames(StatUtils.DEFAULT_STAT_LABEL)
                 .withLongStat("counter", StatContainer::getCounter);
 
@@ -141,7 +129,7 @@ public class StatsGaugeAdapterTest
     @ParameterizedTest
     @ValueSource(strings = {"", " "})
     void testWithBlankStatNameThrows(String statName) {
-        StatsGaugeAdapter.Builder<IntSupplier, StatContainer> builder = emptyMetricBuilder();
+        StatsGaugeAdapter.Builder<StatContainer> builder = emptyMetricBuilder();
 
         assertThatThrownBy(() -> builder.withLongStat(statName, StatContainer::getCounter))
                 .isInstanceOf(IllegalArgumentException.class)
@@ -151,7 +139,7 @@ public class StatsGaugeAdapterTest
     @ParameterizedTest
     @MethodSource("org.hiero.metrics.TestUtils#invalidNames")
     void testWithInvalidStatLabelThrows(String statLabel) {
-        StatsGaugeAdapter.Builder<IntSupplier, StatContainer> builder = emptyMetricBuilder();
+        StatsGaugeAdapter.Builder<StatContainer> builder = emptyMetricBuilder();
 
         assertThatThrownBy(() -> builder.withStatLabel(statLabel)).isInstanceOf(IllegalArgumentException.class);
     }
@@ -159,16 +147,14 @@ public class StatsGaugeAdapterTest
     @ParameterizedTest
     @MethodSource("org.hiero.metrics.TestUtils#validNames")
     void testWithValidStatLabel(String statLabel) {
-        StatsGaugeAdapter.Builder<IntSupplier, StatContainer> builder =
-                emptyMetricBuilder().withStatLabel(statLabel);
+        StatsGaugeAdapter.Builder<StatContainer> builder = emptyMetricBuilder().withStatLabel(statLabel);
 
         assertThat(builder.getStatLabel()).isEqualTo(statLabel);
     }
 
     @Test
     void testDefaultInitialValueNoLabels() {
-        StatsGaugeAdapter<IntSupplier, StatContainer> metric =
-                emptyMetricBuilder().build();
+        StatsGaugeAdapter<StatContainer> metric = emptyMetricBuilder().build();
 
         assertThat(metric.getOrCreateNotLabeled().getCounter()).isEqualTo(0);
         assertThat(metric.getOrCreateNotLabeled().getSum()).isEqualTo(0);
@@ -184,7 +170,7 @@ public class StatsGaugeAdapterTest
 
     @Test
     void testDefaultInitialValueWithLabels() {
-        StatsGaugeAdapter<IntSupplier, StatContainer> metric =
+        StatsGaugeAdapter<StatContainer> metric =
                 emptyMetricBuilder().withDynamicLabelNames("label").build();
 
         assertThat(metric.getOrCreateLabeled("label", "1").getCounter()).isEqualTo(0);
@@ -197,17 +183,25 @@ public class StatsGaugeAdapterTest
         assertThat(metric.getOrCreateLabeled("label", "2").getCounter()).isEqualTo(1);
         assertThat(metric.getOrCreateLabeled("label", "2").getSum()).isEqualTo(10);
 
+        metric.getOrCreateLabeled(() -> new StatContainer(10), "label", "3").update(5);
+        // initializer is ignored after first creation
+        metric.getOrCreateLabeled(() -> new StatContainer(100), "label", "3").update(4);
+        assertThat(metric.getOrCreateLabeled("label", "3").getCounter()).isEqualTo(12);
+        assertThat(metric.getOrCreateLabeled("label", "3").getSum()).isEqualTo(19);
+
         metric.reset();
         assertThat(metric.getOrCreateLabeled("label", "1").getCounter()).isEqualTo(0);
         assertThat(metric.getOrCreateLabeled("label", "1").getSum()).isEqualTo(0);
         assertThat(metric.getOrCreateLabeled("label", "2").getCounter()).isEqualTo(0);
         assertThat(metric.getOrCreateLabeled("label", "2").getSum()).isEqualTo(0);
+        assertThat(metric.getOrCreateLabeled("label", "3").getCounter()).isEqualTo(10);
+        assertThat(metric.getOrCreateLabeled("label", "3").getSum()).isEqualTo(10);
     }
 
     @ParameterizedTest
     @ValueSource(ints = {-100, -1, 0, 1, 100})
     void testCustomInitialValueNoLabels(int initialValue) {
-        StatsGaugeAdapter<IntSupplier, StatContainer> metric =
+        StatsGaugeAdapter<StatContainer> metric =
                 emptyMetricBuilderWithInit(DEFAULT_NAME, initialValue).build();
         assertThat(metric.getOrCreateNotLabeled().getCounter()).isEqualTo(initialValue);
         assertThat(metric.getOrCreateNotLabeled().getSum()).isEqualTo(initialValue);
@@ -224,25 +218,30 @@ public class StatsGaugeAdapterTest
     @ParameterizedTest
     @ValueSource(ints = {-100, -1, 0, 1, 100})
     void testCustomInitialValueWithLabels(int initialValue) {
-        StatsGaugeAdapter<IntSupplier, StatContainer> metric = emptyMetricBuilderWithInit(DEFAULT_NAME, initialValue)
+        StatsGaugeAdapter<StatContainer> metric = emptyMetricBuilderWithInit(DEFAULT_NAME, initialValue)
                 .withDynamicLabelNames("label")
                 .build();
+
+        assertThat(metric.getOrCreateLabeled(() -> new StatContainer(10000), "label", "0")
+                        .getCounter())
+                .isEqualTo(10000);
 
         assertThat(metric.getOrCreateLabeled("label", "1").getCounter()).isEqualTo(initialValue);
         assertThat(metric.getOrCreateLabeled("label", "1").getSum()).isEqualTo(initialValue);
 
         metric.getOrCreateLabeled("label", "1").update(5);
         metric.getOrCreateLabeled("label", "2").update(10);
-        assertThat(metric.getOrCreateLabeled(StatUtils.asInitializer(initialValue), "label", "1")
+        assertThat(metric.getOrCreateLabeled(() -> new StatContainer(initialValue), "label", "1")
                         .getCounter())
-                .isEqualTo(initialValue + 1);
+                .isEqualTo(initialValue + 1); // initializer is ignored after first creation
         assertThat(metric.getOrCreateLabeled("label", "1").getSum()).isEqualTo(initialValue + 5);
-        assertThat(metric.getOrCreateLabeled(StatUtils.asInitializer(initialValue), "label", "2")
+        assertThat(metric.getOrCreateLabeled(() -> new StatContainer(initialValue), "label", "2")
                         .getCounter())
-                .isEqualTo(initialValue + 1);
+                .isEqualTo(initialValue + 1); // initializer is ignored after first creation
         assertThat(metric.getOrCreateLabeled("label", "2").getSum()).isEqualTo(initialValue + 10);
 
         metric.reset();
+        assertThat(metric.getOrCreateLabeled("label", "0").getCounter()).isEqualTo(10000);
         assertThat(metric.getOrCreateLabeled("label", "1").getCounter()).isEqualTo(initialValue);
         assertThat(metric.getOrCreateLabeled("label", "1").getSum()).isEqualTo(initialValue);
         assertThat(metric.getOrCreateLabeled("label", "2").getCounter()).isEqualTo(initialValue);

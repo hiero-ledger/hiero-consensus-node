@@ -7,7 +7,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.time.Instant;
-import java.util.function.IntSupplier;
 import org.hiero.metrics.api.DoubleGauge;
 import org.hiero.metrics.api.LongCounter;
 import org.hiero.metrics.api.StateSet;
@@ -65,7 +64,7 @@ public class CsvFileMetricsExporterTest {
         static LongCounter longCounter;
         static DoubleGauge doubleGauge;
         static StateSet<SateSetEnum> stateSet;
-        static StatsGaugeAdapter<IntSupplier, StatContainer> statsGauge;
+        static StatsGaugeAdapter<StatContainer> statsGauge;
         static Instant timestamp1;
 
         @BeforeAll

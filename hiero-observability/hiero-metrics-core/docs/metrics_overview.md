@@ -27,8 +27,8 @@ In many standards like **OpenMetrics** and **OpenTelemetry** metric has these ke
 
 Metric labels provide dimensionality to metrics, allowing for more granular analysis.
 Each unique combination of labels (even empty) represents a distinct time series within the metric over time with exporting.
-Metric value(s), uniquely identified by the combination of metric metadata and labels,
-are called **Data Points**, which serve as a container for the actual metric value(s) and provide methods
+Metric value(s), uniquely identified by the combination of metric metadata and labels.
+**Data Point** serve as a container for the actual metric value(s) and provide methods
 to update them on observation and retrieve value(s) during exporting.
 
 See more about metrics here: [📘Metrics Details](metrics_details.md).

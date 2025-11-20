@@ -3,58 +3,75 @@ package org.hiero.metrics.api.stat;
 
 import static org.hiero.metrics.api.stat.StatUtils.INT_AVERAGE;
 
-import java.util.Objects;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.function.DoubleSupplier;
-import java.util.function.IntSupplier;
 import org.hiero.metrics.api.GaugeAdapter;
 import org.hiero.metrics.api.core.MetricKey;
 import org.hiero.metrics.api.core.ToNumberFunction;
 import org.hiero.metrics.api.stat.container.AtomicIntPair;
 
+/**
+ * A statistic that atomically computes the cumulative average of integer values
+ * using {@link AtomicIntPair} as the underlying container.
+ */
 public final class CumulativeAverageIntStat implements DoubleSupplier {
 
-    private final IntSupplier initializer;
     private final AtomicIntPair container = AtomicIntPair.createAccumulatingSum();
 
-    public CumulativeAverageIntStat() {
-        this(StatUtils.INT_INIT);
-    }
-
-    public CumulativeAverageIntStat(IntSupplier initializer) {
-        this.initializer = Objects.requireNonNull(initializer, "Initializer must not be null");
-        update(initializer.getAsInt());
-    }
-
-    public static MetricKey<GaugeAdapter<IntSupplier, CumulativeAverageIntStat>> key(String name) {
+    /**
+     * Creates a {@link MetricKey} for a {@link GaugeAdapter} that holds a {@link CumulativeAverageIntStat}.
+     *
+     * @param name the name of the metric
+     * @return the metric key
+     */
+    @NonNull
+    public static MetricKey<GaugeAdapter<CumulativeAverageIntStat>> key(@NonNull String name) {
         return MetricKey.of(name, GaugeAdapter.class);
     }
 
-    public static GaugeAdapter.Builder<IntSupplier, CumulativeAverageIntStat> metricBuilder(
-            MetricKey<GaugeAdapter<IntSupplier, CumulativeAverageIntStat>> key) {
-        return metricBuilder(key, StatUtils.INT_INIT);
-    }
-
-    public static GaugeAdapter.Builder<IntSupplier, CumulativeAverageIntStat> metricBuilder(
-            MetricKey<GaugeAdapter<IntSupplier, CumulativeAverageIntStat>> key, IntSupplier initializer) {
+    /**
+     * Creates a {@link GaugeAdapter.Builder} for a {@link CumulativeAverageIntStat}.
+     * Metric will reset the cumulative average after each export.
+     *
+     * @param key         the metric key
+     * @return the metric builder
+     */
+    @NonNull
+    public static GaugeAdapter.Builder<CumulativeAverageIntStat> metricBuilder(
+            @NonNull MetricKey<GaugeAdapter<CumulativeAverageIntStat>> key) {
         return GaugeAdapter.builder(
                         key,
-                        initializer,
                         CumulativeAverageIntStat::new,
                         new ToNumberFunction<>(CumulativeAverageIntStat::getAndReset))
                 .withReset(CumulativeAverageIntStat::reset);
     }
 
+    /**
+     * Creates a {@link GaugeAdapter.Builder} for a {@link CumulativeAverageIntStat}.
+     * Metric will reset the cumulative average after each export.
+     *
+     * @param name the name of the metric
+     * @return the metric builder
+     */
+    @NonNull
+    public static GaugeAdapter.Builder<CumulativeAverageIntStat> metricBuilder(@NonNull String name) {
+        return metricBuilder(key(name));
+    }
+
+    /**
+     * Update the cumulative average with the provided integer value.
+     *
+     * @param value the integer value to update the average with
+     */
     public void update(int value) {
         container.accumulate(value, 1);
     }
 
+    /**
+     * Reset the cumulative average to the initial value provided by the initializer.
+     */
     public void reset() {
-        int init = initializer.getAsInt();
-        if (init == 0) {
-            container.reset();
-        } else {
-            container.set(init, 1);
-        }
+        container.reset();
     }
 
     @Override
@@ -62,12 +79,12 @@ public final class CumulativeAverageIntStat implements DoubleSupplier {
         return container.computeDouble(INT_AVERAGE);
     }
 
+    /**
+     * Get the current cumulative average and reset it to the initial value provided by the initializer.
+     *
+     * @return the current cumulative average before reset
+     */
     public double getAndReset() {
-        int init = initializer.getAsInt();
-        if (init == 0) {
-            return container.computeDoubleAndReset(INT_AVERAGE);
-        } else {
-            return container.computeDoubleAndSet(INT_AVERAGE, init, 1);
-        }
+        return container.computeDoubleAndReset(INT_AVERAGE);
     }
 }

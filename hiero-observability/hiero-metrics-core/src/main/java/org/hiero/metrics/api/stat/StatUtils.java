@@ -17,8 +17,6 @@ public final class StatUtils {
 
     public static final String DEFAULT_STAT_LABEL = "stat";
 
-    public static final Object NO_DEFAULT_INITIALIZER = new Object();
-
     public static final double ZERO = 0.0;
     public static final double ONE = 1.0;
 
