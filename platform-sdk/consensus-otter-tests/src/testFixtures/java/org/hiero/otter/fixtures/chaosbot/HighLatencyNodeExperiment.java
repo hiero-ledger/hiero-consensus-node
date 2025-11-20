@@ -75,7 +75,8 @@ public record HighLatencyNodeExperiment(
      */
     @Override
     @NonNull
-    public List<Step> start(@NonNull final Network network, @NonNull final Instant now, @NonNull final Randotron randotron) {
+    public List<Step> start(
+            @NonNull final Network network, @NonNull final Instant now, @NonNull final Randotron randotron) {
         final List<Node> candidates = network.nodes().stream()
                 .filter(node -> !affectedNodes.contains(node))
                 .toList();
