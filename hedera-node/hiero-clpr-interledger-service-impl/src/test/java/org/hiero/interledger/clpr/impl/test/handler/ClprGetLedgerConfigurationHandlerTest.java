@@ -4,6 +4,7 @@ package org.hiero.interledger.clpr.impl.test.handler;
 import static java.util.Objects.requireNonNull;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThatCode;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 
@@ -78,7 +79,8 @@ public class ClprGetLedgerConfigurationHandlerTest extends ClprHandlerTestBase {
         final var query = createClprGetLedgerConfigurationQuery(remoteClprLedgerId);
         given(context.query()).willReturn(query);
         given(stateProofManager.getLocalLedgerId()).willReturn(localClprLedgerId);
-        given(stateProofManager.getLedgerConfiguration(remoteClprLedgerId)).willReturn(remoteClprConfig);
+        given(stateProofManager.getLedgerConfiguration(remoteClprLedgerId))
+                .willReturn(buildStateProof(remoteClprConfig));
         assertThatCode(() -> subject.validate(context)).doesNotThrowAnyException();
     }
 
@@ -87,7 +89,7 @@ public class ClprGetLedgerConfigurationHandlerTest extends ClprHandlerTestBase {
         final var query = createClprGetLedgerConfigurationQuery(null);
         given(context.query()).willReturn(query);
         given(stateProofManager.getLocalLedgerId()).willReturn(localClprLedgerId);
-        given(stateProofManager.getLedgerConfiguration(localClprLedgerId)).willReturn(localClprConfig);
+        given(stateProofManager.getLedgerConfiguration(localClprLedgerId)).willReturn(buildStateProof(localClprConfig));
         assertThatCode(() -> subject.validate(context)).doesNotThrowAnyException();
     }
 
@@ -120,7 +122,8 @@ public class ClprGetLedgerConfigurationHandlerTest extends ClprHandlerTestBase {
         final var query = createClprGetLedgerConfigurationQuery(remoteClprLedgerId);
         given(context.query()).willReturn(query);
         given(stateProofManager.getLocalLedgerId()).willReturn(localClprLedgerId);
-        given(stateProofManager.getLedgerConfiguration(remoteClprLedgerId)).willReturn(remoteClprConfig);
+        given(stateProofManager.getLedgerConfiguration(remoteClprLedgerId))
+                .willReturn(buildStateProof(remoteClprConfig));
         checkResponse(remoteClprConfig);
     }
 
@@ -129,7 +132,7 @@ public class ClprGetLedgerConfigurationHandlerTest extends ClprHandlerTestBase {
         final var query = createClprGetLedgerConfigurationQuery(null);
         given(context.query()).willReturn(query);
         given(stateProofManager.getLocalLedgerId()).willReturn(localClprLedgerId);
-        given(stateProofManager.getLedgerConfiguration(localClprLedgerId)).willReturn(localClprConfig);
+        given(stateProofManager.getLedgerConfiguration(localClprLedgerId)).willReturn(buildStateProof(localClprConfig));
         checkResponse(localClprConfig);
     }
 
@@ -141,7 +144,11 @@ public class ClprGetLedgerConfigurationHandlerTest extends ClprHandlerTestBase {
         final var response = subject.findResponse(context, responseHeader);
         final var clprResponse = response.clprLedgerConfigurationOrThrow();
         assertEquals(ResponseCodeEnum.OK, requireNonNull(clprResponse.header()).nodeTransactionPrecheckCode());
-        assertEquals(expectedLedgerConfig, clprResponse.ledgerConfiguration());
+        // Extract configuration from state proof
+        final var proof = clprResponse.ledgerConfigurationProof();
+        assertNotNull(proof, "State proof should not be null");
+        final var actualConfig = org.hiero.interledger.clpr.impl.ClprStateProofUtils.extractConfiguration(proof);
+        assertEquals(expectedLedgerConfig, actualConfig);
     }
 
     /**

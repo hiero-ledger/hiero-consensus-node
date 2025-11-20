@@ -1,55 +1,229 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.interledger.clpr.impl;
 
+import static java.util.Objects.requireNonNull;
+
+import com.hedera.hapi.block.stream.StateProof;
+import com.hedera.node.app.hapi.utils.blocks.StateProofBuilder;
+import com.hedera.node.app.hapi.utils.blocks.StateProofVerifier;
+import com.hedera.node.app.spi.state.BlockProvenSnapshot;
+import com.hedera.node.app.spi.state.BlockProvenSnapshotProvider;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.state.MerkleNodeState;
+import com.swirlds.state.spi.ReadableKVState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.util.Iterator;
+import java.util.Optional;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.hiero.hapi.interledger.clpr.ClprSetLedgerConfigurationTransactionBody;
 import org.hiero.hapi.interledger.state.clpr.ClprLedgerConfiguration;
 import org.hiero.hapi.interledger.state.clpr.ClprLedgerId;
+import org.hiero.interledger.clpr.ClprService;
+import org.hiero.interledger.clpr.impl.schemas.V0650ClprSchema;
 
 /**
- * Manages the latest immutable state that has a valid block proof.  This includes reading the state for needed content,
- * returning state proofs for content in the state, and validating state proofs.
+ * Manages access to CLPR state and validates incoming state proofs.
+ *
+ * <p>The manager relies on a supplied {@link BlockProvenSnapshotProvider} so it can retrieve CLPR-backed stores on
+ * demand without holding onto stale references. The provider is implemented by the application layer, keeping this
+ * implementation free of direct application-module dependencies.</p>
+ *
+ * <p><b>Dev Mode Only:</b> All methods in this class require {@code devModeEnabled} to be {@code true}.
+ * When dev mode is disabled, methods return {@code null} or throw {@link UnsupportedOperationException}
+ * as production mode is not yet implemented.</p>
  */
 @Singleton
 public class ClprStateProofManager {
 
+    private final BlockProvenSnapshotProvider snapshotProvider;
+    private final com.hedera.node.config.data.ClprConfig clprConfig;
+
     @Inject
-    public ClprStateProofManager() {}
+    public ClprStateProofManager(
+            @NonNull final BlockProvenSnapshotProvider snapshotProvider,
+            @NonNull final com.hedera.node.config.data.ClprConfig clprConfig) {
+        this.snapshotProvider = requireNonNull(snapshotProvider);
+        this.clprConfig = requireNonNull(clprConfig);
+    }
 
     /**
-     * Gets the local ledger ID from the latest provable state.
+     * Indicates whether dev mode shortcuts are enabled.
      *
-     * @return The local ledger ID, or null if not determined yet.
+     * @return {@code true} when dev mode is active
+     */
+    public boolean isDevModeEnabled() {
+        return clprConfig.devModeEnabled();
+    }
+
+    /**
+     * Returns the most recent local ledger id, or {@code null} if it is not yet known.
+     *
+     * <p><b>Dev Mode Behavior:</b> Returns the ledger ID from the first configuration found in state.
+     * If no configuration exists yet an empty {@link ClprLedgerId} is returned so callers can treat the
+     * value as “still bootstrapping”. In production this should be replaced with a history-service lookup.</p>
+     *
+     * @return the local ledger ID, {@code null} when dev mode is disabled, or an empty id while bootstrapping
      */
     @Nullable
     public ClprLedgerId getLocalLedgerId() {
-        throw new UnsupportedOperationException("getLocalLedgerId() is not implemented yet.");
+        if (!clprConfig.devModeEnabled()) {
+            return null;
+        }
+        final var snapshot = latestSnapshot().orElse(null);
+        if (snapshot == null) {
+            return emptyLedgerId();
+        }
+        final var state = snapshot.merkleState();
+        final var readableStates = state.getReadableStates(ClprService.NAME);
+        if (!readableStates.contains(V0650ClprSchema.CLPR_LEDGER_CONFIGURATIONS_STATE_ID)) {
+            throw new IllegalStateException("State is not configured for CLPR");
+        }
+        final ReadableKVState<ClprLedgerId, ClprLedgerConfiguration> configsState =
+                readableStates.get(V0650ClprSchema.CLPR_LEDGER_CONFIGURATIONS_STATE_ID);
+        final Iterator<ClprLedgerId> keys = configsState.keys();
+        while (keys.hasNext()) {
+            final var candidateId = keys.next();
+            final var configuration = configsState.get(candidateId);
+            if (configuration != null && configuration.hasLedgerId()) {
+                // Dev-mode shortcut: any stored configuration reveals a ledger id. Replace with TSS-backed
+                // lookup once the history service integration is available.
+                return configuration.ledgerId();
+            }
+        }
+        return emptyLedgerId();
+    }
+
+    @Deprecated
+    private ClprLedgerId emptyLedgerId() {
+        if (!clprConfig.devModeEnabled()) {
+            throw new IllegalStateException("Can only return empty ledger ids in dev mode");
+        }
+        return ClprLedgerId.newBuilder().build();
     }
 
     /**
-     * Gets the ledger configuration for the given ledger ID from the latest provable state.
+     * Returns a state proof for the requested ledger configuration, or {@code null} if none exists.
      *
-     * @param ledgerId The ID of the ledger for which to retrieve the configuration.
-     * @return The {@link ClprLedgerConfiguration} for the specified ledger ID, or null if not found.
+     * <p><b>Dev Mode Behavior:</b> Builds a state proof from the actual Merkle tree containing the configuration.
+     * The state root hash is used as the TSS signature. In production mode, this should return a TSS-backed
+     * proof from the history service.</p>
+     *
+     * @param ledgerId the ledger ID to query
+     * @return state proof containing the configuration, or {@code null} if not in dev mode or configuration not found
      */
     @Nullable
-    public ClprLedgerConfiguration getLedgerConfiguration(@NonNull ClprLedgerId ledgerId) {
-        // TODO: Implement the logic to retrieve the ledger configuration for the given ledger ID.
-        return null;
+    public StateProof getLedgerConfiguration(@NonNull final ClprLedgerId ledgerId) {
+        requireNonNull(ledgerId);
+        if (!clprConfig.devModeEnabled()) {
+            return null;
+        }
+        final var snapshot = latestSnapshot().orElse(null);
+        if (snapshot == null) {
+            return null;
+        }
+        final var state = snapshot.merkleState();
+
+        final var readableStates = state.getReadableStates(ClprService.NAME);
+        if (!readableStates.contains(V0650ClprSchema.CLPR_LEDGER_CONFIGURATIONS_STATE_ID)) {
+            throw new IllegalStateException(
+                    "CLPR ledger configurations state not found - service may not be properly initialized");
+        }
+        // TODO: If the ledger id is blank, it's a query for the local ledger configuration. Add code to handle.
+        return buildMerkleStateProof(
+                state, V0650ClprSchema.CLPR_LEDGER_CONFIGURATIONS_STATE_ID, ClprLedgerId.PROTOBUF.toBytes(ledgerId));
     }
 
     /**
-     * Validates the signature and state proof within the given {@link ClprSetLedgerConfigurationTransactionBody}.
-     * In this case the configuration for validating the state proof and signature are in the content being proven.
+     * Returns the current ledger configuration from state without constructing a state proof.
      *
-     * @param configTxn The transaction body containing the state proof of the ledger configuration to validate.
-     * @return {@code true} if the state proof is valid, otherwise {@code false}.
+     * <p>This helper is available in both dev and non-dev modes so that server-side handlers can
+     * enforce monotonic timestamp rules before applying state updates.</p>
+     *
+     * @param ledgerId the ledger identifier to resolve
+     * @return the stored configuration, or {@code null} when none exists or state is unavailable
+     */
+    @Nullable
+    public ClprLedgerConfiguration readLedgerConfiguration(@NonNull final ClprLedgerId ledgerId) {
+        requireNonNull(ledgerId);
+        final var snapshot = latestSnapshot().orElse(null);
+        if (snapshot == null) {
+            return null;
+        }
+        final var state = snapshot.merkleState();
+        final var readableStates = state.getReadableStates(ClprService.NAME);
+        if (!readableStates.contains(V0650ClprSchema.CLPR_LEDGER_CONFIGURATIONS_STATE_ID)) {
+            return null;
+        }
+        final ReadableKVState<ClprLedgerId, ClprLedgerConfiguration> configsState =
+                readableStates.get(V0650ClprSchema.CLPR_LEDGER_CONFIGURATIONS_STATE_ID);
+        return configsState.get(ledgerId);
+    }
+
+    @NonNull
+    private Optional<BlockProvenSnapshot> latestSnapshot() {
+        return snapshotProvider.latestSnapshot();
+    }
+
+    /**
+     * Builds a proper Merkle state proof from the actual state tree.
+     */
+    @Nullable
+    private StateProof buildMerkleStateProof(
+            @NonNull final MerkleNodeState merkleState, final int STATE_ID, @NonNull final Bytes STATE_KEY) {
+        // Ensure state is hashed before getting Merkle proof
+        if (!merkleState.isHashed()) {
+            merkleState.computeHash();
+        }
+
+        // Get the Merkle path for this KV entry
+        final long path = merkleState.kvPath(STATE_ID, STATE_KEY);
+        if (path < 0) { // INVALID_PATH is -1L
+            return null;
+        }
+
+        // Get the Merkle proof from the state
+        final var merkleProof = merkleState.getMerkleProof(path);
+        if (merkleProof == null) {
+            return null;
+        }
+
+        // Build state proof with the Merkle proof and state root hash as signature (dev mode)
+        final var stateRootHash = merkleState.getHash();
+        if (stateRootHash == null) {
+            throw new IllegalStateException("State root hash is null.");
+        }
+
+        return StateProofBuilder.newBuilder()
+                .addProof(merkleProof)
+                .withTssSignature(Bytes.wrap(stateRootHash.copyToByteArray()))
+                .build();
+    }
+
+    /**
+     * Validates the state proof embedded in the supplied transaction.
+     *
+     * <p><b>Dev Mode Behavior:</b> Validates proof structure and root hash signature matching.
+     * In production mode, validation is not yet implemented.</p>
+     *
+     * @param configTxn the transaction containing the state proof
+     * @return {@code true} if the proof is structurally sound and its signature matches the computed root hash
+     * @throws UnsupportedOperationException if dev mode is not enabled
      */
     public boolean validateStateProof(@NonNull final ClprSetLedgerConfigurationTransactionBody configTxn) {
-        // TODO: Implement the logic to validate the state proof and the signature on the state proof.
-        return true;
+        requireNonNull(configTxn);
+        if (!clprConfig.devModeEnabled()) {
+            throw new UnsupportedOperationException("State proof validation not available in production mode");
+        }
+        if (!configTxn.hasLedgerConfigurationProof()) {
+            return false;
+        }
+        try {
+            // verify the state proof structure and signature
+            return StateProofVerifier.verify(configTxn.ledgerConfigurationProofOrThrow());
+        } catch (final Exception e) {
+            return false;
+        }
     }
 }

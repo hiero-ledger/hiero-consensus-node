@@ -65,16 +65,43 @@ public class HapiSetLedgerConfig extends HapiTxnOp<HapiSetLedgerConfig> {
 
     @Override
     protected Consumer<TransactionBody.Builder> opBodyDef(final HapiSpec spec) throws Throwable {
+        // Build the configuration
+        final var config = ClprLedgerConfiguration.newBuilder()
+                .setLedgerId(ClprLedgerId.newBuilder()
+                        .setLedgerId(ByteString.copyFromUtf8(ledgerId))
+                        .build())
+                .setTimestamp(timestamp)
+                .addAllEndpoints(endpoints)
+                .build();
+
+        // Wrap it in a state proof
+        final var merkleLeaf = com.hedera.hapi.block.stream.protoc.MerkleLeaf.newBuilder()
+                .setStateItem(config.toByteString())
+                .build();
+        final var merklePath = com.hedera.hapi.block.stream.protoc.MerklePath.newBuilder()
+                .setLeaf(merkleLeaf)
+                .setNextPathIndex(-1)
+                .build();
+
+        // Create state proof builder and compute root hash for signature
+        final var pathBuilder = new com.hedera.node.app.hapi.utils.blocks.MerklePathBuilder();
+        final var pbjLeaf = com.hedera.hapi.node.state.blockstream.MerkleLeaf.newBuilder()
+                .stateItem(com.hedera.pbj.runtime.io.buffer.Bytes.wrap(config.toByteArray()))
+                .build();
+        pathBuilder.setLeaf(pbjLeaf);
+        final var rootHash = pathBuilder.getRootHash();
+
+        final var stateProof = com.hedera.hapi.block.stream.protoc.StateProof.newBuilder()
+                .addPaths(merklePath)
+                .setSignedBlockProof(com.hedera.hapi.block.stream.protoc.TssSignedBlockProof.newBuilder()
+                        .setBlockSignature(ByteString.copyFrom(rootHash))
+                        .build())
+                .build();
+
         final ClprSetLedgerConfigurationTransactionBody opBody = spec.txns()
                 .<ClprSetLedgerConfigurationTransactionBody, ClprSetLedgerConfigurationTransactionBody.Builder>body(
                         ClprSetLedgerConfigurationTransactionBody.class, b -> {
-                            b.setLedgerConfiguration(ClprLedgerConfiguration.newBuilder()
-                                    .setLedgerId(ClprLedgerId.newBuilder()
-                                            .setLedgerId(ByteString.copyFromUtf8(ledgerId))
-                                            .build())
-                                    .setTimestamp(timestamp)
-                                    .addAllEndpoints(endpoints)
-                                    .build());
+                            b.setLedgerConfigurationProof(stateProof);
                         });
         return b -> b.setClprSetLedgerConfiguration(opBody);
     }

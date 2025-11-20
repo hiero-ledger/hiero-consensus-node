@@ -51,7 +51,6 @@ import java.util.Optional;
 import java.util.function.Function;
 import org.hiero.hapi.interledger.clpr.protoc.ClprSetLedgerConfigurationTransactionBody;
 import org.hiero.hapi.interledger.state.clpr.protoc.ClprLedgerConfiguration;
-import org.hiero.hapi.interledger.state.clpr.protoc.ClprLedgerId;
 
 public class HapiSpecRegistry {
     private final Map<String, Object> registry = new HashMap<>();
@@ -363,17 +362,25 @@ public class HapiSpecRegistry {
     public void saveRemoteLedgerConfig(ClprSetLedgerConfigurationTransactionBody txBody) {
         ClprSetLedgerConfigurationTransactionBody.Builder builder =
                 ClprSetLedgerConfigurationTransactionBody.newBuilder();
-        if (txBody.hasLedgerConfiguration()) {
-            final var ledgerConfig = txBody.getLedgerConfiguration();
-            final var ledgerIdBytes = ledgerConfig.getLedgerId().getLedgerId().toByteArray();
-            builder.setLedgerConfiguration(ClprLedgerConfiguration.newBuilder()
-                    .setLedgerId(ClprLedgerId.newBuilder()
-                            .setLedgerId(ByteString.copyFrom(ledgerIdBytes))
-                            .build())
-                    .setTimestamp(ledgerConfig.getTimestamp())
-                    .addAllEndpoints(ledgerConfig.getEndpointsList())
-                    .build());
-            put(ByteString.copyFrom(ledgerIdBytes).toStringUtf8(), builder.build());
+        if (txBody.hasLedgerConfigurationProof()) {
+            // Extract configuration from state proof
+            final var stateProof = txBody.getLedgerConfigurationProof();
+            if (stateProof.getPathsCount() > 0 && stateProof.getPaths(0).hasLeaf()) {
+                final var leaf = stateProof.getPaths(0).getLeaf();
+                if (leaf.hasStateItem()) {
+                    try {
+                        // Parse the configuration from the leaf bytes
+                        final var ledgerConfig = ClprLedgerConfiguration.parseFrom(
+                                leaf.getStateItem().toByteArray());
+                        final var ledgerIdBytes =
+                                ledgerConfig.getLedgerId().getLedgerId().toByteArray();
+                        builder.setLedgerConfigurationProof(stateProof);
+                        put(ByteString.copyFrom(ledgerIdBytes).toStringUtf8(), builder.build());
+                    } catch (com.google.protobuf.InvalidProtocolBufferException e) {
+                        // Skip if configuration cannot be parsed
+                    }
+                }
+            }
         }
     }
 

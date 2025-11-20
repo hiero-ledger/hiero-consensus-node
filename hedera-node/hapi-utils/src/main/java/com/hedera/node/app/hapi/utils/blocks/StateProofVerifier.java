@@ -17,7 +17,7 @@ import java.util.Deque;
 import java.util.List;
 
 /**
- * Verifier for validating {@link StateProof} messages.
+ * Utility class for validating {@link StateProof} messages.
  *
  * <p>This class provides functionality to verify that a state proof correctly proves the inclusion
  * of state items in a Merkle tree with a specific root hash. The verification process includes:
@@ -37,14 +37,20 @@ import java.util.List;
  * <p><b>Example usage:</b>
  * <pre>{@code
  * StateProof proof = ...; // obtained from block stream
- * StateProofVerifier verifier = new StateProofVerifier();
- * boolean isValid = verifier.verify(proof);
+ * boolean isValid = StateProofVerifier.verify(proof);
  * if (isValid) {
  *     // State proof is cryptographically valid
  * }
  * }</pre>
  */
 public final class StateProofVerifier {
+
+    /**
+     * Private constructor to prevent instantiation of this utility class.
+     */
+    private StateProofVerifier() {
+        throw new UnsupportedOperationException("Utility class - do not instantiate");
+    }
 
     /**
      * Verifies a complete {@link StateProof}.
@@ -61,7 +67,7 @@ public final class StateProofVerifier {
      * @throws NullPointerException if stateProof is null
      * @throws IllegalStateException if the proof structure is invalid
      */
-    public boolean verify(@NonNull final StateProof stateProof) {
+    public static boolean verify(@NonNull final StateProof stateProof) {
         requireNonNull(stateProof, "stateProof must not be null");
 
         // Compute root hash from merkle paths
@@ -79,7 +85,8 @@ public final class StateProofVerifier {
      * @param expectedRootHash the expected root hash
      * @return true if the computed root hash matches the expected root hash, false otherwise
      */
-    public boolean verifyRootHashForTest(@NonNull final StateProof stateProof, @NonNull final byte[] expectedRootHash) {
+    public static boolean verifyRootHashForTest(
+            @NonNull final StateProof stateProof, @NonNull final byte[] expectedRootHash) {
         requireNonNull(stateProof, "stateProof must not be null");
         requireNonNull(expectedRootHash, "expectedRootHash must not be null");
         final byte[] computedRootHash = computeRootHash(stateProof.paths());
@@ -121,7 +128,7 @@ public final class StateProofVerifier {
      * @throws IllegalStateException if the path structure violates invariants
      */
     @NonNull
-    private byte[] computeRootHash(@NonNull final List<MerklePath> paths) {
+    private static byte[] computeRootHash(@NonNull final List<MerklePath> paths) {
         requireNonNull(paths, "paths must not be null");
 
         if (paths.isEmpty()) {
@@ -180,7 +187,7 @@ public final class StateProofVerifier {
      * @return the computed hash reaching the path's endpoint
      */
     @NonNull
-    private byte[] computeLeafPathHash(@NonNull final MerklePath path) {
+    private static byte[] computeLeafPathHash(@NonNull final MerklePath path) {
         final byte[] leafHash = computeLeafHash(path.leaf());
         return computeRootOfSiblings(path.siblings(), leafHash);
     }
@@ -200,7 +207,8 @@ public final class StateProofVerifier {
      * @throws IllegalStateException if number of child hashes is invalid
      */
     @NonNull
-    private byte[] computeInternalPathHash(@NonNull final MerklePath path, @NonNull final List<byte[]> childHashes) {
+    private static byte[] computeInternalPathHash(
+            @NonNull final MerklePath path, @NonNull final List<byte[]> childHashes) {
         final byte[] baseHash =
                 switch (childHashes.size()) {
                     case 1 -> computeSingleChildHash(childHashes.get(0));
@@ -228,7 +236,8 @@ public final class StateProofVerifier {
      * @return the computed hash after combining with all siblings
      */
     @NonNull
-    private byte[] computeRootOfSiblings(@NonNull final List<SiblingNode> siblings, @NonNull final byte[] startHash) {
+    private static byte[] computeRootOfSiblings(
+            @NonNull final List<SiblingNode> siblings, @NonNull final byte[] startHash) {
         byte[] computedHash = startHash;
 
         for (final SiblingNode sibling : siblings) {
@@ -260,7 +269,7 @@ public final class StateProofVerifier {
      * @return the computed leaf hash
      */
     @NonNull
-    private byte[] computeLeafHash(@NonNull final MerkleLeaf leaf) {
+    private static byte[] computeLeafHash(@NonNull final MerkleLeaf leaf) {
         return HashUtils.computeLeafHash(HashUtils.newMessageDigest(), leaf);
     }
 
@@ -273,7 +282,7 @@ public final class StateProofVerifier {
      * @return the computed single-child hash
      */
     @NonNull
-    private byte[] computeSingleChildHash(@NonNull final byte[] childHash) {
+    private static byte[] computeSingleChildHash(@NonNull final byte[] childHash) {
         return HashUtils.computeSingleChildHash(HashUtils.newMessageDigest(), childHash);
     }
 
@@ -287,7 +296,7 @@ public final class StateProofVerifier {
      * @return the computed internal node hash
      */
     @NonNull
-    private byte[] joinHashes(@NonNull final byte[] leftHash, @NonNull final byte[] rightHash) {
+    private static byte[] joinHashes(@NonNull final byte[] leftHash, @NonNull final byte[] rightHash) {
         return HashUtils.joinHashes(HashUtils.newMessageDigest(), leftHash, rightHash);
     }
 
@@ -304,7 +313,7 @@ public final class StateProofVerifier {
      * @param stateProof the state proof containing the TSS signature
      * @return true if the signature is valid (Phase 1: if bytes match), false otherwise
      */
-    private boolean verifyTssSignature(@NonNull final byte[] rootHash, @NonNull final StateProof stateProof) {
+    private static boolean verifyTssSignature(@NonNull final byte[] rootHash, @NonNull final StateProof stateProof) {
         if (!stateProof.hasSignedBlockProof()) {
             return false;
         }

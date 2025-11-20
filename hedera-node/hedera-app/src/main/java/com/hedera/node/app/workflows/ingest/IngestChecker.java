@@ -69,6 +69,7 @@ import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
 import com.hedera.node.app.workflows.purechecks.PureChecksContextImpl;
 import com.hedera.node.config.Utils;
+import com.hedera.node.config.data.ClprConfig;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.HooksConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -522,6 +523,13 @@ public final class IngestChecker {
             throws PreCheckException {
         final var payerKey = payer.key();
         final var hederaConfig = configuration.getConfigData(HederaConfig.class);
+        final var clprConfig = configuration.getConfigData(ClprConfig.class);
+        if (clprConfig.devModeEnabled() && txInfo.functionality() == HederaFunctionality.CLPR_SET_LEDGER_CONFIG) {
+            // DEMO/PROTOTYPE ONLY: Temporarily bypass payer signature enforcement for CLPR bootstrap
+            // transactions while the final signing strategy is still under design. This MUST be removed
+            // before production rollout.
+            return;
+        }
         final var sigPairs = txInfo.signatureMap().sigPair();
 
         // Expand the signatures

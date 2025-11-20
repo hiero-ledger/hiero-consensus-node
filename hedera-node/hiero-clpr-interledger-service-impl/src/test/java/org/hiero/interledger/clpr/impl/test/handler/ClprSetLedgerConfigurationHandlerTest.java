@@ -2,12 +2,14 @@
 package org.hiero.interledger.clpr.impl.test.handler;
 
 import static java.util.Objects.requireNonNull;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThatCode;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
+import com.hedera.hapi.block.stream.StateProof;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.base.Timestamp;
@@ -27,14 +29,18 @@ import org.hiero.hapi.interledger.state.clpr.ClprEndpoint;
 import org.hiero.hapi.interledger.state.clpr.ClprLedgerConfiguration;
 import org.hiero.hapi.interledger.state.clpr.ClprLedgerId;
 import org.hiero.interledger.clpr.impl.ClprStateProofManager;
+import org.hiero.interledger.clpr.impl.ClprStateProofUtils;
 import org.hiero.interledger.clpr.impl.handlers.ClprSetLedgerConfigurationHandler;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
 
 @ExtendWith(MockitoExtension.class)
+@MockitoSettings(strictness = Strictness.LENIENT)
 public class ClprSetLedgerConfigurationHandlerTest extends ClprHandlerTestBase {
 
     @Mock
@@ -73,7 +79,9 @@ public class ClprSetLedgerConfigurationHandlerTest extends ClprHandlerTestBase {
     @Test
     public void prehandleHappyPath() {
         final var txn = newTxnBuilder().withClprLedgerConfig(remoteClprConfig).build();
+        given(stateProofManager.getLedgerConfiguration(any())).willReturn(null);
         given(stateProofManager.getLocalLedgerId()).willReturn(localClprLedgerId);
+        given(stateProofManager.isDevModeEnabled()).willReturn(true);
         given(stateProofManager.validateStateProof(any(ClprSetLedgerConfigurationTransactionBody.class)))
                 .willReturn(true);
         given(preHandleContext.body()).willReturn(txn);
@@ -86,6 +94,7 @@ public class ClprSetLedgerConfigurationHandlerTest extends ClprHandlerTestBase {
         // Given a transaction from the self-node
         given(creatorInfo.nodeId()).willReturn(0L);
         final var txn = newTxnBuilder().withClprLedgerConfig(remoteClprConfig).build();
+        given(stateProofManager.getLedgerConfiguration(any())).willReturn(null);
         given(stateProofManager.getLocalLedgerId()).willReturn(localClprLedgerId);
         given(preHandleContext.body()).willReturn(txn);
 
@@ -94,6 +103,20 @@ public class ClprSetLedgerConfigurationHandlerTest extends ClprHandlerTestBase {
 
         // Verify state proof validation was never called for local transactions
         verify(stateProofManager, never()).validateStateProof(any());
+    }
+
+    @Test
+    public void preHandleAllowsDevModeLocalBootstrap() {
+        given(creatorInfo.nodeId()).willReturn(0L);
+        final var txn = newTxnBuilder().withClprLedgerConfig(localClprConfig).build();
+        given(stateProofManager.isDevModeEnabled()).willReturn(true);
+        given(stateProofManager.validateStateProof(any(ClprSetLedgerConfigurationTransactionBody.class)))
+                .willReturn(true);
+        given(stateProofManager.getLedgerConfiguration(localClprLedgerId)).willReturn(null);
+        given(stateProofManager.readLedgerConfiguration(localClprLedgerId)).willReturn(null);
+        given(preHandleContext.body()).willReturn(txn);
+
+        assertThatCode(() -> subject.preHandle(preHandleContext)).doesNotThrowAnyException();
     }
 
     @Test
@@ -131,6 +154,9 @@ public class ClprSetLedgerConfigurationHandlerTest extends ClprHandlerTestBase {
     public void preHandleLocalLedgerConfigurationSetFails() {
         final var txn = newTxnBuilder().withClprLedgerConfig(localClprConfig).build();
         given(stateProofManager.getLocalLedgerId()).willReturn(localClprLedgerId);
+        given(stateProofManager.getLedgerConfiguration(localClprLedgerId)).willReturn(null);
+        given(stateProofManager.readLedgerConfiguration(localClprLedgerId)).willReturn(localClprConfig);
+        given(stateProofManager.isDevModeEnabled()).willReturn(false);
         given(preHandleContext.body()).willReturn(txn);
 
         assertThatCode(() -> subject.preHandle(preHandleContext))
@@ -139,9 +165,32 @@ public class ClprSetLedgerConfigurationHandlerTest extends ClprHandlerTestBase {
     }
 
     @Test
+    public void preHandleAllowsLocalSignerUpdateWhenDevModeDisabled() {
+        given(creatorInfo.nodeId()).willReturn(0L);
+        final var baseTimestamp = localClprConfig.timestampOrThrow();
+        final var updatedTimestamp =
+                baseTimestamp.copyBuilder().seconds(baseTimestamp.seconds() + 1).build();
+        final var updatedConfig =
+                localClprConfig.copyBuilder().timestamp(updatedTimestamp).build();
+        final var txn = newTxnBuilder().withClprLedgerConfig(updatedConfig).build();
+        given(stateProofManager.isDevModeEnabled()).willReturn(false);
+        given(stateProofManager.getLocalLedgerId()).willReturn(localClprLedgerId);
+        given(stateProofManager.getLedgerConfiguration(localClprLedgerId)).willReturn(null);
+        given(stateProofManager.readLedgerConfiguration(localClprLedgerId)).willReturn(localClprConfig);
+        given(preHandleContext.body()).willReturn(txn);
+
+        assertThatCode(() -> subject.preHandle(preHandleContext)).doesNotThrowAnyException();
+    }
+
+    @Test
     public void preHandleLedgerConfigurationNotNew() {
         final var txn = newTxnBuilder().withClprLedgerConfig(remoteClprConfig).build();
-        given(stateProofManager.getLedgerConfiguration(remoteClprLedgerId)).willReturn(remoteClprConfig);
+        given(stateProofManager.isDevModeEnabled()).willReturn(true);
+        given(stateProofManager.getLedgerConfiguration(remoteClprLedgerId))
+                .willReturn(buildStateProof(remoteClprConfig), (StateProof) null);
+        given(stateProofManager.readLedgerConfiguration(remoteClprLedgerId)).willReturn(remoteClprConfig);
+        given(stateProofManager.validateStateProof(any(ClprSetLedgerConfigurationTransactionBody.class)))
+                .willReturn(true);
         given(stateProofManager.getLocalLedgerId()).willReturn(localClprLedgerId);
         given(preHandleContext.body()).willReturn(txn);
 
@@ -152,15 +201,88 @@ public class ClprSetLedgerConfigurationHandlerTest extends ClprHandlerTestBase {
 
     @Test
     public void preHandleStateProofInvalid() {
-        final var txn = newTxnBuilder().withClprLedgerConfig(remoteClprConfig).build();
+        final var invalidProof = buildInvalidStateProof(remoteClprConfig);
+        final var txn = TransactionBody.newBuilder()
+                .clprSetLedgerConfiguration(ClprSetLedgerConfigurationTransactionBody.newBuilder()
+                        .ledgerConfigurationProof(invalidProof)
+                        .build())
+                .build();
         given(stateProofManager.getLocalLedgerId()).willReturn(localClprLedgerId);
+        given(stateProofManager.isDevModeEnabled()).willReturn(true);
         given(stateProofManager.validateStateProof(any(ClprSetLedgerConfigurationTransactionBody.class)))
                 .willReturn(false);
+        given(stateProofManager.readLedgerConfiguration(remoteClprLedgerId)).willReturn(null);
         given(preHandleContext.body()).willReturn(txn);
 
         assertThatCode(() -> subject.preHandle(preHandleContext))
                 .isInstanceOf(PreCheckException.class)
                 .hasMessageContaining(ResponseCodeEnum.CLPR_INVALID_STATE_PROOF.name());
+    }
+
+    @Test
+    public void preHandleWaitsWhenSnapshotMissing() {
+        final var txn = newTxnBuilder().withClprLedgerConfig(remoteClprConfig).build();
+        given(stateProofManager.getLocalLedgerId()).willReturn(null);
+        given(preHandleContext.body()).willReturn(txn);
+
+        assertThatCode(() -> subject.preHandle(preHandleContext))
+                .isInstanceOf(PreCheckException.class)
+                .hasMessageContaining(ResponseCodeEnum.WAITING_FOR_LEDGER_ID.name());
+    }
+
+    @Test
+    public void preHandleAllowsExternalWhenDevModeDisabled() {
+        final var txn = newTxnBuilder().withClprLedgerConfig(remoteClprConfig).build();
+        given(stateProofManager.getLocalLedgerId()).willReturn(localClprLedgerId);
+        given(stateProofManager.isDevModeEnabled()).willReturn(false);
+        given(preHandleContext.body()).willReturn(txn);
+
+        assertThatCode(() -> subject.preHandle(preHandleContext)).doesNotThrowAnyException();
+    }
+
+    @Test
+    public void preHandleRejectsWhenTimestampNotMonotonic() {
+        final var txn = newTxnBuilder().withClprLedgerConfig(remoteClprConfig).build();
+        given(stateProofManager.getLocalLedgerId()).willReturn(localClprLedgerId);
+        given(stateProofManager.isDevModeEnabled()).willReturn(true);
+        given(stateProofManager.getLedgerConfiguration(remoteClprLedgerId))
+                .willReturn(buildStateProof(remoteClprConfig));
+        given(stateProofManager.readLedgerConfiguration(remoteClprLedgerId)).willReturn(remoteClprConfig);
+        given(stateProofManager.validateStateProof(any(ClprSetLedgerConfigurationTransactionBody.class)))
+                .willReturn(true);
+        given(preHandleContext.body()).willReturn(txn);
+
+        assertThatCode(() -> subject.preHandle(preHandleContext))
+                .isInstanceOf(PreCheckException.class)
+                .hasMessageContaining(ResponseCodeEnum.INVALID_TRANSACTION.name());
+    }
+
+    @Test
+    public void preHandleAllowsDevModeExternalSubmission() {
+        final var baseSeconds = remoteClprConfig.timestampOrThrow().seconds();
+        final var updatedTimestamp = remoteClprConfig
+                .timestampOrThrow()
+                .copyBuilder()
+                .seconds(baseSeconds + 20)
+                .build();
+        final var updatedConfig =
+                remoteClprConfig.copyBuilder().timestamp(updatedTimestamp).build();
+        assertThat(localClprLedgerId.equals(updatedConfig.ledgerId())).isFalse();
+        final var existingProof = buildStateProof(remoteClprConfig);
+        assertThat(ClprStateProofUtils.extractConfiguration(existingProof)
+                        .timestampOrThrow()
+                        .seconds())
+                .isLessThan(updatedConfig.timestampOrThrow().seconds());
+        given(stateProofManager.getLocalLedgerId()).willReturn(localClprLedgerId);
+        given(stateProofManager.getLedgerConfiguration(remoteClprLedgerId))
+                .willReturn(existingProof, (StateProof) null);
+        given(stateProofManager.isDevModeEnabled()).willReturn(true);
+        given(stateProofManager.validateStateProof(any(ClprSetLedgerConfigurationTransactionBody.class)))
+                .willReturn(true);
+        final var txn = newTxnBuilder().withClprLedgerConfig(updatedConfig).build();
+        given(preHandleContext.body()).willReturn(txn);
+
+        assertThatCode(() -> subject.preHandle(preHandleContext)).doesNotThrowAnyException();
     }
 
     private TxnBuilder newTxnBuilder() {
@@ -175,6 +297,7 @@ public class ClprSetLedgerConfigurationHandlerTest extends ClprHandlerTestBase {
         public TxnBuilder withClprLedgerConfig(@NonNull final ClprLedgerConfiguration ledgerConfig) {
             this.ledgerId = requireNonNull(ledgerConfig).ledgerId();
             this.localEndpoints = ledgerConfig.endpoints();
+            this.timestamp = ledgerConfig.timestampOrElse(Timestamp.DEFAULT);
             return this;
         }
 
@@ -217,8 +340,11 @@ public class ClprSetLedgerConfigurationHandlerTest extends ClprHandlerTestBase {
                     .endpoints(localEndpoints)
                     .timestamp(timestamp)
                     .build();
+
+            final var stateProof = buildStateProof(localClprConfig);
+
             final var bodyInternals = ClprSetLedgerConfigurationTransactionBody.newBuilder()
-                    .ledgerConfiguration(localClprConfig)
+                    .ledgerConfigurationProof(stateProof)
                     .build();
             return TransactionBody.newBuilder()
                     .clprSetLedgerConfiguration(bodyInternals)

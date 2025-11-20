@@ -1119,8 +1119,20 @@ public class HandleWorkflow {
                         .build())
                 .endpoints(endpoints)
                 .build();
+
+        // Wrap the configuration in a state proof
+        final var configBytes = ClprLedgerConfiguration.PROTOBUF.toBytes(config);
+        final var merkleLeaf = com.hedera.hapi.node.state.blockstream.MerkleLeaf.newBuilder()
+                .stateItem(configBytes)
+                .build();
+        final var pathBuilder = new com.hedera.node.app.hapi.utils.blocks.MerklePathBuilder();
+        pathBuilder.setLeaf(merkleLeaf);
+        final var stateProof = com.hedera.node.app.hapi.utils.blocks.StateProofBuilder.newBuilder()
+                .addMerklePath(pathBuilder)
+                .build();
+
         final var txnBody = ClprSetLedgerConfigurationTransactionBody.newBuilder()
-                .ledgerConfiguration(config)
+                .ledgerConfigurationProof(stateProof)
                 .build();
         final var transactionBody =
                 TransactionBody.newBuilder().clprSetLedgerConfiguration(txnBody).build();

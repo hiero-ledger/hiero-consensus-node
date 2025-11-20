@@ -4,6 +4,35 @@
 
 This document provides a detailed design for the Cross-Ledger PRotocol (CLPR) service. The CLPR service is a system-level RPC service responsible for exchanging state proofs with other ledgers to facilitate cross-ledger interactions.
 
+### Prototype status (November 2025)
+
+The current code base contains a working prototype that allows a single node to
+bootstrap its own `ClprLedgerConfiguration`, refresh the configuration with an
+advancing timestamp, and retrieve it via the gRPC query path. Configuration
+transactions are gossiped and applied by consensus, so the prototype does not
+manually push updates to every peer. Deployment is limited to developer builds; a
+number of temporary bypasses are in place:
+
+- **Signature bypass in ingest** – when `clpr.devModeEnabled` is `true`, the
+  ingest workflow skips payer signature expansion for `CLPR_SET_LEDGER_CONFIG`
+  transactions. This removes the requirement to configure signing material while
+  the prototype is being iterated.
+- **Development signer in the client** – `ClprClientImpl` looks for a local key in
+  `data/onboard/devGenesisKeypair.pem` or `StartUpAccount.txt`. If no key is
+  found the client submits an empty `SignatureMap`. This is sufficient for the
+  prototype but must be replaced by the production signing story.
+- **State proof shortcuts** – `ClprStateProofManager` fabricates state proofs from
+  the in-memory merkle state and returns empty ledger IDs when snapshots are not
+  yet available. These behaviours are guarded by `devModeEnabled` and exist only
+  to keep the prototype running while the history service integration is being
+  built.
+- **Relaxed throttles** – the `genesis/throttles-dev.json` configuration allows
+  `ClprGetLedgerConfig` requests by default so the locally running node can query
+  without additional setup.
+
+All of these shortcuts are intentionally scoped to the demo experience and must
+be revisited before the CLPR service is enabled in production networks.
+
 ## 2. Core Concepts
 
 - **Ledger Configuration**: Each ledger participating in the CLPR network has a `ClprLedgerConfiguration`, which includes its unique `ClprLedgerId` and a list of network endpoints.
@@ -21,8 +50,7 @@ The CLPR service is implemented as a modular component with a public API and a p
 The CLPR service includes a client component for interacting with remote ledgers.
 
 - **`ClprClient` Interface**: This interface defines the contract for a client that can communicate with a remote CLPR endpoint. It includes methods for getting and setting ledger configurations.
-- **`ClprClientImpl`**: This is the concrete implementation of the `ClprClient`. It uses a gRPC client to send queries and transactions to the remote service.
-  - **Note**: As of the current implementation, the `setConfiguration` method is a non-functional placeholder and does not yet transmit the configuration to the remote endpoint.
+- **`ClprClientImpl`**: This is the concrete implementation of the `ClprClient`. It uses a gRPC client to send queries and transactions to the remote service. In the prototype it signs transactions with a development key when available and otherwise submits an empty `SignatureMap`.
 
 ## 5. API and Operations
 
@@ -56,6 +84,17 @@ The `ClprService` will then:
 2.  Dispatch this transaction for handling.
 
 The `ClprSetLedgerConfigurationHandler` will identify this transaction as a "local" transaction because its creator will be the node itself. For such transactions, the handler will bypass the state proof validation that is required for configurations received from remote ledgers.
+
+### Prototype behaviour
+
+In developer builds the `ClprEndpoint` runs every `clpr.connectionFrequency`
+milliseconds. Each cycle it either bootstraps a configuration (when none exists)
+or resubmits the current configuration with a freshly generated timestamp based
+on the system clock. The resulting transaction is ingested without signature
+checks (per the bypass above) and is gossiped through the regular consensus
+pipeline, so every node observes the same state transition without the endpoint
+manually iterating through peers. Remote fetches still return dev-mode state
+proofs constructed by `ClprStateProofManager`.
 
 ## 8. Handlers and State
 
