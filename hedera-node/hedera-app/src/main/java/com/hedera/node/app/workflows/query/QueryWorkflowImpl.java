@@ -10,6 +10,8 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.PAYER_ACCOUNT_NOT_FOUND;
 import static com.hedera.hapi.node.base.ResponseType.ANSWER_STATE_PROOF;
 import static com.hedera.hapi.node.base.ResponseType.COST_ANSWER_STATE_PROOF;
+import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
+import static com.hedera.node.app.hapi.utils.CommonUtils.productWouldOverflow;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
@@ -25,9 +27,11 @@ import com.hedera.hapi.util.HapiUtils;
 import com.hedera.hapi.util.UnknownHederaFunctionality;
 import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.fees.FeeManager;
+import com.hedera.node.app.hapi.utils.fee.FeeBuilder;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.spi.authorization.Authorizer;
 import com.hedera.node.app.spi.fees.ExchangeRateInfo;
+import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.records.RecordCache;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.InsufficientBalanceException;
@@ -42,12 +46,14 @@ import com.hedera.node.app.workflows.OpWorkflowMetrics;
 import com.hedera.node.app.workflows.ingest.IngestChecker;
 import com.hedera.node.app.workflows.ingest.SubmissionManager;
 import com.hedera.node.config.ConfigProvider;
+import com.hedera.node.config.data.FeesConfig;
 import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.MalformedProtobufException;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.UnknownFieldException;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.hederahashgraph.api.proto.java.ExchangeRate;
 import com.swirlds.common.utility.AutoCloseableWrapper;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -61,6 +67,7 @@ import java.util.function.Function;
 import javax.inject.Inject;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.hapi.fees.FeeResult;
 
 /** Implementation of {@link QueryWorkflow} */
 public final class QueryWorkflowImpl implements QueryWorkflow {
@@ -209,7 +216,9 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
                                 recordCache,
                                 exchangeRateManager,
                                 feeCalculator,
-                                payerID);
+                                payerID,
+                                //TODO: this doesn't feel right, where should the real number of signatures come from?
+                                -1);
 
                         // A super-user does not have to pay for a query and has all permissions
                         if (!authorizer.isSuperUser(payerID)) {
@@ -231,13 +240,27 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
                             }
 
                             // 3.iv Calculate costs
-                            final var queryFees = handler.computeFees(context).totalFee();
-                            final var txFees = queryChecker.estimateTxFees(
-                                    storeFactory,
-                                    consensusTime,
-                                    checkerResult.txnInfoOrThrow(),
-                                    payer.keyOrThrow(),
-                                    configuration);
+                            long queryFees = 0;
+                            long txFees = 0;
+                            //TODO: this code is yucky. Would it be better to refactor into a separate function
+                            // that returns true or false if the balances are valid?
+                            if (shouldUseSimpleFees(context)) {
+                                var feeResult = requireNonNull(feeManager.getSimpleFeeCalculator())
+                                        .calculateQueryFee(context.query(), context);
+                                var fees = feeResultToFees(
+                                        feeResult,
+                                        fromPbj(context.exchangeRateInfo().activeRate(consensusTime)));
+                                queryFees = fees.serviceFee();
+                                txFees = fees.nodeFee() + fees.networkFee();
+                            } else {
+                                queryFees = handler.computeFees(context).totalFee();
+                                txFees = queryChecker.estimateTxFees(
+                                        storeFactory,
+                                        consensusTime,
+                                        checkerResult.txnInfoOrThrow(),
+                                        payer.keyOrThrow(),
+                                        configuration);
+                            }
 
                             // 3.v Check account balances
                             queryChecker.validateAccountBalances(
@@ -262,7 +285,9 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
                             recordCache,
                             exchangeRateManager,
                             feeCalculator,
-                            null);
+                            null,
+                            //TODO: this doesn't feel right, where should the real number of signatures come from?
+                            -1);
                 }
 
                 // 4. Check validity of query
@@ -276,7 +301,17 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
 
                 if (handler.needsAnswerOnlyCost(responseType)) {
                     // 6.i Estimate costs
-                    final var queryFees = handler.computeFees(context).totalFee();
+                    long queryFees = 0;
+                    if (shouldUseSimpleFees(context)) {
+                        var feeResult = requireNonNull(feeManager.getSimpleFeeCalculator())
+                                .calculateQueryFee(context.query(), context);
+                        var fees = feeResultToFees(
+                                feeResult, fromPbj(context.exchangeRateInfo().activeRate(consensusTime)));
+                        queryFees = fees.totalFee();
+                    } else {
+                        queryFees = handler.computeFees(context).totalFee();
+                    }
+                    System.out.println("fees are " + queryFees);
 
                     final var header = createResponseHeader(responseType, OK, queryFees);
                     response = handler.createEmptyResponse(header);
@@ -312,6 +347,31 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
         }
 
         workflowMetrics.updateDuration(function, (int) (System.nanoTime() - queryStart));
+    }
+
+    private boolean shouldUseSimpleFees(QueryContext context) {
+        if (!context.configuration().getConfigData(FeesConfig.class).simpleFeesEnabled()) {
+            return false;
+        }
+        return switch (context.query().query().kind()) {
+            case CONSENSUS_GET_TOPIC_INFO -> true;
+            default -> false;
+        };
+    }
+
+    private static long tinycentsToTinybars(final long amount, final ExchangeRate rate) {
+        final var hbarEquiv = rate.getHbarEquiv();
+        if (productWouldOverflow(amount, hbarEquiv)) {
+            return FeeBuilder.getTinybarsFromTinyCents(rate, amount);
+        }
+        return amount * hbarEquiv / rate.getCentEquiv();
+    }
+
+    private static Fees feeResultToFees(FeeResult feeResult, ExchangeRate rate) {
+        return new Fees(
+                tinycentsToTinybars(feeResult.node, rate),
+                tinycentsToTinybars(feeResult.network, rate),
+                tinycentsToTinybars(feeResult.service, rate));
     }
 
     private Query parseQuery(Bytes requestBuffer) {
