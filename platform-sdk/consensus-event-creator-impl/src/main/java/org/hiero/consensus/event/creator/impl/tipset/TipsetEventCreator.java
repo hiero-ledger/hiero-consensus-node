@@ -271,6 +271,7 @@ public class TipsetEventCreator implements EventCreator {
      */
     @NonNull
     private UnsignedEvent createEventForSizeOneNetwork() {
+        // In a network of size one, we create events without other parents.
         return buildAndProcessEvent(null);
     }
 

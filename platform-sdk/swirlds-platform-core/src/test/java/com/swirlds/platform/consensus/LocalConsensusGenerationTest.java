@@ -13,6 +13,8 @@ import com.swirlds.platform.event.linking.NoOpLinkerLogsAndMetrics;
 import com.swirlds.platform.event.orphan.DefaultOrphanBuffer;
 import com.swirlds.platform.gossip.IntakeEventCounter;
 import com.swirlds.platform.internal.EventImpl;
+import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
+import com.swirlds.platform.test.fixtures.addressbook.RosterHistoryBuilder;
 import com.swirlds.platform.test.fixtures.graph.SimpleGraphs;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -34,7 +36,11 @@ class LocalConsensusGenerationTest {
     void simpleGraphTest() {
         final Randotron randotron = Randotron.create();
         // We need a linker to created EventImpl objects that hold the cGen value
-        final ConsensusLinker linker = new ConsensusLinker(NoOpLinkerLogsAndMetrics.getInstance());
+        final ConsensusLinker linker = new ConsensusLinker(
+                NoOpLinkerLogsAndMetrics.getInstance(),
+                new RosterHistoryBuilder()
+                        .withRoster(RandomRosterBuilder.create(randotron).build())
+                        .build());
         // We need an orphan buffer to assign nGen values to the events
         final Configuration configuration =
                 ConfigurationBuilder.create().autoDiscoverExtensions().build();

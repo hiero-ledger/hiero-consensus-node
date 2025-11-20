@@ -122,8 +122,7 @@ public class DefaultLinkerLogsAndMetrics implements LinkerLogsAndMetrics {
      * {@inheritDoc}
      */
     @Override
-    public void missingRosterForEvent(
-            @NonNull final PlatformEvent event, @NonNull final RosterHistory rosterHistory) {
+    public void missingRosterForEvent(@NonNull final PlatformEvent event, @NonNull final RosterHistory rosterHistory) {
         missingRosterLogger.error(
                 EXCEPTION.getMarker(),
                 "Event {} with birth round {} has no roster available in the roster history:\n {}",

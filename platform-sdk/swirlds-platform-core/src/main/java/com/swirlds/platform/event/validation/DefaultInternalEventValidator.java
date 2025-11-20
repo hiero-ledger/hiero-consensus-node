@@ -190,12 +190,12 @@ public class DefaultInternalEventValidator implements InternalEventValidator {
     }
 
     /**
-     * Checks that no more than 1 parent event is from the same creator.
+     * Checks that no more than 1 parent is from the same creator.
      *
      * @param event the event to check
      * @return true if the parents are all from unique creators, otherwise false
      */
-    private boolean areParentsInternallyConsistent(@NonNull final PlatformEvent event) {
+    private boolean areParentsFromUniqueCreators(@NonNull final PlatformEvent event) {
         final long numUniqueParentCreators = event.getAllParents().stream()
                 .map(EventDescriptorWrapper::creator)
                 .distinct()
@@ -251,8 +251,8 @@ public class DefaultInternalEventValidator implements InternalEventValidator {
         if (areRequiredFieldsNonNull(event)
                 && areByteFieldsCorrectLength(event)
                 && isTransactionByteCountValid(event)
-                && isEventBirthRoundValid(event)
-                && areParentsInternallyConsistent(event)) {
+                && areParentsFromUniqueCreators(event)
+                && isEventBirthRoundValid(event)) {
             return event;
         } else {
             intakeEventCounter.eventExitedIntakePipeline(event.getSenderId());

@@ -4,7 +4,6 @@ package com.swirlds.platform.event.linking;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.state.roster.Roster;
-import com.swirlds.common.context.PlatformContext;
 import com.swirlds.platform.event.EventCounter;
 import com.swirlds.platform.internal.EventImpl;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -59,6 +58,9 @@ public class ConsensusLinker {
      */
     private final Map<Hash, EventImpl> parentHashMap = new HashMap<>(INITIAL_CAPACITY);
 
+    /**
+     * The roster history, used to get the roster for a given round.
+     */
     private final RosterHistory rosterHistory;
 
     /**
@@ -69,11 +71,12 @@ public class ConsensusLinker {
     /**
      * Constructor
      *
-     * @param logsAndMetrics the logs and metrics
+     * @param logsAndMetrics logs and collects metrics in case of linking issues
      * @param rosterHistory the roster history
      */
-    public ConsensusLinker(@NonNull final LinkerLogsAndMetrics logsAndMetrics, @NonNull final RosterHistory rosterHistory) {
-        this.logsAndMetrics =requireNonNull(logsAndMetrics);
+    public ConsensusLinker(
+            @NonNull final LinkerLogsAndMetrics logsAndMetrics, @NonNull final RosterHistory rosterHistory) {
+        this.logsAndMetrics = requireNonNull(logsAndMetrics);
         this.rosterHistory = requireNonNull(rosterHistory);
         this.eventWindow = EventWindow.getGenesisEventWindow();
         this.parentDescriptorMap =
@@ -122,18 +125,16 @@ public class ConsensusLinker {
                     .map(ed -> getParentToLink(event, ed))
                     .filter(Objects::nonNull)
                     .toList();
-        } else if (event.getSelfParent() != null) {
+        } else {
             // There is a quirk in size 1 networks where we can only
             // reach consensus if the self-parent is also the other parent.
             // Unexpected, but harmless. So just use the same event
-            // as both parents until that issue is resolved.
+            // as the other parent until that issue is resolved.
             return Stream.of(event.getSelfParent(), event.getSelfParent())
                     .map(ed -> getParentToLink(event, ed))
                     .filter(Objects::nonNull)
                     .toList();
         }
-
-        return List.of();
     }
 
     /**

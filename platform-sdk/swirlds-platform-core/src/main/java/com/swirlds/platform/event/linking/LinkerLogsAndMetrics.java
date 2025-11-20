@@ -15,7 +15,7 @@ public interface LinkerLogsAndMetrics {
     /**
      * This method is called when a child event has a missing parent.
      *
-     * @param child            the child event
+     * @param child the child event
      * @param parentDescriptor the descriptor of the missing parent
      */
     void childHasMissingParent(@NonNull PlatformEvent child, @NonNull EventDescriptorWrapper parentDescriptor);
@@ -23,9 +23,9 @@ public interface LinkerLogsAndMetrics {
     /**
      * This method is called when a child event has a parent with a different birth round than claimed.
      *
-     * @param child            the child event
+     * @param child the child event
      * @param parentDescriptor the claimed descriptor of the parent
-     * @param candidateParent  the parent event that we found in the parentHashMap
+     * @param candidateParent the parent event that we found in the parentHashMap
      */
     void parentHasIncorrectBirthRound(
             @NonNull PlatformEvent child,
@@ -33,21 +33,21 @@ public interface LinkerLogsAndMetrics {
             @NonNull EventImpl candidateParent);
 
     /**
-     * THis method is called when a roster is not available in the roster history for an event's birth round.
+     * This method is called when a roster is not available in the roster history for an event's birth round.
+     *
      * @param event the event missing a roster
      * @param rosterHistory the roster history
      */
-    void missingRosterForEvent(
-            @NonNull final PlatformEvent event, @NonNull final RosterHistory rosterHistory);
+    void missingRosterForEvent(@NonNull final PlatformEvent event, @NonNull final RosterHistory rosterHistory);
 
     /**
      * This method is called when a child event has a self parent with a time created that is not strictly before the
      * child's time created.
      *
-     * @param child             the child event
-     * @param candidateParent   the parent event that we found in the parentHashMap
+     * @param child the child event
+     * @param candidateParent the parent event that we found in the parentHashMap
      * @param parentTimeCreated the time created of the parent event
-     * @param childTimeCreated  the time created of the child event
+     * @param childTimeCreated the time created of the child event
      */
     void childTimeIsNotAfterSelfParentTime(
             @NonNull PlatformEvent child,

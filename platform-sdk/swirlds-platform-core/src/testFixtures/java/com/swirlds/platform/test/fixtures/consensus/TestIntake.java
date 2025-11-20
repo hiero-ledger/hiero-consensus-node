@@ -2,10 +2,6 @@
 package com.swirlds.platform.test.fixtures.consensus;
 
 import static com.swirlds.component.framework.wires.SolderType.INJECT;
-import static org.hiero.consensus.roster.RosterUtils.createRosterHistory;
-import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
@@ -31,6 +27,7 @@ import com.swirlds.platform.event.orphan.OrphanBuffer;
 import com.swirlds.platform.freeze.FreezeCheckHolder;
 import com.swirlds.platform.gossip.IntakeEventCounter;
 import com.swirlds.platform.gossip.NoOpIntakeEventCounter;
+import com.swirlds.platform.test.fixtures.addressbook.RosterHistoryBuilder;
 import com.swirlds.platform.test.fixtures.consensus.framework.ConsensusOutput;
 import com.swirlds.platform.wiring.components.PassThroughWiring;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -64,7 +61,7 @@ public class TestIntake {
 
     /**
      * @param platformContext the platform context used to configure this intake.
-     * @param roster     the roster used by this intake
+     * @param roster the roster used by this intake
      */
     public TestIntake(@NonNull final PlatformContext platformContext, @NonNull final Roster roster) {
         final NodeId selfId = NodeId.of(0);
@@ -93,8 +90,11 @@ public class TestIntake {
 
         freezeCheckHolder = new FreezeCheckHolder();
         freezeCheckHolder.setFreezeCheckRef(i -> false);
+
+        final RosterHistory rosterHistory =
+                new RosterHistoryBuilder().withRoster(roster).build();
         final ConsensusEngine consensusEngine =
-                new DefaultConsensusEngine(platformContext, createRosterHistory(roster), selfId, freezeCheckHolder);
+                new DefaultConsensusEngine(platformContext, rosterHistory, selfId, freezeCheckHolder);
 
         consensusEngineWiring = new ComponentWiring<>(model, ConsensusEngine.class, scheduler("consensusEngine"));
         consensusEngineWiring.bind(consensusEngine);
@@ -129,12 +129,6 @@ public class TestIntake {
         consensusEngineWiring.getInputWire(ConsensusEngine::outOfBandSnapshotUpdate);
 
         model.start();
-    }
-
-    private static RosterHistory createRosterHistory(@NonNull final Roster roster) {
-        final RosterHistory rosterHistory = mock(RosterHistory.class);
-        when(rosterHistory.getRosterForRound(anyLong())).thenReturn(roster);
-        return rosterHistory;
     }
 
     /**
