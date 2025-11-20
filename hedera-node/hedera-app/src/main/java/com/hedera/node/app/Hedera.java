@@ -554,6 +554,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
                         new AddressBookServiceImpl(),
                         new RosterServiceImpl(
                                 this::canAdoptRoster, this::onAdoptRoster, () -> requireNonNull(initState)),
+                        clprServiceImpl,
                         PLATFORM_STATE_SERVICE)
                 .forEach(servicesRegistry::register);
         consensusStateEventHandler = new ConsensusStateEventHandlerImpl(this);

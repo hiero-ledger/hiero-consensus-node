@@ -7,12 +7,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.hedera.hapi.block.stream.StateProof;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.state.MerkleProof;
+import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.spi.WritableQueueState;
 import com.swirlds.state.spi.WritableStates;
 import com.swirlds.state.test.fixtures.merkle.MerkleTestBase;
-import com.swirlds.state.test.fixtures.merkle.TestVirtualMapState;
 import com.swirlds.virtualmap.VirtualMap;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -20,14 +21,14 @@ import org.junit.jupiter.api.Test;
 
 /**
  * Integration test that exercises {@link StateProofBuilder} and {@link StateProofVerifier}
- * against the real {@code State} API using the {@link TestVirtualMapState} fixture.
+ * against the real {@code State} API using a {@link com.swirlds.state.merkle.VirtualMapState} fixture.
  */
 class StateProofIntegrationTest extends MerkleTestBase {
 
-    private TestVirtualMapState state;
+    private VirtualMapState state;
 
     /**
-     * Build a realistic {@link TestVirtualMapState} instance with three different state types (queue,
+     * Build a realistic {@link com.swirlds.state.merkle.VirtualMapState} instance with three different state types (queue,
      * singleton, kv-map) so the integration test can exercise heterogeneous proofs and verify that
      * the builder handles mixed path structures coming from the real state API.
      */
@@ -38,7 +39,7 @@ class StateProofIntegrationTest extends MerkleTestBase {
         setupSingletonCountry();
         setupSteamQueue();
 
-        state = new TestVirtualMapState();
+        state = new VirtualMapState(CONFIGURATION, new NoOpMetrics());
         state.initializeState(fruitMetadata);
         state.initializeState(countryMetadata);
         state.initializeState(steamMetadata);

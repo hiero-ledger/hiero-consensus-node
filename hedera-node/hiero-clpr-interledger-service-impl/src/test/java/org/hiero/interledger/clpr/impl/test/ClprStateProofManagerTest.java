@@ -12,7 +12,9 @@ import com.hedera.node.app.spi.state.BlockProvenSnapshotProvider;
 import com.hedera.node.app.state.BlockProvenStateAccessor;
 import com.hedera.node.config.data.ClprConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.state.test.fixtures.merkle.TestVirtualMapState;
+import com.swirlds.state.merkle.VirtualMapState;
+import com.swirlds.state.spi.CommittableWritableStates;
+import com.swirlds.state.test.fixtures.merkle.VirtualMapStateTestUtils;
 import org.hiero.hapi.interledger.clpr.ClprSetLedgerConfigurationTransactionBody;
 import org.hiero.hapi.interledger.state.clpr.ClprLedgerConfiguration;
 import org.hiero.hapi.interledger.state.clpr.ClprLedgerId;
@@ -27,24 +29,13 @@ class ClprStateProofManagerTest extends ClprTestBase {
 
     private ClprStateProofManager manager;
     private BlockProvenStateAccessor snapshotProvider;
-    private TestVirtualMapState testState;
+    private VirtualMapState testState;
     private ClprConfig devModeConfig;
 
     @BeforeEach
     void setUp() {
         setupBase();
-        testState = TestVirtualMapState.createInstanceWithVirtualMapLabel(ClprService.NAME);
-        // Register CLPR service state metadata and seed the virtual map with ledger configurations
-        testState.initializeState(ledgerConfigStateMetadata());
-        final var writableStates = testState.getWritableStates(ClprService.NAME);
-        final var writableConfigurations = writableStates.<ClprLedgerId, ClprLedgerConfiguration>get(
-                V0650ClprSchema.CLPR_LEDGER_CONFIGURATIONS_STATE_ID);
-        configurationMap.forEach(writableConfigurations::put);
-        if (writableStates instanceof com.swirlds.state.spi.CommittableWritableStates committableStates) {
-            committableStates.commit();
-        }
-        // Mark the state immutable so Merkle hashing and proof generation mirror runtime behaviour
-        testState.copy();
+        testState = buildMerkleStateWithConfigurations(configurationMap);
         snapshotProvider = new BlockProvenStateAccessor();
         snapshotProvider.update(testState);
         // Create dev mode config for testing
@@ -72,12 +63,14 @@ class ClprStateProofManagerTest extends ClprTestBase {
     }
 
     @Test
-    void getLocalLedgerIdReturnsNullWhenLedgerIdMissing() {
-        final var emptyState = TestVirtualMapState.createInstanceWithVirtualMapLabel("empty");
-        final var accessor = new BlockProvenStateAccessor();
-        accessor.update(emptyState);
-        final var managerWithMissingLedgerId = new ClprStateProofManager(accessor, devModeConfig);
-        assertNull(managerWithMissingLedgerId.getLocalLedgerId());
+    void getLocalLedgerIdReturnsEmptyWhenLedgerIdMissing() {
+        final var emptyState = buildMerkleStateWithConfigurations(java.util.Map.of());
+        final var emptyAccessor = new BlockProvenStateAccessor();
+        emptyAccessor.update(emptyState);
+        final var managerWithMissingLedgerId = new ClprStateProofManager(emptyAccessor, devModeConfig);
+        final var ledgerId = managerWithMissingLedgerId.getLocalLedgerId();
+        assertNotNull(ledgerId);
+        assertEquals(ClprLedgerId.DEFAULT, ledgerId);
     }
 
     @Test
@@ -127,5 +120,22 @@ class ClprStateProofManagerTest extends ClprTestBase {
         return ClprSetLedgerConfigurationTransactionBody.newBuilder()
                 .ledgerConfigurationProof(proof)
                 .build();
+    }
+
+    private VirtualMapState buildMerkleStateWithConfigurations(
+            final java.util.Map<ClprLedgerId, ClprLedgerConfiguration> configurations) {
+        final var state = VirtualMapStateTestUtils.createTestStateWithLabel(ClprService.NAME);
+        state.initializeState(ledgerConfigStateMetadata());
+        final var writableStates = state.getWritableStates(ClprService.NAME);
+        final var writableConfigurations = writableStates.<ClprLedgerId, ClprLedgerConfiguration>get(
+                V0650ClprSchema.CLPR_LEDGER_CONFIGURATIONS_STATE_ID);
+        configurations.forEach(writableConfigurations::put);
+        if (writableStates instanceof CommittableWritableStates committableStates) {
+            committableStates.commit();
+        }
+        // Make the state immutable and compute hashes so Merkle proofs can be generated
+        state.copy();
+        state.computeHash();
+        return state;
     }
 }

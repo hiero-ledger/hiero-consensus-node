@@ -123,8 +123,8 @@ public class ClprStateProofManager {
         if (snapshot == null) {
             return null;
         }
-        final var state = snapshot.merkleState();
 
+        final var state = snapshot.merkleState();
         final var readableStates = state.getReadableStates(ClprService.NAME);
         if (!readableStates.contains(V0650ClprSchema.CLPR_LEDGER_CONFIGURATIONS_STATE_ID)) {
             throw new IllegalStateException(
