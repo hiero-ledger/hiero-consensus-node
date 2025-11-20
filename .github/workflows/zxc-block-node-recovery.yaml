@@ -169,9 +169,9 @@ jobs:
           LONG_VERSION=$(node -e "console.log(require('../package.json').dependencies.long)")
           PROTO_VERSION=$(node -e "console.log(require('../package.json').dependencies['@hashgraph/proto'])")
 
-          echo "Using SDK version: $SDK_VERSION"
-          echo "Using long version: $LONG_VERSION"
-          echo "Using proto version: $PROTO_VERSION"
+          echo "Using SDK version: ${SDK_VERSION}"
+          echo "Using long version: ${LONG_VERSION}"
+          echo "Using proto version: ${PROTO_VERSION}"
 
           # Install with the extracted versions
           pnpm add @hashgraph/sdk@^${SDK_VERSION} long@${LONG_VERSION} @hashgraph/proto@${PROTO_VERSION}
@@ -313,7 +313,7 @@ jobs:
           solo consensus network deploy --node-aliases "${{ env.NODE_IDENTIFIERS }}" --deployment "${{ env.SOLO_DEPLOYMENT }}" --node-aliases "${{ env.NODE_IDENTIFIERS }}" --block-node-cfg '{"node1":[1], "node2":[2], "node3":[3]}'
           solo consensus node setup --node-aliases "${{ env.NODE_IDENTIFIERS }}" --deployment "${{ env.SOLO_DEPLOYMENT }}" --local-build-path ./hedera-node/data
           solo consensus node start --node-aliases "${{ env.NODE_IDENTIFIERS }}" --deployment "${{ env.SOLO_DEPLOYMENT }}"
-          solo mirror node add --deployment "${{ env.SOLO_DEPLOYMENT }}" --pinger --cluster-ref kind-${{ env.SOLO_CLUSTER_NAME }} --enable-ingress --mirror-node-version 0.142.2 -f mirror-bn-values.yaml
+          solo mirror node add --deployment "${{ env.SOLO_DEPLOYMENT }}" --pinger --cluster-ref kind-${{ env.SOLO_CLUSTER_NAME }} --enable-ingress --mirror-node-version 0.143.0 -f mirror-bn-values.yaml
 
       # port forwards
       - name: Solo Port forwards
