@@ -59,6 +59,7 @@ import com.hedera.node.config.data.TopicsConfig;
 import com.hedera.node.config.data.TraceabilityConfig;
 import com.hedera.node.config.data.TssConfig;
 import com.hedera.node.config.data.VersionConfig;
+import com.hedera.node.config.data.ClprConfig;
 import com.hedera.node.config.types.CongestionMultipliers;
 import com.hedera.node.config.types.EntityScaleFactors;
 import com.hedera.node.config.types.HederaFunctionalitySet;
@@ -121,7 +122,8 @@ public class ServicesConfigExtension implements ConfigurationExtension {
                 QuiescenceConfig.class,
                 JumboTransactionsConfig.class,
                 GrpcUsageTrackerConfig.class,
-                OpsDurationConfig.class);
+                OpsDurationConfig.class,
+                ClprConfig.class);
     }
 
     @NonNull

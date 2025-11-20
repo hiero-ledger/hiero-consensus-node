@@ -74,6 +74,7 @@ import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.model.transaction.ConsensusTransaction;
 import org.junit.jupiter.api.BeforeEach;
+import org.hiero.interledger.clpr.ClprService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -178,6 +179,9 @@ class HandleWorkflowTest {
 
     @Mock
     private PlatformState platformState;
+
+    @Mock
+    private ClprService clprService;
 
     private HandleWorkflow subject;
 
@@ -512,7 +516,8 @@ class HandleWorkflowTest {
                 nodeRewardManager,
                 blockBufferService,
                 Map.of(),
-                quiescenceController);
+                quiescenceController,
+                clprService);
     }
 
     @Test

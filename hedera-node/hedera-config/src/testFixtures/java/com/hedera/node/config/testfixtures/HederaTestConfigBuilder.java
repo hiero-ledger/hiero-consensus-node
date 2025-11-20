@@ -60,6 +60,7 @@ import com.hedera.node.config.data.TopicsConfig;
 import com.hedera.node.config.data.TraceabilityConfig;
 import com.hedera.node.config.data.TssConfig;
 import com.hedera.node.config.data.VersionConfig;
+import com.hedera.node.config.data.ClprConfig;
 import com.hedera.node.config.types.CongestionMultipliers;
 import com.hedera.node.config.types.EntityScaleFactors;
 import com.hedera.node.config.types.HederaFunctionalitySet;
@@ -141,6 +142,7 @@ public final class HederaTestConfigBuilder {
                 .withConfigDataType(UptimeConfig.class)
                  */
                 .withConfigDataType(VirtualMapConfig.class)
+                .withConfigDataType(ClprConfig.class)
 
                 // These data types, converters, and validators are defined by services.
                 .withConfigDataType(AccountsConfig.class)

@@ -166,6 +166,7 @@ import org.hiero.consensus.roster.ReadableRosterStore;
 import org.hiero.consensus.roster.RosterUtils;
 import org.hiero.consensus.transaction.TransactionLimits;
 import org.hiero.consensus.transaction.TransactionPoolNexus;
+import org.hiero.interledger.clpr.impl.ClprServiceImpl;
 
 /*
  ****************        ****************************************************************************************
@@ -280,6 +281,11 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
      * during the state migration phase in the later initialization phase.
      */
     private final BlockStreamService blockStreamService;
+
+    /**
+     * The CLPR service singleton, kept as a field here to avoid constructing twice
+     */
+    private final ClprServiceImpl clprServiceImpl;
 
     /**
      * The block hash signer factory.
@@ -524,6 +530,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
                 bootstrapConfig.getConfigData(HederaConfig.class).throttleTransactionQueueSize(),
                 metrics,
                 instantSource);
+        clprServiceImpl = new ClprServiceImpl();
 
         // Register all service schema RuntimeConstructable factories before platform init
         Set.of(
@@ -654,9 +661,11 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
                         virtualMapState.disableStartupMode();
                     }
                 }
+                daggerApp.clprEndpoint().start();
             }
             case FREEZE_COMPLETE -> {
                 logger.info("Platform status is now FREEZE_COMPLETE");
+                daggerApp.clprEndpoint().stop();
                 shutdownGrpcServer();
                 closeRecordStreams();
                 if (streamToBlockNodes && isNotEmbedded()) {
@@ -666,6 +675,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
             }
             case CATASTROPHIC_FAILURE -> {
                 logger.error("Platform status is now CATASTROPHIC_FAILURE");
+                daggerApp.clprEndpoint().stop();
                 shutdownGrpcServer();
                 if (streamToBlockNodes && isNotEmbedded()) {
                     logger.info("CATASTROPHIC_FAILURE - Shutting down connections to Block Nodes");
@@ -677,6 +687,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
             }
             case REPLAYING_EVENTS, STARTING_UP, OBSERVING, RECONNECT_COMPLETE, CHECKING, FREEZING, BEHIND -> {
                 // Nothing to do here, just enumerate for completeness
+                daggerApp.clprEndpoint().stop();
             }
         }
     }
@@ -964,6 +975,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
      */
     public void shutdown() {
         logger.info("Shutting down Hedera node");
+        daggerApp.clprEndpoint().stop();
         shutdownGrpcServer();
 
         if (daggerApp != null) {
@@ -1261,6 +1273,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
                 .historyService(historyService)
                 .blockHashSigner(blockHashSigner)
                 .appContext(appContext)
+                .clprService(clprServiceImpl)
                 .build();
         // Initialize infrastructure for fees, exchange rates, and throttles from the working state
         daggerApp.initializer().initialize(state, streamMode);
@@ -1394,6 +1407,15 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
             final var store = new WritableHintsStoreImpl(writableHintsStates, entityCounters);
             hintsService.handoff(store, previousRoster, adoptedRoster, adoptedRosterHash, tssConfig.forceHandoffs());
             ((CommittableWritableStates) writableHintsStates).commit();
+        }
+
+        final var historyStore = new ReadableHistoryStoreImpl(initState.getReadableStates(HistoryService.NAME));
+        final var ledgerId = historyStore.getLedgerId();
+        if (ledgerId != null) {
+            final var consensusTime = freezeTimeOf(initState);
+            if (consensusTime != null) {
+                clprServiceImpl.dispatchLedgerConfigurationUpdate(initState, consensusTime);
+            }
         }
     }
 }
