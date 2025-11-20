@@ -26,7 +26,7 @@ jobs:
     uses: ./.github/workflows/zxc-create-github-release.yaml
     with:
       release-version: ${{ github.event_name == 'push' && github.ref_name || github.event.inputs.version }}
-      release-notes: true
+      create-release-notes: true
       create-release: false
     secrets:
       gh-access-token: ${{ secrets.GH_ACCESS_TOKEN }}
