@@ -872,7 +872,7 @@ jobs:
     if: ${{ needs.validate.outputs.create-release == 'true' }}
     with:
       release-version: ${{ inputs.ref-name }}
-      release-notes: true
+      create-release-notes: true
       create-release: true
     secrets:
       gh-access-token: ${{ secrets.GH_ACCESS_TOKEN }}
