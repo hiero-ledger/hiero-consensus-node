@@ -204,7 +204,7 @@ jobs:
         with:
           tag: ${{ inputs.release-version }}
           prerelease: false
-          draft: false
+          draft: true
           generateReleaseNotes: true
           skipIfReleaseExists: true
           bodyFile: ${{ github.workspace }}/RELEASE_NOTES.md

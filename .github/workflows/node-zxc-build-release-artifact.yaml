@@ -179,678 +179,678 @@ jobs:
           echo "- Commit SHA: ${COMMIT_SHA}" >> "${GITHUB_STEP_SUMMARY}"
           echo "- Commit SHA (short): $(echo "${COMMIT_SHA}" | cut -c1-8)" >> "${GITHUB_STEP_SUMMARY}"
 
-      - name: Verify Version Update (As Specified)
-        if: ${{ inputs.version-policy == 'specified' && !cancelled() && !failure() }}
-        run: |
-          VALID_VERSION="$(semver validate "${{ inputs.new-version }}")"
-
-          if [[ "${VALID_VERSION}" != "valid" ]]; then
-            echo "::error title=Version Error::The supplied new-version parameter (${{ inputs.new-version }}) is invalid and does not conform to the semantic versioning specifications."
-            exit 2
-          fi
-
-      - name: Checkout Code
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          fetch-depth: "0"
-          ref: ${{ steps.parameters.outputs.commit-id }}
-
-      - name: Setup Java
-        uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
-        with:
-          distribution: ${{ inputs.java-distribution }}
-          java-version: ${{ inputs.java-version }}
-
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@ac638b010cf58a27ee6c972d7336334ccaf61c96 # v4.4.1
-        with:
-          gradle-version: ${{ inputs.gradle-version }}
-
-      - name: Gradle Update Version (As Specified)
-        if: ${{ inputs.version-policy == 'specified' && !cancelled() && !failure() }}
-        run: ./gradlew versionAsSpecified -PnewVersion=${{ inputs.new-version }}
-
-      - name: Gradle Update Version (Branch Commit)
-        if: ${{ inputs.version-policy != 'specified' && !cancelled() && !failure() }}
-        run: ./gradlew versionAsPrefixedCommit -PcommitPrefix=${{ steps.parameters.outputs.commit-prefix }}
-
-      - name: Compute Final Effective Version
-        id: effective-version
-        run: |
-          EFF_VERSION="$(./gradlew showVersion --quiet | tr -d '[:space:]')"
-          PRERELEASE_SUFFIX="$(semver get prerel "${EFF_VERSION}")"
-          PRERELEASE="false"
-          [[ -n "${PRERELEASE_SUFFIX}" ]] && PRERELEASE="true"
-
-          MAJOR_VERSION="$(semver get major "${EFF_VERSION}")"
-          MINOR_VERSION="$(semver get minor "${EFF_VERSION}")"
-
-          echo "number=${EFF_VERSION}" >>"${GITHUB_OUTPUT}"
-          echo "prefix=${MAJOR_VERSION}.${MINOR_VERSION}" >>"${GITHUB_OUTPUT}"
-          echo "prerelease=${PRERELEASE}" >>"${GITHUB_OUTPUT}"
-
-      - name: Upload Build Version
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: version.txt
-          path: version.txt
-          if-no-files-found: error
-
-  build-artifact:
-    name: Build Artifact
-    runs-on: hiero-network-node-linux-large
-    needs:
-      - validate
-    steps:
-      - name: Harden Runner
-        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
-        with:
-          egress-policy: audit
-
-      - name: Install Deterministic Zip Tooling
-        run: |
-          echo "::group::Download Binary"
-          sudo curl -L -o /usr/local/bin/deterministic-zip https://github.com/timo-reymann/deterministic-zip/releases/download/1.2.0/deterministic-zip_linux-amd64
-          echo "::endgroup::"
-          echo "::group::Change Binary Permissions"
-          sudo chmod -v +x /usr/local/bin/deterministic-zip
-          echo "::endgroup::"
-          echo "::group::Show Binary Version Info"
-          deterministic-zip --version
-          echo "::endgroup::"
-
-      - name: Install JSON Tools
-        run: |
-          if ! command -v jq >/dev/null 2>&1; then
-            echo "::group::Setup JQ Command"
-            sudo apt update
-            sudo apt install -y jq
-            echo "::endgroup::"
-          fi
-
-          JQ_VERSION="$(jq --version)"
-          if [[ "${JQ_VERSION}" != "jq-1.6" ]]; then
-            echo "::group::Updating JQ Version"
-            sudo apt update
-            sudo apt upgrade -y jq
-            echo "::endgroup::"
-          fi
-
-          if ! command -v tee >/dev/null 2>&1; then
-            echo "::group::Setup Tee Command"
-            sudo apt update
-            sudo apt install -y coreutils
-            echo "::endgroup::"
-          fi
-
-          echo "::group::Show JQ Version"
-          jq --version
-          echo "::endgroup::"
-
-      - name: Checkout Code
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          fetch-depth: "0"
-          ref: ${{ needs.validate.outputs.commit-id }}
-
-      - name: Authenticate to Google Cloud
-        uses: step-security/google-github-auth@40f6deebd366f16c782d7a0ad0844e3b96a032a6 # v2.1.10
-        if: ${{ inputs.dry-run-enabled != true && !cancelled() && !failure() }}
-        with:
-          workload_identity_provider: "projects/235822363393/locations/global/workloadIdentityPools/hedera-builds-pool/providers/hedera-builds-gh-actions"
-          service_account: "hedera-artifact-builds@devops-1-254919.iam.gserviceaccount.com"
-
-      - name: Setup Google Cloud SDK
-        uses: google-github-actions/setup-gcloud@77e7a554d41e2ee56fc945c52dfd3f33d12def9a # v2.1.4
-        if: ${{ inputs.dry-run-enabled != true && !cancelled() && !failure() }}
-
-      - name: Setup Java
-        uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
-        with:
-          distribution: ${{ inputs.java-distribution }}
-          java-version: ${{ inputs.java-version }}
-
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@ac638b010cf58a27ee6c972d7336334ccaf61c96 # v4.4.1
-        with:
-          gradle-version: ${{ inputs.gradle-version }}
-
-      - name: Download Build Version
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
-        with:
-          name: version.txt
-
-      - name: Gradle Assemble
-        id: gradle-build
-        run: ./gradlew assemble
-
-      - name: Gradle Version Summary
-        run: ./gradlew githubVersionSummary
-
-      - name: Stage Artifact Build Folder
-        id: artifact-staging
-        run: |
-          BUILD_BASE_DIR="${HOME}/artifact-build"
-          mkdir -p "${BUILD_BASE_DIR}/data/lib"
-          mkdir -p "${BUILD_BASE_DIR}/data/apps"
-
-          cp -f hedera-node/data/lib/*.jar "${BUILD_BASE_DIR}/data/lib"
-          cp -f hedera-node/data/apps/*.jar "${BUILD_BASE_DIR}/data/apps"
-          cp -f hedera-node/configuration/update/immediate.sh "${BUILD_BASE_DIR}"
-          cp -f hedera-node/configuration/update/during-freeze.sh "${BUILD_BASE_DIR}"
-
-          echo "folder=${BUILD_BASE_DIR}" >>"${GITHUB_OUTPUT}"
-
-      - name: Write Artifact Version Descriptor
-        working-directory: ${{ steps.artifact-staging.outputs.folder }}
-        run: |
-          printf "VERSION=%s\nCOMMIT=%s\nDATE=%s" "${{ needs.validate.outputs.version }}" "${{ needs.validate.outputs.commit-id-short }}" "$(date -u)" | tee VERSION
-
-      - name: Upload Build Artifacts
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          path: ~/artifact-build
-          name: node-build-artifacts-${{ needs.validate.outputs.version }}-${{ needs.validate.outputs.commit-id }}
-
-      - name: Create Artifact Archive
-        id: artifact-release
-        working-directory: ${{ steps.artifact-staging.outputs.folder }}
-        run: |
-          POLICY="${{ inputs.version-policy }}"
-          ARTIFACT_BASE_DIR="${HOME}/artifact-release"
-          mkdir -p "${ARTIFACT_BASE_DIR}"
-
-          if [[ "${POLICY}" == "branch-commit"  ]]; then
-            ARTIFACT_NAME="build-${{ needs.validate.outputs.branch-name-safe }}-${{ needs.validate.outputs.commit-id-short }}"
-          else
-            ARTIFACT_NAME="build-v${{ needs.validate.outputs.version }}"
-          fi
-
-          ARTIFACT_FILE="${ARTIFACT_BASE_DIR}/${ARTIFACT_NAME}.zip"
-          deterministic-zip -D -vr "${ARTIFACT_FILE}" *
-
-          echo "folder=${ARTIFACT_BASE_DIR}" >>"${GITHUB_OUTPUT}"
-          echo "name=${ARTIFACT_NAME}" >>"${GITHUB_OUTPUT}"
-          echo "file=${ARTIFACT_FILE}" >>"${GITHUB_OUTPUT}"
-
-      - name: Compute SHA Hash
-        working-directory: ${{ steps.artifact-release.outputs.folder }}
-        run: |
-          ARTIFACT_NAME="${{ steps.artifact-release.outputs.name }}"
-          sha384sum "${ARTIFACT_NAME}.zip" | tee "${ARTIFACT_NAME}.sha384"
-
-      - name: Upload Artifacts (DevOps GCP Bucket)
-        uses: google-github-actions/upload-cloud-storage@7c6e11cb7291594c5dfe0bc1dd9cd905e31e600c # v2.2.2
-        if: ${{ inputs.dry-run-enabled != true && !cancelled() && !failure() }}
-        with:
-          path: ${{ steps.artifact-release.outputs.folder }}
-          destination: ${{ secrets.bucket-name }}
-          parent: false
-          process_gcloudignore: false
-
-      - name: Upload Artifacts (CDN Bucket)
-        uses: google-github-actions/upload-cloud-storage@7c6e11cb7291594c5dfe0bc1dd9cd905e31e600c # v2.2.2
-        if: ${{ inputs.dry-run-enabled != true && inputs.version-policy == 'specified' && !cancelled() && !failure() }}
-        with:
-          path: ${{ steps.artifact-release.outputs.folder }}
-          destination: ${{ secrets.cdn-bucket-name }}/node/software/v${{ needs.validate.outputs.version-prefix }}/
-          parent: false
-          process_gcloudignore: false
-
-  local-node-images:
-    name: Publish Local Node Images
-    runs-on: hiero-network-node-linux-large
-    needs:
-      - validate
-      - build-artifact
-    steps:
-      - name: Harden Runner
-        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
-        with:
-          egress-policy: audit
-
-      - name: Checkout Code
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          fetch-depth: "0"
-          ref: ${{ needs.validate.outputs.commit-id }}
-
-      - name: Authenticate to Google Cloud
-        id: google-auth
-        uses: step-security/google-github-auth@40f6deebd366f16c782d7a0ad0844e3b96a032a6 # v2.1.10
-        if: ${{ inputs.dry-run-enabled != true && !cancelled() && !failure() }}
-        with:
-          token_format: "access_token"
-          workload_identity_provider: "projects/235822363393/locations/global/workloadIdentityPools/hedera-builds-pool/providers/hedera-builds-gh-actions"
-          service_account: "swirlds-automation@hedera-registry.iam.gserviceaccount.com"
-
-      - name: Set Image Registry
-        id: set-registry
-        run: |
-          DOCKER_REGISTRY="gcr.io"
-          [[ "${{ inputs.version-policy }}" == "branch-commit" ]] && DOCKER_REGISTRY="us-docker.pkg.dev"
-          echo "docker-registry=${DOCKER_REGISTRY}" >>"${GITHUB_OUTPUT}"
-
-          DOCKER_TAG_BASE="gcr.io/hedera-registry"
-          if [[ "${{ inputs.version-policy }}" == "branch-commit" && "${{ inputs.dry-run-enabled }}" != true ]]; then
-             DOCKER_TAG_BASE="us-docker.pkg.dev/swirlds-registry/local-node"
-          elif [[ "${{ inputs.dry-run-enabled }}" == true ]]; then
-             DOCKER_TAG_BASE="localhost:5000"
-          fi
-
-          echo "docker-tag-base=${DOCKER_TAG_BASE}" >>"${GITHUB_OUTPUT}"
-
-      - name: Setup QEmu Support
-        uses: docker/setup-qemu-action@5964de0df58d5ad28b04d8fe2e6b80ad47105b91 # v3.5.0
-
-      - name: Setup Docker Buildx Support
-        uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
-        with:
-          version: v0.16.2
-          driver-opts: network=host
-          buildkitd-config-inline: |
-            [registry."docker.io"]
-              mirrors = ["https://hub.mirror.docker.lat.ope.eng.hashgraph.io"]
-
-      - name: Setup Local Docker Registry
-        if: ${{ inputs.dry-run-enabled == true && !cancelled() && !failure() }}
-        run: docker run -d -p 5000:5000 --restart=always --name registry registry:latest
-
-      - name: Docker Login
-        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
-        if: ${{ inputs.dry-run-enabled != true && !cancelled() && !failure() }}
-        with:
-          registry: ${{ steps.set-registry.outputs.docker-registry }}
-          username: oauth2accesstoken
-          password: ${{ steps.google-auth.outputs.access_token }}
-
-      - name: Restore Build Artifacts
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
-        with:
-          path: ~/artifact-build
-          name: node-build-artifacts-${{ needs.validate.outputs.version }}-${{ needs.validate.outputs.commit-id }}
-
-      - name: Stage SDK Artifacts
-        run: |
-          mkdir -p hedera-node/infrastructure/docker/containers/local-node/main-network-node/sdk
-          cp -rvf ~/artifact-build/* hedera-node/infrastructure/docker/containers/local-node/main-network-node/sdk/
-
-      - name: Build Haveged Image
-        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
-        with:
-          push: true
-          platforms: linux/amd64,linux/arm64
-          context: hedera-node/infrastructure/docker/containers/local-node/network-node-haveged
-          tags: ${{ steps.set-registry.outputs.docker-tag-base }}/network-node-haveged:${{ needs.validate.outputs.version }}
-
-      - name: Build Base Image
-        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
-        with:
-          push: true
-          platforms: linux/amd64,linux/arm64
-          context: hedera-node/infrastructure/docker/containers/local-node/network-node-base
-          tags: ${{ steps.set-registry.outputs.docker-tag-base }}/network-node-base:${{ needs.validate.outputs.version }}
-
-      - name: Build Network Node Image
-        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
-        with:
-          push: true
-          platforms: linux/amd64,linux/arm64
-          build-args: |
-            IMAGE_TAG=${{ needs.validate.outputs.version }}
-            IMAGE_PREFIX=${{ steps.set-registry.outputs.docker-tag-base }}/
-          context: hedera-node/infrastructure/docker/containers/local-node/main-network-node
-          tags: ${{ steps.set-registry.outputs.docker-tag-base }}/main-network-node:${{ needs.validate.outputs.version }}
-
-      - name: Render Job Summary
-        run: |
-          NETWORK_NODE_BASE_LINK="Not Applicable"
-          NETWORK_NODE_HAVEGED_LINK="Not Applicable"
-          NETWORK_NODE_MAIN_LINK="Not Applicable"
-
-          if [[ "${{ inputs.dry-run-enabled }}" != true ]]; then
-            NETWORK_NODE_BASE_LINK="[GCP Console](https://${{ steps.set-registry.outputs.docker-tag-base }}/network-node-base:${{ needs.validate.outputs.version }})"
-            NETWORK_NODE_HAVEGED_LINK="[GCP Console](https://${{ steps.set-registry.outputs.docker-tag-base }}/network-node-haveged:${{ needs.validate.outputs.version }})"
-            NETWORK_NODE_MAIN_LINK="[GCP Console](https://${{ steps.set-registry.outputs.docker-tag-base }}/main-network-node:${{ needs.validate.outputs.version }})"
-          fi
-
-          printf "### Published Docker Images\n" >> "${GITHUB_STEP_SUMMARY}"
-          printf "| Image Name | Version | URL | Supported Architectures |\n" >> "${GITHUB_STEP_SUMMARY}"
-          printf "| ---------- | ------- | --- | ----------------------- |\n" >> "${GITHUB_STEP_SUMMARY}"
-          printf "| %s | %s | %s | %s |\n" \
-            "${{ steps.set-registry.outputs.docker-tag-base }}/network-node-base" \
-            "${{ needs.validate.outputs.version }}" \
-            "${NETWORK_NODE_BASE_LINK}" \
-            "linux/amd64, linux/arm64" >> "${GITHUB_STEP_SUMMARY}"
-
-          printf "| %s | %s | %s | %s |\n" \
-            "${{ steps.set-registry.outputs.docker-tag-base }}/network-node-haveged" \
-            "${{ needs.validate.outputs.version }}" \
-            "${NETWORK_NODE_HAVEGED_LINK}" \
-            "linux/amd64, linux/arm64" >> "${GITHUB_STEP_SUMMARY}"
-
-          printf "| %s | %s | %s | %s |\n" \
-            "${{ steps.set-registry.outputs.docker-tag-base }}/main-network-node" \
-            "${{ needs.validate.outputs.version }}" \
-            "${NETWORK_NODE_MAIN_LINK}" \
-            "linux/amd64, linux/arm64" >> "${GITHUB_STEP_SUMMARY}"
-
-          printf "\n\n" >> "${GITHUB_STEP_SUMMARY}"
-
-  gcp-production-image:
-    name: Publish Production Image
-    uses: ./.github/workflows/zxc-publish-production-image.yaml
-    needs:
-      - validate
-      - build-artifact
-    with:
-      version: ${{ needs.validate.outputs.version }}
-      version-policy: ${{ inputs.version-policy }}
-      dry-run-enabled: ${{ inputs.dry-run-enabled }}
-      registry-name: gcp
-      custom-job-name: "Publish Production Image (GCP)"
-      ref: ${{ needs.validate.outputs.commit-id }}
-    secrets:
-      jf-url: ${{ secrets.jf-url }}
-      jf-user-name: ${{ secrets.jf-user-name }}
-      jf-docker-registry: ${{ secrets.jf-docker-registry }}
-      jf-access-token: ${{ secrets.jf-access-token }}
-
-  jfr-production-image:
-    name: Publish Production Image
-    uses: ./.github/workflows/zxc-publish-production-image.yaml
-    needs:
-      - validate
-      - build-artifact
-    with:
-      version: ${{ needs.validate.outputs.version }}
-      version-policy: ${{ inputs.version-policy }}
-      dry-run-enabled: ${{ inputs.dry-run-enabled }}
-      registry-name: jfrog
-      custom-job-name: "Publish Production Image (JFrog)"
-      ref: ${{ needs.validate.outputs.commit-id }}
-    secrets:
-      jf-url: ${{ secrets.jf-url }}
-      jf-user-name: ${{ secrets.jf-user-name }}
-      jf-docker-registry: ${{ secrets.jf-docker-registry }}
-      jf-access-token: ${{ secrets.jf-access-token }}
-
-  validate-production-image:
-    name: Validate Production Image
-    runs-on: hiero-network-node-linux-large
-    needs:
-      - gcp-production-image
-      - jfr-production-image
-    if: ${{ inputs.dry-run-enabled != true && !cancelled() && !failure() }}
-    steps:
-      - name: Harden Runner
-        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
-        with:
-          egress-policy: audit
-
-      - name: Checkout Code
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          fetch-depth: "0"
-          ref: ${{ needs.validate.outputs.commit-id }}
-
-      - name: Authenticate to Google Cloud
-        id: google-auth
-        uses: step-security/google-github-auth@40f6deebd366f16c782d7a0ad0844e3b96a032a6 # v2.1.10
-        with:
-          token_format: "access_token"
-          workload_identity_provider: "projects/235822363393/locations/global/workloadIdentityPools/hedera-builds-pool/providers/hedera-builds-gh-actions"
-          service_account: "swirlds-automation@hedera-registry.iam.gserviceaccount.com"
-
-      - name: Setup JFrog CLI
-        uses: jfrog/setup-jfrog-cli@ff5cb544114ffc152db9cea1cd3d5978d5074946 # v4.5.11
-        env:
-          JF_URL: ${{ secrets.jf-url }}
-          JF_ACCESS_TOKEN: ${{ secrets.jf-access-token }}
-
-      - name: Show JFrog Config
-        run: jfrog config show
-
-      - name: Verify JFrog Connectivity
-        run: jfrog rt ping
-
-      - name: Docker Login (GCP)
-        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
-        with:
-          registry: ${{ needs.gcp-production-image.outputs.docker-registry }}
-          username: oauth2accesstoken
-          password: ${{ steps.google-auth.outputs.access_token }}
-
-      - name: Docker Login (JFrog)
-        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
-        with:
-          registry: ${{ needs.jfr-production-image.outputs.docker-registry }}
-          username: ${{ secrets.jf-user-name }}
-          password: ${{ secrets.jf-access-token }}
-
-      - name: Create Manifest Directories
-        run: |
-          mkdir -p "${DOCKER_MANIFEST_PATH}/gcp"
-          mkdir -p "${DOCKER_MANIFEST_PATH}/jfrog"
-
-      - name: Generate GCP Manifest
-        id: gcp
-        env:
-          MANIFEST_PATH: ${{ env.DOCKER_MANIFEST_PATH }}/gcp
-          DOCKER_REGISTRY: ${{ needs.gcp-production-image.outputs.docker-image-prefix }}
-          DOCKER_TAG: ${{ needs.gcp-production-image.outputs.docker-image-tag }}
-        run: ${{ env.DOCKER_MANIFEST_GENERATOR }}
-
-      - name: Generate JFrog Manifest
-        id: jfrog
-        env:
-          MANIFEST_PATH: ${{ env.DOCKER_MANIFEST_PATH }}/jfrog
-          DOCKER_REGISTRY: ${{ needs.jfr-production-image.outputs.docker-image-prefix }}
-          DOCKER_TAG: ${{ needs.jfr-production-image.outputs.docker-image-tag }}
-        run: ${{ env.DOCKER_MANIFEST_GENERATOR }}
-
-      - name: Validate Layers (linux/amd64)
-        run: |
-          if ! diff -u "${{ steps.gcp.outputs.path }}/linux-amd64.layers.json" "${{ steps.jfrog.outputs.path }}/linux-amd64.layers.json" >/dev/null 2>&1; then
-           echo "::group::Layer Differences"
-           diff -u "${{ steps.gcp.outputs.path }}/linux-amd64.layers.json" "${{ steps.jfrog.outputs.path }}/linux-amd64.layers.json"
-           echo "::endgroup::"
-           exit 1
-          fi
-
-      - name: Validate Layers (linux/arm64)
-        run: |
-          if ! diff -u "${{ steps.gcp.outputs.path }}/linux-arm64.layers.json" "${{ steps.jfrog.outputs.path }}/linux-arm64.layers.json" >/dev/null 2>&1; then
-           echo "::group::Layer Differences"
-           diff -u "${{ steps.gcp.outputs.path }}/linux-arm64.layers.json" "${{ steps.jfrog.outputs.path }}/linux-arm64.layers.json"
-           echo "::endgroup::"
-           exit 1
-          fi
-
-      - name: Validate Full Manifest (linux/amd64)
-        run: |
-          if ! diff -u "${{ steps.gcp.outputs.path }}/linux-amd64.comparable.json" "${{ steps.jfrog.outputs.path }}/linux-amd64.comparable.json" >/dev/null 2>&1; then
-           echo "::group::Layer Differences"
-           diff -u "${{ steps.gcp.outputs.path }}/linux-amd64.comparable.json" "${{ steps.jfrog.outputs.path }}/linux-amd64.comparable.json"
-           echo "::endgroup::"
-           exit 1
-          fi
-
-      - name: Validate Full Manifest (linux/arm64)
-        run: |
-          if ! diff -u "${{ steps.gcp.outputs.path }}/linux-arm64.comparable.json" "${{ steps.jfrog.outputs.path }}/linux-arm64.comparable.json" >/dev/null 2>&1; then
-           echo "::group::Layer Differences"
-           diff -u "${{ steps.gcp.outputs.path }}/linux-arm64.comparable.json" "${{ steps.jfrog.outputs.path }}/linux-arm64.comparable.json"
-           echo "::endgroup::"
-           exit 1
-          fi
-
-      - name: Upload Manifests
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: ${{ (steps.gcp.outcome == 'success' || steps.jfrog.outcome == 'success') && !cancelled() && always() }}
-        with:
-          name: Production Image Manifests
-          path: ${{ env.DOCKER_MANIFEST_PATH }}
-
+#      - name: Verify Version Update (As Specified)
+#        if: ${{ inputs.version-policy == 'specified' && !cancelled() && !failure() }}
+#        run: |
+#          VALID_VERSION="$(semver validate "${{ inputs.new-version }}")"
+#
+#          if [[ "${VALID_VERSION}" != "valid" ]]; then
+#            echo "::error title=Version Error::The supplied new-version parameter (${{ inputs.new-version }}) is invalid and does not conform to the semantic versioning specifications."
+#            exit 2
+#          fi
+#
+#      - name: Checkout Code
+#        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+#        with:
+#          fetch-depth: "0"
+#          ref: ${{ steps.parameters.outputs.commit-id }}
+#
+#      - name: Setup Java
+#        uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
+#        with:
+#          distribution: ${{ inputs.java-distribution }}
+#          java-version: ${{ inputs.java-version }}
+#
+#      - name: Setup Gradle
+#        uses: gradle/actions/setup-gradle@ac638b010cf58a27ee6c972d7336334ccaf61c96 # v4.4.1
+#        with:
+#          gradle-version: ${{ inputs.gradle-version }}
+#
+#      - name: Gradle Update Version (As Specified)
+#        if: ${{ inputs.version-policy == 'specified' && !cancelled() && !failure() }}
+#        run: ./gradlew versionAsSpecified -PnewVersion=${{ inputs.new-version }}
+#
+#      - name: Gradle Update Version (Branch Commit)
+#        if: ${{ inputs.version-policy != 'specified' && !cancelled() && !failure() }}
+#        run: ./gradlew versionAsPrefixedCommit -PcommitPrefix=${{ steps.parameters.outputs.commit-prefix }}
+#
+#      - name: Compute Final Effective Version
+#        id: effective-version
+#        run: |
+#          EFF_VERSION="$(./gradlew showVersion --quiet | tr -d '[:space:]')"
+#          PRERELEASE_SUFFIX="$(semver get prerel "${EFF_VERSION}")"
+#          PRERELEASE="false"
+#          [[ -n "${PRERELEASE_SUFFIX}" ]] && PRERELEASE="true"
+#
+#          MAJOR_VERSION="$(semver get major "${EFF_VERSION}")"
+#          MINOR_VERSION="$(semver get minor "${EFF_VERSION}")"
+#
+#          echo "number=${EFF_VERSION}" >>"${GITHUB_OUTPUT}"
+#          echo "prefix=${MAJOR_VERSION}.${MINOR_VERSION}" >>"${GITHUB_OUTPUT}"
+#          echo "prerelease=${PRERELEASE}" >>"${GITHUB_OUTPUT}"
+#
+#      - name: Upload Build Version
+#        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+#        with:
+#          name: version.txt
+#          path: version.txt
+#          if-no-files-found: error
+#
+#  build-artifact:
+#    name: Build Artifact
+#    runs-on: hiero-network-node-linux-large
+#    needs:
+#      - validate
+#    steps:
+#      - name: Harden Runner
+#        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+#        with:
+#          egress-policy: audit
+#
+#      - name: Install Deterministic Zip Tooling
+#        run: |
+#          echo "::group::Download Binary"
+#          sudo curl -L -o /usr/local/bin/deterministic-zip https://github.com/timo-reymann/deterministic-zip/releases/download/1.2.0/deterministic-zip_linux-amd64
+#          echo "::endgroup::"
+#          echo "::group::Change Binary Permissions"
+#          sudo chmod -v +x /usr/local/bin/deterministic-zip
+#          echo "::endgroup::"
+#          echo "::group::Show Binary Version Info"
+#          deterministic-zip --version
+#          echo "::endgroup::"
+#
+#      - name: Install JSON Tools
+#        run: |
+#          if ! command -v jq >/dev/null 2>&1; then
+#            echo "::group::Setup JQ Command"
+#            sudo apt update
+#            sudo apt install -y jq
+#            echo "::endgroup::"
+#          fi
+#
+#          JQ_VERSION="$(jq --version)"
+#          if [[ "${JQ_VERSION}" != "jq-1.6" ]]; then
+#            echo "::group::Updating JQ Version"
+#            sudo apt update
+#            sudo apt upgrade -y jq
+#            echo "::endgroup::"
+#          fi
+#
+#          if ! command -v tee >/dev/null 2>&1; then
+#            echo "::group::Setup Tee Command"
+#            sudo apt update
+#            sudo apt install -y coreutils
+#            echo "::endgroup::"
+#          fi
+#
+#          echo "::group::Show JQ Version"
+#          jq --version
+#          echo "::endgroup::"
+#
+#      - name: Checkout Code
+#        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+#        with:
+#          fetch-depth: "0"
+#          ref: ${{ needs.validate.outputs.commit-id }}
+#
+#      - name: Authenticate to Google Cloud
+#        uses: step-security/google-github-auth@40f6deebd366f16c782d7a0ad0844e3b96a032a6 # v2.1.10
+#        if: ${{ inputs.dry-run-enabled != true && !cancelled() && !failure() }}
+#        with:
+#          workload_identity_provider: "projects/235822363393/locations/global/workloadIdentityPools/hedera-builds-pool/providers/hedera-builds-gh-actions"
+#          service_account: "hedera-artifact-builds@devops-1-254919.iam.gserviceaccount.com"
+#
+#      - name: Setup Google Cloud SDK
+#        uses: google-github-actions/setup-gcloud@77e7a554d41e2ee56fc945c52dfd3f33d12def9a # v2.1.4
+#        if: ${{ inputs.dry-run-enabled != true && !cancelled() && !failure() }}
+#
+#      - name: Setup Java
+#        uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
+#        with:
+#          distribution: ${{ inputs.java-distribution }}
+#          java-version: ${{ inputs.java-version }}
+#
+#      - name: Setup Gradle
+#        uses: gradle/actions/setup-gradle@ac638b010cf58a27ee6c972d7336334ccaf61c96 # v4.4.1
+#        with:
+#          gradle-version: ${{ inputs.gradle-version }}
+#
+#      - name: Download Build Version
+#        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+#        with:
+#          name: version.txt
+#
+#      - name: Gradle Assemble
+#        id: gradle-build
+#        run: ./gradlew assemble
+#
+#      - name: Gradle Version Summary
+#        run: ./gradlew githubVersionSummary
+#
+#      - name: Stage Artifact Build Folder
+#        id: artifact-staging
+#        run: |
+#          BUILD_BASE_DIR="${HOME}/artifact-build"
+#          mkdir -p "${BUILD_BASE_DIR}/data/lib"
+#          mkdir -p "${BUILD_BASE_DIR}/data/apps"
+#
+#          cp -f hedera-node/data/lib/*.jar "${BUILD_BASE_DIR}/data/lib"
+#          cp -f hedera-node/data/apps/*.jar "${BUILD_BASE_DIR}/data/apps"
+#          cp -f hedera-node/configuration/update/immediate.sh "${BUILD_BASE_DIR}"
+#          cp -f hedera-node/configuration/update/during-freeze.sh "${BUILD_BASE_DIR}"
+#
+#          echo "folder=${BUILD_BASE_DIR}" >>"${GITHUB_OUTPUT}"
+#
+#      - name: Write Artifact Version Descriptor
+#        working-directory: ${{ steps.artifact-staging.outputs.folder }}
+#        run: |
+#          printf "VERSION=%s\nCOMMIT=%s\nDATE=%s" "${{ needs.validate.outputs.version }}" "${{ needs.validate.outputs.commit-id-short }}" "$(date -u)" | tee VERSION
+#
+#      - name: Upload Build Artifacts
+#        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+#        with:
+#          path: ~/artifact-build
+#          name: node-build-artifacts-${{ needs.validate.outputs.version }}-${{ needs.validate.outputs.commit-id }}
+#
+#      - name: Create Artifact Archive
+#        id: artifact-release
+#        working-directory: ${{ steps.artifact-staging.outputs.folder }}
+#        run: |
+#          POLICY="${{ inputs.version-policy }}"
+#          ARTIFACT_BASE_DIR="${HOME}/artifact-release"
+#          mkdir -p "${ARTIFACT_BASE_DIR}"
+#
+#          if [[ "${POLICY}" == "branch-commit"  ]]; then
+#            ARTIFACT_NAME="build-${{ needs.validate.outputs.branch-name-safe }}-${{ needs.validate.outputs.commit-id-short }}"
+#          else
+#            ARTIFACT_NAME="build-v${{ needs.validate.outputs.version }}"
+#          fi
+#
+#          ARTIFACT_FILE="${ARTIFACT_BASE_DIR}/${ARTIFACT_NAME}.zip"
+#          deterministic-zip -D -vr "${ARTIFACT_FILE}" *
+#
+#          echo "folder=${ARTIFACT_BASE_DIR}" >>"${GITHUB_OUTPUT}"
+#          echo "name=${ARTIFACT_NAME}" >>"${GITHUB_OUTPUT}"
+#          echo "file=${ARTIFACT_FILE}" >>"${GITHUB_OUTPUT}"
+#
+#      - name: Compute SHA Hash
+#        working-directory: ${{ steps.artifact-release.outputs.folder }}
+#        run: |
+#          ARTIFACT_NAME="${{ steps.artifact-release.outputs.name }}"
+#          sha384sum "${ARTIFACT_NAME}.zip" | tee "${ARTIFACT_NAME}.sha384"
+
+#      - name: Upload Artifacts (DevOps GCP Bucket)
+#        uses: google-github-actions/upload-cloud-storage@7c6e11cb7291594c5dfe0bc1dd9cd905e31e600c # v2.2.2
+#        if: ${{ inputs.dry-run-enabled != true && !cancelled() && !failure() }}
+#        with:
+#          path: ${{ steps.artifact-release.outputs.folder }}
+#          destination: ${{ secrets.bucket-name }}
+#          parent: false
+#          process_gcloudignore: false
+#
+#      - name: Upload Artifacts (CDN Bucket)
+#        uses: google-github-actions/upload-cloud-storage@7c6e11cb7291594c5dfe0bc1dd9cd905e31e600c # v2.2.2
+#        if: ${{ inputs.dry-run-enabled != true && inputs.version-policy == 'specified' && !cancelled() && !failure() }}
+#        with:
+#          path: ${{ steps.artifact-release.outputs.folder }}
+#          destination: ${{ secrets.cdn-bucket-name }}/node/software/v${{ needs.validate.outputs.version-prefix }}/
+#          parent: false
+#          process_gcloudignore: false
+#
+#  local-node-images:
+#    name: Publish Local Node Images
+#    runs-on: hiero-network-node-linux-large
+#    needs:
+#      - validate
+#      - build-artifact
+#    steps:
+#      - name: Harden Runner
+#        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+#        with:
+#          egress-policy: audit
+#
+#      - name: Checkout Code
+#        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+#        with:
+#          fetch-depth: "0"
+#          ref: ${{ needs.validate.outputs.commit-id }}
+#
+#      - name: Authenticate to Google Cloud
+#        id: google-auth
+#        uses: step-security/google-github-auth@40f6deebd366f16c782d7a0ad0844e3b96a032a6 # v2.1.10
+#        if: ${{ inputs.dry-run-enabled != true && !cancelled() && !failure() }}
+#        with:
+#          token_format: "access_token"
+#          workload_identity_provider: "projects/235822363393/locations/global/workloadIdentityPools/hedera-builds-pool/providers/hedera-builds-gh-actions"
+#          service_account: "swirlds-automation@hedera-registry.iam.gserviceaccount.com"
+#
+#      - name: Set Image Registry
+#        id: set-registry
+#        run: |
+#          DOCKER_REGISTRY="gcr.io"
+#          [[ "${{ inputs.version-policy }}" == "branch-commit" ]] && DOCKER_REGISTRY="us-docker.pkg.dev"
+#          echo "docker-registry=${DOCKER_REGISTRY}" >>"${GITHUB_OUTPUT}"
+#
+#          DOCKER_TAG_BASE="gcr.io/hedera-registry"
+#          if [[ "${{ inputs.version-policy }}" == "branch-commit" && "${{ inputs.dry-run-enabled }}" != true ]]; then
+#             DOCKER_TAG_BASE="us-docker.pkg.dev/swirlds-registry/local-node"
+#          elif [[ "${{ inputs.dry-run-enabled }}" == true ]]; then
+#             DOCKER_TAG_BASE="localhost:5000"
+#          fi
+#
+#          echo "docker-tag-base=${DOCKER_TAG_BASE}" >>"${GITHUB_OUTPUT}"
+#
+#      - name: Setup QEmu Support
+#        uses: docker/setup-qemu-action@5964de0df58d5ad28b04d8fe2e6b80ad47105b91 # v3.5.0
+#
+#      - name: Setup Docker Buildx Support
+#        uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
+#        with:
+#          version: v0.16.2
+#          driver-opts: network=host
+#          buildkitd-config-inline: |
+#            [registry."docker.io"]
+#              mirrors = ["https://hub.mirror.docker.lat.ope.eng.hashgraph.io"]
+#
+#      - name: Setup Local Docker Registry
+#        if: ${{ inputs.dry-run-enabled == true && !cancelled() && !failure() }}
+#        run: docker run -d -p 5000:5000 --restart=always --name registry registry:latest
+#
+#      - name: Docker Login
+#        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
+#        if: ${{ inputs.dry-run-enabled != true && !cancelled() && !failure() }}
+#        with:
+#          registry: ${{ steps.set-registry.outputs.docker-registry }}
+#          username: oauth2accesstoken
+#          password: ${{ steps.google-auth.outputs.access_token }}
+#
+#      - name: Restore Build Artifacts
+#        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+#        with:
+#          path: ~/artifact-build
+#          name: node-build-artifacts-${{ needs.validate.outputs.version }}-${{ needs.validate.outputs.commit-id }}
+#
+#      - name: Stage SDK Artifacts
+#        run: |
+#          mkdir -p hedera-node/infrastructure/docker/containers/local-node/main-network-node/sdk
+#          cp -rvf ~/artifact-build/* hedera-node/infrastructure/docker/containers/local-node/main-network-node/sdk/
+#
+#      - name: Build Haveged Image
+#        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
+#        with:
+#          push: true
+#          platforms: linux/amd64,linux/arm64
+#          context: hedera-node/infrastructure/docker/containers/local-node/network-node-haveged
+#          tags: ${{ steps.set-registry.outputs.docker-tag-base }}/network-node-haveged:${{ needs.validate.outputs.version }}
+#
+#      - name: Build Base Image
+#        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
+#        with:
+#          push: true
+#          platforms: linux/amd64,linux/arm64
+#          context: hedera-node/infrastructure/docker/containers/local-node/network-node-base
+#          tags: ${{ steps.set-registry.outputs.docker-tag-base }}/network-node-base:${{ needs.validate.outputs.version }}
+#
+#      - name: Build Network Node Image
+#        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
+#        with:
+#          push: true
+#          platforms: linux/amd64,linux/arm64
+#          build-args: |
+#            IMAGE_TAG=${{ needs.validate.outputs.version }}
+#            IMAGE_PREFIX=${{ steps.set-registry.outputs.docker-tag-base }}/
+#          context: hedera-node/infrastructure/docker/containers/local-node/main-network-node
+#          tags: ${{ steps.set-registry.outputs.docker-tag-base }}/main-network-node:${{ needs.validate.outputs.version }}
+#
+#      - name: Render Job Summary
+#        run: |
+#          NETWORK_NODE_BASE_LINK="Not Applicable"
+#          NETWORK_NODE_HAVEGED_LINK="Not Applicable"
+#          NETWORK_NODE_MAIN_LINK="Not Applicable"
+#
+#          if [[ "${{ inputs.dry-run-enabled }}" != true ]]; then
+#            NETWORK_NODE_BASE_LINK="[GCP Console](https://${{ steps.set-registry.outputs.docker-tag-base }}/network-node-base:${{ needs.validate.outputs.version }})"
+#            NETWORK_NODE_HAVEGED_LINK="[GCP Console](https://${{ steps.set-registry.outputs.docker-tag-base }}/network-node-haveged:${{ needs.validate.outputs.version }})"
+#            NETWORK_NODE_MAIN_LINK="[GCP Console](https://${{ steps.set-registry.outputs.docker-tag-base }}/main-network-node:${{ needs.validate.outputs.version }})"
+#          fi
+#
+#          printf "### Published Docker Images\n" >> "${GITHUB_STEP_SUMMARY}"
+#          printf "| Image Name | Version | URL | Supported Architectures |\n" >> "${GITHUB_STEP_SUMMARY}"
+#          printf "| ---------- | ------- | --- | ----------------------- |\n" >> "${GITHUB_STEP_SUMMARY}"
+#          printf "| %s | %s | %s | %s |\n" \
+#            "${{ steps.set-registry.outputs.docker-tag-base }}/network-node-base" \
+#            "${{ needs.validate.outputs.version }}" \
+#            "${NETWORK_NODE_BASE_LINK}" \
+#            "linux/amd64, linux/arm64" >> "${GITHUB_STEP_SUMMARY}"
+#
+#          printf "| %s | %s | %s | %s |\n" \
+#            "${{ steps.set-registry.outputs.docker-tag-base }}/network-node-haveged" \
+#            "${{ needs.validate.outputs.version }}" \
+#            "${NETWORK_NODE_HAVEGED_LINK}" \
+#            "linux/amd64, linux/arm64" >> "${GITHUB_STEP_SUMMARY}"
+#
+#          printf "| %s | %s | %s | %s |\n" \
+#            "${{ steps.set-registry.outputs.docker-tag-base }}/main-network-node" \
+#            "${{ needs.validate.outputs.version }}" \
+#            "${NETWORK_NODE_MAIN_LINK}" \
+#            "linux/amd64, linux/arm64" >> "${GITHUB_STEP_SUMMARY}"
+#
+#          printf "\n\n" >> "${GITHUB_STEP_SUMMARY}"
+#
+#  gcp-production-image:
+#    name: Publish Production Image
+#    uses: ./.github/workflows/zxc-publish-production-image.yaml
+#    needs:
+#      - validate
+#      - build-artifact
+#    with:
+#      version: ${{ needs.validate.outputs.version }}
+#      version-policy: ${{ inputs.version-policy }}
+#      dry-run-enabled: ${{ inputs.dry-run-enabled }}
+#      registry-name: gcp
+#      custom-job-name: "Publish Production Image (GCP)"
+#      ref: ${{ needs.validate.outputs.commit-id }}
+#    secrets:
+#      jf-url: ${{ secrets.jf-url }}
+#      jf-user-name: ${{ secrets.jf-user-name }}
+#      jf-docker-registry: ${{ secrets.jf-docker-registry }}
+#      jf-access-token: ${{ secrets.jf-access-token }}
+#
+#  jfr-production-image:
+#    name: Publish Production Image
+#    uses: ./.github/workflows/zxc-publish-production-image.yaml
+#    needs:
+#      - validate
+#      - build-artifact
+#    with:
+#      version: ${{ needs.validate.outputs.version }}
+#      version-policy: ${{ inputs.version-policy }}
+#      dry-run-enabled: ${{ inputs.dry-run-enabled }}
+#      registry-name: jfrog
+#      custom-job-name: "Publish Production Image (JFrog)"
+#      ref: ${{ needs.validate.outputs.commit-id }}
+#    secrets:
+#      jf-url: ${{ secrets.jf-url }}
+#      jf-user-name: ${{ secrets.jf-user-name }}
+#      jf-docker-registry: ${{ secrets.jf-docker-registry }}
+#      jf-access-token: ${{ secrets.jf-access-token }}
+#
+#  validate-production-image:
+#    name: Validate Production Image
+#    runs-on: hiero-network-node-linux-large
+#    needs:
+#      - gcp-production-image
+#      - jfr-production-image
+#    if: ${{ inputs.dry-run-enabled != true && !cancelled() && !failure() }}
+#    steps:
+#      - name: Harden Runner
+#        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+#        with:
+#          egress-policy: audit
+#
+#      - name: Checkout Code
+#        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+#        with:
+#          fetch-depth: "0"
+#          ref: ${{ needs.validate.outputs.commit-id }}
+#
+#      - name: Authenticate to Google Cloud
+#        id: google-auth
+#        uses: step-security/google-github-auth@40f6deebd366f16c782d7a0ad0844e3b96a032a6 # v2.1.10
+#        with:
+#          token_format: "access_token"
+#          workload_identity_provider: "projects/235822363393/locations/global/workloadIdentityPools/hedera-builds-pool/providers/hedera-builds-gh-actions"
+#          service_account: "swirlds-automation@hedera-registry.iam.gserviceaccount.com"
+#
+#      - name: Setup JFrog CLI
+#        uses: jfrog/setup-jfrog-cli@ff5cb544114ffc152db9cea1cd3d5978d5074946 # v4.5.11
+#        env:
+#          JF_URL: ${{ secrets.jf-url }}
+#          JF_ACCESS_TOKEN: ${{ secrets.jf-access-token }}
+#
+#      - name: Show JFrog Config
+#        run: jfrog config show
+#
+#      - name: Verify JFrog Connectivity
+#        run: jfrog rt ping
+#
+#      - name: Docker Login (GCP)
+#        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
+#        with:
+#          registry: ${{ needs.gcp-production-image.outputs.docker-registry }}
+#          username: oauth2accesstoken
+#          password: ${{ steps.google-auth.outputs.access_token }}
+#
+#      - name: Docker Login (JFrog)
+#        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
+#        with:
+#          registry: ${{ needs.jfr-production-image.outputs.docker-registry }}
+#          username: ${{ secrets.jf-user-name }}
+#          password: ${{ secrets.jf-access-token }}
+#
+#      - name: Create Manifest Directories
+#        run: |
+#          mkdir -p "${DOCKER_MANIFEST_PATH}/gcp"
+#          mkdir -p "${DOCKER_MANIFEST_PATH}/jfrog"
+#
+#      - name: Generate GCP Manifest
+#        id: gcp
+#        env:
+#          MANIFEST_PATH: ${{ env.DOCKER_MANIFEST_PATH }}/gcp
+#          DOCKER_REGISTRY: ${{ needs.gcp-production-image.outputs.docker-image-prefix }}
+#          DOCKER_TAG: ${{ needs.gcp-production-image.outputs.docker-image-tag }}
+#        run: ${{ env.DOCKER_MANIFEST_GENERATOR }}
+#
+#      - name: Generate JFrog Manifest
+#        id: jfrog
+#        env:
+#          MANIFEST_PATH: ${{ env.DOCKER_MANIFEST_PATH }}/jfrog
+#          DOCKER_REGISTRY: ${{ needs.jfr-production-image.outputs.docker-image-prefix }}
+#          DOCKER_TAG: ${{ needs.jfr-production-image.outputs.docker-image-tag }}
+#        run: ${{ env.DOCKER_MANIFEST_GENERATOR }}
+#
+#      - name: Validate Layers (linux/amd64)
+#        run: |
+#          if ! diff -u "${{ steps.gcp.outputs.path }}/linux-amd64.layers.json" "${{ steps.jfrog.outputs.path }}/linux-amd64.layers.json" >/dev/null 2>&1; then
+#           echo "::group::Layer Differences"
+#           diff -u "${{ steps.gcp.outputs.path }}/linux-amd64.layers.json" "${{ steps.jfrog.outputs.path }}/linux-amd64.layers.json"
+#           echo "::endgroup::"
+#           exit 1
+#          fi
+#
+#      - name: Validate Layers (linux/arm64)
+#        run: |
+#          if ! diff -u "${{ steps.gcp.outputs.path }}/linux-arm64.layers.json" "${{ steps.jfrog.outputs.path }}/linux-arm64.layers.json" >/dev/null 2>&1; then
+#           echo "::group::Layer Differences"
+#           diff -u "${{ steps.gcp.outputs.path }}/linux-arm64.layers.json" "${{ steps.jfrog.outputs.path }}/linux-arm64.layers.json"
+#           echo "::endgroup::"
+#           exit 1
+#          fi
+#
+#      - name: Validate Full Manifest (linux/amd64)
+#        run: |
+#          if ! diff -u "${{ steps.gcp.outputs.path }}/linux-amd64.comparable.json" "${{ steps.jfrog.outputs.path }}/linux-amd64.comparable.json" >/dev/null 2>&1; then
+#           echo "::group::Layer Differences"
+#           diff -u "${{ steps.gcp.outputs.path }}/linux-amd64.comparable.json" "${{ steps.jfrog.outputs.path }}/linux-amd64.comparable.json"
+#           echo "::endgroup::"
+#           exit 1
+#          fi
+#
+#      - name: Validate Full Manifest (linux/arm64)
+#        run: |
+#          if ! diff -u "${{ steps.gcp.outputs.path }}/linux-arm64.comparable.json" "${{ steps.jfrog.outputs.path }}/linux-arm64.comparable.json" >/dev/null 2>&1; then
+#           echo "::group::Layer Differences"
+#           diff -u "${{ steps.gcp.outputs.path }}/linux-arm64.comparable.json" "${{ steps.jfrog.outputs.path }}/linux-arm64.comparable.json"
+#           echo "::endgroup::"
+#           exit 1
+#          fi
+#
+#      - name: Upload Manifests
+#        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+#        if: ${{ (steps.gcp.outcome == 'success' || steps.jfrog.outcome == 'success') && !cancelled() && always() }}
+#        with:
+#          name: Production Image Manifests
+#          path: ${{ env.DOCKER_MANIFEST_PATH }}
+#
   publish:
     name: Publish to ${{ inputs.version-policy == 'specified' && 'Maven Central' || 'GCP Registry' }}
     runs-on: hiero-network-node-linux-large
     outputs:
       create-release: ${{ steps.set-release-flags.outputs.create-release }}
-    needs:
-      - validate
+#    needs:
+#      - validate
     if: ${{ inputs.release-profile != 'none' }}
     steps:
-      - name: Harden Runner
-        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
-        with:
-          egress-policy: audit
-
-      - name: Checkout Code
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          fetch-depth: "0"
-          ref: ${{ needs.validate.outputs.commit-id }}
-
-      - name: Install GnuPG Tools
-        if: ${{ inputs.dry-run-enabled != true }}
-        run: |
-          if ! command -v gpg2 >/dev/null 2>&1; then
-            echo "::group::Updating APT Repository Indices"
-              sudo apt update
-            echo "::endgroup::"
-            echo "::group::Installing GnuPG Tools"
-              sudo apt install -y gnupg2
-            echo "::endgroup::"
-          fi
-
-      - name: Import GPG key
-        id: gpg_key
-        uses: step-security/ghaction-import-gpg@c86c374c0659a6c2d1284bccf8af889e73ce8fe0 # v6.3.0
-        with:
-          gpg_private_key: ${{ secrets.sdk-gpg-key-contents }}
-          passphrase: ${{ secrets.sdk-gpg-key-passphrase }}
-          git_config_global: true
-          git_user_signingkey: true
-          git_commit_gpgsign: true
-          git_tag_gpgsign: true
-
-      - name: Authenticate to Google Cloud
-        id: google-auth
-        uses: step-security/google-github-auth@40f6deebd366f16c782d7a0ad0844e3b96a032a6 # v2.1.10
-        with:
-          workload_identity_provider: "projects/229164983194/locations/global/workloadIdentityPools/registry-identity-pool/providers/gh-provider"
-          service_account: "artifact-deployer@swirlds-registry.iam.gserviceaccount.com"
-
-      - name: Setup Google Cloud SDK
-        uses: google-github-actions/setup-gcloud@77e7a554d41e2ee56fc945c52dfd3f33d12def9a # v2.1.4
-        if: ${{ inputs.dry-run-enabled != true && !cancelled() && !failure() }}
-
-      - name: Setup Java
-        uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
-        with:
-          distribution: ${{ inputs.java-distribution }}
-          java-version: ${{ inputs.java-version }}
-
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@ac638b010cf58a27ee6c972d7336334ccaf61c96 # v4.4.1
-        with:
-          gradle-version: ${{ inputs.gradle-version }}
-
-      - name: Download Build Version
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
-        with:
-          name: version.txt
-
-      - name: Gradle Assemble
-        run: ./gradlew assemble
-
-      - name: Gradle Version Summary
-        run: ./gradlew githubVersionSummary
-
-      - name: Stage SDK Release Archives
-        working-directory: platform-sdk
-        run: |
-          SDK_RELEASE_DIR="${HOME}/sdk-release"
-          SDK_ARCHIVE_DIR="${HOME}/sdk-archives"
-          COMMIT_SHA="${{ needs.validate.outputs.commit-id-short }}"
-
-          echo "::group::Creating Release Directories"
-            [[ -f "${SDK_RELEASE_DIR}" ]] || mkdir -p "${SDK_RELEASE_DIR}"
-            [[ -f "${SDK_ARCHIVE_DIR}" ]] || mkdir -p "${SDK_ARCHIVE_DIR}"
-          echo "::endgroup::"
-
-          echo "::group::Staging Release Files"
-            cp -Rvf sdk/* "${SDK_RELEASE_DIR}"
-            rm -vf "${SDK_RELEASE_DIR}/log4j2.xml"
-            rm -vf "${SDK_RELEASE_DIR}/settings.txt"
-            rm -vf "${SDK_RELEASE_DIR}/test_cases.sh"
-            rm -rvf "${SDK_RELEASE_DIR}/target"
-            rm -rvf "${SDK_RELEASE_DIR}/testing"
-            rm -rvf "${SDK_RELEASE_DIR}/kernels"
-            rm -rvf "${SDK_RELEASE_DIR}/data/configs"
-
-            cat "sdk/config.txt" | \
-              perl -0777 -pe 's/# \*\* BEGIN REMOVE FROM SDK RELEASES \*\*.*# \*\* END REMOVE FROM SDK RELEASES \*\*//igs' \
-                > "${SDK_RELEASE_DIR}/config.txt"
-          echo "::endgroup::"
-
-          echo "::group::Rendering Settings File"
-            SETTINGS_CONTENTS="loadKeysFromPfxFiles, false\n"
-            SETTINGS_CONTENTS+="requireStateLoad, false\n"
-            SETTINGS_CONTENTS+="csvOutputFolder, data/stats\n"
-            SETTINGS_CONTENTS+="csvFileName, DemoStats\n"
-
-            echo -e "${SETTINGS_CONTENTS}" >"${SDK_RELEASE_DIR}/settings.txt"
-          echo "::endgroup::"
-
-          LIB_ARCHIVE_FILE="${SDK_ARCHIVE_DIR}/platform-sdk-libs-v${{ needs.validate.outputs.version }}-${COMMIT_SHA}.zip"
-          APPS_ARCHIVE_FILE="${SDK_ARCHIVE_DIR}/platform-sdk-apps-v${{ needs.validate.outputs.version }}-${COMMIT_SHA}.zip"
-          PUBLIC_ARCHIVE_FILE="${SDK_ARCHIVE_DIR}/platform-sdk-public-v${{ needs.validate.outputs.version }}-${COMMIT_SHA}.zip"
-
-          echo "::group::Building Release Archives"
-            cd "${SDK_RELEASE_DIR}" || exit "${?}"
-            zip -r "${LIB_ARCHIVE_FILE}" data/lib
-            zip -r "${APPS_ARCHIVE_FILE}" data/apps
-
-            # remove testing tools (if present) before building the public release artifact
-            rm -vf data/apps/*TestingTool.jar || true
-            zip -r "${PUBLIC_ARCHIVE_FILE}" *
-          echo "::endgroup::"
-
-          echo "::group::Sign Release Archives"
-            cd "${SDK_ARCHIVE_DIR}" || exit "${?}"
-            sha256sum "${LIB_ARCHIVE_FILE}" >"${LIB_ARCHIVE_FILE}.sha256"
-            sha256sum "${APPS_ARCHIVE_FILE}" >"${APPS_ARCHIVE_FILE}.sha256"
-            sha256sum "${PUBLIC_ARCHIVE_FILE}" >"${PUBLIC_ARCHIVE_FILE}.sha256"
-
-            gpg --output "${LIB_ARCHIVE_FILE}.asc" --detach-sig "${LIB_ARCHIVE_FILE}"
-            gpg --output "${APPS_ARCHIVE_FILE}.asc" --detach-sig "${APPS_ARCHIVE_FILE}"
-            gpg --output "${PUBLIC_ARCHIVE_FILE}.asc" --detach-sig "${PUBLIC_ARCHIVE_FILE}"
-
-            gpg --output "${LIB_ARCHIVE_FILE}.sha256.asc" --detach-sig "${LIB_ARCHIVE_FILE}.sha256"
-            gpg --output "${APPS_ARCHIVE_FILE}.sha256.asc" --detach-sig "${APPS_ARCHIVE_FILE}.sha256"
-            gpg --output "${PUBLIC_ARCHIVE_FILE}.sha256.asc" --detach-sig "${PUBLIC_ARCHIVE_FILE}.sha256"
-          echo "::endgroup::"
-
-      - name: Gradle Publish to Google Artifact Registry (${{ inputs.release-profile }})
-        if: ${{ inputs.version-policy != 'specified' && inputs.dry-run-enabled != true && inputs.release-profile != 'none' && !cancelled() && !failure() }}
-        run: ./gradlew release${{ inputs.release-profile }} -PpublishingPackageGroup=com.hedera.hashgraph -PpublishSigningEnabled=true --no-configuration-cache
-
-      - name: Gradle Publish to Maven Central
-        if: ${{ inputs.version-policy == 'specified' && inputs.dry-run-enabled != true && inputs.release-profile != 'none' && !cancelled() && !failure() }}
-        env:
-          NEXUS_USERNAME: ${{ secrets.central-publishing-username }}
-          NEXUS_PASSWORD: ${{ secrets.central-publishing-password }}
-        run: ./gradlew publishAggregationToCentralPortal -PpublishSigningEnabled=true
-
-      - name: Upload SDK Release Archives
-        if: ${{ inputs.dry-run-enabled != true && inputs.version-policy == 'specified' && !cancelled() && !failure() }}
-        env:
-          RELEASE_TAG: v${{ needs.validate.outputs.version }}
-        run: |
-          SDK_ARCHIVE_DIR="${HOME}/sdk-archives"
-          gsutil -m cp -r "${SDK_ARCHIVE_DIR}"/* gs://platform-sdk-ci-release-artifacts/${RELEASE_TAG}/
+#      - name: Harden Runner
+#        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+#        with:
+#          egress-policy: audit
+#
+#      - name: Checkout Code
+#        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+#        with:
+#          fetch-depth: "0"
+#          ref: ${{ needs.validate.outputs.commit-id }}
+#
+#      - name: Install GnuPG Tools
+#        if: ${{ inputs.dry-run-enabled != true }}
+#        run: |
+#          if ! command -v gpg2 >/dev/null 2>&1; then
+#            echo "::group::Updating APT Repository Indices"
+#              sudo apt update
+#            echo "::endgroup::"
+#            echo "::group::Installing GnuPG Tools"
+#              sudo apt install -y gnupg2
+#            echo "::endgroup::"
+#          fi
+#
+#      - name: Import GPG key
+#        id: gpg_key
+#        uses: step-security/ghaction-import-gpg@c86c374c0659a6c2d1284bccf8af889e73ce8fe0 # v6.3.0
+#        with:
+#          gpg_private_key: ${{ secrets.sdk-gpg-key-contents }}
+#          passphrase: ${{ secrets.sdk-gpg-key-passphrase }}
+#          git_config_global: true
+#          git_user_signingkey: true
+#          git_commit_gpgsign: true
+#          git_tag_gpgsign: true
+#
+#      - name: Authenticate to Google Cloud
+#        id: google-auth
+#        uses: step-security/google-github-auth@40f6deebd366f16c782d7a0ad0844e3b96a032a6 # v2.1.10
+#        with:
+#          workload_identity_provider: "projects/229164983194/locations/global/workloadIdentityPools/registry-identity-pool/providers/gh-provider"
+#          service_account: "artifact-deployer@swirlds-registry.iam.gserviceaccount.com"
+#
+#      - name: Setup Google Cloud SDK
+#        uses: google-github-actions/setup-gcloud@77e7a554d41e2ee56fc945c52dfd3f33d12def9a # v2.1.4
+#        if: ${{ inputs.dry-run-enabled != true && !cancelled() && !failure() }}
+#
+#      - name: Setup Java
+#        uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
+#        with:
+#          distribution: ${{ inputs.java-distribution }}
+#          java-version: ${{ inputs.java-version }}
+#
+#      - name: Setup Gradle
+#        uses: gradle/actions/setup-gradle@ac638b010cf58a27ee6c972d7336334ccaf61c96 # v4.4.1
+#        with:
+#          gradle-version: ${{ inputs.gradle-version }}
+#
+#      - name: Download Build Version
+#        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+#        with:
+#          name: version.txt
+#
+#      - name: Gradle Assemble
+#        run: ./gradlew assemble
+#
+#      - name: Gradle Version Summary
+#        run: ./gradlew githubVersionSummary
+#
+#      - name: Stage SDK Release Archives
+#        working-directory: platform-sdk
+#        run: |
+#          SDK_RELEASE_DIR="${HOME}/sdk-release"
+#          SDK_ARCHIVE_DIR="${HOME}/sdk-archives"
+#          COMMIT_SHA="${{ needs.validate.outputs.commit-id-short }}"
+#
+#          echo "::group::Creating Release Directories"
+#            [[ -f "${SDK_RELEASE_DIR}" ]] || mkdir -p "${SDK_RELEASE_DIR}"
+#            [[ -f "${SDK_ARCHIVE_DIR}" ]] || mkdir -p "${SDK_ARCHIVE_DIR}"
+#          echo "::endgroup::"
+#
+#          echo "::group::Staging Release Files"
+#            cp -Rvf sdk/* "${SDK_RELEASE_DIR}"
+#            rm -vf "${SDK_RELEASE_DIR}/log4j2.xml"
+#            rm -vf "${SDK_RELEASE_DIR}/settings.txt"
+#            rm -vf "${SDK_RELEASE_DIR}/test_cases.sh"
+#            rm -rvf "${SDK_RELEASE_DIR}/target"
+#            rm -rvf "${SDK_RELEASE_DIR}/testing"
+#            rm -rvf "${SDK_RELEASE_DIR}/kernels"
+#            rm -rvf "${SDK_RELEASE_DIR}/data/configs"
+#
+#            cat "sdk/config.txt" | \
+#              perl -0777 -pe 's/# \*\* BEGIN REMOVE FROM SDK RELEASES \*\*.*# \*\* END REMOVE FROM SDK RELEASES \*\*//igs' \
+#                > "${SDK_RELEASE_DIR}/config.txt"
+#          echo "::endgroup::"
+#
+#          echo "::group::Rendering Settings File"
+#            SETTINGS_CONTENTS="loadKeysFromPfxFiles, false\n"
+#            SETTINGS_CONTENTS+="requireStateLoad, false\n"
+#            SETTINGS_CONTENTS+="csvOutputFolder, data/stats\n"
+#            SETTINGS_CONTENTS+="csvFileName, DemoStats\n"
+#
+#            echo -e "${SETTINGS_CONTENTS}" >"${SDK_RELEASE_DIR}/settings.txt"
+#          echo "::endgroup::"
+#
+#          LIB_ARCHIVE_FILE="${SDK_ARCHIVE_DIR}/platform-sdk-libs-v${{ needs.validate.outputs.version }}-${COMMIT_SHA}.zip"
+#          APPS_ARCHIVE_FILE="${SDK_ARCHIVE_DIR}/platform-sdk-apps-v${{ needs.validate.outputs.version }}-${COMMIT_SHA}.zip"
+#          PUBLIC_ARCHIVE_FILE="${SDK_ARCHIVE_DIR}/platform-sdk-public-v${{ needs.validate.outputs.version }}-${COMMIT_SHA}.zip"
+#
+#          echo "::group::Building Release Archives"
+#            cd "${SDK_RELEASE_DIR}" || exit "${?}"
+#            zip -r "${LIB_ARCHIVE_FILE}" data/lib
+#            zip -r "${APPS_ARCHIVE_FILE}" data/apps
+#
+#            # remove testing tools (if present) before building the public release artifact
+#            rm -vf data/apps/*TestingTool.jar || true
+#            zip -r "${PUBLIC_ARCHIVE_FILE}" *
+#          echo "::endgroup::"
+#
+#          echo "::group::Sign Release Archives"
+#            cd "${SDK_ARCHIVE_DIR}" || exit "${?}"
+#            sha256sum "${LIB_ARCHIVE_FILE}" >"${LIB_ARCHIVE_FILE}.sha256"
+#            sha256sum "${APPS_ARCHIVE_FILE}" >"${APPS_ARCHIVE_FILE}.sha256"
+#            sha256sum "${PUBLIC_ARCHIVE_FILE}" >"${PUBLIC_ARCHIVE_FILE}.sha256"
+#
+#            gpg --output "${LIB_ARCHIVE_FILE}.asc" --detach-sig "${LIB_ARCHIVE_FILE}"
+#            gpg --output "${APPS_ARCHIVE_FILE}.asc" --detach-sig "${APPS_ARCHIVE_FILE}"
+#            gpg --output "${PUBLIC_ARCHIVE_FILE}.asc" --detach-sig "${PUBLIC_ARCHIVE_FILE}"
+#
+#            gpg --output "${LIB_ARCHIVE_FILE}.sha256.asc" --detach-sig "${LIB_ARCHIVE_FILE}.sha256"
+#            gpg --output "${APPS_ARCHIVE_FILE}.sha256.asc" --detach-sig "${APPS_ARCHIVE_FILE}.sha256"
+#            gpg --output "${PUBLIC_ARCHIVE_FILE}.sha256.asc" --detach-sig "${PUBLIC_ARCHIVE_FILE}.sha256"
+#          echo "::endgroup::"
+#
+#      - name: Gradle Publish to Google Artifact Registry (${{ inputs.release-profile }})
+#        if: ${{ inputs.version-policy != 'specified' && inputs.dry-run-enabled != true && inputs.release-profile != 'none' && !cancelled() && !failure() }}
+#        run: ./gradlew release${{ inputs.release-profile }} -PpublishingPackageGroup=com.hedera.hashgraph -PpublishSigningEnabled=true --no-configuration-cache
+#
+#      - name: Gradle Publish to Maven Central
+#        if: ${{ inputs.version-policy == 'specified' && inputs.dry-run-enabled != true && inputs.release-profile != 'none' && !cancelled() && !failure() }}
+#        env:
+#          NEXUS_USERNAME: ${{ secrets.central-publishing-username }}
+#          NEXUS_PASSWORD: ${{ secrets.central-publishing-password }}
+#        run: ./gradlew publishAggregationToCentralPortal -PpublishSigningEnabled=true
+#
+#      - name: Upload SDK Release Archives
+#        if: ${{ inputs.dry-run-enabled != true && inputs.version-policy == 'specified' && !cancelled() && !failure() }}
+#        env:
+#          RELEASE_TAG: v${{ needs.validate.outputs.version }}
+#        run: |
+#          SDK_ARCHIVE_DIR="${HOME}/sdk-archives"
+#          gsutil -m cp -r "${SDK_ARCHIVE_DIR}"/* gs://platform-sdk-ci-release-artifacts/${RELEASE_TAG}/
 
       - name: Set GH Create Release Flag
         id: set-gh-release-flags
@@ -867,8 +867,8 @@ jobs:
   create-github-release:
     name: Create GitHub Release
     uses: ./.github/workflows/zxc-create-github-release.yaml
-    needs:
-      - publish
+#    needs:
+#      - publish
     if: ${{ needs.validate.outputs.create-release == 'true' }}
     with:
       release-version: ${{ inputs.ref-name }}
@@ -876,135 +876,135 @@ jobs:
       create-release: true
     secrets:
       gh-access-token: ${{ secrets.access-token }}
-
-  send-notifications:
-    name: Send Release Notifications
-    runs-on: hiero-network-node-linux-large
-    needs:
-      - validate
-      - local-node-images
-      - validate-production-image
-      - publish
-    if: ${{ inputs.dry-run-enabled != true && inputs.version-policy == 'specified' && !cancelled() && !failure() }}
-    steps:
-      - name: Harden Runner
-        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
-        with:
-          egress-policy: audit
-
-      - name: Determine Notification Parameters
-        id: parameters
-        run: |
-          ARTIFACT_URL="https://repo1.maven.org/maven2/com/swirlds/swirlds-platform-core/${{ needs.validate.outputs.version }}/"
-          ARTIFACT_LINK_NAME="MC Availability Check"
-          ARTIFACT_REGISTRY="Maven Central"
-
-          if [[ "${{ inputs.release-profile }}" == "PrereleaseChannel" ]]; then
-            ARTIFACT_URL="https://console.cloud.google.com/artifacts/maven/swirlds-registry/us/maven-prerelease-channel/com.swirlds:swirlds-platform-core/${{ needs.validate.outputs.version }}?project=swirlds-registry"
-            ARTIFACT_LINK_NAME="GCP Registry"
-            ARTIFACT_REGISTRY="GCP Artifact Registry"
-          fi
-
-          echo "artifact-url=${ARTIFACT_URL}" >>"${GITHUB_OUTPUT}"
-          echo "artifact-name=${ARTIFACT_LINK_NAME}" >>"${GITHUB_OUTPUT}"
-          echo "artifact-registry=${ARTIFACT_REGISTRY}" >>"${GITHUB_OUTPUT}"
-
-      - name: Send Slack Notification (Maven Central)
-        uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
-        with:
-          webhook: ${{ secrets.slack-webhook-url }}
-          webhook-type: incoming-webhook
-          payload-templated: true
-          payload: |
-            {
-              "attachments": [
-                  {
-                    "color": "#b7f350",
-                    "blocks": [
-                      {
-                        "type": "header",
-                        "text": {
-                          "type": "plain_text",
-                          "text": ":dvd: Node Software Release v${{ needs.validate.outputs.version }}",
-                          "emoji": true
-                        }
-                      },
-                      {
-                        "type": "section",
-                        "fields": [
-                          {
-                            "type": "mrkdwn",
-                            "text": "*Deployment Channel:*"
-                          },
-                          {
-                            "type": "mrkdwn",
-                            "text": "*Deployment Status Check:*"
-                          },
-                          {
-                            "type": "mrkdwn",
-                            "text": "${{ steps.parameters.outputs.artifact-registry }}"
-                          },
-                          {
-                            "type": "mrkdwn",
-                            "text": "<${{ steps.parameters.outputs.artifact-url }}|${{ steps.parameters.outputs.artifact-name }}>"
-                          }
-                        ]
-                      },
-                      {
-                        "type": "section",
-                        "fields": [
-                          {
-                            "type": "mrkdwn",
-                            "text": "*Source Branch:*"
-                          },
-                          {
-                            "type": "mrkdwn",
-                            "text": "*Short Commit ID:*"
-                          },
-                          {
-                            "type": "mrkdwn",
-                            "text": "<${{ github.server_url }}/${{ github.repository }}/tree/${{ inputs.ref-name }}|${{ inputs.ref-name }}>"
-                          },
-                          {
-                            "type": "mrkdwn",
-                            "text": "`${{ needs.validate.outputs.commit-id-short }}`"
-                          }
-                        ]
-                      },
-                      {
-                        "type": "section",
-                        "fields": [
-                          {
-                            "type": "mrkdwn",
-                            "text": "*Gradle Version Number:*"
-                          },
-                          {
-                            "type": "mrkdwn",
-                            "text": "*Release Notes:*"
-                          },
-                          {
-                            "type": "mrkdwn",
-                            "text": "`${{ needs.validate.outputs.version }}`"
-                          },
-                          {
-                            "type": "mrkdwn",
-                            "text": "<${{ github.server_url }}/${{ github.repository }}/releases/tag/v${{ needs.validate.outputs.version }}|v${{ needs.validate.outputs.version }}>"
-                          }
-                        ]
-                      },
-                      {
-                        "type": "divider"
-                      },
-                      {
-                        "type": "context",
-                        "elements": [
-                          {
-                            "type": "mrkdwn",
-                            "text": ":warning: Artifacts may not be immediately available in Maven Central. Please verify existence of the artifacts using the link provided above."
-                          }
-                        ]
-                      }
-                    ]
-                  }
-                ]
-              }
+#
+#  send-notifications:
+#    name: Send Release Notifications
+#    runs-on: hiero-network-node-linux-large
+#    needs:
+#      - validate
+#      - local-node-images
+#      - validate-production-image
+#      - publish
+#    if: ${{ inputs.dry-run-enabled != true && inputs.version-policy == 'specified' && !cancelled() && !failure() }}
+#    steps:
+#      - name: Harden Runner
+#        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+#        with:
+#          egress-policy: audit
+#
+#      - name: Determine Notification Parameters
+#        id: parameters
+#        run: |
+#          ARTIFACT_URL="https://repo1.maven.org/maven2/com/swirlds/swirlds-platform-core/${{ needs.validate.outputs.version }}/"
+#          ARTIFACT_LINK_NAME="MC Availability Check"
+#          ARTIFACT_REGISTRY="Maven Central"
+#
+#          if [[ "${{ inputs.release-profile }}" == "PrereleaseChannel" ]]; then
+#            ARTIFACT_URL="https://console.cloud.google.com/artifacts/maven/swirlds-registry/us/maven-prerelease-channel/com.swirlds:swirlds-platform-core/${{ needs.validate.outputs.version }}?project=swirlds-registry"
+#            ARTIFACT_LINK_NAME="GCP Registry"
+#            ARTIFACT_REGISTRY="GCP Artifact Registry"
+#          fi
+#
+#          echo "artifact-url=${ARTIFACT_URL}" >>"${GITHUB_OUTPUT}"
+#          echo "artifact-name=${ARTIFACT_LINK_NAME}" >>"${GITHUB_OUTPUT}"
+#          echo "artifact-registry=${ARTIFACT_REGISTRY}" >>"${GITHUB_OUTPUT}"
+#
+#      - name: Send Slack Notification (Maven Central)
+#        uses: slackapi/slack-github-action@b0fa283ad8fea605de13dc3f449259339835fc52 # v2.1.0
+#        with:
+#          webhook: ${{ secrets.slack-webhook-url }}
+#          webhook-type: incoming-webhook
+#          payload-templated: true
+#          payload: |
+#            {
+#              "attachments": [
+#                  {
+#                    "color": "#b7f350",
+#                    "blocks": [
+#                      {
+#                        "type": "header",
+#                        "text": {
+#                          "type": "plain_text",
+#                          "text": ":dvd: Node Software Release v${{ needs.validate.outputs.version }}",
+#                          "emoji": true
+#                        }
+#                      },
+#                      {
+#                        "type": "section",
+#                        "fields": [
+#                          {
+#                            "type": "mrkdwn",
+#                            "text": "*Deployment Channel:*"
+#                          },
+#                          {
+#                            "type": "mrkdwn",
+#                            "text": "*Deployment Status Check:*"
+#                          },
+#                          {
+#                            "type": "mrkdwn",
+#                            "text": "${{ steps.parameters.outputs.artifact-registry }}"
+#                          },
+#                          {
+#                            "type": "mrkdwn",
+#                            "text": "<${{ steps.parameters.outputs.artifact-url }}|${{ steps.parameters.outputs.artifact-name }}>"
+#                          }
+#                        ]
+#                      },
+#                      {
+#                        "type": "section",
+#                        "fields": [
+#                          {
+#                            "type": "mrkdwn",
+#                            "text": "*Source Branch:*"
+#                          },
+#                          {
+#                            "type": "mrkdwn",
+#                            "text": "*Short Commit ID:*"
+#                          },
+#                          {
+#                            "type": "mrkdwn",
+#                            "text": "<${{ github.server_url }}/${{ github.repository }}/tree/${{ inputs.ref-name }}|${{ inputs.ref-name }}>"
+#                          },
+#                          {
+#                            "type": "mrkdwn",
+#                            "text": "`${{ needs.validate.outputs.commit-id-short }}`"
+#                          }
+#                        ]
+#                      },
+#                      {
+#                        "type": "section",
+#                        "fields": [
+#                          {
+#                            "type": "mrkdwn",
+#                            "text": "*Gradle Version Number:*"
+#                          },
+#                          {
+#                            "type": "mrkdwn",
+#                            "text": "*Release Notes:*"
+#                          },
+#                          {
+#                            "type": "mrkdwn",
+#                            "text": "`${{ needs.validate.outputs.version }}`"
+#                          },
+#                          {
+#                            "type": "mrkdwn",
+#                            "text": "<${{ github.server_url }}/${{ github.repository }}/releases/tag/v${{ needs.validate.outputs.version }}|v${{ needs.validate.outputs.version }}>"
+#                          }
+#                        ]
+#                      },
+#                      {
+#                        "type": "divider"
+#                      },
+#                      {
+#                        "type": "context",
+#                        "elements": [
+#                          {
+#                            "type": "mrkdwn",
+#                            "text": ":warning: Artifacts may not be immediately available in Maven Central. Please verify existence of the artifacts using the link provided above."
+#                          }
+#                        ]
+#                      }
+#                    ]
+#                  }
+#                ]
+#              }
