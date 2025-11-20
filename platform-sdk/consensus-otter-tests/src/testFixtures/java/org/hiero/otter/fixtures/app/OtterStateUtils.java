@@ -5,61 +5,36 @@ import static org.hiero.otter.fixtures.app.state.OtterStateInitializer.initOtter
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
-import com.swirlds.base.time.Time;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.spi.CommittableWritableStates;
-import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import org.hiero.consensus.roster.RosterUtils;
 
-public class OtterAppState extends VirtualMapState<OtterAppState> implements MerkleNodeState {
-
-    long state;
-
-    public OtterAppState(
-            @NonNull final Configuration configuration, @NonNull final Metrics metrics, @NonNull final Time time) {
-        super(configuration, metrics);
-    }
-
-    public OtterAppState(
-            @NonNull final VirtualMap virtualMap, @NonNull final Metrics metrics, @NonNull final Time time) {
-        super(virtualMap, metrics);
-    }
-
-    /**
-     * Copy constructor.
-     *
-     * @param from the object to copy
-     */
-    public OtterAppState(@NonNull final OtterAppState from) {
-        super(from);
-        this.state = from.state;
-    }
-
+/**
+ * Utility methods for creating and manipulating Otter application state.
+ */
+public final class OtterStateUtils {
     /**
      * Creates an initialized {@code OtterAppState}.
      *
      * @param configuration   the platform configuration instance to use when creating the new instance of state
      * @param metrics         the platform metric instance to use when creating the new instance of state
-     * @param time            the time instance to use when creating the new instance of state
      * @param roster          the initial roster stored in the state
      * @param version         the software version to set in the state
      * @return state root
      */
     @NonNull
-    public static OtterAppState createGenesisState(
+    public static VirtualMapState createGenesisState(
             @NonNull final Configuration configuration,
             @NonNull final Metrics metrics,
-            @NonNull final Time time,
             @NonNull final Roster roster,
             @NonNull final SemanticVersion version,
             @NonNull final List<OtterService> services) {
 
-        final OtterAppState state = new OtterAppState(configuration, metrics, time);
+        final VirtualMapState state = new VirtualMapState(configuration, metrics);
 
         initOtterAppState(state, version, services);
         RosterUtils.setActiveRoster(state, roster, 0L);
@@ -68,26 +43,14 @@ public class OtterAppState extends VirtualMapState<OtterAppState> implements Mer
     }
 
     /**
-     * {@inheritDoc}
-     */
-    @NonNull
-    @Override
-    public OtterAppState copy() {
-        return new OtterAppState(this);
-    }
-
-    @Override
-    protected OtterAppState copyingConstructor() {
-        return new OtterAppState(this);
-    }
-
-    /**
      * Commit the state of all services.
      */
-    public void commitState() {
-        this.getServices().keySet().stream()
-                .map(this::getWritableStates)
+    public static void commitState(@NonNull final VirtualMapState virtualMapState) {
+        virtualMapState.getServices().keySet().stream()
+                .map(virtualMapState::getWritableStates)
                 .map(writableStates -> (CommittableWritableStates) writableStates)
                 .forEach(CommittableWritableStates::commit);
     }
+
+    private OtterStateUtils() {}
 }

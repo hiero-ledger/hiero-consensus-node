@@ -198,6 +198,10 @@ public class UsageAccumulator {
         return ESTIMATOR_UTILS.nonDegenerateDiv(sbs, HRS_DIVISOR);
     }
 
+    public long getServiceGas() {
+        return gas;
+    }
+
     public long getServiceTv() {
         return tv;
     }
@@ -258,7 +262,7 @@ public class UsageAccumulator {
                 .add("nodeVpt", getNodeVpt())
                 .add("serviceSbh", getServiceSbh())
                 .add("serviceRbh", getServiceRbh())
-                .add("gas", getGas())
+                .add("gas", getServiceGas())
                 .add("rbs", getRbs())
                 .add("serviceTv", getServiceTv())
                 .toString();
@@ -279,10 +283,6 @@ public class UsageAccumulator {
 
     long getVpt() {
         return vpt;
-    }
-
-    long getGas() {
-        return gas;
     }
 
     long getRbs() {
