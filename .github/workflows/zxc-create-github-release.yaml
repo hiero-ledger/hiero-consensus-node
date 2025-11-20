@@ -172,7 +172,6 @@ jobs:
     name: Create Github Release
     needs: generate-release-notes
     runs-on: hiero-network-node-linux-medium
-    if: ${{ inputs.create-release == 'true' || inputs.dry-run == 'true' }}
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
