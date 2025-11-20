@@ -5,9 +5,10 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
+import java.time.temporal.UnsupportedTemporalTypeException;
 import java.util.Objects;
 import java.util.function.Supplier;
-import java.util.function.ToDoubleFunction;
+import java.util.function.ToLongFunction;
 import org.hiero.metrics.api.core.MetricKey;
 import org.hiero.metrics.api.core.MetricType;
 import org.hiero.metrics.api.core.StatefulMetric;
@@ -69,12 +70,13 @@ public interface GenericGauge<T> extends StatefulMetric<Supplier<T>, GaugeDataPo
     /**
      * Create a function to convert {@link Duration} to {@code long} using the specified {@link ChronoUnit}.
      *
-     * @param unit the chrono unit to convert the duration to {@code long} for export
+     * @param unit the chrono unit to convert the duration to {@code long} for export (either {@link ChronoUnit#SECONDS} or {@link ChronoUnit#NANOS})
      * @return the function
+     * @throws UnsupportedTemporalTypeException if {@code unit} is not {@link ChronoUnit#SECONDS} or {@link ChronoUnit#NANOS}
      */
     static ToNumberFunction<Duration> durationToLongFunction(@NonNull ChronoUnit unit) {
         Objects.requireNonNull(unit, "unit cannot be null");
-        return new ToNumberFunction<>((ToDoubleFunction<Duration>) duration -> duration.get(unit));
+        return new ToNumberFunction<>((ToLongFunction<Duration>) duration -> duration.get(unit));
     }
 
     /**
