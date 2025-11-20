@@ -13,18 +13,6 @@ output_file = sys.argv[2]
 repo = os.environ.get("GITHUB_REPOSITORY")
 pr_url_prefix = f"https://github.com/{repo}/pull/"
 
-release_node_sections = ["Features", "Bug Fixes", "Other Changes"]
-other_changes_subsections = [
-  "Build System",
-  "Chores",
-  "Continuous Integration",
-  "Documentation Updates",
-  "Performance Improvements",
-  "Refactoring",
-  "Style Changes",
-  "Tests"
-]
-
 with open(json_file) as f:
   data = json.load(f)
 
