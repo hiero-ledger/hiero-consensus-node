@@ -1,7 +1,4 @@
 // SPDX-License-Identifier: Apache-2.0
-import org.hiero.metrics.internal.export.config.MetricsExportManagerConfigurationExtension;
-
-// SPDX-License-Identifier: Apache-2.0
 module org.hiero.metrics.core {
     uses org.hiero.metrics.api.core.MetricsRegistrationProvider;
     uses org.hiero.metrics.api.export.MetricsExporterFactory;
@@ -30,5 +27,5 @@ module org.hiero.metrics.core {
     provides org.hiero.metrics.api.core.MetricsRegistrationProvider with
             org.hiero.metrics.internal.JvmMetricsRegistration;
     provides com.swirlds.config.api.ConfigurationExtension with
-            MetricsExportManagerConfigurationExtension;
+            org.hiero.metrics.internal.export.config.MetricsExportManagerConfigurationExtension;
 }

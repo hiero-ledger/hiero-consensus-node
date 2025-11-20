@@ -12,7 +12,6 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.net.BindException;
 import java.net.ServerSocket;
-import java.util.Optional;
 import org.hiero.metrics.api.export.MetricsExporter;
 import org.hiero.metrics.openmetrics.config.OpenMetricsHttpEndpointConfig;
 import org.junit.jupiter.api.Test;
@@ -31,9 +30,9 @@ public class OpenMetricsHttpEndpointFactoryTest {
                 .autoDiscoverExtensions()
                 .withValue("metrics.exporter.openmetrics.http.enabled", "false")
                 .build();
-        Optional<MetricsExporter> exporter = new OpenMetricsHttpEndpointFactory().createExporter("registry", config);
+        MetricsExporter exporter = new OpenMetricsHttpEndpointFactory().createExporter("registry", config);
 
-        assertThat(exporter).isEmpty();
+        assertThat(exporter).isNull();
     }
 
     @Test

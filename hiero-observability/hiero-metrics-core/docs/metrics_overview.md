@@ -55,26 +55,84 @@ Entry points for clients are:
 ### Typical production example
 
 ```java
-Configuration configuration = ConfigurationBuilder.create()
-        // init configuration
-        .build();
+public class Application {
+    public static void main(String[] args) {
+        Configuration configuration = ConfigurationBuilder.create()
+                // init configuration
+                .build();
 
-// create metrics registry named "my-app-registry" without global labels and register all metrics found
-// by any implementation of MetricsRegistrationProvider SPI
-MetricRegistry metricRegistry = MetricRegistry.builder("my-app-registry")
-        .withDiscoveredMetricProviders()
-        .build();
+        // create metrics registry named "my-app-registry" without global labels and register all metrics found
+        // by any implementation of MetricsRegistrationProvider SPI
+        MetricRegistry metricRegistry = MetricRegistry.builder("my-app-registry")
+                .withDiscoverMetricProviders()
+                .build();
 
-// create export manager managing registry created above, that will discover all implementations
-// of MetricsExporterFactory SPI and create exporters using the provided configuration.
-MetricsExportManager exportManager = MetricsExportManager.builder()
-        .withDiscoverExporters(configuration)
-        .build(metricRegistry);
+        // create export manager managing registry created above, that will discover all implementations
+        // of MetricsExporterFactory SPI and create exporters using the provided configuration.
+        MetricsExportManager exportManager = MetricsExportManager.builder()
+                .withDiscoverExporters(configuration)
+                .build(metricRegistry);
 
-// pass metrics registry to required classes to retrieve or register metrics
-// Use IdempotentMetricsBinder to bind metrics registry in a thread-safe and idempotent way
-MetricsBinder service = new MyService();
-service.bindMetrics(metricRegistry);
+        // pass metrics registry to required classes to retrieve or register metrics
+        // Use IdempotentMetricsBinder to bind metrics registry in a thread-safe and idempotent way
+        MyModuleService service = new MyModuleService();
+        service.bindMetrics(metricRegistry);
+
+        // Application logic...
+    }
+}
+
+// Each module can register some metrics by implementing MetricsRegistrationProvider SPI
+class MyModuleMetrics implements MetricsRegistrationProvider {
+
+    public static final MetricKey<LongCounter> REQUESTS_COUNTER_KEY = MetricKey.of("requests", LongCounter.class);
+
+    @Override
+    public Collection<Metric.Builder<?, ?>> getMetricsToRegister(MetricRegistry registry) {
+        // provide metrics to register
+        return List.of(
+                LongCounter.builder(REQUESTS_COUNTER_KEY)
+                .withDescription("Total number of requests")
+                .withDynamicLabelNames("method", "path")
+                .build()
+        );
+    }
+}
+
+// service class that uses the metric registered above
+class MyModuleService implements MetricsBinder {
+
+    private LongCounter requestsCounter;
+
+    @Override
+    public void bindMetrics(MetricRegistry registry) {
+        // retrieve existing metric by its key
+        this.requestsCounter = registry.getMetric(MyModuleMetrics.REQUESTS_COUNTER_KEY);
+    }
+
+    public void handleRequest(HttpMethod method, String path) {
+        // observe metric
+        requestsCounter.getOrCreateLabeled("method", method.toString(), "path", path).increment();
+    }
+}
+```
+
+```java
+// module-info.java
+module my.module {
+    requires org.hiero.metrics.core;
+
+    provides org.hiero.metrics.api.core.MetricsRegistrationProvider with
+            org.hiero.metrics.MyModuleMetrics;
+}
+```
+
+```gradle
+// gradle build.gradle of the application
+mainModuleInfo {
+    // add open metrics http endpoint exporter so it can be discovered via SPI
+    runtimeOnly("org.hiero.metrics.openmetrics.http")
+}
 ```
 
 ### Key classes

@@ -70,7 +70,7 @@ Its `withDiscoveredMetricProviders()` method allows to discover all available `M
 To be discovered by SPI mechanism implementations of this interface should be registered either in
 `META-INF/services/org.hiero.metrics.api.core.MetricsRegistrationProvider` or `module-info.java` file of the module.
 
-[MetricsBinder](../src/main/java/org/hiero/metrics/api/core/MetricsBinder.java) can be used to bind/propagate metrics to any external class.
+[_MetricsBinder_](../src/main/java/org/hiero/metrics/api/core/MetricsBinder.java) can be used to bind/propagate metrics registry to any application class.
 Application classes can implement this interface to register metrics in the registry or retrieve metrics by `MetricKey`s for observations.
 Metric registry should be explicitly provided to the binder.
 

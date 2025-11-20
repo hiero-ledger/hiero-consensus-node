@@ -52,7 +52,7 @@ public class MetricRegistryTest {
         void testAddNullGlobalLabelThrows() {
             MetricRegistry.Builder builder = testBuilder();
 
-            assertThatThrownBy(() -> builder.addGlobalLabel(null))
+            assertThatThrownBy(() -> builder.withGlobalLabel(null))
                     .isInstanceOf(NullPointerException.class)
                     .hasMessage("global label must not be null");
         }
@@ -60,10 +60,10 @@ public class MetricRegistryTest {
         @Test
         void testDuplicateGlobalLabelNameThrows() {
             MetricRegistry.Builder builder = testBuilder();
-            builder.addGlobalLabel(new Label("env", "test"));
-            builder.addGlobalLabel(new Label("other", "test"));
+            builder.withGlobalLabel(new Label("env", "test"));
+            builder.withGlobalLabel(new Label("other", "test"));
 
-            assertThatThrownBy(() -> builder.addGlobalLabel(new Label("env", "prod")))
+            assertThatThrownBy(() -> builder.withGlobalLabel(new Label("env", "prod")))
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessageContainingAll("Duplicate global label name", "env");
         }
@@ -80,7 +80,7 @@ public class MetricRegistryTest {
         @Test
         void testUnmodifiableGlobalLabels() {
             MetricRegistry registry =
-                    testBuilder().addGlobalLabel(new Label("env", "test")).build();
+                    testBuilder().withGlobalLabel(new Label("env", "test")).build();
             List<Label> globalLabels = registry.globalLabels();
 
             assertThatThrownBy(() -> globalLabels.add(new Label("key", "value")))
@@ -94,8 +94,8 @@ public class MetricRegistryTest {
         @Test
         void testRegisterMetricWithBuilderAndLabelMatchingGlobalLabel() {
             MetricRegistry registry = testBuilder()
-                    .addGlobalLabel(new Label("env", "test"))
-                    .addGlobalLabel(new Label("region", "us-west-2"))
+                    .withGlobalLabel(new Label("env", "test"))
+                    .withGlobalLabel(new Label("region", "us-west-2"))
                     .build();
 
             assertThatThrownBy(() -> registry.register(
@@ -267,7 +267,7 @@ public class MetricRegistryTest {
         Label label2 = new Label("region", "us-west-2");
 
         MetricRegistry registry =
-                testBuilder().addGlobalLabel(label1).addGlobalLabel(label2).build();
+                testBuilder().withGlobalLabel(label1).withGlobalLabel(label2).build();
 
         assertThat(registry.globalLabels()).containsExactly(label1, label2);
     }
@@ -290,7 +290,7 @@ public class MetricRegistryTest {
         Label label1 = new Label("a", "value1");
         Label label2 = new Label("z", "value2");
 
-        MetricRegistry registry = testBuilder().addGlobalLabel(globsLabel).build();
+        MetricRegistry registry = testBuilder().withGlobalLabel(globsLabel).build();
 
         LongCounter counter1 = registry.register(LongCounter.builder("counter1"));
         LongCounter counter2 = registry.register(LongCounter.builder("counter2").withConstantLabels(label1, label2));
@@ -327,7 +327,7 @@ public class MetricRegistryTest {
     void testMetricsViewNonEmptyAfterRegisterProviders() {
         // additionally call discoverMetricProviders on builder multiple times to verify no duplication occurs
         MetricRegistry registry = createRegistryMockDiscovery(
-                testBuilder().withDiscoveredMetricProviders().withDiscoveredMetricProviders(),
+                testBuilder().withDiscoverMetricProviders().withDiscoverMetricProviders(),
                 () -> List.of(LongCounter.builder("counter1")),
                 () -> List.of(LongCounter.builder("counter2"), LongCounter.builder("counter3")));
 
@@ -439,7 +439,7 @@ public class MetricRegistryTest {
             mockedUtils
                     .when(() -> MetricUtils.load(MetricsRegistrationProvider.class))
                     .thenReturn(Arrays.asList(metricProviders));
-            return builder.withDiscoveredMetricProviders().build();
+            return builder.withDiscoverMetricProviders().build();
         }
     }
 }
