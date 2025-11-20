@@ -18,7 +18,7 @@ defaults:
 permissions:
   id-token: write
   contents: write
-  actions: readc
+  actions: read
 
 jobs:
   generate-release-notes:
