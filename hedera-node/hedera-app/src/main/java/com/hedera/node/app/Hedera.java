@@ -15,6 +15,9 @@ import static com.hedera.node.app.util.HederaAsciiArt.HEDERA;
 import static com.hedera.node.config.types.StreamMode.BLOCKS;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
 import static com.swirlds.platform.state.service.PlatformStateService.PLATFORM_STATE_SERVICE;
+import static com.swirlds.platform.state.service.PlatformStateUtils.creationSemanticVersionOf;
+import static com.swirlds.platform.state.service.PlatformStateUtils.freezeTimeOf;
+import static com.swirlds.platform.state.service.PlatformStateUtils.lastFrozenTimeOf;
 import static com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID;
 import static com.swirlds.platform.system.InitTrigger.GENESIS;
 import static com.swirlds.platform.system.InitTrigger.RECONNECT;
@@ -114,7 +117,6 @@ import com.swirlds.platform.listeners.ReconnectCompleteListener;
 import com.swirlds.platform.listeners.ReconnectCompleteNotification;
 import com.swirlds.platform.listeners.StateWriteToDiskCompleteListener;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
-import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.service.PlatformStateService;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
@@ -280,12 +282,6 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
     private final BlockStreamService blockStreamService;
 
     /**
-     * The platform state facade singleton, kept as a field here to avoid constructing twice`
-     * (once in constructor to register schemas, again inside Dagger component).
-     */
-    private final PlatformStateFacade platformStateFacade;
-
-    /**
      * The block hash signer factory.
      */
     private final BlockHashSignerFactory blockHashSignerFactory;
@@ -438,7 +434,6 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
      * @param historyServiceFactory the factory for the history service
      * @param blockHashSignerFactory the factory for the block hash signer
      * @param metrics the metrics object to use for reporting
-     * @param platformStateFacade the facade object to access platform state
      * @param baseSupplier the base supplier to create a new state with
      */
     public Hedera(
@@ -451,7 +446,6 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
             @NonNull final HistoryServiceFactory historyServiceFactory,
             @NonNull final BlockHashSignerFactory blockHashSignerFactory,
             @NonNull final Metrics metrics,
-            @NonNull final PlatformStateFacade platformStateFacade,
             @NonNull final Supplier<MerkleNodeState> baseSupplier) {
         requireNonNull(registryFactory);
         requireNonNull(constructableRegistry);
@@ -462,7 +456,6 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
         this.startupNetworksFactory = requireNonNull(startupNetworksFactory);
         this.blockHashSignerFactory = requireNonNull(blockHashSignerFactory);
         this.storeMetricsService = new StoreMetricsServiceImpl(metrics);
-        this.platformStateFacade = requireNonNull(platformStateFacade);
         logger.info(
                 """
 
@@ -553,10 +546,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
                         new NetworkServiceImpl(),
                         new AddressBookServiceImpl(),
                         new RosterServiceImpl(
-                                this::canAdoptRoster,
-                                this::onAdoptRoster,
-                                () -> requireNonNull(initState),
-                                platformStateFacade),
+                                this::canAdoptRoster, this::onAdoptRoster, () -> requireNonNull(initState)),
                         PLATFORM_STATE_SERVICE)
                 .forEach(servicesRegistry::register);
         consensusStateEventHandler = new ConsensusStateEventHandlerImpl(this);
@@ -713,7 +703,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
         requireNonNull(platformConfig);
         this.configProvider = new ConfigProviderImpl(trigger == GENESIS, metrics);
         this.genesisNetworkSupplier = () -> startupNetworks().genesisNetworkOrThrow(platformConfig);
-        final var deserializedVersion = platformStateFacade.creationSemanticVersionOf(state);
+        final var deserializedVersion = creationSemanticVersionOf(state);
         logger.info(
                 "Initializing Hedera state version {} in {} mode with trigger {} and previous version {}",
                 version,
@@ -743,8 +733,8 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
         }
         logger.info(
                 "Platform state includes freeze time={} and last frozen={}",
-                platformStateFacade.freezeTimeOf(state),
-                platformStateFacade.lastFrozenTimeOf(state));
+                freezeTimeOf(state),
+                lastFrozenTimeOf(state));
     }
 
     /**
@@ -831,8 +821,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
                 platformConfig,
                 startupNetworks,
                 storeMetricsService,
-                configProvider,
-                platformStateFacade);
+                configProvider);
         this.initState = null;
         migrationStateChanges = new ArrayList<>(migrationChanges);
         immediateStateChangeListener.reset(null);
@@ -1272,7 +1261,6 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
                 .historyService(historyService)
                 .blockHashSigner(blockHashSigner)
                 .appContext(appContext)
-                .platformStateFacade(platformStateFacade)
                 .build();
         // Initialize infrastructure for fees, exchange rates, and throttles from the working state
         daggerApp.initializer().initialize(state, streamMode);

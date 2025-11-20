@@ -20,7 +20,6 @@ import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
-import com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade;
 import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
 import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.test.fixtures.merkle.VirtualMapStateTestUtils;
@@ -43,10 +42,7 @@ class SignedStateTests {
      * Generate a signed state.
      */
     private SignedState generateSignedState(final Random random, final MerkleNodeState state) {
-        return new RandomSignedStateGenerator(random)
-                .setState(state)
-                .buildWithFacade()
-                .left();
+        return new RandomSignedStateGenerator(random).setState(state).build();
     }
 
     @AfterEach
@@ -218,11 +214,10 @@ class SignedStateTests {
 
         final MerkleNodeState state = spy(createTestStateWithVM(virtualMap));
         final PlatformStateModifier platformState = mock(PlatformStateModifier.class);
-        final TestPlatformStateFacade platformStateFacade = mock(TestPlatformStateFacade.class);
         TestingAppStateInitializer.initPlatformState(state);
         when(platformState.getRound()).thenReturn(0L);
-        final SignedState signedState = new SignedState(
-                CONFIGURATION, mock(SignatureVerifier.class), state, "test", false, false, false, platformStateFacade);
+        final SignedState signedState =
+                new SignedState(CONFIGURATION, mock(SignatureVerifier.class), state, "test", false, false, false);
 
         assertFalse(state.isDestroyed(), "state should not yet be destroyed");
 

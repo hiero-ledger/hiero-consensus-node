@@ -3,7 +3,6 @@ package com.swirlds.platform.reconnect;
 
 import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticThreadManager;
 import static com.swirlds.platform.state.signed.ReservedSignedState.createNullReservation;
-import static com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade.TEST_PLATFORM_STATE_FACADE;
 import static org.hiero.consensus.model.status.PlatformStatus.ACTIVE;
 import static org.hiero.consensus.model.status.PlatformStatus.CHECKING;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -160,7 +159,6 @@ class ReconnectStatePeerProtocolTests {
                 Duration.of(100, ChronoUnit.MILLIS),
                 reconnectMetrics,
                 fallenBehindManager,
-                TEST_PLATFORM_STATE_FACADE,
                 reservedSignedStateResultPromise,
                 mock(StateLifecycleManager.class),
                 a -> null);
@@ -204,7 +202,6 @@ class ReconnectStatePeerProtocolTests {
                 Duration.of(100, ChronoUnit.MILLIS),
                 reconnectMetrics,
                 fallenBehindManager,
-                TEST_PLATFORM_STATE_FACADE,
                 reservedSignedStateResultPromise,
                 mock(StateLifecycleManager.class),
                 a -> null);
@@ -243,7 +240,6 @@ class ReconnectStatePeerProtocolTests {
                 fallenBehindManager,
                 () -> ACTIVE,
                 Time.getCurrent(),
-                TEST_PLATFORM_STATE_FACADE,
                 reservedSignedStateResultPromise,
                 mock(StateLifecycleManager.class),
                 a -> null);
@@ -265,7 +261,6 @@ class ReconnectStatePeerProtocolTests {
                 fallenBehindManager,
                 () -> ACTIVE,
                 Time.getCurrent(),
-                TEST_PLATFORM_STATE_FACADE,
                 reservedSignedStateResultPromise,
                 mock(StateLifecycleManager.class),
                 a -> null);
@@ -300,7 +295,6 @@ class ReconnectStatePeerProtocolTests {
                     Duration.of(100, ChronoUnit.MILLIS),
                     reconnectMetrics,
                     fallenBehindManager,
-                    TEST_PLATFORM_STATE_FACADE,
                     reservedSignedStateResultPromise,
                     mock(StateLifecycleManager.class),
                     a -> null);
@@ -360,7 +354,6 @@ class ReconnectStatePeerProtocolTests {
                 Duration.of(100, ChronoUnit.MILLIS),
                 reconnectMetrics,
                 fallenBehindManager,
-                TEST_PLATFORM_STATE_FACADE,
                 reservedSignedStateResultPromise,
                 mock(StateLifecycleManager.class),
                 a -> null);
@@ -405,7 +398,6 @@ class ReconnectStatePeerProtocolTests {
                 Duration.of(100, ChronoUnit.MILLIS),
                 reconnectMetrics,
                 fallenBehindManager,
-                TEST_PLATFORM_STATE_FACADE,
                 reservedSignedStateResultPromise,
                 mock(StateLifecycleManager.class),
                 a -> null);
@@ -443,7 +435,6 @@ class ReconnectStatePeerProtocolTests {
                 Duration.of(100, ChronoUnit.MILLIS),
                 reconnectMetrics,
                 fallenBehindManager,
-                TEST_PLATFORM_STATE_FACADE,
                 reservedSignedStateResultPromise,
                 mock(StateLifecycleManager.class),
                 a -> null);
@@ -474,7 +465,6 @@ class ReconnectStatePeerProtocolTests {
                 Duration.of(100, ChronoUnit.MILLIS),
                 reconnectMetrics,
                 fallenBehindManager,
-                TEST_PLATFORM_STATE_FACADE,
                 reservedSignedStateResultPromise,
                 mock(StateLifecycleManager.class),
                 a -> null);
@@ -501,7 +491,6 @@ class ReconnectStatePeerProtocolTests {
                 Duration.of(100, ChronoUnit.MILLIS),
                 reconnectMetrics,
                 mock(FallenBehindMonitor.class),
-                TEST_PLATFORM_STATE_FACADE,
                 reservedSignedStateResultPromise,
                 mock(StateLifecycleManager.class),
                 a -> null);
@@ -548,7 +537,6 @@ class ReconnectStatePeerProtocolTests {
                 Duration.of(100, ChronoUnit.MILLIS),
                 reconnectMetrics,
                 mock(FallenBehindMonitor.class),
-                TEST_PLATFORM_STATE_FACADE,
                 reservedSignedStateResultPromise,
                 mock(StateLifecycleManager.class),
                 a -> null);
