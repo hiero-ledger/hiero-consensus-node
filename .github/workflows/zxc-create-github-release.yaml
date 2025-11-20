@@ -181,12 +181,14 @@ jobs:
           fetch-depth: "0"
           token: ${{ secrets.GH_ACCESS_TOKEN }}
 
-      - name: Create github release
+      - name: Create github release - output logging
+        run: echo "Creating the GitHub Release for version v${{ needs.validate-input-version.outputs.release-identifier }}"
 
-        uses: step-security/release-action@03a57407052f15d1537fd5469a6fbbc536aba326 # v1.20.0
-        with:
-          tag: ${{ inputs.ref-name }}
-          prerelease: false
-          draft: false
-          generateReleaseNotes: true
-          skipIfReleaseExists: true
+#      - name: Create github release
+#        uses: step-security/release-action@03a57407052f15d1537fd5469a6fbbc536aba326 # v1.20.0
+#        with:
+#          tag: ${{ inputs.ref-name }}
+#          prerelease: false
+#          draft: false
+#          generateReleaseNotes: true
+#          skipIfReleaseExists: true
