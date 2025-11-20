@@ -64,10 +64,8 @@ sending requests to the block node. The worker operates in a loop, sleeping for 
 the configuration property `blockNode.connectionWorkerSleepDuration`. When not sleeping, the worker will first check if
 the current streaming block needs to be updated. If this is the first time the worker has performed this check, one of
 the following will happen:
-- If the connection with initialized with an explicit block to start with, then that block will be loaded from the block buffer.
-- If the connection wasn't initialized with an explicit block, then the earliest, unacknowledged block in the block buffer
-will be selected as the starting point.
-- If no blocks in the block buffer have been acknowledged, then the earliest block in the buffer will be selected.
+- If the connection was initialized with an explicit block to start with, then that block will be loaded from the block buffer.
+- If the connection wasn't initialized with an explicit block, then the most recent block produced is chosen as the block to start streaming.
 - If at any point during the lifespan of the connection a `SkipBlock` or `ResendBlock` response is received, then the
 worker will detect this and switch to that block.
 
