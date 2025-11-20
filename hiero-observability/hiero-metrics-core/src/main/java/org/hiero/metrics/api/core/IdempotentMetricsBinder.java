@@ -9,6 +9,8 @@ import org.apache.logging.log4j.LogManager;
 /**
  * Abstract base class for {@link MetricsBinder} implementations that ensures
  * thread-safe and idempotent binding of metrics.
+ * It can be used to avoid multiple registrations of the same metrics, but {@link MetricsRegistrationProvider}
+ * is preferred way to register metrics.
  * <p>
  * This class uses an {@link AtomicBoolean} to track whether the metrics have already been bound, preventing
  * multiple bindings. Subclasses must implement the {@link #bindMetricsNonIdempotent(MetricRegistry)} method

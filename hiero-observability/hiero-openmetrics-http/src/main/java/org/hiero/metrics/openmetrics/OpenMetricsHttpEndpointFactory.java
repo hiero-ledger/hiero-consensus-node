@@ -3,9 +3,9 @@ package org.hiero.metrics.openmetrics;
 
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.Optional;
 import org.hiero.metrics.api.export.MetricsExporter;
 import org.hiero.metrics.api.export.MetricsExporterFactory;
 import org.hiero.metrics.openmetrics.config.OpenMetricsHttpEndpointConfig;
@@ -21,16 +21,15 @@ public final class OpenMetricsHttpEndpointFactory implements MetricsExporterFact
         return "openmetrics-http-endpoint";
     }
 
-    @NonNull
+    @Nullable
     @Override
-    public Optional<MetricsExporter> createExporter(
-            @NonNull String metricsRegistryName, @NonNull Configuration configuration) {
+    public MetricsExporter createExporter(@NonNull String metricsRegistryName, @NonNull Configuration configuration) {
         OpenMetricsHttpEndpointConfig exportConfig = configuration.getConfigData(OpenMetricsHttpEndpointConfig.class);
         if (!exportConfig.enabled()) {
-            return Optional.empty();
+            return null;
         }
         try {
-            return Optional.of(new OpenMetricsHttpEndpoint(exportConfig));
+            return new OpenMetricsHttpEndpoint(exportConfig);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }

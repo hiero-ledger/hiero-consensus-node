@@ -115,7 +115,7 @@ public sealed interface MetricRegistry permits org.hiero.metrics.internal.export
         private static final Logger logger = LogManager.getLogger(MetricRegistry.class);
 
         private final String registryName;
-        private boolean discoreMetricProviders = false;
+        private boolean discoverMetricProviders = false;
         private final List<Label> globalLabels = new ArrayList<>();
         private final Set<String> globalLabelNames = new HashSet<>();
 
@@ -132,7 +132,7 @@ public sealed interface MetricRegistry permits org.hiero.metrics.internal.export
          * @throws IllegalArgumentException if a global label with the same name already exists
          */
         @NonNull
-        public Builder addGlobalLabel(@NonNull Label label) {
+        public Builder withGlobalLabel(@NonNull Label label) {
             Objects.requireNonNull(label, "global label must not be null");
             if (!globalLabelNames.add(label.name())) {
                 throw new IllegalArgumentException("Duplicate global label name: " + label.name());
@@ -149,10 +149,10 @@ public sealed interface MetricRegistry permits org.hiero.metrics.internal.export
          * @return this builder instance
          */
         @NonNull
-        public Builder addGlobalLabels(@NonNull Label... labels) {
+        public Builder withGlobalLabels(@NonNull Label... labels) {
             Objects.requireNonNull(labels, "global labels must not be null");
             for (Label label : labels) {
-                addGlobalLabel(label);
+                withGlobalLabel(label);
             }
             return this;
         }
@@ -163,8 +163,8 @@ public sealed interface MetricRegistry permits org.hiero.metrics.internal.export
          * @return this builder instance
          */
         @NonNull
-        public Builder withDiscoveredMetricProviders() {
-            this.discoreMetricProviders = true;
+        public Builder withDiscoverMetricProviders() {
+            this.discoverMetricProviders = true;
             return this;
         }
 
@@ -177,7 +177,7 @@ public sealed interface MetricRegistry permits org.hiero.metrics.internal.export
         public MetricRegistry build() {
             MetricRegistryImpl registry = new MetricRegistryImpl(registryName, globalLabels);
 
-            if (discoreMetricProviders) {
+            if (discoverMetricProviders) {
                 List<MetricsRegistrationProvider> providers = MetricUtils.load(MetricsRegistrationProvider.class);
 
                 if (providers.isEmpty()) {

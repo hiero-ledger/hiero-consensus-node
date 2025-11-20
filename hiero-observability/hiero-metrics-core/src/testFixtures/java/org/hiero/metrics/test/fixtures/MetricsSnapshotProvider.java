@@ -29,7 +29,7 @@ public final class MetricsSnapshotProvider implements Supplier<MetricsSnapshot> 
      * @param globalLabels the global labels to set
      */
     public MetricsSnapshotProvider(Label... globalLabels) {
-        this(MetricRegistry.builder("registry").addGlobalLabels(globalLabels).build());
+        this(MetricRegistry.builder("registry").withGlobalLabels(globalLabels).build());
     }
 
     /**
@@ -39,7 +39,7 @@ public final class MetricsSnapshotProvider implements Supplier<MetricsSnapshot> 
      */
     public MetricsSnapshotProvider(MetricRegistry registry) {
         this.registry = registry;
-        MetricsExportManager.builder().addExporter(exporter).build(registry);
+        MetricsExportManager.builder().withExporter(exporter).build(registry);
     }
 
     /**

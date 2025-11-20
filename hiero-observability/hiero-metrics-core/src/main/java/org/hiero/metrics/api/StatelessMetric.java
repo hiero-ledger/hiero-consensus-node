@@ -69,6 +69,7 @@ public interface StatelessMetric extends Metric {
      * @return this metric
      * @throws IllegalStateException if metric has no dynamic labels specified during creation
      * @throws IllegalArgumentException if provided label names do not match {@link #dynamicLabelNames()}
+     * or a datapoint with same label values already exists
      */
     @NonNull
     StatelessMetric registerDataPoint(@NonNull NumberSupplier valueSupplier, @NonNull String... labelNamesAndValues);

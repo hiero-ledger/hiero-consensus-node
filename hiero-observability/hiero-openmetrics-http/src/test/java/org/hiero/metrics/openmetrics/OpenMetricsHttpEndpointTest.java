@@ -88,7 +88,7 @@ public class OpenMetricsHttpEndpointTest {
             registry = MetricRegistry.builder("test_registry").build();
 
             globalInit(endpoint ->
-                    MetricsExportManager.builder().addExporter(endpoint).build(registry));
+                    MetricsExportManager.builder().withExporter(endpoint).build(registry));
         }
 
         @AfterAll

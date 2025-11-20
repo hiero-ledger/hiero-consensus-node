@@ -18,7 +18,7 @@ public class DefaultHttpTestScenario extends AbstractHttpTestScenario<DefaultMet
         super(new DefaultMetricsFramework());
 
         exportManager = MetricsExportManager.builder()
-                .addExporter(
+                .withExporter(
                         new OpenMetricsHttpEndpoint(new OpenMetricsHttpEndpointConfig(true, getPort(), getPath(), 0)))
                 .build(getFramework().getMetricRegistry());
     }

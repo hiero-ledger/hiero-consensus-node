@@ -65,7 +65,7 @@ public class MetricsExportManagerTest {
             MetricsExportManager.Builder builder = MetricsExportManager.builder();
             PullingMetricsExporter exporter = null;
 
-            assertThatThrownBy(() -> builder.addExporter(exporter))
+            assertThatThrownBy(() -> builder.withExporter(exporter))
                     .isInstanceOf(NullPointerException.class)
                     .hasMessage("exporter must not be null");
         }
@@ -75,7 +75,7 @@ public class MetricsExportManagerTest {
             MetricsExportManager.Builder builder = MetricsExportManager.builder();
             PullingMetricsExporter exporter = mockPulling(null);
 
-            assertThatThrownBy(() -> builder.addExporter(exporter))
+            assertThatThrownBy(() -> builder.withExporter(exporter))
                     .isInstanceOf(NullPointerException.class)
                     .hasMessage("exporter name must not be null");
         }
@@ -85,7 +85,7 @@ public class MetricsExportManagerTest {
             MetricsExportManager.Builder builder = MetricsExportManager.builder();
             PushingMetricsExporter exporter = null;
 
-            assertThatThrownBy(() -> builder.addExporter(exporter))
+            assertThatThrownBy(() -> builder.withExporter(exporter))
                     .isInstanceOf(NullPointerException.class)
                     .hasMessage("exporter must not be null");
         }
@@ -96,26 +96,26 @@ public class MetricsExportManagerTest {
             PushingMetricsExporter pushing = mockPushing("duplicate-exporter");
 
             MetricsExportManager.Builder builder1 =
-                    MetricsExportManager.builder().addExporter(pulling);
-            assertThatThrownBy(() -> builder1.addExporter(pushing))
+                    MetricsExportManager.builder().withExporter(pulling);
+            assertThatThrownBy(() -> builder1.withExporter(pushing))
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessage("Duplicate exporter name: duplicate-exporter");
 
             MetricsExportManager.Builder builder2 =
-                    MetricsExportManager.builder().addExporter(pushing);
-            assertThatThrownBy(() -> builder2.addExporter(pulling))
+                    MetricsExportManager.builder().withExporter(pushing);
+            assertThatThrownBy(() -> builder2.withExporter(pulling))
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessage("Duplicate exporter name: duplicate-exporter");
 
             MetricsExportManager.Builder builder3 =
-                    MetricsExportManager.builder().addExporter(pushing);
-            assertThatThrownBy(() -> builder3.addExporter(pushing))
+                    MetricsExportManager.builder().withExporter(pushing);
+            assertThatThrownBy(() -> builder3.withExporter(pushing))
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessage("Duplicate exporter name: duplicate-exporter");
 
             MetricsExportManager.Builder builder4 =
-                    MetricsExportManager.builder().addExporter(pulling);
-            assertThatThrownBy(() -> builder4.addExporter(pulling))
+                    MetricsExportManager.builder().withExporter(pulling);
+            assertThatThrownBy(() -> builder4.withExporter(pulling))
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessage("Duplicate exporter name: duplicate-exporter");
         }
@@ -155,8 +155,8 @@ public class MetricsExportManagerTest {
             {
                 "disabledExporting",
                 MetricsExportManager.builder()
-                        .addExporter(mockPulling("pulling-exporter"))
-                        .addExporter(mockPushing("pushing-exporter"))
+                        .withExporter(mockPulling("pulling-exporter"))
+                        .withExporter(mockPushing("pushing-exporter"))
                         .withDiscoverExporters(configBuilder()
                                 .withValue("metrics.export.manager.enabled", "false")
                                 .build())
@@ -187,7 +187,7 @@ public class MetricsExportManagerTest {
         MetricsExporterFactory emptyExporterFactory = mock(MetricsExporterFactory.class);
         when(emptyExporterFactory.name()).thenReturn("empty");
         when(emptyExporterFactory.createExporter("test_registry", configuration))
-                .thenReturn(Optional.empty());
+                .thenReturn(null);
 
         MetricsExporterFactory disabledExporterFactory = mock(MetricsExporterFactory.class);
         when(disabledExporterFactory.name()).thenReturn("factory-discovery-disabled");
@@ -197,8 +197,8 @@ public class MetricsExportManagerTest {
 
         MetricsExportManager exportManager = createExportManagerMockDiscovery(
                 MetricsExportManager.builder()
-                        .addExporter(disabledPushingExporter)
-                        .addExporter(disabledPullingExporter),
+                        .withExporter(disabledPushingExporter)
+                        .withExporter(disabledPullingExporter),
                 registry,
                 configuration,
                 failingExporterFactory,
@@ -226,7 +226,7 @@ public class MetricsExportManagerTest {
         registry.register(LongCounter.builder("test_counter"));
 
         MetricsExportManager exportManager =
-                MetricsExportManager.builder().addExporter(pullingExporter).build(registry);
+                MetricsExportManager.builder().withExporter(pullingExporter).build(registry);
 
         // wrap in try block to ensure close is called even if exceptions are thrown
         try (exportManager) {
@@ -260,7 +260,7 @@ public class MetricsExportManagerTest {
         Supplier<ScheduledExecutorService> executorServiceFactory = () -> executorService;
 
         MetricsExportManager exportManager = MetricsExportManager.builder()
-                .addExporter(pushingExporter)
+                .withExporter(pushingExporter)
                 .withExportIntervalSeconds(15)
                 .withExecutorServiceFactory(executorServiceFactory)
                 .build(registry);
@@ -304,8 +304,8 @@ public class MetricsExportManagerTest {
         Supplier<ScheduledExecutorService> executorServiceFactory = () -> executorService;
 
         MetricsExportManager exportManager = MetricsExportManager.builder()
-                .addExporter(pushingExporter)
-                .addExporter(pullingExporter)
+                .withExporter(pushingExporter)
+                .withExporter(pullingExporter)
                 .withExecutorServiceFactory(executorServiceFactory)
                 .build(registry);
 
@@ -358,10 +358,10 @@ public class MetricsExportManagerTest {
         Supplier<ScheduledExecutorService> executorServiceFactory = () -> executorService;
 
         MetricsExportManager exportManager = MetricsExportManager.builder()
-                .addExporter(pushingExporter)
-                .addExporter(pushingExporterFailingRuntime)
-                .addExporter(pushingExporterFailingChecked)
-                .addExporter(pullingExporter)
+                .withExporter(pushingExporter)
+                .withExporter(pushingExporterFailingRuntime)
+                .withExporter(pushingExporterFailingChecked)
+                .withExporter(pullingExporter)
                 .withExecutorServiceFactory(executorServiceFactory)
                 .build(registry);
 

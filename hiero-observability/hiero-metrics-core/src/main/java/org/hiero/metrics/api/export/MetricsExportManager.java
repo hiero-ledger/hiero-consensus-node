@@ -9,7 +9,6 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -134,7 +133,7 @@ public interface MetricsExportManager extends AutoCloseable {
          * @throws IllegalArgumentException if an exporter with the same name already exists
          */
         @NonNull
-        public Builder addExporter(@NonNull PullingMetricsExporter exporter) {
+        public Builder withExporter(@NonNull PullingMetricsExporter exporter) {
             this.pullingExporters.add(validateExporter(exporter));
             return this;
         }
@@ -148,7 +147,7 @@ public interface MetricsExportManager extends AutoCloseable {
          * @throws IllegalArgumentException if an exporter with the same name already exists
          */
         @NonNull
-        public Builder addExporter(@NonNull PushingMetricsExporter exporter) {
+        public Builder withExporter(@NonNull PushingMetricsExporter exporter) {
             this.pushingExporters.add(validateExporter(exporter));
             return this;
         }
@@ -182,7 +181,7 @@ public interface MetricsExportManager extends AutoCloseable {
         private void loadExporters(String registryName, MetricsExportManagerConfig exportConfig) {
             List<MetricsExporterFactory> exporterFactories = load(MetricsExporterFactory.class);
 
-            Optional<MetricsExporter> optionalExporter;
+            MetricsExporter exporter;
             for (MetricsExporterFactory exporterFactory : exporterFactories) {
                 if (!exportConfig.isExporterEnabled(exporterFactory.name())) {
                     logger.info("Metrics exporter factory is disabled: {}", exporterFactory.name());
@@ -190,7 +189,7 @@ public interface MetricsExportManager extends AutoCloseable {
                 }
 
                 try {
-                    optionalExporter = exporterFactory.createExporter(registryName, configuration);
+                    exporter = exporterFactory.createExporter(registryName, configuration);
                 } catch (RuntimeException e) {
                     logger.warn(
                             "Failed to create metrics exporter. factory={}, registry={}",
@@ -200,23 +199,19 @@ public interface MetricsExportManager extends AutoCloseable {
                     continue;
                 }
 
-                if (optionalExporter.isEmpty()) {
-                    logger.info(
-                            "Metrics exporter factory doesn't create exporter. factory={}, registry={}",
-                            exporterFactory.name(),
-                            registryName);
-                    continue;
-                }
-
-                MetricsExporter exporter = optionalExporter.get();
-
-                if (exporter instanceof PullingMetricsExporter pullingExporter) {
-                    addExporter(pullingExporter);
-                } else if (exporter instanceof PushingMetricsExporter pushingExporter) {
-                    addExporter(pushingExporter);
-                } else {
-                    logger.warn(
-                            "Unsupported exporter. type={}, factory={}", exporter.getClass(), exporterFactory.name());
+                switch (exporter) {
+                    case null ->
+                        logger.info(
+                                "Metrics exporter factory doesn't create exporter. factory={}, registry={}",
+                                exporterFactory.name(),
+                                registryName);
+                    case PullingMetricsExporter pullingExporter -> withExporter(pullingExporter);
+                    case PushingMetricsExporter pushingExporter -> withExporter(pushingExporter);
+                    default ->
+                        logger.warn(
+                                "Unsupported exporter. type={}, factory={}",
+                                exporter.getClass(),
+                                exporterFactory.name());
                 }
             }
         }
