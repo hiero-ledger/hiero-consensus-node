@@ -24,7 +24,7 @@ import java.util.List;
  * @param blockTimestamp the block timestamp
  * @param siblingHashes the sibling hashes needed for an indirect block proof of an earlier block
  */
-record PendingBlock(
+public record PendingBlock(
         long number,
         @Nullable Path contentsPath,
         @NonNull Bytes blockHash,
@@ -39,7 +39,7 @@ record PendingBlock(
      *
      * @param withSiblingHashes whether to include sibling hashes for an indirect proof
      */
-    PendingProof asPendingProof(final boolean withSiblingHashes) {
+    public PendingProof asPendingProof(final boolean withSiblingHashes) {
         return PendingProof.newBuilder()
                 .block(number)
                 .blockHash(blockHash)
