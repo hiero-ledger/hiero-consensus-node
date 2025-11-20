@@ -86,12 +86,8 @@ final class NodeLoggingContextPropagationTest {
 
         final String nodeALogContent = Files.readString(nodeALog);
         final String nodeBLogContent = Files.readString(nodeBLog);
-        assertThat(nodeALogContent)
-                .contains("NODE-1|main-thread")
-                .contains("NODE-1|executor");
-        assertThat(nodeBLogContent)
-                .contains("NODE-2|scheduled")
-                .contains("NODE-2|cfExecutor");
+        assertThat(nodeALogContent).contains("NODE-1|main-thread").contains("NODE-1|executor");
+        assertThat(nodeBLogContent).contains("NODE-2|scheduled").contains("NODE-2|cfExecutor");
 
         final List<StructuredLog> nodeALogs = logsByNode.getOrDefault("1", List.of());
         final List<StructuredLog> nodeBLogs = logsByNode.getOrDefault("2", List.of());
@@ -122,17 +118,9 @@ final class NodeLoggingContextPropagationTest {
         });
 
         assertThat(nodeAMessages)
-                .contains(
-                        "NODE-1|main-thread",
-                        "NODE-1|executor",
-                        "NODE-1|scheduled",
-                        "NODE-1|cfExecutor");
+                .contains("NODE-1|main-thread", "NODE-1|executor", "NODE-1|scheduled", "NODE-1|cfExecutor");
         assertThat(nodeBMessages)
-                .contains(
-                        "NODE-2|main-thread",
-                        "NODE-2|executor",
-                        "NODE-2|scheduled",
-                        "NODE-2|cfExecutor");
+                .contains("NODE-2|main-thread", "NODE-2|executor", "NODE-2|scheduled", "NODE-2|cfExecutor");
 
         assertThat(logsByNode).doesNotContainKey("unknown");
     }
