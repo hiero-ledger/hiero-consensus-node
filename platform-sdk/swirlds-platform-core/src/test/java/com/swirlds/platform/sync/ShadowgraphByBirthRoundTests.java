@@ -729,7 +729,7 @@ class ShadowgraphByBirthRoundTests {
      * Checks that the shadowgraph works correctly when events have multiple other-parents.
      */
     @Test
-    void testMultipleOtherParents(){
+    void testMultipleOtherParents() {
         final Randotron randotron = Randotron.create();
         initShadowGraph(randotron, 0, 4);
         final List<PlatformEvent> events = SimpleGraphs.mopGraph(randotron);
@@ -738,15 +738,15 @@ class ShadowgraphByBirthRoundTests {
         events.forEach(shadowGraph::addEvent);
 
         // check the tips
-        final Set<PlatformEvent> tips = shadowGraph.getTips().stream().map(ShadowEvent::getPlatformEvent).collect(
-                Collectors.toSet());
+        final Set<PlatformEvent> tips = shadowGraph.getTips().stream()
+                .map(ShadowEvent::getPlatformEvent)
+                .collect(Collectors.toSet());
         assertEquals(
-                indicesToSet(events, 8,9,10,11),
-                tips,"Tips should be the last row of events in the MOP graph");
+                indicesToSet(events, 8, 9, 10, 11), tips, "Tips should be the last row of events in the MOP graph");
 
         checkAncestors(1, events);
-        checkAncestors(5, events, 0,1,2);
-        checkAncestors(10, events, 0,1,2, 3,5,6,7);
+        checkAncestors(5, events, 0, 1, 2);
+        checkAncestors(10, events, 0, 1, 2, 3, 5, 6, 7);
     }
 
     /**
@@ -756,20 +756,22 @@ class ShadowgraphByBirthRoundTests {
      * @param allEvents               the list of all events
      * @param expectedAncestorIndices the indices of the expected ancestors
      */
-    private void checkAncestors(final int indexToCheck, @NonNull final List<PlatformEvent> allEvents,
-            final int ... expectedAncestorIndices) {
+    private void checkAncestors(
+            final int indexToCheck,
+            @NonNull final List<PlatformEvent> allEvents,
+            final int... expectedAncestorIndices) {
 
-        final ShadowEvent shadow = shadowGraph.shadow(allEvents.get(indexToCheck).getDescriptor());
+        final ShadowEvent shadow =
+                shadowGraph.shadow(allEvents.get(indexToCheck).getDescriptor());
         assertNotNull(shadow, "Shadow event for event %d should exist in the shadow graph".formatted(indexToCheck));
         final Set<PlatformEvent> ancestors = shadowGraph.findAncestors(List.of(shadow), e -> true).stream()
-                .map(ShadowEvent::getPlatformEvent).collect(
-                        Collectors.toSet());
+                .map(ShadowEvent::getPlatformEvent)
+                .collect(Collectors.toSet());
 
         assertEquals(
                 indicesToSet(allEvents, expectedAncestorIndices),
                 ancestors,
-                "Ancestors for event %d do not match expected ancestors".formatted(indexToCheck)
-        );
+                "Ancestors for event %d do not match expected ancestors".formatted(indexToCheck));
     }
 
     /**
@@ -778,7 +780,7 @@ class ShadowgraphByBirthRoundTests {
      * @param indices the indices of events to include in the set
      * @return the set of events
      */
-    private static Set<PlatformEvent> indicesToSet(@NonNull final List<PlatformEvent> allEvents, final int ... indices) {
+    private static Set<PlatformEvent> indicesToSet(@NonNull final List<PlatformEvent> allEvents, final int... indices) {
         final Set<PlatformEvent> eventSet = new HashSet<>();
         for (final int index : indices) {
             eventSet.add(allEvents.get(index));

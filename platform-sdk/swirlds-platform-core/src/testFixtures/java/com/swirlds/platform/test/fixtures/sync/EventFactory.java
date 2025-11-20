@@ -2,7 +2,6 @@
 package com.swirlds.platform.test.fixtures.sync;
 
 import com.swirlds.platform.gossip.shadowgraph.ShadowEvent;
-import com.swirlds.platform.internal.LinkedEvent;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
 import java.util.Random;
