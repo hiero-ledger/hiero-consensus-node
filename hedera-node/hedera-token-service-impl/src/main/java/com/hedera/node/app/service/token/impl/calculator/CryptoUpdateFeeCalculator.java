@@ -15,8 +15,8 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import org.hiero.hapi.fees.FeeResult;
 import org.hiero.hapi.support.fees.ServiceFeeDefinition;
 
-/** Calculates CryptoCreate fees */
-public class CryptoCreateFeeCalculator implements ServiceFeeCalculator {
+/** Calculates CryptoUpdate fees */
+public class CryptoUpdateFeeCalculator implements ServiceFeeCalculator {
 
     @Override
     public void accumulateServiceFee(
@@ -24,20 +24,21 @@ public class CryptoCreateFeeCalculator implements ServiceFeeCalculator {
             @Nullable final CalculatorState calculatorState,
             @NonNull final FeeResult feeResult,
             @NonNull final org.hiero.hapi.support.fees.FeeSchedule feeSchedule) {
-        final var op = txnBody.cryptoCreateAccountOrThrow();
-        // Add service base + extras
-        final ServiceFeeDefinition serviceDef = lookupServiceFee(feeSchedule, HederaFunctionality.CRYPTO_CREATE);
+        final var op = txnBody.cryptoUpdateAccountOrThrow();
+        final ServiceFeeDefinition serviceDef = lookupServiceFee(feeSchedule, HederaFunctionality.CRYPTO_UPDATE);
         feeResult.addServiceFee(1, serviceDef.baseFee());
         if (op.hasKey()) {
             addExtraFee(feeResult, serviceDef, KEYS, feeSchedule, countKeys(op.key()));
         }
-        if (!op.hookCreationDetails().isEmpty()) {
-            final int hooksOperations = op.hookCreationDetails().size();
-            addExtraFee(feeResult, serviceDef, HOOKS, feeSchedule, hooksOperations);
+        final int hookOperations =
+                op.hookCreationDetails().size() + op.hookIdsToDelete().size();
+        if (hookOperations > 0) {
+            addExtraFee(feeResult, serviceDef, HOOKS, feeSchedule, hookOperations);
         }
     }
 
+    @Override
     public TransactionBody.DataOneOfType getTransactionType() {
-        return TransactionBody.DataOneOfType.CRYPTO_CREATE_ACCOUNT;
+        return TransactionBody.DataOneOfType.CRYPTO_UPDATE_ACCOUNT;
     }
 }
