@@ -117,8 +117,10 @@ public abstract class GrpcTestBase extends TestBase {
     private IngestWorkflow ingestWorkflow = NOOP_INGEST_WORKFLOW;
     /** The query workflow to use. */
     private QueryWorkflow userQueryWorkflow = NOOP_QUERY_WORKFLOW;
-
+    /** The query workflow to use for node operators. */
     private QueryWorkflow operatorQueryWorkflow = NOOP_QUERY_WORKFLOW;
+    /** Whether the governance transactions feature is enabled. */
+    private boolean withGovernanceTransactions = true;
     /** The channel on the client to connect to the grpc server */
     private Channel channel;
     /** The channel on the client to connect to the node operator grpc server */
@@ -141,11 +143,13 @@ public abstract class GrpcTestBase extends TestBase {
             @NonNull final String methodName,
             @NonNull final IngestWorkflow ingestWorkflow,
             @NonNull final QueryWorkflow userQueryWorkflow,
-            @NonNull final QueryWorkflow operatorQueryWorkflow) {
+            @NonNull final QueryWorkflow operatorQueryWorkflow,
+            final boolean withGovernanceTransactions) {
         this.ingestMethodName = methodName;
         this.ingestWorkflow = ingestWorkflow;
         this.userQueryWorkflow = userQueryWorkflow;
         this.operatorQueryWorkflow = operatorQueryWorkflow;
+        this.withGovernanceTransactions = withGovernanceTransactions;
     }
 
     protected void startServer(final boolean withNodeOperatorPort) {
@@ -195,7 +199,9 @@ public abstract class GrpcTestBase extends TestBase {
 
         final var servicesRegistry = new ServicesRegistryImpl(ConstructableRegistry.getInstance(), configuration);
         servicesRegistry.register(testService);
-        final var config = createConfig(new TestSource().withNodeOperatorPortEnabled(withNodeOperatorPort));
+        final var config = createConfig(new TestSource()
+                .withNodeOperatorPortEnabled(withNodeOperatorPort)
+                .withGovernanceTransactionsEnabled(withGovernanceTransactions));
         this.grpcServer = new NettyGrpcServerManager(
                 () -> new VersionedConfigImpl(config, 1),
                 servicesRegistry,
@@ -319,6 +325,7 @@ public abstract class GrpcTestBase extends TestBase {
         private int startRetries = 3;
         private int startRetryIntervalMs = 100;
         private boolean nodeOperatorPortEnabled = false;
+        private boolean governanceTransactionsEnabled = false;
 
         @Override
         public int getOrdinal() {
@@ -333,7 +340,8 @@ public abstract class GrpcTestBase extends TestBase {
                     "grpc.tlsPort",
                     "grpc.nodeOperatorPortEnabled",
                     "netty.startRetryIntervalMs",
-                    "netty.startRetries");
+                    "netty.startRetries",
+                    "governanceTransactions.isEnabled");
         }
 
         @Nullable
@@ -345,6 +353,7 @@ public abstract class GrpcTestBase extends TestBase {
                 case "grpc.tlsPort" -> String.valueOf(tlsPort);
                 case "netty.startRetryIntervalMs" -> String.valueOf(startRetryIntervalMs);
                 case "netty.startRetries" -> String.valueOf(startRetries);
+                case "governanceTransactions.isEnabled" -> String.valueOf(governanceTransactionsEnabled);
                 default -> null;
             };
         }
@@ -375,8 +384,19 @@ public abstract class GrpcTestBase extends TestBase {
          * @param value true to enable the node operator port; false to disable it
          * @return the current instance of TestSource
          */
-        public TestSource withNodeOperatorPortEnabled(boolean value) {
+        public TestSource withNodeOperatorPortEnabled(final boolean value) {
             this.nodeOperatorPortEnabled = value;
+            return this;
+        }
+
+        /**
+         * Sets the flag indicating whether the governance transactions feature is enabled.
+         *
+         * @param value true to enable the increased transaction size for governance accounts
+         * @return the current instance of TestSource
+         */
+        public TestSource withGovernanceTransactionsEnabled(final boolean value) {
+            this.governanceTransactionsEnabled = value;
             return this;
         }
 

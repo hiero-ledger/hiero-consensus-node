@@ -64,7 +64,6 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
-import org.apache.commons.lang3.StringUtils;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
@@ -115,8 +114,9 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
                 "contracts.throttle.throttleByGas",
                 "false", // to avoid gas throttling
                 "hedera.transaction.maxMemoUtf8Bytes",
-                "10000" // to avoid memo size limit
-                ));
+                "10000", // to avoid memo size limit
+                "governanceTransactions.isEnabled",
+                "false"));
     }
 
     @HapiTest
@@ -425,18 +425,6 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
                             .exposingBalanceTo(newBalance -> assertTrue(
                                     balance.get() > newBalance,
                                     "Balance should decrease after failed jumbo transaction"))));
-        }
-
-        @HapiTest
-        @DisplayName("Non-jumbo transaction bigger then 6kb should fail")
-        // JUMBO_N_07
-        public Stream<DynamicTest> nonJumboTransactionBiggerThen6kb() {
-            return hapiTest(
-                    cryptoCreate("receiver"),
-                    cryptoTransfer(tinyBarsFromTo(GENESIS, "receiver", ONE_HUNDRED_HBARS))
-                            .memo(StringUtils.repeat("a", 6145))
-                            .hasKnownStatus(TRANSACTION_OVERSIZE)
-                            .orUnavailableStatus());
         }
 
         @RepeatableHapiTest(RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)

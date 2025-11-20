@@ -56,7 +56,7 @@ public class GrpcInterceptorTest extends GrpcTestBase {
     @ParameterizedTest
     @MethodSource("testUserAgentArgs")
     void testUserAgent(final String userAgent, final UserAgentType expectedAgentType, final String expectedVersion) {
-        registerIngest(METHOD, GOOD_INGEST, UNIMPLEMENTED_QUERY, UNIMPLEMENTED_QUERY);
+        registerIngest(METHOD, GOOD_INGEST, UNIMPLEMENTED_QUERY, UNIMPLEMENTED_QUERY, true);
         startServer(false, userAgent);
 
         send(SERVICE, METHOD, "And now for a message from our sponsors...");

@@ -124,7 +124,7 @@ public class GovernanceTransactionsTests implements LifecycleTest {
 
     @HapiTest
     @Order(3)
-    @DisplayName("Update the governance config to enable governance transactions")
+    @DisplayName("Update the governance config to disable governance transactions")
     public Stream<DynamicTest> updateTheConfig() {
         return hapiTest(
                 // The feature flag is only used once at startup (when building gRPC ServiceDefinitions),

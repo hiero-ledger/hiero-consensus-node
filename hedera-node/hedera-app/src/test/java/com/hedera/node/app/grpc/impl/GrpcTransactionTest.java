@@ -36,8 +36,8 @@ class GrpcTransactionTest extends GrpcTestBase {
     private static final IngestWorkflow GOOD_INGEST = (req, res) -> res.writeBytes(GOOD_RESPONSE_BYTES);
     private static final QueryWorkflow UNIMPLEMENTED_QUERY = (r, r2) -> fail("The Query should not be called");
 
-    private void setUp(@NonNull final IngestWorkflow ingest) {
-        registerIngest(METHOD, ingest, UNIMPLEMENTED_QUERY, UNIMPLEMENTED_QUERY);
+    private void setUp(@NonNull final IngestWorkflow ingest, final boolean withGovernanceTransactions) {
+        registerIngest(METHOD, ingest, UNIMPLEMENTED_QUERY, UNIMPLEMENTED_QUERY, withGovernanceTransactions);
         startServer(false);
     }
 
@@ -45,7 +45,7 @@ class GrpcTransactionTest extends GrpcTestBase {
     @DisplayName("Call a function on a gRPC service endpoint that succeeds")
     void sendGoodTransaction() {
         // Given a server with a service endpoint and an IngestWorkflow that returns a good response
-        setUp(GOOD_INGEST);
+        setUp(GOOD_INGEST, true);
 
         // When we call the service
         final var response = send(SERVICE, METHOD, "A Message");
@@ -58,9 +58,11 @@ class GrpcTransactionTest extends GrpcTestBase {
     @DisplayName("A function throwing a RuntimeException returns the UNKNOWN status code")
     void functionThrowingRuntimeExceptionReturnsUNKNOWNError() {
         // Given a server where the service will throw a RuntimeException
-        setUp((req, res) -> {
-            throw new RuntimeException("Failing with RuntimeException");
-        });
+        setUp(
+                (req, res) -> {
+                    throw new RuntimeException("Failing with RuntimeException");
+                },
+                true);
 
         // When we invoke that service
         final var e = assertThrows(StatusRuntimeException.class, () -> send(SERVICE, METHOD, "A Message"));
@@ -74,9 +76,11 @@ class GrpcTransactionTest extends GrpcTestBase {
     @Disabled("This test needs to be investigated")
     void functionThrowingErrorReturnsUNKNOWNError() {
         // Given a server where the service will throw an Error
-        setUp((req, res) -> {
-            throw new Error("Whoops!");
-        });
+        setUp(
+                (req, res) -> {
+                    throw new Error("Whoops!");
+                },
+                true);
 
         // When we invoke that service
         final var e = assertThrows(StatusRuntimeException.class, () -> send(SERVICE, METHOD, "A Message"));
@@ -94,9 +98,11 @@ class GrpcTransactionTest extends GrpcTestBase {
     @DisplayName("Explicitly thrown StatusRuntimeException passes the code through to the response")
     void explicitlyThrowStatusRuntimeException(@NonNull final Status.Code code) {
         // Given a server where the service will throw a specific StatusRuntimeException
-        setUp((req, res) -> {
-            throw new StatusRuntimeException(code.toStatus());
-        });
+        setUp(
+                (req, res) -> {
+                    throw new StatusRuntimeException(code.toStatus());
+                },
+                true);
 
         // When we invoke that service
         final var e = assertThrows(StatusRuntimeException.class, () -> send(SERVICE, METHOD, "A Message"));
@@ -109,7 +115,7 @@ class GrpcTransactionTest extends GrpcTestBase {
     @DisplayName("Send a valid transaction to an unknown endpoint and get back UNIMPLEMENTED")
     void sendTransactionToUnknownEndpoint() {
         // Given a client that knows about a method that DOES NOT EXIST on the server
-        setUp(GOOD_INGEST);
+        setUp(GOOD_INGEST, true);
 
         // When I call the service but with an unknown method
         final var e = assertThrows(StatusRuntimeException.class, () -> send(SERVICE, "unknown", "payload"));
@@ -122,7 +128,7 @@ class GrpcTransactionTest extends GrpcTestBase {
     @DisplayName("Send a valid transaction to an unknown service")
     void sendTransactionToUnknownService() {
         // Given a client that knows about a service that DOES NOT exist on the server
-        setUp(GOOD_INGEST);
+        setUp(GOOD_INGEST, true);
 
         // When I call the unknown service
         final var e = assertThrows(StatusRuntimeException.class, () -> send("UnknownService", METHOD, "payload"));
@@ -137,10 +143,24 @@ class GrpcTransactionTest extends GrpcTestBase {
     // and always returns UNKNOWN to the client. So there is really no other response code possible
     // for this case. (FUTURE: This is no longer true, I CAN return INVALID_ARGUMENT if I wanted to)
     @Test
-    @DisplayName("Sending way too many bytes leads to UNKNOWN")
+    @DisplayName("Sending way too many bytes with enabled governance transactions leads to UNKNOWN")
     void sendTooMuchData() {
         // Given a service
-        setUp(GOOD_INGEST);
+        setUp(GOOD_INGEST, true);
+
+        // When I call a method on the service and pass too many bytes
+        final var payload = randomString(1024 * 131);
+        final var e = assertThrows(StatusRuntimeException.class, () -> send(SERVICE, METHOD, payload));
+
+        // Then the resulting status code is UNKNOWN
+        assertEquals(Status.UNKNOWN.getCode(), e.getStatus().getCode());
+    }
+
+    @Test
+    @DisplayName("Sending way too many bytes leads to UNKNOWN")
+    void sendTooMuchDataGovernanceTransactionsDisabled() {
+        // Given a service
+        setUp(GOOD_INGEST, false);
 
         // When I call a method on the service and pass too many bytes
         final var payload = randomString(1024 * 10);
