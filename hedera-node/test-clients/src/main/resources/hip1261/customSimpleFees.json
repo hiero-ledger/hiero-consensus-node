@@ -18,8 +18,7 @@
           "name": "CryptoCreate",
           "baseFee": 499000000,
           "extras": [
-            { "name": "KEYS", "includedCount": 1 },
-            { "name": "SIGNATURES", "includedCount": 1 }
+            { "name": "KEYS", "includedCount": 1 }
           ]
         },
         {
