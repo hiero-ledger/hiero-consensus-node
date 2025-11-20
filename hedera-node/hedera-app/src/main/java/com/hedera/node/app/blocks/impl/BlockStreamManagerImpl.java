@@ -638,7 +638,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                 // In case the id of the next hinTS construction changed since a block ended
                 pendingBlocks.forEach(block -> {
                     final var pendingProof = block.asPendingProof(hasPrecedingUnproven.getAndSet(true));
-                    writer.flushPendingBlock(pendingProof);
+                    block.writer().flushPendingBlock(pendingProof);
                 });
             } else {
                 final var attempt = blockHashSigner.sign(finalBlockRootHash);
