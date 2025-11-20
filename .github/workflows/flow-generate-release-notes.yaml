@@ -16,7 +16,9 @@ defaults:
     shell: bash
 
 permissions:
-  contents: read
+  id-token: write
+  contents: write
+  actions: readc
 
 jobs:
   generate-release-notes:
