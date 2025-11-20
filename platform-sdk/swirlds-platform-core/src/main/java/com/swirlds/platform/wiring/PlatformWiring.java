@@ -30,6 +30,8 @@ import com.swirlds.platform.eventhandling.StateWithHashComplexity;
 import com.swirlds.platform.eventhandling.TransactionHandler;
 import com.swirlds.platform.eventhandling.TransactionHandlerResult;
 import com.swirlds.platform.eventhandling.TransactionPrehandler;
+import com.swirlds.platform.metrics.PlatformMetricsConfig;
+import com.swirlds.platform.metrics.event.EventPipelineTracker;
 import com.swirlds.platform.state.hasher.StateHasher;
 import com.swirlds.platform.state.hashlogger.HashLogger;
 import com.swirlds.platform.state.iss.IssDetector;
@@ -421,6 +423,39 @@ public class PlatformWiring {
         }
 
         buildUnsolderedWires(components);
+    }
+
+    /**
+     * Solder any metrics tracking wires.
+     *
+     * @param platformContext the platform context
+     * @param components      the platform components
+     */
+    public static void wireMetrics(
+            @NonNull final PlatformContext platformContext, @NonNull final PlatformComponents components) {
+        if (platformContext
+                .getConfiguration()
+                .getConfigData(PlatformMetricsConfig.class)
+                .eventPipelineMetricsEnabled()) {
+            final EventPipelineTracker pipelineTracker = new EventPipelineTracker(platformContext.getMetrics());
+
+            components.eventHasherWiring().getOutputWire().solderForMonitoring(pipelineTracker::afterHashing);
+            components
+                    .internalEventValidatorWiring()
+                    .getOutputWire()
+                    .solderForMonitoring(pipelineTracker::afterValidation);
+            components
+                    .eventDeduplicatorWiring()
+                    .getOutputWire()
+                    .solderForMonitoring(pipelineTracker::afterDeduplication);
+            components
+                    .eventSignatureValidatorWiring()
+                    .getOutputWire()
+                    .solderForMonitoring(pipelineTracker::afterSigVerification);
+            components.orphanBufferWiring().getOutputWire().solderForMonitoring(pipelineTracker::afterOrphanBuffer);
+            components.pcesInlineWriterWiring().getOutputWire().solderForMonitoring(pipelineTracker::afterPces);
+            components.consensusEngineWiring().getOutputWire().solderForMonitoring(pipelineTracker::afterConsensus);
+        }
     }
 
     /**

@@ -976,13 +976,22 @@ public class Hip1195BasicTests {
                         .withPreHookFor(OWNER, 124L, 25_000L, "")
                         .payingWith(OWNER)
                         .via("feeTxn"),
-                validateChargedUsd("feeTxn", 0.05),
+                sourcingContextual(spec -> {
+                    final long tinybarGasCost = 25_000L * spec.ratesProvider().currentTinybarGasPrice();
+                    final double usdGasCost = spec.ratesProvider().toUsdWithActiveRates(tinybarGasCost);
+                    return validateChargedUsd("feeTxn", 0.05 + usdGasCost);
+                }),
                 cryptoTransfer(TokenMovement.movingHbar(10).between(OWNER, PAYER))
                         .withPreHookFor(OWNER, 123L, 25_000L, "")
                         .withPrePostHookFor(PAYER, 123L, 25_000L, "")
                         .payingWith(OWNER)
                         .via("feeTxn2"),
-                validateChargedUsd("feeTxn2", 0.05));
+                sourcingContextual(spec -> {
+                    // Pre-post hook is called twice, so gas usage is double the given limit
+                    final long tinybarGasCost = 75_000L * spec.ratesProvider().currentTinybarGasPrice();
+                    final double usdGasCost = spec.ratesProvider().toUsdWithActiveRates(tinybarGasCost);
+                    return validateChargedUsd("feeTxn2", 0.05 + usdGasCost);
+                }));
     }
 
     @HapiTest

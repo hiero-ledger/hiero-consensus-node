@@ -9,7 +9,6 @@ import static org.mockito.Mockito.verify;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.time.Time;
-import com.swirlds.base.utility.Pair;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.test.fixtures.WeightGenerators;
 import com.swirlds.common.test.fixtures.merkle.util.PairedStreams;
@@ -20,12 +19,10 @@ import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
 import com.swirlds.platform.metrics.ReconnectMetrics;
 import com.swirlds.platform.network.Connection;
 import com.swirlds.platform.network.SocketConnection;
-import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
-import com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade;
 import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.test.fixtures.merkle.VirtualMapStateTestUtils;
 import java.io.IOException;
@@ -110,13 +107,11 @@ final class ReconnectTest {
 
         MerkleNodeState stateCopy = null;
         try (final PairedStreams pairedStreams = new PairedStreams()) {
-            final Pair<SignedState, TestPlatformStateFacade> signedStateFacadePair = new RandomSignedStateGenerator()
+            final SignedState signedState = new RandomSignedStateGenerator()
                     .setRoster(roster)
                     .setSigningNodeIds(nodeIds)
                     .setState(createTestState())
-                    .buildWithFacade();
-            final SignedState signedState = signedStateFacadePair.left();
-            final PlatformStateFacade platformStateFacade = signedStateFacadePair.right();
+                    .build();
 
             stateCopy = signedState.getState().copy();
             // hash the underlying VM
@@ -126,8 +121,7 @@ final class ReconnectTest {
                     stateCopy,
                     new DummyConnection(
                             platformContext, pairedStreams.getLearnerInput(), pairedStreams.getLearnerOutput()),
-                    reconnectMetrics,
-                    platformStateFacade);
+                    reconnectMetrics);
 
             final Thread thread = new Thread(() -> {
                 try {
@@ -135,8 +129,7 @@ final class ReconnectTest {
                     final ReconnectStateTeacher sender = buildSender(
                             new DummyConnection(
                                     platformContext, pairedStreams.getTeacherInput(), pairedStreams.getTeacherOutput()),
-                            reconnectMetrics,
-                            platformStateFacade);
+                            reconnectMetrics);
                     sender.execute(signedState);
                 } catch (final IOException ex) {
                     ex.printStackTrace();
@@ -155,10 +148,7 @@ final class ReconnectTest {
     }
 
     private ReconnectStateTeacher buildSender(
-            final SocketConnection connection,
-            final ReconnectMetrics reconnectMetrics,
-            final PlatformStateFacade platformStateFacade)
-            throws IOException {
+            final SocketConnection connection, final ReconnectMetrics reconnectMetrics) throws IOException {
 
         final PlatformContext platformContext =
                 TestPlatformContextBuilder.create().build();
@@ -175,15 +165,11 @@ final class ReconnectTest {
                 selfId,
                 otherId,
                 lastRoundReceived,
-                reconnectMetrics,
-                platformStateFacade);
+                reconnectMetrics);
     }
 
     private ReconnectStateLearner buildReceiver(
-            final MerkleNodeState state,
-            final Connection connection,
-            final ReconnectMetrics reconnectMetrics,
-            final PlatformStateFacade platformStateFacade) {
+            final MerkleNodeState state, final Connection connection, final ReconnectMetrics reconnectMetrics) {
 
         return new ReconnectStateLearner(
                 TestPlatformContextBuilder.create().build(),
@@ -192,7 +178,6 @@ final class ReconnectTest {
                 state,
                 RECONNECT_SOCKET_TIMEOUT,
                 reconnectMetrics,
-                platformStateFacade,
                 VirtualMapStateTestUtils::createTestStateWithVM);
     }
 }

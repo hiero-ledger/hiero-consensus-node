@@ -4,6 +4,7 @@ package com.swirlds.demo.migration;
 import static com.swirlds.demo.migration.MigrationTestingToolMain.PREVIOUS_SOFTWARE_VERSION;
 import static com.swirlds.demo.migration.TransactionUtils.isSystemTransaction;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
+import static com.swirlds.platform.state.service.PlatformStateUtils.bulkUpdateOf;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
@@ -11,7 +12,6 @@ import com.hedera.hapi.util.HapiUtils;
 import com.hedera.pbj.runtime.ParseException;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
-import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.state.merkle.VirtualMapState;
@@ -85,7 +85,7 @@ public class MigrationTestToolConsensusStateEventHandler implements ConsensusSta
                     FREEZE_TIME_OFFSET.getSeconds(),
                     round.getConsensusTimestamp(),
                     freezeTime);
-            PlatformStateFacade.DEFAULT_PLATFORM_STATE_FACADE.bulkUpdateOf(state, v -> {
+            bulkUpdateOf(state, v -> {
                 v.setFreezeTime(freezeTime);
             });
         }
