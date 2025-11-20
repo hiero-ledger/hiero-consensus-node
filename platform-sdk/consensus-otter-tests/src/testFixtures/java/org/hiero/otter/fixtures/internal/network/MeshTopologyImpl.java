@@ -15,6 +15,8 @@ import org.assertj.core.data.Percentage;
 import org.hiero.otter.fixtures.InstrumentedNode;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.network.MeshTopology;
+import org.hiero.otter.fixtures.network.MeshTopologyConfiguration;
+import org.hiero.otter.fixtures.network.Topology.ConnectionState;
 
 /**
  * An implementation of {@link MeshTopology}.
@@ -28,9 +30,10 @@ public class MeshTopologyImpl implements MeshTopology {
     private final Function<Integer, List<? extends Node>> nodeFactory;
     private final Supplier<InstrumentedNode> instrumentedNodeFactory;
     private final List<Node> nodes = new ArrayList<>();
+    private final ConnectionState connectionData;
 
     /**
-     * Constructor for the {@link MeshTopologyImpl} class.
+     * Constructor for the {@link MeshTopologyImpl} class with default configuration.
      *
      * @param nodeFactory a function that creates a list of nodes given the count
      * @param instrumentedNodeFactory a supplier that creates an instrumented node
@@ -39,8 +42,26 @@ public class MeshTopologyImpl implements MeshTopology {
     public MeshTopologyImpl(
             @NonNull final Function<Integer, List<? extends Node>> nodeFactory,
             @NonNull final Supplier<InstrumentedNode> instrumentedNodeFactory) {
+        this(MeshTopologyConfiguration.DEFAULT, nodeFactory, instrumentedNodeFactory);
+    }
+
+    /**
+     * Constructor for the {@link MeshTopologyImpl} class with a custom configuration.
+     *
+     * @param configuration the mesh topology configuration
+     * @param nodeFactory a function that creates a list of nodes given the count
+     * @param instrumentedNodeFactory a supplier that creates an instrumented node
+     * @throws NullPointerException if any parameter is {@code null}
+     */
+    public MeshTopologyImpl(
+            @NonNull final MeshTopologyConfiguration configuration,
+            @NonNull final Function<Integer, List<? extends Node>> nodeFactory,
+            @NonNull final Supplier<InstrumentedNode> instrumentedNodeFactory) {
         this.nodeFactory = requireNonNull(nodeFactory);
         this.instrumentedNodeFactory = requireNonNull(instrumentedNodeFactory);
+        requireNonNull(configuration);
+        this.connectionData = new ConnectionState(
+                true, configuration.averageLatency(), configuration.jitter(), configuration.bandwidth());
     }
 
     /**
@@ -80,6 +101,6 @@ public class MeshTopologyImpl implements MeshTopology {
     @Override
     @NonNull
     public ConnectionState getConnectionData(@NonNull final Node sender, @NonNull final Node receiver) {
-        return DEFAULT;
+        return connectionData;
     }
 }

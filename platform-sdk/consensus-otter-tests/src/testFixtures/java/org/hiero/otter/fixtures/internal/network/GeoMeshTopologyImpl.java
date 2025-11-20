@@ -18,7 +18,7 @@ import java.util.function.Supplier;
 import org.hiero.otter.fixtures.InstrumentedNode;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.network.GeoMeshTopology;
-import org.hiero.otter.fixtures.network.GeographicLatencyConfiguration;
+import org.hiero.otter.fixtures.network.GeoMeshTopologyConfiguration;
 import org.hiero.otter.fixtures.network.LatencyRange;
 
 /**
@@ -33,19 +33,22 @@ public class GeoMeshTopologyImpl implements GeoMeshTopology {
     private final Supplier<InstrumentedNode> instrumentedNodeFactory;
     private final Random random;
 
-    private GeographicLatencyConfiguration configuration = GeographicLatencyConfiguration.DEFAULT;
+    private final GeoMeshTopologyConfiguration configuration;
 
     /**
      * Constructor for the {@link GeoMeshTopologyImpl} class.
      *
+     * @param configuration the geographic latency configuration
      * @param random a random number generator for simulating network conditions
      * @param nodeFactory a function that creates a list of nodes given the count
      * @param instrumentedNodeFactory a supplier that creates an instrumented node
      */
     public GeoMeshTopologyImpl(
+            @NonNull final GeoMeshTopologyConfiguration configuration,
             @NonNull final Random random,
             @NonNull final Function<Integer, List<? extends Node>> nodeFactory,
             @NonNull final Supplier<InstrumentedNode> instrumentedNodeFactory) {
+        this.configuration = requireNonNull(configuration);
         this.nodeFactory = requireNonNull(nodeFactory);
         this.instrumentedNodeFactory = requireNonNull(instrumentedNodeFactory);
         this.random = requireNonNull(random);
@@ -164,14 +167,6 @@ public class GeoMeshTopologyImpl implements GeoMeshTopology {
                 random.nextLong(latencyRange.min().toNanos(), latencyRange.max().toNanos());
         final Duration latency = Duration.ofNanos(nanos);
         return new ConnectionState(true, latency, latencyRange.jitterPercent(), UNLIMITED_BANDWIDTH);
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void setGeographicLatencyConfiguration(@NonNull final GeographicLatencyConfiguration configuration) {
-        this.configuration = requireNonNull(configuration);
     }
 
     private record Connection(@NonNull Node node1, @NonNull Node node2) {

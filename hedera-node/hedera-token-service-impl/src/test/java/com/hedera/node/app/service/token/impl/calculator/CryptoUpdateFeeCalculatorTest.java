@@ -7,7 +7,7 @@ import static org.mockito.Mockito.lenient;
 
 import com.hedera.hapi.node.base.*;
 import com.hedera.hapi.node.hooks.*;
-import com.hedera.hapi.node.token.CryptoCreateTransactionBody;
+import com.hedera.hapi.node.token.CryptoUpdateTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.spi.fees.CalculatorState;
 import com.hedera.node.app.spi.fees.SimpleFeeCalculatorImpl;
@@ -25,10 +25,10 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 /**
- * Unit tests for {@link CryptoCreateFeeCalculator}.
+ * Unit tests for {@link CryptoUpdateFeeCalculator}.
  */
 @ExtendWith(MockitoExtension.class)
-class CryptoCreateFeeCalculatorTest {
+class CryptoUpdateFeeCalculatorTest {
 
     @Mock
     private CalculatorState calculatorState;
@@ -38,47 +38,55 @@ class CryptoCreateFeeCalculatorTest {
     @BeforeEach
     void setUp() {
         final var testSchedule = createTestFeeSchedule();
-        feeCalculator = new SimpleFeeCalculatorImpl(testSchedule, Set.of(new CryptoCreateFeeCalculator()));
+        feeCalculator = new SimpleFeeCalculatorImpl(testSchedule, Set.of(new CryptoUpdateFeeCalculator()));
     }
 
     @Nested
-    @DisplayName("CryptoCreate Fee Calculation Tests")
-    class CryptoCreateTests {
+    @DisplayName("CryptoUpdate Fee Calculation Tests")
+    class CryptoUpdateTests {
         @Test
-        @DisplayName("calculateTxFee with no key")
-        void calculateTxFeeWithNoKey() {
+        @DisplayName("calculateTxFee with no key update")
+        void calculateTxFeeWithNoKeyUpdate() {
             // Given
             lenient().when(calculatorState.numTxnSignatures()).thenReturn(1);
-            final var op = CryptoCreateTransactionBody.newBuilder().build();
+            final var op = CryptoUpdateTransactionBody.newBuilder()
+                    .accountIDToUpdate(AccountID.newBuilder().accountNum(1001L).build())
+                    .memo("Updated memo")
+                    .build();
             final var body =
-                    TransactionBody.newBuilder().cryptoCreateAccount(op).build();
+                    TransactionBody.newBuilder().cryptoUpdateAccount(op).build();
 
             // When
             final var result = feeCalculator.calculateTxFee(body, calculatorState);
 
+            // Then: Only base fee + network/node fees, no key extras
             assertThat(result).isNotNull();
             assertThat(result.node).isEqualTo(100000L);
-            assertThat(result.service).isEqualTo(499000000L);
+            assertThat(result.service).isEqualTo(1200000L); // baseFee from production config
             assertThat(result.network).isEqualTo(900000L);
         }
 
         @Test
-        @DisplayName("calculateTxFee with simple ED25519 key")
+        @DisplayName("calculateTxFee with simple ED25519 key update")
         void calculateTxFeeWithSimpleKey() {
             // Given
             lenient().when(calculatorState.numTxnSignatures()).thenReturn(2);
             final var key = Key.newBuilder().ed25519(Bytes.wrap(new byte[32])).build();
-            final var op = CryptoCreateTransactionBody.newBuilder().key(key).build();
+            final var op = CryptoUpdateTransactionBody.newBuilder()
+                    .accountIDToUpdate(AccountID.newBuilder().accountNum(1001L).build())
+                    .key(key)
+                    .build();
             final var body =
-                    TransactionBody.newBuilder().cryptoCreateAccount(op).build();
+                    TransactionBody.newBuilder().cryptoUpdateAccount(op).build();
 
             // When
             final var result = feeCalculator.calculateTxFee(body, calculatorState);
 
+            // Then: Base fee + 0 extra keys (includedCount=1 in config, so 1 key is free)
             // Node = 100000 + 1000000 (1 extra signature) = 1100000
             // Network = node * multiplier = 1100000 * 9 = 9900000
             assertThat(result.node).isEqualTo(1100000L);
-            assertThat(result.service).isEqualTo(499000000L);
+            assertThat(result.service).isEqualTo(1200000L);
             assertThat(result.network).isEqualTo(9900000L);
         }
 
@@ -96,16 +104,19 @@ class CryptoCreateFeeCalculatorTest {
                             Key.newBuilder().ed25519(Bytes.wrap(new byte[32])).build())
                     .build();
             final var key = Key.newBuilder().keyList(keyList).build();
-            final var op = CryptoCreateTransactionBody.newBuilder().key(key).build();
+            final var op = CryptoUpdateTransactionBody.newBuilder()
+                    .accountIDToUpdate(AccountID.newBuilder().accountNum(1001L).build())
+                    .key(key)
+                    .build();
             final var body =
-                    TransactionBody.newBuilder().cryptoCreateAccount(op).build();
+                    TransactionBody.newBuilder().cryptoUpdateAccount(op).build();
 
             // When
             final var result = feeCalculator.calculateTxFee(body, calculatorState);
 
-            // Then: Base fee (499M) + 2 extra keys beyond includedCount=1 (2 * 100M = 200M)
-            // service = 499000000 + 200000000 = 699000000
-            assertThat(result.service).isEqualTo(699000000L);
+            // Then: Base fee (1.2M) + 2 extra keys beyond includedCount=1 (2 * 100M = 200M)
+            // service = 1200000 + 200000000 = 201200000
+            assertThat(result.service).isEqualTo(201200000L);
         }
 
         @Test
@@ -129,15 +140,19 @@ class CryptoCreateFeeCalculatorTest {
                             .build())
                     .build();
             final var key = Key.newBuilder().thresholdKey(thresholdKey).build();
-            final var op = CryptoCreateTransactionBody.newBuilder().key(key).build();
+            final var op = CryptoUpdateTransactionBody.newBuilder()
+                    .accountIDToUpdate(AccountID.newBuilder().accountNum(1001L).build())
+                    .key(key)
+                    .build();
             final var body =
-                    TransactionBody.newBuilder().cryptoCreateAccount(op).build();
+                    TransactionBody.newBuilder().cryptoUpdateAccount(op).build();
 
             // When
             final var result = feeCalculator.calculateTxFee(body, calculatorState);
 
-            // service = 499000000 + (3-1)*100000000 = 699000000
-            assertThat(result.service).isEqualTo(699000000L);
+            // Then: Base fee + 2 extra keys (3 total, 1 included)
+            // service = 1200000 + 200000000 = 201200000
+            assertThat(result.service).isEqualTo(201200000L);
         }
 
         @Test
@@ -158,13 +173,13 @@ class CryptoCreateFeeCalculatorTest {
                     .services(makeService(
                             "CryptoService",
                             makeServiceFee(
-                                    HederaFunctionality.CRYPTO_CREATE,
-                                    499000000L,
+                                    HederaFunctionality.CRYPTO_UPDATE,
+                                    1200000L,
                                     makeExtraIncluded(Extra.KEYS, 1)))) // Only 1 key included
                     .build();
 
             feeCalculator =
-                    new SimpleFeeCalculatorImpl(scheduleWithLowKeyLimit, Set.of(new CryptoCreateFeeCalculator()));
+                    new SimpleFeeCalculatorImpl(scheduleWithLowKeyLimit, Set.of(new CryptoUpdateFeeCalculator()));
             lenient().when(calculatorState.numTxnSignatures()).thenReturn(1);
 
             // Create a KeyList with 5 keys (4 over the included count of 1)
@@ -177,15 +192,18 @@ class CryptoCreateFeeCalculatorTest {
                             Key.newBuilder().ed25519(Bytes.wrap(new byte[32])).build())
                     .build();
             final var key = Key.newBuilder().keyList(keyList).build();
-            final var op = CryptoCreateTransactionBody.newBuilder().key(key).build();
+            final var op = CryptoUpdateTransactionBody.newBuilder()
+                    .accountIDToUpdate(AccountID.newBuilder().accountNum(1001L).build())
+                    .key(key)
+                    .build();
             final var body =
-                    TransactionBody.newBuilder().cryptoCreateAccount(op).build();
+                    TransactionBody.newBuilder().cryptoUpdateAccount(op).build();
 
             // When
             final var result = feeCalculator.calculateTxFee(body, calculatorState);
 
-            // Then: Base fee (499000000) + overage for 4 extra keys (4 * 100000000 = 400000000)
-            assertThat(result.service).isEqualTo(899000000L);
+            // Then: Base fee (1.2M) + overage for 4 extra keys (4 * 100000000 = 400000000)
+            assertThat(result.service).isEqualTo(401200000L);
             assertThat(result.node).isEqualTo(100000L);
             assertThat(result.network).isEqualTo(900000L);
         }
@@ -208,85 +226,111 @@ class CryptoCreateFeeCalculatorTest {
                     .services(makeService(
                             "CryptoService",
                             makeServiceFee(
-                                    HederaFunctionality.CRYPTO_CREATE,
-                                    499000000L,
+                                    HederaFunctionality.CRYPTO_UPDATE,
+                                    1200000L,
                                     makeExtraIncluded(Extra.KEYS, 1)))) // Only 1 key included
                     .build();
 
             feeCalculator =
-                    new SimpleFeeCalculatorImpl(scheduleWithLowKeyLimit, Set.of(new CryptoCreateFeeCalculator()));
+                    new SimpleFeeCalculatorImpl(scheduleWithLowKeyLimit, Set.of(new CryptoUpdateFeeCalculator()));
             lenient().when(calculatorState.numTxnSignatures()).thenReturn(1);
 
             // Create exactly 1 key (at the included count boundary)
             final var key = Key.newBuilder().ed25519(Bytes.wrap(new byte[32])).build();
-            final var op = CryptoCreateTransactionBody.newBuilder().key(key).build();
+            final var op = CryptoUpdateTransactionBody.newBuilder()
+                    .accountIDToUpdate(AccountID.newBuilder().accountNum(1001L).build())
+                    .key(key)
+                    .build();
             final var body =
-                    TransactionBody.newBuilder().cryptoCreateAccount(op).build();
+                    TransactionBody.newBuilder().cryptoUpdateAccount(op).build();
 
             // When
             final var result = feeCalculator.calculateTxFee(body, calculatorState);
 
             // Then: Only base fee, no overage
-            assertThat(result.service).isEqualTo(499000000L);
+            assertThat(result.service).isEqualTo(1200000L);
             assertThat(result.node).isEqualTo(100000L);
             assertThat(result.network).isEqualTo(900000L);
         }
 
         @Test
-        @DisplayName("calculateTxFee with one hook charges hook fee")
-        void calculateTxFeeWithOneHook() {
-            // Given
-            lenient().when(calculatorState.numTxnSignatures()).thenReturn(1);
-            final var hook = createHookDetails(1L);
-            final var op = CryptoCreateTransactionBody.newBuilder()
-                    .hookCreationDetails(hook)
-                    .build();
-            final var body =
-                    TransactionBody.newBuilder().cryptoCreateAccount(op).build();
-
-            // When
-            final var result = feeCalculator.calculateTxFee(body, calculatorState);
-
-            // Then: Base fee (499M) + 1 hook (10M) = 509M
-            assertThat(result.service).isEqualTo(509000000L);
-            assertThat(result.node).isEqualTo(100000L);
-            assertThat(result.network).isEqualTo(900000L);
-        }
-
-        @Test
-        @DisplayName("calculateTxFee with multiple hooks charges per hook")
-        void calculateTxFeeWithMultipleHooks() {
+        @DisplayName("calculateTxFee with hook creations charges hook fee")
+        void calculateTxFeeWithHookCreations() {
             // Given
             lenient().when(calculatorState.numTxnSignatures()).thenReturn(1);
             final var hook1 = createHookDetails(1L);
             final var hook2 = createHookDetails(2L);
-            final var hook3 = createHookDetails(3L);
-            final var op = CryptoCreateTransactionBody.newBuilder()
-                    .hookCreationDetails(hook1, hook2, hook3)
+            final var op = CryptoUpdateTransactionBody.newBuilder()
+                    .accountIDToUpdate(AccountID.newBuilder().accountNum(1001L).build())
+                    .hookCreationDetails(hook1, hook2)
                     .build();
             final var body =
-                    TransactionBody.newBuilder().cryptoCreateAccount(op).build();
+                    TransactionBody.newBuilder().cryptoUpdateAccount(op).build();
 
             // When
             final var result = feeCalculator.calculateTxFee(body, calculatorState);
 
-            // Then: Base fee (499M) + 3 hooks (30M) = 529M
-            assertThat(result.service).isEqualTo(529000000L);
+            // Then: Base fee (1.2M) + 2 hooks (20M) = 21.2M
+            assertThat(result.service).isEqualTo(21200000L);
             assertThat(result.node).isEqualTo(100000L);
             assertThat(result.network).isEqualTo(900000L);
         }
 
         @Test
-        @DisplayName("verify getTransactionType returns CRYPTO_CREATE_ACCOUNT")
+        @DisplayName("calculateTxFee with hook deletions charges hook fee")
+        void calculateTxFeeWithHookDeletions() {
+            // Given
+            lenient().when(calculatorState.numTxnSignatures()).thenReturn(1);
+            final var op = CryptoUpdateTransactionBody.newBuilder()
+                    .accountIDToUpdate(AccountID.newBuilder().accountNum(1001L).build())
+                    .hookIdsToDelete(100L, 200L)
+                    .build();
+            final var body =
+                    TransactionBody.newBuilder().cryptoUpdateAccount(op).build();
+
+            // When
+            final var result = feeCalculator.calculateTxFee(body, calculatorState);
+
+            // Then: Base fee (1.2M) + 2 hook deletions (20M) = 21.2M
+            assertThat(result.service).isEqualTo(21200000L);
+            assertThat(result.node).isEqualTo(100000L);
+            assertThat(result.network).isEqualTo(900000L);
+        }
+
+        @Test
+        @DisplayName("calculateTxFee with hook creations and deletions charges for both")
+        void calculateTxFeeWithHookCreationsAndDeletions() {
+            // Given
+            lenient().when(calculatorState.numTxnSignatures()).thenReturn(1);
+            final var hook = createHookDetails(3L);
+            final var op = CryptoUpdateTransactionBody.newBuilder()
+                    .accountIDToUpdate(AccountID.newBuilder().accountNum(1001L).build())
+                    .hookCreationDetails(hook)
+                    .hookIdsToDelete(100L)
+                    .build();
+            final var body =
+                    TransactionBody.newBuilder().cryptoUpdateAccount(op).build();
+
+            // When
+            final var result = feeCalculator.calculateTxFee(body, calculatorState);
+
+            // Then: Base fee (1.2M) + 1 creation + 1 deletion (20M) = 21.2M
+            assertThat(result.service).isEqualTo(21200000L);
+            assertThat(result.node).isEqualTo(100000L);
+            assertThat(result.network).isEqualTo(900000L);
+        }
+
+        @Test
+        @DisplayName("verify getTransactionType returns CRYPTO_UPDATE_ACCOUNT")
         void verifyTransactionType() {
             // Given
-            final var calculator = new CryptoCreateFeeCalculator();
+            final var calculator = new CryptoUpdateFeeCalculator();
 
             // When
             final var txnType = calculator.getTransactionType();
 
             // Then
-            assertThat(txnType).isEqualTo(TransactionBody.DataOneOfType.CRYPTO_CREATE_ACCOUNT);
+            assertThat(txnType).isEqualTo(TransactionBody.DataOneOfType.CRYPTO_UPDATE_ACCOUNT);
         }
     }
 
@@ -306,11 +350,11 @@ class CryptoCreateFeeCalculatorTest {
                 .services(makeService(
                         "CryptoService",
                         makeServiceFee(
-                                HederaFunctionality.CRYPTO_CREATE,
-                                499000000L,
+                                HederaFunctionality.CRYPTO_UPDATE,
+                                1200000L, // baseFee from production config
                                 makeExtraIncluded(Extra.SIGNATURES, 1),
                                 makeExtraIncluded(Extra.KEYS, 1),
-                                makeExtraIncluded(Extra.HOOKS, 0))))
+                                makeExtraIncluded(Extra.HOOKS, 0)))) // No hooks included
                 .build();
     }
 

@@ -447,11 +447,12 @@ public class TestingEventBuilder {
             }
         }
 
-        final EventDescriptorWrapper selfParentDescriptor =
-                createDescriptorFromParent(selfParent, selfParentBirthRoundOverride);
-        final List<EventDescriptorWrapper> otherParentDescriptors = Stream.ofNullable(otherParents)
-                .flatMap(List::stream)
-                .map(parent -> createDescriptorFromParent(parent, otherParentBirthRoundOverride))
+        final List<EventDescriptorWrapper> allParentDescriptors = Stream.concat(
+                        Stream.ofNullable(selfParent)
+                                .map(parent -> createDescriptorFromParent(parent, selfParentBirthRoundOverride)),
+                        Stream.ofNullable(otherParents)
+                                .flatMap(List::stream)
+                                .map(parent -> createDescriptorFromParent(parent, otherParentBirthRoundOverride)))
                 .toList();
 
         if (this.birthRound == null) {
@@ -482,8 +483,7 @@ public class TestingEventBuilder {
 
         final UnsignedEvent unsignedEvent = new UnsignedEvent(
                 creatorId,
-                selfParentDescriptor,
-                otherParentDescriptors,
+                allParentDescriptors,
                 birthRound,
                 timeCreated,
                 transactionBytes,
