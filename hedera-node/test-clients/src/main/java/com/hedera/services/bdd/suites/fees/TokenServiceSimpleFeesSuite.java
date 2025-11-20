@@ -207,7 +207,10 @@ public class TokenServiceSimpleFeesSuite {
                                 .payingWith(PAYER)
                                 .fee(ONE_HUNDRED_HBARS)
                                 .hasKnownStatus(SUCCESS),
-                        tokenPause(FUNGIBLE_TOKEN).via("pause-token-txn")),
+                        tokenPause(FUNGIBLE_TOKEN)
+                                .payingWith(PAYER)
+                                .fee(ONE_HUNDRED_HBARS)
+                                .via("pause-token-txn")),
                 "pause-token-txn",
                 // TODO: actual result being set to zero for some reason
                 0.002,
@@ -237,7 +240,10 @@ public class TokenServiceSimpleFeesSuite {
                                 .fee(ONE_HUNDRED_HBARS)
                                 .hasKnownStatus(SUCCESS),
                         tokenPause(FUNGIBLE_TOKEN),
-                        tokenUnpause(FUNGIBLE_TOKEN).via("unpause-token-txn")),
+                        tokenUnpause(FUNGIBLE_TOKEN)
+                                .payingWith(PAYER)
+                                .fee(ONE_HUNDRED_HBARS)
+                                .via("unpause-token-txn")),
                 "unpause-token-txn",
                 // TODO: actual result being set to zero for some reason
                 0.002,
@@ -268,7 +274,10 @@ public class TokenServiceSimpleFeesSuite {
                                 .payingWith(PAYER)
                                 .fee(ONE_HUNDRED_HBARS)
                                 .hasKnownStatus(SUCCESS),
-                        tokenFreeze(FUNGIBLE_TOKEN, OTHER).via("freeze-token-txn")),
+                        tokenFreeze(FUNGIBLE_TOKEN, OTHER)
+                                .payingWith(PAYER)
+                                .fee(ONE_HUNDRED_HBARS)
+                                .via("freeze-token-txn")),
                 "freeze-token-txn",
                 // TODO: actual result being set to zero for some reason
                 0.002,
@@ -300,7 +309,10 @@ public class TokenServiceSimpleFeesSuite {
                                 .fee(ONE_HUNDRED_HBARS)
                                 .hasKnownStatus(SUCCESS),
                         tokenFreeze(FUNGIBLE_TOKEN, OTHER),
-                        tokenUnfreeze(FUNGIBLE_TOKEN, OTHER).via("unfreeze-token-txn")),
+                        tokenUnfreeze(FUNGIBLE_TOKEN, OTHER)
+                                .payingWith(PAYER)
+                                .fee(ONE_HUNDRED_HBARS)
+                                .via("unfreeze-token-txn")),
                 "unfreeze-token-txn",
                 // TODO: actual result being set to zero for some reason
                 0.002,
