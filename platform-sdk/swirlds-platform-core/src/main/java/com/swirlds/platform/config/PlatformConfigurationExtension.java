@@ -23,6 +23,7 @@ import com.swirlds.platform.gossip.config.NetworkEndpoint;
 import com.swirlds.platform.gossip.config.NetworkEndpointConverter;
 import com.swirlds.platform.gossip.sync.config.SyncConfig;
 import com.swirlds.platform.health.OSHealthCheckConfig;
+import com.swirlds.platform.metrics.PlatformMetricsConfig;
 import com.swirlds.platform.network.SocketConfig;
 import com.swirlds.platform.system.status.PlatformStatusConfig;
 import com.swirlds.platform.uptime.UptimeConfig;
@@ -63,6 +64,7 @@ public class PlatformConfigurationExtension implements ConfigurationExtension {
                 OSHealthCheckConfig.class,
                 PathsConfig.class,
                 PcesConfig.class,
+                PlatformMetricsConfig.class,
                 PlatformSchedulersConfig.class,
                 PlatformStatusConfig.class,
                 PrometheusConfig.class,

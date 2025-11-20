@@ -4,6 +4,7 @@ package com.swirlds.demo.consistency;
 import static com.swirlds.demo.consistency.ConsistencyTestingToolMain.CONFIGURATION;
 import static com.swirlds.demo.consistency.ConsistencyTestingToolState.isSystemTransaction;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
+import static com.swirlds.platform.state.service.PlatformStateUtils.bulkUpdateOf;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.SemanticVersion;
@@ -11,7 +12,6 @@ import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
-import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
@@ -38,9 +38,6 @@ public class ConsistencyTestingToolConsensusStateEventHandler
 
     private static final Logger logger = LogManager.getLogger(ConsistencyTestingToolState.class);
 
-    @NonNull
-    private final PlatformStateFacade platformStateFacade;
-
     /**
      * If not zero, and we are handling the first round after genesis, configure a freeze this duration later.
      * <p>
@@ -48,10 +45,6 @@ public class ConsistencyTestingToolConsensusStateEventHandler
      * hash).
      */
     private Duration freezeAfterGenesis = null;
-
-    public ConsistencyTestingToolConsensusStateEventHandler(@NonNull final PlatformStateFacade platformStateFacade) {
-        this.platformStateFacade = platformStateFacade;
-    }
 
     @Override
     public void onStateInitialized(
@@ -103,7 +96,7 @@ public class ConsistencyTestingToolConsensusStateEventHandler
                     STARTUP.getMarker(),
                     "Setting freeze time to {} seconds after genesis.",
                     freezeAfterGenesis.getSeconds());
-            platformStateFacade.bulkUpdateOf(state, v -> {
+            bulkUpdateOf(state, v -> {
                 v.setFreezeTime(round.getConsensusTimestamp().plus(freezeAfterGenesis));
             });
         }

@@ -19,6 +19,9 @@ import static com.swirlds.platform.gui.internal.BrowserWindowManager.moveBrowser
 import static com.swirlds.platform.gui.internal.BrowserWindowManager.setBrowserWindow;
 import static com.swirlds.platform.gui.internal.BrowserWindowManager.setStateHierarchy;
 import static com.swirlds.platform.gui.internal.BrowserWindowManager.showBrowserWindow;
+import static com.swirlds.platform.state.service.PlatformStateUtils.bulkUpdateOf;
+import static com.swirlds.platform.state.service.PlatformStateUtils.creationSemanticVersionOf;
+import static com.swirlds.platform.state.service.PlatformStateUtils.roundOf;
 import static com.swirlds.platform.state.signed.StartupStateUtils.getInitialState;
 import static com.swirlds.platform.system.SystemExitUtils.exitSystem;
 import static com.swirlds.platform.system.address.AddressBookUtils.initializeAddressBook;
@@ -51,7 +54,6 @@ import com.swirlds.platform.gui.model.InfoApp;
 import com.swirlds.platform.gui.model.InfoMember;
 import com.swirlds.platform.gui.model.InfoSwirld;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
-import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.HashedReservedSignedState;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.system.SwirldMain;
@@ -257,19 +259,17 @@ public class Browser {
                     recycleBin,
                     merkleCryptography);
 
-            PlatformStateFacade platformStateFacade = new PlatformStateFacade();
             // Create the initial state for the platform
             ConsensusStateEventHandler consensusStateEventHandler = appMain.newConsensusStateEvenHandler();
             final HashedReservedSignedState reservedState = getInitialState(
                     recycleBin,
                     appMain.getSemanticVersion(),
                     appMain::newStateRoot,
-                    appMain.stateRootFromVirtualMap(guiMetrics, Time.getCurrent()),
+                    appMain.stateRootFromVirtualMap(guiMetrics),
                     appMain.getClass().getName(),
                     appDefinition.getSwirldName(),
                     nodeId,
                     appDefinition.getConfigAddressBook(),
-                    platformStateFacade,
                     platformContext);
             final ReservedSignedState initialState = reservedState.state();
 
@@ -280,18 +280,17 @@ public class Browser {
                     initialState,
                     appDefinition.getConfigAddressBook(),
                     platformContext,
-                    consensusStateEventHandler,
-                    platformStateFacade);
+                    consensusStateEventHandler);
 
             final State state = initialState.get().getState();
 
             // If we are upgrading, then we are loading a freeze state and we need to update the latest freeze round
             // value
             if (HapiUtils.SEMANTIC_VERSION_COMPARATOR.compare(
-                            appMain.getSemanticVersion(), platformStateFacade.creationSemanticVersionOf(state))
+                            appMain.getSemanticVersion(), creationSemanticVersionOf(state))
                     > 0) {
-                final long initialStateRound = platformStateFacade.roundOf(state);
-                platformStateFacade.bulkUpdateOf(state, v -> {
+                final long initialStateRound = roundOf(state);
+                bulkUpdateOf(state, v -> {
                     v.setLatestFreezeRound(initialStateRound);
                 });
             }
@@ -308,8 +307,7 @@ public class Browser {
                     nodeId,
                     String.valueOf(nodeId),
                     rosterHistory,
-                    platformStateFacade,
-                    appMain.stateRootFromVirtualMap(guiMetrics, Time.getCurrent()));
+                    appMain.stateRootFromVirtualMap(guiMetrics));
             if (showUi && index == 0) {
                 builder.withPreconsensusEventCallback(guiEventStorage::handlePreconsensusEvent);
                 builder.withConsensusSnapshotOverrideCallback(guiEventStorage::handleSnapshotOverride);
