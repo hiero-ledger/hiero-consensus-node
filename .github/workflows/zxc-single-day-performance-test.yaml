@@ -1053,7 +1053,7 @@ jobs:
       - name: Extract benchmark score of NftTransferLoadTest test
         id: NftTransferLoadTestLogs
         run: |
-          grep -E 'Finished .*Test' "${{ github.workspace }}"/report/client.log | sed -e 's/^.*Finished \([A-Za-z0-9][A-ZA-z0-9]*LoadTest\).*TPS[\:][ \t]*\([0-9][0-9]*\)$/value=\2/g' >> ${GITHUB_OUTPUT}
+          grep -E 'Finished .*Test' "${{ github.workspace }}"/report/client.log | sed -e 's/^.*Finished \([A-Za-z0-9][A-ZA-z0-9]*LoadTest\).*TPS[\:][ \t]*\([0-9][0-9]*\)$/value=\2/g' >> "${GITHUB_OUTPUT}"
           grep -E 'Finished .*Test' "${{ github.workspace }}"/report/client.log | sed -e 's/^.*Finished \([A-Za-z0-9][A-ZA-z0-9]*LoadTest\).*TPS[\:][ \t]*\([0-9][0-9]*\)$/value=\2/g'
 
       - name: Authenticate to Google Cloud
