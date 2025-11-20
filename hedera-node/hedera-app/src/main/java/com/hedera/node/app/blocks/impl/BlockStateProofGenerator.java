@@ -25,7 +25,7 @@ public class BlockStateProofGenerator {
 
     /**
      * Constructs a state proof for a block that precedes the latest signed block. This involves creating merkle
-     * paths for <b>all> pending blocks immediately preceding the latest signed block, and so must read from the
+     * paths for <b>all</b> pending blocks immediately preceding the latest signed block, and so must read from the
      * current pending blocks in memory.
      *
      * @param currentPendingBlock the pending block to generate a state proof for
