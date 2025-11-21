@@ -3,6 +3,7 @@ package org.hiero.otter.fixtures.test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.fail;
 import static org.hiero.consensus.model.status.PlatformStatus.ACTIVE;
 
 import com.swirlds.common.test.fixtures.WeightGenerators;
@@ -150,6 +151,9 @@ class NetworkIsolationTest {
                         Duration.ofSeconds(120L),
                         "Not all nodes became ACTIVE after rejoining");
             }
+
+            fail("Purposefully failing to check if all data is captured in CI.");
+
         } finally {
             env.destroy();
         }

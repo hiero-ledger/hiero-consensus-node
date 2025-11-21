@@ -2,6 +2,7 @@
 package org.hiero.otter.fixtures.test;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.fail;
 
 import java.nio.file.Path;
 import java.time.Duration;
@@ -39,6 +40,9 @@ class ProfilerTest {
             // Verify the profiling file was created and is not empty
             final Path profilePath = env.outputDirectory().resolve("node-0/profile.jfr");
             assertThat(profilePath).isNotEmptyFile();
+
+            fail("Purposefully failing to check if all data is captured in CI.");
+
         } finally {
             env.destroy();
         }
