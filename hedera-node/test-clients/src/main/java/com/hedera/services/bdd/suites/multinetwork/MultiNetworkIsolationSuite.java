@@ -15,6 +15,14 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 
+/**
+ * Test suite for multi-network isolation testing.
+ * <p>
+ * Verifies that multiple Hedera networks running in parallel remain isolated,
+ * ensuring that operations on one network do not affect the state or behavior
+ * of other networks. Includes tests for account creation, balance queries,
+ * and independent ledger counters across distinct networks.
+ */
 public class MultiNetworkIsolationSuite {
 
     @MultiNetworkHapiTest(networks = {
