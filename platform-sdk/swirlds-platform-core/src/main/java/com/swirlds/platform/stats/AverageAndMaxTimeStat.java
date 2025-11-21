@@ -3,8 +3,10 @@ package com.swirlds.platform.stats;
 
 import com.swirlds.common.metrics.StatEntry;
 import com.swirlds.metrics.api.Metrics;
+import edu.umd.cs.findbugs.annotations.NonNull;
+import java.time.Duration;
+import java.time.Instant;
 import java.time.temporal.ChronoUnit;
-import java.util.List;
 
 /**
  * A metrics object to track an average and maximum time period, without history. This class uses an
@@ -17,9 +19,7 @@ public class AverageAndMaxTimeStat {
 
     private final ChronoUnit unit;
     private final AtomicAverage average;
-    private final StatEntry avgEntry;
     private final AtomicMax max;
-    private final StatEntry maxEntry;
 
     public AverageAndMaxTimeStat(
             final Metrics metrics, final ChronoUnit unit, final String category, final String name, final String desc) {
@@ -48,11 +48,11 @@ public class AverageAndMaxTimeStat {
             default:
                 format = FORMAT_DEFAULT;
         }
-        avgEntry = metrics.getOrCreate(new StatEntry.Config<>(category, name, Double.class, this::getAvg)
+        metrics.getOrCreate(new StatEntry.Config<>(category, name, Double.class, this::getAvg)
                 .withDescription(desc)
                 .withFormat(format)
                 .withReset(this::resetAvg));
-        maxEntry = metrics.getOrCreate(new StatEntry.Config<>(category, name + "MAX", Double.class, this::getMax)
+        metrics.getOrCreate(new StatEntry.Config<>(category, name + "MAX", Double.class, this::getMax)
                 .withDescription("max value of " + name)
                 .withFormat(format)
                 .withReset(this::resetMax)
@@ -92,21 +92,26 @@ public class AverageAndMaxTimeStat {
     }
 
     public void update(final long start, final long end) {
+        updateInternal(end - start);
+    }
+
+    /**
+     * Update the metrics with the duration between the supplied start time and current system time
+     *
+     * @param start the start time
+     */
+    public void update(@NonNull final Instant start) {
+        updateInternal(Duration.between(start, Instant.now()).toNanos());
+    }
+
+    /**
+     * Internal method to update the metrics
+     *
+     * @param nanos the duration (in nanoseconds) that should be stored
+     */
+    private void updateInternal(final long nanos) {
         // the value is stored as nanos and converted upon retrieval
-        final long nanos = end - start;
         average.update(nanos);
         max.update(nanos);
-    }
-
-    public StatEntry getAverageStat() {
-        return avgEntry;
-    }
-
-    public StatEntry getMaxStat() {
-        return maxEntry;
-    }
-
-    public List<StatEntry> getAllEntries() {
-        return List.of(avgEntry, maxEntry);
     }
 }

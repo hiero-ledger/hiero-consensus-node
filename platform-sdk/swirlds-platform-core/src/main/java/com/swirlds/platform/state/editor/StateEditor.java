@@ -3,7 +3,6 @@ package com.swirlds.platform.state.editor;
 
 import static com.swirlds.platform.state.editor.StateEditorUtils.formatNodeType;
 import static com.swirlds.platform.state.editor.StateEditorUtils.formatRoute;
-import static com.swirlds.platform.state.service.PlatformStateFacade.DEFAULT_PLATFORM_STATE_FACADE;
 
 import com.swirlds.cli.utility.CommandBuilder;
 import com.swirlds.common.context.PlatformContext;
@@ -57,7 +56,6 @@ public class StateEditor {
                     // FUTURE WORK: https://github.com/hiero-ledger/hiero-consensus-node/issues/19003
                     throw new UnsupportedOperationException();
                 },
-                DEFAULT_PLATFORM_STATE_FACADE,
                 platformContext);
 
         try (final ReservedSignedState reservedSignedState = deserializedSignedState.reservedSignedState()) {
@@ -205,8 +203,7 @@ public class StateEditor {
                     "StateEditor.getSignedStateCopy()",
                     reservedSignedState.get().isFreezeState(),
                     false,
-                    false,
-                    DEFAULT_PLATFORM_STATE_FACADE);
+                    false);
 
             signedState.set(newSignedState, "StateEditor.getSignedStateCopy() 2");
 

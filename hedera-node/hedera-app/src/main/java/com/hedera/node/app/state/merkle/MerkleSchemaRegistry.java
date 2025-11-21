@@ -6,6 +6,7 @@ import static com.hedera.node.app.state.merkle.SchemaApplicationType.RESTART;
 import static com.hedera.node.app.state.merkle.SchemaApplicationType.STATE_DEFINITIONS;
 import static com.hedera.node.app.state.merkle.VersionUtils.alreadyIncludesStateDefs;
 import static com.hedera.node.app.state.merkle.VersionUtils.isSoOrdered;
+import static com.swirlds.platform.state.service.PlatformStateUtils.roundOf;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.SemanticVersion;
@@ -14,7 +15,6 @@ import com.hedera.node.app.services.MigrationContextImpl;
 import com.hedera.node.app.services.MigrationStateChanges;
 import com.hedera.node.app.spi.migrate.StartupNetworks;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.lifecycle.Schema;
@@ -122,7 +122,6 @@ public class MerkleSchemaRegistry implements SchemaRegistry<SemanticVersion> {
      * @param sharedValues A map of shared values for cross-service migration patterns
      * @param migrationStateChanges Tracker for state changes during migration
      * @param startupNetworks The startup networks to use for the migrations
-     * @param platformStateFacade The platform state facade to use for the migrations
      * @throws IllegalArgumentException if the {@code currentVersion} is not at least the
      * {@code previousVersion} or if the {@code state} is not an instance of {@link MerkleNodeState}
      */
@@ -136,8 +135,7 @@ public class MerkleSchemaRegistry implements SchemaRegistry<SemanticVersion> {
             @NonNull final Configuration platformConfig,
             @NonNull final Map<String, Object> sharedValues,
             @NonNull final MigrationStateChanges migrationStateChanges,
-            @NonNull final StartupNetworks startupNetworks,
-            @NonNull final PlatformStateFacade platformStateFacade) {
+            @NonNull final StartupNetworks startupNetworks) {
         requireNonNull(stateRoot);
         requireNonNull(currentVersion);
         requireNonNull(appConfig);
@@ -147,7 +145,7 @@ public class MerkleSchemaRegistry implements SchemaRegistry<SemanticVersion> {
         if (isSoOrdered(currentVersion, previousVersion)) {
             throw new IllegalArgumentException("The currentVersion must be at least the previousVersion");
         }
-        final long roundNumber = platformStateFacade.roundOf(stateRoot);
+        final long roundNumber = roundOf(stateRoot);
         if (schemas.isEmpty()) {
             logger.info("Service {} does not use state", serviceName);
             return;
