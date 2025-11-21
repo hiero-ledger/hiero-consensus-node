@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.chaos;
 
+import static org.assertj.core.api.Assertions.fail;
+
 import com.swirlds.common.merkle.synchronization.config.ReconnectConfig_;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
@@ -22,6 +24,8 @@ class ChaosTest {
         network.withConfigValue(ReconnectConfig_.MAXIMUM_RECONNECT_FAILURES_BEFORE_SHUTDOWN, Integer.MAX_VALUE);
         network.start();
 
-        env.createChaosBot(ChaosBotConfiguration.DEFAULT).runChaos(Duration.ofMinutes(60L));
+        env.createChaosBot(ChaosBotConfiguration.DEFAULT).runChaos(Duration.ofMinutes(5L));
+
+        fail("Purposefully failing to check if all data is captured in CI.");
     }
 }
