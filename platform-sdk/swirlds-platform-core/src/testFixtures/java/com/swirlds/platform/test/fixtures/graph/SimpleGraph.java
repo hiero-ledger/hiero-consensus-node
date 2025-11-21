@@ -21,7 +21,7 @@ public class SimpleGraph {
         for (final PlatformEvent event : events) {
             final EventImpl linkedEvent = consensusLinker.linkEvent(event);
             Assertions.assertNotNull(linkedEvent);
-            if(event.getConsensusData() != null){
+            if(event.getConsensusTimestamp() != null){
                 linkedEvent.setConsensus(true);
             }
             eventImpls.add(linkedEvent);

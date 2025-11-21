@@ -145,11 +145,13 @@ public class SimpleGraphs {
         final PlatformEvent e0 = new TestingEventBuilder(random)
                         .setCreatorId(NodeId.of(1))
                         .setTimeCreated(Instant.parse("2020-05-06T13:21:56.680Z"))
+                .setConsensusOrder(1L)
                         .build();
 
         final PlatformEvent e1 = new TestingEventBuilder(random)
                         .setCreatorId(NodeId.of(2))
                         .setTimeCreated(Instant.parse("2020-05-06T13:21:56.681Z"))
+                .setConsensusOrder(2L)
                 .build();
 
         final PlatformEvent e2 = new TestingEventBuilder(random)
