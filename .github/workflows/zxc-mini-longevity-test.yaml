@@ -399,7 +399,7 @@ jobs:
         run: |
           set +x
           set +e
-          cd ${{ github.workspace }}/solo
+          cd "${{ github.workspace }}"/solo
 
           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt get svc -n "${{ steps.set-namespace.outputs.namespace }}" -l "solo.hedera.com/type=network-node-svc" |\
             grep -v 'node10' | grep -v 'CLUSTER-IP' > networks.txt
