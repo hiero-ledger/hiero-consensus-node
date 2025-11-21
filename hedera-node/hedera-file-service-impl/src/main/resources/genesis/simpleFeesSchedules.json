@@ -192,6 +192,26 @@
           "extras": []
         }
       ]
+    },
+    {
+      "name": "Contract",
+      "schedule": [
+        {
+          "name": "ContractCreate",
+          "baseFee": 9999000000,
+          "extras": [
+            {
+              "name": "KEYS",
+              "includedCount": 1
+            }
+          ]
+        },
+        {
+          "name": "ContractCall",
+          "baseFee": 49000000,
+          "extras": []
+        }
+      ]
     }
   ]
 }

@@ -4,6 +4,8 @@ package com.hedera.node.app.service.contract.impl;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.node.app.service.contract.ContractService;
+import com.hedera.node.app.service.contract.impl.calculator.ContractCallFeeCalculator;
+import com.hedera.node.app.service.contract.impl.calculator.ContractCreateFeeCalculator;
 import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
 import com.hedera.node.app.service.contract.impl.exec.scope.DefaultVerificationStrategies;
 import com.hedera.node.app.service.contract.impl.exec.scope.VerificationStrategies;
@@ -15,6 +17,7 @@ import com.hedera.node.app.service.contract.impl.nativelibverification.NativeLib
 import com.hedera.node.app.service.contract.impl.schemas.V0490ContractSchema;
 import com.hedera.node.app.service.contract.impl.schemas.V065ContractSchema;
 import com.hedera.node.app.spi.AppContext;
+import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
 import com.hedera.node.config.data.ContractsConfig;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.state.lifecycle.SchemaRegistry;
@@ -114,6 +117,11 @@ public class ContractServiceImpl implements ContractService {
      */
     public NativeLibVerifier nativeLibVerifier() {
         return component.nativeLibVerifier();
+    }
+
+    @Override
+    public Set<ServiceFeeCalculator> serviceFeeCalculators() {
+        return Set.of(new ContractCreateFeeCalculator(), new ContractCallFeeCalculator());
     }
 
     private @NonNull List<CallTranslator<? extends AbstractCallAttempt<?>>> allCallTranslators() {
