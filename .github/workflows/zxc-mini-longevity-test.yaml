@@ -491,7 +491,7 @@ jobs:
           set +e
 
           check_status() {
-           logfile=$1
+           logfile=${1}
            ec=2 # continue
            grep -E 'Finished SmartContractLoadTest' ${logfile} >/dev/null
            if [[ ${?} -eq 0 ]]
