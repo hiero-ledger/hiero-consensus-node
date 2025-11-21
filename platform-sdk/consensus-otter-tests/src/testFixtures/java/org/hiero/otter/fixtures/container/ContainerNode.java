@@ -11,7 +11,6 @@ import static org.hiero.otter.fixtures.container.utils.ContainerConstants.METRIC
 import static org.hiero.otter.fixtures.container.utils.ContainerConstants.NODE_COMMUNICATION_PORT;
 import static org.hiero.otter.fixtures.container.utils.ContainerConstants.OTTER_LOG_PATH;
 import static org.hiero.otter.fixtures.container.utils.ContainerConstants.SWIRLDS_LOG_PATH;
-import static org.hiero.otter.fixtures.internal.AbstractNetwork.NODE_IDENTIFIER_FORMAT;
 import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.DESTROYED;
 import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.INIT;
 import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.RUNNING;
@@ -497,8 +496,6 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
     void destroy() {
         try {
             // copy logs from container to the local filesystem
-            final Path localOutputDirectory =
-                    Path.of("build", "container", NODE_IDENTIFIER_FORMAT.formatted(selfId.id()));
             downloadConsensusFiles(localOutputDirectory);
             downloadConsistencyServiceFiles(localOutputDirectory);
         } catch (final IOException e) {

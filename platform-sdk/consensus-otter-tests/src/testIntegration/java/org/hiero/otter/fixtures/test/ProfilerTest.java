@@ -37,7 +37,7 @@ class ProfilerTest {
             node.stopProfiling();
 
             // Verify the profiling file was created and is not empty
-            final Path profilePath = Path.of("build/container/node-0/profile.jfr");
+            final Path profilePath = env.outputDirectory().resolve("node-0/profile.jfr");
             assertThat(profilePath).isNotEmptyFile();
         } finally {
             env.destroy();

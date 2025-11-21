@@ -29,6 +29,10 @@ testing {
 
         targets.configureEach { testTask { dependsOn(":consensus-otter-docker-app:assemble") } }
     }
+
+    suites.register<JvmTestSuite>("testChaos") {
+        targets.configureEach { testTask { dependsOn(":consensus-otter-docker-app:assemble") } }
+    }
 }
 
 testModuleInfo {
@@ -51,6 +55,10 @@ testIntegrationModuleInfo { //
 }
 
 extensions.getByName<GradleOnlyDirectives>("testOtterModuleInfo").apply {
+    runtimeOnly("io.grpc.netty.shaded")
+}
+
+extensions.getByName<GradleOnlyDirectives>("testChaosModuleInfo").apply {
     runtimeOnly("io.grpc.netty.shaded")
 }
 
