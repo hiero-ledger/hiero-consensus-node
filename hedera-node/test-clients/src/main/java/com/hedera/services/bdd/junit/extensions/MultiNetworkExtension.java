@@ -84,7 +84,7 @@ public class MultiNetworkExtension implements BeforeEachCallback, AfterEachCallb
         if (networkPosition == -1) {
             throw new IllegalArgumentException("Parameter at index " + index + " is not mapped to a network");
         }
-        if (networkPosition < 0 || networkPosition >= networks.length) {
+        if (networkPosition >= networks.length) {
             throw new IllegalStateException("Unexpected network parameter position: " + networkPosition);
         }
         return networks[networkPosition];
