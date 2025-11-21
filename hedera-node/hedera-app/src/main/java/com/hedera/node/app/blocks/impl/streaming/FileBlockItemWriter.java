@@ -10,6 +10,7 @@ import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.BlockProof;
 import com.hedera.hapi.block.stream.MerkleSiblingHash;
 import com.hedera.hapi.block.stream.schema.BlockSchema;
+import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.node.app.blocks.BlockItemWriter;
 import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.config.ConfigProvider;
@@ -37,6 +38,7 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Objects;
 import java.util.function.ToLongFunction;
 import java.util.function.UnaryOperator;
 import java.util.zip.GZIPInputStream;
@@ -237,7 +239,8 @@ public class FileBlockItemWriter implements BlockItemWriter {
                         Arrays.toString(Arrays.copyOfRange(proofJsons.toArray(), i + 1, proofJsons.size())));
                 break;
             }
-            if (pendingProof.blockTimestamp() == null) {
+            if (pendingProof.blockTimestamp() == null
+                    || Objects.equals(pendingProof.blockTimestamp(), Timestamp.DEFAULT)) {
                 logger.warn(
                         "Pending proof metadata from {} is missing block timestamp (not considering remaining - {})",
                         proofJson.toPath(),
