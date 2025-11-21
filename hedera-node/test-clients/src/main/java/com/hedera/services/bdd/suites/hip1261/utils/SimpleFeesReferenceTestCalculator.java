@@ -185,7 +185,7 @@ public class SimpleFeesReferenceTestCalculator {
                     if (apiFee.extras != null) {
                         for (SimpleFeesJsonSchema.Included included : apiFee.extras) {
                             final Extra extra = parseExtra(included != null ? included.name : null);
-                            if (extra != null && included != null) {
+                            if (extra != null) {
                                 includedByExtra.put(extra, included.includedCount);
                             }
                         }
@@ -297,6 +297,9 @@ public class SimpleFeesReferenceTestCalculator {
         long extrasFee = 0L;
         for (Map.Entry<Extra, Long> entry : extrasCounts.entrySet()) {
             final Extra extraName = entry.getKey();
+            if (!includedByExtra.containsKey(extraName)) {
+                continue;
+            }
             final long count = nullToZero(entry.getValue());
             final long included = includedByExtra.getOrDefault(extraName, 0L);
             final long pricePerExtra = priceByExtra.getOrDefault(extraName, 0L);

@@ -1,12 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.hip1261;
-
-import com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesJsonLoader;
-import com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesParams;
-import com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesReferenceTestCalculator;
-import org.hiero.hapi.support.fees.Extra;
-import org.junit.jupiter.api.Test;
-
-import java.util.Map;
 
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_CREATE;
 import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesChargePolicy.INVALID_TXN_AT_PRE_HANDLE_ZERO_PAYER;
@@ -17,12 +10,20 @@ import static com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesReferenceTe
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
+import com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesJsonLoader;
+import com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesParams;
+import com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesReferenceTestCalculator;
+import java.util.Map;
+import org.hiero.hapi.support.fees.Extra;
+import org.junit.jupiter.api.Test;
+
 public class SimpleFeesReferenceTestCalculatorTest {
 
     /**
      *  A simple JSON fee schedule for testing purposes.
      */
-    private static final String TEST_JSON_SCHEDULE = """
+    private static final String TEST_JSON_SCHEDULE =
+            """
             {
               "node": {
                 "baseFee": 1000,
@@ -70,16 +71,17 @@ public class SimpleFeesReferenceTestCalculatorTest {
 
         // Validate global extras prices
         assertEquals(100000, prepared.priceByExtra().get(Extra.SIGNATURES));
-        assertEquals(3,      prepared.priceByExtra().get(Extra.BYTES));
-        assertEquals(500,    prepared.priceByExtra().get(Extra.KEYS));
-        assertEquals(200,    prepared.priceByExtra().get(Extra.ACCOUNTS));
+        assertEquals(3, prepared.priceByExtra().get(Extra.BYTES));
+        assertEquals(500, prepared.priceByExtra().get(Extra.KEYS));
+        assertEquals(200, prepared.priceByExtra().get(Extra.ACCOUNTS));
 
         // Validate service fees
         final var serviceBaseFee = prepared.serviceBaseByApi().get(CRYPTO_CREATE);
         assertEquals(499000000, serviceBaseFee);
 
         // Validate service extras
-        final var serviceIncludedExtras = prepared.serviceIncludedByApiAndExtra().get(CRYPTO_CREATE);
+        final var serviceIncludedExtras =
+                prepared.serviceIncludedByApiAndExtra().get(CRYPTO_CREATE);
         assertEquals(1, serviceIncludedExtras.get(Extra.KEYS));
     }
 
@@ -87,9 +89,7 @@ public class SimpleFeesReferenceTestCalculatorTest {
     void computeReturnsExpectedComponentsForCryptoCreateWithoutExtras() throws Exception {
         final var prepared = preparedSchedule();
 
-        final Map<Extra, Long> extrasCount = SimpleFeesParams
-                .create()
-                .get();
+        final Map<Extra, Long> extrasCount = SimpleFeesParams.create().get();
 
         final var result = compute(prepared, CRYPTO_CREATE, extrasCount);
 
@@ -111,8 +111,7 @@ public class SimpleFeesReferenceTestCalculatorTest {
     void computeReturnsExpectedComponentsForCryptoCreateWithExtras() throws Exception {
         final var prepared = preparedSchedule();
 
-        final Map<Extra, Long> extrasCount = SimpleFeesParams
-                .create()
+        final Map<Extra, Long> extrasCount = SimpleFeesParams.create()
                 .signatures(3L)
                 .keys(2L)
                 .bytes(150L)
@@ -139,13 +138,11 @@ public class SimpleFeesReferenceTestCalculatorTest {
     void computeWithZeroPayerChargedPolicyReturnsExpectedComponents() throws Exception {
         final var prepared = preparedSchedule();
 
-        final Map<Extra, Long> extrasCount = SimpleFeesParams
-                .create()
-                .signatures(1L)
-                .get();
+        final Map<Extra, Long> extrasCount =
+                SimpleFeesParams.create().signatures(1L).get();
 
-        final var result = computeWithPolicy(prepared, CRYPTO_CREATE, extrasCount,
-                INVALID_TXN_AT_PRE_HANDLE_ZERO_PAYER);
+        final var result =
+                computeWithPolicy(prepared, CRYPTO_CREATE, extrasCount, INVALID_TXN_AT_PRE_HANDLE_ZERO_PAYER);
 
         // node fee: 1000
         assertEquals(1000, result.node());
@@ -163,16 +160,15 @@ public class SimpleFeesReferenceTestCalculatorTest {
     void computeWithNodeAndNetworkOnlyChargedPolicyReturnsExpectedComponents() throws Exception {
         final var prepared = preparedSchedule();
 
-        final Map<Extra, Long> extrasCount = SimpleFeesParams
-                .create()
+        final Map<Extra, Long> extrasCount = SimpleFeesParams.create()
                 .signatures(2L)
                 .keys(1L)
                 .bytes(50L)
                 .accounts(1L)
                 .get();
 
-        final var result = computeWithPolicy(prepared, CRYPTO_CREATE, extrasCount,
-                UNHANDLED_TXN_NODE_AND_NETWORK_CHARGE);
+        final var result =
+                computeWithPolicy(prepared, CRYPTO_CREATE, extrasCount, UNHANDLED_TXN_NODE_AND_NETWORK_CHARGE);
 
         // node fee: 1000 + (1 * 100000) + (1 * 500) + (3 * 50) + (1 * 200) = 101850
         assertEquals(101850, result.node());
@@ -192,8 +188,7 @@ public class SimpleFeesReferenceTestCalculatorTest {
     void computeWithFullChargesUsesTotalFees() throws Exception {
         final var prepared = preparedSchedule();
 
-        final Map<Extra, Long> extrasCount = SimpleFeesParams
-                .create()
+        final Map<Extra, Long> extrasCount = SimpleFeesParams.create()
                 .signatures(3L)
                 .keys(1L)
                 .bytes(50L)
@@ -218,7 +213,8 @@ public class SimpleFeesReferenceTestCalculatorTest {
 
     @Test
     void computeIgnoresExtrasWithoutDefinedPrices() throws Exception {
-        final var jsonSchedule = SimpleFeesJsonLoader.fromString("""
+        final var jsonSchedule = SimpleFeesJsonLoader.fromString(
+                """
         {
           "node": { "baseFee": 1000 },
           "network": { "multiplier": 1 },
@@ -239,8 +235,7 @@ public class SimpleFeesReferenceTestCalculatorTest {
 
         final var prepared = SimpleFeesReferenceTestCalculator.prepare(jsonSchedule);
 
-        final Map<Extra, Long> extrasCount = SimpleFeesParams
-                .create()
+        final Map<Extra, Long> extrasCount = SimpleFeesParams.create()
                 .signatures(5L) // no price defined for SIGNATURES
                 .get();
 
@@ -262,7 +257,8 @@ public class SimpleFeesReferenceTestCalculatorTest {
 
     @Test
     void prepareHandlesMissingExtrasAndServicesSections() throws Exception {
-        final var jsonSchedule = SimpleFeesJsonLoader.fromString("""
+        final var jsonSchedule = SimpleFeesJsonLoader.fromString(
+                """
             {
               "node": { "baseFee": 1000 },
               "network": { "multiplier": 1 }
@@ -283,7 +279,8 @@ public class SimpleFeesReferenceTestCalculatorTest {
 
     @Test
     void prepareHandlesEmptyExtrasAndServices() throws Exception {
-        final var jsonSchedule = SimpleFeesJsonLoader.fromString("""
+        final var jsonSchedule = SimpleFeesJsonLoader.fromString(
+                """
             {
               "node": { "baseFee": 1000 },
               "network": { "multiplier": 1 },
@@ -306,7 +303,8 @@ public class SimpleFeesReferenceTestCalculatorTest {
 
     @Test
     void prepareBuildsExpectedNodeAndServiceMapsIgnoringUnknownExtras() throws Exception {
-        final var jsonSchedule = SimpleFeesJsonLoader.fromString("""
+        final var jsonSchedule = SimpleFeesJsonLoader.fromString(
+                """
             {
               "node": {
                 "baseFee": 1000,
@@ -332,7 +330,8 @@ public class SimpleFeesReferenceTestCalculatorTest {
 
     @Test
     void prepareBuildsExpectedNodeAndServiceMapsIgnoringUnknownOperations() throws Exception {
-        final var jsonSchedule = SimpleFeesJsonLoader.fromString("""
+        final var jsonSchedule = SimpleFeesJsonLoader.fromString(
+                """
             {
               "node": { "baseFee": 1000 },
               "network": { "multiplier": 1 },
@@ -362,7 +361,8 @@ public class SimpleFeesReferenceTestCalculatorTest {
 
     @Test
     void computeWithMissingNetworkSectionDefaultsToZeroNetworkFee() throws Exception {
-        final var jsonSchedule = SimpleFeesJsonLoader.fromString("""
+        final var jsonSchedule = SimpleFeesJsonLoader.fromString(
+                """
             {
               "node": { "baseFee": 1000 },
               "extras": [],
@@ -383,9 +383,7 @@ public class SimpleFeesReferenceTestCalculatorTest {
 
         final var prepared = SimpleFeesReferenceTestCalculator.prepare(jsonSchedule);
 
-        final Map<Extra, Long> extrasCount = SimpleFeesParams
-                .create()
-                .get();
+        final Map<Extra, Long> extrasCount = SimpleFeesParams.create().get();
         final var result = compute(prepared, CRYPTO_CREATE, extrasCount);
 
         // node fee: 1000
@@ -400,7 +398,8 @@ public class SimpleFeesReferenceTestCalculatorTest {
 
     @Test
     void computeWithMissingNodeSectionDefaultsToZeroNodeBaseAndIncludedExtras() throws Exception {
-        final var jsonSchedule = SimpleFeesJsonLoader.fromString("""
+        final var jsonSchedule = SimpleFeesJsonLoader.fromString(
+                """
             {
               "network": { "multiplier": 2 },
               "extras": [
@@ -423,10 +422,8 @@ public class SimpleFeesReferenceTestCalculatorTest {
 
         final var prepared = SimpleFeesReferenceTestCalculator.prepare(jsonSchedule);
 
-        final Map<Extra, Long> extrasCount = SimpleFeesParams
-                .create()
-                .signatures(2L)
-                .get();
+        final Map<Extra, Long> extrasCount =
+                SimpleFeesParams.create().signatures(2L).get();
         final var result = compute(prepared, CRYPTO_CREATE, extrasCount);
 
         // node fee: 0 + (2 * 100000) = 200000
@@ -443,7 +440,8 @@ public class SimpleFeesReferenceTestCalculatorTest {
 
     @Test
     void safeAddAndMultiplyOnOverflow() throws Exception {
-        final var jsonSchedule = SimpleFeesJsonLoader.fromString("""
+        final var jsonSchedule = SimpleFeesJsonLoader.fromString(
+                """
         {
           "node": { "baseFee": 9223372036854775800 },
           "network": { "multiplier": 10 },
@@ -456,10 +454,8 @@ public class SimpleFeesReferenceTestCalculatorTest {
 
         final var prepared = SimpleFeesReferenceTestCalculator.prepare(jsonSchedule);
 
-        final Map<Extra, Long> extrasCount = SimpleFeesParams
-                .create()
-                .signatures(2L)
-                .get();
+        final Map<Extra, Long> extrasCount =
+                SimpleFeesParams.create().signatures(2L).get();
 
         final var result = compute(prepared, CRYPTO_CREATE, extrasCount);
 
