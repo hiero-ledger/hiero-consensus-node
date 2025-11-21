@@ -152,8 +152,7 @@ jobs:
         if: ${{ inputs.enable-fast-otter-tests && inputs.enable-network-log-capture && steps.gradle-fast-otter-tests.conclusion == 'failure' && !cancelled() }}
         with:
           name: Otter Tests Turtle Logs
-          path: |
-            platform-sdk/consensus-otter-tests/build/turtle/**
+          path: platform-sdk/consensus-otter-tests/build/turtle
           retention-days: 7
 
       - name: Upload Fast Otter Tests Container Logs
@@ -161,8 +160,7 @@ jobs:
         if: ${{ inputs.enable-fast-otter-tests && inputs.enable-network-log-capture && steps.gradle-fast-otter-tests.conclusion == 'failure' && !cancelled() }}
         with:
           name: Otter Tests Container Logs
-          path: |
-            platform-sdk/consensus-otter-tests/build/container/**
+          path: platform-sdk/consensus-otter-tests/build/container
           retention-days: 7
 
       - name: Full Otter Testing
@@ -179,7 +177,7 @@ jobs:
         with:
           check_name: "Node: Otter Tests Results"
           json_thousands_separator: ","
-          junit_files: "**/consensus-otter-tests/build/test-results/testOtter/TEST-*.xml"
+          junit_files: "**/consensus-otter-tests/build/test-results/testContainer/TEST-*.xml"
           comment_mode: errors # only comment if we could not find or parse the JUnit XML files
 
       - name: Upload Full Otter Tests Report Artifacts
@@ -187,16 +185,7 @@ jobs:
         if: ${{ inputs.enable-full-otter-tests && steps.gradle-build.conclusion == 'success' && !cancelled() }}
         with:
           name: Otter Tests Report
-          path: "**/consensus-otter-tests/build/test-results/testOtter/TEST-*.xml"
-          retention-days: 7
-
-      - name: Upload Full Otter Tests Turtle Logs
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: ${{ inputs.enable-full-otter-tests && inputs.enable-network-log-capture && steps.gradle-full-otter-tests.conclusion == 'failure' && !cancelled() }}
-        with:
-          name: Otter Tests Turtle Logs
-          path: |
-            platform-sdk/consensus-otter-tests/build/turtle/**
+          path: "**/consensus-otter-tests/build/test-results/testContainer/TEST-*.xml"
           retention-days: 7
 
       - name: Upload Full Otter Tests Container Logs
@@ -204,8 +193,7 @@ jobs:
         if: ${{ inputs.enable-full-otter-tests && inputs.enable-network-log-capture && steps.gradle-full-otter-tests.conclusion == 'failure' && !cancelled() }}
         with:
           name: Otter Tests Container Logs
-          path: |
-            platform-sdk/consensus-otter-tests/build/container/**
+          path: platform-sdk/consensus-otter-tests/build/container
           retention-days: 7
 
       - name: Chaos Otter Testing
@@ -238,8 +226,7 @@ jobs:
         if: ${{ inputs.enable-chaos-otter-tests && inputs.enable-network-log-capture && steps.gradle-chaos-otter-tests.conclusion == 'failure' && !cancelled() }}
         with:
           name: Chaos Otter Tests Turtle Logs
-          path: |
-            platform-sdk/consensus-otter-tests/build/turtle/**
+          path: platform-sdk/consensus-otter-tests/build/turtle
           retention-days: 7
 
       - name: Upload Chaos Otter Tests Container Logs
@@ -247,8 +234,7 @@ jobs:
         if: ${{ inputs.enable-chaos-otter-tests && inputs.enable-network-log-capture && steps.gradle-chaos-otter-tests.conclusion == 'failure' && !cancelled() }}
         with:
           name: Chaos Otter Tests Container Logs
-          path: |
-            platform-sdk/consensus-otter-tests/build/container/**
+          path: platform-sdk/consensus-otter-tests/build/container
           retention-days: 7
 
       - name: Check Results
