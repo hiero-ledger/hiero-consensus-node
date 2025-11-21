@@ -188,15 +188,20 @@ public abstract class AbstractEventSource implements EventSource {
         Objects.requireNonNull(timestamp);
         final EventImpl event;
 
-        // The higher the index, the older the event. Use the oldest parent between the provided and requested value.
-        final int otherParentIndex = Math.max(
-                // event index (event age) that this node wants to use as it's other parent
-                getRequestedOtherParentAge(random, eventIndex),
-                // event index (event age) that the other node wants to provide as an other parent to this node
-                otherParent.getProvidedOtherParentAge(random, eventIndex));
 
-        final EventImpl otherParentEvent =
-                otherParent == null ? null : otherParent.getRecentEvent(random, otherParentIndex);
+
+        final EventImpl otherParentEvent;
+        if(otherParent != null){
+            // The higher the index, the older the event. Use the oldest parent between the provided and requested value.
+            final int otherParentIndex = Math.max(
+                    // event index (event age) that this node wants to use as it's other parent
+                    getRequestedOtherParentAge(random, eventIndex),
+                    // event index (event age) that the other node wants to provide as an other parent to this node
+                    otherParent.getProvidedOtherParentAge(random, eventIndex));
+            otherParentEvent = otherParent.getRecentEvent(random, otherParentIndex);
+        }else{
+            otherParentEvent = null;
+        }
         final EventImpl latestSelfEvent = getLatestEvent(random);
 
         event = RandomEventUtils.randomEventWithTimestamp(

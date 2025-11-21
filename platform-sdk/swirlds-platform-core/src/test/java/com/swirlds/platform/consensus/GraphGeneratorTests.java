@@ -469,6 +469,23 @@ public class GraphGeneratorTests {
     @Test
     @Tag(TestComponentTags.PLATFORM)
     @Tag(TestComponentTags.CONSENSUS)
+    @DisplayName("Test Single Source Generator")
+    public void testSingleSourceGenerator() {
+        final StandardEventEmitter emitter = EventEmitterBuilder.newBuilder()
+                .setRandomSeed(0)
+                .setNumNodes(1)
+                .setPlatformContext(DEFAULT_PLATFORM_CONTEXT)
+                .build();
+
+        validateReset(emitter.getGraphGenerator());
+        validateEventOrder(emitter.getGraphGenerator());
+        // the validation below currently fails because we cannot reach consensus on single node networks
+        //validateBirthRoundAdvancing(emitter.getGraphGenerator());
+    }
+
+    @Test
+    @Tag(TestComponentTags.PLATFORM)
+    @Tag(TestComponentTags.CONSENSUS)
     @DisplayName("Branching Source Test")
     public void branchingSourceTest() {
         final int numberOfEvents = 1000;

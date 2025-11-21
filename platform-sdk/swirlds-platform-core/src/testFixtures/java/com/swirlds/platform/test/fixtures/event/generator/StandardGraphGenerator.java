@@ -28,12 +28,14 @@ import com.swirlds.platform.test.fixtures.event.DynamicValue;
 import com.swirlds.platform.test.fixtures.event.DynamicValueGenerator;
 import com.swirlds.platform.test.fixtures.event.source.EventSource;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import org.hiero.consensus.crypto.DefaultEventHasher;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
@@ -366,7 +368,10 @@ public class StandardGraphGenerator extends AbstractGraphGenerator {
      *
      * @param source The node that is creating the event.
      */
-    private EventSource getNextOtherParentSource(final long eventIndex, final EventSource source) {
+    private @Nullable EventSource getNextOtherParentSource(final long eventIndex, final EventSource source) {
+        if(roster.rosterEntries().size() == 1){
+            return null;
+        }
         final List<Double> affinityVector = getOtherParentAffinityVector(
                 eventIndex, RosterUtils.getIndex(roster, source.getNodeId().id()));
         final int nodeIndex = weightedChoice(getRandom(), affinityVector);
@@ -376,7 +381,7 @@ public class StandardGraphGenerator extends AbstractGraphGenerator {
     /**
      * Get the next timestamp for the next event.
      */
-    private Instant getNextTimestamp(final EventSource source, final NodeId otherParentId) {
+    private Instant getNextTimestamp(@NonNull final EventSource source, @Nullable final NodeId otherParentId) {
         if (previousTimestamp == null) {
             previousTimestamp = DEFAULT_FIRST_EVENT_TIME_CREATED;
             previousCreatorId = source.getNodeId();
@@ -423,7 +428,7 @@ public class StandardGraphGenerator extends AbstractGraphGenerator {
                 getRandom(),
                 eventIndex,
                 otherParentSource,
-                getNextTimestamp(source, otherParentSource.getNodeId()),
+                getNextTimestamp(source, Optional.ofNullable(otherParentSource).map(EventSource::getNodeId).orElse(null)),
                 birthRound);
 
         new DefaultEventHasher().hashEvent(next.getBaseEvent());
