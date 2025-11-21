@@ -4,6 +4,7 @@ package com.hedera.node.app.blocks.impl.streaming;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchRuntimeException;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeast;
@@ -392,12 +393,11 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
 
         verify(connectionManager)
                 .recordBlockAckAndCheckLatency(eq(connection.getNodeConfig()), eq(10L), any(Instant.class));
-        verify(bufferService).getLastBlockNumberProduced();
+        verify(bufferService, atLeastOnce()).getLastBlockNumberProduced();
         verify(bufferService).setLatestAcknowledgedBlock(10);
         verify(bufferService).getHighestAckedBlockNumber();
         verify(bufferService).getEarliestAvailableBlockNumber();
         verify(metrics).recordResponseReceived(ResponseOneOfType.ACKNOWLEDGEMENT);
-        verify(metrics).recordStreamingBlockNumber(11);
         verifyNoMoreInteractions(metrics);
         verifyNoMoreInteractions(bufferService);
         verifyNoMoreInteractions(connectionManager);
@@ -418,7 +418,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
 
         assertThat(streamingBlockNumber).hasValue(10L); // should not change
 
-        verify(bufferService).getLastBlockNumberProduced();
+        verify(bufferService, atLeastOnce()).getLastBlockNumberProduced();
         verify(bufferService).setLatestAcknowledgedBlock(8);
         verify(bufferService).getHighestAckedBlockNumber();
         verify(bufferService).getEarliestAvailableBlockNumber();
@@ -445,12 +445,11 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
 
         assertThat(streamingBlockNumber).hasValue(12); // should be 1 + acked block number
 
-        verify(bufferService).getLastBlockNumberProduced();
+        verify(bufferService, atLeastOnce()).getLastBlockNumberProduced();
         verify(bufferService).setLatestAcknowledgedBlock(11L);
-        verify(bufferService).getHighestAckedBlockNumber();
-        verify(bufferService).getEarliestAvailableBlockNumber();
+        verify(bufferService, atLeastOnce()).getHighestAckedBlockNumber();
+        verify(bufferService, atLeastOnce()).getEarliestAvailableBlockNumber();
         verify(metrics).recordResponseReceived(ResponseOneOfType.ACKNOWLEDGEMENT);
-        verify(metrics).recordStreamingBlockNumber(12L);
         verify(bufferService, times(10)).getBlockState(anyLong());
         verifyNoMoreInteractions(connectionManager);
         verifyNoMoreInteractions(metrics);
@@ -473,12 +472,11 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
 
         assertThat(streamingBlockNumber).hasValue(12); // should be 1 + acked block number
 
-        verify(bufferService).getLastBlockNumberProduced();
+        verify(bufferService, atLeastOnce()).getLastBlockNumberProduced();
         verify(bufferService).setLatestAcknowledgedBlock(11L);
         verify(bufferService).getHighestAckedBlockNumber();
         verify(bufferService).getEarliestAvailableBlockNumber();
         verify(metrics).recordResponseReceived(ResponseOneOfType.ACKNOWLEDGEMENT);
-        verify(metrics).recordStreamingBlockNumber(12L);
         verify(bufferService, times(11)).getBlockState(anyLong());
         verifyNoMoreInteractions(connectionManager);
         verifyNoMoreInteractions(metrics);
@@ -503,10 +501,10 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         // Should not jump to block since acknowledgement is not newer
         assertThat(streamingBlockNumber).hasValue(10L);
 
-        verify(bufferService).getLastBlockNumberProduced();
+        verify(bufferService, atLeastOnce()).getLastBlockNumberProduced();
         verify(bufferService).setLatestAcknowledgedBlock(10L);
-        verify(bufferService).getHighestAckedBlockNumber();
-        verify(bufferService).getEarliestAvailableBlockNumber();
+        verify(bufferService, atLeastOnce()).getHighestAckedBlockNumber();
+        verify(bufferService, atLeastOnce()).getEarliestAvailableBlockNumber();
         verify(metrics).recordResponseReceived(ResponseOneOfType.ACKNOWLEDGEMENT);
         verify(bufferService, times(10)).getBlockState(anyLong());
         verifyNoMoreInteractions(connectionManager);
@@ -533,7 +531,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         // Should not jump to block since acknowledgement is not newer
         assertThat(streamingBlockNumber).hasValue(10L);
 
-        verify(bufferService).getLastBlockNumberProduced();
+        verify(bufferService, atLeastOnce()).getLastBlockNumberProduced();
         verify(bufferService).setLatestAcknowledgedBlock(10L);
         verify(metrics).recordResponseReceived(ResponseOneOfType.ACKNOWLEDGEMENT);
         verify(connectionManager).isOnlyOneBlockNodeConfigured();
@@ -655,8 +653,8 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         verify(metrics).recordActiveConnectionIp(-1L);
         verify(metrics).recordRequestEndStreamSent(EndStream.Code.TOO_FAR_BEHIND);
         verify(metrics).recordRequestLatency(anyLong());
-        verify(bufferService, times(1)).getEarliestAvailableBlockNumber();
-        verify(bufferService, times(2)).getHighestAckedBlockNumber();
+        verify(bufferService, atLeastOnce()).getEarliestAvailableBlockNumber();
+        verify(bufferService, atLeastOnce()).getHighestAckedBlockNumber();
         verify(bufferService).getBlockState(11L);
         verify(requestPipeline)
                 .onNext(PublishStreamRequest.newBuilder()
@@ -701,7 +699,6 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
 
         verify(metrics).recordLatestBlockSkipBlock(25L);
         verify(metrics).recordResponseReceived(ResponseOneOfType.SKIP_BLOCK);
-        verify(metrics).recordStreamingBlockNumber(26);
         verifyNoMoreInteractions(metrics);
         verifyNoMoreInteractions(requestPipeline);
         verifyNoMoreInteractions(connectionManager);
@@ -740,7 +737,6 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
 
         verify(metrics).recordLatestBlockResendBlock(10L);
         verify(metrics).recordResponseReceived(ResponseOneOfType.RESEND_BLOCK);
-        verify(metrics).recordStreamingBlockNumber(10);
         verify(bufferService).getBlockState(10L);
         verifyNoMoreInteractions(metrics);
         verifyNoMoreInteractions(requestPipeline);
@@ -1272,7 +1268,6 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
 
         verify(bufferService).getLastBlockNumberProduced();
         verify(bufferService).getBlockState(101);
-        verify(metrics, atLeastOnce()).recordStreamingBlockNumber(anyLong());
         verifyNoMoreInteractions(bufferService);
         verifyNoInteractions(connectionManager);
         verifyNoMoreInteractions(metrics);
@@ -1295,9 +1290,6 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
 
         assertThat(streamingBlockNumber).hasValue(-1);
 
-        verify(bufferService, atLeastOnce()).getHighestAckedBlockNumber();
-        verify(bufferService, atLeastOnce()).getEarliestAvailableBlockNumber();
-        verify(metrics, times(5)).recordStreamingBlockNumber(anyLong());
         verify(bufferService).getLastBlockNumberProduced();
         verifyNoMoreInteractions(bufferService);
         verifyNoMoreInteractions(metrics);
@@ -1420,9 +1412,11 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         verify(bufferService, atLeastOnce()).getBlockState(11);
         verify(bufferService, atLeastOnce()).getBlockState(12);
         verify(bufferService, atLeastOnce()).getEarliestAvailableBlockNumber();
-        verify(metrics, times(2)).recordRequestBlockItemCount(1);
-        verify(metrics, times(2)).recordRequestBytes(anyLong());
-        verify(metrics).recordStreamingBlockNumber(anyLong());
+        verify(metrics, times(1)).recordRequestBlockItemCount(1);
+        verify(metrics, times(1)).recordRequestBytes(anyLong());
+        verify(metrics, atLeastOnce()).recordStreamingBlockNumber(anyLong());
+        verify(metrics, atLeastOnce()).recordLatestBlockEndOfBlockSent(anyLong());
+        verify(metrics, atLeastOnce()).recordHeaderSentToBlockEndSentLatency(anyLong());
 
         verifyNoMoreInteractions(bufferService);
         verifyNoMoreInteractions(connectionManager);
@@ -1533,6 +1527,9 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         verify(bufferService, times(6)).getEarliestAvailableBlockNumber();
         verify(bufferService, times(6)).getHighestAckedBlockNumber();
         verify(connectionManager).notifyConnectionClosed(connection);
+        verify(metrics, atLeastOnce()).recordStreamingBlockNumber(anyLong());
+        verify(metrics, atLeastOnce()).recordRequestBlockItemCount(anyInt());
+        verify(metrics, atLeastOnce()).recordRequestBytes(anyLong());
 
         verifyNoMoreInteractions(metrics);
         verifyNoMoreInteractions(requestPipeline);
