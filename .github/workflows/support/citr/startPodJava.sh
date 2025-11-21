@@ -49,7 +49,7 @@ if [[ "${isToClean}" = "import" ]]
 then
   echo "Prepare for import ..."
 
-  cd ${APP_HOME}
+  cd "${APP_HOME}"
   rm -rf output/*
   ls -lt "data/saved/com.hedera.services.ServicesMain/${node_id}/123"
 fi
