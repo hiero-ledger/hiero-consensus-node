@@ -2,6 +2,7 @@
 package org.hiero.otter.test;
 
 import static com.swirlds.common.test.fixtures.WeightGenerators.TOTAL_NETWORK_WEIGHT;
+import static org.assertj.core.api.Assertions.fail;
 import static org.hiero.consensus.model.status.PlatformStatus.ACTIVE;
 import static org.hiero.consensus.model.status.PlatformStatus.BEHIND;
 import static org.hiero.consensus.model.status.PlatformStatus.CHECKING;
@@ -134,6 +135,8 @@ public class ReconnectTest {
                         .requiringInterim(REPLAYING_EVENTS, OBSERVING, BEHIND, RECONNECT_COMPLETE, CHECKING));
 
         assertThat(network.newEventStreamResults()).haveEqualFiles();
+
+        fail("Purposefully failing to check if all data is captured in CI.");
     }
 
     /**
