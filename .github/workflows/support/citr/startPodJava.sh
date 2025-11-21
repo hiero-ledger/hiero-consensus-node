@@ -51,7 +51,7 @@ then
 
   cd ${APP_HOME}
   rm -rf output/*
-  ls -lt data/saved/com.hedera.services.ServicesMain/${node_id}/123
+  ls -lt "data/saved/com.hedera.services.ServicesMain/${node_id}/123"
 fi
 
 LANG=C.utf8
