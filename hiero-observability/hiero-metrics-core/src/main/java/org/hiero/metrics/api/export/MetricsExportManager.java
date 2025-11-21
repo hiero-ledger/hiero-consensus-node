@@ -154,7 +154,10 @@ public interface MetricsExportManager extends AutoCloseable {
 
         /**
          * Enables discovery of exporters using SPI by looking for available {@link MetricsExporterFactory}s.
-         * Export interval seconds from the configuration will be override manually set value
+         * Uses {@link MetricsExportManagerConfig} from the provided configuration to determine which exporters
+         * are enabled and their settings.
+         * <p>
+         * Export interval seconds from the configuration will be overridden manually set value
          * by {@link #withExportIntervalSeconds(int)}.
          *
          * @param configuration the configuration to use for creating exporters, must not be {@code null}
