@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.interledger.clpr.client;
 
+import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -33,7 +34,10 @@ public interface ClprClient extends AutoCloseable {
      * @param clprLedgerConfiguration the CLPR ledger configuration to set.
      */
     @NonNull
-    ResponseCodeEnum setConfiguration(@NonNull ClprLedgerConfiguration clprLedgerConfiguration);
+    ResponseCodeEnum setConfiguration(
+            @NonNull AccountID payerAccountId,
+            @NonNull AccountID nodeAccountId,
+            @NonNull ClprLedgerConfiguration clprLedgerConfiguration);
 
     /**
      * Closes the CLPR client connection.

@@ -22,6 +22,7 @@ import "services/basic_types.proto";
 import "services/query_header.proto";
 import "services/response_header.proto";
 import "interledger/state/clpr/clpr_ledger.proto";
+import "block/stream/state_proof.proto";
 
 /**
  * Query for the CLPR Ledger Configuration matching the given ledger id,
@@ -61,10 +62,11 @@ message ClprGetLedgerConfigurationResponse {
     proto.ResponseHeader header = 1;
 
     /**
-     * The ledger configuration requested by the query
+     * The state proof containing the ledger configuration requested by the query.
      * <p>
-     * This value may be absent if there does not exist
-     * a ledger configuration for the given ledger id.
+     * This state proof contains the serialized ClprLedgerConfiguration as the leaf payload.
+     * <p>
+     * This value may be absent if there does not exist a ledger configuration for the given ledger id.
      */
-    org.hiero.hapi.interledger.state.clpr.ClprLedgerConfiguration ledger_configuration = 2;
+    com.hedera.hapi.block.stream.StateProof ledger_configuration_proof = 2;
 }

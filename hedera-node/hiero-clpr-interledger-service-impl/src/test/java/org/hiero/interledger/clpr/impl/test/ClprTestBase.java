@@ -4,10 +4,20 @@ package org.hiero.interledger.clpr.impl.test;
 import static org.hiero.interledger.clpr.impl.schemas.V0650ClprSchema.CLPR_LEDGER_CONFIGURATIONS_STATE_ID;
 import static org.hiero.interledger.clpr.impl.schemas.V0650ClprSchema.CLPR_LEDGER_CONFIGURATIONS_STATE_KEY;
 
+import com.hedera.hapi.block.stream.StateProof;
 import com.hedera.hapi.node.base.Timestamp;
+import com.hedera.hapi.node.state.blockstream.MerkleLeaf;
+import com.hedera.hapi.platform.state.StateItem;
+import com.hedera.hapi.platform.state.StateKey;
+import com.hedera.hapi.platform.state.StateValue;
+import com.hedera.node.app.hapi.utils.blocks.MerklePathBuilder;
+import com.hedera.node.app.hapi.utils.blocks.StateProofBuilder;
 import com.hedera.node.app.history.ReadableHistoryStore;
 import com.hedera.node.app.store.ReadableStoreFactory;
+import com.hedera.pbj.runtime.Codec;
+import com.hedera.pbj.runtime.io.WritableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import com.swirlds.state.spi.ReadableStates;
 import com.swirlds.state.spi.WritableKVState;
 import com.swirlds.state.spi.WritableStates;
@@ -15,7 +25,10 @@ import com.swirlds.state.test.fixtures.MapReadableKVState;
 import com.swirlds.state.test.fixtures.MapReadableStates;
 import com.swirlds.state.test.fixtures.MapWritableKVState;
 import com.swirlds.state.test.fixtures.MapWritableStates;
-import java.util.HashMap;
+import edu.umd.cs.findbugs.annotations.NonNull;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
@@ -57,7 +70,7 @@ public class ClprTestBase {
     protected ReadableStoreFactory mockStoreFactory;
 
     protected void setupStates() {
-        configurationMap = new HashMap<>(0);
+        configurationMap = new LinkedHashMap<>(0);
         writableLedgerConfiguration = new MapWritableKVState<>(
                 CLPR_LEDGER_CONFIGURATIONS_STATE_ID, CLPR_LEDGER_CONFIGURATIONS_STATE_KEY, configurationMap);
         readableLedgerConfiguration = new MapReadableKVState<>(
@@ -109,5 +122,39 @@ public class ClprTestBase {
     protected void setupBase() {
         setupStates();
         setupScenario();
+    }
+
+    protected StateProof buildStateProof(@NonNull final ClprLedgerConfiguration configuration) {
+        final var stateKey = StateKey.newBuilder()
+                .clprServiceIConfigurations(configuration.ledgerIdOrThrow())
+                .build();
+        final var stateValue = StateValue.newBuilder()
+                .clprServiceIConfigurations(configuration)
+                .build();
+        final var stateItem = new StateItem(stateKey, stateValue);
+        final var stateItemBytes = encode(StateItem.PROTOBUF, stateItem);
+        final var leaf = MerkleLeaf.newBuilder().stateItem(stateItemBytes).build();
+        final var path = new MerklePathBuilder().setLeaf(leaf);
+        return StateProofBuilder.newBuilder().addMerklePath(path).build();
+    }
+
+    protected StateProof buildInvalidStateProof(@NonNull final ClprLedgerConfiguration configuration) {
+        final var proof = buildStateProof(configuration);
+        return proof.copyBuilder()
+                .signedBlockProof(proof.signedBlockProofOrThrow()
+                        .copyBuilder()
+                        .blockSignature(Bytes.wrap(new byte[] {1, 2, 3}))
+                        .build())
+                .build();
+    }
+
+    private static <T> Bytes encode(final Codec<T> codec, final T value) {
+        try (final ByteArrayOutputStream bout = new ByteArrayOutputStream()) {
+            final WritableSequentialData out = new WritableStreamingData(bout);
+            codec.write(value, out);
+            return Bytes.wrap(bout.toByteArray());
+        } catch (final IOException e) {
+            throw new IllegalStateException("Failed to encode PBJ value", e);
+        }
     }
 }

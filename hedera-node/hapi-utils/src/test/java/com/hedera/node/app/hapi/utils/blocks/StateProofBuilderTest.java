@@ -44,8 +44,8 @@ class StateProofBuilderTest {
         final var builder = StateProofBuilder.newBuilder().addProof(proofs[0]).addProof(proofs[3]);
         final StateProof stateProof = builder.build();
 
-        final var verifier = new StateProofVerifier();
-        assertThat(verifier.verifyRootHashForTest(stateProof, tree.rootHash())).isTrue();
+        assertThat(StateProofVerifier.verifyRootHashForTest(stateProof, tree.rootHash()))
+                .isTrue();
     }
 
     @Test
@@ -72,8 +72,8 @@ class StateProofBuilderTest {
 
         final var extendedRoot = HashUtils.joinHashes(HashUtils.newMessageDigest(), extensionSibling, tree.rootHash());
         final var stateProof = builder.build();
-        final var verifier = new StateProofVerifier();
-        assertThat(verifier.verifyRootHashForTest(stateProof, extendedRoot)).isTrue();
+        assertThat(StateProofVerifier.verifyRootHashForTest(stateProof, extendedRoot))
+                .isTrue();
     }
 
     @Test
@@ -90,8 +90,8 @@ class StateProofBuilderTest {
                 .isEqualTo(TssSignedBlockProof.newBuilder()
                         .blockSignature(CUSTOM_SIGNATURE)
                         .build());
-        final var verifier = new StateProofVerifier();
-        assertThat(verifier.verifyRootHashForTest(stateProof, tree.rootHash())).isTrue();
+        assertThat(StateProofVerifier.verifyRootHashForTest(stateProof, tree.rootHash()))
+                .isTrue();
     }
 
     @Test

@@ -44,14 +44,29 @@ public class HapiGetLedgerConfig extends HapiQueryOp<HapiGetLedgerConfig> {
 
     @Override
     protected void assertExpectationsGiven(HapiSpec spec) {
-        final var info = response.getClprLedgerConfiguration().getLedgerConfiguration();
-        assertEquals(expectedEndpoints.size(), info.getEndpointsCount(), "Wrong number of endpoints!");
-        for (int i = 0; i < expectedEndpoints.size(); i++) {
-            final var expected = expectedEndpoints.get(i);
-            final var actual = info.getEndpoints(i);
-            assertEquals(expected, actual);
+        try {
+            final var protocProof = response.getClprLedgerConfiguration().getLedgerConfigurationProof();
+            // Convert protoc StateProof to PBJ StateProof via bytes
+            final var pbjProof = com.hedera.hapi.block.stream.StateProof.PROTOBUF.parse(
+                    com.hedera.pbj.runtime.io.buffer.Bytes.wrap(protocProof.toByteArray())
+                            .toReadableSequentialData());
+            final var pbjConfig = org.hiero.interledger.clpr.impl.ClprStateProofUtils.extractConfiguration(pbjProof);
+
+            // Convert PBJ config back to protoc config for comparison
+            final var configBytes =
+                    org.hiero.hapi.interledger.state.clpr.ClprLedgerConfiguration.PROTOBUF.toBytes(pbjConfig);
+            final var info = org.hiero.hapi.interledger.state.clpr.protoc.ClprLedgerConfiguration.parseFrom(
+                    configBytes.toByteArray());
+            assertEquals(expectedEndpoints.size(), info.getEndpointsCount(), "Wrong number of endpoints!");
+            for (int i = 0; i < expectedEndpoints.size(); i++) {
+                final var expected = expectedEndpoints.get(i);
+                final var actual = info.getEndpoints(i);
+                assertEquals(expected, actual);
+            }
+            expectedTs.ifPresent(exp -> assertEquals(exp, info.getTimestamp().getSeconds(), "Bad timestamp!"));
+        } catch (com.hedera.pbj.runtime.ParseException | com.google.protobuf.InvalidProtocolBufferException e) {
+            throw new RuntimeException("Failed to parse ledger configuration", e);
         }
-        expectedTs.ifPresent(exp -> assertEquals(exp, info.getTimestamp().getSeconds(), "Bad timestamp!"));
     }
 
     @Override
@@ -74,9 +89,18 @@ public class HapiGetLedgerConfig extends HapiQueryOp<HapiGetLedgerConfig> {
     @Override
     protected void processAnswerOnlyResponse(@NonNull final HapiSpec spec) {
         if (verboseLoggingOn) {
-            String message = String.format(
-                    "Info: %s", response.getClprLedgerConfiguration().getLedgerConfiguration());
-            log.info(message);
+            try {
+                final var protocProof = response.getClprLedgerConfiguration().getLedgerConfigurationProof();
+                // Convert protoc StateProof to PBJ StateProof via bytes
+                final var pbjProof = com.hedera.hapi.block.stream.StateProof.PROTOBUF.parse(
+                        com.hedera.pbj.runtime.io.buffer.Bytes.wrap(protocProof.toByteArray())
+                                .toReadableSequentialData());
+                final var pbjConfig =
+                        org.hiero.interledger.clpr.impl.ClprStateProofUtils.extractConfiguration(pbjProof);
+                log.info("Info: {}", pbjConfig);
+            } catch (com.hedera.pbj.runtime.ParseException e) {
+                throw new RuntimeException("Failed to parse state proof", e);
+            }
         }
     }
 

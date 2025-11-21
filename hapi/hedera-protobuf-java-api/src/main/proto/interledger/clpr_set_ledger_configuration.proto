@@ -19,6 +19,7 @@ option java_package = "org.hiero.hapi.interledger.clpr.protoc";
 option java_multiple_files = true;
 
 import "services/basic_types.proto";
+import "block/stream/state_proof.proto";
 import "interledger/state/clpr/clpr_ledger.proto";
 
 
@@ -27,8 +28,10 @@ import "interledger/state/clpr/clpr_ledger.proto";
  *
  */
 message ClprSetLedgerConfigurationTransactionBody {
-    /**
-     * The ledger configuration to set.
-     */
-    org.hiero.hapi.interledger.state.clpr.ClprLedgerConfiguration ledger_configuration = 1;
+  /**
+   * State proof containing the ledger configuration encoded as a state item
+   * leaf. Clients MUST verify the proof and extract the configuration from
+   * the leaf bytes.
+   */
+  com.hedera.hapi.block.stream.StateProof ledger_configuration_proof = 1;
 }

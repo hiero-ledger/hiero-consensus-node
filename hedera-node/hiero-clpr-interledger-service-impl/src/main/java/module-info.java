@@ -15,9 +15,11 @@ module org.hiero.interledger.clpr.impl {
     requires transitive io.helidon.grpc.core;
     requires transitive io.helidon.webclient.grpc;
     requires transitive javax.inject;
+    requires com.hedera.node.app.hapi.utils;
     requires com.hedera.pbj.grpc.client.helidon;
     requires com.hedera.pbj.runtime;
     requires com.swirlds.metrics.api;
+    requires com.swirlds.state.impl;
     requires io.helidon.common.tls;
     requires org.apache.logging.log4j;
     requires static transitive com.github.spotbugs.annotations;

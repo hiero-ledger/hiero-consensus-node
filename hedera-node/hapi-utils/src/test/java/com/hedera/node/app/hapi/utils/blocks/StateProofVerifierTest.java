@@ -36,8 +36,6 @@ class StateProofVerifierTest {
         28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48
     });
 
-    private final StateProofVerifier verifier = new StateProofVerifier();
-
     @Test
     @DisplayName("verify() should return true for valid single-proof StateProof")
     void verifySingleProof() {
@@ -47,8 +45,9 @@ class StateProofVerifierTest {
         final var stateProof =
                 StateProofBuilder.newBuilder().addProof(proofs[0]).build();
 
-        assertThat(verifier.verify(stateProof)).isTrue();
-        assertThat(verifier.verifyRootHashForTest(stateProof, tree.rootHash())).isTrue();
+        assertThat(StateProofVerifier.verify(stateProof)).isTrue();
+        assertThat(StateProofVerifier.verifyRootHashForTest(stateProof, tree.rootHash()))
+                .isTrue();
     }
 
     @Test
@@ -62,8 +61,9 @@ class StateProofVerifierTest {
                 .addProof(proofs[3])
                 .build();
 
-        assertThat(verifier.verify(stateProof)).isTrue();
-        assertThat(verifier.verifyRootHashForTest(stateProof, tree.rootHash())).isTrue();
+        assertThat(StateProofVerifier.verify(stateProof)).isTrue();
+        assertThat(StateProofVerifier.verifyRootHashForTest(stateProof, tree.rootHash()))
+                .isTrue();
     }
 
     @Test
@@ -78,7 +78,7 @@ class StateProofVerifierTest {
                 .withTssSignature(wrongSignature)
                 .build();
 
-        assertThat(verifier.verify(stateProof)).isFalse();
+        assertThat(StateProofVerifier.verify(stateProof)).isFalse();
     }
 
     @Test
@@ -93,7 +93,7 @@ class StateProofVerifierTest {
         final var stateProof = StateProof.newBuilder().paths(merklePath).build(); // No signature
 
         // Then verification should fail
-        assertThat(verifier.verify(stateProof)).isFalse();
+        assertThat(StateProofVerifier.verify(stateProof)).isFalse();
     }
 
     @Test
@@ -116,7 +116,7 @@ class StateProofVerifierTest {
         final var tamperedStateProof =
                 stateProof.copyBuilder().paths(tamperedPaths).build();
 
-        assertThat(verifier.verify(tamperedStateProof)).isFalse();
+        assertThat(StateProofVerifier.verify(tamperedStateProof)).isFalse();
     }
 
     @Test
@@ -130,10 +130,10 @@ class StateProofVerifierTest {
                 .addProof(proofs[2])
                 .build();
 
-        final boolean isValid = verifier.verify(builtStateProof);
+        final boolean isValid = StateProofVerifier.verify(builtStateProof);
 
         assertThat(isValid).isTrue();
-        assertThat(verifier.verifyRootHashForTest(builtStateProof, tree.rootHash()))
+        assertThat(StateProofVerifier.verifyRootHashForTest(builtStateProof, tree.rootHash()))
                 .isTrue();
 
         final var stateItems = builtStateProof.paths().stream()

@@ -2,12 +2,12 @@
 package com.hedera.node.app.hapi.utils.blocks;
 
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.assertAllDatabasesClosed;
-import static com.swirlds.state.test.fixtures.merkle.VirtualMapStateTestUtils.createTestState;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.hedera.hapi.block.stream.StateProof;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.state.MerkleProof;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.spi.CommittableWritableStates;
@@ -21,14 +21,14 @@ import org.junit.jupiter.api.Test;
 
 /**
  * Integration test that exercises {@link StateProofBuilder} and {@link StateProofVerifier}
- * against the real {@code State} API using the {@link VirtualMapState} fixture.
+ * against the real {@code State} API using a {@link com.swirlds.state.merkle.VirtualMapState} fixture.
  */
 class StateProofIntegrationTest extends MerkleTestBase {
 
     private VirtualMapState state;
 
     /**
-     * Build a realistic {@link VirtualMapState} instance with three different state types (queue,
+     * Build a realistic {@link com.swirlds.state.merkle.VirtualMapState} instance with three different state types (queue,
      * singleton, kv-map) so the integration test can exercise heterogeneous proofs and verify that
      * the builder handles mixed path structures coming from the real state API.
      */
@@ -39,7 +39,7 @@ class StateProofIntegrationTest extends MerkleTestBase {
         setupSingletonCountry();
         setupSteamQueue();
 
-        state = createTestState();
+        state = new VirtualMapState(CONFIGURATION, new NoOpMetrics());
         state.initializeState(fruitMetadata);
         state.initializeState(countryMetadata);
         state.initializeState(steamMetadata);
@@ -63,10 +63,7 @@ class StateProofIntegrationTest extends MerkleTestBase {
     @AfterEach
     void tearDown() {
         if (state != null) {
-            final var root = state.getRoot();
-            if (root.getReservationCount() >= 0) {
-                state.release();
-            }
+            state.release();
         }
         if (fruitVirtualMap != null && fruitVirtualMap.getReservationCount() > -1) {
             fruitVirtualMap.release();
@@ -103,8 +100,8 @@ class StateProofIntegrationTest extends MerkleTestBase {
         assertThat(builder.aggregatedRootHash()).isEqualTo(expectedRoot);
         assertThat(stateProof.signedBlockProof().blockSignature()).isEqualTo(Bytes.wrap(expectedRoot));
 
-        final StateProofVerifier verifier = new StateProofVerifier();
-        assertThat(verifier.verify(stateProof)).isTrue();
-        assertThat(verifier.verifyRootHashForTest(stateProof, expectedRoot)).isTrue();
+        assertThat(StateProofVerifier.verify(stateProof)).isTrue();
+        assertThat(StateProofVerifier.verifyRootHashForTest(stateProof, expectedRoot))
+                .isTrue();
     }
 }
