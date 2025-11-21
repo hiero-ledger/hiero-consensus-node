@@ -22,7 +22,7 @@ if [[ "${isToClean}" = "cobertura" ]]
 then
   echo "Cleaning old data ..."
 
-  cd ${APP_HOME}
+  cd "${APP_HOME}"
   rm -rf data/saved/saved/*
   rm -rf data/saved/swirlds-tmp/*
   rm -rf data/saved/preconsensus-events/*/*
