@@ -27,6 +27,8 @@ import com.hedera.hapi.node.token.TokenMintTransactionBody;
 import com.hedera.hapi.node.token.TokenPauseTransactionBody;
 import com.hedera.hapi.node.token.TokenUnfreezeAccountTransactionBody;
 import com.hedera.hapi.node.token.TokenUnpauseTransactionBody;
+import com.hedera.hapi.node.transaction.CustomFee;
+import com.hedera.hapi.node.transaction.FixedFee;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.token.impl.calculator.CryptoCreateFeeCalculator;
 import com.hedera.node.app.service.token.impl.calculator.CryptoDeleteFeeCalculator;
@@ -40,6 +42,8 @@ import com.hedera.node.app.service.token.impl.calculator.TokenUnfreezeAccountFee
 import com.hedera.node.app.service.token.impl.calculator.TokenUnpauseFeeCalculator;
 import com.hedera.node.app.spi.fees.CalculatorState;
 import com.hedera.node.app.spi.fees.SimpleFeeCalculatorImpl;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
+import java.util.List;
 import java.util.Set;
 import org.hiero.hapi.support.fees.Extra;
 import org.hiero.hapi.support.fees.FeeSchedule;
@@ -59,7 +63,9 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @DisplayName("Token Handler Fee Tests")
 public class TokenServiceFeeCalculatorTests {
     private static final long TOKEN_CREATE_BASE_FEE = 15;
+    private static final long TOKEN_CREATE_CUSTOM_FEES_SURCHARGE = 66;
     private static final long TOKEN_MINT_BASE_FEE = 20;
+    private static final long TOKEN_MINT_UNIQUE_SURCHARGE = 66;
     private static final long TOKEN_FREEZE_BASE_FEE = 25;
     private static final long TOKEN_UNFREEZE_BASE_FEE = 30;
     private static final long TOKEN_PAUSE_BASE_FEE = 35;
@@ -107,18 +113,50 @@ public class TokenServiceFeeCalculatorTests {
         assertEquals(TOKEN_CREATE_BASE_FEE, result.total());
     }
 
-    //    @Test
-    //    void createUniqueToken() {
-    //        lenient().when(calculatorState.numTxnSignatures()).thenReturn(1);
-    //        final var txBody2 = TransactionBody.newBuilder().tokenCreation(
-    //                TokenCreateTransactionBody.newBuilder().tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
-    //        ).build();
-    //        final var result = feeCalculator.calculateTxFee(txBody2, calculatorState);
-    //
-    //        assertNotNull(result);
-    //        assertEquals(TOKEN_CREATE_BASE_FEE, result.total());
-    //    }
-    //
+    @Test
+    void createUniqueToken() {
+        lenient().when(calculatorState.numTxnSignatures()).thenReturn(1);
+        final var txBody2 = TransactionBody.newBuilder()
+                .tokenCreation(TokenCreateTransactionBody.newBuilder().tokenType(TokenType.NON_FUNGIBLE_UNIQUE))
+                .build();
+        final var result = feeCalculator.calculateTxFee(txBody2, calculatorState);
+
+        assertNotNull(result);
+        assertEquals(TOKEN_CREATE_BASE_FEE, result.total());
+    }
+
+    @Test
+    void createCommonTokenWithCustomFees() {
+        lenient().when(calculatorState.numTxnSignatures()).thenReturn(1);
+        final var body = TransactionBody.newBuilder()
+                .tokenCreation(TokenCreateTransactionBody.newBuilder()
+                        .tokenType(TokenType.FUNGIBLE_COMMON)
+                        .customFees(CustomFee.newBuilder()
+                                .fixedFee(FixedFee.newBuilder().amount(100).build())
+                                .build())
+                        .build())
+                .build();
+        final var result = feeCalculator.calculateTxFee(body, calculatorState);
+        assertNotNull(result);
+        assertEquals(TOKEN_CREATE_BASE_FEE + TOKEN_CREATE_CUSTOM_FEES_SURCHARGE, result.total());
+    }
+
+    @Test
+    void createUniqueTokenWithCustomFees() {
+        lenient().when(calculatorState.numTxnSignatures()).thenReturn(1);
+        final var body = TransactionBody.newBuilder()
+                .tokenCreation(TokenCreateTransactionBody.newBuilder()
+                        .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
+                        .customFees(CustomFee.newBuilder()
+                                .fixedFee(FixedFee.newBuilder().amount(100).build())
+                                .build())
+                        .build())
+                .build();
+        final var result = feeCalculator.calculateTxFee(body, calculatorState);
+        assertNotNull(result);
+        assertEquals(TOKEN_CREATE_BASE_FEE + TOKEN_CREATE_CUSTOM_FEES_SURCHARGE, result.total());
+    }
+
     @Test
     void mintCommonToken() {
         lenient().when(calculatorState.numTxnSignatures()).thenReturn(1);
@@ -134,21 +172,21 @@ public class TokenServiceFeeCalculatorTests {
         assertEquals(TOKEN_MINT_BASE_FEE + COMMON_TOKEN_FEE * 10, result.total());
     }
 
-    //    @Test
-    //    void mintUniqueToken() {
-    //        lenient().when(calculatorState.numTxnSignatures()).thenReturn(1);
-    //        final var uniqueToken = TokenID.newBuilder().tokenNum(1234).build();
-    //        final var txBody2 = TransactionBody.newBuilder()
-    //                .tokenMint(TokenMintTransactionBody.newBuilder()
-    //                        .token(uniqueToken)
-    //                        .metadata(List.of(Bytes.wrap("Bart Simpson")))
-    //                        .build())
-    //                .build();
-    //        final var result = feeCalculator.calculateTxFee(txBody2, calculatorState);
-    //        assertNotNull(result);
-    //        assertEquals(TOKEN_MINT_BASE_FEE + UNIQUE_TOKEN_FEE, result.total());
-    //    }
-    //
+    @Test
+    void mintUniqueToken() {
+        lenient().when(calculatorState.numTxnSignatures()).thenReturn(1);
+        final var uniqueToken = TokenID.newBuilder().tokenNum(1234).build();
+        final var txBody2 = TransactionBody.newBuilder()
+                .tokenMint(TokenMintTransactionBody.newBuilder()
+                        .token(uniqueToken)
+                        .metadata(List.of(Bytes.wrap("Bart Simpson")))
+                        .build())
+                .build();
+        final var result = feeCalculator.calculateTxFee(txBody2, calculatorState);
+        assertNotNull(result);
+        assertEquals(TOKEN_MINT_BASE_FEE + TOKEN_MINT_UNIQUE_SURCHARGE, result.total());
+    }
+
     @Test
     void freezeToken() {
         final var commonToken = TokenID.newBuilder().tokenNum(1234).build();
@@ -242,17 +280,24 @@ public class TokenServiceFeeCalculatorTests {
                         makeExtraDef(Extra.SIGNATURES, 3),
                         makeExtraDef(Extra.STANDARD_FUNGIBLE_TOKENS, COMMON_TOKEN_FEE),
                         makeExtraDef(Extra.STANDARD_NON_FUNGIBLE_TOKENS, UNIQUE_TOKEN_FEE),
-                        makeExtraDef(Extra.CUSTOM_FEE, 500))
+                        makeExtraDef(Extra.CUSTOM_FEE, 500),
+                        makeExtraDef(Extra.TOKEN_CREATE_WITH_CUSTOM_FEE, TOKEN_CREATE_CUSTOM_FEES_SURCHARGE),
+                        makeExtraDef(Extra.TOKEN_MINT_UNIQUE_TOKEN, TOKEN_MINT_UNIQUE_SURCHARGE))
                 .network(NetworkFee.DEFAULT.copyBuilder().multiplier(2).build())
                 .services(makeService(
                         "Token",
-                        makeServiceFee(TOKEN_CREATE, TOKEN_CREATE_BASE_FEE, makeExtraIncluded(Extra.KEYS, 1)),
+                        makeServiceFee(
+                                TOKEN_CREATE,
+                                TOKEN_CREATE_BASE_FEE,
+                                makeExtraIncluded(Extra.KEYS, 1),
+                                makeExtraIncluded(Extra.TOKEN_CREATE_WITH_CUSTOM_FEE, 0)),
                         makeServiceFee(
                                 TOKEN_MINT,
                                 TOKEN_MINT_BASE_FEE,
                                 makeExtraIncluded(Extra.KEYS, 1),
                                 makeExtraIncluded(Extra.STANDARD_FUNGIBLE_TOKENS, 0),
-                                makeExtraIncluded(Extra.STANDARD_NON_FUNGIBLE_TOKENS, 0)),
+                                makeExtraIncluded(Extra.STANDARD_NON_FUNGIBLE_TOKENS, 0),
+                                makeExtraIncluded(Extra.TOKEN_MINT_UNIQUE_TOKEN, 0)),
                         makeServiceFee(TOKEN_BURN, TOKEN_BURN_BASE_FEE),
                         makeServiceFee(TOKEN_DELETE, TOKEN_DELETE_BASE_FEE),
                         makeServiceFee(TOKEN_PAUSE, TOKEN_PAUSE_BASE_FEE),
