@@ -59,6 +59,7 @@ import org.hiero.otter.fixtures.TransactionGenerator;
 import org.hiero.otter.fixtures.internal.helpers.Utils;
 import org.hiero.otter.fixtures.internal.network.ConnectionKey;
 import org.hiero.otter.fixtures.internal.network.GeoMeshTopologyImpl;
+import org.hiero.otter.fixtures.internal.network.MeshTopologyImpl;
 import org.hiero.otter.fixtures.internal.result.MultipleNodeConsensusResultsImpl;
 import org.hiero.otter.fixtures.internal.result.MultipleNodeEventStreamResultsImpl;
 import org.hiero.otter.fixtures.internal.result.MultipleNodeLogResultsImpl;
@@ -67,10 +68,13 @@ import org.hiero.otter.fixtures.internal.result.MultipleNodePlatformStatusResult
 import org.hiero.otter.fixtures.internal.result.MultipleNodeReconnectResultsImpl;
 import org.hiero.otter.fixtures.network.BandwidthLimit;
 import org.hiero.otter.fixtures.network.BidirectionalConnection;
+import org.hiero.otter.fixtures.network.GeoMeshTopologyConfiguration;
 import org.hiero.otter.fixtures.network.LatencyRange;
+import org.hiero.otter.fixtures.network.MeshTopologyConfiguration;
 import org.hiero.otter.fixtures.network.Partition;
 import org.hiero.otter.fixtures.network.Topology;
 import org.hiero.otter.fixtures.network.Topology.ConnectionState;
+import org.hiero.otter.fixtures.network.TopologyConfiguration;
 import org.hiero.otter.fixtures.network.UnidirectionalConnection;
 import org.hiero.otter.fixtures.network.transactions.OtterTransaction;
 import org.hiero.otter.fixtures.result.MultipleNodeConsensusResults;
@@ -125,9 +129,9 @@ public abstract class AbstractNetwork implements Network {
     private final Map<ConnectionKey, Boolean> connected = new HashMap<>();
     private final Map<ConnectionKey, LatencyOverride> latencyOverrides = new HashMap<>();
     private final Map<ConnectionKey, BandwidthLimit> bandwidthOverrides = new HashMap<>();
-    private final Topology topology;
     private final boolean useRandomNodeIds;
 
+    private Topology currentTopology;
     protected final NetworkConfiguration networkConfiguration;
 
     protected Lifecycle lifecycle = Lifecycle.INIT;
@@ -143,8 +147,10 @@ public abstract class AbstractNetwork implements Network {
 
     protected AbstractNetwork(@NonNull final Random random, final boolean useRandomNodeIds) {
         this.random = requireNonNull(random);
-        this.topology = new GeoMeshTopologyImpl(random, this::createNodes, this::createInstrumentedNode);
         this.useRandomNodeIds = useRandomNodeIds;
+        // Initialize with default GeoMeshTopology
+        this.currentTopology = new GeoMeshTopologyImpl(
+                GeoMeshTopologyConfiguration.DEFAULT, random, this::createNodes, this::createInstrumentedNode);
         this.networkConfiguration = new NetworkConfiguration();
     }
 
@@ -154,7 +160,36 @@ public abstract class AbstractNetwork implements Network {
     @Override
     @NonNull
     public Topology topology() {
-        return topology;
+        return currentTopology;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    public Network topology(@NonNull final TopologyConfiguration configuration) {
+        // Only allow topology configuration during network initialization
+        throwIfNotInLifecycle(Lifecycle.INIT, "Topology can only be configured during network initialization.");
+
+        requireNonNull(configuration);
+
+        // Prevent reconfiguration if nodes already added
+        if (!topology().nodes().isEmpty()) {
+            throw new IllegalStateException("Cannot configure topology after nodes have been added to the network.");
+        }
+
+        // Dispatch to appropriate implementation based on configuration type
+        this.currentTopology = switch (configuration) {
+            case MeshTopologyConfiguration meshConfig ->
+                new MeshTopologyImpl(meshConfig, this::createNodes, this::createInstrumentedNode);
+            case GeoMeshTopologyConfiguration geoConfig ->
+                new GeoMeshTopologyImpl(geoConfig, random, this::createNodes, this::createInstrumentedNode);
+            default ->
+                throw new IllegalArgumentException("Unknown topology configuration type: " + configuration.getClass());
+        };
+
+        return this;
     }
 
     /**
