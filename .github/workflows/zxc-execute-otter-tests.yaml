@@ -226,8 +226,7 @@ jobs:
         if: ${{ inputs.enable-chaos-otter-tests && inputs.enable-network-log-capture && steps.gradle-chaos-otter-tests.conclusion == 'failure' && !cancelled() }}
         with:
           name: Chaos Otter Tests Turtle Logs
-          path: |
-            platform-sdk/consensus-otter-tests/build/turtle/**
+          path: platform-sdk/consensus-otter-tests/build/turtle
           retention-days: 7
 
       - name: Upload Chaos Otter Tests Container Logs
@@ -235,8 +234,7 @@ jobs:
         if: ${{ inputs.enable-chaos-otter-tests && inputs.enable-network-log-capture && steps.gradle-chaos-otter-tests.conclusion == 'failure' && !cancelled() }}
         with:
           name: Chaos Otter Tests Container Logs
-          path: |
-            platform-sdk/consensus-otter-tests/build/container/**
+          path: platform-sdk/consensus-otter-tests/build/container
           retention-days: 7
 
       - name: Check Results
