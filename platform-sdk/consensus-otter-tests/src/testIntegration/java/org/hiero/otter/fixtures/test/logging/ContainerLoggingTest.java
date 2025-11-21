@@ -33,10 +33,9 @@ import org.junit.jupiter.api.Test;
  */
 class ContainerLoggingTest {
 
-    private static final String SWIRLDS_LOG_PATH = "build/container/node-%d/output/swirlds.log";
-    private static final String HASHSTREAM_LOG_PATH =
-            "build/container/node-%d/output/swirlds-hashstream/swirlds-hashstream.log";
-    private static final String OTTER_LOG_PATH = "build/container/node-%d/output/otter.log";
+    private static final String SWIRLDS_LOG_PATH = "node-%d/output/swirlds.log";
+    private static final String HASHSTREAM_LOG_PATH = "node-%d/output/swirlds-hashstream/swirlds-hashstream.log";
+    private static final String OTTER_LOG_PATH = "node-%d/output/otter.log";
 
     /**
      * Comprehensive integration test for containerized node logging.
@@ -53,6 +52,7 @@ class ContainerLoggingTest {
         context.reconfigure();
 
         final TestEnvironment env = new ContainerTestEnvironment();
+        final Path rootOutputDir = env.outputDirectory();
         final List<NodeId> nodeIds;
         final Map<NodeId, SingleNodeLogResult> logResults;
         final Map<NodeId, String[]> consoleOutputs;
@@ -99,11 +99,11 @@ class ContainerLoggingTest {
 
         // After destroy, verify each node's log file contains messages with allowed markers
         for (final NodeId nodeId : nodeIds) {
-            final Path swirldsLogFile = Path.of(String.format(SWIRLDS_LOG_PATH, nodeId.id()));
+            final Path swirldsLogFile = rootOutputDir.resolve(String.format(SWIRLDS_LOG_PATH, nodeId.id()));
             awaitFile(swirldsLogFile, Duration.ofSeconds(10L));
-            final Path hashstreamLogFile = Path.of(String.format(HASHSTREAM_LOG_PATH, nodeId.id()));
+            final Path hashstreamLogFile = rootOutputDir.resolve(String.format(HASHSTREAM_LOG_PATH, nodeId.id()));
             awaitFile(hashstreamLogFile, Duration.ofSeconds(10L));
-            final Path otterLogFile = Path.of(String.format(OTTER_LOG_PATH, nodeId.id()));
+            final Path otterLogFile = rootOutputDir.resolve(String.format(OTTER_LOG_PATH, nodeId.id()));
             awaitFile(otterLogFile, Duration.ofSeconds(10L));
 
             final List<StructuredLog> inMemoryLog = logResults.get(nodeId).logs();
