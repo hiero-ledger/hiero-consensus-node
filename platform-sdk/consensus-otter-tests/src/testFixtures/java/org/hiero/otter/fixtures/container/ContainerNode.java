@@ -560,10 +560,9 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
         copyFileFromContainer(relativePath, relativePath);
     }
 
-    private void copyFileFromContainer(
-            @NonNull final String sourcePath,
-            @NonNull final String relativeTargetPath) {
-        final String containerPath = sourcePath.startsWith(File.separator)? sourcePath : CONTAINER_APP_WORKING_DIR + sourcePath;
+    private void copyFileFromContainer(@NonNull final String sourcePath, @NonNull final String relativeTargetPath) {
+        final String containerPath =
+                sourcePath.startsWith(File.separator) ? sourcePath : CONTAINER_APP_WORKING_DIR + sourcePath;
         final Path localPath = localOutputDirectory.resolve(relativeTargetPath);
 
         try {
@@ -587,7 +586,8 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
     }
 
     private void copyFolderFromContainer(@NonNull final String sourcePath, @NonNull final String relativeTargetPath) {
-        final String containerPath = sourcePath.startsWith(File.separator)? sourcePath : CONTAINER_APP_WORKING_DIR + sourcePath;
+        final String containerPath =
+                sourcePath.startsWith(File.separator) ? sourcePath : CONTAINER_APP_WORKING_DIR + sourcePath;
         final Path localPath = localOutputDirectory.resolve(relativeTargetPath);
 
         try {
