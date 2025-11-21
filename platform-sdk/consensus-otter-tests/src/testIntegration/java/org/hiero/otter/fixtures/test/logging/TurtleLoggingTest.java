@@ -34,9 +34,8 @@ import org.junit.jupiter.params.provider.ValueSource;
  */
 class TurtleLoggingTest {
 
-    private static final String SWIRLDS_LOG_PATH = "build/turtle/node-%d/output/swirlds.log";
-    private static final String HASHSTREAM_LOG_PATH =
-            "build/turtle/node-%d/output/swirlds-hashstream/swirlds-hashstream.log";
+    private static final String SWIRLDS_LOG_PATH = "node-%d/output/swirlds.log";
+    private static final String HASHSTREAM_LOG_PATH = "node-%d/output/swirlds-hashstream/swirlds-hashstream.log";
 
     /**
      * Comprehensive integration test for logging in Turtle.
@@ -54,6 +53,7 @@ class TurtleLoggingTest {
         context.reconfigure();
 
         final TestEnvironment env = new TurtleTestEnvironment();
+        final Path rootOutputDir = env.outputDirectory();
         final List<NodeId> nodeIds;
         final Map<NodeId, SingleNodeLogResult> logResults;
 
@@ -94,9 +94,9 @@ class TurtleLoggingTest {
                 .noneMatch(line -> line.contains("testcontainers")); // Container environment only
 
         for (final NodeId nodeId : nodeIds) {
-            final Path swirldsLogFile = Path.of(String.format(SWIRLDS_LOG_PATH, nodeId.id()));
+            final Path swirldsLogFile = rootOutputDir.resolve(String.format(SWIRLDS_LOG_PATH, nodeId.id()));
             awaitFile(swirldsLogFile, Duration.ofSeconds(10L));
-            final Path hashstreamLogFile = Path.of(String.format(HASHSTREAM_LOG_PATH, nodeId.id()));
+            final Path hashstreamLogFile = rootOutputDir.resolve(String.format(HASHSTREAM_LOG_PATH, nodeId.id()));
             awaitFile(hashstreamLogFile, Duration.ofSeconds(10L));
 
             final List<StructuredLog> inMemoryLog = logResults.get(nodeId).logs();
