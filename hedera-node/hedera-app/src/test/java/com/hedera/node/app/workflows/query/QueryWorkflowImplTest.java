@@ -87,7 +87,6 @@ import java.time.InstantSource;
 import java.util.List;
 import java.util.function.Function;
 import java.util.stream.Stream;
-
 import org.hiero.hapi.fees.FeeResult;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -1091,29 +1090,31 @@ class QueryWorkflowImplTest extends AppTestBase {
          * </ol>
          */
         static Stream<Arguments> simpleFeesEnabledTransactions() {
-            return Stream.of(
-                    Arguments.of(
-                            "CONSENSUS_GET_TOPIC_INFO",
-                            Query.newBuilder().consensusGetTopicInfo(
-                                    ConsensusGetTopicInfoQuery.newBuilder().build()
-                            ).build()
-                    ));
+            return Stream.of(Arguments.of(
+                    "CONSENSUS_GET_TOPIC_INFO",
+                    Query.newBuilder()
+                            .consensusGetTopicInfo(
+                                    ConsensusGetTopicInfoQuery.newBuilder().build())
+                            .build()));
         }
-
 
         @Mock
         private QueryContext queryContext;
+
         @Mock
         private FeesConfig feesConfig;
+
         @Mock
         private SimpleFeeCalculator simpleFeeCalculator;
+
         @Mock
         private Configuration configuration;
 
         @BeforeEach
         void setUp() {
-            testExchangeRate = ExchangeRate.newBuilder().hbarEquiv(1).centEquiv(12).build();
-//            testExchangeRateInfo =  new ExchangeRateInfoImpl(ExchangeRateSet.DEFAULT);
+            testExchangeRate =
+                    ExchangeRate.newBuilder().hbarEquiv(1).centEquiv(12).build();
+            //            testExchangeRateInfo =  new ExchangeRateInfoImpl(ExchangeRateSet.DEFAULT);
         }
 
         @ParameterizedTest(name = "{0} uses simple fees when enabled")
@@ -1153,21 +1154,21 @@ class QueryWorkflowImplTest extends AppTestBase {
                     instantSource,
                     opWorkflowMetrics,
                     shouldCharge);
-//            given(handler.computeFees(any(QueryContext.class))).willReturn(new Fees(100L, 0L, 100L));
+            //            given(handler.computeFees(any(QueryContext.class))).willReturn(new Fees(100L, 0L, 100L));
             given(handler.requiresNodePayment(any())).willReturn(true);
 
             // When
             final var responseBuffer = newEmptyBuffer();
-            workflow.handleQuery(requestBuffer,responseBuffer);
+            workflow.handleQuery(requestBuffer, responseBuffer);
 
             // Then: Should use simple fee calculator
             verify(simpleFeeCalculator).calculateQueryFee(query, queryContext);
 
             // Verify fees are converted from tinycents to tinybars (divide by 12)
-//            assertThat(result).isNotNull();
-//            assertThat(result.nodeFee()).isEqualTo(8333L); // 100000/12
-//            assertThat(result.networkFee()).isEqualTo(16666L); // 200000/12
-//            assertThat(result.serviceFee()).isEqualTo(41541666L); // 498500000/12
+            //            assertThat(result).isNotNull();
+            //            assertThat(result.nodeFee()).isEqualTo(8333L); // 100000/12
+            //            assertThat(result.networkFee()).isEqualTo(16666L); // 200000/12
+            //            assertThat(result.serviceFee()).isEqualTo(41541666L); // 498500000/12
 
         }
 
@@ -1181,11 +1182,11 @@ class QueryWorkflowImplTest extends AppTestBase {
             given(feesConfig.simpleFeesEnabled()).willReturn(false);
 
             doAnswer(invocationOnMock -> {
-                final var result = invocationOnMock.getArgument(3, IngestChecker.Result.class);
-                result.setThrottleUsages(List.of());
-                result.setTxnInfo(transactionInfo);
-                return null;
-            })
+                        final var result = invocationOnMock.getArgument(3, IngestChecker.Result.class);
+                        result.setThrottleUsages(List.of());
+                        result.setTxnInfo(transactionInfo);
+                        return null;
+                    })
                     .when(ingestChecker)
                     .runAllChecks(any(), any(), any(), any());
 
@@ -1206,19 +1207,18 @@ class QueryWorkflowImplTest extends AppTestBase {
                     instantSource,
                     opWorkflowMetrics,
                     shouldCharge);
-//            given(handler.computeFees(any(QueryContext.class))).willReturn(new Fees(100L, 0L, 100L));
+            //            given(handler.computeFees(any(QueryContext.class))).willReturn(new Fees(100L, 0L, 100L));
             given(handler.requiresNodePayment(any())).willReturn(true);
-//            when(handler.findResponse(any(), any()))
-//                    .thenReturn(Response.newBuilder()
-//                            .fileGetInfo(FileGetInfoResponse.newBuilder()
-//                                    .header(ResponseHeader.newBuilder().build())
-//                                    .build())
-//                            .build());
+            //            when(handler.findResponse(any(), any()))
+            //                    .thenReturn(Response.newBuilder()
+            //                            .fileGetInfo(FileGetInfoResponse.newBuilder()
+            //                                    .header(ResponseHeader.newBuilder().build())
+            //                                    .build())
+            //                            .build());
             final var responseBuffer = newEmptyBuffer();
             // when
             workflow.handleQuery(requestBuffer, responseBuffer);
             verify(feeManager, never()).getSimpleFeeCalculator();
         }
-
     }
 }

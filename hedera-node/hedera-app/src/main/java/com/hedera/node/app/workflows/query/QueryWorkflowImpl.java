@@ -217,7 +217,7 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
                                 exchangeRateManager,
                                 feeCalculator,
                                 payerID,
-                                //TODO: this doesn't feel right, where should the real number of signatures come from?
+                                // TODO: this doesn't feel right, where should the real number of signatures come from?
                                 -1);
 
                         // A super-user does not have to pay for a query and has all permissions
@@ -242,7 +242,7 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
                             // 3.iv Calculate costs
                             long queryFees = 0;
                             long txFees = 0;
-                            //TODO: this code is yucky. Would it be better to refactor into a separate function
+                            // TODO: this code is yucky. Would it be better to refactor into a separate function
                             // that returns true or false if the balances are valid?
                             if (shouldUseSimpleFees(context)) {
                                 var feeResult = requireNonNull(feeManager.getSimpleFeeCalculator())
@@ -286,7 +286,7 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
                             exchangeRateManager,
                             feeCalculator,
                             null,
-                            //TODO: this doesn't feel right, where should the real number of signatures come from?
+                            // TODO: this doesn't feel right, where should the real number of signatures come from?
                             -1);
                 }
 
