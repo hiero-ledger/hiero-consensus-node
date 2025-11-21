@@ -5,13 +5,11 @@ import static com.swirlds.platform.event.preconsensus.PcesUtilities.getDatabaseD
 import static java.util.Objects.requireNonNull;
 import static org.hiero.otter.fixtures.container.utils.ContainerConstants.CONTAINER_APP_WORKING_DIR;
 import static org.hiero.otter.fixtures.container.utils.ContainerConstants.CONTAINER_CONTROL_PORT;
-import static org.hiero.otter.fixtures.container.utils.ContainerConstants.EVENT_STREAM_DIRECTORY;
 import static org.hiero.otter.fixtures.container.utils.ContainerConstants.HASHSTREAM_LOG_PATH;
 import static org.hiero.otter.fixtures.container.utils.ContainerConstants.METRICS_PATH;
 import static org.hiero.otter.fixtures.container.utils.ContainerConstants.NODE_COMMUNICATION_PORT;
 import static org.hiero.otter.fixtures.container.utils.ContainerConstants.OTTER_LOG_PATH;
 import static org.hiero.otter.fixtures.container.utils.ContainerConstants.SWIRLDS_LOG_PATH;
-import static org.hiero.otter.fixtures.internal.AbstractNetwork.NODE_IDENTIFIER_FORMAT;
 import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.DESTROYED;
 import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.INIT;
 import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.RUNNING;
@@ -27,6 +25,7 @@ import io.grpc.ManagedChannelBuilder;
 import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
 import io.grpc.stub.StreamObserver;
+import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
@@ -48,6 +47,9 @@ import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.ProfilerEvent;
 import org.hiero.otter.fixtures.TimeManager;
+import org.hiero.otter.fixtures.app.OtterApp;
+import org.hiero.otter.fixtures.app.OtterAppConfig;
+import org.hiero.otter.fixtures.app.services.consistency.ConsistencyService;
 import org.hiero.otter.fixtures.app.services.consistency.ConsistencyServiceConfig;
 import org.hiero.otter.fixtures.container.proto.ContainerControlServiceGrpc;
 import org.hiero.otter.fixtures.container.proto.EventMessage;
@@ -183,7 +185,7 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
     @Override
     public SingleNodeEventStreamResult newEventStreamResult() {
         final Path eventStreamDir = localOutputDirectory.resolve(ContainerConstants.EVENT_STREAM_DIRECTORY);
-        downloadEventStreamFiles(localOutputDirectory);
+        downloadEventStreamFiles();
         return new SingleNodeEventStreamResultImpl(
                 selfId, eventStreamDir, configuration().current(), newReconnectResult());
     }
@@ -496,11 +498,10 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
      */
     void destroy() {
         try {
-            // copy logs from container to the local filesystem
-            final Path localOutputDirectory =
-                    Path.of("build", "container", NODE_IDENTIFIER_FORMAT.formatted(selfId.id()));
-            downloadConsensusFiles(localOutputDirectory);
-            downloadConsistencyServiceFiles(localOutputDirectory);
+            // copy logs from the container to the local filesystem
+            downloadConsensusFiles();
+            downloadStateFiles();
+            downloadConsistencyServiceFiles();
         } catch (final IOException e) {
             throw new UncheckedIOException("Failed to copy files from container", e);
         }
@@ -517,37 +518,31 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
         lifeCycle = DESTROYED;
     }
 
-    private void downloadEventStreamFiles(@NonNull final Path localOutputDirectory) {
-        try {
-            Files.createDirectories(localOutputDirectory.resolve(EVENT_STREAM_DIRECTORY));
-            final Configuration configuration = nodeConfiguration.current();
-            final EventConfig eventConfig = configuration.getConfigData(EventConfig.class);
+    private void downloadEventStreamFiles() {
+        final EventConfig eventConfig = nodeConfiguration.current().getConfigData(EventConfig.class);
+        copyFolderFromContainer(eventConfig.eventsLogDir(), ContainerConstants.EVENT_STREAM_DIRECTORY);
+    }
 
-            // Use Docker cp command to copy the entire directory
-            final String containerId = container.getContainerId();
-            final ProcessBuilder processBuilder = new ProcessBuilder(
-                    "docker", "cp", containerId + ":" + eventConfig.eventsLogDir(), localOutputDirectory.toString());
-            final Process process = processBuilder.start();
-            process.waitFor();
-        } catch (final IOException e) {
-            throw new UncheckedIOException("Failed to copy event stream files from container", e);
-        } catch (final InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new IllegalStateException("Interrupted while copying event stream files from container", e);
+    private void downloadConsensusFiles() throws IOException {
+        copyFileFromContainer(SWIRLDS_LOG_PATH);
+        copyFileFromContainer(HASHSTREAM_LOG_PATH);
+        copyFileFromContainer(OTTER_LOG_PATH);
+        copyFileFromContainer(METRICS_PATH.formatted(selfId.id()));
+    }
+
+    private void downloadStateFiles() {
+        final StateCommonConfig stateConfig = nodeConfiguration.current().getConfigData(StateCommonConfig.class);
+        final Path stateDirectory = stateConfig.savedStateDirectory().resolve(OtterApp.APP_NAME);
+        copyFolderFromContainer(stateDirectory.toString());
+    }
+
+    private void downloadConsistencyServiceFiles() {
+        final OtterAppConfig appConfig = nodeConfiguration.current().getConfigData(OtterAppConfig.class);
+        final boolean consistencyServiceEnabled = appConfig.services().stream()
+                .anyMatch(serviceName -> serviceName.contains(ConsistencyService.class.getSimpleName()));
+        if (!consistencyServiceEnabled) {
+            return;
         }
-    }
-
-    private void downloadConsensusFiles(@NonNull final Path localOutputDirectory) throws IOException {
-        Files.createDirectories(localOutputDirectory.resolve("output/swirlds-hashstream"));
-        Files.createDirectories(localOutputDirectory.resolve("data/stats"));
-
-        copyFileFromContainerIfExists(localOutputDirectory, SWIRLDS_LOG_PATH);
-        copyFileFromContainerIfExists(localOutputDirectory, HASHSTREAM_LOG_PATH);
-        copyFileFromContainerIfExists(localOutputDirectory, OTTER_LOG_PATH);
-        copyFileFromContainerIfExists(localOutputDirectory, METRICS_PATH.formatted(selfId.id()));
-    }
-
-    private void downloadConsistencyServiceFiles(@NonNull final Path localOutputDirectory) {
         final StateCommonConfig stateConfig = nodeConfiguration.current().getConfigData(StateCommonConfig.class);
         final ConsistencyServiceConfig consistencyServiceConfig =
                 nodeConfiguration.current().getConfigData(ConsistencyServiceConfig.class);
@@ -558,35 +553,61 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
                 .resolve(Long.toString(selfId.id()));
 
         final Path historyFilePath = historyFileDirectory.resolve(consistencyServiceConfig.historyFileName());
-        copyFileFromContainerIfExists(
-                localOutputDirectory, historyFilePath.toString(), consistencyServiceConfig.historyFileName());
+        copyFileFromContainer(historyFilePath.toString(), consistencyServiceConfig.historyFileName());
     }
 
-    private void copyFileFromContainerIfExists(
-            @NonNull final Path localOutputDirectory, @NonNull final String relativePath) {
-        copyFileFromContainerIfExists(localOutputDirectory, relativePath, relativePath);
+    private void copyFileFromContainer(@NonNull final String relativePath) {
+        copyFileFromContainer(relativePath, relativePath);
     }
 
-    private void copyFileFromContainerIfExists(
-            @NonNull final Path localOutputDirectory,
-            @NonNull final String relativeSourcePath,
+    private void copyFileFromContainer(
+            @NonNull final String sourcePath,
             @NonNull final String relativeTargetPath) {
-        final String containerPath = CONTAINER_APP_WORKING_DIR + relativeSourcePath;
-        final String localPath =
-                localOutputDirectory.resolve(relativeTargetPath).toString();
+        final String containerPath = sourcePath.startsWith(File.separator)? sourcePath : CONTAINER_APP_WORKING_DIR + sourcePath;
+        final Path localPath = localOutputDirectory.resolve(relativeTargetPath);
 
         try {
             final ExecResult result = container.execInContainer("test", "-f", containerPath);
             if (result.getExitCode() == 0) {
-                container.copyFileFromContainer(containerPath, localPath);
+                Files.createDirectories(localPath.getParent());
+                container.copyFileFromContainer(containerPath, localPath.toString());
             } else {
                 log.warn("File not found in node {}: {}", selfId.id(), containerPath);
             }
         } catch (final IOException e) {
-            log.warn("Failed to check if file exists in node {}: {}", selfId.id(), containerPath, e);
+            log.warn("Failed to copy file from node {}: {}", selfId.id(), containerPath, e);
         } catch (final InterruptedException e) {
             Thread.currentThread().interrupt();
-            log.warn("Interrupted while checking if file exists in node {}: {}", selfId.id(), containerPath, e);
+            log.warn("Interrupted while copying file from node {}: {}", selfId.id(), containerPath, e);
+        }
+    }
+
+    private void copyFolderFromContainer(@NonNull final String relativePath) {
+        copyFolderFromContainer(relativePath, relativePath);
+    }
+
+    private void copyFolderFromContainer(@NonNull final String sourcePath, @NonNull final String relativeTargetPath) {
+        final String containerPath = sourcePath.startsWith(File.separator)? sourcePath : CONTAINER_APP_WORKING_DIR + sourcePath;
+        final Path localPath = localOutputDirectory.resolve(relativeTargetPath);
+
+        try {
+            final ExecResult result = container.execInContainer("test", "-d", containerPath);
+            if (result.getExitCode() == 0) {
+                Files.createDirectories(localPath);
+                // Use Docker cp command to copy the entire directory
+                final String containerId = container.getContainerId();
+                final ProcessBuilder processBuilder = new ProcessBuilder(
+                        "docker", "cp", containerId + ":" + containerPath + "/.", localPath.toString());
+                final Process process = processBuilder.start();
+                process.waitFor();
+            } else {
+                log.warn("Folder not found in node {}: {}", selfId.id(), containerPath);
+            }
+        } catch (final IOException e) {
+            log.warn("Failed to copy folder from node {}: {}", selfId.id(), containerPath, e);
+        } catch (final InterruptedException e) {
+            Thread.currentThread().interrupt();
+            log.warn("Interrupted while copying folder from node {}: {}", selfId.id(), containerPath, e);
         }
     }
 
