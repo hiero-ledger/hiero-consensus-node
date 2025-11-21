@@ -33,8 +33,6 @@ import org.apache.logging.log4j.Logger;
 public class ProofControllerImpl implements ProofController {
     private static final Logger log = LogManager.getLogger(ProofControllerImpl.class);
 
-    public static final Bytes EMPTY_PUBLIC_KEY = Bytes.wrap(new byte[32]);
-
     public static final String PROOF_COMPLETE_MSG = "History proof constructed";
 
     private final long selfId;

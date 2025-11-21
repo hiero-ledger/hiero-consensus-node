@@ -17,7 +17,7 @@ import static com.hedera.node.app.hapi.utils.CommonUtils.noThrowSha384HashOf;
 import static com.hedera.node.app.hapi.utils.CommonUtils.sha384DigestOrThrow;
 import static com.hedera.node.app.hapi.utils.blocks.BlockStreamUtils.stateNameOf;
 import static com.hedera.node.app.hints.HintsService.maybeWeightsFrom;
-import static com.hedera.node.app.history.impl.ProofControllerImpl.EMPTY_PUBLIC_KEY;
+import static com.hedera.node.app.history.HistoryLibrary.EMPTY_PUBLIC_KEY;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
 import static com.hedera.node.app.service.roster.impl.RosterTransitionWeights.atLeastOneThirdOfTotal;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.APPLICATION_PROPERTIES;
@@ -715,11 +715,7 @@ public class StateChangesValidator implements BlockStreamValidator {
                                         + " (expected >= " + threshold + ", got " + signingWeight
                                         + ")");
                     }
-                    case WRAPS_PROOF ->
-                        assertTrue(
-                                historyLibrary.verifyChainOfTrust(chainOfTrustProof.wrapsProofOrThrow()),
-                                "Insufficient weight in chain-of-trust for hinTS key in proof (start round #"
-                                        + firstRound + ") - " + proof);
+                    case WRAPS_PROOF -> throw new AssertionError("Not implemented");
                 }
             }
         } else {
