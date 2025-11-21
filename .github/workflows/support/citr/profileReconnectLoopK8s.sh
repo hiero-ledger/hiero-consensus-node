@@ -13,7 +13,7 @@ LEARNER_NODEID=0
 LEARNER_LOG_DIR=/opt/hgcapp/services-hedera/HapiApp2.0/output
 LEARNER_LOG_LOCAL=swirlds.log
 
-k="sh ${TOOLDIR}/kubectlt -n $namespace"
+k="sh ${TOOLDIR}/kubectlt -n ${namespace}"
 
 counter=0
 
