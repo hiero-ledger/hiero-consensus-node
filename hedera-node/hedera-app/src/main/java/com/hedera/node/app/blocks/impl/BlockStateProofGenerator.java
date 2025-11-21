@@ -83,6 +83,9 @@ public class BlockStateProofGenerator {
         var currentParentPathMp2 = timestampDivider + 1;
         for (int i = timestampDivider; i < proofPaths.length; i += 2) {
             final var currentIndirectBlock = indirectProofBlocks.get(currentInnerBlock);
+            if (currentIndirectBlock == null) {
+                throw new IllegalStateException("Missing (contiguous) pending block for block " + currentInnerBlock);
+            }
 
             // Merkle Path 2:
             final var mp2 = MerklePath.newBuilder()

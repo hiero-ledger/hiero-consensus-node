@@ -205,7 +205,7 @@ public class RepeatableTssTests {
         // 6. The final path should be the block's root hash
         final var rootMp3 = merklePaths.getLast();
         assertTrue(rootMp3.siblings().isEmpty(), "Expected root Merkle path to have no siblings");
-        assertTrue(rootMp3.hasLeaf());
+        assertFalse(rootMp3.hasLeaf());
         assertEquals(MerklePath.ContentOneOfType.UNSET, rootMp3.content().kind());
         assertEquals(-1, rootMp3.nextPathIndex(), "Expected final Merkle path to terminate with -1");
     }

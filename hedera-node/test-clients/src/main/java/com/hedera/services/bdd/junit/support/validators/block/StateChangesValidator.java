@@ -704,7 +704,8 @@ public class StateChangesValidator implements BlockStreamValidator {
 
             // We can't verify the indirect proof until we have a signed block proof, so store the indirect proof for
             // later verification and short-circuit the hints, history proofs (which require a signature)
-            indirectProofSeq.registerStateProof(blockNumber, proof, previousBlockHash, blockTimestamp, siblingHashes);
+            indirectProofSeq.registerStateProof(
+                    blockNumber, proof, provenHash, previousBlockHash, blockTimestamp, siblingHashes);
             return;
         }
 
@@ -1095,6 +1096,7 @@ public class StateChangesValidator implements BlockStreamValidator {
         private final Map<Long, StateProof> actualIndirectProofs = new HashMap<>();
 
         private final Map<Long, Bytes> expectedBlockRootHashes = new HashMap<>();
+        private final Map<Long, Bytes> previousBlockHashes = new HashMap<>();
 
         private boolean endOfSequenceReached = false;
 
@@ -1152,6 +1154,7 @@ public class StateChangesValidator implements BlockStreamValidator {
         void registerStateProof(
                 final long blockNumber,
                 final @NonNull BlockProof proof,
+                final @NonNull Bytes blockRootHash,
                 final @NonNull Bytes previousBlockHash,
                 final @NonNull Timestamp blockTimestamp,
                 final List<MerkleSiblingHash> siblingHashes) {
@@ -1193,9 +1196,8 @@ public class StateChangesValidator implements BlockStreamValidator {
             // We can't verify the indirect proof until we have a signed block proof, so store the indirect proof for
             // later verification
             actualIndirectProofs.put(blockNumber, proof.blockStateProof());
-
-            // Also track this block's _previous_ block hash for chain of hashes verification later
-            expectedBlockRootHashes.put(blockNumber - 1, previousBlockHash);
+            expectedBlockRootHashes.put(blockNumber, blockRootHash);
+            previousBlockHashes.put(blockNumber, previousBlockHash);
         }
 
         /**
@@ -1218,9 +1220,7 @@ public class StateChangesValidator implements BlockStreamValidator {
                     partialPathsByBlock.keySet().stream().min(Long::compareTo).orElseThrow();
             final long maxBlockNum =
                     partialPathsByBlock.keySet().stream().max(Long::compareTo).orElseThrow();
-            final long expectedNumIndirectBlocks = expectedIndirectProofs.size();
             final long actualNumIndirectBlocks = maxBlockNum - minBlockNum;
-            assertEquals(expectedNumIndirectBlocks, actualNumIndirectBlocks);
 
             final var combinedPathsSize = partialPathsByBlock.keySet().stream()
                     .sorted()
@@ -1240,7 +1240,7 @@ public class StateChangesValidator implements BlockStreamValidator {
 
             // Now that all the full Merkle paths have been constructed for each indirect block, construct a full state
             // proof for each indirect block, beginning with the earliest
-            for (long bn = minBlockNum; bn < maxBlockNum - 1; bn++) {
+            for (long bn = minBlockNum; bn < maxBlockNum; bn++) {
                 final var merklePaths = fullMerklePathsByBlockNum.get(bn);
                 if (merklePaths == null) {
                     throw new IllegalStateException("No full merkle paths found for block #" + bn);
@@ -1251,6 +1251,8 @@ public class StateChangesValidator implements BlockStreamValidator {
                         .build();
                 expectedIndirectProofs.put(bn, stateProof);
             }
+            final long expectedNumIndirectBlocks = expectedIndirectProofs.size();
+            assertEquals(expectedNumIndirectBlocks, actualNumIndirectBlocks);
         }
 
         /**
@@ -1267,8 +1269,8 @@ public class StateChangesValidator implements BlockStreamValidator {
             final long earliestBlockNum =
                     partialPathsByBlock.keySet().stream().min(Long::compareTo).orElseThrow();
 
-            // Verify some stuff about the reconstructed indirect proofs in bulk
-            final var numExpectedPaths = (signedBlockNum - earliestBlockNum - 1) * 3; // 3 paths per block
+            // Verify the number of reconstructed indirect proofs
+            final var numExpectedPaths = (signedBlockNum - earliestBlockNum) * 3; // 3 paths per block
             final var totalActualPaths = expectedIndirectProofs.values().stream()
                     .mapToInt(sp -> sp.paths().size())
                     .sum();
@@ -1409,19 +1411,22 @@ public class StateChangesValidator implements BlockStreamValidator {
 
             // Verify the sequence of hashes by recomputing each block hash from the previous block hash and the
             // indirect proof
-            var previousHash = expectedBlockRootHashes.get(expectedMinBlockNum);
             for (long blockNum = expectedMinBlockNum; blockNum < signedBlockNum; blockNum++) {
+                final var expectedPreviousBlockHash = expectedBlockRootHashes.get(blockNum);
                 final var expectedBlockHash = expectedBlockRootHashes.get(blockNum);
+                assertNotNull(expectedBlockHash, "Missing expected block hash for block " + blockNum);
+
                 final var actualBlockStateProof = actualIndirectProofs.get(blockNum);
+                assertNotNull(actualBlockStateProof, "Missing indirect state proof for block " + blockNum);
+
                 final int numIndirectBlocksLeftInSequence = (int) (signedBlockNum - blockNum);
-                final var actualBlockHash =
-                        blockHashFromProof(previousHash, actualBlockStateProof, numIndirectBlocksLeftInSequence);
+                final var actualBlockHash = blockHashFromProof(
+                        expectedPreviousBlockHash, actualBlockStateProof, numIndirectBlocksLeftInSequence);
                 assertEquals(
                         expectedBlockHash,
                         actualBlockHash,
                         "Mismatch in indirect proof chain: block #%s hash does not match expected hash %s"
                                 .formatted(blockNum, expectedBlockHash));
-                previousHash = actualBlockHash;
             }
 
             logger.info(
@@ -1433,6 +1438,7 @@ public class StateChangesValidator implements BlockStreamValidator {
         private Bytes blockHashFromProof(
                 final Bytes previousBlockHash, final StateProof stateProof, final int numIndirectBlocksTillSigned) {
             final List<MerklePath> paths = stateProof.paths();
+            assertFalse(paths.isEmpty(), "Expected non-empty merkle paths in state proof");
 
             // Calculate the number of expected paths based on the number of blocks remaining in the indirect proof
             // sequence
@@ -1446,6 +1452,7 @@ public class StateChangesValidator implements BlockStreamValidator {
 
             // Combine the block's merkle paths to produce the block hash
             var currentHash = previousBlockHash;
+            // This counter will count backwards from the timestamp divider
             var timestampPathCounter = 0;
             for (int mp2Index = timestampDivider; mp2Index < paths.size(); mp2Index += 2) {
                 // Retrieve and verify the timestamp merkle path
@@ -1453,7 +1460,7 @@ public class StateChangesValidator implements BlockStreamValidator {
                 final var mp1 = paths.get(currentTimestampIndex);
                 assertTrue(
                         mp1.hasLeaf(),
-                        "Expected a leaf in Merkle timestamp path at index %s".formatted(currentTimestampIndex));
+                        "Expected leaf in Merkle timestamp path at index %s".formatted(currentTimestampIndex));
                 assertTrue(mp1.siblings().isEmpty(), "Expected no siblings in final Merkle timestamp path");
 
                 // Retrieve and verify the block contents merkle path
@@ -1463,6 +1470,11 @@ public class StateChangesValidator implements BlockStreamValidator {
                         mp2.nextPathIndex(),
                         "Mismatch in next path index between timestamp and block contents paths");
                 assertEquals(4, mp2.siblings().size(), "Expected 4 siblings in block contents path");
+                // Compute the block contents hash from merkle path 2
+                for (final var sibling : mp2.siblings()) {
+                    // All siblings must be right children
+                    currentHash = BlockImplUtils.combine(currentHash, sibling.hash());
+                }
 
                 // Retrieve and verify the parent merkle path
                 final var mp3 = paths.get(mp2Index + 1);
@@ -1476,12 +1488,6 @@ public class StateChangesValidator implements BlockStreamValidator {
                 // two greater than the current mp2 index, or -1 if this path is the block's root path
                 final var expectedMp3NextPathIndex = (mp2Index == paths.size() - 1) ? -1 : mp2Index + 2;
                 assertEquals(expectedMp3NextPathIndex, mp3.nextPathIndex());
-
-                // Compute the block contents hash from merkle path 2
-                for (final var sibling : mp2.siblings()) {
-                    // All siblings must be right children
-                    currentHash = BlockImplUtils.combine(currentHash, sibling.hash());
-                }
 
                 // Retrieve the bytes of the consensus timestamp
                 final var timestampBytes = mp1.leafOrThrow().blockConsensusTimestampOrThrow();
