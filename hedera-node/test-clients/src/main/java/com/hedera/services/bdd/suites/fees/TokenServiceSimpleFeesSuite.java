@@ -62,7 +62,8 @@ public class TokenServiceSimpleFeesSuite {
                                 .hasKnownStatus(SUCCESS)
                                 .via("create-token-txn")),
                 "create-token-txn",
-                1.0001000,
+                // base + one extra sig
+                1.0001,
                 1,
                 1,
                 1);
