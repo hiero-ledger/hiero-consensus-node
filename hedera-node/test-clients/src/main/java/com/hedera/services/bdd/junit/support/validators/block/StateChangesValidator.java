@@ -768,8 +768,8 @@ public class StateChangesValidator implements BlockStreamValidator {
             }
 
             if (indirectProofsNeedVerification()) {
-                logger.info("Verifying contiguous indirect proofs prior to block #{}", blockNumber);
-                indirectProofSeq.endOfSequence(blockNumber, proof);
+                logger.info("Verifying contiguous indirect proofs prior to block {}", blockNumber);
+                indirectProofSeq.endOfSequence(proof);
                 indirectProofSeq.verify();
                 indirectProofSeq = null; // Clear out the indirect proof sequence after verification
             }
@@ -1096,7 +1096,6 @@ public class StateChangesValidator implements BlockStreamValidator {
         private final Map<Long, StateProof> actualIndirectProofs = new HashMap<>();
 
         private final Map<Long, Bytes> expectedBlockRootHashes = new HashMap<>();
-        private final Map<Long, Bytes> previousBlockHashes = new HashMap<>();
 
         private boolean endOfSequenceReached = false;
 
@@ -1106,6 +1105,7 @@ public class StateChangesValidator implements BlockStreamValidator {
          */
         private BlockProof signedProof;
 
+        private long firstUnsignedBlockNum = -1;
         private long signedBlockNum;
 
         /**
@@ -1127,8 +1127,8 @@ public class StateChangesValidator implements BlockStreamValidator {
             }
 
             logger.info(
-                    "Beginning verification of indirect state proofs for blocks #{} to #{}",
-                    partialPathsByBlock.keySet().stream().min(Long::compareTo).orElseThrow(),
+                    "Beginning verification of indirect state proofs for blocks {} to {}",
+                    firstUnsignedBlockNum,
                     signedBlockNum);
 
             verifyIndirectProofs();
@@ -1139,7 +1139,7 @@ public class StateChangesValidator implements BlockStreamValidator {
          * Tracks an indirect state proof for a given block number.
          * <p>
          * This method must be called in sequential order for each block, up to but not including the signed
-         * block. Once a signed block is encountered, call {@link #endOfSequence(long, BlockProof)} to
+         * block. Once a signed block is encountered, call {@link #endOfSequence(BlockProof)} to
          * finalize the sequence. Once the end of the sequence is signaled, no further indirect proofs
          * can be registered.
          *
@@ -1163,17 +1163,23 @@ public class StateChangesValidator implements BlockStreamValidator {
                         "Cannot track indirect proof for block #%s: end of sequence previously reached"
                                 .formatted(blockNumber));
             }
+            if (firstUnsignedBlockNum < 0) {
+                firstUnsignedBlockNum = blockNumber;
+            }
 
             final var lastActualProofBlockNum =
                     actualIndirectProofs.keySet().stream().max(Long::compareTo).orElse(-1L);
             assertTrue(
                     proof.hasBlockStateProof(),
-                    "Indirect proof for block #%s is missing a block state proof".formatted(blockNumber));
+                    "Indirect proof for block %s is missing a block state proof".formatted(blockNumber));
             if (!expectedIndirectProofs.isEmpty() && lastActualProofBlockNum != blockNumber - 1) {
                 throw new IllegalStateException(
-                        "Indirect proofs must be tracked in sequential order; last actual proof was for block #%s, current actual proof given is for block #%s"
+                        ("Indirect proofs must be tracked in sequential order; last actual proof was "
+                                        + "for block %s, current actual proof given is for block %s")
                                 .formatted(lastActualProofBlockNum, blockNumber));
             }
+
+            logger.info("Registering unsigned block {}", blockNumber);
 
             // Construct partial merkle paths for the expected indirect proof
             // Block's Merkle Path 1: timestamp path (left child of (sub)root only)
@@ -1197,53 +1203,62 @@ public class StateChangesValidator implements BlockStreamValidator {
             // later verification
             actualIndirectProofs.put(blockNumber, proof.blockStateProof());
             expectedBlockRootHashes.put(blockNumber, blockRootHash);
-            previousBlockHashes.put(blockNumber, previousBlockHash);
+            logger.info("Registered unsigned block {}", blockNumber);
         }
 
         /**
          * This method signals the end of the indirect proof sequence, thereby preventing tracking for any
          * further indirect proofs. Triggers construction of all expected indirect proofs based on the
          * partial proofs already collected.
-         * @param signedBlockNum the number of the signed block that ends the indirect proof sequence
          * @param signedProof the TSS-signed block proof that ends the indirect proof sequence
          */
-        void endOfSequence(final long signedBlockNum, final @NonNull BlockProof signedProof) {
-            this.signedBlockNum = signedBlockNum;
-            this.signedProof = signedProof;
-            endOfSequenceReached = true;
+        void endOfSequence(@NonNull final BlockProof signedProof) {
+            this.endOfSequenceReached = true;
+            this.signedProof = requireNonNull(signedProof);
+            this.signedBlockNum = signedProof.block();
 
             buildExpectedIndirectProofs();
         }
 
         private void buildExpectedIndirectProofs() {
-            final long minBlockNum =
+            final long actualMinBlockNum =
                     partialPathsByBlock.keySet().stream().min(Long::compareTo).orElseThrow();
-            final long maxBlockNum =
+            final long actualMaxBlockNum =
                     partialPathsByBlock.keySet().stream().max(Long::compareTo).orElseThrow();
-            final long actualNumIndirectBlocks = maxBlockNum - minBlockNum;
+            final long actualNumIndirectBlocks = actualMaxBlockNum - actualMinBlockNum;
 
+            logger.info(
+                    "Verifying expected indirect state proofs for blocks {} to {} (signed block {})",
+                    firstUnsignedBlockNum,
+                    signedBlockNum - 1,
+                    signedBlockNum);
             final var combinedPathsSize = partialPathsByBlock.keySet().stream()
                     .sorted()
                     .map(partialPathsByBlock::get)
                     .mapToInt(List::size)
                     .sum();
             assertEquals(
-                    actualNumIndirectBlocks * 3, combinedPathsSize, "Each indirect block should have 3 merkle paths");
-            assertEquals(
-                    signedBlockNum,
-                    maxBlockNum - 1,
-                    "An indirect proof should exist for block #%s (one block prior to current block #%s)"
-                            .formatted(signedBlockNum - 1, signedBlockNum));
+                    actualNumIndirectBlocks * 3,
+                    combinedPathsSize,
+                    "Each unsigned block should have 3 merkle paths. Registered unsigned blocks: "
+                            + partialPathsByBlock);
+            for (long i = firstUnsignedBlockNum; i < signedBlockNum; i++) {
+                final var registered = partialPathsByBlock.get(i);
+                assertNotNull(
+                        registered,
+                        "Unsigned block should be registered for every block between [%s, %s] –– block %s not registered"
+                                .formatted(firstUnsignedBlockNum, signedBlockNum - 1, i));
+            }
 
-            // First, construct full Merkle paths for each indirect block
-            final Map<Long, MerklePath[]> fullMerklePathsByBlockNum = constructFullMerklePaths();
+            // First, construct full Merkle paths for each unsigned block
+            final Map<Long, MerklePath[]> fullMerklePathsByBlockNum = constructExpectedMerklePaths();
 
-            // Now that all the full Merkle paths have been constructed for each indirect block, construct a full state
-            // proof for each indirect block, beginning with the earliest
-            for (long bn = minBlockNum; bn < maxBlockNum; bn++) {
+            // Now that all the full Merkle paths have been constructed for each indirect block, construct the full
+            // expected state proof for each unsigned block, beginning with the earliest
+            for (long bn = firstUnsignedBlockNum; bn < signedBlockNum; bn++) {
                 final var merklePaths = fullMerklePathsByBlockNum.get(bn);
                 if (merklePaths == null) {
-                    throw new IllegalStateException("No full merkle paths found for block #" + bn);
+                    throw new IllegalStateException("No full merkle paths found for block " + bn);
                 }
                 final var stateProof = StateProof.newBuilder()
                         .paths(fullMerklePathsByBlockNum.get(bn))
@@ -1263,14 +1278,12 @@ public class StateChangesValidator implements BlockStreamValidator {
                 throw new IllegalStateException("No indirect proofs to verify in indirect proof sequence");
             }
             if (!endOfSequenceReached || signedProof == null) {
-                throw new IllegalStateException("Cannot verify indirect proofs: signed proof not yet provided");
+                throw new IllegalStateException("Cannot verify indirect proofs: signed proof not provided");
             }
 
-            final long earliestBlockNum =
-                    partialPathsByBlock.keySet().stream().min(Long::compareTo).orElseThrow();
-
-            // Verify the number of reconstructed indirect proofs
-            final var numExpectedPaths = (signedBlockNum - earliestBlockNum) * 3; // 3 paths per block
+            // Verify the number of reconstructed indirect proofs (3 paths per indirect block)
+            final var numBlocks = signedBlockNum - firstUnsignedBlockNum;
+            final var numExpectedPaths = numBlocks * 3;
             final var totalActualPaths = expectedIndirectProofs.values().stream()
                     .mapToInt(sp -> sp.paths().size())
                     .sum();
@@ -1281,11 +1294,9 @@ public class StateChangesValidator implements BlockStreamValidator {
                             .formatted(numExpectedPaths, totalActualPaths));
 
             // Compare each reconstructed state proof with the actual state proof for each indirect block
-            for (long i = earliestBlockNum; i < signedBlockNum - 1; i++) {
-                assertEquals(
-                        expectedIndirectProofs.get(i),
-                        actualIndirectProofs.get(i),
-                        "Indirect state proof mismatch for block #" + i);
+            for (long i = firstUnsignedBlockNum; i < signedBlockNum; i++) {
+                logger.info("Verifying indirect proof for block {} of {}", i, numBlocks);
+                assertEquals(expectedIndirectProofs.get(i), actualIndirectProofs.get(i));
             }
         }
 
@@ -1293,12 +1304,12 @@ public class StateChangesValidator implements BlockStreamValidator {
          * Given a signed block number, constructs full merkle paths for each registered indirect proof.
          * @return a mapping of block number to its corresponding full merkle paths
          */
-        private Map<Long, MerklePath[]> constructFullMerklePaths() {
+        private Map<Long, MerklePath[]> constructExpectedMerklePaths() {
             if (!endOfSequenceReached) {
                 throw new IllegalStateException("Cannot construct full merkle paths: signed proof not yet provided");
             }
 
-            // Extract the needed partial merkle paths (pmp's) for each indirect block
+            // Extract the needed partial merkle paths (pmp's) for each unsigned block
             final var timestampPmps = partialPathsByBlock.keySet().stream()
                     .sorted()
                     .map(partialPathsByBlock::get)
@@ -1388,21 +1399,21 @@ public class StateChangesValidator implements BlockStreamValidator {
             assertFalse(sortedBlockNums.isEmpty(), "No block root hashes to verify in indirect proof sequence");
 
             // Verify the earliest block number and the number of computed hashes match the actual proofs stored
-            final var expectedMinBlockNum = sortedBlockNums.getFirst();
             final var actualMinBlockNum = actualIndirectProofs.keySet().stream()
                     .min(Long::compareTo)
                     .orElseThrow(() -> new IllegalStateException("No actual indirect proofs stored"));
             assertEquals(
-                    expectedMinBlockNum,
-                    actualMinBlockNum + 1,
+                    firstUnsignedBlockNum,
+                    actualMinBlockNum,
                     "Mismatch in minimum block number beginning indirect proof sequence: %s expected vs. %s actual"
-                            .formatted(expectedMinBlockNum, actualMinBlockNum));
+                            .formatted(firstUnsignedBlockNum, actualMinBlockNum));
 
+            final var expectedNumUnsignedBlocks = signedBlockNum - firstUnsignedBlockNum;
             assertEquals(
-                    signedBlockNum - expectedMinBlockNum,
+                    expectedNumUnsignedBlocks,
                     sortedBlockNums.size(),
-                    "Mismatch in number of block root hashes and expected indirect proofs in sequence: %s hashes vs. %s expected proofs"
-                            .formatted(sortedBlockNums.size(), signedBlockNum - expectedMinBlockNum));
+                    "Mismatch in number of block root hashes and the expected indirect proofs in sequence: %s hashes vs. %s expected proofs"
+                            .formatted(sortedBlockNums.size(), expectedNumUnsignedBlocks));
             assertEquals(
                     sortedBlockNums.size(),
                     actualIndirectProofs.size(),
@@ -1411,7 +1422,7 @@ public class StateChangesValidator implements BlockStreamValidator {
 
             // Verify the sequence of hashes by recomputing each block hash from the previous block hash and the
             // indirect proof
-            for (long blockNum = expectedMinBlockNum; blockNum < signedBlockNum; blockNum++) {
+            for (long blockNum = firstUnsignedBlockNum; blockNum < signedBlockNum; blockNum++) {
                 final var expectedPreviousBlockHash = expectedBlockRootHashes.get(blockNum);
                 final var expectedBlockHash = expectedBlockRootHashes.get(blockNum);
                 assertNotNull(expectedBlockHash, "Missing expected block hash for block " + blockNum);
@@ -1430,9 +1441,9 @@ public class StateChangesValidator implements BlockStreamValidator {
             }
 
             logger.info(
-                    "Successfully verified sequence of indirect state proofs for blocks #{} to #{}",
-                    expectedMinBlockNum,
-                    sortedBlockNums.getLast());
+                    "Successfully verified sequence of indirect state proofs for blocks {} to {}",
+                    firstUnsignedBlockNum,
+                    signedBlockNum - 1);
         }
 
         private Bytes blockHashFromProof(
