@@ -18,7 +18,6 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 
 /**
  * A network of Hedera nodes.
@@ -36,20 +35,6 @@ public interface HederaNetwork {
      */
     @NonNull
     HapiPropertySource startupProperties();
-
-    /**
-     * Returns the network role if known (e.g. when paired with another network).
-     */
-    default Optional<NetworkRole> role() {
-        return Optional.empty();
-    }
-
-    /**
-     * Returns the paired network if known.
-     */
-    default Optional<HederaNetwork> peer() {
-        return Optional.empty();
-    }
 
     /**
      * Sends the given query to the network node with the given account id as if it

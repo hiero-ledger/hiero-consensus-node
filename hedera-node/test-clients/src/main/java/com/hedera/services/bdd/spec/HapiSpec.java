@@ -67,7 +67,6 @@ import com.hedera.services.bdd.junit.hedera.BlockNodeMode;
 import com.hedera.services.bdd.junit.hedera.BlockNodeNetwork;
 import com.hedera.services.bdd.junit.hedera.HederaNetwork;
 import com.hedera.services.bdd.junit.hedera.HederaNode;
-import com.hedera.services.bdd.junit.hedera.NetworkRole;
 import com.hedera.services.bdd.junit.hedera.NodeSelector;
 import com.hedera.services.bdd.junit.hedera.embedded.EmbeddedHedera;
 import com.hedera.services.bdd.junit.hedera.embedded.EmbeddedNetwork;
@@ -112,6 +111,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumMap;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -1354,9 +1354,22 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
                         .withPrioritySetup(setupOverrides))));
     }
 
-    public static DualNetworkSpecBuilder dualHapiTest(
-            @NonNull final HederaNetwork primaryNetwork, @NonNull final HederaNetwork peerNetwork) {
-        return new DualNetworkSpecBuilder(requireNonNull(primaryNetwork), requireNonNull(peerNetwork));
+    public static MultiNetworkSpecBuilder multiHapiTest(@NonNull final Map<String, HederaNetwork> networks) {
+        return new MultiNetworkSpecBuilder(requireNonNull(networks));
+    }
+
+    public static MultiNetworkSpecBuilder multiHapiTest(@NonNull final HederaNetwork... networks) {
+        requireNonNull(networks);
+        final Map<String, HederaNetwork> networkMap = new LinkedHashMap<>();
+        for (final var network : networks) {
+            requireNonNull(network);
+            final var name = network.name();
+            if (networkMap.containsKey(name)) {
+                throw new IllegalArgumentException("Duplicate network name: " + name);
+            }
+            networkMap.put(name, network);
+        }
+        return new MultiNetworkSpecBuilder(networkMap);
     }
 
     public static DynamicTest namedHapiTest(String name, @NonNull final SpecOperation... ops) {
@@ -1511,40 +1524,36 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
         }
     }
 
-    public static final class DualNetworkSpecBuilder {
+    public static final class MultiNetworkSpecBuilder {
+        private final Map<String, HederaNetwork> networks;
         private final List<NetworkStep> steps = new ArrayList<>();
-        private final HederaNetwork primaryNetwork;
-        private final HederaNetwork peerNetwork;
 
-        private DualNetworkSpecBuilder(
-                @NonNull final HederaNetwork primaryNetwork, @NonNull final HederaNetwork peerNetwork) {
-            this.primaryNetwork = requireNonNull(primaryNetwork);
-            this.peerNetwork = requireNonNull(peerNetwork);
+        private MultiNetworkSpecBuilder(@NonNull final Map<String, HederaNetwork> networks) {
+            requireNonNull(networks);
+            if (networks.isEmpty()) {
+                throw new IllegalArgumentException("multiHapiTest requires at least one network");
+            }
+            this.networks = Map.copyOf(networks);
         }
 
-        public DualNetworkSpecBuilder onPrimary(@NonNull final SpecOperation... ops) {
-            return addStep(NetworkRole.PRIMARY, ops);
-        }
-
-        public DualNetworkSpecBuilder onPeer(@NonNull final SpecOperation... ops) {
-            return addStep(NetworkRole.PEER, ops);
+        public MultiNetworkSpecBuilder on(@NonNull final String networkName, @NonNull final SpecOperation... ops) {
+            requireNonNull(networkName);
+            requireNonNull(ops);
+            if (!networks.containsKey(networkName)) {
+                throw new IllegalArgumentException("Unknown network name: " + networkName);
+            }
+            if (ops.length > 0) {
+                steps.add(new NetworkStep(networkName, List.of(ops)));
+            }
+            return this;
         }
 
         public Stream<DynamicTest> asDynamicTests(@NonNull final String displayName) {
             requireNonNull(displayName);
             if (steps.isEmpty()) {
-                throw new IllegalStateException("dualHapiTest requires at least one network step");
+                throw new IllegalStateException("multiHapiTest requires at least one network step");
             }
             return Stream.of(DynamicTest.dynamicTest(displayName, () -> executeSteps(displayName)));
-        }
-
-        private DualNetworkSpecBuilder addStep(@NonNull final NetworkRole role, @NonNull final SpecOperation... ops) {
-            requireNonNull(role);
-            requireNonNull(ops);
-            if (ops.length > 0) {
-                steps.add(new NetworkStep(role, List.of(ops)));
-            }
-            return this;
         }
 
         private void executeSteps(final String displayName) {
@@ -1553,9 +1562,9 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
                 if (step.operations().isEmpty()) {
                     continue;
                 }
-                final var specName = String.format(
-                        "%s-%s-step-%d", displayName, roleLabel(step.role()), index++);
-                final var network = networkFor(step.role());
+                final var network = networks.get(step.networkName());
+                final var specName =
+                        String.format("%s-%s-step-%d", displayName, step.networkName().toLowerCase(Locale.ROOT), index++);
                 runSpec(specName, step.operations(), network);
             }
         }
@@ -1575,7 +1584,7 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
                 TARGET_NETWORK.set(network);
                 targeted(spec).execute();
             } catch (Throwable t) {
-                throw new RuntimeException("Failed executing dual-network step '" + specName + "'", t);
+                throw new RuntimeException("Failed executing multi-network step '" + specName + "'", t);
             } finally {
                 if (previousTarget == null) {
                     TARGET_NETWORK.remove();
@@ -1585,16 +1594,7 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
             }
         }
 
-        private record NetworkStep(NetworkRole role, List<SpecOperation> operations) {}
-
-        private HederaNetwork networkFor(@NonNull final NetworkRole role) {
-            return role == NetworkRole.PRIMARY ? primaryNetwork : peerNetwork;
-        }
-
-        private String roleLabel(@NonNull final NetworkRole role) {
-            final var network = networkFor(role);
-            return network.role().orElse(role).name().toLowerCase(Locale.ROOT);
-        }
+        private record NetworkStep(String networkName, List<SpecOperation> operations) {}
     }
 
     @Override

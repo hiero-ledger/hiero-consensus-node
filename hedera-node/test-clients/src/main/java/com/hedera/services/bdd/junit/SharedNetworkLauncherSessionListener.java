@@ -12,6 +12,7 @@ import static com.hedera.services.bdd.spec.HapiSpecSetup.getDefaultInstance;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.services.bdd.HapiBlockNode;
+import com.hedera.services.bdd.junit.MultiNetworkHapiTest;
 import com.hedera.services.bdd.junit.hedera.BlockNodeMode;
 import com.hedera.services.bdd.junit.hedera.BlockNodeNetwork;
 import com.hedera.services.bdd.junit.hedera.HederaNetwork;
@@ -96,8 +97,8 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
                 embedding = Embedding.NA;
                 return;
             }
-            if (hasAnnotatedTestNode(testPlan, Set.of(DualNetworkHapiTest.class))) {
-                log.info("Test plan includes DualNetworkHapiTest annotation, skipping shared network startup.");
+            if (hasAnnotatedTestNode(testPlan, Set.of(MultiNetworkHapiTest.class))) {
+                log.info("Test plan includes MultiNetworkHapiTest annotation, skipping shared network startup.");
                 embedding = Embedding.NA;
                 return;
             }
