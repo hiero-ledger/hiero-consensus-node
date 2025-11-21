@@ -105,7 +105,7 @@ public class IdempotentMetricsBinderTest {
 
         IdempotentMetricsBinder binder = new IdempotentMetricsBinder() {
             @Override
-            protected void bindMetricsNonIdempotent(MetricRegistry registry) {
+            protected void bindMetricsNonIdempotent(@NonNull MetricRegistry registry) {
                 bindCount.incrementAndGet();
             }
         };

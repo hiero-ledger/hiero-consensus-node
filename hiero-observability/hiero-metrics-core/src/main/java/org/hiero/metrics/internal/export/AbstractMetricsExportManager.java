@@ -20,8 +20,6 @@ import org.hiero.metrics.internal.export.snapshot.UpdatableMetricRegistrySnapsho
  */
 public abstract class AbstractMetricsExportManager implements MetricsExportManager {
 
-    public static final String EXPORT_METRICS_CATEGORY = "export";
-
     protected static final Logger logger = LogManager.getLogger(MetricsExportManager.class);
 
     private final SnapshotableMetricsRegistry registry;

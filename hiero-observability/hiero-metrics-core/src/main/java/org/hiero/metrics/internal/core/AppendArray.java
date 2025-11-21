@@ -84,7 +84,7 @@ public class AppendArray<T> implements ArrayAccessor<T> {
 
     /**
      * Get the item at the given index.
-     * Index should be in range [0, size()) where size is the value returned by last call to {@link #readyToRead()}.
+     * Index should be in range {@code [0, size())} where size is the value returned by last call to {@link #readyToRead()}.
      *
      * @param index the index of the item to get
      * @return the item at the given index
