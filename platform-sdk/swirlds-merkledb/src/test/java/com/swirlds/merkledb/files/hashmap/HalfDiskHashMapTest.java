@@ -481,7 +481,23 @@ class HalfDiskHashMapTest {
             }
             map.endWriting();
             final LongList bucketIndex = (LongList) map.getBucketIndexToBucketLocation();
-            for (int i = 0; i < initialNumOfBuckets; i++) {
+            // Check bucket 0, it was not updated -> not sanitized
+            {
+                final BufferedData bucketData = map.getFileCollection().readDataItemUsingIndex(bucketIndex, 0);
+                assertNotNull(bucketData);
+                try (ParsedBucket bucket = new ParsedBucket()) {
+                    bucket.readFrom(bucketData);
+                    assertEquals(0, bucket.getBucketIndex());
+                    assertEquals(2, bucket.getBucketEntryCount());
+                    assertEquals(0, bucket.findValue(0, Bytes.wrap(new byte[] {(byte) 0}), -1));
+                    // Bucket 0 was not updated, its sanitization was skipped
+                    assertEquals(
+                            3, // i + 3L
+                            bucket.findValue(initialNumOfBuckets, Bytes.wrap(new byte[] {(byte) (100)}), -1));
+                }
+            }
+            // Check buckets [1, initialNumOfBuckets), they were updated and sanitized
+            for (int i = 1; i < initialNumOfBuckets; i++) {
                 final BufferedData bucketData = map.getFileCollection().readDataItemUsingIndex(bucketIndex, i);
                 assertNotNull(bucketData);
                 try (ParsedBucket bucket = new ParsedBucket()) {
@@ -494,6 +510,7 @@ class HalfDiskHashMapTest {
                             bucket.findValue(i + initialNumOfBuckets, Bytes.wrap(new byte[] {(byte) (i + 100)}), -1));
                 }
             }
+            // Check buckets [initialNumOfBuckets, initialNumOfBuckets * 2), they are new
             for (int i = initialNumOfBuckets; i < initialNumOfBuckets * 2; i++) {
                 // The old index (before resize)
                 final int ei = i - initialNumOfBuckets;

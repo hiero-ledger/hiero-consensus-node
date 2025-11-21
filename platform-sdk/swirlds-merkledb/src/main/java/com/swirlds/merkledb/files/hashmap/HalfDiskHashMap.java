@@ -764,6 +764,13 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
             if (bucketData == null) {
                 // An empty bucket
                 bucket.setBucketIndex(bucketIndex);
+                // Add all entries
+                assert keyUpdates != null;
+                for (BucketMutation m = keyUpdates; m != null; m = m.getNext()) {
+                    assert m.getOldValue() == INVALID_VALUE;
+                    bucket.addValue(m.getKeyBytes(), m.getKeyHashCode(), m.getValue());
+                }
+                bucketChanged = true;
             } else {
                 // Read from bytes
                 bucket.readFrom(bucketData);
@@ -772,7 +779,7 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
                             MERKLE_DB.getMarker(),
                             "Bucket index integrity check " + bucketIndex + " != " + bucket.getBucketIndex());
                     /*
-                       This is a workaround for the issue https://github.com/hiero-ledger/hiero-consensus-node/pull/18250,
+                       This is a workaround for issue https://github.com/hiero-ledger/hiero-consensus-node/pull/18250,
                        which caused possible corruption in snapshots.
                        If the snapshot is corrupted, the code may read a bucket from the file, and the bucket index
                        may be different from the expected one. In this case, we clear the bucket (as it contains garbage
@@ -780,15 +787,16 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
                     */
                     bucket.clear();
                 }
-                // Clear old bucket entries with wrong hash codes
-                if (bucket.sanitize(bucketIndex, bucketMaskBits.get())) {
-                    bucketChanged = true;
+                // Apply all updates
+                for (BucketMutation m = keyUpdates; m != null; m = m.getNext()) {
+                    if (bucket.putValue(m.getKeyBytes(), m.getKeyHashCode(), m.getOldValue(), m.getValue())) {
+                        bucketChanged = true;
+                    }
                 }
-            }
-            // Apply all updates
-            for (BucketMutation m = keyUpdates; m != null; m = m.getNext()) {
-                if (bucket.putValue(m.getKeyBytes(), m.getKeyHashCode(), m.getOldValue(), m.getValue())) {
-                    bucketChanged = true;
+                // Sanitize the bucket only if there have been any updates to it
+                if (bucketChanged) {
+                    // Clear old bucket entries with wrong hash codes
+                    bucket.sanitize(bucketIndex, bucketMaskBits.get());
                 }
             }
             // Schedule a "store bucket" task for this bucket
