@@ -62,7 +62,10 @@ extensions.getByName<GradleOnlyDirectives>("testChaosModuleInfo").apply {
     runtimeOnly("io.grpc.netty.shaded")
 }
 
-tasks.withType<Test>().configureEach { maxHeapSize = "8g" }
+tasks.withType<Test>().configureEach {
+    maxHeapSize = "8g"
+    jvmArgs("--add-reads", "awaitility=java.management")
+}
 
 // This should probably not be necessary (Log4j issue?)
 // https://github.com/apache/logging-log4j2/pull/3053
