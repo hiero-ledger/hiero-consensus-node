@@ -829,7 +829,7 @@ class BlockNodeConnectionComponentTest extends BlockNodeCommunicationTestBase {
         // Send request in a separate thread
         final Thread testThread = Thread.ofVirtual().start(() -> {
             try {
-                sendRequest(new BlockNodeConnection.BlockItemsStreamRequest(request, 1L, 1, 1, false));
+                sendRequest(new BlockNodeConnection.BlockItemsStreamRequest(request, 1L, 1, 1, false, false));
             } catch (RuntimeException e) {
                 exceptionRef.set(e);
             }
