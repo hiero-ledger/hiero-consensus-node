@@ -3,6 +3,7 @@ package com.hedera.node.app.service.token.impl.calculator;
 
 import static com.hedera.node.app.spi.fees.SimpleFeeCalculatorImpl.countKeys;
 import static org.hiero.hapi.fees.FeeScheduleUtils.lookupServiceFee;
+import static org.hiero.hapi.support.fees.Extra.HOOKS;
 import static org.hiero.hapi.support.fees.Extra.KEYS;
 
 import com.hedera.hapi.node.base.HederaFunctionality;
@@ -14,7 +15,7 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import org.hiero.hapi.fees.FeeResult;
 import org.hiero.hapi.support.fees.ServiceFeeDefinition;
 
-/** Calculates CryptoCreate fees. Per HIP-1261, uses SIGNATURES and KEYS extras. */
+/** Calculates CryptoCreate fees */
 public class CryptoCreateFeeCalculator implements ServiceFeeCalculator {
 
     @Override
@@ -23,12 +24,17 @@ public class CryptoCreateFeeCalculator implements ServiceFeeCalculator {
             @Nullable final CalculatorState calculatorState,
             @NonNull final FeeResult feeResult,
             @NonNull final org.hiero.hapi.support.fees.FeeSchedule feeSchedule) {
-        final var key = txnBody.cryptoCreateAccountOrThrow().key();
-        final long keys = key != null ? countKeys(key) : 0;
+        final var op = txnBody.cryptoCreateAccountOrThrow();
         // Add service base + extras
         final ServiceFeeDefinition serviceDef = lookupServiceFee(feeSchedule, HederaFunctionality.CRYPTO_CREATE);
         feeResult.addServiceFee(1, serviceDef.baseFee());
-        addExtraFee(feeResult, serviceDef, KEYS, feeSchedule, keys);
+        if (op.hasKey()) {
+            addExtraFee(feeResult, serviceDef, KEYS, feeSchedule, countKeys(op.key()));
+        }
+        if (!op.hookCreationDetails().isEmpty()) {
+            final int hooksOperations = op.hookCreationDetails().size();
+            addExtraFee(feeResult, serviceDef, HOOKS, feeSchedule, hooksOperations);
+        }
     }
 
     public TransactionBody.DataOneOfType getTransactionType() {

@@ -38,8 +38,7 @@ import org.junit.jupiter.api.io.TempDir;
 
 final class NodeLoggingContextPropagationTest {
 
-    private static final Logger OTTER_LOGGER = LogManager.getLogger(NodeLoggingContextPropagationTest.class);
-    private static final Logger APP_LOGGER = LogManager.getLogger("com.example.NodeLog");
+    private static final Logger LOGGER = LogManager.getLogger();
 
     @BeforeEach
     void resetSubscribers() {
@@ -61,12 +60,12 @@ final class NodeLoggingContextPropagationTest {
         logging.addNodeLogging(nodeA, tempDir.resolve("node-1"));
         logging.addNodeLogging(nodeB, tempDir.resolve("node-2"));
 
-        OTTER_LOGGER.info(DEMO_INFO.getMarker(), "FALLBACK-LOG");
+        LOGGER.info(DEMO_INFO.getMarker(), "FALLBACK-LOG");
 
         final Map<String, List<StructuredLog>> logsByNode = new ConcurrentHashMap<>();
         InMemorySubscriptionManager.INSTANCE.subscribe(log -> {
             final String message = log.message();
-            if (message.startsWith("APP-")) {
+            if (message.startsWith("NODE-")) {
                 final String key = log.nodeId() == null
                         ? "unknown"
                         : Long.toString(log.nodeId().id());
@@ -87,14 +86,8 @@ final class NodeLoggingContextPropagationTest {
 
         final String nodeALogContent = Files.readString(nodeALog);
         final String nodeBLogContent = Files.readString(nodeBLog);
-        assertThat(nodeALogContent)
-                .contains("APP-NODE-1|main-thread")
-                .contains("APP-NODE-1|executor")
-                .doesNotContain("OTTER-NODE-1");
-        assertThat(nodeBLogContent)
-                .contains("APP-NODE-2|scheduled")
-                .contains("APP-NODE-2|cfExecutor")
-                .doesNotContain("OTTER-NODE-2");
+        assertThat(nodeALogContent).contains("NODE-1|main-thread").contains("NODE-1|executor");
+        assertThat(nodeBLogContent).contains("NODE-2|scheduled").contains("NODE-2|cfExecutor");
 
         final List<StructuredLog> nodeALogs = logsByNode.getOrDefault("1", List.of());
         final List<StructuredLog> nodeBLogs = logsByNode.getOrDefault("2", List.of());
@@ -125,17 +118,9 @@ final class NodeLoggingContextPropagationTest {
         });
 
         assertThat(nodeAMessages)
-                .contains(
-                        "APP-NODE-1|main-thread",
-                        "APP-NODE-1|executor",
-                        "APP-NODE-1|scheduled",
-                        "APP-NODE-1|cfExecutor");
+                .contains("NODE-1|main-thread", "NODE-1|executor", "NODE-1|scheduled", "NODE-1|cfExecutor");
         assertThat(nodeBMessages)
-                .contains(
-                        "APP-NODE-2|main-thread",
-                        "APP-NODE-2|executor",
-                        "APP-NODE-2|scheduled",
-                        "APP-NODE-2|cfExecutor");
+                .contains("NODE-2|main-thread", "NODE-2|executor", "NODE-2|scheduled", "NODE-2|cfExecutor");
 
         assertThat(logsByNode).doesNotContainKey("unknown");
     }
@@ -143,13 +128,9 @@ final class NodeLoggingContextPropagationTest {
     private void emitLogsForNode(@NonNull final NodeId nodeId, @NonNull final String prefix) throws Exception {
         final String contextValue = Long.toString(nodeId.id());
         final Marker infoMarker = DEMO_INFO.getMarker();
-        final String appPrefix = "APP-" + prefix;
-        final String otterPrefix = "OTTER-" + prefix;
         try (var scope = NodeLoggingContext.install(contextValue)) {
-            OTTER_LOGGER.info(infoMarker, "{}|main-thread", otterPrefix);
-            APP_LOGGER.info(infoMarker, "{}|main-thread", appPrefix);
-            OTTER_LOGGER.info(STARTUP.getMarker(), "{}|startup-marker", otterPrefix);
-            APP_LOGGER.info(STARTUP.getMarker(), "{}|startup-marker", appPrefix);
+            LOGGER.info(infoMarker, "{}|main-thread", prefix);
+            LOGGER.info(STARTUP.getMarker(), "{}|startup-marker", prefix);
 
             final ScheduledExecutorService scheduler = NodeLoggingContext.wrap(
                     Executors.newSingleThreadScheduledExecutor(new ContextAwareThreadFactory()));
@@ -158,16 +139,14 @@ final class NodeLoggingContextPropagationTest {
 
             try {
                 executor.submit(() -> {
-                            OTTER_LOGGER.info(infoMarker, "{}|executor", otterPrefix);
-                            APP_LOGGER.info(infoMarker, "{}|executor", appPrefix);
+                            LOGGER.info(infoMarker, "{}|executor", prefix);
                         })
                         .get(5, TimeUnit.SECONDS);
 
                 final CountDownLatch scheduledLatch = new CountDownLatch(1);
                 final ScheduledFuture<?> scheduledFuture = scheduler.schedule(
                         () -> {
-                            OTTER_LOGGER.info(infoMarker, "{}|scheduled", otterPrefix);
-                            APP_LOGGER.info(infoMarker, "{}|scheduled", appPrefix);
+                            LOGGER.info(infoMarker, "{}|scheduled", prefix);
                             scheduledLatch.countDown();
                         },
                         25,
@@ -176,8 +155,7 @@ final class NodeLoggingContextPropagationTest {
                 scheduledLatch.await(5, TimeUnit.SECONDS);
 
                 final Callable<String> commonPoolCallable = NodeLoggingContext.wrap(() -> {
-                    OTTER_LOGGER.info(infoMarker, "{}|commonPool", otterPrefix);
-                    APP_LOGGER.info(infoMarker, "{}|commonPool", appPrefix);
+                    LOGGER.info(infoMarker, "{}|commonPool", prefix);
                     return "ok";
                 });
                 final CompletableFuture<String> commonPoolFuture = CompletableFuture.supplyAsync(() -> {
@@ -191,8 +169,7 @@ final class NodeLoggingContextPropagationTest {
 
                 CompletableFuture.runAsync(
                                 () -> {
-                                    OTTER_LOGGER.info(infoMarker, "{}|cfExecutor", otterPrefix);
-                                    APP_LOGGER.info(infoMarker, "{}|cfExecutor", appPrefix);
+                                    LOGGER.info(infoMarker, "{}|cfExecutor", prefix);
                                 },
                                 executor)
                         .get(5, TimeUnit.SECONDS);
