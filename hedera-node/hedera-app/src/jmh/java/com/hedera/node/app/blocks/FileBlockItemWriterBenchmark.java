@@ -4,10 +4,20 @@ package com.hedera.node.app.blocks;
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.input.EventHeader;
 import com.hedera.hapi.block.stream.input.RoundHeader;
+import com.hedera.hapi.block.stream.output.MapChangeKey;
+import com.hedera.hapi.block.stream.output.MapChangeValue;
+import com.hedera.hapi.block.stream.output.MapUpdateChange;
 import com.hedera.hapi.block.stream.output.StateChange;
 import com.hedera.hapi.block.stream.output.StateChanges;
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.Duration;
+import com.hedera.hapi.node.base.SignatureMap;
 import com.hedera.hapi.node.base.Timestamp;
+import com.hedera.hapi.node.base.TransactionID;
+import com.hedera.hapi.node.state.token.Account;
+import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
+import com.hedera.hapi.node.transaction.SignedTransaction;
+import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.platform.event.EventCore;
 import com.hedera.node.app.blocks.impl.streaming.FileBlockItemWriter;
 import com.hedera.node.app.info.NodeInfoImpl;
@@ -19,6 +29,18 @@ import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.io.IOException;
+import java.nio.file.FileSystem;
+import java.nio.file.FileSystems;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
+import java.util.SplittableRandom;
+import java.util.concurrent.TimeUnit;
+import java.util.stream.Stream;
+import org.openjdk.jmh.annotations.AuxCounters;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -34,25 +56,13 @@ import org.openjdk.jmh.annotations.TearDown;
 import org.openjdk.jmh.annotations.Warmup;
 import org.openjdk.jmh.infra.Blackhole;
 
-import java.io.IOException;
-import java.nio.file.FileSystem;
-import java.nio.file.FileSystems;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.List;
-import java.util.SplittableRandom;
-import java.util.concurrent.TimeUnit;
-import java.util.stream.Stream;
-
 /**
  * JMH Benchmark for FileBlockItemWriter to analyze and optimize block writing performance.
- *
  * This benchmark measures:
- * 1. Throughput of writing blocks to disk with different block sizes
+ * 1. Throughput of writing blocks with async compression (realistic production behavior)
  * 2. Impact of different item sizes on performance
- * 3. Effectiveness of the current buffering strategy
+ * 3. Effectiveness of buffer consolidation and compression strategies
+ * 4. Compression ratios with realistic protobuf-encoded transaction and state data
  */
 @State(Scope.Benchmark)
 @Fork(value = 1)
@@ -60,13 +70,31 @@ import java.util.stream.Stream;
 @Measurement(iterations = 5, time = 5)
 public class FileBlockItemWriterBenchmark {
 
+    /**
+     * Auxiliary counters to track file sizes during benchmarks.
+     * These will appear in the benchmark results as additional metrics.
+     */
+    @AuxCounters(AuxCounters.Type.EVENTS)
+    @State(Scope.Thread)
+    public static class FileSizeCounters {
+        public long uncompressedBytes;
+        public long compressedBytes;
+        public long compressionRatioPercent;
+
+        public void recordFileSizes(long uncompressed, long compressed) {
+            this.uncompressedBytes = uncompressed;
+            this.compressedBytes = compressed;
+            this.compressionRatioPercent = uncompressed > 0 ? (compressed * 100) / uncompressed : 0;
+        }
+    }
+
     private static final SplittableRandom RANDOM = new SplittableRandom(1_234_567L);
 
-    // Number of items per block (typical blocks have ~100-200 items)
+    // Number of items per block
     @Param({"50", "100", "200", "500"})
     private int itemsPerBlock;
 
-    // Average size of each block item in bytes (typical range: 100-5000 bytes)
+    // Average size of each block item in bytes
     @Param({"500", "2000", "5000"})
     private int avgItemSizeBytes;
 
@@ -80,9 +108,7 @@ public class FileBlockItemWriterBenchmark {
     private long blockNumber;
 
     public static void main(String... args) throws Exception {
-        org.openjdk.jmh.Main.main(new String[] {
-                "com.hedera.node.app.blocks.FileBlockItemWriterBenchmark"
-        });
+        org.openjdk.jmh.Main.main(new String[] {"com.hedera.node.app.blocks.FileBlockItemWriterBenchmark"});
     }
 
     @Setup(Level.Trial)
@@ -95,20 +121,12 @@ public class FileBlockItemWriterBenchmark {
                 .withConfigDataType(BlockStreamConfig.class)
                 .withValue("blockStream.blockFileDir", tempDir.toString())
                 .getOrCreateConfig();
-        
+
         configProvider = () -> new VersionedConfigImpl(config, 1L);
 
         // Setup node info
         nodeInfo = new NodeInfoImpl(
-                0,
-                AccountID.newBuilder().accountNum(3).build(),
-                10,
-                List.of(),
-                Bytes.EMPTY,
-                List.of(),
-                false,
-                null
-        );
+                0, AccountID.newBuilder().accountNum(3).build(), 10, List.of(), Bytes.EMPTY, List.of(), false, null);
 
         fileSystem = FileSystems.getDefault();
 
@@ -126,14 +144,13 @@ public class FileBlockItemWriterBenchmark {
         // Clean up temporary files
         if (tempDir != null && Files.exists(tempDir)) {
             try (Stream<Path> paths = Files.walk(tempDir)) {
-                paths.sorted(Comparator.reverseOrder())
-                        .forEach(path -> {
-                            try {
-                                Files.deleteIfExists(path);
-                            } catch (IOException e) {
-                                // Ignore cleanup errors
-                            }
-                        });
+                paths.sorted(Comparator.reverseOrder()).forEach(path -> {
+                    try {
+                        Files.deleteIfExists(path);
+                    } catch (IOException e) {
+                        // Ignore cleanup errors
+                    }
+                });
             }
         }
     }
@@ -144,21 +161,22 @@ public class FileBlockItemWriterBenchmark {
         Path blockDir = tempDir.resolve("block-0.0.3");
         if (Files.exists(blockDir)) {
             try (Stream<Path> paths = Files.walk(blockDir)) {
-                paths.filter(Files::isRegularFile)
-                        .forEach(path -> {
-                            try {
-                                Files.deleteIfExists(path);
-                            } catch (IOException e) {
-                                // Ignore cleanup errors
-                            }
-                        });
+                paths.filter(Files::isRegularFile).forEach(path -> {
+                    try {
+                        Files.deleteIfExists(path);
+                    } catch (IOException e) {
+                        // Ignore cleanup errors
+                    }
+                });
             }
         }
     }
 
     /**
-     * Benchmark writing a complete block with realistic data.
-     * Measures both throughput (ops/sec) and average time (ms/op).
+     * Benchmark ASYNC pipeline behavior - measures throughput when blocks overlap.
+     * This shows the benefit of async compression where Block N+1 can be
+     * opened/written while Block N compresses in the background.
+     * Measures how fast we can start new blocks (without waiting for previous ones).
      */
     @Benchmark
     @BenchmarkMode({Mode.Throughput, Mode.AverageTime})
@@ -173,6 +191,51 @@ public class FileBlockItemWriterBenchmark {
         }
 
         writer.closeCompleteBlock();
+
+        // don't wait - compression happens in background
+        // to measure with waiting for compression, uncomment next line
+        // writer.awaitCompressionComplete();
+
+        blackhole.consume(writer);
+    }
+
+    /**
+     * Measure compression ratios by waiting for compression and checking file sizes.
+     * This is NOT the async benchmark - it waits for compression to complete.
+     * Run this separately to see compression ratios without affecting async performance measurements.
+     */
+    @Benchmark
+    @BenchmarkMode(Mode.SingleShotTime)
+    @OutputTimeUnit(TimeUnit.MILLISECONDS)
+    @Warmup(iterations = 0)
+    @Measurement(iterations = 3)
+    public void measureCompressionRatio(@NonNull final Blackhole blackhole, @NonNull final FileSizeCounters counters) {
+        FileBlockItemWriter writer = new FileBlockItemWriter(configProvider, nodeInfo, fileSystem);
+        long currentBlockNum = blockNumber++;
+
+        writer.openBlock(currentBlockNum);
+
+        // Calculate uncompressed size
+        long uncompressedSize = 0;
+        for (byte[] itemBytes : serializedItems) {
+            writer.writePbjItemAndBytes(null, Bytes.wrap(itemBytes));
+            uncompressedSize += itemBytes.length;
+        }
+
+        writer.closeCompleteBlock();
+
+        // Wait for compression to complete to get accurate file size
+        writer.awaitCompressionComplete();
+
+        // Record file sizes for the report
+        try {
+            Path blockFile = tempDir.resolve("block-0.0.3").resolve(String.format("%036d.blk.gz", currentBlockNum));
+            long compressedSize = Files.exists(blockFile) ? Files.size(blockFile) : 0;
+            counters.recordFileSizes(uncompressedSize, compressedSize);
+        } catch (IOException e) {
+            // Ignore - just won't record file sizes
+        }
+
         blackhole.consume(writer);
     }
 
@@ -195,92 +258,161 @@ public class FileBlockItemWriterBenchmark {
         blackhole.consume(writer);
     }
 
-
     /**
      * Generate realistic block items for benchmarking.
+     * Uses patterns similar to real transactions/state changes for realistic compression testing.
      */
     private void generateBlockItems() {
         serializedItems = new ArrayList<>(itemsPerBlock);
 
         for (int i = 0; i < itemsPerBlock; i++) {
-            BlockItem item = generateRandomBlockItem(avgItemSizeBytes);
+            BlockItem item = generateRealisticBlockItem(avgItemSizeBytes, i);
             byte[] serialized = BlockItem.PROTOBUF.toBytes(item).toByteArray();
             serializedItems.add(serialized);
         }
     }
 
     /**
-     * Generate a random BlockItem with approximately the specified size.
+     * Generate a realistic BlockItem with approximately the specified size.
+     * Uses patterns that mimic real blockchain data for accurate compression testing.
      */
-    private static BlockItem generateRandomBlockItem(int targetSize) {
+    private static BlockItem generateRealisticBlockItem(int targetSize, int index) {
         // Randomly choose item type
         int type = RANDOM.nextInt(4);
 
         return switch (type) {
-            case 0 -> generateTransactionItem(targetSize);
-            case 1 -> generateStateChangeItem(targetSize);
-            case 2 -> generateEventHeaderItem(targetSize);
-            default -> generateRoundHeaderItem();
+            case 0 -> generateTransactionItem(targetSize, index);
+            case 1 -> generateStateChangeItem(targetSize, index);
+            case 2 -> generateEventHeaderItem(index); // No targetSize needed - naturally small
+            default -> generateRoundHeaderItem(index); // No targetSize needed - naturally small
         };
     }
 
-    private static BlockItem generateTransactionItem(int targetSize) {
-        // Create a transaction with random data to reach target size
-        byte[] txData = new byte[Math.max(100, targetSize - 100)];
-        RANDOM.nextBytes(txData);
+    private static BlockItem generateTransactionItem(int targetSize, int index) {
+        // Generate a REAL protobuf-serialized Hedera transaction
 
-        return BlockItem.newBuilder()
-                .signedTransaction(Bytes.wrap(txData))
+        // 1. Create TransactionID with realistic patterns
+        TransactionID transactionID = TransactionID.newBuilder()
+                .accountID(AccountID.newBuilder()
+                        .shardNum(0)
+                        .realmNum(0)
+                        .accountNum(1000 + (index % 1000)) // Repeating account IDs
+                        .build())
+                .transactionValidStart(Timestamp.newBuilder()
+                        .seconds(1700000000L + (index * 10)) // Sequential timestamps
+                        .nanos(0)
+                        .build())
                 .build();
+
+        // 2. Create TransactionBody (most common: crypto transfer)
+        // Pad memo to reach target size
+        String memo = "tx_" + index;
+        int estimatedBaseSize = 200; // Rough estimate of other fields
+        int neededMemoSize = Math.max(0, targetSize - estimatedBaseSize);
+        if (neededMemoSize > 0) {
+            memo = memo + "_".repeat(Math.min(neededMemoSize, 1000)); // Max 1000 chars
+        }
+
+        TransactionBody transactionBody = TransactionBody.newBuilder()
+                .transactionID(transactionID)
+                .nodeAccountID(AccountID.newBuilder()
+                        .shardNum(0)
+                        .realmNum(0)
+                        .accountNum(3 + (index % 10)) // Node accounts from small set
+                        .build())
+                .transactionFee(100000 + (index % 1000)) // Similar fees
+                .transactionValidDuration(Duration.newBuilder().seconds(120).build())
+                .memo(memo)
+                .cryptoTransfer(CryptoTransferTransactionBody.DEFAULT) // Empty transfer for benchmarking
+                .build();
+
+        // 3. Serialize TransactionBody to bytes
+        Bytes bodyBytes = TransactionBody.PROTOBUF.toBytes(transactionBody);
+
+        // 4. Create SignedTransaction with signature map
+        SignedTransaction signedTransaction = SignedTransaction.newBuilder()
+                .bodyBytes(bodyBytes)
+                .sigMap(SignatureMap.DEFAULT) // Empty sig map for benchmarking
+                .build();
+
+        // 5. Serialize SignedTransaction to bytes
+        Bytes signedTxBytes = SignedTransaction.PROTOBUF.toBytes(signedTransaction);
+
+        // 6. Wrap in BlockItem
+        return BlockItem.newBuilder().signedTransaction(signedTxBytes).build();
     }
 
-    private static BlockItem generateStateChangeItem(int targetSize) {
-        // Create state changes with realistic account data
-        int numChanges = Math.max(1, targetSize / 200);
+    private static BlockItem generateStateChangeItem(int targetSize, int index) {
+        int numChanges = Math.max(1, targetSize / 300);
         StateChange[] changes = new StateChange[numChanges];
 
         for (int i = 0; i < numChanges; i++) {
+            // State ID for ACCOUNTS virtual map (common state change)
+            int stateId = 100 + ((index + i) % 50); // Repeating pattern
+
+            // Create a realistic account state value with repeating patterns
+            Account accountValue = Account.newBuilder()
+                    .accountId(AccountID.newBuilder()
+                            .shardNum(0)
+                            .realmNum(0)
+                            .accountNum(1000 + ((index + i) % 5000)) // Repeating account numbers
+                            .build())
+                    .tinybarBalance(1000000L + ((index + i) * 100)) // Sequential balances
+                    .memo("account_" + ((index + i) % 100)) // Repeating memos
+                    // Most other fields default to zero
+                    .build();
+
+            // Create map update change
+            MapUpdateChange mapUpdate = MapUpdateChange.newBuilder()
+                    .key(MapChangeKey.newBuilder()
+                            .accountIdKey(AccountID.newBuilder()
+                                    .shardNum(0)
+                                    .realmNum(0)
+                                    .accountNum(1000 + ((index + i) % 5000))
+                                    .build())
+                            .build())
+                    .value(MapChangeValue.newBuilder()
+                            .accountValue(accountValue)
+                            .build())
+                    .build();
+
             changes[i] = StateChange.newBuilder()
-                    .stateId(1)
+                    .stateId(stateId)
+                    .mapUpdate(mapUpdate)
                     .build();
         }
 
         return BlockItem.newBuilder()
                 .stateChanges(StateChanges.newBuilder()
-                        .consensusTimestamp(randomTimestamp())
+                        .consensusTimestamp(Timestamp.newBuilder()
+                                .seconds(1700000000L + (index * 10)) // Sequential timestamps
+                                .nanos(0)
+                                .build())
                         .stateChanges(changes)
                         .build())
                 .build();
     }
 
-    private static BlockItem generateEventHeaderItem(int targetSize) {
-        // Create an EventCore for the event header
-        // Add some extra data to eventCore to reach target size if needed
+    private static BlockItem generateEventHeaderItem(int index) {
         EventCore eventCore = EventCore.newBuilder()
-                .birthRound(RANDOM.nextLong(1, 1_000_000))
-                .creatorNodeId(RANDOM.nextLong(0, 10))
-                .timeCreated(randomTimestamp())
+                .birthRound(1_000_000 + (index / 100)) // Sequential rounds
+                .creatorNodeId(index % 10) // Rotating node IDs
+                .timeCreated(Timestamp.newBuilder()
+                        .seconds(1700000000L + (index * 10))
+                        .nanos(0)
+                        .build())
                 .build();
 
         return BlockItem.newBuilder()
-                .eventHeader(EventHeader.newBuilder()
-                        .eventCore(eventCore)
-                        .build())
+                .eventHeader(EventHeader.newBuilder().eventCore(eventCore).build())
                 .build();
     }
 
-    private static BlockItem generateRoundHeaderItem() {
+    private static BlockItem generateRoundHeaderItem(int index) {
         return BlockItem.newBuilder()
                 .roundHeader(RoundHeader.newBuilder()
-                        .roundNumber(RANDOM.nextLong(1_000_000))
+                        .roundNumber(1_000_000 + (index / 1000)) // Sequential round numbers
                         .build())
-                .build();
-    }
-
-    private static Timestamp randomTimestamp() {
-        return Timestamp.newBuilder()
-                .seconds(RANDOM.nextLong(1_700_000_000, 1_800_000_000))
-                .nanos(RANDOM.nextInt(1_000_000_000))
                 .build();
     }
 }
