@@ -18,10 +18,13 @@ import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.otter.fixtures.internal.helpers.Utils;
 import org.hiero.otter.fixtures.network.BandwidthLimit;
 import org.hiero.otter.fixtures.network.BidirectionalConnection;
+import org.hiero.otter.fixtures.network.GeoMeshTopologyConfiguration;
 import org.hiero.otter.fixtures.network.LatencyRange;
+import org.hiero.otter.fixtures.network.MeshTopologyConfiguration;
 import org.hiero.otter.fixtures.network.Partition;
 import org.hiero.otter.fixtures.network.Topology;
 import org.hiero.otter.fixtures.network.Topology.ConnectionState;
+import org.hiero.otter.fixtures.network.TopologyConfiguration;
 import org.hiero.otter.fixtures.network.UnidirectionalConnection;
 import org.hiero.otter.fixtures.network.transactions.OtterTransaction;
 import org.hiero.otter.fixtures.result.MultipleNodeConsensusResults;
@@ -59,6 +62,29 @@ public interface Network extends Configurable<Network> {
      */
     @NonNull
     Topology topology();
+
+    /**
+     * Configures the network topology with the specified configuration.
+     *
+     * <p>This method must be called before any nodes are added to the network. It configures the topology with the
+     * characteristics defined by the provided configuration object. Supported configurations include:
+     * <ul>
+     *   <li>{@link MeshTopologyConfiguration} - for uniform mesh topology with specified latency, jitter, and
+     *       bandwidth</li>
+     *   <li>{@link GeoMeshTopologyConfiguration} - for realistic geographic latency simulation</li>
+     * </ul>
+     *
+     * <p>If this method is not called, a default geographic mesh topology configuration is used.
+     *
+     * @param configuration the topology configuration to apply (must implement {@link TopologyConfiguration})
+     * @return this {@code Network} instance for method chaining
+     * @throws NullPointerException if {@code configuration} is {@code null}
+     * @throws IllegalStateException if any nodes have already been added to the network or if the network is already
+     *         running
+     * @throws IllegalArgumentException if the configuration type is not supported
+     */
+    @NonNull
+    Network topology(@NonNull TopologyConfiguration configuration);
 
     /**
      * Adds a single node to the network.
