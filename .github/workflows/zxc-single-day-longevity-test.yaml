@@ -449,7 +449,7 @@ jobs:
           runs=$(expr ${runs} + 1)
           matrix=$(seq 1 1 ${runs} | perl -ne '~s/\n//g; print "\"$_\","' | sed -e 's/^\(.*\)[,]$/\1/g')
           echo "value=[${matrix}]"
-          echo "value=[${matrix}]" >> ${GITHUB_OUTPUT}
+          echo "value=[${matrix}]" >> "${GITHUB_OUTPUT}"
 
   longevity-tests-wait:
     name: Wait for Longevity test
