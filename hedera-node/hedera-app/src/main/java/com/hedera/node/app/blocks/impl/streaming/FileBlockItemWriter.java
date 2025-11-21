@@ -237,6 +237,13 @@ public class FileBlockItemWriter implements BlockItemWriter {
                         Arrays.toString(Arrays.copyOfRange(proofJsons.toArray(), i + 1, proofJsons.size())));
                 break;
             }
+            if (pendingProof.blockTimestamp() == null) {
+                logger.warn(
+                        "Pending proof metadata from {} is missing block timestamp (not considering remaining - {})",
+                        proofJson.toPath(),
+                        Arrays.toString(Arrays.copyOfRange(proofJsons.toArray(), i + 1, proofJsons.size())));
+                break;
+            }
             Block partialBlock = null;
             final var name = proofJson.getName();
             Path contentsPath = proofJson.toPath().resolveSibling(name.replace(".pnd.json", ".pnd.gz"));
