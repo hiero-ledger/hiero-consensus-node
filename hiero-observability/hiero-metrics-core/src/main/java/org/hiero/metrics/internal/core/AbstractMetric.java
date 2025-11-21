@@ -78,29 +78,29 @@ public abstract class AbstractMetric<D, S extends DataPointSnapshot> implements 
         for (int i = 0; i < labelNames.size(); i++) {
             String labelName = labelNames.get(i);
 
-            int j = 2 * i;
-            while (j < nv.length) {
-                if (labelName.equals(nv[j])) {
-                    if (nv[j + 1] == null) {
+            int foundLabelIdx = 2 * i;
+            while (foundLabelIdx < nv.length) {
+                if (labelName.equals(nv[foundLabelIdx])) {
+                    if (nv[foundLabelIdx + 1] == null) {
                         throw new NullPointerException("Label value must not be null for label: " + labelName);
                     }
                     break;
                 }
-                j += 2;
+                foundLabelIdx += 2;
             }
 
-            if (j >= nv.length) {
+            if (foundLabelIdx >= nv.length) {
                 throw new IllegalArgumentException("Missing label name: " + labelName);
             }
 
             // swap only if not already on its place
-            if (j > 2 * i) {
+            if (foundLabelIdx > 2 * i) {
                 String tmpName = nv[2 * i];
                 String tmpValue = nv[2 * i + 1];
-                nv[2 * i] = nv[j];
-                nv[2 * i + 1] = nv[j + 1];
-                nv[j] = tmpName;
-                nv[j + 1] = tmpValue;
+                nv[2 * i] = nv[foundLabelIdx];
+                nv[2 * i + 1] = nv[foundLabelIdx + 1];
+                nv[foundLabelIdx] = tmpName;
+                nv[foundLabelIdx + 1] = tmpValue;
             }
         }
 

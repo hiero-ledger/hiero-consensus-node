@@ -12,6 +12,7 @@ import org.hiero.metrics.openmetrics.config.OpenMetricsHttpEndpointConfig;
 
 /**
  * Implementation of {@link MetricsExporterFactory} for creating OpenMetrics HTTP endpoint exporters.
+ * Uses {@link OpenMetricsHttpEndpointConfig} for configuration.
  */
 public final class OpenMetricsHttpEndpointFactory implements MetricsExporterFactory {
 

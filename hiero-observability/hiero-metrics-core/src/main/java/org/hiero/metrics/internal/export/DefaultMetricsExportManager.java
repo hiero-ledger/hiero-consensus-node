@@ -34,7 +34,7 @@ import org.hiero.metrics.api.utils.Unit;
  */
 public final class DefaultMetricsExportManager extends AbstractMetricsExportManager {
 
-    private static final String PUSHING_EXPORTER_NAME = "name";
+    private static final String PUSHING_EXPORTER_NAME_LABEL = "name";
 
     private final List<PullingMetricsExporter> pullingExporters;
     private final List<PushingMetricsExporter> pushingExporters;
@@ -44,7 +44,7 @@ public final class DefaultMetricsExportManager extends AbstractMetricsExportMana
     private volatile ScheduledFuture<?> scheduledExportFuture;
 
     // this metric will report previous export duration for each pushing exporter
-    private LongGauge pushingExportDurationMetric;
+    private final LongGauge pushingExportDurationMetric;
 
     public DefaultMetricsExportManager(
             @NonNull SnapshotableMetricsRegistry registry,
@@ -67,9 +67,9 @@ public final class DefaultMetricsExportManager extends AbstractMetricsExportMana
         logExporters("pushing", pushingExporters);
 
         pushingExportDurationMetric = registry.register(
-                LongGauge.builder(LongGauge.key("push_export_duration").withCategory(EXPORT_METRICS_CATEGORY))
+                LongGauge.builder(LongGauge.key("push_export_duration").withCategory("export"))
                         .withDescription("Push export duration time")
-                        .withDynamicLabelNames(PUSHING_EXPORTER_NAME)
+                        .withDynamicLabelNames(PUSHING_EXPORTER_NAME_LABEL)
                         .withUnit(Unit.MILLISECOND_UNIT));
 
         for (PullingMetricsExporter pullingExporter : pullingExporters) {
@@ -167,7 +167,7 @@ public final class DefaultMetricsExportManager extends AbstractMetricsExportMana
                 } finally {
                     final long duration = System.currentTimeMillis() - startTime;
                     pushingExportDurationMetric
-                            .getOrCreateLabeled(PUSHING_EXPORTER_NAME, pushingExporter.name())
+                            .getOrCreateLabeled(PUSHING_EXPORTER_NAME_LABEL, pushingExporter.name())
                             .update(duration);
                 }
             }
