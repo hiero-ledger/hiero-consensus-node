@@ -205,6 +205,20 @@ jobs:
       gradle-cache-username: ${{ secrets.gradle-cache-username }}
       gradle-cache-password: ${{ secrets.gradle-cache-password }}
 
+  xts-chaos-otter-tests:
+    name: XTS Chaos Otter Tests
+    if: ${{ inputs.enable-extended-test-suite == 'true' && contains(inputs.custom-job-label, 'Dry Run') }}
+    uses: ./.github/workflows/zxc-execute-otter-tests.yaml
+    with:
+      custom-job-label: "${{ inputs.custom-job-label }} Chaos Otter Tests"
+      enable-chaos-otter-tests: true
+      enable-network-log-capture: true
+      ref: ${{ inputs.commit_sha }}
+    secrets:
+      access-token: ${{ secrets.access-token }}
+      gradle-cache-username: ${{ secrets.gradle-cache-username }}
+      gradle-cache-password: ${{ secrets.gradle-cache-password }}
+
   abbreviated-panel:
     name: JRS Panel
     if: ${{ inputs.enable-abbreviated-panel == 'true' }}

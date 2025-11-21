@@ -5,6 +5,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.Path;
 import java.util.Set;
 import org.hiero.otter.fixtures.chaosbot.ChaosBot;
+import org.hiero.otter.fixtures.chaosbot.ChaosBotConfiguration;
 
 /**
  * Interface representing the test environment of an Otter test.
@@ -49,20 +50,11 @@ public interface TestEnvironment {
     /**
      * Create a chaos bot that can introduce randomized faults into the test environment.
      *
+     * @param configuration the chaos bot configuration
      * @return the chaos bot
      */
     @NonNull
-    ChaosBot createChaosBot();
-
-    /**
-     * Create a chaos bot that can introduce pseudo-randomized faults into the test environment.
-     * The created failures will be reproducible using the same seed.
-     *
-     * @param seed the seed for randomness
-     * @return the chaos bot
-     */
-    @NonNull
-    ChaosBot createChaosBot(long seed);
+    ChaosBot createChaosBot(@NonNull ChaosBotConfiguration configuration);
 
     /**
      * Get the root output directory for this test environment.
