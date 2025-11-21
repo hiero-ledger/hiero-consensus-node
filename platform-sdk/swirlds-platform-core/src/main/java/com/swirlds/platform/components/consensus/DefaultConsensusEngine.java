@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.components.consensus;
 
+import static java.util.Objects.requireNonNull;
 import static org.hiero.consensus.model.status.PlatformStatus.REPLAYING_EVENTS;
 
+import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.platform.Consensus;
@@ -20,7 +22,6 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Objects;
 import java.util.Queue;
 import org.hiero.consensus.event.FutureEventBuffer;
 import org.hiero.consensus.event.FutureEventBufferingOption;
@@ -51,6 +52,8 @@ public class DefaultConsensusEngine implements ConsensusEngine {
 
     private final int roundsNonAncient;
 
+    private final RosterHistory rosterHistory;
+
     private final ConsensusEngineMetrics metrics;
 
     private final FreezeRoundController freezeRoundController;
@@ -68,13 +71,12 @@ public class DefaultConsensusEngine implements ConsensusEngine {
             @NonNull final RosterHistory rosterHistory,
             @NonNull final NodeId selfId,
             @NonNull final FreezeCheckHolder freezeChecker) {
-
+        this.rosterHistory = requireNonNull(rosterHistory);
         final ConsensusMetrics consensusMetrics = new ConsensusMetricsImpl(selfId, platformContext.getMetrics());
         consensus = new ConsensusImpl(platformContext, consensusMetrics, rosterHistory.getCurrentRoster());
 
         linker = new ConsensusLinker(
-                new DefaultLinkerLogsAndMetrics(platformContext.getMetrics(), platformContext.getTime()),
-                rosterHistory);
+                new DefaultLinkerLogsAndMetrics(platformContext.getMetrics(), platformContext.getTime()));
         futureEventBuffer = new FutureEventBuffer(
                 platformContext.getMetrics(), FutureEventBufferingOption.PENDING_CONSENSUS_ROUND, "consensus");
         roundsNonAncient = platformContext
@@ -100,7 +102,7 @@ public class DefaultConsensusEngine implements ConsensusEngine {
     @Override
     @NonNull
     public ConsensusEngineOutput addEvent(@NonNull final PlatformEvent event) {
-        Objects.requireNonNull(event);
+        requireNonNull(event);
 
         if (freezeRoundController.isFrozen()) {
             // If we are frozen, ignore all events
@@ -123,10 +125,20 @@ public class DefaultConsensusEngine implements ConsensusEngine {
 
         while (!eventsToAdd.isEmpty()) {
             final PlatformEvent eventToAdd = eventsToAdd.poll();
+            final Roster roster = rosterHistory.getRosterForRound(eventToAdd.getBirthRound());
+            if (roster == null) {
+                // no roster for the event means it is ancient
+                continue;
+            }
+
             final EventImpl linkedEvent = linker.linkEvent(eventToAdd);
             if (linkedEvent == null) {
                 // linker discarded an ancient event
                 continue;
+            }
+
+            if (roster.rosterEntries().size() == 1) {
+                linkedEvent.duplicateSelfParentAsOtherParent();
             }
 
             // check if we have found init judges before adding the event

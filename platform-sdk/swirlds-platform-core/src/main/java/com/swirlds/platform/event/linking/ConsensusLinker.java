@@ -3,7 +3,6 @@ package com.swirlds.platform.event.linking;
 
 import static java.util.Objects.requireNonNull;
 
-import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.platform.event.EventCounter;
 import com.swirlds.platform.internal.EventImpl;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -14,14 +13,12 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.stream.Stream;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.sequence.map.SequenceMap;
 import org.hiero.consensus.model.sequence.map.StandardSequenceMap;
-import org.hiero.consensus.roster.RosterHistory;
 
 /**
  * Links events to their parents. Expects events to be provided in topological order.
@@ -59,11 +56,6 @@ public class ConsensusLinker {
     private final Map<Hash, EventImpl> parentHashMap = new HashMap<>(INITIAL_CAPACITY);
 
     /**
-     * The roster history, used to get the roster for a given round.
-     */
-    private final RosterHistory rosterHistory;
-
-    /**
      * The current event window.
      */
     private EventWindow eventWindow;
@@ -72,12 +64,9 @@ public class ConsensusLinker {
      * Constructor
      *
      * @param logsAndMetrics logs and collects metrics in case of linking issues
-     * @param rosterHistory the roster history
      */
-    public ConsensusLinker(
-            @NonNull final LinkerLogsAndMetrics logsAndMetrics, @NonNull final RosterHistory rosterHistory) {
+    public ConsensusLinker(@NonNull final LinkerLogsAndMetrics logsAndMetrics) {
         this.logsAndMetrics = requireNonNull(logsAndMetrics);
-        this.rosterHistory = requireNonNull(rosterHistory);
         this.eventWindow = EventWindow.getGenesisEventWindow();
         this.parentDescriptorMap =
                 new StandardSequenceMap<>(0, INITIAL_CAPACITY, true, EventDescriptorWrapper::birthRound);
@@ -96,7 +85,10 @@ public class ConsensusLinker {
             return null;
         }
 
-        final List<EventImpl> parents = getParents(event);
+        final List<EventImpl> parents = event.getAllParents().stream()
+                .map(ed -> getParentToLink(event, ed))
+                .filter(Objects::nonNull)
+                .toList();
         final EventImpl linkedEvent = new EventImpl(event, parents);
         EventCounter.incrementLinkedEventCount();
 
@@ -105,36 +97,6 @@ public class ConsensusLinker {
         parentHashMap.put(eventDescriptorWrapper.hash(), linkedEvent);
 
         return linkedEvent;
-    }
-
-    /**
-     * Get the parents for the given event, taking into account special handling for size 1 networks.
-     *
-     * @param event the event to get other parents for
-     * @return the other parents to use
-     */
-    private List<EventImpl> getParents(@NonNull final PlatformEvent event) {
-        final Roster roster = rosterHistory.getRosterForRound(event.getBirthRound());
-        if (roster == null) {
-            logsAndMetrics.missingRosterForEvent(event, rosterHistory);
-            return List.of();
-        }
-
-        if (roster.rosterEntries().size() > 1) {
-            return event.getAllParents().stream()
-                    .map(ed -> getParentToLink(event, ed))
-                    .filter(Objects::nonNull)
-                    .toList();
-        } else {
-            // There is a quirk in size 1 networks where we can only
-            // reach consensus if the self-parent is also the other parent.
-            // Unexpected, but harmless. So just use the same event
-            // as the other parent until that issue is resolved.
-            return Stream.of(event.getSelfParent(), event.getSelfParent())
-                    .map(ed -> getParentToLink(event, ed))
-                    .filter(Objects::nonNull)
-                    .toList();
-        }
     }
 
     /**

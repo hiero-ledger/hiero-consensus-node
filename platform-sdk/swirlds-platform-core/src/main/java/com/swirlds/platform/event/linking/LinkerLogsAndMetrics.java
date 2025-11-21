@@ -6,7 +6,6 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
-import org.hiero.consensus.roster.RosterHistory;
 
 /**
  * Logs and metrics for the {@link ConsensusLinker}
@@ -31,14 +30,6 @@ public interface LinkerLogsAndMetrics {
             @NonNull PlatformEvent child,
             @NonNull EventDescriptorWrapper parentDescriptor,
             @NonNull EventImpl candidateParent);
-
-    /**
-     * This method is called when a roster is not available in the roster history for an event's birth round.
-     *
-     * @param event the event missing a roster
-     * @param rosterHistory the roster history
-     */
-    void missingRosterForEvent(@NonNull final PlatformEvent event, @NonNull final RosterHistory rosterHistory);
 
     /**
      * This method is called when a child event has a self parent with a time created that is not strictly before the

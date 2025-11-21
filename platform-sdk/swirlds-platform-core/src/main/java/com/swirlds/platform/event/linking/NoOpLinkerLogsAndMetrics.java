@@ -6,7 +6,6 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
-import org.hiero.consensus.roster.RosterHistory;
 
 /**
  * A no-operation implementation of {@link LinkerLogsAndMetrics} that does nothing.
@@ -37,9 +36,6 @@ public class NoOpLinkerLogsAndMetrics implements LinkerLogsAndMetrics {
             @NonNull final PlatformEvent child,
             @NonNull final EventDescriptorWrapper parentDescriptor,
             @NonNull final EventImpl candidateParent) {}
-
-    @Override
-    public void missingRosterForEvent(@NonNull final PlatformEvent event, @NonNull final RosterHistory rosterHistory) {}
 
     @Override
     public void childTimeIsNotAfterSelfParentTime(

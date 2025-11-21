@@ -10,15 +10,12 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.platform.internal.EventImpl;
-import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
-import com.swirlds.platform.test.fixtures.addressbook.RosterHistoryBuilder;
 import com.swirlds.platform.test.fixtures.event.generator.StandardGraphGenerator;
 import com.swirlds.platform.test.fixtures.event.source.StandardEventSource;
 import com.swirlds.platform.test.fixtures.graph.SimpleGraphs;
@@ -37,7 +34,6 @@ import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
 import org.hiero.consensus.model.test.fixtures.hashgraph.EventWindowBuilder;
-import org.hiero.consensus.roster.RosterHistory;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -55,8 +51,8 @@ class ConsensusLinkerTests {
 
     private FakeTime time;
 
-    private NodeId cr0 = NodeId.of(0);
-    private NodeId cr1 = NodeId.of(1);
+    private final NodeId cr0 = NodeId.of(0);
+    private final NodeId cr1 = NodeId.of(1);
 
     /**
      * Set up the in order linker for testing
@@ -69,31 +65,8 @@ class ConsensusLinkerTests {
         time = new FakeTime();
     }
 
-    private void inOrderLinkerSetupInSingleNodeNetwork() {
-        final Roster singleNodeRoster =
-                RandomRosterBuilder.create(random).withSize(1).build();
-        final RosterHistory rosterHistory =
-                new RosterHistoryBuilder().withRoster(singleNodeRoster).build();
-        cr0 = NodeId.of(singleNodeRoster.rosterEntries().getFirst().nodeId());
-        inOrderLinkerSetup(rosterHistory);
-    }
-
-    private void inOrderLinkerSetupInMultiNodeNetwork() {
-        inOrderLinkerSetup(rosterHistoryWithMultipleNodes());
-    }
-
-    private RosterHistory rosterHistoryWithMultipleNodes() {
-        final Roster multiNodeRoster =
-                RandomRosterBuilder.create(random).withSize(random.nextInt(10)).build();
-        final RosterHistory rosterHistory =
-                new RosterHistoryBuilder().withRoster(multiNodeRoster).build();
-        cr0 = NodeId.of(multiNodeRoster.rosterEntries().getFirst().nodeId());
-        cr1 = NodeId.of(multiNodeRoster.rosterEntries().getLast().nodeId());
-        return rosterHistory;
-    }
-
-    private void inOrderLinkerSetup(@NonNull final RosterHistory rosterHistory) {
-        linker = new ConsensusLinker(NoOpLinkerLogsAndMetrics.getInstance(), rosterHistory);
+    private void inOrderLinkerSetup() {
+        linker = new ConsensusLinker(NoOpLinkerLogsAndMetrics.getInstance());
 
         time.tick(Duration.ofSeconds(1));
         cr0genesis = new TestingEventBuilder(random)
@@ -144,7 +117,7 @@ class ConsensusLinkerTests {
     @Test
     @DisplayName("Test standard operation of the in order linker")
     void standardOperation() {
-        inOrderLinkerSetupInMultiNodeNetwork();
+        inOrderLinkerSetup();
 
         // In the following test events are created with increasing birth round numbers.
         // The linking should fail to occur based on the advancing event window.
@@ -212,7 +185,7 @@ class ConsensusLinkerTests {
     @Test
     @DisplayName("Tests linking with multiple other parents")
     void multipleOtherParents() {
-        inOrderLinkerSetupInMultiNodeNetwork();
+        inOrderLinkerSetup();
 
         final List<PlatformEvent> events = SimpleGraphs.mopGraph(random);
         assertParentsMop(linker.linkEvent(events.get(0)), null, List.of());
@@ -232,7 +205,7 @@ class ConsensusLinkerTests {
     @Test
     @DisplayName("Single node network events should get self parent as other parent")
     void singleNodeNetwork() {
-        inOrderLinkerSetupInSingleNodeNetwork();
+        inOrderLinkerSetup();
 
         final PlatformEvent singleNodeNetworkEvent = new TestingEventBuilder(random)
                 .setCreatorId(cr0)
@@ -249,7 +222,7 @@ class ConsensusLinkerTests {
     @Test
     @DisplayName("Missing self parent should not be linked")
     void missingSelfParent() {
-        inOrderLinkerSetupInMultiNodeNetwork();
+        inOrderLinkerSetup();
 
         final PlatformEvent child = new TestingEventBuilder(random)
                 .setCreatorId(cr0)
@@ -263,7 +236,7 @@ class ConsensusLinkerTests {
     @Test
     @DisplayName("Missing other parent should not be linked")
     void missingOtherParent() {
-        inOrderLinkerSetupInMultiNodeNetwork();
+        inOrderLinkerSetup();
 
         final PlatformEvent child = new TestingEventBuilder(random)
                 .setCreatorId(cr0)
@@ -277,7 +250,7 @@ class ConsensusLinkerTests {
     @Test
     @DisplayName("Ancient events should not be linked")
     void ancientEvent() {
-        inOrderLinkerSetupInMultiNodeNetwork();
+        inOrderLinkerSetup();
 
         linker.setEventWindow(
                 EventWindowBuilder.builder().setAncientThreshold(3).build());
@@ -308,7 +281,7 @@ class ConsensusLinkerTests {
     @Test
     @DisplayName("Self parent with mismatched birth round should not be linked")
     void selfParentBirthRoundMismatch() {
-        inOrderLinkerSetupInMultiNodeNetwork();
+        inOrderLinkerSetup();
 
         final PlatformEvent child = new TestingEventBuilder(random)
                 .setCreatorId(cr0)
@@ -323,7 +296,7 @@ class ConsensusLinkerTests {
     @Test
     @DisplayName("Other parent with mismatched birth round should not be linked")
     void otherParentBirthRoundMismatch() {
-        inOrderLinkerSetupInMultiNodeNetwork();
+        inOrderLinkerSetup();
         final PlatformEvent child = new TestingEventBuilder(random)
                 .setCreatorId(cr0)
                 .setSelfParent(cr0genesis)
@@ -336,7 +309,7 @@ class ConsensusLinkerTests {
     @Test
     @DisplayName("Self parent with mismatched time created should not be linked")
     void selfParentTimeCreatedMismatch() {
-        inOrderLinkerSetupInMultiNodeNetwork();
+        inOrderLinkerSetup();
 
         final PlatformEvent lateParent = new TestingEventBuilder(random)
                 .setCreatorId(cr0)
@@ -360,7 +333,7 @@ class ConsensusLinkerTests {
     @Test
     @DisplayName("Other parent with mismatched time created SHOULD be linked")
     void otherParentTimeCreatedMismatch() {
-        inOrderLinkerSetupInMultiNodeNetwork();
+        inOrderLinkerSetup();
         final PlatformEvent lateParent = new TestingEventBuilder(random)
                 .setCreatorId(cr1)
                 .setSelfParent(cr1genesis)
@@ -397,8 +370,7 @@ class ConsensusLinkerTests {
                 new StandardEventSource());
 
         final List<EventImpl> linkedEvents = new LinkedList<>();
-        final ConsensusLinker linker =
-                new ConsensusLinker(NoOpLinkerLogsAndMetrics.getInstance(), rosterHistoryWithMultipleNodes());
+        final ConsensusLinker linker = new ConsensusLinker(NoOpLinkerLogsAndMetrics.getInstance());
 
         EventWindow eventWindow = EventWindow.getGenesisEventWindow();
 

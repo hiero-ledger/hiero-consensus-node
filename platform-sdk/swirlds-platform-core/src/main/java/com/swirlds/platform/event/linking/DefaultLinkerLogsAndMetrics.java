@@ -16,7 +16,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
-import org.hiero.consensus.roster.RosterHistory;
 
 /**
  * Default implementation of {@link LinkerLogsAndMetrics}
@@ -116,18 +115,5 @@ public class DefaultLinkerLogsAndMetrics implements LinkerLogsAndMetrics {
                 childTimeCreated,
                 parentTimeCreated);
         timeCreatedMismatchAccumulator.update(1);
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void missingRosterForEvent(@NonNull final PlatformEvent event, @NonNull final RosterHistory rosterHistory) {
-        missingRosterLogger.error(
-                EXCEPTION.getMarker(),
-                "Event {} with birth round {} has no roster available in the roster history:\n {}",
-                event.getDescriptor(),
-                rosterHistory);
-        missingRosterAccumulator.update(1);
     }
 }

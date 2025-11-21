@@ -4,10 +4,8 @@ package com.swirlds.platform.gui;
 import static org.hiero.consensus.model.event.EventConstants.FIRST_GENERATION;
 
 import com.hedera.hapi.node.state.roster.Roster;
-import com.hedera.hapi.node.state.roster.RoundRosterPair;
 import com.hedera.hapi.platform.event.GossipEvent;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
-import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.Consensus;
@@ -25,10 +23,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import org.hiero.consensus.model.event.PlatformEvent;
-import org.hiero.consensus.model.hashgraph.ConsensusConstants;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
-import org.hiero.consensus.roster.RosterHistory;
-import org.hiero.consensus.roster.RosterUtils;
 
 /**
  * This class is responsible for storing events utilized by the GUI.
@@ -58,16 +53,7 @@ public class GuiEventStorage {
         final PlatformContext platformContext = PlatformContext.create(configuration);
 
         this.consensus = new ConsensusImpl(platformContext, new NoOpConsensusMetrics(), roster);
-        this.linker = new ConsensusLinker(NoOpLinkerLogsAndMetrics.getInstance(), createRosterHistory(roster));
-    }
-
-    private RosterHistory createRosterHistory(@NonNull final Roster roster) {
-        final Bytes rosterHash = RosterUtils.hash(roster).getBytes();
-        final RoundRosterPair pair = RoundRosterPair.newBuilder()
-                .roundNumber(ConsensusConstants.ROUND_FIRST)
-                .activeRosterHash(rosterHash)
-                .build();
-        return new RosterHistory(List.of(pair), Map.of(rosterHash, roster));
+        this.linker = new ConsensusLinker(NoOpLinkerLogsAndMetrics.getInstance());
     }
 
     /**
