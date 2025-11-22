@@ -74,7 +74,7 @@ public class HistoryServiceImpl implements HistoryService {
             @NonNull final Instant now,
             @NonNull final TssConfig tssConfig,
             final boolean isActive,
-            @Nullable final HintsConstruction activeConstruction) {
+            @Nullable final HintsConstruction activeHintsConstruction) {
         requireNonNull(activeRosters);
         requireNonNull(historyStore);
         requireNonNull(now);
@@ -89,8 +89,9 @@ public class HistoryServiceImpl implements HistoryService {
                                     activeRosters,
                                     construction,
                                     historyStore,
-                                    activeConstruction,
-                                    tssConfig.wrapsEnabled());
+                                    activeHintsConstruction,
+                                    tssConfig.wrapsEnabled(),
+                                    historyStore.getActiveConstruction());
                     controller.advanceConstruction(now, metadata, historyStore, isActive);
                 }
             }

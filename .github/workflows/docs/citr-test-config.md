@@ -13,7 +13,8 @@ There are several test suites that are run in the CITR environment, each with it
 | SDCT        | Single Day Canonical Tests    | More comprehensive tests that focus on load, throughput and E2E latency                | X         |
 | SDLT        | Single Day Longevity Tests    | Longevity tests to ensure stability over extended periods                              | X         |
 | SDPT        | Single Day Performance Tests  | Performance-focused tests to evaluate system responsiveness                            | X         |
-| MDLT        | Multi Day Longevity Tests     | Extended longevity tests over multiple days                                            |           |
+| MDLT        | Multi Day Longevity Tests     | Extended longevity tests over multiple days                                            | X         |
+| MQLT        | Merge Queue Longevity Tests   | Combined performance, verification and longevity tests for use in Merge Queues         | X         |
 | Shortgevity | Short Longevity Tests         | Short-term longevity tests for checking performance against a mainnet-like environment |           |
 
 ## MATS
@@ -258,3 +259,56 @@ All tests are run in parallel with adjustable total TPS. Currently runs at PROD 
 | K/V pairs                               | 200M                                           |
 | Best effort coverage of Hedera Tx Types | < 100 TPS                                      |
 | Re-connects                             | At most 2 nodes in re-connect at the same time |
+
+## MQLT Merge Queue Longevity Tests
+
+### Environment
+
+- MQLT runs inside of self-hosted github runners regularly against Trunk.io Merge Queues
+- MQLT is expected to complete within 3 hours 40 mins of the test suite starting.
+- MQLT has a dry-run equivalent that can be run against any PR, tag, or branch.
+
+### Workflows
+
+- MQLT is triggered by the [ZXF: [CITR] Merge Queue Longevity Test Controller](/.github/workflows/zxf-mini-longevity-test-controller.yaml) workflow.
+- MQLT Dry Run is triggered manually via the [ZXF: [CITR] Adhoc - Merge Queue Longevity Test Controller](/.github/workflows/zxf-mini-longevity-test-controller-adhoc.yaml) workflow.
+
+### Hardware
+
+Latitude kubernetes cluster
+- 7 nodes for Consensus Nodes
+- 1 node for aux services and NLG client
+
+### Included Tests
+
+|        Test Name         |                                            Workflow                                            |  Required Parameters  | Run time |                  Precursor Steps                   |
+|--------------------------|------------------------------------------------------------------------------------------------|-----------------------|----------|----------------------------------------------------|
+| ScriptedLoadTest, part 1 | [ZXC: [CITR] Single Day Longevity Test](/.github/workflows/zxc-single-day-longevity-test.yaml) | nlg-accounts,nlg-time | 2 hours  | Code Compiles, Solo deployed CNs/NLG onto Latitude |
+| ReconnectTest            | [ZXC: [CITR] Single Day Longevity Test](/.github/workflows/zxc-single-day-longevity-test.yaml) | nlg-accounts,nlg-time |          | ScriptedLoadTest                                   |
+| ScriptedLoadTest, part 2 | [ZXC: [CITR] Single Day Longevity Test](/.github/workflows/zxc-single-day-longevity-test.yaml) | nlg-accounts,nlg-time | 1 hour   | ScriptedLoadTest                                   |
+| State Validator          | [ZXC: [CITR] Single Day Longevity Test](/.github/workflows/zxc-single-day-longevity-test.yaml) |                       | 30 mins  | ReconnectTest                                      |
+
+### ScriptedLoadTest, part 1 consists of the following tests, running sequentially to measure performance benchmarks:
+
+- NftTransferLoadTest
+- HCSLoadTest
+- CryptoTransferLoadTest
+- SmartContractLoadTest
+
+### ScriptedLoadTest, part 2 consists of the following tests, running in parallel with pre-defined throttling:
+
+- NftTransferLoadTest, TPS=3000
+- HCSLoadTest, TPS=2000
+- CryptoTransferLoadTest, TPS=5000
+- SmartContractLoadTest, TPS=50
+
+During this step, Reconnect test restarts Consensus Node java and verifies that Consensus Node reaches ACTIVE state.
+
+### State Validator
+
+This step verifies the correctness of Consensus node State by running Validator tool.
+
+### Runtime durations, practical settings
+
+- 30 mins with arguments: nlg-time=3 (mins), nlg-accounts=100000, -Dbenchmark.stepDuration=1m -Dbenchmark.coolDown=1m
+- 3 hours 40 mins: nlg-time=60, nlg-accounts=20000000, -Dbenchmark.stepDuration=20m -Dbenchmark.coolDown=3m

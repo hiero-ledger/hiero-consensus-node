@@ -61,6 +61,7 @@ public class ProofControllers {
      * @param historyStore the history store
      * @param activeHintsConstruction the active hinTS construction, if any
      * @param wrapsEnabled whether recursive chain-of-trust proofs are enabled
+     * @param activeProofConstruction the active proof construction, if any
      * @return the result of the operation
      */
     public @NonNull ProofController getOrCreateFor(
@@ -68,16 +69,23 @@ public class ProofControllers {
             @NonNull final HistoryProofConstruction construction,
             @NonNull final ReadableHistoryStore historyStore,
             @Nullable final HintsConstruction activeHintsConstruction,
-            final boolean wrapsEnabled) {
+            final boolean wrapsEnabled,
+            @NonNull final HistoryProofConstruction activeProofConstruction) {
         requireNonNull(activeRosters);
         requireNonNull(construction);
         requireNonNull(historyStore);
+        requireNonNull(activeProofConstruction);
         if (currentConstructionId() != construction.constructionId()) {
             if (controller != null) {
                 controller.cancelPendingWork();
             }
-            controller =
-                    newControllerFor(activeRosters, construction, historyStore, activeHintsConstruction, wrapsEnabled);
+            controller = newControllerFor(
+                    activeRosters,
+                    construction,
+                    historyStore,
+                    activeHintsConstruction,
+                    activeProofConstruction,
+                    wrapsEnabled);
         }
         return requireNonNull(controller);
     }
@@ -110,6 +118,7 @@ public class ProofControllers {
      * @param construction the proof construction
      * @param historyStore the history store
      * @param activeHintsConstruction the active hinTS construction, if any
+     * @param activeProofConstruction the active proof construction
      * @param wrapsEnabled whether recursive chain-of-trust proofs are enabled
      * @return the controller
      */
@@ -118,6 +127,7 @@ public class ProofControllers {
             @NonNull final HistoryProofConstruction construction,
             @NonNull final ReadableHistoryStore historyStore,
             @Nullable final HintsConstruction activeHintsConstruction,
+            @NonNull final HistoryProofConstruction activeProofConstruction,
             final boolean wrapsEnabled) {
         final var weights = activeRosters.transitionWeights(maybeWeightsFrom(activeHintsConstruction));
         if (!weights.sourceNodesHaveTargetThreshold()) {
@@ -129,6 +139,9 @@ public class ProofControllers {
             final var votes = historyStore.getVotes(construction.constructionId(), weights.sourceNodeIds());
             final var selfId = selfNodeInfoSupplier.get().nodeId();
             final var schnorrKeyPair = keyAccessor.getOrCreateSchnorrKeyPair(construction.constructionId());
+            final var sourceProof = (wrapsEnabled && activeProofConstruction.hasTargetProof())
+                    ? activeProofConstruction.targetProofOrThrow()
+                    : null;
             return new ProofControllerImpl(
                     selfId,
                     schnorrKeyPair,
@@ -141,8 +154,9 @@ public class ProofControllers {
                     votes,
                     historyService,
                     historyLibrary,
+                    // TODO - switch to WrapsHistoryProver::new when WRAPS is enabled
                     ListOfSignaturesHistoryProver::new,
-                    null);
+                    sourceProof);
         }
     }
 

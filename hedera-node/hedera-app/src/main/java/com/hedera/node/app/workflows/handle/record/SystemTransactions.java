@@ -94,6 +94,7 @@ import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.List;
@@ -367,7 +368,7 @@ public class SystemTransactions {
         // permissions from any upgrade files that are present in the configured directory
         final var filesConfig = config.getConfigData(FilesConfig.class);
         final var adminConfig = config.getConfigData(NetworkAdminConfig.class);
-        final List<AutoEntityUpdate<Bytes>> autoSysFileUpdates = List.of(
+        final List<AutoEntityUpdate<Bytes>> autoSysFileUpdates = new ArrayList<>(List.of(
                 new AutoEntityUpdate<>(
                         (ctx, bytes) ->
                                 dispatchSynthFileUpdate(ctx, createFileID(filesConfig.feeSchedules(), config), bytes),
@@ -387,9 +388,9 @@ public class SystemTransactions {
                         (ctx, bytes) -> dispatchSynthFileUpdate(
                                 ctx, createFileID(filesConfig.hapiPermissions(), config), bytes),
                         adminConfig.upgradePermissionOverridesFile(),
-                        in -> parseConfig("override HAPI permissions", in)));
+                        in -> parseConfig("override HAPI permissions", in))));
         final var feesConfig = config.getConfigData(FeesConfig.class);
-        if (feesConfig.simpleFeesEnabled()) {
+        if (feesConfig.createSimpleFeeSchedule()) {
             autoSysFileUpdates.add(new AutoEntityUpdate<>(
                     (ctx, bytes) -> dispatchSynthFileUpdate(
                             ctx, createFileID(filesConfig.simpleFeesSchedules(), config), bytes),

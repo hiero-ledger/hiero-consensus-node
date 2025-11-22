@@ -3,7 +3,6 @@ package com.swirlds.platform.state.editor;
 
 import static com.swirlds.common.io.utility.FileUtils.getAbsolutePath;
 import static com.swirlds.platform.state.editor.StateEditorUtils.formatFile;
-import static com.swirlds.platform.state.service.PlatformStateFacade.DEFAULT_PLATFORM_STATE_FACADE;
 import static com.swirlds.platform.state.snapshot.SavedStateMetadata.NO_NODE_ID;
 import static com.swirlds.platform.state.snapshot.SignedStateFileWriter.writeSignedStateFilesToDirectory;
 
@@ -69,12 +68,7 @@ public class StateEditorSave extends StateEditorOperation {
 
             try (final ReservedSignedState signedState = getStateEditor().getSignedStateCopy()) {
                 writeSignedStateFilesToDirectory(
-                        platformContext,
-                        NO_NODE_ID,
-                        directory,
-                        signedState.get(),
-                        DEFAULT_PLATFORM_STATE_FACADE,
-                        stateLifecycleManager);
+                        platformContext, NO_NODE_ID, directory, signedState.get(), stateLifecycleManager);
             }
 
         } catch (final IOException e) {
