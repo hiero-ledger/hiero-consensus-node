@@ -83,14 +83,5 @@ public interface DoubleCounter extends StatefulMetric<DoubleSupplier, DoubleCoun
         public DoubleCounter buildMetric() {
             return new DoubleCounterImpl(this);
         }
-
-        /**
-         * @return this builder
-         */
-        @NonNull
-        @Override
-        protected Builder self() {
-            return this;
-        }
     }
 }

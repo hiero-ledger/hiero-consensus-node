@@ -84,14 +84,5 @@ public interface BooleanGauge extends StatefulMetric<BooleanSupplier, BooleanGau
         public BooleanGauge buildMetric() {
             return new BooleanGaugeImpl(this);
         }
-
-        /**
-         * @return this builder
-         */
-        @NonNull
-        @Override
-        protected Builder self() {
-            return this;
-        }
     }
 }

@@ -300,7 +300,10 @@ public interface Metric {
          * @return the builder instance concrete type to support fluent API
          */
         @NonNull
-        protected abstract B self();
+        @SuppressWarnings("unchecked")
+        protected final B self() {
+            return (B) this;
+        }
 
         private void validateLabelNameNoEqualMetricName(String labelName) {
             if (labelName.equals(key.name())) {
