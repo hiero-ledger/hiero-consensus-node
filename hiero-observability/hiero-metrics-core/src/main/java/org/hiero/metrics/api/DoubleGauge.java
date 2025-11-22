@@ -147,14 +147,5 @@ public interface DoubleGauge extends StatefulMetric<DoubleSupplier, DoubleGaugeD
 
             return new DoubleGaugeImpl(this);
         }
-
-        /**
-         * @return this builder
-         */
-        @NonNull
-        @Override
-        protected Builder self() {
-            return this;
-        }
     }
 }

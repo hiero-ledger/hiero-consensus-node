@@ -104,14 +104,5 @@ public interface StateSet<E extends Enum<E>> extends StatefulMetric<Set<E>, Stat
 
             return new StateSetImpl<>(this);
         }
-
-        /**
-         * @return this builder
-         */
-        @NonNull
-        @Override
-        protected Builder<E> self() {
-            return this;
-        }
     }
 }

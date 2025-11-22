@@ -168,14 +168,5 @@ public interface StatelessMetric extends Metric {
         protected StatelessMetric buildMetric() {
             return new StatelessMetricImpl(this);
         }
-
-        /**
-         * @return this builder
-         */
-        @NonNull
-        @Override
-        protected Builder self() {
-            return this;
-        }
     }
 }

@@ -148,14 +148,5 @@ public interface GaugeAdapter<D> extends StatefulMetric<Supplier<D>, D> {
                 return new LongGaugeAdapterImpl<>(this);
             }
         }
-
-        /**
-         * @return this builder
-         */
-        @NonNull
-        @Override
-        protected Builder<D> self() {
-            return this;
-        }
     }
 }

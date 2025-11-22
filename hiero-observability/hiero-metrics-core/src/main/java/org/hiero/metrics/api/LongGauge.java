@@ -144,14 +144,5 @@ public interface LongGauge extends StatefulMetric<LongSupplier, LongGaugeDataPoi
 
             return new LongGaugeImpl(this);
         }
-
-        /**
-         * @return this builder
-         */
-        @NonNull
-        @Override
-        protected Builder self() {
-            return this;
-        }
     }
 }
