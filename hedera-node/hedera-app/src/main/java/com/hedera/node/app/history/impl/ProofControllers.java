@@ -25,7 +25,7 @@ public class ProofControllers {
 
     private final Executor executor;
     private final ProofKeysAccessor keyAccessor;
-    private final HistoryLibrary library;
+    private final HistoryLibrary historyLibrary;
     private final HistoryService historyService;
     private final HistorySubmissions submissions;
     private final Supplier<NodeInfo> selfNodeInfoSupplier;
@@ -41,13 +41,13 @@ public class ProofControllers {
     public ProofControllers(
             @NonNull final Executor executor,
             @NonNull final ProofKeysAccessor keyAccessor,
-            @NonNull final HistoryLibrary library,
+            @NonNull final HistoryLibrary historyLibrary,
             @NonNull final HistorySubmissions submissions,
             @NonNull final Supplier<NodeInfo> selfNodeInfoSupplier,
             @NonNull final HistoryService historyService) {
         this.executor = requireNonNull(executor);
         this.keyAccessor = requireNonNull(keyAccessor);
-        this.library = requireNonNull(library);
+        this.historyLibrary = requireNonNull(historyLibrary);
         this.submissions = requireNonNull(submissions);
         this.selfNodeInfoSupplier = requireNonNull(selfNodeInfoSupplier);
         this.historyService = requireNonNull(historyService);
@@ -137,6 +137,8 @@ public class ProofControllers {
                     signaturePublications,
                     votes,
                     historyService,
+                    historyLibrary,
+                    ListOfSignaturesHistoryProver::new,
                     null);
         }
     }

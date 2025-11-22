@@ -4,7 +4,9 @@ package com.hedera.node.app.history.impl;
 import com.hedera.hapi.node.state.history.HistoryProofVote;
 import com.hedera.node.app.history.ReadableHistoryStore.HistorySignaturePublication;
 import com.hedera.node.app.history.ReadableHistoryStore.ProofKeyPublication;
+import com.hedera.node.app.history.ReadableHistoryStore.WrapsMessagePublication;
 import com.hedera.node.app.history.WritableHistoryStore;
+import com.hedera.node.config.data.TssConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -45,10 +47,22 @@ public interface ProofController {
     /**
      * Incorporates the proof key published by the given node, if this construction has not already "locked in"
      * its assembled {@code (address book hash, metadata)} history.
-     *
      * @param publication the proof key publication
      */
     void addProofKeyPublication(@NonNull ProofKeyPublication publication);
+
+    /**
+     * Incorporates the WRAPS message published by the given node, if this construction has not already "locked in"
+     * the referenced phase.
+     *
+     * @param publication the proof key publication
+     * @param writableHistoryStore the writable history store
+     * @param tssConfig the TSS configuration
+     */
+    void addWrapsMessagePublication(
+            @NonNull WrapsMessagePublication publication,
+            @NonNull WritableHistoryStore writableHistoryStore,
+            @NonNull TssConfig tssConfig);
 
     /**
      * If this controller's construction is not already complete, considers updating its state with this history

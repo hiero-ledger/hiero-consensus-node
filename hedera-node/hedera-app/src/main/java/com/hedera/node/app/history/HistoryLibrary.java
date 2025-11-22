@@ -17,6 +17,9 @@ import java.util.function.LongUnaryOperator;
  * The cryptographic operations required by the {@link HistoryService}.
  */
 public interface HistoryLibrary {
+    /**
+     * The empty public key to use when a node fails to publish its proof key within the grace period.
+     */
     Bytes EMPTY_PUBLIC_KEY = Bytes.wrap(new byte[32]);
 
     /**
@@ -36,14 +39,25 @@ public interface HistoryLibrary {
                 @NonNull final SortedMap<Long, Long> weights, @NonNull final SortedMap<Long, byte[]> publicKeys) {
             requireNonNull(weights);
             requireNonNull(publicKeys);
+            final var emptyPublicKey = EMPTY_PUBLIC_KEY.toByteArray();
+            return from(weights, nodeId -> publicKeys.getOrDefault(nodeId, emptyPublicKey));
+        }
+
+        /**
+         * Creates an address book from the given weights and public keys (indexed by node id).
+         * @param weights the weights of the nodes in the address book
+         * @param publicKeys the public keys of the nodes in the address book
+         * @return the address book
+         */
+        public static AddressBook from(
+                @NonNull final SortedMap<Long, Long> weights, @NonNull final LongFunction<byte[]> publicKeys) {
+            requireNonNull(weights);
+            requireNonNull(publicKeys);
             final var nodeIds =
                     weights.keySet().stream().mapToLong(Long::longValue).toArray();
-            final var emptyPublicKey = EMPTY_PUBLIC_KEY.toByteArray();
             return new AddressBook(
                     Arrays.stream(nodeIds).map(weights::get).toArray(),
-                    Arrays.stream(nodeIds)
-                            .mapToObj(nodeId -> publicKeys.getOrDefault(nodeId, emptyPublicKey))
-                            .toArray(byte[][]::new),
+                    Arrays.stream(nodeIds).mapToObj(publicKeys).toArray(byte[][]::new),
                     nodeIds);
         }
 

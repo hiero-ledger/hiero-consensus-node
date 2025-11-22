@@ -19,6 +19,7 @@ import com.hedera.hapi.node.state.history.HistoryProofConstruction;
 import com.hedera.hapi.node.state.history.HistoryProofVote;
 import com.hedera.hapi.node.state.history.ProofKeySet;
 import com.hedera.hapi.node.state.history.RecordedHistorySignature;
+import com.hedera.hapi.node.state.history.WrapsSigningState;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
@@ -33,8 +34,9 @@ import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.function.BiFunction;
+import java.util.function.Consumer;
 import java.util.function.Function;
-import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -113,7 +115,7 @@ public class WritableHistoryStoreImpl extends ReadableHistoryStoreImpl implement
     @Override
     public HistoryProofConstruction setAssemblyTime(final long constructionId, @NonNull final Instant now) {
         requireNonNull(now);
-        return updateOrThrow(constructionId, b -> b.assemblyStartTime(asTimestamp(now)));
+        return updateOrThrow(constructionId, (c, b) -> b.assemblyStartTime(asTimestamp(now)));
     }
 
     @Override
@@ -131,15 +133,28 @@ public class WritableHistoryStoreImpl extends ReadableHistoryStoreImpl implement
     }
 
     @Override
+    public WrapsSigningState updateWrapsSigningState(
+            final long constructionId, @NonNull final Consumer<WrapsSigningState.Builder> spec) {
+        requireNonNull(spec);
+        return updateOrThrow(constructionId, (c, b) -> {
+                    final var sb =
+                            c.wrapsSigningStateOrElse(WrapsSigningState.DEFAULT).copyBuilder();
+                    spec.accept(sb);
+                    return b.wrapsSigningState(sb.build());
+                })
+                .wrapsSigningStateOrThrow();
+    }
+
+    @Override
     public HistoryProofConstruction completeProof(final long constructionId, @NonNull final HistoryProof proof) {
         requireNonNull(proof);
-        return updateOrThrow(constructionId, b -> b.targetProof(proof));
+        return updateOrThrow(constructionId, (c, b) -> b.targetProof(proof));
     }
 
     @Override
     public HistoryProofConstruction failForReason(final long constructionId, @NonNull final String reason) {
         requireNonNull(reason);
-        return updateOrThrow(constructionId, b -> b.failureReason(reason));
+        return updateOrThrow(constructionId, (c, b) -> b.failureReason(reason));
     }
 
     @Override
@@ -176,20 +191,27 @@ public class WritableHistoryStoreImpl extends ReadableHistoryStoreImpl implement
 
     /**
      * Updates the construction with the given ID using the given spec.
-     *
      * @param constructionId the construction ID
      * @param spec the spec
      * @return the updated construction
      */
     private HistoryProofConstruction updateOrThrow(
-            final long constructionId, @NonNull final UnaryOperator<HistoryProofConstruction.Builder> spec) {
+            final long constructionId,
+            @NonNull
+                    final BiFunction<
+                                    HistoryProofConstruction,
+                                    HistoryProofConstruction.Builder,
+                                    HistoryProofConstruction.Builder>
+                            spec) {
         HistoryProofConstruction construction;
         if (requireNonNull(construction = activeConstruction.get()).constructionId() == constructionId) {
             activeConstruction.put(
-                    construction = spec.apply(construction.copyBuilder()).build());
+                    construction =
+                            spec.apply(construction, construction.copyBuilder()).build());
         } else if (requireNonNull(construction = nextConstruction.get()).constructionId() == constructionId) {
             nextConstruction.put(
-                    construction = spec.apply(construction.copyBuilder()).build());
+                    construction =
+                            spec.apply(construction, construction.copyBuilder()).build());
         } else {
             throw new IllegalArgumentException("No construction with id " + constructionId);
         }

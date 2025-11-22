@@ -1,11 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.history;
 
+import static com.hedera.hapi.util.HapiUtils.asInstant;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.state.history.HistoryProofConstruction;
 import com.hedera.hapi.node.state.history.HistoryProofVote;
 import com.hedera.hapi.node.state.history.HistorySignature;
+import com.hedera.hapi.node.state.history.WrapsMessageHistory;
+import com.hedera.hapi.node.state.history.WrapsPhase;
 import com.hedera.node.app.service.roster.impl.ActiveRosters;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -22,7 +25,6 @@ public interface ReadableHistoryStore {
     /**
      * The full record of a proof key publication, including the key, the time it was adopted, and the
      * submitting node id.
-     *
      * @param nodeId the node ID submitting the key
      * @param proofKey the proof key itself
      * @param adoptionTime the time at which the key was adopted
@@ -31,6 +33,36 @@ public interface ReadableHistoryStore {
         public ProofKeyPublication {
             requireNonNull(proofKey);
             requireNonNull(adoptionTime);
+        }
+    }
+
+    /**
+     * The record of a WRAPS message publication, including the message, the WRAPS phase it was targeted for,
+     * the time it was received, and the submitting node id.
+     * @param message the WRAPS message
+     * @param phase the WRAPS phase
+     * @param nodeId the node ID submitting the WRAPS message
+     */
+    record WrapsMessagePublication(
+            long nodeId, @NonNull Bytes message, @NonNull WrapsPhase phase, @NonNull Instant receiptTime) {
+        public WrapsMessagePublication {
+            requireNonNull(message);
+            requireNonNull(phase);
+            requireNonNull(receiptTime);
+        }
+
+        /**
+         * Unwraps all the WRAPS message publications from the given history, scoped to the given node.
+         * @param nodeId the node ID
+         * @param history the history
+         * @return the WRAPS message publications
+         */
+        public static List<WrapsMessagePublication> allFromHistory(
+                final long nodeId, @NonNull final WrapsMessageHistory history) {
+            return history.messages().stream()
+                    .map(details -> new WrapsMessagePublication(
+                            nodeId, details.message(), details.phase(), asInstant(details.publicationTimeOrThrow())))
+                    .toList();
         }
     }
 
@@ -109,4 +141,13 @@ public interface ReadableHistoryStore {
      */
     @NonNull
     List<HistorySignaturePublication> getSignaturePublications(long constructionId, @NonNull Set<Long> nodeIds);
+
+    /**
+     * Returns the WRAPS messages published by the given set of nodes for the given construction.
+     * @param constructionId the construction id
+     * @param nodeIds the node ids
+     * @return the {@link WrapsMessagePublication}s
+     */
+    @NonNull
+    List<WrapsMessagePublication> getWrapsMessagePublications(long constructionId, @NonNull Set<Long> nodeIds);
 }

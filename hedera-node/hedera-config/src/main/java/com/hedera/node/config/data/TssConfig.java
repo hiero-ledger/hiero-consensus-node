@@ -15,6 +15,7 @@ import java.time.Duration;
 public record TssConfig(
         @ConfigProperty(defaultValue = "60s") @NetworkProperty Duration bootstrapHintsKeyGracePeriod,
         @ConfigProperty(defaultValue = "300s") @NetworkProperty Duration transitionHintsKeyGracePeriod,
+        @ConfigProperty(defaultValue = "10s") @NetworkProperty Duration wrapsMessageGracePeriod,
         @ConfigProperty(defaultValue = "60s") @NetworkProperty Duration bootstrapProofKeyGracePeriod,
         @ConfigProperty(defaultValue = "300s") @NetworkProperty Duration transitionProofKeyGracePeriod,
         @ConfigProperty(defaultValue = "10s") @NetworkProperty Duration crsUpdateContributionTime,

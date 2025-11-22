@@ -51,6 +51,24 @@ public class HistorySubmissions extends TssSubmissions {
     }
 
     /**
+     * Submits a WRAPS message to the network.
+     * @param phase the phase of the signing protocol
+     * @param message the message to submit
+     * @return a future that completes with the submission
+     */
+    public CompletableFuture<Void> submitWrapsSigningMessage(
+            @NonNull final WrapsPhase phase, @NonNull final Bytes message) {
+        requireNonNull(phase);
+        requireNonNull(message);
+        return submitIfActive(
+                b -> b.historyProofKeyPublication(HistoryProofKeyPublicationTransactionBody.newBuilder()
+                        .phase(phase)
+                        .wrapsMessage(message)
+                        .build()),
+                onFailure);
+    }
+
+    /**
      * Submits a history proof vote to the network.
      * @param constructionId the construction id to vote on
      * @param proof history proof to vote for

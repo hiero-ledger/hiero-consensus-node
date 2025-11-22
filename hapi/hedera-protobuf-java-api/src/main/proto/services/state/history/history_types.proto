@@ -106,8 +106,8 @@ message HistoryProofConstruction {
   bytes source_roster_hash = 2;
   /**
    * If set, the proof that the address book of the source roster belongs
-   * to the the ledger id's chain of trust; if not set, the source roster's
-   * address book must *be* the ledger id.
+   * to the the ledger id's chain of trust; if not set, the construction
+   * is at genesis.
    */
   HistoryProof source_proof = 3;
   /**
@@ -121,7 +121,7 @@ message HistoryProofConstruction {
     /**
      * If the network is still gathering proof keys for this
      * construction, the next time at which nodes should stop waiting
-     * for tardy proof keys and assembly the history to be proven as
+     * for tardy proof keys and assemble the history to be proven as
      * soon as it has the associated metadata and proof keys for nodes
      * with >2/3 weight in the target roster.
      */
@@ -133,17 +133,39 @@ message HistoryProofConstruction {
      */
     proto.Timestamp assembly_start_time = 6;
     /**
-     * When this construction is complete, the recursive proof that
-     * the target roster's address book and associated metadata belong
-     * to the ledger id's chain of trust.
+     * When this construction is complete, the proof that the target
+     * roster's address book and associated metadata belong to the
+     * ledger id's chain of trust.
      */
     HistoryProof target_proof = 7;
-
     /**
      * If set, the reason the construction failed.
      */
     string failure_reason = 8;
+    /**
+     * If set, the state of the WRAPS signing protocol for this construction.
+     */
+    WrapsSigningState wraps_signing_state = 9;
   }
+}
+
+/**
+ * The state of an ongoing WRAPS signature protocol.
+ */
+message WrapsSigningState {
+  /**
+   * The phase of the WRAPS protocol.
+   */
+  WrapsPhase phase = 1;
+
+  /**
+   * If the network is still gathering WRAPS messages for the R2 or R3
+   * protocol phase, the next time at which nodes should stop waiting
+   * for tardy messages from R1 participants and start over.
+   * soon as it has WRAPS messages from nodes with >2/3 weight in the
+   * target roster.
+   */
+  proto.Timestamp grace_period_end_time = 2;
 }
 
 /**
@@ -225,6 +247,10 @@ enum WrapsPhase {
    * Nodes are publishing their R3 messages.
    */
   R3 = 2;
+  /**
+   * Nodes are aggregating all messages to produce a final signature.
+   */
+  AGGREGATE = 3;
 }
 
 /**

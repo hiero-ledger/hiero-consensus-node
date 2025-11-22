@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.history.impl;
 
+import static com.hedera.node.app.history.HistoryLibrary.EMPTY_PUBLIC_KEY;
 import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.toMap;
 
@@ -57,7 +58,6 @@ public class ListOfSignaturesHistoryProver implements HistoryProver {
     private final Executor executor;
     private final HistoryLibrary library;
     private final HistorySubmissions submissions;
-    private final Bytes emptyPublicKey;
 
     /**
      * Node ids we have already started verifying signatures for.
@@ -100,29 +100,13 @@ public class ListOfSignaturesHistoryProver implements HistoryProver {
             @NonNull final RosterTransitionWeights weights,
             @NonNull final Executor executor,
             @NonNull final HistoryLibrary library,
-            @NonNull final HistorySubmissions submissions,
-            @NonNull final Bytes emptyPublicKey) {
+            @NonNull final HistorySubmissions submissions) {
         this.selfId = selfId;
         this.schnorrKeyPair = requireNonNull(schnorrKeyPair);
         this.weights = requireNonNull(weights);
         this.executor = requireNonNull(executor);
         this.library = requireNonNull(library);
         this.submissions = requireNonNull(submissions);
-        this.emptyPublicKey = requireNonNull(emptyPublicKey);
-    }
-
-    @Override
-    public boolean addSignaturePublication(
-            @NonNull final HistorySignaturePublication publication, @NonNull final Map<Long, Bytes> targetProofKeys) {
-        requireNonNull(publication);
-        requireNonNull(targetProofKeys);
-        final long nodeId = publication.nodeId();
-        if (!targetProofKeys.containsKey(nodeId) || signingNodeIds.contains(nodeId)) {
-            return false;
-        }
-        verificationFutures.put(publication.at(), verificationFuture(nodeId, publication.signature(), targetProofKeys));
-        signingNodeIds.add(nodeId);
-        return true;
     }
 
     @Override
@@ -136,7 +120,7 @@ public class ListOfSignaturesHistoryProver implements HistoryProver {
         requireNonNull(targetMetadata);
         requireNonNull(targetProofKeys);
         if (!construction.hasAssemblyStartTime()) {
-            // Controller called us too early; nothing to do.
+            // Controller called us too early; nothing to do without an assembled history extension
             return Outcome.InProgress.INSTANCE;
         }
         // Occasionally check whether it is still possible to gather enough valid signatures.
@@ -176,7 +160,7 @@ public class ListOfSignaturesHistoryProver implements HistoryProver {
                 library,
                 weights.targetNodeIds(),
                 weights::targetWeightOf,
-                id -> targetProofKeys.getOrDefault(id, emptyPublicKey));
+                id -> targetProofKeys.getOrDefault(id, EMPTY_PUBLIC_KEY));
         // Build the history proof
         final var proof = HistoryProof.newBuilder()
                 .targetProofKeys(proofKeyListFrom(targetProofKeys))
@@ -184,6 +168,20 @@ public class ListOfSignaturesHistoryProver implements HistoryProver {
                 .chainOfTrustProof(chainOfTrustProof)
                 .build();
         return new Outcome.Completed(proof);
+    }
+
+    @Override
+    public boolean addSignaturePublication(
+            @NonNull final HistorySignaturePublication publication, @NonNull final Map<Long, Bytes> sourceProofKeys) {
+        requireNonNull(publication);
+        requireNonNull(sourceProofKeys);
+        final long nodeId = publication.nodeId();
+        if (!sourceProofKeys.containsKey(nodeId) || signingNodeIds.contains(nodeId)) {
+            return false;
+        }
+        verificationFutures.put(publication.at(), verificationFuture(nodeId, publication.signature(), sourceProofKeys));
+        signingNodeIds.add(nodeId);
+        return true;
     }
 
     @Override
@@ -216,7 +214,7 @@ public class ListOfSignaturesHistoryProver implements HistoryProver {
     }
 
     /**
-     * Whether there is no hope of collecting enough valid signatures to initiate a proof.
+     * Whether there is still hope of collecting enough valid signatures to initiate a proof.
      */
     private boolean couldStillGetSufficientSignatures() {
         final Map<History, Long> historyWeights = new HashMap<>();
@@ -267,14 +265,14 @@ public class ListOfSignaturesHistoryProver implements HistoryProver {
     private CompletableFuture<Verification> verificationFuture(
             final long nodeId,
             @NonNull final HistorySignature historySignature,
-            @NonNull final Map<Long, Bytes> targetProofKeys) {
+            @NonNull final Map<Long, Bytes> genesisProofKeys) {
         requireNonNull(historySignature);
-        requireNonNull(targetProofKeys);
+        requireNonNull(genesisProofKeys);
         return CompletableFuture.supplyAsync(
                         () -> {
                             final var message = encodeHistoryForSigning(historySignature.historyOrThrow());
                             final var proofKey = requireNonNull(
-                                    targetProofKeys.get(nodeId), () -> "Missing proof key for node " + nodeId);
+                                    genesisProofKeys.get(nodeId), () -> "Missing proof key for node " + nodeId);
                             final var isValid = library.verifySchnorr(historySignature.signature(), message, proofKey);
                             return new Verification(nodeId, historySignature, isValid);
                         },
@@ -302,7 +300,7 @@ public class ListOfSignaturesHistoryProver implements HistoryProver {
                                     library,
                                     weights.targetNodeWeights().keySet(),
                                     weights::targetWeightOf,
-                                    id -> proofKeysSnapshot.getOrDefault(id, emptyPublicKey));
+                                    id -> proofKeysSnapshot.getOrDefault(id, EMPTY_PUBLIC_KEY));
                             final var history = new History(targetHash, targetMetadata);
                             final var message = encodeHistoryForSigning(history);
                             final var signature = library.signSchnorr(message, schnorrKeyPair.privateKey());

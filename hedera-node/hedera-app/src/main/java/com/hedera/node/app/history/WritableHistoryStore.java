@@ -1,15 +1,25 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.history;
 
+import static com.hedera.hapi.node.state.history.WrapsPhase.AGGREGATE;
+import static java.util.Objects.requireNonNull;
+
+import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.history.HistoryProof;
 import com.hedera.hapi.node.state.history.HistoryProofConstruction;
 import com.hedera.hapi.node.state.history.HistoryProofVote;
+import com.hedera.hapi.node.state.history.WrapsPhase;
+import com.hedera.hapi.node.state.history.WrapsSigningState;
 import com.hedera.hapi.node.state.roster.Roster;
+import com.hedera.hapi.util.HapiUtils;
 import com.hedera.node.app.service.roster.impl.ActiveRosters;
 import com.hedera.node.config.data.TssConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
+import java.util.Optional;
+import java.util.function.Consumer;
 
 /**
  * Provides write access to the {@link HistoryService} state.
@@ -85,4 +95,35 @@ public interface WritableHistoryStore extends ReadableHistoryStore {
      * @return whether the handoff happened
      */
     boolean handoff(@NonNull Roster fromRoster, @NonNull Roster toRoster, @NonNull Bytes toRosterHash);
+
+    /**
+     * Updates the WRAPS signing state with the given specification.
+     * @param constructionId the construction ID
+     * @param spec the specification
+     */
+    WrapsSigningState updateWrapsSigningState(long constructionId, @NonNull Consumer<WrapsSigningState.Builder> spec);
+
+    /**
+     * Advances the WRAPS signing phase to the given phase and grace period end time.
+     * @param constructionId the construction ID
+     * @param phase the phase
+     * @param gracePeriodEndTime the grace period end time
+     */
+    default void advanceWrapsSigningPhase(
+            final long constructionId, @NonNull final WrapsPhase phase, @Nullable final Instant gracePeriodEndTime) {
+        requireNonNull(phase);
+        updateWrapsSigningState(constructionId, builder -> builder.phase(phase)
+                .gracePeriodEndTime(Optional.ofNullable(gracePeriodEndTime)
+                        .map(HapiUtils::asTimestamp)
+                        .orElse(Timestamp.DEFAULT)));
+    }
+
+    /**
+     * Advances the WRAPS signing phase to the given phase and grace period end time.
+     * @param constructionId the construction ID
+     */
+    default void startAggregatingWrapsSignature(final long constructionId) {
+        updateWrapsSigningState(
+                constructionId, builder -> builder.phase(AGGREGATE).gracePeriodEndTime(Timestamp.DEFAULT));
+    }
 }

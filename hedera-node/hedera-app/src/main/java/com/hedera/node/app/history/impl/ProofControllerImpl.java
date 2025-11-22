@@ -2,19 +2,25 @@
 package com.hedera.node.app.history.impl;
 
 import static com.hedera.hapi.util.HapiUtils.asInstant;
+import static java.util.Collections.emptyMap;
 import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.groupingBy;
 import static java.util.stream.Collectors.summingLong;
+import static java.util.stream.Collectors.toMap;
 
 import com.hedera.hapi.node.state.history.HistoryProof;
 import com.hedera.hapi.node.state.history.HistoryProofConstruction;
 import com.hedera.hapi.node.state.history.HistoryProofVote;
+import com.hedera.hapi.node.state.history.ProofKey;
+import com.hedera.node.app.history.HistoryLibrary;
 import com.hedera.node.app.history.HistoryService;
 import com.hedera.node.app.history.ReadableHistoryStore.HistorySignaturePublication;
 import com.hedera.node.app.history.ReadableHistoryStore.ProofKeyPublication;
+import com.hedera.node.app.history.ReadableHistoryStore.WrapsMessagePublication;
 import com.hedera.node.app.history.WritableHistoryStore;
 import com.hedera.node.app.history.impl.ProofKeysAccessorImpl.SchnorrKeyPair;
 import com.hedera.node.app.service.roster.impl.RosterTransitionWeights;
+import com.hedera.node.config.data.TssConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -40,9 +46,9 @@ public class ProofControllerImpl implements ProofController {
     private final Executor executor;
     private final SchnorrKeyPair schnorrKeyPair;
     private final HistoryService historyService;
-    private final HistoryProver prover;
     private final HistorySubmissions submissions;
     private final RosterTransitionWeights weights;
+    private final Map<Long, Bytes> sourceProofKeys;
     private final Map<Long, HistoryProofVote> votes = new TreeMap<>();
     private final Map<Long, Bytes> targetProofKeys = new TreeMap<>();
 
@@ -63,6 +69,12 @@ public class ProofControllerImpl implements ProofController {
     @Nullable
     private CompletableFuture<Void> publicationFuture;
 
+    /**
+     * If not null, the prover responsible for the current construction.
+     */
+    @Nullable
+    private HistoryProver prover;
+
     public ProofControllerImpl(
             final long selfId,
             @NonNull final SchnorrKeyPair schnorrKeyPair,
@@ -74,7 +86,9 @@ public class ProofControllerImpl implements ProofController {
             @NonNull final List<HistorySignaturePublication> signaturePublications,
             @NonNull final Map<Long, HistoryProofVote> votes,
             @NonNull final HistoryService historyService,
-            @NonNull final HistoryProver prover) {
+            @NonNull final HistoryLibrary historyLibrary,
+            @NonNull final HistoryProver.Factory proverFactory,
+            @Nullable final HistoryProof sourceProof) {
         this.selfId = selfId;
         this.executor = requireNonNull(executor);
         this.submissions = requireNonNull(submissions);
@@ -82,7 +96,6 @@ public class ProofControllerImpl implements ProofController {
         this.construction = requireNonNull(construction);
         this.historyService = requireNonNull(historyService);
         this.schnorrKeyPair = requireNonNull(schnorrKeyPair);
-        this.prover = requireNonNull(prover);
         this.votes.putAll(requireNonNull(votes));
         if (!construction.hasTargetProof()) {
             final var cutoffTime = construction.hasGracePeriodEndTime()
@@ -93,8 +106,16 @@ public class ProofControllerImpl implements ProofController {
                     maybeUpdateForProofKey(publication);
                 }
             });
+            this.prover = proverFactory.create(selfId, schnorrKeyPair, weights, executor, historyLibrary, submissions);
+            // At genesis there is no source proof, so we are verify signatures with the target proof keys of
+            // the current construction; in the recursive case we use the target keys from the source proof
+            this.sourceProofKeys = sourceProof == null
+                    ? targetProofKeys
+                    : sourceProof.targetProofKeys().stream().collect(toMap(ProofKey::nodeId, ProofKey::key));
             signaturePublications.forEach(
-                    publication -> this.prover.addSignaturePublication(publication, targetProofKeys));
+                    publication -> requireNonNull(prover).addSignaturePublication(publication, sourceProofKeys));
+        } else {
+            this.sourceProofKeys = emptyMap();
         }
     }
 
@@ -139,7 +160,8 @@ public class ProofControllerImpl implements ProofController {
         if (!isActive) {
             return;
         }
-        final var outcome = prover.advance(now, construction, targetMetadata, Map.copyOf(targetProofKeys));
+        final var outcome =
+                requireNonNull(prover).advance(now, construction, targetMetadata, Map.copyOf(targetProofKeys));
         switch (outcome) {
             case HistoryProver.Outcome.InProgress ignored -> {
                 // No-op
@@ -163,12 +185,26 @@ public class ProofControllerImpl implements ProofController {
     }
 
     @Override
+    public void addWrapsMessagePublication(
+            @NonNull final WrapsMessagePublication publication,
+            @NonNull final WritableHistoryStore writableHistoryStore,
+            @NonNull final TssConfig tssConfig) {
+        requireNonNull(publication);
+        requireNonNull(writableHistoryStore);
+        requireNonNull(tssConfig);
+        if (construction.hasTargetProof()) {
+            return;
+        }
+        requireNonNull(prover).addWrapsSigningMessage(constructionId(), publication, writableHistoryStore, tssConfig);
+    }
+
+    @Override
     public boolean addSignaturePublication(@NonNull final HistorySignaturePublication publication) {
         requireNonNull(publication);
         if (construction.hasTargetProof()) {
             return false;
         }
-        return prover.addSignaturePublication(publication, targetProofKeys);
+        return requireNonNull(prover).addSignaturePublication(publication, sourceProofKeys);
     }
 
     @Override
@@ -208,7 +244,7 @@ public class ProofControllerImpl implements ProofController {
             publicationFuture.cancel(true);
             canceledSomething = true;
         }
-        if (prover.cancelPendingWork()) {
+        if (prover != null && prover.cancelPendingWork()) {
             sb.append("\n  * In-flight prover work");
             canceledSomething = true;
         }
