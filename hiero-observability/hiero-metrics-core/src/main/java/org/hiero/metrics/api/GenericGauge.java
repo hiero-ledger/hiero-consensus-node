@@ -136,14 +136,5 @@ public interface GenericGauge<T> extends StatefulMetric<Supplier<T>, GaugeDataPo
                 return new GenericLongGaugeImpl<>(this);
             }
         }
-
-        /**
-         * @return this builder
-         */
-        @NonNull
-        @Override
-        protected Builder<T> self() {
-            return this;
-        }
     }
 }

@@ -99,14 +99,5 @@ public interface LongCounter extends StatefulMetric<LongSupplier, LongCounterDat
         public LongCounter buildMetric() {
             return new LongCounterImpl(this);
         }
-
-        /**
-         * @return this builder
-         */
-        @NonNull
-        @Override
-        protected Builder self() {
-            return this;
-        }
     }
 }
