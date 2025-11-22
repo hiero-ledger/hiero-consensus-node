@@ -250,13 +250,6 @@ public class WritableHistoryStoreImpl extends ReadableHistoryStoreImpl implement
                 final var sourceRoster = requireNonNull(lookup.apply(extantConstruction.sourceRosterHash()));
                 purgeVotesAndSignatures(extantConstruction.constructionId(), sourceRoster);
             }
-            // Copy over any existing target proof as the new construction's source proof
-            if (activeChoice.hasTargetProof() && activeChoice.targetRosterHash().equals(sourceRosterHash)) {
-                construction = construction
-                        .copyBuilder()
-                        .sourceProof(activeChoice.targetProofOrThrow())
-                        .build();
-            }
             nextConstruction.put(construction);
             logNewConstruction(construction, InSlot.NEXT, sourceRosterHash, targetRosterHash);
         }
@@ -294,7 +287,7 @@ public class WritableHistoryStoreImpl extends ReadableHistoryStoreImpl implement
                 construction.constructionId(),
                 sourceRosterHash,
                 targetRosterHash,
-                construction.hasSourceProof() ? "WITH" : "WITHOUT");
+                requireNonNull(activeConstruction.get()).hasTargetProof() ? "WITH" : "WITHOUT");
     }
 
     /**

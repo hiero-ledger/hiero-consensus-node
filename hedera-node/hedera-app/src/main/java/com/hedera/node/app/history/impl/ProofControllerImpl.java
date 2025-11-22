@@ -106,12 +106,13 @@ public class ProofControllerImpl implements ProofController {
                     maybeUpdateForProofKey(publication);
                 }
             });
-            this.prover = proverFactory.create(selfId, schnorrKeyPair, weights, executor, historyLibrary, submissions);
-            // At genesis there is no source proof, so we are verify signatures with the target proof keys of
+            // At genesis there is no source proof, so we verify signatures with the target proof keys of
             // the current construction; in the recursive case we use the target keys from the source proof
             this.sourceProofKeys = sourceProof == null
                     ? targetProofKeys
                     : sourceProof.targetProofKeys().stream().collect(toMap(ProofKey::nodeId, ProofKey::key));
+            this.prover = proverFactory.create(
+                    selfId, sourceProofKeys, schnorrKeyPair, weights, executor, historyLibrary, submissions);
             signaturePublications.forEach(
                     publication -> requireNonNull(prover).addSignaturePublication(publication, sourceProofKeys));
         } else {

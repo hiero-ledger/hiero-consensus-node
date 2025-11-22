@@ -187,16 +187,15 @@ public interface HistoryLibrary {
 
     /**
      * Runs the aggregation phase of the signing protocol.
-     * @param entropy the entropy (must be reused in remaining phases)
+     *
      * @param message the message to sign
-     * @param publicKeys all participant's public keys
      * @param r1Messages all participant's R1 messages
      * @param r2Messages all participant's R2 messages
      * @param r3Messages all participant's R3 messages
+     * @param publicKeys all participant's public keys
      * @return the aggregated signature
      */
     byte[] runAggregationPhase(
-            @NonNull byte[] entropy,
             @NonNull byte[] message,
             @NonNull byte[][] r1Messages,
             @NonNull byte[][] r2Messages,

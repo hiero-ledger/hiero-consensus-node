@@ -77,7 +77,6 @@ import com.hedera.node.app.workflows.handle.steps.StakePeriodChanges;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.ConsensusConfig;
-import com.hedera.node.config.data.QuiescenceConfig;
 import com.hedera.node.config.data.SchedulingConfig;
 import com.hedera.node.config.data.TssConfig;
 import com.hedera.node.config.types.StreamMode;
@@ -124,7 +123,6 @@ public class HandleWorkflow {
     public static final String ALERT_MESSAGE = "Possibly CATASTROPHIC failure";
     public static final String SYSTEM_ENTITIES_CREATED_MSG = "System entities created";
 
-    private final boolean quiescenceEnabled;
     private final StreamMode streamMode;
     private final NetworkInfo networkInfo;
     private final StakePeriodChanges stakePeriodChanges;
@@ -224,7 +222,6 @@ public class HandleWorkflow {
         this.quiescenceController = requireNonNull(quiescenceController);
         final var config = configProvider.getConfiguration();
         this.streamMode = config.getConfigData(BlockStreamConfig.class).streamMode();
-        this.quiescenceEnabled = config.getConfigData(QuiescenceConfig.class).enabled();
         this.hintsService = requireNonNull(hintsService);
         this.historyService = requireNonNull(historyService);
         this.blockHashSigner = requireNonNull(blockHashSigner);
@@ -986,14 +983,15 @@ public class HandleWorkflow {
                     final var hintsStore = new ReadableHintsStoreImpl(hintsWritableStates, entityCounters);
                     final var historyStore = new WritableHistoryStoreImpl(historyWritableStates);
                     // If we are doing a chain-of-trust proof, this is the verification key we are proving;
-                    // at genesis, the active construction's key---otherwise, the next construction's key
+                    // at genesis, the active construction's key---otherwise, the next construction's key;
+                    // even when this is null, the proof controller can still make progress on publishing
+                    // proof keys at genesis
                     final var vk = Optional.ofNullable(
                                     historyStore.getLedgerId() == null
                                             ? hintsStore.getActiveConstruction().hintsScheme()
                                             : hintsStore.getNextConstruction().hintsScheme())
                             .map(s -> s.preprocessedKeysOrThrow().verificationKey())
                             .orElse(null);
-                    // If applicable, this is the verification key that needs a chain-of-trust proof
                     doStreamingKVChanges(
                             historyWritableStates,
                             null,

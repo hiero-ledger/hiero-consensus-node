@@ -96,11 +96,13 @@ public class ListOfSignaturesHistoryProver implements HistoryProver {
 
     public ListOfSignaturesHistoryProver(
             final long selfId,
+            @NonNull final Map<Long, Bytes> sourceProofKeys,
             @NonNull final SchnorrKeyPair schnorrKeyPair,
             @NonNull final RosterTransitionWeights weights,
             @NonNull final Executor executor,
             @NonNull final HistoryLibrary library,
             @NonNull final HistorySubmissions submissions) {
+        requireNonNull(sourceProofKeys);
         this.selfId = selfId;
         this.schnorrKeyPair = requireNonNull(schnorrKeyPair);
         this.weights = requireNonNull(weights);

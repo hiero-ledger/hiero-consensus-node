@@ -83,10 +83,16 @@ message HistoryProof {
   History target_history = 2;
   /**
    * The proof of chain of trust from the ledger id to the target
-   * history's metadata. Maybe replaced from a NodeSignatures list
-   * with a recursive proof when one becomes available.
+   * history's metadata. May be switched from a NodeSignatures list
+   * to a recursive proof when one becomes available.
    */
   com.hedera.hapi.block.stream.ChainOfTrustProof chain_of_trust_proof = 3;
+  /**
+   * If set, the uncompressed proof of chain of trust from the ledger id to
+   * the target address book; the uncompressed version of the WRAPS proof is
+   * required to keep extending the chain of trust.
+   */
+  bytes uncompressed_wraps_proof = 4;
 }
 
 /**
@@ -95,6 +101,8 @@ message HistoryProof {
  * weight to enact its own constructions.
  */
 message HistoryProofConstruction {
+  reserved 3;
+
   /**
    * The construction id.
    */
@@ -104,12 +112,6 @@ message HistoryProofConstruction {
    * certain thresholds are during construction.
    */
   bytes source_roster_hash = 2;
-  /**
-   * If set, the proof that the address book of the source roster belongs
-   * to the the ledger id's chain of trust; if not set, the construction
-   * is at genesis.
-   */
-  HistoryProof source_proof = 3;
   /**
    * The hash of the roster whose weights are used to assess progress
    * toward obtaining proof keys for parties that hold at least a

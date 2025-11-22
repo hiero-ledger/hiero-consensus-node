@@ -44,6 +44,7 @@ public interface HistoryProver {
     interface Factory {
         HistoryProver create(
                 long selfId,
+                @NonNull Map<Long, Bytes> sourceProofKeys,
                 @NonNull SchnorrKeyPair schnorrKeyPair,
                 @NonNull RosterTransitionWeights weights,
                 @NonNull Executor executor,

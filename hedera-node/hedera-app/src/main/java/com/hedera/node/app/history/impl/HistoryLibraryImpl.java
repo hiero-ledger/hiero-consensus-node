@@ -120,20 +120,18 @@ public class HistoryLibraryImpl implements HistoryLibrary {
 
     @Override
     public byte[] runAggregationPhase(
-            @NonNull final byte[] entropy,
             @NonNull final byte[] message,
             @NonNull final byte[][] r1Messages,
             @NonNull final byte[][] r2Messages,
             @NonNull final byte[][] r3Messages,
             @NonNull final byte[][] publicKeys) {
-        requireNonNull(entropy);
         requireNonNull(message);
         requireNonNull(r1Messages);
         requireNonNull(r2Messages);
         requireNonNull(r3Messages);
         requireNonNull(publicKeys);
         return WRAPS.runSigningProtocolPhase(
-                Aggregate, entropy, message, null, publicKeys, r1Messages, r2Messages, r3Messages);
+                Aggregate, null, message, null, publicKeys, r1Messages, r2Messages, r3Messages);
     }
 
     @Override

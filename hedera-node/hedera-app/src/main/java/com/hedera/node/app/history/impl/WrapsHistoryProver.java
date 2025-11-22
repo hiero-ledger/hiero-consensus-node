@@ -49,6 +49,7 @@ public class WrapsHistoryProver implements HistoryProver {
 
     private final long selfId;
     private final SchnorrKeyPair schnorrKeyPair;
+    private final Map<Long, Bytes> sourcePublicKeys;
     private final RosterTransitionWeights weights;
     private final Executor executor;
     private final HistoryLibrary historyLibrary;
@@ -106,6 +107,7 @@ public class WrapsHistoryProver implements HistoryProver {
 
     public WrapsHistoryProver(
             final long selfId,
+            @NonNull final Map<Long, Bytes> sourceProofKeys,
             @NonNull final SchnorrKeyPair schnorrKeyPair,
             @NonNull final RosterTransitionWeights weights,
             @NonNull final Executor executor,
@@ -114,6 +116,7 @@ public class WrapsHistoryProver implements HistoryProver {
         this.selfId = selfId;
         this.schnorrKeyPair = requireNonNull(schnorrKeyPair);
         this.weights = requireNonNull(weights);
+        this.sourcePublicKeys = requireNonNull(sourceProofKeys);
         this.executor = requireNonNull(executor);
         this.historyLibrary = requireNonNull(historyLibrary);
         this.submissions = requireNonNull(submissions);
@@ -136,8 +139,8 @@ public class WrapsHistoryProver implements HistoryProver {
             final var missingNodes = phaseMessages.get(R1).keySet().stream()
                     .filter(nodeId -> !submittingNodes.contains(nodeId))
                     .toList();
-            return new Outcome.Failed(
-                    "Still missing messages from R1 nodes " + missingNodes + " after end of grace period");
+            return new Outcome.Failed("Still missing messages from R1 nodes " + missingNodes
+                    + " after end of grace period for phase " + state.phase());
         } else {
             if (wrapsMessage == null) {
                 final var targetAddressBook = AddressBook.from(weights.targetNodeWeights(), nodeId -> targetProofKeys
@@ -173,10 +176,10 @@ public class WrapsHistoryProver implements HistoryProver {
             return false;
         }
         final var messages = phaseMessages.computeIfAbsent(publication.phase(), p -> new TreeMap<>());
-        if (messages.putIfAbsent(publication.nodeId(), publication) != null) {
-            return false;
-        }
         if (wrapsPhase == R1) {
+            if (messages.putIfAbsent(publication.nodeId(), publication) != null) {
+                return false;
+            }
             final long r1Weight = messages.values().stream()
                     .mapToLong(p -> weights.sourceWeightOf(p.nodeId()))
                     .sum();
@@ -189,6 +192,9 @@ public class WrapsHistoryProver implements HistoryProver {
             }
         } else if (wrapsPhase == R2) {
             final var r1Nodes = phaseMessages.get(R1).keySet();
+            if (!r1Nodes.contains(publication.nodeId())) {
+                return false;
+            }
             final var r2NodesSoFar = phaseMessages.get(R2).keySet();
             if (r2NodesSoFar.containsAll(r1Nodes)) {
                 if (writableHistoryStore != null && tssConfig != null) {
@@ -199,6 +205,9 @@ public class WrapsHistoryProver implements HistoryProver {
             }
         } else {
             final var r1Nodes = phaseMessages.get(R1).keySet();
+            if (!r1Nodes.contains(publication.nodeId())) {
+                return false;
+            }
             final var r3NodesSoFar = phaseMessages.get(R3).keySet();
             if (r3NodesSoFar.containsAll(r1Nodes)) {
                 if (writableHistoryStore != null && tssConfig != null) {
@@ -286,21 +295,53 @@ public class WrapsHistoryProver implements HistoryProver {
                         }
                         case R2 -> {
                             if (entropy != null) {
-                                historyLibrary.runWrapsPhaseR2(
+                                return historyLibrary.runWrapsPhaseR2(
                                         entropy,
                                         message,
-                                        phaseMessages.get(R1).values().toArray(new byte[0][]),
+                                        rawMessagesFor(R1),
                                         schnorrKeyPair.privateKey().toByteArray(),
-                                        phaseMessages.get(R1).values().toArray(new byte[0][]));
+                                        publicKeysForR1());
                             }
                         }
-                        case R3 -> CompletableFuture.completedFuture(null);
-                        case AGGREGATE -> CompletableFuture.completedFuture(null);
+                        case R3 -> {
+                            if (entropy != null) {
+                                return historyLibrary.runWrapsPhaseR3(
+                                        entropy,
+                                        message,
+                                        rawMessagesFor(R1),
+                                        rawMessagesFor(R2),
+                                        schnorrKeyPair.privateKey().toByteArray(),
+                                        publicKeysForR1());
+                            }
+                        }
+                        case AGGREGATE -> {
+                            if (entropy != null) {
+                                final var signature = historyLibrary.runAggregationPhase(
+                                        message,
+                                        rawMessagesFor(R1),
+                                        rawMessagesFor(R2),
+                                        rawMessagesFor(R3),
+                                        publicKeysForR1());
+                            }
+                        }
                     }
                     // No sensible message for this phase
                     return null;
                 },
                 executor);
+    }
+
+    private byte[][] publicKeysForR1() {
+        return phaseMessages.get(R1).keySet().stream()
+                .map(nodeId -> sourcePublicKeys.get(nodeId).toByteArray())
+                .toArray(byte[][]::new);
+    }
+
+    private byte[][] rawMessagesFor(@NonNull final WrapsPhase phase) {
+        return phaseMessages.get(phase).values().stream()
+                .map(WrapsMessagePublication::message)
+                .map(Bytes::toByteArray)
+                .toArray(byte[][]::new);
     }
 
     private CompletableFuture<Void> futureOf(@NonNull final WrapsPhase phase) {
