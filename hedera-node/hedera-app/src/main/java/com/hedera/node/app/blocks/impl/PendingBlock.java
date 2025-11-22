@@ -34,19 +34,18 @@ public record PendingBlock(
         @NonNull Timestamp blockTimestamp,
         @NonNull MerkleSiblingHash... siblingHashes) {
     /**
-     * Flushes this pending block to disk, optionally including the sibling hashes needed
+     * Flushes this pending block to disk, including the sibling hashes needed
      * for a sequence of indirect proofs.
-     *
-     * @param withSiblingHashes whether to include sibling hashes for an indirect proof
      */
-    public PendingProof asPendingProof(final boolean withSiblingHashes) {
+    public PendingProof asPendingProof() {
         return PendingProof.newBuilder()
                 .block(number)
                 .blockHash(blockHash)
                 .previousBlockHash(previousBlockHash)
                 .blockTimestamp(blockTimestamp)
-                // Sibling hashes are needed in case an indirect state proof is required
-                .siblingHashesFromPrevBlockRoot(withSiblingHashes ? List.of(siblingHashes) : List.of())
+                // Sibling hashes are needed in case an indirect state proof is required. This will only be called
+                // when flushing to disk, so we can safely build the proof builder here to get the sibling hashes.
+                .siblingHashesFromPrevBlockRoot(List.of(siblingHashes))
                 .build();
     }
 }

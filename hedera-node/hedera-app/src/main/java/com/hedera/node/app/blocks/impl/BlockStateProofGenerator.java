@@ -45,7 +45,7 @@ public class BlockStateProofGenerator {
         // This makes it necessary to read each pending block, but not dequeue them
         // The current pending block was already POLLed off the pending blocks queue, so combine it in a stream
         // with all the other pending blocks still in the queue. Note that the resulting structure does NOT include
-        // the next signed pending block)
+        // the next signed pending block
         final Map<Long, PendingBlock> indirectProofBlocks =
                 // Join the current pending block with the remaining pending blocks
                 Streams.of(Stream.of(currentPendingBlock), remainingPendingBlocks)
@@ -60,7 +60,7 @@ public class BlockStateProofGenerator {
         final long minBlockNum = currentPendingBlock.number();
         final int timestampDivider = (int) (latestSignedBlockNumber - minBlockNum);
 
-        // Merke Path 1: the block timestamp paths
+        // Merkle Path 1: the block timestamp paths
         var currentParentPath = proofPaths.length - 1;
         var currentBlockNum = latestSignedBlockNumber - 1;
         for (int i = 0; i < timestampDivider; i++) {

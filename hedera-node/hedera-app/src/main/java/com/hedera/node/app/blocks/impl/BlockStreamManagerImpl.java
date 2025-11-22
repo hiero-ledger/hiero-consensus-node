@@ -94,7 +94,6 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -441,7 +440,9 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                             block.proofBuilder(),
                             pendingWriter,
                             block.pendingProof().blockTimestamp(),
-                            block.siblingHashesIfUseful()));
+                            block.pendingProof()
+                                    .siblingHashesFromPrevBlockRoot()
+                                    .toArray(new MerkleSiblingHash[0])));
                     log.info("Recovered pending block #{}", block.number());
                 } catch (Exception e) {
                     log.warn("Failed to recover pending block #{}", block.number(), e);
@@ -634,10 +635,9 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             // Special case when signing with hinTS and this is the freeze round; we have to wait
             // until after restart to gossip partial signatures and sign any pending blocks
             if (hintsEnabled && roundNum == freezeRoundNumber) {
-                final var hasPrecedingUnproven = new AtomicBoolean(false);
                 // In case the id of the next hinTS construction changed since a block ended
                 pendingBlocks.forEach(block -> {
-                    final var pendingProof = block.asPendingProof(hasPrecedingUnproven.getAndSet(true));
+                    final var pendingProof = block.asPendingProof();
                     block.writer().flushPendingBlock(pendingProof);
                 });
             } else {

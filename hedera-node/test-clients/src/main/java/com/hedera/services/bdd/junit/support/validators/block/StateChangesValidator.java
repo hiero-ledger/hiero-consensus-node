@@ -1189,10 +1189,10 @@ public class StateChangesValidator implements BlockStreamValidator {
                             .blockConsensusTimestamp(timestampBytes)
                             .build(),
                     null,
-                    siblingHashes);
+                    null);
 
             // Block's Merkle Path 2: block contents path
-            final var mp2 = new PartialMerklePath(null, previousBlockHash, proof.siblingHashes());
+            final var mp2 = new PartialMerklePath(null, previousBlockHash, siblingHashes);
 
             // Block's Merkle Path 3: parent (i.e. combined hash of left child and right child)
             final var mp3 = new PartialMerklePath(
@@ -1225,7 +1225,7 @@ public class StateChangesValidator implements BlockStreamValidator {
                     partialPathsByBlock.keySet().stream().min(Long::compareTo).orElseThrow();
             final long actualMaxBlockNum =
                     partialPathsByBlock.keySet().stream().max(Long::compareTo).orElseThrow();
-            final long actualNumIndirectBlocks = actualMaxBlockNum - actualMinBlockNum;
+            final long actualNumIndirectBlocks = actualMaxBlockNum - actualMinBlockNum + 1;
 
             logger.info(
                     "Verifying expected indirect state proofs for blocks {} to {} (signed block {})",
@@ -1282,20 +1282,21 @@ public class StateChangesValidator implements BlockStreamValidator {
             }
 
             // Verify the number of reconstructed indirect proofs (3 paths per indirect block)
-            final var numBlocks = signedBlockNum - firstUnsignedBlockNum;
-            final var numExpectedPaths = numBlocks * 3;
-            final var totalActualPaths = expectedIndirectProofs.values().stream()
-                    .mapToInt(sp -> sp.paths().size())
-                    .sum();
-            assertEquals(
-                    numExpectedPaths,
-                    totalActualPaths,
-                    "Mismatch in number of reconstructed indirect proof paths: %s expected vs. %s actual"
-                            .formatted(numExpectedPaths, totalActualPaths));
+            for (long i = firstUnsignedBlockNum; i < signedBlockNum; i++) {
+                final var numRemainingBlocks = signedBlockNum - i;
+                final var numExpectedPaths = numRemainingBlocks * 3;
+                final var numPathsForBlock =
+                        expectedIndirectProofs.get(i).paths().size();
+                assertEquals(
+                        numExpectedPaths,
+                        numPathsForBlock,
+                        "Mismatch in number of reconstructed indirect proof paths: %s expected vs. %s actual"
+                                .formatted(numExpectedPaths, numPathsForBlock));
+            }
 
             // Compare each reconstructed state proof with the actual state proof for each indirect block
             for (long i = firstUnsignedBlockNum; i < signedBlockNum; i++) {
-                logger.info("Verifying indirect proof for block {} of {}", i, numBlocks);
+                logger.info("Verifying indirect proof for block {}", i);
                 assertEquals(expectedIndirectProofs.get(i), actualIndirectProofs.get(i));
             }
         }
@@ -1309,82 +1310,64 @@ public class StateChangesValidator implements BlockStreamValidator {
                 throw new IllegalStateException("Cannot construct full merkle paths: signed proof not yet provided");
             }
 
-            // Extract the needed partial merkle paths (pmp's) for each unsigned block
-            final var timestampPmps = partialPathsByBlock.keySet().stream()
-                    .sorted()
-                    .map(partialPathsByBlock::get)
-                    .map(List::getFirst)
-                    .toList();
-            final var mp2Pmps =
-                    partialPathsByBlock.values().stream().map(l -> l.get(1)).toList();
-            final var combinedPathsSize = partialPathsByBlock.keySet().stream()
-                    .sorted()
-                    .map(partialPathsByBlock::get)
-                    .mapToInt(List::size)
-                    .sum();
-            final long firstActualIndirectBlockNum =
-                    partialPathsByBlock.keySet().stream().min(Long::compareTo).orElseThrow();
-
             final Map<Long, MerklePath[]> fullMerklePathsByBlockNum = new HashMap<>();
-            long outerCurrentBlockNum = firstActualIndirectBlockNum;
-            long innerCurrentBlockNum = firstActualIndirectBlockNum;
+            long currentBlockNum = firstUnsignedBlockNum;
             // For each indirect block, construct the full merkle paths from the partial merkle paths. Don't modify the
             // partial paths during any of the below iterations as they will need to be used in each iteration to
             // generate new merkle paths.
-            while (outerCurrentBlockNum < signedBlockNum) {
-                final var timestampDivider = (int) (signedBlockNum - outerCurrentBlockNum);
-                assertEquals(
-                        timestampDivider,
-                        timestampPmps.size(),
-                        "Number of timestamp partial merkle paths should equal number of indirect blocks being verified");
+            while (currentBlockNum < signedBlockNum) {
+                final var timestampDivider = (int) (signedBlockNum - currentBlockNum);
+                final var numExpectedTotalPaths = (int) (signedBlockNum - currentBlockNum) * 3;
+                final MerklePath[] combinedBlockPaths = new MerklePath[numExpectedTotalPaths];
 
-                final var numExpectedInnerBlockPaths = (int) (signedBlockNum - outerCurrentBlockNum) * 3;
-                final MerklePath[] innerBlockPaths = new MerklePath[numExpectedInnerBlockPaths];
-                while (innerCurrentBlockNum < signedBlockNum) {
-                    // Construct and place all MP1's (timestamp paths) in the paths array
-                    var currentMp1ParentPath = combinedPathsSize - 1;
-                    var tsCounter = 0;
-                    for (int i = timestampPmps.size() - 1; i >= 0; i--) {
-                        final var currentPmp = timestampPmps.get(i);
-                        final var mp1 = MerklePath.newBuilder()
-                                .leaf(currentPmp.leaf())
-                                .nextPathIndex(currentMp1ParentPath)
-                                .build();
-                        innerBlockPaths[tsCounter] = mp1;
+                int numBlocksRemaining = (int) (signedBlockNum - currentBlockNum);
+                int maxIndex = (numBlocksRemaining * 3) - 1;
+                var currentMp1ParentPath = maxIndex;
+                var tsCounter = 0;
+                // Construct and place all MP1's (timestamp paths) in the paths array
+                for (int i = timestampDivider - 1; i >= 0; i--) {
+                    final var currentPmp =
+                            partialPathsByBlock.get(currentBlockNum + i).getFirst();
+                    final var mp1 = MerklePath.newBuilder()
+                            .leaf(currentPmp.leaf())
+                            .nextPathIndex(currentMp1ParentPath)
+                            .build();
+                    combinedBlockPaths[tsCounter] = mp1;
 
-                        tsCounter++;
-                        currentMp1ParentPath -= 2;
-                    }
-
-                    // Now construct and place all MP2's (block contents paths) and MP3's (parent paths) in the paths
-                    // array
-                    var currentMp2ParentPath = timestampDivider + 1;
-                    var mp2PmpCounter = 0;
-                    for (int mp2Index = timestampDivider; mp2Index < combinedPathsSize; mp2Index += 2) {
-                        final var currentMp2Pmp = mp2Pmps.get(mp2PmpCounter);
-                        final var mp2 = MerklePath.newBuilder()
-                                .hash(currentMp2Pmp.hash())
-                                .siblings(currentMp2Pmp.siblingHashes().stream()
-                                        .map(s -> SiblingNode.newBuilder()
-                                                .isLeft(false)
-                                                .hash(s.siblingHash())
-                                                .build())
-                                        .toList())
-                                .nextPathIndex(currentMp2ParentPath)
-                                .build();
-                        innerBlockPaths[mp2Index] = mp2;
-
-                        final var mp3Path =
-                                currentMp2ParentPath == combinedPathsSize - 1 ? -1 : currentMp2ParentPath + 1;
-                        final var mp3 =
-                                MerklePath.newBuilder().nextPathIndex(mp3Path).build();
-                        innerBlockPaths[mp2Index + 1] = mp3;
-                    }
-                    innerCurrentBlockNum++;
+                    currentMp1ParentPath -= 2;
+                    tsCounter++;
                 }
 
-                fullMerklePathsByBlockNum.put(outerCurrentBlockNum, innerBlockPaths);
-                outerCurrentBlockNum++;
+                // Now construct and place all MP2's (block contents paths) and MP3's (parent paths) in the paths
+                // array
+                var mp2PmpCounter = currentBlockNum;
+                final var upperIndex = timestampDivider + (2 * numBlocksRemaining);
+                for (int mp2Index = timestampDivider; mp2Index < upperIndex; mp2Index += 2) {
+                    final var currentMp2Pmp =
+                            partialPathsByBlock.get(mp2PmpCounter).get(1);
+                    final var mp2 = MerklePath.newBuilder()
+                            .hash(currentMp2Pmp.hash())
+                            .siblings(currentMp2Pmp.siblingHashes().stream()
+                                    .map(s -> SiblingNode.newBuilder()
+                                            .isLeft(false)
+                                            .hash(s.siblingHash())
+                                            .build())
+                                    .toList())
+                            .nextPathIndex(mp2Index + 1)
+                            .build();
+                    assertEquals(4, mp2.siblings().size(), "Expected 4 siblings in constructed MP2");
+                    combinedBlockPaths[mp2Index] = mp2;
+
+                    final var mp3Path = ((mp2Index + 1) == maxIndex) ? -1 : mp2Index + 2;
+                    final var mp3 =
+                            MerklePath.newBuilder().nextPathIndex(mp3Path).build();
+                    combinedBlockPaths[mp2Index + 1] = mp3;
+
+                    mp2PmpCounter++;
+                }
+
+                fullMerklePathsByBlockNum.put(currentBlockNum, combinedBlockPaths);
+                currentBlockNum++;
             }
 
             return fullMerklePathsByBlockNum;
