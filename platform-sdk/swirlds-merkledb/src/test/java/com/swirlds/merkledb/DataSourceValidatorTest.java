@@ -67,7 +67,7 @@ class DataSourceValidatorTest {
                     dataSource.saveRecords(
                             count - 1,
                             count * 2L - 2,
-                            createHashChunkStream(count - 2, dataSource.getHashChunkHeight()),
+                            createHashChunkStream(count * 2 - 2, dataSource.getHashChunkHeight()),
                             // leaves are missing
                             Stream.empty(),
                             Stream.empty(),

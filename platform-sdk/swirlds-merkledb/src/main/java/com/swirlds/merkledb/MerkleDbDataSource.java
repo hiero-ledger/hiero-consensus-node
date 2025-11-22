@@ -965,7 +965,14 @@ public final class MerkleDbDataSource implements VirtualDataSource {
             final MerkleDbPaths snapshotDbPaths = new MerkleDbPaths(snapshotDirectory);
             // main snapshotting process in multiple-threads
             try {
-                writeHashes(getLastLeafPath(), hashChunkCache.values().stream(), false);
+                // Flush cached hash chunks to the hash chunk store
+                if (getLastLeafPath() > 0) {
+                    final long maxValidChunkId = VirtualHashChunk.minChunkIdForPaths(getLastLeafPath(),
+                            hashChunkHeight);
+                    final Stream<VirtualHashChunk> cacheChunksToFlush =
+                            hashChunkCache.values().stream().filter(c -> c.getChunkId() <= maxValidChunkId);
+                    writeHashes(getLastLeafPath(), cacheChunksToFlush, false);
+                }
                 final CountDownLatch countDownLatch = new CountDownLatch(6);
                 // write all data stores
                 runWithSnapshotExecutor(countDownLatch, "idToDiskLocationHashChunks", () -> {
