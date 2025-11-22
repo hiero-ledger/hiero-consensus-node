@@ -121,9 +121,9 @@ public class TokenServiceSimpleFeesSuite {
                                 .hasKnownStatus(SUCCESS)
                                 .via("fungible-mint-txn")),
                 "fungible-mint-txn",
-                0.0011,
+                0.001,
                 1,
-                0.0011,
+                0.001,
                 1);
     }
 
@@ -151,9 +151,9 @@ public class TokenServiceSimpleFeesSuite {
                                 .hasKnownStatus(SUCCESS)
                                 .via("fungible-mint-txn")),
                 "fungible-mint-txn",
-                0.0011,
+                0.001,
                 1,
-                0.0011,
+                0.0010,
                 1);
     }
 
