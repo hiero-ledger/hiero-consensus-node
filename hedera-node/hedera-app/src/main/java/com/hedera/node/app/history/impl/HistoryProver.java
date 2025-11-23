@@ -143,6 +143,16 @@ public interface HistoryProver {
     }
 
     /**
+     * Replays a WRAPS message publication that previously reached consensus.
+     * @param constructionId the construction ID
+     * @param publication the WRAPS message publication
+     */
+    default void replayWrapsSigningMessage(
+            final long constructionId, @NonNull final WrapsMessagePublication publication) {
+        requireNonNull(publication);
+    }
+
+    /**
      * Returns a list of proof keys from the given map.
      * @param proofKeys the proof keys in a map
      * @return the list of proof keys

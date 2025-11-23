@@ -149,7 +149,7 @@ public class WrapsHistoryProver implements HistoryProver {
                 wrapsMessage = historyLibrary.computeWrapsMessage(targetAddressBook, targetMetadata.toByteArray());
                 targetAddressBookHash = historyLibrary.hashAddressBook(targetAddressBook);
             }
-            ensureProtocolMessagePublished(
+            ensureProtocolOutputPublished(
                     construction.constructionId(), state.phase(), targetMetadata, targetProofKeys);
         }
         return Outcome.InProgress.INSTANCE;
@@ -164,10 +164,15 @@ public class WrapsHistoryProver implements HistoryProver {
         requireNonNull(publication);
         requireNonNull(writableHistoryStore);
         requireNonNull(tssConfig);
-        return addWrapsSigningMessageInternal(constructionId, publication, writableHistoryStore, tssConfig);
+        return receiveWrapsSigningMessage(constructionId, publication, writableHistoryStore, tssConfig);
     }
 
-    private boolean addWrapsSigningMessageInternal(
+    @Override
+    public void replayWrapsSigningMessage(long constructionId, @NonNull WrapsMessagePublication publication) {
+        receiveWrapsSigningMessage(constructionId, publication, null, null);
+    }
+
+    private boolean receiveWrapsSigningMessage(
             final long constructionId,
             @NonNull final WrapsMessagePublication publication,
             @Nullable final WritableHistoryStore writableHistoryStore,
@@ -225,9 +230,9 @@ public class WrapsHistoryProver implements HistoryProver {
     }
 
     /**
-     * Ensures this node has published its proof key.
+     * Ensures this node has published its WRAPS message or aggregate signature vote.
      */
-    private void ensureProtocolMessagePublished(
+    private void ensureProtocolOutputPublished(
             final long constructionId,
             @NonNull final WrapsPhase phase,
             @NonNull final Bytes targetMetadata,
@@ -235,8 +240,9 @@ public class WrapsHistoryProver implements HistoryProver {
         requireNonNull(phase);
         requireNonNull(targetMetadata);
         requireNonNull(targetProofKeys);
-        if (futureOf(phase) == null && !phaseMessages.get(phase).containsKey(selfId)) {
-            log.info("Publishing {} message for WRAPS signature on construction #{}", phase, constructionId);
+        if (futureOf(phase) == null
+                && (phase == AGGREGATE || !phaseMessages.get(phase).containsKey(selfId))) {
+            log.info("Publishing {} protocol output for WRAPS on construction #{}", phase, constructionId);
             final var bookHash = requireNonNull(targetAddressBookHash);
             final var proofKeyList = proofKeyListFrom(targetProofKeys);
             consumerOf(phase)
@@ -281,52 +287,54 @@ public class WrapsHistoryProver implements HistoryProver {
     private CompletableFuture<byte[]> outputFuture(@NonNull final WrapsPhase phase) {
         final var message = requireNonNull(wrapsMessage);
         return CompletableFuture.supplyAsync(
-                () -> {
-                    switch (phase) {
-                        case R1 -> {
-                            if (entropy == null) {
-                                entropy = new byte[32];
-                                new SecureRandom().nextBytes(entropy);
-                                return historyLibrary.runWrapsPhaseR1(
-                                        entropy,
-                                        message,
-                                        schnorrKeyPair.privateKey().toByteArray());
-                            }
+                () -> switch (phase) {
+                    case R1 -> {
+                        if (entropy == null) {
+                            entropy = new byte[32];
+                            new SecureRandom().nextBytes(entropy);
+                            yield historyLibrary.runWrapsPhaseR1(
+                                    entropy,
+                                    message,
+                                    schnorrKeyPair.privateKey().toByteArray());
                         }
-                        case R2 -> {
-                            if (entropy != null) {
-                                return historyLibrary.runWrapsPhaseR2(
-                                        entropy,
-                                        message,
-                                        rawMessagesFor(R1),
-                                        schnorrKeyPair.privateKey().toByteArray(),
-                                        publicKeysForR1());
-                            }
-                        }
-                        case R3 -> {
-                            if (entropy != null) {
-                                return historyLibrary.runWrapsPhaseR3(
-                                        entropy,
-                                        message,
-                                        rawMessagesFor(R1),
-                                        rawMessagesFor(R2),
-                                        schnorrKeyPair.privateKey().toByteArray(),
-                                        publicKeysForR1());
-                            }
-                        }
-                        case AGGREGATE -> {
-                            if (entropy != null) {
-                                final var signature = historyLibrary.runAggregationPhase(
-                                        message,
-                                        rawMessagesFor(R1),
-                                        rawMessagesFor(R2),
-                                        rawMessagesFor(R3),
-                                        publicKeysForR1());
-                            }
-                        }
+                        yield null;
                     }
-                    // No sensible message for this phase
-                    return null;
+                    case R2 -> {
+                        if (entropy != null) {
+                            yield historyLibrary.runWrapsPhaseR2(
+                                    entropy,
+                                    message,
+                                    rawMessagesFor(R1),
+                                    schnorrKeyPair.privateKey().toByteArray(),
+                                    publicKeysForR1());
+                        }
+                        yield null;
+                    }
+                    case R3 -> {
+                        if (entropy != null) {
+                            yield historyLibrary.runWrapsPhaseR3(
+                                    entropy,
+                                    message,
+                                    rawMessagesFor(R1),
+                                    rawMessagesFor(R2),
+                                    schnorrKeyPair.privateKey().toByteArray(),
+                                    publicKeysForR1());
+                        }
+                        yield null;
+                    }
+                    case AGGREGATE -> {
+                        if (entropy != null) {
+                            final var signature = historyLibrary.runAggregationPhase(
+                                    message,
+                                    rawMessagesFor(R1),
+                                    rawMessagesFor(R2),
+                                    rawMessagesFor(R3),
+                                    publicKeysForR1());
+                            // TODO - block on the long-running proof using this signature, yield that instead
+                            yield signature;
+                        }
+                        yield null;
+                    }
                 },
                 executor);
     }

@@ -2,6 +2,7 @@
 package com.hedera.node.app.history;
 
 import static java.util.Objects.requireNonNull;
+import static org.hiero.base.utility.CommonUtils.hex;
 
 import com.hedera.cryptography.rpm.SigningAndVerifyingSchnorrKeys;
 import com.hedera.cryptography.wraps.Proof;
@@ -12,6 +13,8 @@ import java.util.Set;
 import java.util.SortedMap;
 import java.util.function.LongFunction;
 import java.util.function.LongUnaryOperator;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 /**
  * The cryptographic operations required by the {@link HistoryService}.
@@ -72,6 +75,17 @@ public interface HistoryLibrary {
                 mask[i] = signers.contains(nodeIds[i]);
             }
             return mask;
+        }
+
+        @NonNull
+        @Override
+        public String toString() {
+            return "AddressBook"
+                    + IntStream.range(0, nodeIds.length)
+                            .mapToObj(i -> "(#" + i + " :: weight="
+                                    + weights[i] + " :: public_key="
+                                    + hex(publicKeys[i]) + ")")
+                            .collect(Collectors.joining(", ", "[", "]"));
         }
     }
 

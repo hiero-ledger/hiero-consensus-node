@@ -4,6 +4,7 @@ package com.hedera.node.app.workflows.handle;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.BUSY;
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
 import static com.hedera.node.app.blocks.BlockStreamManager.PendingWork.GENESIS_WORK;
+import static com.hedera.node.app.history.impl.ProofControllers.isWrapsExtensible;
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_STATE_ID;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.SCHEDULED;
 import static com.hedera.node.app.state.logging.TransactionStateLogger.logStartEvent;
@@ -925,7 +926,8 @@ public class HandleWorkflow {
             if (tssConfig.historyEnabled()) {
                 historyService.onFinishedConstruction((historyStore, construction) -> {
                     final var rosterStore = new ReadableRosterStoreImpl(state.getReadableStates(RosterService.NAME));
-                    if (historyStore.getActiveConstruction().constructionId() == construction.constructionId()) {
+                    final var activeConstruction = historyStore.getActiveConstruction();
+                    if (activeConstruction.constructionId() == construction.constructionId()) {
                         // We just finished the genesis proof, so we use it immediately
                         final var proof = construction.targetProofOrThrow();
                         historyService.setLatestHistoryProof(proof);
@@ -936,10 +938,12 @@ public class HandleWorkflow {
                         return;
                     }
                     if (rosterStore.candidateIsWeightRotation()) {
+                        final boolean isWrapsGenesis =
+                                tssConfig.wrapsEnabled() && !isWrapsExtensible(activeConstruction.targetProof());
                         historyStore.handoff(
                                 requireNonNull(rosterStore.getActiveRoster()),
                                 requireNonNull(rosterStore.getCandidateRoster()),
-                                requireNonNull(rosterStore.getCandidateRosterHash()));
+                                isWrapsGenesis ? null : requireNonNull(rosterStore.getCandidateRosterHash()));
                         // Make sure we include the latest chain-of-trust proof in following block proofs
                         historyService.setLatestHistoryProof(construction.targetProofOrThrow());
                         final var writableHintsStates = state.getWritableStates(HintsService.NAME);

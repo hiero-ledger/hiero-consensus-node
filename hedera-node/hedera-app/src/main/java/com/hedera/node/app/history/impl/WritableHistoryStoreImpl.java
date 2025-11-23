@@ -2,6 +2,7 @@
 package com.hedera.node.app.history.impl;
 
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
+import static com.hedera.node.app.history.impl.ProofControllers.isWrapsExtensible;
 import static com.hedera.node.app.history.schemas.V059HistorySchema.ACTIVE_PROOF_CONSTRUCTION_STATE_ID;
 import static com.hedera.node.app.history.schemas.V059HistorySchema.HISTORY_SIGNATURES_STATE_ID;
 import static com.hedera.node.app.history.schemas.V059HistorySchema.LEDGER_ID_STATE_ID;
@@ -32,6 +33,7 @@ import com.swirlds.state.spi.WritableKVState;
 import com.swirlds.state.spi.WritableSingletonState;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.function.BiFunction;
@@ -78,7 +80,12 @@ public class WritableHistoryStoreImpl extends ReadableHistoryStoreImpl implement
             throw new IllegalArgumentException("Handoff phase has no construction");
         }
         var construction = getConstructionFor(activeRosters);
-        if (construction == null) {
+        // Special case at genesis where even though a construction exists, it was completed
+        // with a non-extensible proof, so we need to start a new construction nonetheless
+        if (construction == null
+                || (tssConfig.wrapsEnabled()
+                        && construction.hasTargetProof()
+                        && !isWrapsExtensible(construction.targetProof()))) {
             final var gracePeriod = phase == BOOTSTRAP
                     ? tssConfig.bootstrapProofKeyGracePeriod()
                     : tssConfig.transitionProofKeyGracePeriod();
@@ -165,8 +172,9 @@ public class WritableHistoryStoreImpl extends ReadableHistoryStoreImpl implement
 
     @Override
     public boolean handoff(
-            @NonNull final Roster fromRoster, @NonNull final Roster toRoster, @NonNull final Bytes toRosterHash) {
-        if (requireNonNull(nextConstruction.get()).targetRosterHash().equals(toRosterHash)) {
+            @NonNull final Roster fromRoster, @NonNull final Roster toRoster, @Nullable final Bytes toRosterHash) {
+        if (toRosterHash == null
+                || requireNonNull(nextConstruction.get()).targetRosterHash().equals(toRosterHash)) {
             // The next construction is becoming the active one; so purge obsolete votes now
             final var upcomingConstruction = requireNonNull(activeConstruction.get());
             purgeVotesAndSignatures(upcomingConstruction.constructionId(), fromRoster);
@@ -239,8 +247,7 @@ public class WritableHistoryStoreImpl extends ReadableHistoryStoreImpl implement
                 .targetRosterHash(targetRosterHash)
                 .gracePeriodEndTime(asTimestamp(now.plus(gracePeriod)))
                 .build();
-        final var activeChoice = requireNonNull(activeConstruction.get());
-        if (activeChoice.equals(HistoryProofConstruction.DEFAULT)) {
+        if (requireNonNull(activeConstruction.get()).equals(HistoryProofConstruction.DEFAULT)) {
             activeConstruction.put(construction);
             logNewConstruction(construction, InSlot.ACTIVE, sourceRosterHash, targetRosterHash);
         } else {

@@ -6,43 +6,35 @@ import static com.hedera.cryptography.wraps.WRAPSLibraryBridge.SigningProtocolPh
 import static com.hedera.cryptography.wraps.WRAPSLibraryBridge.SigningProtocolPhase.R3;
 import static java.util.Objects.requireNonNull;
 
-import com.google.common.base.Supplier;
-import com.google.common.base.Suppliers;
 import com.hedera.cryptography.rpm.HistoryLibraryBridge;
-import com.hedera.cryptography.rpm.ProvingAndVerifyingSnarkKeys;
 import com.hedera.cryptography.rpm.SigningAndVerifyingSchnorrKeys;
 import com.hedera.cryptography.wraps.Proof;
 import com.hedera.cryptography.wraps.WRAPSLibraryBridge;
 import com.hedera.node.app.history.HistoryLibrary;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.io.IOException;
 import java.util.Set;
 import java.util.SplittableRandom;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * Default implementation of the {@link HistoryLibrary}.
  */
 public class HistoryLibraryImpl implements HistoryLibrary {
-    private static final byte[] DUMMY_HINTS_KEY = new byte[1280];
-    private static final SplittableRandom RANDOM = new SplittableRandom();
-    private static final HistoryLibraryBridge RPM_BRIDGE = HistoryLibraryBridge.getInstance();
-    private static final Supplier<ProvingAndVerifyingSnarkKeys> SNARK_KEYS = Suppliers.memoize(() -> {
-        try {
-            var elf = HistoryLibraryBridge.loadAddressBookRotationProgram();
-            return RPM_BRIDGE.snarkVerificationKey(elf);
-        } catch (IOException e) {
-            throw new IllegalStateException("Could not load HistoryLibrary ELF", e);
-        }
-    });
+    private static final Logger log = LogManager.getLogger(HistoryLibraryImpl.class);
 
-    private static final WRAPSLibraryBridge WRAPS = WRAPSLibraryBridge.getInstance();
+    private static final byte[] DUMMY_HINTS_KEY = new byte[1280];
+    public static final SplittableRandom RANDOM = new SplittableRandom();
+    private static final HistoryLibraryBridge RPM_BRIDGE = HistoryLibraryBridge.getInstance();
+    public static final WRAPSLibraryBridge WRAPS = WRAPSLibraryBridge.getInstance();
 
     @Override
     public SigningAndVerifyingSchnorrKeys newSchnorrKeyPair() {
-        final var bytes = new byte[32];
-        RANDOM.nextBytes(bytes);
-        return RPM_BRIDGE.newSchnorrKeyPair(bytes);
+        final var seed = new byte[32];
+        RANDOM.nextBytes(seed);
+        final var wrapsKeys = WRAPS.generateSchnorrKeys(seed);
+        return new SigningAndVerifyingSchnorrKeys(wrapsKeys.privateKey(), wrapsKeys.publicKey());
     }
 
     @Override
@@ -58,12 +50,20 @@ public class HistoryLibraryImpl implements HistoryLibrary {
         requireNonNull(signature);
         requireNonNull(message);
         requireNonNull(publicKey);
-        return RPM_BRIDGE.verifySchnorr(signature.toByteArray(), message.toByteArray(), publicKey.toByteArray());
+        // TODO - swap in the WRAPS Schnorr verification call when it is available
+        return true;
     }
 
     @Override
     public byte[] hashAddressBook(@NonNull final AddressBook addressBook) {
-        return WRAPS.hashAddressBook(addressBook.publicKeys(), addressBook.weights());
+        final var answer = WRAPS.hashAddressBook(addressBook.publicKeys(), addressBook.weights());
+        log.info(
+                "# nodes = {}, # weights = {}, # public keys = {}",
+                addressBook.nodeIds().length,
+                addressBook.weights().length,
+                addressBook.publicKeys().length);
+        log.info("Hashed {} and got answer {}", addressBook, answer);
+        return answer;
     }
 
     @Override

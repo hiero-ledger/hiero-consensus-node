@@ -2,6 +2,7 @@
 package com.hedera.node.app.history.impl;
 
 import static com.hedera.hapi.util.HapiUtils.asInstant;
+import static com.hedera.node.app.history.impl.ProofControllers.isWrapsExtensible;
 import static java.util.Collections.emptyMap;
 import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.groupingBy;
@@ -53,12 +54,6 @@ public class ProofControllerImpl implements ProofController {
     private final Map<Long, Bytes> targetProofKeys = new TreeMap<>();
 
     /**
-     * Once set, the metadata to be proven as associated to the target address book hash.
-     */
-    @Nullable
-    private Bytes targetMetadata;
-
-    /**
      * The ongoing construction, updated in network state each time the controller makes progress.
      */
     private HistoryProofConstruction construction;
@@ -84,6 +79,7 @@ public class ProofControllerImpl implements ProofController {
             @NonNull final HistorySubmissions submissions,
             @NonNull final List<ProofKeyPublication> keyPublications,
             @NonNull final List<HistorySignaturePublication> signaturePublications,
+            @NonNull final List<WrapsMessagePublication> wrapsMessagePublications,
             @NonNull final Map<Long, HistoryProofVote> votes,
             @NonNull final HistoryService historyService,
             @NonNull final HistoryLibrary historyLibrary,
@@ -115,6 +111,8 @@ public class ProofControllerImpl implements ProofController {
                     selfId, sourceProofKeys, schnorrKeyPair, weights, executor, historyLibrary, submissions);
             signaturePublications.forEach(
                     publication -> requireNonNull(prover).addSignaturePublication(publication, sourceProofKeys));
+            wrapsMessagePublications.forEach(
+                    publication -> requireNonNull(prover).replayWrapsSigningMessage(constructionId(), publication));
         } else {
             this.sourceProofKeys = emptyMap();
         }
@@ -139,9 +137,8 @@ public class ProofControllerImpl implements ProofController {
         if (construction.hasTargetProof() || construction.hasFailureReason()) {
             return;
         }
-        targetMetadata = metadata;
         // Still waiting for the hinTS verification key
-        if (targetMetadata == null) {
+        if (metadata == null) {
             if (isActive) {
                 ensureProofKeyPublished();
             }
@@ -161,8 +158,7 @@ public class ProofControllerImpl implements ProofController {
         if (!isActive) {
             return;
         }
-        final var outcome =
-                requireNonNull(prover).advance(now, construction, targetMetadata, Map.copyOf(targetProofKeys));
+        final var outcome = requireNonNull(prover).advance(now, construction, metadata, targetProofKeys);
         switch (outcome) {
             case HistoryProver.Outcome.InProgress ignored -> {
                 // No-op
@@ -261,7 +257,11 @@ public class ProofControllerImpl implements ProofController {
      */
     private void finishProof(@NonNull final WritableHistoryStore historyStore, @NonNull final HistoryProof proof) {
         construction = historyStore.completeProof(construction.constructionId(), proof);
-        log.info("{} (#{})", PROOF_COMPLETE_MSG, construction.constructionId());
+        log.info(
+                "{} (#{}, WRAPS-extensible? {})",
+                PROOF_COMPLETE_MSG,
+                construction.constructionId(),
+                isWrapsExtensible(proof));
         historyService.onFinished(historyStore, construction);
     }
 

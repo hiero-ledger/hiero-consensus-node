@@ -5,12 +5,14 @@ import static com.hedera.node.app.hints.HintsService.maybeWeightsFrom;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.state.hints.HintsConstruction;
+import com.hedera.hapi.node.state.history.HistoryProof;
 import com.hedera.hapi.node.state.history.HistoryProofConstruction;
 import com.hedera.node.app.history.HistoryLibrary;
 import com.hedera.node.app.history.HistoryService;
 import com.hedera.node.app.history.ReadableHistoryStore;
 import com.hedera.node.app.service.roster.impl.ActiveRosters;
 import com.hedera.node.app.spi.info.NodeInfo;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Optional;
@@ -136,12 +138,19 @@ public class ProofControllers {
             final var keyPublications = historyStore.getProofKeyPublications(weights.targetNodeIds());
             final var signaturePublications =
                     historyStore.getSignaturePublications(construction.constructionId(), weights.targetNodeIds());
+            final var wrapsMessagePublications =
+                    historyStore.getWrapsMessagePublications(construction.constructionId(), weights.targetNodeIds());
             final var votes = historyStore.getVotes(construction.constructionId(), weights.sourceNodeIds());
             final var selfId = selfNodeInfoSupplier.get().nodeId();
             final var schnorrKeyPair = keyAccessor.getOrCreateSchnorrKeyPair(construction.constructionId());
-            final var sourceProof = (wrapsEnabled && activeProofConstruction.hasTargetProof())
+            final var sourceProof = (wrapsEnabled && isWrapsExtensible(activeProofConstruction.targetProof()))
                     ? activeProofConstruction.targetProofOrThrow()
                     : null;
+            // Even if the source proof is not WRAPS-extensible, we want to use the WrapsHistoryProver
+            // once _some_ viable proof exists to start bootstrapping the chain of trust from here
+            final HistoryProver.Factory proverFactory = (wrapsEnabled && activeProofConstruction.hasTargetProof())
+                    ? WrapsHistoryProver::new
+                    : ListOfSignaturesHistoryProver::new;
             return new ProofControllerImpl(
                     selfId,
                     schnorrKeyPair,
@@ -151,13 +160,22 @@ public class ProofControllers {
                     submissions,
                     keyPublications,
                     signaturePublications,
+                    wrapsMessagePublications,
                     votes,
                     historyService,
                     historyLibrary,
-                    // TODO - switch to WrapsHistoryProver::new when WRAPS is enabled
-                    ListOfSignaturesHistoryProver::new,
+                    proverFactory,
                     sourceProof);
         }
+    }
+
+    /**
+     * Returns whether the given proof is extensible with a WRAPS proof.
+     * @param proof the proof
+     * @return whether the proof is extensible with a WRAPS proof
+     */
+    public static boolean isWrapsExtensible(@Nullable final HistoryProof proof) {
+        return proof != null && !Bytes.EMPTY.equals(proof.uncompressedWrapsProof());
     }
 
     /**
