@@ -8,6 +8,7 @@ import static com.hedera.hapi.node.state.history.WrapsPhase.R3;
 import static com.hedera.hapi.util.HapiUtils.asInstant;
 import static com.hedera.node.app.history.HistoryLibrary.EMPTY_PUBLIC_KEY;
 import static com.hedera.node.app.service.roster.impl.RosterTransitionWeights.moreThanHalfOfTotal;
+import static java.util.Collections.emptySortedMap;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.block.stream.ChainOfTrustProof;
@@ -241,7 +242,8 @@ public class WrapsHistoryProver implements HistoryProver {
         requireNonNull(targetMetadata);
         requireNonNull(targetProofKeys);
         if (futureOf(phase) == null
-                && (phase == AGGREGATE || !phaseMessages.get(phase).containsKey(selfId))) {
+                && (phase == AGGREGATE
+                        || !phaseMessages.getOrDefault(phase, emptySortedMap()).containsKey(selfId))) {
             log.info("Publishing {} protocol output for WRAPS on construction #{}", phase, constructionId);
             final var bookHash = requireNonNull(targetAddressBookHash);
             final var proofKeyList = proofKeyListFrom(targetProofKeys);

@@ -1001,11 +1001,18 @@ public class HandleWorkflow {
                     final var hintsStore = new ReadableHintsStoreImpl(hintsWritableStates, entityCounters);
                     final var historyStore = new WritableHistoryStoreImpl(historyWritableStates);
                     // If we are doing a chain-of-trust proof, this is the verification key we are proving;
-                    // at genesis, the active construction's key---otherwise, the next construction's key;
-                    // even when this is null, the proof controller can still make progress on publishing
-                    // proof keys at genesis
+                    // at genesis (including WRAPS genesis), the active hinTS construction's key---otherwise,
+                    // the next hinTS construction's key...note that even when this is null, the controller
+                    // can still make progress on publishing proof keys as needed
                     final var vk = Optional.ofNullable(
-                                    historyStore.getLedgerId() == null
+                                    (historyStore.getLedgerId() == null
+                                                    || (tssConfig.wrapsEnabled()
+                                                            && historyStore
+                                                                    .getActiveConstruction()
+                                                                    .hasTargetProof()
+                                                            && !isWrapsExtensible(historyStore
+                                                                    .getActiveConstruction()
+                                                                    .targetProof())))
                                             ? hintsStore.getActiveConstruction().hintsScheme()
                                             : hintsStore.getNextConstruction().hintsScheme())
                             .map(s -> s.preprocessedKeysOrThrow().verificationKey())

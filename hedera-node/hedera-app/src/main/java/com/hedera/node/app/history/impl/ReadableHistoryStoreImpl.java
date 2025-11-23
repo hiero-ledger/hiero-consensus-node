@@ -80,9 +80,9 @@ public class ReadableHistoryStoreImpl implements ReadableHistoryStore {
         return switch (activeRosters.phase()) {
             case BOOTSTRAP, TRANSITION -> {
                 HistoryProofConstruction construction;
-                if (constructionIsFor(construction = requireNonNull(activeConstruction.get()), activeRosters)) {
+                if (constructionIsFor(construction = requireNonNull(nextConstruction.get()), activeRosters)) {
                     yield construction;
-                } else if (constructionIsFor(construction = requireNonNull(nextConstruction.get()), activeRosters)) {
+                } else if (constructionIsFor(construction = requireNonNull(activeConstruction.get()), activeRosters)) {
                     yield construction;
                 }
                 yield null;

@@ -109,6 +109,10 @@ public class ProofControllerImpl implements ProofController {
                     : sourceProof.targetProofKeys().stream().collect(toMap(ProofKey::nodeId, ProofKey::key));
             this.prover = proverFactory.create(
                     selfId, sourceProofKeys, schnorrKeyPair, weights, executor, historyLibrary, submissions);
+            log.info(
+                    "Controller for history proof construction #{} using prover type {}",
+                    construction.constructionId(),
+                    prover.getClass().getSimpleName());
             signaturePublications.forEach(
                     publication -> requireNonNull(prover).addSignaturePublication(publication, sourceProofKeys));
             wrapsMessagePublications.forEach(
@@ -142,6 +146,7 @@ public class ProofControllerImpl implements ProofController {
             if (isActive) {
                 ensureProofKeyPublished();
             }
+            log.info("Construction #{} still waiting for hinTS verification key", construction.constructionId());
             return;
         }
         // Have the hinTS verification key, but not yet assembling the history
