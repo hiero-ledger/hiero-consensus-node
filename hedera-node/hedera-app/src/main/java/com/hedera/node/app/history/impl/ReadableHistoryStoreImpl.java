@@ -75,6 +75,17 @@ public class ReadableHistoryStoreImpl implements ReadableHistoryStore {
     }
 
     @Override
+    public @NonNull HistoryProofConstruction getConstructionOrThrow(final long constructionId) {
+        if (requireNonNull(activeConstruction.get()).constructionId() == constructionId) {
+            return requireNonNull(activeConstruction.get());
+        } else if (requireNonNull(nextConstruction.get()).constructionId() == constructionId) {
+            return requireNonNull(nextConstruction.get());
+        } else {
+            throw new IllegalArgumentException("No construction with id " + constructionId);
+        }
+    }
+
+    @Override
     public @Nullable HistoryProofConstruction getConstructionFor(@NonNull final ActiveRosters activeRosters) {
         requireNonNull(activeRosters);
         return switch (activeRosters.phase()) {

@@ -135,7 +135,9 @@ public class WrapsHistoryProver implements HistoryProver {
         requireNonNull(targetMetadata);
         requireNonNull(targetProofKeys);
         final var state = construction.wrapsSigningStateOrElse(WrapsSigningState.DEFAULT);
-        if (state.hasGracePeriodEndTime() && now.isAfter(asInstant(state.gracePeriodEndTimeOrThrow()))) {
+        if (state.phase() != AGGREGATE
+                && state.hasGracePeriodEndTime()
+                && now.isAfter(asInstant(state.gracePeriodEndTimeOrThrow()))) {
             final var submittingNodes = phaseMessages.get(state.phase()).keySet();
             final var missingNodes = phaseMessages.get(R1).keySet().stream()
                     .filter(nodeId -> !submittingNodes.contains(nodeId))
@@ -178,10 +180,16 @@ public class WrapsHistoryProver implements HistoryProver {
             @NonNull final WrapsMessagePublication publication,
             @Nullable final WritableHistoryStore writableHistoryStore,
             @Nullable final TssConfig tssConfig) {
+        log.info(
+                "Received {} message from node{} for construction #{} (current phase={})",
+                publication.phase(),
+                publication.nodeId(),
+                constructionId,
+                wrapsPhase);
         if (publication.phase() != wrapsPhase) {
             return false;
         }
-        final var messages = phaseMessages.computeIfAbsent(publication.phase(), p -> new TreeMap<>());
+        final var messages = phaseMessages.computeIfAbsent(wrapsPhase, p -> new TreeMap<>());
         if (wrapsPhase == R1) {
             if (messages.putIfAbsent(publication.nodeId(), publication) != null) {
                 return false;
@@ -189,10 +197,18 @@ public class WrapsHistoryProver implements HistoryProver {
             final long r1Weight = messages.values().stream()
                     .mapToLong(p -> weights.sourceWeightOf(p.nodeId()))
                     .sum();
+            log.info(
+                    "Total weight of {} messages is {} (of {} total)",
+                    wrapsPhase,
+                    r1Weight,
+                    weights.sourceNodeWeights().values().stream()
+                            .mapToLong(Long::longValue)
+                            .sum());
             if (r1Weight >= moreThanHalfOfTotal(weights.sourceNodeWeights())) {
                 if (writableHistoryStore != null && tssConfig != null) {
                     writableHistoryStore.advanceWrapsSigningPhase(
                             constructionId, R2, publication.receiptTime().plus(tssConfig.wrapsMessageGracePeriod()));
+                    log.info("Advanced to R2 ({})", writableHistoryStore.getConstructionOrThrow(constructionId));
                 }
                 wrapsPhase = R2;
             }
@@ -201,8 +217,10 @@ public class WrapsHistoryProver implements HistoryProver {
             if (!r1Nodes.contains(publication.nodeId())) {
                 return false;
             }
-            final var r2NodesSoFar = phaseMessages.get(R2).keySet();
-            if (r2NodesSoFar.containsAll(r1Nodes)) {
+            if (messages.putIfAbsent(publication.nodeId(), publication) != null) {
+                return false;
+            }
+            if (messages.keySet().containsAll(r1Nodes)) {
                 if (writableHistoryStore != null && tssConfig != null) {
                     writableHistoryStore.advanceWrapsSigningPhase(
                             constructionId, R3, publication.receiptTime().plus(tssConfig.wrapsMessageGracePeriod()));
@@ -214,8 +232,10 @@ public class WrapsHistoryProver implements HistoryProver {
             if (!r1Nodes.contains(publication.nodeId())) {
                 return false;
             }
-            final var r3NodesSoFar = phaseMessages.get(R3).keySet();
-            if (r3NodesSoFar.containsAll(r1Nodes)) {
+            if (messages.putIfAbsent(publication.nodeId(), publication) != null) {
+                return false;
+            }
+            if (messages.keySet().containsAll(r1Nodes)) {
                 if (writableHistoryStore != null && tssConfig != null) {
                     writableHistoryStore.advanceWrapsSigningPhase(constructionId, AGGREGATE, null);
                 }
@@ -241,6 +261,7 @@ public class WrapsHistoryProver implements HistoryProver {
         requireNonNull(phase);
         requireNonNull(targetMetadata);
         requireNonNull(targetProofKeys);
+        log.info("ensureProtocolOutputPublished({}, {})", constructionId, phase);
         if (futureOf(phase) == null
                 && (phase == AGGREGATE
                         || !phaseMessages.getOrDefault(phase, emptySortedMap()).containsKey(selfId))) {
@@ -251,6 +272,10 @@ public class WrapsHistoryProver implements HistoryProver {
                     .accept(outputFuture(phase)
                             .thenAcceptAsync(
                                     output -> {
+                                        if (output == null) {
+                                            log.info("Got null output for {} phase. Skipping.", phase);
+                                            return;
+                                        }
                                         if (phase != AGGREGATE) {
                                             submissions
                                                     .submitWrapsSigningMessage(phase, Bytes.wrap(output))

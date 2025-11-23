@@ -149,8 +149,8 @@ public class ProofControllerImpl implements ProofController {
             log.info("Construction #{} still waiting for hinTS verification key", construction.constructionId());
             return;
         }
-        // Have the hinTS verification key, but not yet assembling the history
-        if (!construction.hasAssemblyStartTime()) {
+        // Have the hinTS verification key, but not yet assembling the history or computing the WRAPS proof
+        if (!construction.hasAssemblyStartTime() && !construction.hasWrapsSigningState()) {
             if (shouldAssemble(now)) {
                 log.info("Assembly start time for construction #{} is {}", construction.constructionId(), now);
                 construction = historyStore.setAssemblyTime(construction.constructionId(), now);
@@ -166,12 +166,13 @@ public class ProofControllerImpl implements ProofController {
         final var outcome = requireNonNull(prover).advance(now, construction, metadata, targetProofKeys);
         switch (outcome) {
             case HistoryProver.Outcome.InProgress ignored -> {
-                // No-op
+                construction = historyStore.getConstructionOrThrow(constructionId());
+                log.info("Construction now {}", construction);
             }
             case HistoryProver.Outcome.Completed completed -> finishProof(historyStore, completed.proof());
             case HistoryProver.Outcome.Failed failed -> {
-                log.warn("Failed construction #{} due to {}", construction.constructionId(), failed.reason());
-                historyStore.failForReason(construction.constructionId(), failed.reason());
+                log.warn("Failed construction #{} due to {}", constructionId(), failed.reason());
+                historyStore.failForReason(constructionId(), failed.reason());
             }
         }
     }

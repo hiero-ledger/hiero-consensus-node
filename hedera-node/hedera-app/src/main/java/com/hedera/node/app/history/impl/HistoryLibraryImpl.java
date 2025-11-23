@@ -3,6 +3,7 @@ package com.hedera.node.app.history.impl;
 
 import static com.hedera.cryptography.wraps.WRAPSLibraryBridge.SigningProtocolPhase.Aggregate;
 import static com.hedera.cryptography.wraps.WRAPSLibraryBridge.SigningProtocolPhase.R1;
+import static com.hedera.cryptography.wraps.WRAPSLibraryBridge.SigningProtocolPhase.R2;
 import static com.hedera.cryptography.wraps.WRAPSLibraryBridge.SigningProtocolPhase.R3;
 import static java.util.Objects.requireNonNull;
 
@@ -97,7 +98,7 @@ public class HistoryLibraryImpl implements HistoryLibrary {
         requireNonNull(r1Messages);
         requireNonNull(publicKeys);
         return WRAPS.runSigningProtocolPhase(
-                R1, entropy, message, privateKey, publicKeys, r1Messages, new byte[0][], new byte[0][]);
+                R2, entropy, message, privateKey, publicKeys, r1Messages, new byte[0][], new byte[0][]);
     }
 
     @Override

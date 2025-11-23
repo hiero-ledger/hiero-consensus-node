@@ -87,6 +87,12 @@ public interface ReadableHistoryStore {
     Bytes getLedgerId();
 
     /**
+     * Gets the construction with the given ID, throwing if it does not exist.
+     */
+    @NonNull
+    HistoryProofConstruction getConstructionOrThrow(long constructionId);
+
+    /**
      * Returns the active construction.
      */
     @NonNull

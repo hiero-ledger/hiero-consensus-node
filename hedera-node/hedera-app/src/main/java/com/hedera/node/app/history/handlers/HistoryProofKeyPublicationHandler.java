@@ -65,10 +65,6 @@ public class HistoryProofKeyPublicationHandler implements TransactionHandler {
                         new WrapsMessagePublication(nodeId, message, op.phase(), context.consensusNow());
                 controller.addWrapsMessagePublication(
                         publication, historyStore, context.configuration().getConfigData(TssConfig.class));
-                log.info(
-                        "  - Added {} WRAPS message to ongoing construction #{}",
-                        op.phase(),
-                        controller.constructionId());
             });
         }
     }
