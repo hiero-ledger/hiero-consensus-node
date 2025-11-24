@@ -13,6 +13,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesJsonLoader;
 import com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesParams;
 import com.hedera.services.bdd.suites.hip1261.utils.SimpleFeesReferenceTestCalculator;
+import java.util.List;
 import java.util.Map;
 import org.hiero.hapi.support.fees.Extra;
 import org.junit.jupiter.api.Test;
@@ -463,5 +464,77 @@ public class SimpleFeesReferenceTestCalculatorTest {
         assertEquals(Long.MAX_VALUE, result.node());
         assertEquals(Long.MAX_VALUE, result.network());
         assertEquals(Long.MAX_VALUE, result.total());
+    }
+
+    //    @Disabled("Run manually to regenerate expected fee tables for documentation")
+    @Test
+    void printCryptoCreateExpectedTables() throws Exception {
+        final var jsonSchedule = SimpleFeesJsonLoader.fromClassPath("/hip1261/customSimpleFees.json");
+        final var prepared = SimpleFeesReferenceTestCalculator.prepare(jsonSchedule);
+
+        record Scenario(String label, SimpleFeesParams params) {}
+
+        final var scenarios = List.of(
+                new Scenario(
+                        "PAYER only, one signature", SimpleFeesParams.create().signatures(1L)),
+                new Scenario(
+                        "PAYER + 1 extra signature", SimpleFeesParams.create().signatures(2L)),
+                new Scenario(
+                        "PAYER + 1 extra sig + 1 key",
+                        SimpleFeesParams.create().signatures(2L).keys(1L)),
+                new Scenario(
+                        "PAYER + 1 extra sig + 2 keys",
+                        SimpleFeesParams.create().signatures(2L).keys(2L)),
+                new Scenario(
+                        "PAYER + 2 extra sig + 2 keys",
+                        SimpleFeesParams.create().signatures(3L).keys(2L)),
+                new Scenario(
+                        "PAYER + 3 extra sig + 4 keys",
+                        SimpleFeesParams.create().signatures(4L).keys(4L)));
+
+        System.out.println("\n### COMPACT TABLE \n###");
+        System.out.println(
+                "| Scenario                         | Sigs  | Keys | PayerCharged tinycents | payerCharged USD |");
+        System.out.println(
+                "|----------------------------------|-------|------|------------------------|------------------|");
+        for (final var scenario : scenarios) {
+            final var extrasCount = scenario.params.get();
+            final var charges = computeWithPolicy(prepared, CRYPTO_CREATE, extrasCount, SUCCESS_TXN_FULL_CHARGE);
+
+            final long signatures = extrasCount.getOrDefault(Extra.SIGNATURES, 0L);
+            final long keys = extrasCount.getOrDefault(Extra.KEYS, 0L);
+            final var payerCharged = charges.payerCharged();
+            final var payerChargedUsd = charges.payerChargedUsd();
+
+            System.out.printf(
+                    "| %-32s | %5d | %4d | %15d | %14.10f |%n",
+                    scenario.label, signatures, keys, (long) payerCharged, payerChargedUsd);
+        }
+
+        System.out.println("\n### EXPANDED TABLE \n###");
+        System.out.println(
+                "| Scenario                          | sigs | keys | node | network | service | total | nodeExtras | serviceExtras | totalUSD     |");
+        System.out.println(
+                "|-----------------------------------|------|------|------|---------|---------|-------|------------|---------------|--------------|");
+        for (var s : scenarios) {
+            final var extraCounts = s.params.get();
+            final var charges = computeWithPolicy(prepared, CRYPTO_CREATE, extraCounts, SUCCESS_TXN_FULL_CHARGE);
+
+            final long signatures = extraCounts.getOrDefault(Extra.SIGNATURES, 0L);
+            final long keys = extraCounts.getOrDefault(Extra.KEYS, 0L);
+
+            System.out.printf(
+                    "| %-23s | %4d | %4d | %4d | %7d | %7d | %5d | %9d | %13d | %12.10f |%n",
+                    s.label,
+                    signatures,
+                    keys,
+                    charges.node(),
+                    charges.nodeExtras(),
+                    charges.network(),
+                    charges.service(),
+                    charges.serviceExtras(),
+                    charges.total(),
+                    charges.totalUsd());
+        }
     }
 }
