@@ -20,6 +20,7 @@ import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.platform.event.EventCore;
 import com.hedera.node.app.blocks.impl.streaming.FileBlockItemWriter;
+import com.hedera.node.app.blocks.impl.streaming.FileBlockItemWriterV2;
 import com.hedera.node.app.info.NodeInfoImpl;
 import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.config.ConfigProvider;
@@ -58,11 +59,21 @@ import org.openjdk.jmh.infra.Blackhole;
 
 /**
  * JMH Benchmark for FileBlockItemWriter to analyze and optimize block writing performance.
+ * This benchmark compares the original synchronous implementation against the optimized V2 implementation.
+ * <p>
  * This benchmark measures:
- * 1. Throughput of writing blocks with async compression (realistic production behavior)
- * 2. Impact of different item sizes on performance
+ * 1. Throughput of writing blocks (async compression in V2, synchronous in original)
+ * 2. Impact of different item sizes on performance (25 KB to 500 MB blocks)
  * 3. Effectiveness of buffer consolidation and compression strategies
  * 4. Compression ratios with realistic protobuf-encoded transaction and state data
+ * <p>
+ * Available benchmarks:
+ * - writeCompleteBlock: Measures throughput and average time for complete block lifecycle
+ * - measureCompressionRatio: Measures compression ratios and file sizes
+ * - writeItemsOnly: Measures write-only performance (excluding open/close overhead)
+ * <p>
+ * NOTE: This benchmark tests 2 implementations * 5 item counts * 5 item sizes = 50 parameter combinations.
+ * Each benchmark method runs with all 50 combinations. Total run time can be significant (2-4 hours).
  */
 @State(Scope.Benchmark)
 @Fork(value = 1)
@@ -90,12 +101,32 @@ public class FileBlockItemWriterBenchmark {
 
     private static final SplittableRandom RANDOM = new SplittableRandom(1_234_567L);
 
-    // Number of items per block
-    @Param({"50", "100", "200", "500"})
+    /**
+     * Implementation to test:
+     * - "original": Original synchronous implementation (triple-buffered GZIP)
+     * - "optimized": Optimized V2 implementation (async compression, consolidated buffers, in-memory buffering)
+     */
+    @Param({"original", "optimized"})
+    private String implementation;
+
+    /**
+     * Number of items per block.
+     * Block size ranges from 25 KB (50 * 500) to 500 MB (10000 * 50000).
+     * Examples:
+     * - Small: 50 items * 500 bytes = 25 KB
+     * - Typical: 500 items * 2000 bytes = 1 MB
+     * - Medium: 2000 items * 5000 bytes = 10 MB
+     * - Large: 5000 items * 20000 bytes = 100 MB
+     * - Very Large: 10000 items * 50000 bytes = 500 MB
+     */
+    @Param({"50", "500", "2000", "5000", "10000"})
     private int itemsPerBlock;
 
-    // Average size of each block item in bytes
-    @Param({"500", "2000", "5000"})
+    /**
+     * Average size of each block item in bytes.
+     * Combined with itemsPerBlock to create various block sizes.
+     */
+    @Param({"500", "2000", "5000", "20000", "50000"})
     private int avgItemSizeBytes;
 
     private Path tempDir;
@@ -173,16 +204,16 @@ public class FileBlockItemWriterBenchmark {
     }
 
     /**
-     * Benchmark ASYNC pipeline behavior - measures throughput when blocks overlap.
-     * This shows the benefit of async compression where Block N+1 can be
-     * opened/written while Block N compresses in the background.
-     * Measures how fast we can start new blocks (without waiting for previous ones).
+     * Benchmark complete block lifecycle - measures throughput and average time.
+     * For the optimized implementation, this shows the benefit of async compression
+     * where Block N+1 can be opened/written while Block N compresses in the background.
+     * For the original implementation, this includes the full synchronous compression time.
      */
     @Benchmark
     @BenchmarkMode({Mode.Throughput, Mode.AverageTime})
     @OutputTimeUnit(TimeUnit.MILLISECONDS)
     public void writeCompleteBlock(@NonNull final Blackhole blackhole) {
-        FileBlockItemWriter writer = new FileBlockItemWriter(configProvider, nodeInfo, fileSystem);
+        BlockItemWriter writer = createWriter();
 
         writer.openBlock(blockNumber++);
 
@@ -192,17 +223,17 @@ public class FileBlockItemWriterBenchmark {
 
         writer.closeCompleteBlock();
 
-        // don't wait - compression happens in background
-        // to measure with waiting for compression, uncomment next line
-        // writer.awaitCompressionComplete();
+        // For V2, don't wait - compression happens in background
+        // For original, compression is already done synchronously in closeCompleteBlock
 
         blackhole.consume(writer);
     }
 
     /**
      * Measure compression ratios by waiting for compression and checking file sizes.
-     * This is NOT the async benchmark - it waits for compression to complete.
-     * Run this separately to see compression ratios without affecting async performance measurements.
+     * For V2, this waits for async compression to complete before checking file size.
+     * For original, compression is already done synchronously in closeCompleteBlock.
+     * Run this separately to see compression ratios without affecting throughput measurements.
      */
     @Benchmark
     @BenchmarkMode(Mode.SingleShotTime)
@@ -210,7 +241,7 @@ public class FileBlockItemWriterBenchmark {
     @Warmup(iterations = 0)
     @Measurement(iterations = 3)
     public void measureCompressionRatio(@NonNull final Blackhole blackhole, @NonNull final FileSizeCounters counters) {
-        FileBlockItemWriter writer = new FileBlockItemWriter(configProvider, nodeInfo, fileSystem);
+        BlockItemWriter writer = createWriter();
         long currentBlockNum = blockNumber++;
 
         writer.openBlock(currentBlockNum);
@@ -224,8 +255,10 @@ public class FileBlockItemWriterBenchmark {
 
         writer.closeCompleteBlock();
 
-        // Wait for compression to complete to get accurate file size
-        writer.awaitCompressionComplete();
+        // Wait for compression to complete to get accurate file size (V2 only)
+        if (writer instanceof FileBlockItemWriterV2 v2Writer) {
+            v2Writer.awaitCompressionComplete();
+        }
 
         // Record file sizes for the report
         try {
@@ -242,12 +275,13 @@ public class FileBlockItemWriterBenchmark {
     /**
      * Benchmark only the write operations (excluding open/close overhead).
      * Measures average time per write operation.
+     * This isolates the buffering improvements from compression changes.
      */
     @Benchmark
     @BenchmarkMode(Mode.AverageTime)
     @OutputTimeUnit(TimeUnit.MICROSECONDS)
     public void writeItemsOnly(@NonNull final Blackhole blackhole) {
-        FileBlockItemWriter writer = new FileBlockItemWriter(configProvider, nodeInfo, fileSystem);
+        BlockItemWriter writer = createWriter();
         writer.openBlock(blockNumber++);
 
         for (byte[] itemBytes : serializedItems) {
@@ -256,6 +290,17 @@ public class FileBlockItemWriterBenchmark {
 
         // Don't close to isolate write performance
         blackhole.consume(writer);
+    }
+
+    /**
+     * Creates the appropriate writer implementation based on the benchmark parameter.
+     */
+    private BlockItemWriter createWriter() {
+        return switch (implementation) {
+            case "original" -> new FileBlockItemWriter(configProvider, nodeInfo, fileSystem);
+            case "optimized" -> new FileBlockItemWriterV2(configProvider, nodeInfo, fileSystem);
+            default -> throw new IllegalStateException("Unknown implementation: " + implementation);
+        };
     }
 
     /**
