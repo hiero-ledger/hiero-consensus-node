@@ -7,11 +7,11 @@ import org.hiero.metrics.api.GaugeAdapter;
 import org.hiero.metrics.api.core.MetricKey;
 import org.junit.jupiter.api.Test;
 
-public class CumulativeAverageIntStatTest {
+public class CumulativeIntAvgTest {
 
     @Test
     void testCreateMetricKey() {
-        MetricKey<GaugeAdapter<CumulativeAverageIntStat>> key = CumulativeAverageIntStat.key("testMetric");
+        MetricKey<GaugeAdapter<CumulativeIntAvg>> key = CumulativeIntAvg.key("testMetric");
 
         assertThat(key.name()).isEqualTo("testMetric");
         assertThat(key.type()).isEqualTo(GaugeAdapter.class);
@@ -19,7 +19,7 @@ public class CumulativeAverageIntStatTest {
 
     @Test
     void testUpdate() {
-        CumulativeAverageIntStat stat = new CumulativeAverageIntStat();
+        CumulativeIntAvg stat = new CumulativeIntAvg();
 
         stat.update(10);
         stat.update(20);
@@ -32,7 +32,7 @@ public class CumulativeAverageIntStatTest {
 
     @Test
     void testReset() {
-        CumulativeAverageIntStat stat = new CumulativeAverageIntStat();
+        CumulativeIntAvg stat = new CumulativeIntAvg();
 
         stat.update(10);
         stat.reset();
@@ -42,7 +42,7 @@ public class CumulativeAverageIntStatTest {
 
     @Test
     void testGetReset() {
-        CumulativeAverageIntStat stat = new CumulativeAverageIntStat();
+        CumulativeIntAvg stat = new CumulativeIntAvg();
 
         stat.update(10);
 
@@ -52,11 +52,11 @@ public class CumulativeAverageIntStatTest {
 
     @Test
     void testMetricBuilder() {
-        GaugeAdapter.Builder<CumulativeAverageIntStat> builder = CumulativeAverageIntStat.metricBuilder("testMetric");
+        GaugeAdapter.Builder<CumulativeIntAvg> builder = CumulativeIntAvg.metricBuilder("testMetric");
 
         assertThat(builder).isNotNull();
 
-        GaugeAdapter<CumulativeAverageIntStat> metric = builder.build();
+        GaugeAdapter<CumulativeIntAvg> metric = builder.build();
 
         metric.getOrCreateNotLabeled().update(10);
         metric.getOrCreateNotLabeled().update(20);
