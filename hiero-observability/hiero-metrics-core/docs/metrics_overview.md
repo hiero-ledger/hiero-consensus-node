@@ -52,7 +52,7 @@ Entry points for clients are:
 - [MetricsRegistry](../src/main/java/org/hiero/metrics/api/core/MetricRegistry.java) and its builder, to create registry for metrics.
 - [MetricsExportManager](../src/main/java/org/hiero/metrics/api/export/MetricsExportManager.java) and its builder, to create export manager, managing exports of a single metrics registry using one or more exporters.
 
-### Typical production example
+### Production example
 
 ```java
 public class Application {
@@ -64,7 +64,7 @@ public class Application {
         // create metrics registry named "my-app-registry" without global labels and register all metrics found
         // by any implementation of MetricsRegistrationProvider SPI
         MetricRegistry metricRegistry = MetricRegistry.builder("my-app-registry")
-                .withDiscoverMetricProviders()
+                .withDiscoverMetricProviders(configuration)
                 .build();
 
         // create export manager managing registry created above, that will discover all implementations

@@ -7,6 +7,7 @@ import static org.hiero.metrics.test.fixtures.ThreadUtils.runConcurrentAndWait;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
 
+import com.swirlds.config.api.Configuration;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.Collection;
@@ -130,6 +131,15 @@ public class MetricRegistryTest {
         }
 
         @Test
+        void testWithDiscoverMetricsProvidersNullConfigurationThrows() {
+            MetricRegistry.Builder builder = testBuilder();
+
+            assertThatThrownBy(() -> builder.withDiscoverMetricProviders(null))
+                    .isInstanceOf(NullPointerException.class)
+                    .hasMessageContaining("configuration must not be null");
+        }
+
+        @Test
         void testRegisterMetricsWithNullProviderThrows() {
             MetricsRegistrationProvider[] providers = new MetricsRegistrationProvider[] {null};
 
@@ -140,7 +150,7 @@ public class MetricRegistryTest {
 
         @Test
         void testRegisterMetricsWithProviderReturningNullMetricsThrows() {
-            assertThatThrownBy(() -> createRegistryMockDiscovery(() -> null))
+            assertThatThrownBy(() -> createRegistryMockDiscovery(config -> null))
                     .isInstanceOf(NullPointerException.class)
                     .hasMessageContaining("metrics collection must not be null");
         }
@@ -167,7 +177,7 @@ public class MetricRegistryTest {
         @Test
         void testRegisterDuplicateMetricsWithSingleProviderThrows() {
             MetricsRegistrationProvider metricsProvider =
-                    () -> List.of(LongCounter.builder(DUPLICATE_NAME), LongCounter.builder(DUPLICATE_NAME));
+                    config -> List.of(LongCounter.builder(DUPLICATE_NAME), LongCounter.builder(DUPLICATE_NAME));
 
             assertThatThrownBy(() -> createRegistryMockDiscovery(metricsProvider))
                     .isInstanceOf(IllegalArgumentException.class)
@@ -177,9 +187,9 @@ public class MetricRegistryTest {
         @Test
         void testRegisterDuplicateMetricsWithMultipleProvidersThrows() {
             MetricsRegistrationProvider provider1 =
-                    () -> List.of(LongCounter.builder(DUPLICATE_NAME), LongCounter.builder("metric1"));
+                    config -> List.of(LongCounter.builder(DUPLICATE_NAME), LongCounter.builder("metric1"));
             MetricsRegistrationProvider provider2 =
-                    () -> List.of(LongCounter.builder("metric2"), LongCounter.builder(DUPLICATE_NAME));
+                    config -> List.of(LongCounter.builder("metric2"), LongCounter.builder(DUPLICATE_NAME));
 
             assertThatThrownBy(() -> createRegistryMockDiscovery(provider1, provider2))
                     .isInstanceOf(IllegalArgumentException.class)
@@ -189,7 +199,7 @@ public class MetricRegistryTest {
         @Test
         void testRegisterDuplicateMetricsWithProviderAndBuilderThrows() {
             MetricRegistry registry = createRegistryMockDiscovery(
-                    () -> List.of(LongCounter.builder(DUPLICATE_NAME), LongCounter.builder("other")));
+                    config -> List.of(LongCounter.builder(DUPLICATE_NAME), LongCounter.builder("other")));
 
             assertThatThrownBy(() -> registry.register(LongCounter.builder(DUPLICATE_NAME)))
                     .isInstanceOf(IllegalArgumentException.class)
@@ -327,9 +337,11 @@ public class MetricRegistryTest {
     void testMetricsViewNonEmptyAfterRegisterProviders() {
         // additionally call discoverMetricProviders on builder multiple times to verify no duplication occurs
         MetricRegistry registry = createRegistryMockDiscovery(
-                testBuilder().withDiscoverMetricProviders().withDiscoverMetricProviders(),
-                () -> List.of(LongCounter.builder("counter1")),
-                () -> List.of(LongCounter.builder("counter2"), LongCounter.builder("counter3")));
+                testBuilder()
+                        .withDiscoverMetricProviders(mock(Configuration.class))
+                        .withDiscoverMetricProviders(mock(Configuration.class)),
+                config -> List.of(LongCounter.builder("counter1")),
+                config -> List.of(LongCounter.builder("counter2"), LongCounter.builder("counter3")));
 
         assertThat(registry.metrics().size()).isEqualTo(3);
         assertThat(registry.metrics().stream().map(Metric::metadata).map(MetricMetadata::name))
@@ -339,8 +351,8 @@ public class MetricRegistryTest {
     @Test
     void testMetricsViewNonEmptyAfterRegisterProvidersAndBuilders() {
         MetricRegistry registry = createRegistryMockDiscovery(
-                () -> List.of(LongCounter.builder("counter1")),
-                () -> List.of(LongCounter.builder("counter2"), LongCounter.builder("counter3")));
+                config -> List.of(LongCounter.builder("counter1")),
+                config -> List.of(LongCounter.builder("counter2"), LongCounter.builder("counter3")));
 
         registry.register(LongCounter.builder("counter4"));
         registry.register(LongCounter.builder("counter5"));
@@ -364,7 +376,7 @@ public class MetricRegistryTest {
     @Test
     void testMetricFoundWithProviderRegistration() {
         String metricName = "test_metric";
-        MetricRegistry registry = createRegistryMockDiscovery(() -> List.of(LongCounter.builder(metricName)));
+        MetricRegistry registry = createRegistryMockDiscovery(config -> List.of(LongCounter.builder(metricName)));
 
         Optional<LongCounter> metric = registry.findMetric(LongCounter.key(metricName));
         assertThat(metric).isPresent();
@@ -439,7 +451,8 @@ public class MetricRegistryTest {
             mockedUtils
                     .when(() -> MetricUtils.load(MetricsRegistrationProvider.class))
                     .thenReturn(Arrays.asList(metricProviders));
-            return builder.withDiscoverMetricProviders().build();
+            return builder.withDiscoverMetricProviders(mock(Configuration.class))
+                    .build();
         }
     }
 }
