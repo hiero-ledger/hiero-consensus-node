@@ -16,7 +16,7 @@
 
   "extras": [
     { "name":  "SIGNATURES",                     "fee": 1000000 },
-    { "name":  "BYTES",                          "fee": 110 },
+    { "name":  "BYTES",                          "fee": 110000 },
     { "name":  "KEYS",                           "fee": 100000000 },
     { "name":  "TOKEN_TYPES",                    "fee": 0 },
     { "name":  "NFT_SERIALS",                    "fee": 8900000 },
@@ -113,7 +113,7 @@
       "schedule": [
         {
           "name": "FileCreate",
-          "baseFee": 50,
+          "baseFee": 499000000,
           "extras": [
             { "name": "KEYS", "includedCount": 1},
             { "name": "BYTES", "includedCount": 1000}
@@ -121,7 +121,7 @@
         },
         {
           "name": "FileUpdate",
-          "baseFee": 50,
+          "baseFee": 499000000,
           "extras": [
             { "name": "KEYS", "includedCount": 1},
             { "name": "BYTES", "includedCount": 1000}
@@ -129,18 +129,15 @@
         },
         {
           "name": "FileAppend",
-          "baseFee": 50,
+          "baseFee": 499000000,
           "extras": [
-            { "name": "KEYS", "includedCount": 1},
             { "name": "BYTES", "includedCount": 1000}
           ]
         },
         {
           "name": "FileDelete",
-          "baseFee": 7,
-          "extras": [
-            { "name": "KEYS", "includedCount": 1}
-          ]
+          "baseFee": 69000000,
+          "extras": []
         },
         {
           "name": "FileGetContents",
