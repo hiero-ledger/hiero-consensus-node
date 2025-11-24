@@ -12,6 +12,7 @@ import org.hiero.metrics.api.utils.Unit;
 public final class FrequencyMovingAvg implements DoubleSupplier {
 
     private static final double LN_2 = Math.log(2);
+    private static final double NANOS_PER_SECOND = 1.0e9;
 
     private final Time time;
 
@@ -35,9 +36,12 @@ public final class FrequencyMovingAvg implements DoubleSupplier {
      */
     private final double halfLife;
 
+    private final double halfLifeFactor;
+
     public FrequencyMovingAvg(final double halfLife, Time time) {
         this.time = time;
         this.halfLife = Math.max(0.01, halfLife);
+        halfLifeFactor = LN_2 / this.halfLife;
 
         final long now = time.nanoTime();
         this.startTime = now;
@@ -75,14 +79,14 @@ public final class FrequencyMovingAvg implements DoubleSupplier {
      */
     public synchronized double update(final double count) {
         final long currentTime = time.nanoTime();
-        final double t1 = (lastTime - startTime) / 1.0e9; // seconds: start to last update
-        final double t2 = (currentTime - startTime) / 1.0e9; // seconds: start to now
-        final double dt = (currentTime - lastTime) / 1.0e9; // seconds: last update to now
-        if (t2 >= 1e-9) { // skip cases were no time has passed since last call
-            if (1.0 / t2 > LN_2 / halfLife) { // during startup period, so do uniformly-weighted average
-                frequency = (frequency * t1 + count) / t2;
+        final double startToLast = (lastTime - startTime) / NANOS_PER_SECOND; // seconds: start to last update
+        final double startToNow = (currentTime - startTime) / NANOS_PER_SECOND; // seconds: start to now
+        final double lastToNow = (currentTime - lastTime) / NANOS_PER_SECOND; // seconds: last update to now
+        if (startToNow >= 1e-9) { // skip cases were no time has passed since last call
+            if (1.0 / startToNow > halfLifeFactor) { // during startup period, so do uniformly-weighted average
+                frequency = (frequency * startToLast + count) / startToNow;
             } else { // after startup, so do exponentially-weighted average with given half life
-                frequency = frequency * Math.pow(0.5, dt / halfLife) + count * LN_2 / halfLife;
+                frequency = frequency * Math.pow(0.5, lastToNow / halfLife) + count * halfLifeFactor;
             }
         }
         lastTime = currentTime;

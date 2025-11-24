@@ -8,7 +8,7 @@ import org.hiero.metrics.api.core.MetricKey;
 import org.hiero.metrics.api.core.ToNumberFunction;
 
 // similar to com.swirlds.common.metrics.statistics.StatsRunningAverage
-public final class MovingAverageStat implements DoubleSupplier {
+public final class MovingAvg implements DoubleSupplier {
     /**
      * each recordValue(X) counts as X calls to values.cycle()
      */
@@ -29,28 +29,26 @@ public final class MovingAverageStat implements DoubleSupplier {
      */
     private boolean firstRecord;
 
-    public MovingAverageStat(final double halfLife, Time time) {
+    public MovingAvg(final double halfLife, Time time) {
         firstRecord = true;
         values = new FrequencyMovingAvg(halfLife, time);
         times = new FrequencyMovingAvg(halfLife, time);
         reset();
     }
 
-    public static MetricKey<GaugeAdapter<MovingAverageStat>> key(String name) {
+    public static MetricKey<GaugeAdapter<MovingAvg>> key(String name) {
         return MetricKey.of(name, GaugeAdapter.class);
     }
 
-    public static GaugeAdapter.Builder<MovingAverageStat> metricBuilder(
-            double halfLife, Time time, MetricKey<GaugeAdapter<MovingAverageStat>> key) {
+    public static GaugeAdapter.Builder<MovingAvg> metricBuilder(
+            double halfLife, Time time, MetricKey<GaugeAdapter<MovingAvg>> key) {
         return GaugeAdapter.builder(
-                        key,
-                        () -> new MovingAverageStat(halfLife, time),
-                        new ToNumberFunction<>(MovingAverageStat::getAsDouble))
-                .withReset(MovingAverageStat::reset);
+                        key, () -> new MovingAvg(halfLife, time), new ToNumberFunction<>(MovingAvg::getAsDouble))
+                .withReset(MovingAvg::reset);
     }
 
-    public static GaugeAdapter.Builder<MovingAverageStat> metricBuilder(
-            double halfLife, MetricKey<GaugeAdapter<MovingAverageStat>> key) {
+    public static GaugeAdapter.Builder<MovingAvg> metricBuilder(
+            double halfLife, MetricKey<GaugeAdapter<MovingAvg>> key) {
         return metricBuilder(halfLife, Time.getCurrent(), key);
     }
 
