@@ -2,6 +2,7 @@
 package org.hiero.otter.fixtures.app.services.consistency;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
+import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.swirlds.common.config.StateCommonConfig;
@@ -89,6 +90,8 @@ public class ConsistencyService implements OtterService {
 
         final Path historyFilePath = historyFileDirectory.resolve(consistencyServiceConfig.historyFileName());
         roundHistory.init(historyFilePath);
+
+        log.info(STARTUP.getMarker(), "ConsistencyService initialized");
     }
 
     /**
