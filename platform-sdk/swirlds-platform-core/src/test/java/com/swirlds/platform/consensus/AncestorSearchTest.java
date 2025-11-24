@@ -26,7 +26,7 @@ class AncestorSearchTest {
 
     final EventVisitedMark mark = new EventVisitedMark();
     final AncestorSearch search = new AncestorSearch(mark);
-    final SimpleGraph graph =SimpleGraphs.graph9e3n(RandomUtils.getRandomPrintSeed());
+    final SimpleGraph graph = SimpleGraphs.graph9e3n(RandomUtils.getRandomPrintSeed());
     final EventImpl root = graph.getImpl(8);
 
     @RepeatedTest(3)

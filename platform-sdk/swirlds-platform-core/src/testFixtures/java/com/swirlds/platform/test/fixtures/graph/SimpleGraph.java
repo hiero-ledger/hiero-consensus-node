@@ -14,19 +14,15 @@ import java.util.List;
 import java.util.Random;
 import java.util.Set;
 import org.hiero.consensus.model.event.PlatformEvent;
-import org.junit.jupiter.api.Assertions;
 
 public class SimpleGraph {
-    private final Random random = new Random();
+    private final Random random;
     private final List<PlatformEvent> events;
     private final List<EventImpl> eventImpls;
 
     public SimpleGraph(final Random random, final PlatformEvent... events) {
-        this(List.of(events));
-    }
-
-    public SimpleGraph(final List<PlatformEvent> events) {
-        this.events = events;
+        this.random = random;
+        this.events = List.of(events);
         final List<EventImpl> eventImpls = new ArrayList<>();
         // we use the orphan buffer to assign nGen values to the events
         final DefaultOrphanBuffer orphanBuffer =
