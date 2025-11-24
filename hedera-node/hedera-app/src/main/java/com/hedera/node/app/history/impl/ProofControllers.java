@@ -145,16 +145,9 @@ public class ProofControllers {
             final var votes = historyStore.getVotes(construction.constructionId(), weights.sourceNodeIds());
             final var selfId = selfNodeInfoSupplier.get().nodeId();
             final var schnorrKeyPair = keyAccessor.getOrCreateSchnorrKeyPair(construction.constructionId());
-            final var sourceProof =
-                    (tssConfig.wrapsEnabled() && isWrapsExtensible(activeProofConstruction.targetProof()))
+            final var sourceProof = isWrapsExtensible(activeProofConstruction.targetProof())
                             ? activeProofConstruction.targetProofOrThrow()
                             : null;
-            // Even if the source proof is not WRAPS-extensible, we want to use the WrapsHistoryProver
-            // once _some_ viable proof exists to start bootstrapping the chain of trust from here
-            final HistoryProver.Factory proverFactory =
-                    (tssConfig.wrapsEnabled() && activeProofConstruction.hasTargetProof())
-                            ? WrapsHistoryProver::new
-                            : ListOfSignaturesHistoryProver::new;
             return new ProofControllerImpl(
                     selfId,
                     schnorrKeyPair,
@@ -168,7 +161,7 @@ public class ProofControllers {
                     votes,
                     historyService,
                     historyLibrary,
-                    proverFactory,
+                    WrapsHistoryProver::new,
                     sourceProof);
         }
     }

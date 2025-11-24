@@ -9,6 +9,7 @@ import static com.hedera.node.app.history.schemas.V059HistorySchema.LEDGER_ID_ST
 import static com.hedera.node.app.history.schemas.V059HistorySchema.NEXT_PROOF_CONSTRUCTION_STATE_ID;
 import static com.hedera.node.app.history.schemas.V059HistorySchema.PROOF_KEY_SETS_STATE_ID;
 import static com.hedera.node.app.history.schemas.V059HistorySchema.PROOF_VOTES_STATE_ID;
+import static com.hedera.node.app.history.schemas.V069HistorySchema.WRAPS_MESSAGE_HISTORIES_STATE_ID;
 import static com.hedera.node.app.service.roster.impl.ActiveRosters.Phase.BOOTSTRAP;
 import static com.hedera.node.app.service.roster.impl.ActiveRosters.Phase.HANDOFF;
 import static java.util.Objects.requireNonNull;
@@ -20,6 +21,7 @@ import com.hedera.hapi.node.state.history.HistoryProofConstruction;
 import com.hedera.hapi.node.state.history.HistoryProofVote;
 import com.hedera.hapi.node.state.history.ProofKeySet;
 import com.hedera.hapi.node.state.history.RecordedHistorySignature;
+import com.hedera.hapi.node.state.history.WrapsMessageHistory;
 import com.hedera.hapi.node.state.history.WrapsSigningState;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.node.state.roster.Roster;
@@ -56,6 +58,7 @@ public class WritableHistoryStoreImpl extends ReadableHistoryStoreImpl implement
     private final WritableKVState<NodeId, ProofKeySet> proofKeySets;
     private final WritableKVState<ConstructionNodeId, RecordedHistorySignature> signatures;
     private final WritableKVState<ConstructionNodeId, HistoryProofVote> votes;
+    private final WritableKVState<ConstructionNodeId, WrapsMessageHistory> wrapsMessageHistories;
 
     public WritableHistoryStoreImpl(@NonNull final WritableStates states) {
         super(states);
@@ -65,6 +68,7 @@ public class WritableHistoryStoreImpl extends ReadableHistoryStoreImpl implement
         this.proofKeySets = states.get(PROOF_KEY_SETS_STATE_ID);
         this.signatures = states.get(HISTORY_SIGNATURES_STATE_ID);
         this.votes = states.get(PROOF_VOTES_STATE_ID);
+        this.wrapsMessageHistories = states.get(WRAPS_MESSAGE_HISTORIES_STATE_ID);
     }
 
     @Override
@@ -80,8 +84,9 @@ public class WritableHistoryStoreImpl extends ReadableHistoryStoreImpl implement
             throw new IllegalArgumentException("Handoff phase has no construction");
         }
         var construction = getConstructionFor(activeRosters);
-        // Special case at genesis where even though a construction exists, it was completed
-        // with a non-extensible proof, so we need to start a new construction nonetheless
+        // Special case at genesis with WRAPS enabled where even though a construction
+        // exists, it was completed with a non-extensible proof, so we need to start a
+        // new construction nonetheless
         if (construction == null
                 || (tssConfig.wrapsEnabled()
                         && construction.hasTargetProof()
@@ -137,6 +142,12 @@ public class WritableHistoryStoreImpl extends ReadableHistoryStoreImpl implement
     public void addProofVote(final long nodeId, final long constructionId, @NonNull final HistoryProofVote vote) {
         requireNonNull(vote);
         votes.put(new ConstructionNodeId(constructionId, nodeId), vote);
+    }
+
+    @Override
+    public void addWrapsMessage(final long constructionId, @NonNull final WrapsMessagePublication publication) {
+        requireNonNull(publication);
+        throw new AssertionError("Not implemented");
     }
 
     @Override

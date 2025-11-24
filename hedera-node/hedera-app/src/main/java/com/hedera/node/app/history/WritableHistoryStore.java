@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.history;
 
-import static com.hedera.hapi.node.state.history.WrapsPhase.AGGREGATE;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.Timestamp;
@@ -66,6 +65,11 @@ public interface WritableHistoryStore extends ReadableHistoryStore {
     void addProofVote(long nodeId, long constructionId, @NonNull HistoryProofVote vote);
 
     /**
+     * Adds a node's signature on a particular assembled history proof for the given construction.
+     */
+    void addWrapsMessage(long constructionId, @NonNull WrapsMessagePublication publication);
+
+    /**
      * Completes the proof for the construction with the given ID and returns the updated construction.
      * @param constructionId the construction ID
      * @param proof the proof
@@ -116,14 +120,5 @@ public interface WritableHistoryStore extends ReadableHistoryStore {
                 .gracePeriodEndTime(Optional.ofNullable(gracePeriodEndTime)
                         .map(HapiUtils::asTimestamp)
                         .orElse(Timestamp.DEFAULT)));
-    }
-
-    /**
-     * Advances the WRAPS signing phase to the given phase and grace period end time.
-     * @param constructionId the construction ID
-     */
-    default void startAggregatingWrapsSignature(final long constructionId) {
-        updateWrapsSigningState(
-                constructionId, builder -> builder.phase(AGGREGATE).gracePeriodEndTime(Timestamp.DEFAULT));
     }
 }
