@@ -36,9 +36,6 @@ public class OtterStateInitializer {
                 final StateMetadata<?, ?> stateMetadata = new StateMetadata<>(service.name(), stateDefinition);
                 state.initializeState(stateMetadata);
             }
-
-            // set up the state's default values for this service
-            specification.setDefaultValues(state.getWritableStates(service.name()), version);
         }
         commitState(state);
     }
