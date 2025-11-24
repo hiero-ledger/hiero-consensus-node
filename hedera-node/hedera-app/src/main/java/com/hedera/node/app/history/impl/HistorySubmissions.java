@@ -5,11 +5,9 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.state.history.HistoryProof;
 import com.hedera.hapi.node.state.history.HistoryProofVote;
-import com.hedera.hapi.node.state.history.HistorySignature;
 import com.hedera.hapi.node.state.history.WrapsPhase;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.services.auxiliary.history.HistoryProofKeyPublicationTransactionBody;
-import com.hedera.hapi.services.auxiliary.history.HistoryProofSignatureTransactionBody;
 import com.hedera.hapi.services.auxiliary.history.HistoryProofVoteTransactionBody;
 import com.hedera.node.app.spi.AppContext;
 import com.hedera.node.app.tss.TssSubmissions;
@@ -62,6 +60,7 @@ public class HistorySubmissions extends TssSubmissions {
             @NonNull final WrapsPhase phase, @NonNull final Bytes message, final long constructionId) {
         requireNonNull(phase);
         requireNonNull(message);
+        logger.info("Submitting WRAPS {} message for construction #{}", phase, constructionId);
         return submitIfActive(
                 b -> b.historyProofKeyPublication(HistoryProofKeyPublicationTransactionBody.newBuilder()
                         .phase(phase)
@@ -79,21 +78,10 @@ public class HistorySubmissions extends TssSubmissions {
      */
     public CompletableFuture<Void> submitProofVote(final long constructionId, @NonNull final HistoryProof proof) {
         requireNonNull(proof);
-        logger.info("Submitting proof vote for construction {}", constructionId);
+        logger.info(
+                "Submitting proof vote ({} protobuf size) for construction #{}", proof.protobufSize(), constructionId);
         final var vote = HistoryProofVote.newBuilder().proof(proof).build();
         return submitIfActive(
                 b -> b.historyProofVote(new HistoryProofVoteTransactionBody(constructionId, vote)), onFailure);
-    }
-
-    /**
-     * Submits an assembly signature to the network.
-     * @return a future that completes with the submission
-     */
-    public CompletableFuture<Void> submitAssemblySignature(
-            final long constructionId, @NonNull final HistorySignature signature) {
-        requireNonNull(signature);
-        return submitIfActive(
-                b -> b.historyProofSignature(new HistoryProofSignatureTransactionBody(constructionId, signature)),
-                onFailure);
     }
 }

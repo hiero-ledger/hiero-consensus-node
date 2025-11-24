@@ -118,9 +118,8 @@ public class ProofControllerImpl implements ProofController {
                     submissions);
             signaturePublications.forEach(
                     publication -> requireNonNull(prover).addSignaturePublication(publication, sourceProofKeys));
-            // TODO - sort by receipt time
-            wrapsMessagePublications.forEach(
-                    publication -> requireNonNull(prover).replayWrapsSigningMessage(constructionId(), publication));
+            wrapsMessagePublications.stream().sorted().forEach(publication -> requireNonNull(prover)
+                    .replayWrapsSigningMessage(constructionId(), publication));
         } else {
             this.sourceProofKeys = emptyMap();
         }
@@ -174,10 +173,8 @@ public class ProofControllerImpl implements ProofController {
         final var outcome = requireNonNull(prover)
                 .advance(now, construction, metadata, targetProofKeys, tssConfig, historyStore.getLedgerId());
         switch (outcome) {
-            case HistoryProver.Outcome.InProgress ignored -> {
+            case HistoryProver.Outcome.InProgress ignored ->
                 construction = historyStore.getConstructionOrThrow(constructionId());
-                log.info("Construction now {}", construction);
-            }
             case HistoryProver.Outcome.Completed completed -> finishProof(historyStore, completed.proof());
             case HistoryProver.Outcome.Failed failed -> {
                 log.warn("Failed construction #{} due to {}", constructionId(), failed.reason());

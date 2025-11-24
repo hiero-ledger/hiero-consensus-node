@@ -90,8 +90,7 @@ public class HistoryServiceImpl implements HistoryService {
                                     construction,
                                     historyStore,
                                     activeHintsConstruction,
-                                    historyStore.getActiveConstruction(),
-                                    tssConfig);
+                                    historyStore.getActiveConstruction());
                     controller.advanceConstruction(now, metadata, historyStore, isActive, tssConfig);
                 }
             }

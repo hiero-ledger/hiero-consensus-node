@@ -708,10 +708,10 @@ public class StateChangesValidator implements BlockStreamValidator {
                                         + context);
                     }
                     case WRAPS_PROOF -> {
-                        final var context = vkContexts.get(vk);
-                        final var wrapsMessage = context.wrapsMessageGiven(historyLibrary, vk);
                         final var compressedProof = chainOfTrustProof.wrapsProofOrThrow();
-                        // TODO - verify the recursive proof
+                        assertTrue(
+                                historyLibrary.isValidWraps(compressedProof.toByteArray()),
+                                "Invalid WRAPS proof (start round #" + firstRound + ") - " + chainOfTrustProof);
                     }
                 }
             }

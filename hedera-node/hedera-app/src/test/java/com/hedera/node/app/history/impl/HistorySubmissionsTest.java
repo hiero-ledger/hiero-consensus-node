@@ -11,7 +11,6 @@ import static org.mockito.Mockito.verify;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.state.history.HistoryProof;
-import com.hedera.hapi.node.state.history.HistorySignature;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.spi.AppContext;
 import com.hedera.node.app.spi.info.NodeInfo;
@@ -109,37 +108,6 @@ class HistorySubmissionsTest {
         spec.accept(builder);
         final var body = builder.build();
         final var vote = body.historyProofVoteOrThrow();
-        assertEquals(123L, vote.constructionId());
-    }
-
-    @Test
-    @SuppressWarnings("unchecked")
-    void usesExpectedBodyForSignature() {
-        given(selfNodeInfo.accountId()).willReturn(AccountID.DEFAULT);
-        given(appContext.selfNodeInfoSupplier()).willReturn(() -> selfNodeInfo);
-        given(appContext.instantSource()).willReturn(() -> Instant.EPOCH);
-        given(appContext.configSupplier()).willReturn(() -> DEFAULT_CONFIG);
-        given(appContext.gossip()).willReturn(gossip);
-
-        subject.submitAssemblySignature(123L, HistorySignature.DEFAULT);
-
-        final ArgumentCaptor<Consumer<TransactionBody.Builder>> captor = ArgumentCaptor.forClass(Consumer.class);
-        verify(gossip)
-                .submitFuture(
-                        eq(AccountID.DEFAULT),
-                        eq(Instant.EPOCH),
-                        any(),
-                        captor.capture(),
-                        any(),
-                        anyInt(),
-                        anyInt(),
-                        any(),
-                        any());
-        final var spec = captor.getValue();
-        final var builder = TransactionBody.newBuilder();
-        spec.accept(builder);
-        final var body = builder.build();
-        final var vote = body.historyProofSignatureOrThrow();
         assertEquals(123L, vote.constructionId());
     }
 }

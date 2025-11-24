@@ -266,4 +266,10 @@ public interface HistoryLibrary {
             @NonNull byte[] targetHintsVerificationKey,
             @NonNull byte[] aggregatedSignature,
             @NonNull Set<Long> signers);
+
+    /**
+     * Verifies a WRAPS proof.
+     * @return true if the proof is valid; false otherwise
+     */
+    boolean isValidWraps(byte[] compressedProof);
 }

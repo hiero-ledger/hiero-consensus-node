@@ -318,7 +318,7 @@ public class WritableHistoryStoreImpl extends ReadableHistoryStoreImpl implement
                 sourceRosterHash,
                 targetRosterHash,
                 ac.hasTargetProof()
-                        ? ("WITH" + (isWrapsExtensible(ac.targetProofOrThrow()) ? " WRAPs-extensible" : ""))
+                        ? ("WITH" + (isWrapsExtensible(ac.targetProofOrThrow()) ? " WRAPS-extensible" : ""))
                         : "WITHOUT");
     }
 

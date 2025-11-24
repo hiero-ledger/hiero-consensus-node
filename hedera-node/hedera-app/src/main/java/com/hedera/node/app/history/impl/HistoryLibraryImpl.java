@@ -194,6 +194,9 @@ public class HistoryLibraryImpl implements HistoryLibrary {
                 sourceAddressBook.signersMask(signers));
     }
 
-    // --- DEPRECATED METHODS ---
-
+    @Override
+    public boolean isValidWraps(@NonNull final byte[] compressedProof) {
+        requireNonNull(compressedProof);
+        return true;
+    }
 }

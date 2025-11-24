@@ -183,7 +183,7 @@ public class WrapsHistoryProver implements HistoryProver {
                 wrapsMessage = historyLibrary.computeWrapsMessage(targetAddressBook, targetMetadata.toByteArray());
                 targetAddressBookHash = historyLibrary.hashAddressBook(targetAddressBook);
             }
-            ensureProtocolOutputPublished(
+            publishIfNeeded(
                     construction.constructionId(), state.phase(), targetMetadata, targetProofKeys, tssConfig, ledgerId);
         }
         return Outcome.InProgress.INSTANCE;
@@ -250,6 +250,7 @@ public class WrapsHistoryProver implements HistoryProver {
         if (publication.phase() != wrapsPhase) {
             return false;
         }
+        final var startPhase = wrapsPhase;
         final var messages = phaseMessages.computeIfAbsent(wrapsPhase, p -> new TreeMap<>());
         if (wrapsPhase == R1) {
             if (messages.putIfAbsent(publication.nodeId(), publication) != null) {
@@ -269,7 +270,6 @@ public class WrapsHistoryProver implements HistoryProver {
                 if (writableHistoryStore != null && tssConfig != null) {
                     writableHistoryStore.advanceWrapsSigningPhase(
                             constructionId, R2, publication.receiptTime().plus(tssConfig.wrapsMessageGracePeriod()));
-                    log.info("Advanced to R2 ({})", writableHistoryStore.getConstructionOrThrow(constructionId));
                 }
                 wrapsPhase = R2;
             }
@@ -303,13 +303,16 @@ public class WrapsHistoryProver implements HistoryProver {
                 wrapsPhase = AGGREGATE;
             }
         }
+        if (wrapsPhase != startPhase) {
+            log.info("Advanced to {} for construction #{}", wrapsPhase, constructionId);
+        }
         return true;
     }
 
     /**
      * Ensures this node has published its WRAPS message or aggregate signature vote.
      */
-    private void ensureProtocolOutputPublished(
+    private void publishIfNeeded(
             final long constructionId,
             @NonNull final WrapsPhase phase,
             @NonNull final Bytes targetMetadata,
@@ -319,7 +322,7 @@ public class WrapsHistoryProver implements HistoryProver {
         if (futureOf(phase) == null
                 && (phase == AGGREGATE
                         || !phaseMessages.getOrDefault(phase, emptySortedMap()).containsKey(selfId))) {
-            log.info("Publishing {} protocol output for WRAPS on construction #{}", phase, constructionId);
+            log.info("Considering publication of WRAPS {} output on construction #{}", phase, constructionId);
             final var book = requireNonNull(targetAddressBook);
             final var bookHash = requireNonNull(targetAddressBookHash);
             final var proofKeyList = proofKeyListFrom(targetProofKeys);
@@ -328,26 +331,25 @@ public class WrapsHistoryProver implements HistoryProver {
                             .thenAcceptAsync(
                                     output -> {
                                         if (output == null) {
-                                            log.info("Got null output for {} phase, so skipping publication", phase);
+                                            if (phase == R1 || phase == AGGREGATE) {
+                                                log.warn("Got null output for {} phase, skipping publication", phase);
+                                            }
                                             return;
                                         }
                                         switch (output) {
                                             case MessagePhaseOutput messageOutput -> {
+                                                final var wrapsMessage = Bytes.wrap(messageOutput.message());
                                                 submissions
-                                                        .submitWrapsSigningMessage(
-                                                                phase,
-                                                                Bytes.wrap(messageOutput.message()),
-                                                                constructionId)
+                                                        .submitWrapsSigningMessage(phase, wrapsMessage, constructionId)
                                                         .join();
-                                                log.info(
-                                                        "Published {} message for WRAPS signature on construction #{}",
-                                                        phase,
-                                                        constructionId);
                                             }
                                             case AggregatePhaseOutput aggregatePhaseOutput -> {
                                                 // We are doing a non-recursive proof via an aggregate signature
-                                                final var aggregatedSignature =
-                                                        Bytes.wrap(aggregatePhaseOutput.signature());
+                                                final var nonRecursiveProof = new AggregatedNodeSignatures(
+                                                        Bytes.wrap(aggregatePhaseOutput.signature()),
+                                                        new ArrayList<>(phaseMessages
+                                                                .get(R1)
+                                                                .keySet()));
                                                 submissions
                                                         .submitProofVote(
                                                                 constructionId,
@@ -358,24 +360,14 @@ public class WrapsHistoryProver implements HistoryProver {
                                                                         .chainOfTrustProof(
                                                                                 ChainOfTrustProof.newBuilder()
                                                                                         .aggregatedNodeSignatures(
-                                                                                                AggregatedNodeSignatures
-                                                                                                        .newBuilder()
-                                                                                                        .aggregatedSignature(
-                                                                                                                aggregatedSignature)
-                                                                                                        .signingNodeIds(
-                                                                                                                new ArrayList<>(
-                                                                                                                        phaseMessages
-                                                                                                                                .get(
-                                                                                                                                        R1)
-                                                                                                                                .keySet()))))
+                                                                                                nonRecursiveProof))
                                                                         .build())
                                                         .join();
-                                                log.info(
-                                                        "Published vote for aggregated signatures proof on construction #{}",
-                                                        constructionId);
                                             }
                                             case ProofPhaseOutput proofOutput -> {
-                                                // This output is the WRAPS proof, so vote for it
+                                                // We have a WRAPS proof
+                                                final var recursiveProof = Bytes.wrap(proofOutput.compressed());
+                                                final var uncompressedProof = Bytes.wrap(proofOutput.uncompressed());
                                                 submissions
                                                         .submitProofVote(
                                                                 constructionId,
@@ -385,23 +377,17 @@ public class WrapsHistoryProver implements HistoryProver {
                                                                                 Bytes.wrap(bookHash), targetMetadata))
                                                                         .chainOfTrustProof(
                                                                                 ChainOfTrustProof.newBuilder()
-                                                                                        .wrapsProof(Bytes.wrap(
-                                                                                                proofOutput
-                                                                                                        .compressed())))
-                                                                        .uncompressedWrapsProof(
-                                                                                Bytes.wrap(proofOutput.uncompressed()))
+                                                                                        .wrapsProof(recursiveProof))
+                                                                        .uncompressedWrapsProof(uncompressedProof)
                                                                         .build())
                                                         .join();
-                                                log.info(
-                                                        "Published vote for WRAPS proof on construction #{}",
-                                                        constructionId);
                                             }
                                         }
                                     },
                                     executor)
                             .exceptionally(e -> {
                                 log.error(
-                                        "Failed to publish {} message for WRAPS signature on construction #{}",
+                                        "Failed to publish WRAPS {} message for construction #{}",
                                         phase,
                                         constructionId,
                                         e);

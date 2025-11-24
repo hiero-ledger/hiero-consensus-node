@@ -12,7 +12,6 @@ import com.hedera.node.app.history.HistoryService;
 import com.hedera.node.app.history.ReadableHistoryStore;
 import com.hedera.node.app.service.roster.impl.ActiveRosters;
 import com.hedera.node.app.spi.info.NodeInfo;
-import com.hedera.node.config.data.TssConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -64,7 +63,6 @@ public class ProofControllers {
      * @param historyStore the history store
      * @param activeHintsConstruction the active hinTS construction, if any
      * @param activeProofConstruction the active proof construction, if any
-     * @param tssConfig the TSS configuration
      * @return the result of the operation
      */
     public @NonNull ProofController getOrCreateFor(
@@ -72,24 +70,17 @@ public class ProofControllers {
             @NonNull final HistoryProofConstruction construction,
             @NonNull final ReadableHistoryStore historyStore,
             @Nullable final HintsConstruction activeHintsConstruction,
-            @NonNull final HistoryProofConstruction activeProofConstruction,
-            @NonNull final TssConfig tssConfig) {
+            @NonNull final HistoryProofConstruction activeProofConstruction) {
         requireNonNull(activeRosters);
         requireNonNull(construction);
         requireNonNull(historyStore);
         requireNonNull(activeProofConstruction);
-        requireNonNull(tssConfig);
         if (currentConstructionId() != construction.constructionId()) {
             if (controller != null) {
                 controller.cancelPendingWork();
             }
             controller = newControllerFor(
-                    activeRosters,
-                    construction,
-                    historyStore,
-                    activeHintsConstruction,
-                    activeProofConstruction,
-                    tssConfig);
+                    activeRosters, construction, historyStore, activeHintsConstruction, activeProofConstruction);
         }
         return requireNonNull(controller);
     }
@@ -123,7 +114,6 @@ public class ProofControllers {
      * @param historyStore the history store
      * @param activeHintsConstruction the active hinTS construction, if any
      * @param activeProofConstruction the active proof construction
-     * @param tssConfig the TSS configuration
      * @return the controller
      */
     private ProofController newControllerFor(
@@ -131,8 +121,7 @@ public class ProofControllers {
             @NonNull final HistoryProofConstruction construction,
             @NonNull final ReadableHistoryStore historyStore,
             @Nullable final HintsConstruction activeHintsConstruction,
-            @NonNull final HistoryProofConstruction activeProofConstruction,
-            @NonNull final TssConfig tssConfig) {
+            @NonNull final HistoryProofConstruction activeProofConstruction) {
         final var weights = activeRosters.transitionWeights(maybeWeightsFrom(activeHintsConstruction));
         if (!weights.sourceNodesHaveTargetThreshold()) {
             return new InertProofController(construction.constructionId());
@@ -145,9 +134,7 @@ public class ProofControllers {
             final var votes = historyStore.getVotes(construction.constructionId(), weights.sourceNodeIds());
             final var selfId = selfNodeInfoSupplier.get().nodeId();
             final var schnorrKeyPair = keyAccessor.getOrCreateSchnorrKeyPair(construction.constructionId());
-            final var sourceProof = isWrapsExtensible(activeProofConstruction.targetProof())
-                    ? activeProofConstruction.targetProofOrThrow()
-                    : null;
+            final var sourceProof = activeProofConstruction.targetProof();
             return new ProofControllerImpl(
                     selfId,
                     schnorrKeyPair,

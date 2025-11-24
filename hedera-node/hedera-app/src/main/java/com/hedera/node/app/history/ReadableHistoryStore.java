@@ -16,6 +16,7 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -46,11 +47,17 @@ public interface ReadableHistoryStore {
      * @param nodeId the node ID submitting the WRAPS message
      */
     record WrapsMessagePublication(
-            long nodeId, @NonNull Bytes message, @NonNull WrapsPhase phase, @NonNull Instant receiptTime) {
+            long nodeId, @NonNull Bytes message, @NonNull WrapsPhase phase, @NonNull Instant receiptTime)
+            implements Comparable<WrapsMessagePublication> {
         public WrapsMessagePublication {
             requireNonNull(message);
             requireNonNull(phase);
             requireNonNull(receiptTime);
+        }
+
+        @Override
+        public int compareTo(@NonNull final WrapsMessagePublication that) {
+            return Comparator.comparing(WrapsMessagePublication::receiptTime).compare(this, that);
         }
 
         /**
