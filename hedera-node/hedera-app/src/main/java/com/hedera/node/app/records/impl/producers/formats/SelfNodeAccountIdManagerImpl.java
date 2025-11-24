@@ -5,6 +5,7 @@ import static com.swirlds.common.io.utility.FileUtils.getAbsolutePath;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.util.HapiUtils;
+import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.records.SelfNodeAccountIdManager;
 import com.hedera.node.config.ConfigProvider;
@@ -28,10 +29,10 @@ public class SelfNodeAccountIdManagerImpl implements SelfNodeAccountIdManager {
     private static final String NODE_ACCOUNT_ID_FILE = "node_account_id.txt";
 
     @Inject
-    public SelfNodeAccountIdManagerImpl(@NonNull ConfigProvider configProvider, @NonNull NodeInfo selfNodeInfo) {
+    public SelfNodeAccountIdManagerImpl(@NonNull ConfigProvider configProvider, @NonNull NetworkInfo networkInfo) {
 
         this.configProvider = configProvider;
-        this.nodeInfo = selfNodeInfo;
+        this.nodeInfo = networkInfo.selfNodeInfo();
     }
 
     public String getSelfNodeAccountId() {
