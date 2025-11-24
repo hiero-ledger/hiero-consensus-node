@@ -239,10 +239,12 @@ public class FileBlockItemWriter implements BlockItemWriter {
                         Arrays.toString(Arrays.copyOfRange(proofJsons.toArray(), i + 1, proofJsons.size())));
                 break;
             }
+            // Verify old proofs without block timestamp or sibling hashes are skipped
             if (pendingProof.blockTimestamp() == null
-                    || Objects.equals(pendingProof.blockTimestamp(), Timestamp.DEFAULT)) {
+                    || Objects.equals(pendingProof.blockTimestamp(), Timestamp.DEFAULT)
+                    || pendingProof.siblingHashesFromPrevBlockRoot().size() != 4) {
                 logger.warn(
-                        "Pending proof metadata from {} is missing block timestamp (not considering remaining - {})",
+                        "Pending proof metadata from {} is missing required fields (not considering remaining - {})",
                         proofJson.toPath(),
                         Arrays.toString(Arrays.copyOfRange(proofJsons.toArray(), i + 1, proofJsons.size())));
                 break;
