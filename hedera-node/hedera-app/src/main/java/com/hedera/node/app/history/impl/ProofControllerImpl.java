@@ -116,12 +116,9 @@ public class ProofControllerImpl implements ProofController {
                     executor,
                     historyLibrary,
                     submissions);
-            log.info(
-                    "Controller for history proof construction #{} using prover type {}",
-                    construction.constructionId(),
-                    prover.getClass().getSimpleName());
             signaturePublications.forEach(
                     publication -> requireNonNull(prover).addSignaturePublication(publication, sourceProofKeys));
+            // TODO - sort by receipt time
             wrapsMessagePublications.forEach(
                     publication -> requireNonNull(prover).replayWrapsSigningMessage(constructionId(), publication));
         } else {

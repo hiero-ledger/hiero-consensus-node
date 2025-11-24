@@ -198,7 +198,8 @@ public class WritableHistoryStoreImpl extends ReadableHistoryStoreImpl implement
                 || requireNonNull(nextConstruction.get()).targetRosterHash().equals(toRosterHash)) {
             // The next construction is becoming the active one; so purge obsolete votes now
             final var upcomingConstruction = requireNonNull(activeConstruction.get());
-            purgeVotesAndSignatures(upcomingConstruction.constructionId(), fromRoster);
+            log.info("Handing off to upcoming construction #{}", upcomingConstruction.constructionId());
+            purgePublications(upcomingConstruction.constructionId(), fromRoster);
             if (toRoster != null && fromRoster != toRoster && !isWeightRotation(fromRoster, toRoster)) {
                 final var survivingNodeIds = toRoster.rosterEntries().stream()
                         .map(RosterEntry::nodeId)
@@ -237,20 +238,10 @@ public class WritableHistoryStoreImpl extends ReadableHistoryStoreImpl implement
             activeConstruction.put(
                     construction =
                             spec.apply(construction, construction.copyBuilder()).build());
-            log.info(
-                    "Updated active construction #{} to {} (next was {})",
-                    constructionId,
-                    construction,
-                    nextConstruction.get());
         } else if (requireNonNull(construction = nextConstruction.get()).constructionId() == constructionId) {
             nextConstruction.put(
                     construction =
                             spec.apply(construction, construction.copyBuilder()).build());
-            log.info(
-                    "Updated next construction #{} to {} (active was {})",
-                    constructionId,
-                    construction,
-                    activeConstruction.get());
         } else {
             throw new IllegalArgumentException("No construction with id " + constructionId);
         }
@@ -286,7 +277,7 @@ public class WritableHistoryStoreImpl extends ReadableHistoryStoreImpl implement
                 // Before switching to the new construction, purge the existing one's votes and signatures
                 final var extantConstruction = requireNonNull(nextConstruction.get());
                 final var sourceRoster = requireNonNull(lookup.apply(extantConstruction.sourceRosterHash()));
-                purgeVotesAndSignatures(extantConstruction.constructionId(), sourceRoster);
+                purgePublications(extantConstruction.constructionId(), sourceRoster);
             }
             nextConstruction.put(construction);
             logNewConstruction(construction, InSlot.NEXT, sourceRosterHash, targetRosterHash);
@@ -319,13 +310,16 @@ public class WritableHistoryStoreImpl extends ReadableHistoryStoreImpl implement
             @NonNull final InSlot slot,
             @NonNull final Bytes sourceRosterHash,
             @NonNull final Bytes targetRosterHash) {
+        final var ac = requireNonNull(activeConstruction.get());
         log.info(
                 "Created {} construction #{} for rosters (source={}, target={}) {} source proof",
                 slot,
                 construction.constructionId(),
                 sourceRosterHash,
                 targetRosterHash,
-                requireNonNull(activeConstruction.get()).hasTargetProof() ? "WITH" : "WITHOUT");
+                ac.hasTargetProof()
+                        ? ("WITH" + (isWrapsExtensible(ac.targetProofOrThrow()) ? " WRAPs-extensible" : ""))
+                        : "WITHOUT");
     }
 
     /**
@@ -333,7 +327,7 @@ public class WritableHistoryStoreImpl extends ReadableHistoryStoreImpl implement
      *
      * @param sourceRoster the construction
      */
-    private void purgeVotesAndSignatures(final long constructionId, @NonNull final Roster sourceRoster) {
+    private void purgePublications(final long constructionId, @NonNull final Roster sourceRoster) {
         sourceRoster.rosterEntries().forEach(entry -> {
             final var key = new ConstructionNodeId(constructionId, entry.nodeId());
             votes.remove(key);

@@ -32,6 +32,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.security.SecureRandom;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
@@ -345,6 +346,8 @@ public class WrapsHistoryProver implements HistoryProver {
                                             }
                                             case AggregatePhaseOutput aggregatePhaseOutput -> {
                                                 // We are doing a non-recursive proof via an aggregate signature
+                                                final var aggregatedSignature =
+                                                        Bytes.wrap(aggregatePhaseOutput.signature());
                                                 submissions
                                                         .submitProofVote(
                                                                 constructionId,
@@ -358,11 +361,13 @@ public class WrapsHistoryProver implements HistoryProver {
                                                                                                 AggregatedNodeSignatures
                                                                                                         .newBuilder()
                                                                                                         .aggregatedSignature(
-                                                                                                                Bytes
-                                                                                                                        .wrap(
-                                                                                                                                aggregatePhaseOutput
-                                                                                                                                        .signature()))
-                                                                                                        .signingNodeIds()))
+                                                                                                                aggregatedSignature)
+                                                                                                        .signingNodeIds(
+                                                                                                                new ArrayList<>(
+                                                                                                                        phaseMessages
+                                                                                                                                .get(
+                                                                                                                                        R1)
+                                                                                                                                .keySet()))))
                                                                         .build())
                                                         .join();
                                                 log.info(

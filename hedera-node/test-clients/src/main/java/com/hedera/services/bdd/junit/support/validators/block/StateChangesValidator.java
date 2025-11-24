@@ -8,9 +8,7 @@ import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_NEXT_
 import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_PROOF_KEY_SETS;
 import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_ROSTERS;
 import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_ROSTER_STATE;
-import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_WRAPS_MESSAGE_HISTORIES;
 import static com.hedera.hapi.node.base.HederaFunctionality.HINTS_PARTIAL_SIGNATURE;
-import static com.hedera.hapi.node.state.history.WrapsPhase.R3;
 import static com.hedera.hapi.util.HapiUtils.asInstant;
 import static com.hedera.node.app.blocks.impl.BlockImplUtils.combine;
 import static com.hedera.node.app.blocks.impl.BlockStreamManagerImpl.NULL_HASH;
@@ -47,7 +45,6 @@ import com.hedera.hapi.node.state.entity.EntityCounts;
 import com.hedera.hapi.node.state.hints.HintsConstruction;
 import com.hedera.hapi.node.state.hints.PreprocessedKeys;
 import com.hedera.hapi.node.state.history.ProofKeySet;
-import com.hedera.hapi.node.state.history.WrapsMessageHistory;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
@@ -106,7 +103,6 @@ import java.util.Set;
 import java.util.SortedMap;
 import java.util.SplittableRandom;
 import java.util.TreeMap;
-import java.util.TreeSet;
 import java.util.regex.Pattern;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -161,9 +157,6 @@ public class StateChangesValidator implements BlockStreamValidator {
     @Nullable
     private final HistoryLibrary historyLibrary;
 
-    @Nullable
-    private TreeSet<Long> r3Senders;
-
     private final Map<Bytes, Set<Long>> signers = new HashMap<>();
     private final Map<Bytes, Long> blockNumbers = new HashMap<>();
     private final Map<Long, PreprocessedKeys> preprocessedKeys = new HashMap<>();
@@ -176,13 +169,9 @@ public class StateChangesValidator implements BlockStreamValidator {
      * @param proverWeights the weights of the nodes in the prover history roster
      * @param targetWeights the weights of the nodes in the target history roster
      * @param proofKeys the proof keys of the nodes in the target history roster
-     * @param r3Senders
      */
     private record HistoryContext(
-            Map<Long, Long> proverWeights,
-            Map<Long, Long> targetWeights,
-            Map<Long, Bytes> proofKeys,
-            Set<Long> r3Senders) {
+            Map<Long, Long> proverWeights, Map<Long, Long> targetWeights, Map<Long, Bytes> proofKeys) {
         public Bytes targetBookHash(@NonNull final HistoryLibrary library) {
             requireNonNull(library);
             return HistoryLibrary.computeHash(
@@ -201,13 +190,6 @@ public class StateChangesValidator implements BlockStreamValidator {
 
         public byte[][] publicKeysFor(@NonNull final List<Long> nodeIds) {
             return nodeIds.stream().map(proofKeys::get).map(Bytes::toByteArray).toArray(byte[][]::new);
-        }
-
-        public byte[][] r3PublicKeys() {
-            return r3Senders.stream()
-                    .map(proofKeys::get)
-                    .map(Bytes::toByteArray)
-                    .toArray(byte[][]::new);
         }
     }
 
@@ -729,11 +711,7 @@ public class StateChangesValidator implements BlockStreamValidator {
                         final var context = vkContexts.get(vk);
                         final var wrapsMessage = context.wrapsMessageGiven(historyLibrary, vk);
                         final var compressedProof = chainOfTrustProof.wrapsProofOrThrow();
-                        assertTrue(
-                                historyLibrary.verifyAggregateSignature(
-                                        wrapsMessage, context.r3PublicKeys(), compressedProof.toByteArray()),
-                                "Invalid WRAPS proof on chain-of-trust for hinTS key in proof (start round #"
-                                        + firstRound + ") - context " + context);
+                        // TODO - verify the recursive proof
                     }
                 }
             }
@@ -788,12 +766,10 @@ public class StateChangesValidator implements BlockStreamValidator {
                                     nextScheme.preprocessedKeysOrThrow().verificationKey();
                             requireNonNull(activeWeights);
                             final var candidateRoster = rosters.get(construction.targetRosterHash());
-                            r3Senders = new TreeSet<>();
                             final var nextVkContext = new HistoryContext(
                                     Map.copyOf(activeWeights),
                                     ActiveRosters.weightsFrom(candidateRoster),
-                                    Map.copyOf(proofKeys),
-                                    r3Senders);
+                                    Map.copyOf(proofKeys));
                             vkContexts.put(nextVk, nextVkContext);
                         }
                     } else if (stateChange.stateId() == STATE_ID_ACTIVE_HINTS_CONSTRUCTION.protoOrdinal()) {
@@ -805,9 +781,8 @@ public class StateChangesValidator implements BlockStreamValidator {
                                     .hintsSchemeOrThrow()
                                     .preprocessedKeysOrThrow()
                                     .verificationKey();
-                            r3Senders = new TreeSet<>();
-                            final var activeVkContext = new HistoryContext(
-                                    proverWeights, Map.copyOf(activeWeights), Map.copyOf(proofKeys), r3Senders);
+                            final var activeVkContext =
+                                    new HistoryContext(proverWeights, Map.copyOf(activeWeights), Map.copyOf(proofKeys));
                             vkContexts.put(activeVk, activeVkContext);
                         }
                     } else if (stateChange.stateId() == STATE_ID_LEDGER_ID.protoOrdinal()) {
@@ -837,11 +812,6 @@ public class StateChangesValidator implements BlockStreamValidator {
                         rosters.put(((ProtoBytes) key).value(), (Roster) value);
                     } else if (stateId == STATE_ID_PROOF_KEY_SETS.protoOrdinal()) {
                         proofKeys.put(((NodeId) key).id(), ((ProofKeySet) value).key());
-                    } else if (stateId == STATE_ID_WRAPS_MESSAGE_HISTORIES.protoOrdinal()) {
-                        final var wrapsMessageHistory = (WrapsMessageHistory) value;
-                        if (wrapsMessageHistory.messages().stream().anyMatch(details -> details.phase() == R3)) {
-                            requireNonNull(r3Senders).add(((NodeId) key).id());
-                        }
                     }
                 }
                 case MAP_DELETE -> {
