@@ -1127,14 +1127,13 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
         private void switchBlockIfNeeded() {
             final long activeBlockNum = streamingBlockNumber.get();
             if (activeBlockNum == -1) {
-                final long highestAckedBlock = blockBufferService.getHighestAckedBlockNumber();
-                if (highestAckedBlock != -1) {
-                    // Set to the next block that isn't acked
-                    streamingBlockNumber.compareAndSet(activeBlockNum, highestAckedBlock + 1);
-                } else {
-                    // If no blocks are acked, start with the earliest block in the buffer
-                    final long earliestBlock = blockBufferService.getEarliestAvailableBlockNumber();
-                    streamingBlockNumber.compareAndSet(activeBlockNum, earliestBlock);
+                final long latestBlock = blockBufferService.getLastBlockNumberProduced();
+
+                if (streamingBlockNumber.compareAndSet(-1L, latestBlock)) {
+                    logger.info(
+                            "{} Connection was not initialized with a starting block; defaulting to latest block produced ({})",
+                            BlockNodeConnection.this,
+                            latestBlock);
                 }
             }
 

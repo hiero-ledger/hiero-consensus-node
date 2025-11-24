@@ -1074,13 +1074,13 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
     }
 
     @Test
-    void testConnectionWorker_switchBlock_initializeToHighestAckedBlock() throws Exception {
+    void testConnectionWorker_switchBlock_initialValue() throws Exception {
         openConnectionAndResetMocks();
         final AtomicReference<Thread> workerThreadRef = workerThreadRef();
         workerThreadRef.set(null); // clear out the fake worker thread so a real one can be initialized
         final AtomicLong streamingBlockNumber = streamingBlockNumber();
 
-        doReturn(100L).when(bufferService).getHighestAckedBlockNumber();
+        doReturn(101L).when(bufferService).getLastBlockNumberProduced();
         doReturn(new BlockState(101)).when(bufferService).getBlockState(101);
 
         assertThat(streamingBlockNumber).hasValue(-1);
@@ -1091,36 +1091,8 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         assertThat(workerThreadRef).doesNotHaveNullValue();
         assertThat(streamingBlockNumber).hasValue(101);
 
-        verify(bufferService).getHighestAckedBlockNumber();
+        verify(bufferService).getLastBlockNumberProduced();
         verify(bufferService).getBlockState(101);
-        verifyNoMoreInteractions(bufferService);
-        verifyNoInteractions(connectionManager);
-        verifyNoInteractions(metrics);
-        verifyNoInteractions(requestPipeline);
-    }
-
-    @Test
-    void testConnectionWorker_switchBlock_initializeToEarliestBlock() throws Exception {
-        openConnectionAndResetMocks();
-        final AtomicReference<Thread> workerThreadRef = workerThreadRef();
-        workerThreadRef.set(null); // clear out the fake worker thread so a real one can be initialized
-        final AtomicLong streamingBlockNumber = streamingBlockNumber();
-
-        doReturn(-1L).when(bufferService).getHighestAckedBlockNumber();
-        doReturn(12L).when(bufferService).getEarliestAvailableBlockNumber();
-        doReturn(new BlockState(12)).when(bufferService).getBlockState(12);
-
-        assertThat(streamingBlockNumber).hasValue(-1);
-
-        connection.updateConnectionState(ConnectionState.ACTIVE);
-        sleep(50); // give some time for the worker loop to detect the changes
-
-        assertThat(workerThreadRef).doesNotHaveNullValue();
-        assertThat(streamingBlockNumber).hasValue(12);
-
-        verify(bufferService).getHighestAckedBlockNumber();
-        verify(bufferService).getEarliestAvailableBlockNumber();
-        verify(bufferService).getBlockState(12);
         verifyNoMoreInteractions(bufferService);
         verifyNoInteractions(connectionManager);
         verifyNoInteractions(metrics);
@@ -1134,8 +1106,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         workerThreadRef.set(null); // clear out the fake worker thread so a real one can be initialized
         final AtomicLong streamingBlockNumber = streamingBlockNumber();
 
-        doReturn(-1L).when(bufferService).getHighestAckedBlockNumber();
-        doReturn(-1L).when(bufferService).getEarliestAvailableBlockNumber();
+        doReturn(-1L).when(bufferService).getLastBlockNumberProduced();
 
         assertThat(streamingBlockNumber).hasValue(-1);
 
@@ -1145,8 +1116,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         assertThat(workerThreadRef).doesNotHaveNullValue();
         assertThat(streamingBlockNumber).hasValue(-1);
 
-        verify(bufferService, atLeastOnce()).getHighestAckedBlockNumber();
-        verify(bufferService, atLeastOnce()).getEarliestAvailableBlockNumber();
+        verify(bufferService, atLeastOnce()).getLastBlockNumberProduced();
         verifyNoMoreInteractions(bufferService);
         verifyNoInteractions(connectionManager);
         verifyNoInteractions(metrics);
