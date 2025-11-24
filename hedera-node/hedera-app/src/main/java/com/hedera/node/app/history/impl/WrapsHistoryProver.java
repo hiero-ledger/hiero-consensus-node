@@ -106,6 +106,12 @@ public class WrapsHistoryProver implements HistoryProver {
      */
     private WrapsPhase wrapsPhase = R1;
 
+    private sealed interface WrapsPhaseOutput permits MessagePhaseOutput, ProofPhaseOutput {}
+
+    private record MessagePhaseOutput(byte[] message) implements WrapsPhaseOutput {}
+
+    private record ProofPhaseOutput(byte[] compressed, byte[] uncompressed) implements WrapsPhaseOutput {}
+
     public WrapsHistoryProver(
             final long selfId,
             @NonNull final Map<Long, Bytes> sourceProofKeys,
@@ -247,7 +253,32 @@ public class WrapsHistoryProver implements HistoryProver {
 
     @Override
     public boolean cancelPendingWork() {
-        throw new AssertionError("Not implemented");
+        final var sb = new StringBuilder("Canceled work on WRAPS prover");
+        boolean canceledSomething = false;
+        if (r1Future != null && !r1Future.isDone()) {
+            sb.append("\n  * In-flight R1 future");
+            r1Future.cancel(true);
+            canceledSomething = true;
+        }
+        if (r2Future != null && !r2Future.isDone()) {
+            sb.append("\n  * In-flight R2 future");
+            r2Future.cancel(true);
+            canceledSomething = true;
+        }
+        if (r3Future != null && !r3Future.isDone()) {
+            sb.append("\n  * In-flight R3 future");
+            r3Future.cancel(true);
+            canceledSomething = true;
+        }
+        if (voteFuture != null && !voteFuture.isDone()) {
+            sb.append("\n  * In-flight vote future");
+            voteFuture.cancel(true);
+            canceledSomething = true;
+        }
+        if (canceledSomething) {
+            log.info(sb.toString());
+        }
+        return canceledSomething;
     }
 
     /**
@@ -273,30 +304,42 @@ public class WrapsHistoryProver implements HistoryProver {
                             .thenAcceptAsync(
                                     output -> {
                                         if (output == null) {
-                                            log.info("Got null output for {} phase. Skipping.", phase);
+                                            log.warn("Got null output for WRAPS {} phase, abortingit .", phase);
                                             return;
                                         }
-                                        if (phase != AGGREGATE) {
-                                            submissions
-                                                    .submitWrapsSigningMessage(phase, Bytes.wrap(output))
-                                                    .join();
-                                            log.info(
-                                                    "Published {} message for WRAPS signature on construction #{}",
-                                                    phase,
-                                                    constructionId);
-                                        } else {
-                                            // This output is the concise WRAPS proof, so vote for it
-                                            submissions
-                                                    .submitProofVote(
-                                                            constructionId,
-                                                            HistoryProof.newBuilder()
-                                                                    .targetProofKeys(proofKeyList)
-                                                                    .targetHistory(new History(
-                                                                            Bytes.wrap(bookHash), targetMetadata))
-                                                                    .chainOfTrustProof(ChainOfTrustProof.newBuilder()
-                                                                            .wrapsProof(Bytes.wrap(output)))
-                                                                    .build())
-                                                    .join();
+                                        switch (output) {
+                                            case MessagePhaseOutput messageOutput -> {
+                                                submissions
+                                                        .submitWrapsSigningMessage(
+                                                                phase, Bytes.wrap(messageOutput.message()))
+                                                        .join();
+                                                log.info(
+                                                        "Published {} message for WRAPS signature on construction #{}",
+                                                        phase,
+                                                        constructionId);
+                                            }
+                                            case ProofPhaseOutput proofOutput -> {
+                                                // This output is the WRAPS proof, so vote for it
+                                                submissions
+                                                        .submitProofVote(
+                                                                constructionId,
+                                                                HistoryProof.newBuilder()
+                                                                        .targetProofKeys(proofKeyList)
+                                                                        .targetHistory(new History(
+                                                                                Bytes.wrap(bookHash), targetMetadata))
+                                                                        .chainOfTrustProof(
+                                                                                ChainOfTrustProof.newBuilder()
+                                                                                        .wrapsProof(Bytes.wrap(
+                                                                                                proofOutput
+                                                                                                        .compressed())))
+                                                                        .uncompressedWrapsProof(
+                                                                                Bytes.wrap(proofOutput.uncompressed()))
+                                                                        .build())
+                                                        .join();
+                                                log.info(
+                                                        "Published vote for WRAPS proof on construction #{}",
+                                                        constructionId);
+                                            }
                                         }
                                     },
                                     executor)
@@ -311,7 +354,7 @@ public class WrapsHistoryProver implements HistoryProver {
         }
     }
 
-    private CompletableFuture<byte[]> outputFuture(@NonNull final WrapsPhase phase) {
+    private CompletableFuture<WrapsPhaseOutput> outputFuture(@NonNull final WrapsPhase phase) {
         final var message = requireNonNull(wrapsMessage);
         return CompletableFuture.supplyAsync(
                 () -> switch (phase) {
@@ -319,33 +362,33 @@ public class WrapsHistoryProver implements HistoryProver {
                         if (entropy == null) {
                             entropy = new byte[32];
                             new SecureRandom().nextBytes(entropy);
-                            yield historyLibrary.runWrapsPhaseR1(
+                            yield new MessagePhaseOutput(historyLibrary.runWrapsPhaseR1(
                                     entropy,
                                     message,
-                                    schnorrKeyPair.privateKey().toByteArray());
+                                    schnorrKeyPair.privateKey().toByteArray()));
                         }
                         yield null;
                     }
                     case R2 -> {
                         if (entropy != null) {
-                            yield historyLibrary.runWrapsPhaseR2(
+                            yield new MessagePhaseOutput(historyLibrary.runWrapsPhaseR2(
                                     entropy,
                                     message,
                                     rawMessagesFor(R1),
                                     schnorrKeyPair.privateKey().toByteArray(),
-                                    publicKeysForR1());
+                                    publicKeysForR1()));
                         }
                         yield null;
                     }
                     case R3 -> {
                         if (entropy != null) {
-                            yield historyLibrary.runWrapsPhaseR3(
+                            yield new MessagePhaseOutput(historyLibrary.runWrapsPhaseR3(
                                     entropy,
                                     message,
                                     rawMessagesFor(R1),
                                     rawMessagesFor(R2),
                                     schnorrKeyPair.privateKey().toByteArray(),
-                                    publicKeysForR1());
+                                    publicKeysForR1()));
                         }
                         yield null;
                     }
@@ -358,7 +401,7 @@ public class WrapsHistoryProver implements HistoryProver {
                                     rawMessagesFor(R3),
                                     publicKeysForR1());
                             // TODO - block on the long-running proof using this signature, yield that instead
-                            yield signature;
+                            yield new ProofPhaseOutput(signature, new byte[0]);
                         }
                         yield null;
                     }
