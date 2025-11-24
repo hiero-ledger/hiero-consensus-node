@@ -213,25 +213,16 @@ public abstract class HapiBaseTransfer<T extends HapiTxnOp<T>> extends HapiTxnOp
             numTokenTransfers += tokenTransfers.getTransfersCount();
             numNftOwnershipChanges += tokenTransfers.getNftTransfersCount();
         }
-
-        final CryptoTransferHandler.HookInfo hookInfo;
-        if (txn.hasCryptoTransfer()) {
-            hookInfo = getHookInfo(toPbj(txn).cryptoTransferOrThrow());
-        } else {
-            hookInfo = CryptoTransferHandler.HookInfo.NO_HOOKS;
-        }
-
         final var xferUsageMeta = new CryptoTransferMeta(
-                multiplier, numTokensInvolved, numTokenTransfers, numNftOwnershipChanges, hookInfo.usesHooks());
+                multiplier, numTokensInvolved, numTokenTransfers, numNftOwnershipChanges);
 
         final var accumulator = new UsageAccumulator();
         cryptoOpsUsage.cryptoTransferUsage(
                 suFrom(svo),
                 xferUsageMeta,
                 baseMeta,
-                accumulator,
-                hookInfo.totalGasLimitOfHooks(),
-                hookInfo.usesHooks());
+                accumulator
+        );
 
         final var feeData = AdapterUtils.feeDataFrom(accumulator);
         return feeData.toBuilder().setSubType(xferUsageMeta.getSubType()).build();
