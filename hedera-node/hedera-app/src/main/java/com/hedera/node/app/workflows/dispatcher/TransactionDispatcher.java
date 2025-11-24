@@ -144,6 +144,14 @@ public class TransactionDispatcher {
                     SCHEDULE_CREATE,
                     SCHEDULE_SIGN,
                     SCHEDULE_DELETE -> true;
+            case TOKEN_CREATION,
+                    TOKEN_MINT,
+                    TOKEN_BURN,
+                    TOKEN_DELETION,
+                    TOKEN_PAUSE,
+                    TOKEN_FREEZE,
+                    TOKEN_UNPAUSE,
+                    TOKEN_UNFREEZE -> true;
             default -> false;
         };
     }
