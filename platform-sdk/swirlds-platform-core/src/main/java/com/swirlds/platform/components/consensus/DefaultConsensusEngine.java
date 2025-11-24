@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.components.consensus;
 
-import static java.util.Objects.requireNonNull;
 import static org.hiero.consensus.model.status.PlatformStatus.REPLAYING_EVENTS;
 
 import com.hedera.hapi.node.state.roster.Roster;
@@ -22,6 +21,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Objects;
 import java.util.Queue;
 import org.hiero.consensus.event.FutureEventBuffer;
 import org.hiero.consensus.event.FutureEventBufferingOption;
@@ -30,7 +30,6 @@ import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
-import org.hiero.consensus.roster.RosterHistory;
 
 /**
  * The default implementation of the {@link ConsensusEngine} interface
@@ -52,8 +51,6 @@ public class DefaultConsensusEngine implements ConsensusEngine {
 
     private final int roundsNonAncient;
 
-    private final RosterHistory rosterHistory;
-
     private final ConsensusEngineMetrics metrics;
 
     private final FreezeRoundController freezeRoundController;
@@ -62,18 +59,18 @@ public class DefaultConsensusEngine implements ConsensusEngine {
      * Constructor
      *
      * @param platformContext the platform context
-     * @param rosterHistory the roster history
+     * @param roster the current roster
      * @param selfId the ID of the node
      * @param freezeChecker checks if the consensus time has reached the freeze period
      */
     public DefaultConsensusEngine(
             @NonNull final PlatformContext platformContext,
-            @NonNull final RosterHistory rosterHistory,
+            @NonNull final Roster roster,
             @NonNull final NodeId selfId,
             @NonNull final FreezeCheckHolder freezeChecker) {
-        this.rosterHistory = requireNonNull(rosterHistory);
+
         final ConsensusMetrics consensusMetrics = new ConsensusMetricsImpl(selfId, platformContext.getMetrics());
-        consensus = new ConsensusImpl(platformContext, consensusMetrics, rosterHistory.getCurrentRoster());
+        consensus = new ConsensusImpl(platformContext, consensusMetrics, roster);
 
         linker = new ConsensusLinker(
                 new DefaultLinkerLogsAndMetrics(platformContext.getMetrics(), platformContext.getTime()));
@@ -102,7 +99,7 @@ public class DefaultConsensusEngine implements ConsensusEngine {
     @Override
     @NonNull
     public ConsensusEngineOutput addEvent(@NonNull final PlatformEvent event) {
-        requireNonNull(event);
+        Objects.requireNonNull(event);
 
         if (freezeRoundController.isFrozen()) {
             // If we are frozen, ignore all events
@@ -125,12 +122,6 @@ public class DefaultConsensusEngine implements ConsensusEngine {
 
         while (!eventsToAdd.isEmpty()) {
             final PlatformEvent eventToAdd = eventsToAdd.poll();
-            final Roster roster = rosterHistory.getRosterForRound(eventToAdd.getBirthRound());
-            if (roster == null) {
-                // no roster for the event means it is ancient
-                continue;
-            }
-
             final EventImpl linkedEvent = linker.linkEvent(eventToAdd);
             if (linkedEvent == null) {
                 // linker discarded an ancient event

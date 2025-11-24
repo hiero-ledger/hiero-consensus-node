@@ -203,23 +203,6 @@ class ConsensusLinkerTests {
     }
 
     @Test
-    @DisplayName("Single node network events should get self parent as other parent")
-    void singleNodeNetwork() {
-        inOrderLinkerSetup();
-
-        final PlatformEvent singleNodeNetworkEvent = new TestingEventBuilder(random)
-                .setCreatorId(cr0)
-                .setSelfParent(cr0genesis)
-                .setTimeCreated(time.now())
-                .build();
-
-        final EventImpl linkedEvent = linker.linkEvent(singleNodeNetworkEvent);
-        assertNotNull(linkedEvent.getSelfParent());
-        assertEquals(cr0genesis, linkedEvent.getSelfParent().getBaseEvent());
-        assertEquals(cr0genesis, linkedEvent.getOtherParent().getBaseEvent());
-    }
-
-    @Test
     @DisplayName("Missing self parent should not be linked")
     void missingSelfParent() {
         inOrderLinkerSetup();
@@ -447,8 +430,8 @@ class ConsensusLinkerTests {
      * Asserts that the given event has the expected parents linked. This method assumes there is at most one other
      * parent.
      *
-     * @param toAssert the event to assert the parents of
-     * @param expectedSelfParent the expected self parent
+     * @param toAssert            the event to assert the parents of
+     * @param expectedSelfParent  the expected self parent
      * @param expectedOtherParent the expected other parent
      */
     private static void assertParents(
@@ -462,8 +445,8 @@ class ConsensusLinkerTests {
     /**
      * Asserts that the given event has the expected parents linked. This method supports multiple other parents.
      *
-     * @param toAssert the event to assert the parents of
-     * @param expectedSelfParent the expected self parent
+     * @param toAssert             the event to assert the parents of
+     * @param expectedSelfParent   the expected self parent
      * @param expectedOtherParents the expected other parents
      */
     private static void assertParentsMop(

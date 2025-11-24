@@ -242,7 +242,8 @@ public class TipsetEventCreator implements EventCreator {
         if (networkSize == 1) {
             // Special case: network of size 1.
             // We can always create a new event, no need to run the tipset algorithm.
-            return createEventForSizeOneNetwork();
+            // In a network of size one, we create events without other parents.
+            return buildAndProcessEvent(null);
         }
 
         final long selfishness = tipsetWeightCalculator.getMaxSelfishnessScore();
@@ -261,18 +262,6 @@ public class TipsetEventCreator implements EventCreator {
 
     private PlatformEvent signEvent(final UnsignedEvent event) {
         return new PlatformEvent(event, signer.sign(event.getHash().getBytes()));
-    }
-
-    /**
-     * Create the next event for a network of size 1 (i.e. where we are the only member). We don't use the tipset
-     * algorithm like normal, since we will never have a real other parent.
-     *
-     * @return the new event
-     */
-    @NonNull
-    private UnsignedEvent createEventForSizeOneNetwork() {
-        // In a network of size one, we create events without other parents.
-        return buildAndProcessEvent(null);
     }
 
     /**

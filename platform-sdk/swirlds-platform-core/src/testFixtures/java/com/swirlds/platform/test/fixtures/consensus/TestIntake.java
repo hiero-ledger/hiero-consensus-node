@@ -91,10 +91,8 @@ public class TestIntake {
         freezeCheckHolder = new FreezeCheckHolder();
         freezeCheckHolder.setFreezeCheckRef(i -> false);
 
-        final RosterHistory rosterHistory =
-                new RosterHistoryBuilder().withRoster(roster).build();
         final ConsensusEngine consensusEngine =
-                new DefaultConsensusEngine(platformContext, rosterHistory, selfId, freezeCheckHolder);
+                new DefaultConsensusEngine(platformContext, roster, selfId, freezeCheckHolder);
 
         consensusEngineWiring = new ComponentWiring<>(model, ConsensusEngine.class, scheduler("consensusEngine"));
         consensusEngineWiring.bind(consensusEngine);

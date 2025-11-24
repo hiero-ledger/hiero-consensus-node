@@ -34,7 +34,9 @@ public class HappyPathTest {
         final TimeManager timeManager = env.timeManager();
 
         // Setup simulation
-        network.addNodes(4);
+        network.addNode().weight(1);
+        network.addNode().weight(0);
+        network.addNode().weight(0);
 
         // Setup continuous assertions
         assertContinuouslyThat(network.newLogResults()).haveNoErrorLevelMessages();

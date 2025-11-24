@@ -472,7 +472,7 @@ public class PlatformComponentBuilder {
     public ConsensusEngine buildConsensusEngine() {
         if (consensusEngine == null) {
             consensusEngine = new DefaultConsensusEngine(
-                    blocks.platformContext(), blocks.rosterHistory(), blocks.selfId(), blocks.freezeCheckHolder());
+                    blocks.platformContext(), blocks.rosterHistory().getCurrentRoster(), blocks.selfId(), blocks.freezeCheckHolder());
         }
         return consensusEngine;
     }
