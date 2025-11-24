@@ -111,16 +111,6 @@ public class EventImpl implements Clearable {
         this.mark = ConsensusConstants.EVENT_UNMARKED;
     }
 
-    /**
-     * There is a quirk in size 1 networks where we can only reach consensus if the self-parent is also the other
-     * parent. Unexpected, but harmless. So just use the same event as the other parent until that issue is resolved.
-     */
-    public void duplicateSelfParentAsOtherParent() {
-        if (selfParent != null && otherParents.isEmpty()) {
-            otherParents = List.of(selfParent);
-        }
-    }
-
     //
     // Getters and setters
     //

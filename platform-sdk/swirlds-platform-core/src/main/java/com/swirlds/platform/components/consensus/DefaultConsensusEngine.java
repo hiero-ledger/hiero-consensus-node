@@ -137,10 +137,6 @@ public class DefaultConsensusEngine implements ConsensusEngine {
                 continue;
             }
 
-            if (roster.rosterEntries().size() == 1) {
-                linkedEvent.duplicateSelfParentAsOtherParent();
-            }
-
             // check if we have found init judges before adding the event
             final boolean waitingForJudgesBeforeAdd = consensus.waitingForInitJudges();
             // add the event to the consensus algorithm

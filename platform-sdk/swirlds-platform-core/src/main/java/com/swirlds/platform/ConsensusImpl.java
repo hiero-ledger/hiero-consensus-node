@@ -1147,27 +1147,31 @@ public class ConsensusImpl implements Consensus {
             return x.getRoundCreated();
         }
 
+        final EventImpl selfParent = selfParent(x);
+        final EventImpl otherParent = otherParent(x);
+
         // roundCreated of self parent
-        final long rsp = round(selfParent(x));
+        final long rsp = round(selfParent);
         // roundCreated of other parent
-        final long rop = round(otherParent(x));
+        final long rop = round(otherParent);
 
         //
-        // if parents have unequal rounds, then copy the round of the later parent
+        // if parents have unequal rounds and the later parent does not have a supermajority of weight,
+        // then copy the round of the later parent.
         //
-        if (rsp > rop) {
+        if (rsp > rop && !hasSuperMajority(selfParent)) {
             x.setRoundCreated(rsp);
             return x.getRoundCreated();
         }
-        if (rop > rsp) {
+        if (rop > rsp && !hasSuperMajority(otherParent)) {
             x.setRoundCreated(rop);
             return x.getRoundCreated();
         }
 
         //
-        // parents have equal rounds. But if both are -infinity, then this is -infinity
+        // If both parents are -infinity, then this is -infinity
         //
-        if (rsp == ConsensusConstants.ROUND_NEGATIVE_INFINITY) {
+        if (rsp == ConsensusConstants.ROUND_NEGATIVE_INFINITY && rop == ConsensusConstants.ROUND_NEGATIVE_INFINITY) {
             x.setRoundCreated(ConsensusConstants.ROUND_NEGATIVE_INFINITY);
             return x.getRoundCreated();
         }
@@ -1175,9 +1179,9 @@ public class ConsensusImpl implements Consensus {
         // number of members that are voting
         final int numMembers = roster.rosterEntries().size();
 
-        // parents have equal rounds (not -1), so check if x can strongly see witnesses with a
-        // supermajority of stake
-        // sum of stake involved
+        // parents have equal rounds (not -1) OR they are different and one has a super-majority,
+        // so check if x can strongly see witnesses with a supermajority of weight.
+        // sum of weight involved
         long weight = 0;
         int numStronglySeen = 0;
         for (int m = 0; m < numMembers; m++) {
@@ -1196,6 +1200,24 @@ public class ConsensusImpl implements Consensus {
         // it's not a supermajority, so don't advance to the next round
         x.setRoundCreated(parentRound(x));
         return x.getRoundCreated();
+    }
+
+    /**
+     * Check if the creator of this event has a supermajority of weight in the roster
+     *
+     * @param x the event being queried
+     * @return true if the creator of this event has a supermajority of weight in the roster
+     */
+    private boolean hasSuperMajority(@Nullable final EventImpl x) {
+        if (x == null) {
+            return false;
+        }
+        if (!rosterIndicesMap.containsKey(x.getCreatorId().id())) {
+            return false;
+        }
+        final int memberIndex = rosterIndicesMap.get(x.getCreatorId().id());
+        final long weight = getWeight(memberIndex);
+        return Threshold.SUPER_MAJORITY.isSatisfiedBy(weight, rosterTotalWeight);
     }
 
     /**
