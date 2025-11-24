@@ -30,6 +30,7 @@ import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.BlockProof;
 import com.hedera.hapi.block.stream.ChainOfTrustProof;
 import com.hedera.hapi.block.stream.MerkleSiblingHash;
+import com.hedera.hapi.block.stream.StateProof;
 import com.hedera.hapi.block.stream.SubMerkleTree;
 import com.hedera.hapi.block.stream.TssSignedBlockProof;
 import com.hedera.hapi.block.stream.output.BlockHeader;
@@ -794,7 +795,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                         pendingBlocks.stream());
                 proof = currentPendingBlock.proofBuilder().blockStateProof(stateProof);
 
-                // The first mp2 path from the state proof has this block's sibling hashes
+                // The first mp2 instance from the state proof has this block's sibling hashes
                 final var firstMp2Index = stateProof.paths().size() / 3;
                 final var firstMp2Path = stateProof.paths().get(firstMp2Index);
                 proof.siblingHashes(firstMp2Path.siblings().stream()
@@ -803,26 +804,8 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                                 .isFirst(sib.isLeft())
                                 .build())
                         .toList());
-
                 if (log.isDebugEnabled()) {
-                    final var tag = "Finishing proof (b=%s):".formatted(currentPendingBlock.number());
-                    log.debug("{} State proof inputs:", tag);
-                    log.debug("{}   - currentPendingBlock={}", tag, currentPendingBlock);
-                    log.debug("{}   - blockNumber={}", tag, blockNumber);
-                    log.debug("{}   - blockSignature={}", tag, blockSignature);
-                    log.debug("{}   - pending block siblings:", tag);
-                    final var pendingSibHashes = currentPendingBlock.siblingHashes();
-                    for (int i = 0; i < pendingSibHashes.length; i++) {
-                        final var sibling = pendingSibHashes[i];
-                        log.debug(
-                                "{}     ||-- ({}) isFirst={}, siblingHash={}",
-                                i,
-                                tag,
-                                sibling.isFirst(),
-                                sibling.siblingHash());
-                    }
-
-                    log.debug("{} Generated state proof: {}", tag, stateProof);
+                    logStateProof(blockSignature, currentPendingBlock, blockNumber, stateProof);
                 }
 
                 // Update the metrics
@@ -897,6 +880,26 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         // For time-based blocks, check if enough consensus time has elapsed
         final var elapsed = Duration.between(asInstant(blockTimestamp), consensusTimeCurrentRound);
         return elapsed.compareTo(blockPeriod) >= 0;
+    }
+
+    private static void logStateProof(
+            final @NonNull Bytes blockSignature,
+            final PendingBlock currentPendingBlock,
+            final long blockNumber,
+            final StateProof stateProof) {
+        final var tag = "Finishing proof (b=%s):".formatted(currentPendingBlock.number());
+        log.debug("{} State proof inputs:", tag);
+        log.debug("{}   - currentPendingBlock={}", tag, currentPendingBlock);
+        log.debug("{}   - blockNumber={}", tag, blockNumber);
+        log.debug("{}   - blockSignature={}", tag, blockSignature);
+        log.debug("{}   - pending block siblings:", tag);
+        final var pendingSibHashes = currentPendingBlock.siblingHashes();
+        for (int i = 0; i < pendingSibHashes.length; i++) {
+            final var sibling = pendingSibHashes[i];
+            log.debug("{}     ||-- ({}) isFirst={}, siblingHash={}", i, tag, sibling.isFirst(), sibling.siblingHash());
+        }
+
+        log.debug("{} Generated state proof: {}", tag, stateProof);
     }
 
     class BlockStreamManagerTask {
