@@ -64,38 +64,6 @@ extensions.getByName<GradleOnlyDirectives>("testChaosModuleInfo").apply {
 
 tasks.withType<Test>().configureEach { maxHeapSize = "8g" }
 
-// Fix testcontainers module system access to commons libraries
-// testcontainers 2.0.2 is a named module but doesn't declare its module-info dependencies
-// We need to grant it access to the commons modules via JVM arguments
-// Note: automatic modules are named from their package names (org.apache.commons.io for commons-io
-// JAR)
-tasks.named<Test>("testContainer") {
-    jvmArgs(
-        "--add-reads=org.testcontainers=org.apache.commons.lang3",
-        "--add-reads=org.testcontainers=org.apache.commons.compress",
-        "--add-reads=org.testcontainers=org.apache.commons.io",
-        "--add-reads=org.testcontainers=org.apache.commons.codec",
-    )
-}
-
-tasks.named<Test>("testChaos") {
-    jvmArgs(
-        "--add-reads=org.testcontainers=org.apache.commons.lang3",
-        "--add-reads=org.testcontainers=org.apache.commons.compress",
-        "--add-reads=org.testcontainers=org.apache.commons.io",
-        "--add-reads=org.testcontainers=org.apache.commons.codec",
-    )
-}
-
-tasks.named<Test>("testIntegration") {
-    jvmArgs(
-        "--add-reads=org.testcontainers=org.apache.commons.lang3",
-        "--add-reads=org.testcontainers=org.apache.commons.compress",
-        "--add-reads=org.testcontainers=org.apache.commons.io",
-        "--add-reads=org.testcontainers=org.apache.commons.codec",
-    )
-}
-
 // This should probably not be necessary (Log4j issue?)
 // https://github.com/apache/logging-log4j2/pull/3053
 tasks.compileTestFixturesJava {
