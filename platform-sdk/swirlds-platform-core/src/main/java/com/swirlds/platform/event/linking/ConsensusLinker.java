@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.event.linking;
 
-import static java.util.Objects.requireNonNull;
-
 import com.swirlds.platform.event.EventCounter;
 import com.swirlds.platform.internal.EventImpl;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -66,7 +64,7 @@ public class ConsensusLinker {
      * @param logsAndMetrics logs and collects metrics in case of linking issues
      */
     public ConsensusLinker(@NonNull final LinkerLogsAndMetrics logsAndMetrics) {
-        this.logsAndMetrics = requireNonNull(logsAndMetrics);
+        this.logsAndMetrics = logsAndMetrics;
         this.eventWindow = EventWindow.getGenesisEventWindow();
         this.parentDescriptorMap =
                 new StandardSequenceMap<>(0, INITIAL_CAPACITY, true, EventDescriptorWrapper::birthRound);
@@ -106,7 +104,7 @@ public class ConsensusLinker {
      * @return a list of events that just became ancient because of the new event window
      */
     public final List<EventImpl> setEventWindow(@NonNull final EventWindow eventWindow) {
-        this.eventWindow = requireNonNull(eventWindow);
+        this.eventWindow = Objects.requireNonNull(eventWindow);
 
         final List<EventImpl> ancientEvents = new ArrayList<>();
         parentDescriptorMap.shiftWindow(eventWindow.ancientThreshold(), (descriptor, event) -> {
@@ -146,7 +144,7 @@ public class ConsensusLinker {
      *     <li>The parent's time created is greater than or equal to the child's time created</li>
      * </ul>
      *
-     * @param child the child event
+     * @param child            the child event
      * @param parentDescriptor the event descriptor for the claimed parent
      * @return the parent to link, or null if no parent should be linked
      */

@@ -14,7 +14,7 @@ public interface LinkerLogsAndMetrics {
     /**
      * This method is called when a child event has a missing parent.
      *
-     * @param child the child event
+     * @param child            the child event
      * @param parentDescriptor the descriptor of the missing parent
      */
     void childHasMissingParent(@NonNull PlatformEvent child, @NonNull EventDescriptorWrapper parentDescriptor);
@@ -22,9 +22,9 @@ public interface LinkerLogsAndMetrics {
     /**
      * This method is called when a child event has a parent with a different birth round than claimed.
      *
-     * @param child the child event
+     * @param child            the child event
      * @param parentDescriptor the claimed descriptor of the parent
-     * @param candidateParent the parent event that we found in the parentHashMap
+     * @param candidateParent  the parent event that we found in the parentHashMap
      */
     void parentHasIncorrectBirthRound(
             @NonNull PlatformEvent child,
@@ -35,10 +35,10 @@ public interface LinkerLogsAndMetrics {
      * This method is called when a child event has a self parent with a time created that is not strictly before the
      * child's time created.
      *
-     * @param child the child event
-     * @param candidateParent the parent event that we found in the parentHashMap
+     * @param child             the child event
+     * @param candidateParent   the parent event that we found in the parentHashMap
      * @param parentTimeCreated the time created of the parent event
-     * @param childTimeCreated the time created of the child event
+     * @param childTimeCreated  the time created of the child event
      */
     void childTimeIsNotAfterSelfParentTime(
             @NonNull PlatformEvent child,
