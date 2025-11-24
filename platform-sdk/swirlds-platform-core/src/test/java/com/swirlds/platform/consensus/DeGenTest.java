@@ -25,7 +25,7 @@ class DeGenTest {
     void simpleGraphTest() {
         final Randotron randotron = Randotron.create();
         // Create a simple graph
-        graph = new SimpleGraph(SimpleGraphs.graph9e3n(randotron));
+        graph = SimpleGraphs.graph9e3n(randotron);
 
         // We pick 3 & 4 to be judges, they and their descendants will have a round of 1
         graph.getImpls().subList(3, 9).forEach(event -> event.setRoundCreated(ConsensusConstants.ROUND_FIRST));
@@ -68,7 +68,7 @@ class DeGenTest {
     void mopGraphTest() {
         final Randotron randotron = Randotron.create();
         // Create a simple graph
-        graph = new SimpleGraph(SimpleGraphs.mopGraph(randotron));
+        graph = SimpleGraphs.mopGraph(randotron);
 
         // We pick 4 & 7 to be judges, they and their descendants will have a round of 1
         graph.getImpls(4,7,8,9,10,11).forEach(event -> event.setRoundCreated(ConsensusConstants.ROUND_FIRST));

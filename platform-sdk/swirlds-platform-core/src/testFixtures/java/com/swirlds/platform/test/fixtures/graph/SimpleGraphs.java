@@ -1,14 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures.graph;
 
-import static com.swirlds.platform.test.fixtures.event.EventImplTestUtils.createEventImpl;
-
-import com.swirlds.platform.internal.EventImpl;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.List;
 import java.util.Random;
-import java.util.stream.Stream;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
@@ -27,7 +23,7 @@ public class SimpleGraphs {
      * </pre>
      *
      */
-    public static List<PlatformEvent> mopGraph(@NonNull final Random random) {
+    public static SimpleGraph mopGraph(@NonNull final Random random) {
         final PlatformEvent e0 =
                 new TestingEventBuilder(random).setCreatorId(NodeId.of(1)).build();
         final PlatformEvent e1 =
@@ -62,7 +58,7 @@ public class SimpleGraphs {
                 .build();
         final PlatformEvent e11 =
                 new TestingEventBuilder(random).setSelfParent(e7).build();
-        return List.of(e0, e1, e2, e3, e4, e5, e6, e7, e8, e9, e10, e11);
+        return new SimpleGraph(random, e0, e1, e2, e3, e4, e5, e6, e7, e8, e9, e10, e11);
     }
 
     /**
@@ -78,31 +74,7 @@ public class SimpleGraphs {
      *
      * Note that this graph has two parts which are not connected to each other
      */
-    public static List<PlatformEvent> graph8e4n(final Random random) {
-        final PlatformEvent e5 =
-                new TestingEventBuilder(random).setCreatorId(NodeId.of(3)).build();
-        final PlatformEvent e6 =
-                new TestingEventBuilder(random).setCreatorId(NodeId.of(4)).build();
-        final PlatformEvent e7 = new TestingEventBuilder(random)
-                .setCreatorId(NodeId.of(3))
-                .setSelfParent(e5)
-                .setOtherParent(e6)
-                .build();
-        return Stream.concat(graph5e2n(random).stream(), Stream.of(e5, e6, e7)).toList();
-    }
-
-    /**
-     * Builds graph below:
-     *
-     * <pre>
-     * 3  4
-     * | /|
-     * 2  |
-     * | \|
-     * 0  1
-     * </pre>
-     */
-    public static List<PlatformEvent> graph5e2n(final Random random) {
+    public static SimpleGraph graph8e4n(final Random random) {
         final PlatformEvent e0 =
                 new TestingEventBuilder(random).setCreatorId(NodeId.of(1)).build();
         final PlatformEvent e1 =
@@ -121,7 +93,16 @@ public class SimpleGraphs {
                 .setSelfParent(e1)
                 .setOtherParent(e2)
                 .build();
-        return List.of(e0, e1, e2, e3, e4);
+        final PlatformEvent e5 =
+                new TestingEventBuilder(random).setCreatorId(NodeId.of(3)).build();
+        final PlatformEvent e6 =
+                new TestingEventBuilder(random).setCreatorId(NodeId.of(4)).build();
+        final PlatformEvent e7 = new TestingEventBuilder(random)
+                .setCreatorId(NodeId.of(3))
+                .setSelfParent(e5)
+                .setOtherParent(e6)
+                .build();
+        return new SimpleGraph(random, e0, e1, e2, e3, e4, e5, e6, e7);
     }
 
     /**
@@ -140,7 +121,7 @@ public class SimpleGraphs {
      *
      * </pre>
      */
-    public static List<PlatformEvent> graph9e3n(final Random random) {
+    public static SimpleGraph graph9e3n(final Random random) {
         // generation 0
         final PlatformEvent e0 = new TestingEventBuilder(random)
                         .setCreatorId(NodeId.of(1))
@@ -206,6 +187,6 @@ public class SimpleGraphs {
                         .setTimeCreated(Instant.parse("2020-05-06T13:21:56.694Z"))
                         .build();
 
-        return List.of(e0, e1, e2, e3, e4, e5, e6, e7, e8);
+        return new SimpleGraph(random, e0, e1, e2, e3, e4, e5, e6, e7, e8);
     }
 }
