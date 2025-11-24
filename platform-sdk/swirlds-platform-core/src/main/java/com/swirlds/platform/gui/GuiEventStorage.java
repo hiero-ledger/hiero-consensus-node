@@ -45,7 +45,7 @@ public class GuiEventStorage {
      * Creates an empty instance
      *
      * @param configuration this node's configuration
-     * @param roster the network's roster
+     * @param roster   the network's roster
      */
     public GuiEventStorage(@NonNull final Configuration configuration, @NonNull final Roster roster) {
 
@@ -58,7 +58,6 @@ public class GuiEventStorage {
 
     /**
      * Creates an instance with the given consensus, linker, and configuration.
-     *
      * @param consensus the consensus object
      * @param linker the linker object
      * @param configuration the configuration object
