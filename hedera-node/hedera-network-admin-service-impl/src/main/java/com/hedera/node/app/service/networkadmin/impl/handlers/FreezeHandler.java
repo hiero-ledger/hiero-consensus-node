@@ -168,9 +168,6 @@ public class FreezeHandler implements TransactionHandler {
         final ReadableNodeStore nodeStore = storeFactory.readableStore(ReadableNodeStore.class);
         final ReadableStakingInfoStore stakingInfoStore = storeFactory.readableStore(ReadableStakingInfoStore.class);
         final WritableFreezeStore freezeStore = storeFactory.writableStore(WritableFreezeStore.class);
-        final NodeInfo selfInfo = context.networkInfo().selfNodeInfo();
-        final BlockRecordStreamConfig networkAdminConfig =
-                context.configuration().getConfigData(BlockRecordStreamConfig.class);
 
         final FreezeTransactionBody freezeTxn = txn.freezeOrThrow();
 
@@ -203,6 +200,7 @@ public class FreezeHandler implements TransactionHandler {
                         upgradeActions.extractSoftwareUpgrade(upgradeFileStore.getFull(updateFileID));
 
                         // keep track of the initial self account id for entire upgrade boundary
+                        final NodeInfo selfInfo = context.networkInfo().selfNodeInfo();
                         selfNodeAccountIdManager.setSelfNodeAccountId(selfInfo.accountId());
                     }
                 } catch (IOException e) {
