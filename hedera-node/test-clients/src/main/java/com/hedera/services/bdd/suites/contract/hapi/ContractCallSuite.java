@@ -2559,8 +2559,7 @@ public class ContractCallSuite {
                         TRANSFER_TXN, SUCCESS, recordWith().status(SUCCESS).memo(LAZY_MEMO)));
     }
 
-    @HapiTest
-    final Stream<DynamicTest> contractIdResultsInPrecheckFail(
+    private Stream<DynamicTest> contractIdResultsInPrecheckFail(
             final String contractName, final java.util.function.Function<HapiSpec, ContractID> contractId) {
         final var NAME = "name";
         final var ERC_721_ABI = "ERC721ABI";

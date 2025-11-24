@@ -79,6 +79,8 @@ public class CustomDelegateCallOperation extends DelegateCallOperation implement
     private boolean isRedirectFromNativeEntity(@NonNull final MessageFrame frame) {
         final var updater = (ProxyWorldUpdater) frame.getWorldUpdater();
         final var recipient = requireNonNull(updater.getHederaAccount(frame.getRecipientAddress()));
+        // TODO(Pectra): update the condition below. Specifically recipient.isRegularAccount() no longer holds.
+        // Consider adding a frame variable (e.g. isFacadeExecution) or a different mechanism.
         return recipient.isTokenFacade() || recipient.isScheduleTxnFacade() || recipient.isRegularAccount();
     }
 }

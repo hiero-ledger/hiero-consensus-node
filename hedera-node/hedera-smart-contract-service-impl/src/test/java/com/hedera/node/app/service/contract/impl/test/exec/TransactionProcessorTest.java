@@ -6,7 +6,33 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_CONTRACT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.TRACKER_CONTEXT_VARIABLE;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.*;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.CALLED_CONTRACT_ID;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.CALL_DATA;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.CHARGING_RESULT;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.CODE_FACTORY;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.EIP_1014_ADDRESS;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.GAS_CALCULATOR;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.GAS_LIMIT;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.INVALID_CONTRACT_ADDRESS;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.MAINNET_CHAIN_ID;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.MAX_GAS_ALLOWANCE;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NETWORK_GAS_PRICE;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NONCE;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NON_SYSTEM_LONG_ZERO_ADDRESS;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NO_ALLOWANCE_CHARGING_RESULT;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.RECEIVER_ID;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.RELAYER_ID;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SENDER_ID;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SUCCESS_RESULT;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.USER_OFFERED_GAS_PRICE;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.VALID_CONTRACT_ADDRESS;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.VALUE;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.assertFailsWith;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.wellKnownContextWith;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.wellKnownHapiCall;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.wellKnownHapiCreate;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.wellKnownRelayedHapiCall;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.wellKnownRelayedHapiCreate;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowableOfType;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -133,7 +159,8 @@ class TransactionProcessorTest {
                 messageCallProcessor,
                 contractCreationProcessor,
                 featureFlags,
-                CODE_FACTORY);
+                CODE_FACTORY,
+                GAS_CALCULATOR);
         opsDurationCounter = OpsDurationCounter.disabled();
     }
 
@@ -209,7 +236,8 @@ class TransactionProcessorTest {
                         EIP_1014_ADDRESS,
                         expectedToAddress,
                         CHARGING_RESULT.intrinsicGas(),
-                        CODE_FACTORY))
+                        CODE_FACTORY,
+                        GAS_CALCULATOR))
                 .willReturn(initialFrame);
         given(senderAccount.getNonce()).willReturn(NONCE);
         given(frameRunner.runToCompletion(
@@ -266,7 +294,8 @@ class TransactionProcessorTest {
                         EIP_1014_ADDRESS,
                         expectedToAddress,
                         CHARGING_RESULT.intrinsicGas(),
-                        CODE_FACTORY))
+                        CODE_FACTORY,
+                        GAS_CALCULATOR))
                 .willReturn(initialFrame);
         given(senderAccount.hederaId()).willReturn(SENDER_ID);
         given(frameRunner.runToCompletion(
@@ -325,7 +354,8 @@ class TransactionProcessorTest {
                         EIP_1014_ADDRESS,
                         expectedToAddress,
                         CHARGING_RESULT.intrinsicGas(),
-                        CODE_FACTORY))
+                        CODE_FACTORY,
+                        GAS_CALCULATOR))
                 .willReturn(initialFrame);
         given(senderAccount.hederaId()).willReturn(SENDER_ID);
         given(frameRunner.runToCompletion(
@@ -441,7 +471,8 @@ class TransactionProcessorTest {
                         EIP_1014_ADDRESS,
                         expectedToAddress,
                         CHARGING_RESULT.intrinsicGas(),
-                        CODE_FACTORY))
+                        CODE_FACTORY,
+                        GAS_CALCULATOR))
                 .willReturn(initialFrame);
         given(senderAccount.getNonce()).willReturn(NONCE);
         given(frameRunner.runToCompletion(
@@ -475,7 +506,8 @@ class TransactionProcessorTest {
                         EIP_1014_ADDRESS,
                         expectedToAddress,
                         CHARGING_RESULT.intrinsicGas(),
-                        CODE_FACTORY);
+                        CODE_FACTORY,
+                        GAS_CALCULATOR);
         inOrder.verify(frameRunner)
                 .runToCompletion(
                         transaction.gasLimit(),
@@ -523,7 +555,8 @@ class TransactionProcessorTest {
                         EIP_1014_ADDRESS,
                         NON_SYSTEM_LONG_ZERO_ADDRESS,
                         NO_ALLOWANCE_CHARGING_RESULT.intrinsicGas(),
-                        CODE_FACTORY))
+                        CODE_FACTORY,
+                        GAS_CALCULATOR))
                 .willReturn(initialFrame);
         given(frameRunner.runToCompletion(
                         transaction.gasLimit(),
@@ -552,7 +585,8 @@ class TransactionProcessorTest {
                         EIP_1014_ADDRESS,
                         NON_SYSTEM_LONG_ZERO_ADDRESS,
                         NO_ALLOWANCE_CHARGING_RESULT.intrinsicGas(),
-                        CODE_FACTORY);
+                        CODE_FACTORY,
+                        GAS_CALCULATOR);
         inOrder.verify(frameRunner)
                 .runToCompletion(
                         transaction.gasLimit(),
@@ -598,7 +632,8 @@ class TransactionProcessorTest {
                         EIP_1014_ADDRESS,
                         NON_SYSTEM_LONG_ZERO_ADDRESS,
                         CHARGING_RESULT.intrinsicGas(),
-                        CODE_FACTORY))
+                        CODE_FACTORY,
+                        GAS_CALCULATOR))
                 .willReturn(initialFrame);
         given(frameRunner.runToCompletion(
                         eq(transaction.gasLimit()),
@@ -626,7 +661,8 @@ class TransactionProcessorTest {
                         EIP_1014_ADDRESS,
                         NON_SYSTEM_LONG_ZERO_ADDRESS,
                         CHARGING_RESULT.intrinsicGas(),
-                        CODE_FACTORY);
+                        CODE_FACTORY,
+                        GAS_CALCULATOR);
         inOrder.verify(frameRunner)
                 .runToCompletion(
                         transaction.gasLimit(),
@@ -676,7 +712,8 @@ class TransactionProcessorTest {
                         EIP_1014_ADDRESS,
                         NON_SYSTEM_LONG_ZERO_ADDRESS,
                         CHARGING_RESULT.intrinsicGas(),
-                        CODE_FACTORY))
+                        CODE_FACTORY,
+                        GAS_CALCULATOR))
                 .willReturn(initialFrame);
         given(senderAccount.hederaId()).willReturn(SENDER_ID);
         given(frameRunner.runToCompletion(
@@ -708,7 +745,8 @@ class TransactionProcessorTest {
                         EIP_1014_ADDRESS,
                         NON_SYSTEM_LONG_ZERO_ADDRESS,
                         CHARGING_RESULT.intrinsicGas(),
-                        CODE_FACTORY);
+                        CODE_FACTORY,
+                        GAS_CALCULATOR);
         inOrder.verify(frameRunner)
                 .runToCompletion(
                         transaction.gasLimit(),
@@ -756,7 +794,8 @@ class TransactionProcessorTest {
                         EIP_1014_ADDRESS,
                         NON_SYSTEM_LONG_ZERO_ADDRESS,
                         CHARGING_RESULT.intrinsicGas(),
-                        CODE_FACTORY))
+                        CODE_FACTORY,
+                        GAS_CALCULATOR))
                 .willReturn(initialFrame);
         given(frameRunner.runToCompletion(
                         eq(transaction.gasLimit()),

@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.test.state;
 
-import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.has.hbarallowance.HbarAllowanceTranslator.HBAR_ALLOWANCE_PROXY;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.CODE_FACTORY;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.pbjToBesuHash;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.pbjToTuweniBytes;
@@ -104,24 +103,6 @@ class ProxyEvmContractTest {
         final var code = pbjToTuweniBytes(SOME_PRETEND_CODE);
         given(hederaState.getCode(CONTRACT_ID)).willReturn(code);
         assertEquals(code, subject.getCode());
-    }
-
-    @Test
-    void returnsEvmCode() {
-        final var code = pbjToTuweniBytes(SOME_PRETEND_CODE);
-        given(hederaState.getCode(CONTRACT_ID)).willReturn(code);
-        assertEquals(
-                CODE_FACTORY.createCode(code, false),
-                subject.getEvmCode(org.apache.tuweni.bytes.Bytes.EMPTY, CODE_FACTORY));
-    }
-
-    @Test
-    void returnsEvmCodeButSetsState() {
-        final var code = pbjToTuweniBytes(SOME_PRETEND_CODE);
-        given(hederaState.getCode(CONTRACT_ID)).willReturn(code);
-        assertEquals(
-                CODE_FACTORY.createCode(code, false),
-                subject.getEvmCode(org.apache.tuweni.bytes.Bytes.wrap(HBAR_ALLOWANCE_PROXY.selector()), CODE_FACTORY));
     }
 
     @Test
