@@ -18,6 +18,8 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.junit.jupiter.api.extension.AfterEachCallback;
 import org.junit.jupiter.api.extension.BeforeEachCallback;
 import org.junit.jupiter.api.extension.ExtensionContext;
@@ -29,6 +31,7 @@ import org.junit.jupiter.api.extension.ParameterResolver;
  * Networks are injected into {@code HederaNetwork} (or {@code SubProcessNetwork}) parameters in declaration order.
  */
 public class MultiNetworkExtension implements BeforeEachCallback, AfterEachCallback, ParameterResolver {
+    private static final Logger log = LogManager.getLogger(MultiNetworkExtension.class);
     private static final ExtensionContext.Namespace NAMESPACE =
             ExtensionContext.Namespace.create(MultiNetworkExtension.class);
     private static final String RESOURCES_KEY = "multiNetworks";
@@ -115,6 +118,7 @@ public class MultiNetworkExtension implements BeforeEachCallback, AfterEachCallb
             }
             return networks.toArray(SubProcessNetwork[]::new);
         } catch (Throwable t) {
+            log.warn("Failed to start multi-network set, terminating any started subprocess networks", t);
             networks.forEach(this::safeTerminate);
             throw new RuntimeException("Failed to start multi network set", t);
         }
@@ -126,12 +130,13 @@ public class MultiNetworkExtension implements BeforeEachCallback, AfterEachCallb
     }
 
     private void safeTerminate(final SubProcessNetwork network) {
-        if (network != null) {
-            try {
-                network.terminate();
-            } catch (Throwable ignore) {
-                // best-effort cleanup
-            }
+        if (network == null) {
+            return;
+        }
+        try {
+            network.terminate();
+        } catch (Throwable t) {
+            log.warn("Best-effort cleanup failed for subprocess network {}", network.getName(), t);
         }
     }
 
