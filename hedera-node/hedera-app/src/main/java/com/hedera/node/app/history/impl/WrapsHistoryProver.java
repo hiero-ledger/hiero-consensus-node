@@ -181,6 +181,36 @@ public class WrapsHistoryProver implements HistoryProver {
         receiveWrapsSigningMessage(constructionId, publication, null, null);
     }
 
+    @Override
+    public boolean cancelPendingWork() {
+        final var sb = new StringBuilder("Canceled work on WRAPS prover");
+        boolean canceledSomething = false;
+        if (r1Future != null && !r1Future.isDone()) {
+            sb.append("\n  * In-flight R1 future");
+            r1Future.cancel(true);
+            canceledSomething = true;
+        }
+        if (r2Future != null && !r2Future.isDone()) {
+            sb.append("\n  * In-flight R2 future");
+            r2Future.cancel(true);
+            canceledSomething = true;
+        }
+        if (r3Future != null && !r3Future.isDone()) {
+            sb.append("\n  * In-flight R3 future");
+            r3Future.cancel(true);
+            canceledSomething = true;
+        }
+        if (voteFuture != null && !voteFuture.isDone()) {
+            sb.append("\n  * In-flight vote future");
+            voteFuture.cancel(true);
+            canceledSomething = true;
+        }
+        if (canceledSomething) {
+            log.info(sb.toString());
+        }
+        return canceledSomething;
+    }
+
     private boolean receiveWrapsSigningMessage(
             final long constructionId,
             @NonNull final WrapsMessagePublication publication,
@@ -251,36 +281,6 @@ public class WrapsHistoryProver implements HistoryProver {
         return true;
     }
 
-    @Override
-    public boolean cancelPendingWork() {
-        final var sb = new StringBuilder("Canceled work on WRAPS prover");
-        boolean canceledSomething = false;
-        if (r1Future != null && !r1Future.isDone()) {
-            sb.append("\n  * In-flight R1 future");
-            r1Future.cancel(true);
-            canceledSomething = true;
-        }
-        if (r2Future != null && !r2Future.isDone()) {
-            sb.append("\n  * In-flight R2 future");
-            r2Future.cancel(true);
-            canceledSomething = true;
-        }
-        if (r3Future != null && !r3Future.isDone()) {
-            sb.append("\n  * In-flight R3 future");
-            r3Future.cancel(true);
-            canceledSomething = true;
-        }
-        if (voteFuture != null && !voteFuture.isDone()) {
-            sb.append("\n  * In-flight vote future");
-            voteFuture.cancel(true);
-            canceledSomething = true;
-        }
-        if (canceledSomething) {
-            log.info(sb.toString());
-        }
-        return canceledSomething;
-    }
-
     /**
      * Ensures this node has published its WRAPS message or aggregate signature vote.
      */
@@ -332,8 +332,7 @@ public class WrapsHistoryProver implements HistoryProver {
                                                                                         .wrapsProof(Bytes.wrap(
                                                                                                 proofOutput
                                                                                                         .compressed())))
-                                                                        .uncompressedWrapsProof(
-                                                                                Bytes.wrap(proofOutput.uncompressed()))
+                                                                        .uncompressedWrapsProof(Bytes.wrap(proofOutput.uncompressed()))
                                                                         .build())
                                                         .join();
                                                 log.info(
@@ -401,7 +400,7 @@ public class WrapsHistoryProver implements HistoryProver {
                                     rawMessagesFor(R3),
                                     publicKeysForR1());
                             // TODO - block on the long-running proof using this signature, yield that instead
-                            yield new ProofPhaseOutput(signature, new byte[0]);
+                            yield new ProofPhaseOutput(signature, signature);
                         }
                         yield null;
                     }
