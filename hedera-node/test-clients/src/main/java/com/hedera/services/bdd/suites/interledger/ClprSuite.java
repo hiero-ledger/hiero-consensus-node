@@ -30,6 +30,7 @@ import org.hiero.hapi.interledger.state.clpr.ClprLedgerConfiguration;
 import org.hiero.hapi.interledger.state.clpr.ClprLedgerId;
 import org.hiero.interledger.clpr.impl.client.ClprClientImpl;
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 
 public class ClprSuite {
@@ -58,7 +59,8 @@ public class ClprSuite {
     }
 
     @HapiTest
-    final Stream<DynamicTest> exchangesConfigurationsViaRealClient() {
+    @DisplayName("Updates configurations via ClprClientImpl")
+    final Stream<DynamicTest> updatesConfigurationsViaClprClientImpl() {
         final var ledgerIdString = "clpr-ledger-" + Instant.now().toEpochMilli();
         final var ledgerId = ClprLedgerId.newBuilder()
                 .ledgerId(Bytes.wrap(ledgerIdString.getBytes(StandardCharsets.UTF_8)))

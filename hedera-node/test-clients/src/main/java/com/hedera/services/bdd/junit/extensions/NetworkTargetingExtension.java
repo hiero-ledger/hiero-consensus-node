@@ -28,6 +28,7 @@ import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.LeakyEmbeddedHapiTest;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.junit.LeakyRepeatableHapiTest;
+import com.hedera.services.bdd.junit.MultiNetworkHapiTest;
 import com.hedera.services.bdd.junit.SharedNetworkLauncherSessionListener;
 import com.hedera.services.bdd.junit.TargetEmbeddedMode;
 import com.hedera.services.bdd.junit.hedera.BlockNodeNetwork;
@@ -155,6 +156,9 @@ public class NetworkTargetingExtension implements BeforeEachCallback, AfterEachC
                 // Set both the thread-local and the static shared network reference
                 HapiSpec.TARGET_BLOCK_NODE_NETWORK.set(targetBlockNodeNetwork);
                 HapiSpec.TARGET_NETWORK.set(targetNetwork);
+            } else if (isAnnotated(method, MultiNetworkHapiTest.class)) {
+                HapiSpec.TARGET_NETWORK.remove();
+                HapiSpec.TARGET_BLOCK_NODE_NETWORK.remove();
             } else {
                 ensureEmbeddedNetwork(extensionContext);
                 HapiSpec.TARGET_NETWORK.set(SHARED_NETWORK.get());
@@ -212,6 +216,13 @@ public class NetworkTargetingExtension implements BeforeEachCallback, AfterEachC
                     HapiSpec.THROTTLES_OVERRIDE.remove();
                     HapiSpec.PROPERTIES_TO_PRESERVE.remove();
                 }
+            } else if (isAnnotated(method, MultiNetworkHapiTest.class)) {
+                // Multi-network tests manage their own subprocess lifecycles
+                HapiSpec.TARGET_NETWORK.remove();
+                HapiSpec.TARGET_BLOCK_NODE_NETWORK.remove();
+                HapiSpec.FEES_OVERRIDE.remove();
+                HapiSpec.THROTTLES_OVERRIDE.remove();
+                HapiSpec.PROPERTIES_TO_PRESERVE.remove();
             } else {
                 // Default cleanup if no per-method network was found
                 HapiSpec.TARGET_NETWORK.remove();

@@ -96,6 +96,11 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
                 embedding = Embedding.NA;
                 return;
             }
+            if (hasAnnotatedTestNode(testPlan, Set.of(MultiNetworkHapiTest.class))) {
+                log.info("Test plan includes MultiNetworkHapiTest annotation, skipping shared network startup.");
+                embedding = Embedding.NA;
+                return;
+            }
             // Do nothing if the test plan has no HapiTests of any kind
             if (!hasAnnotatedTestNode(
                     testPlan,
@@ -187,7 +192,7 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
                             .map(Integer::parseInt)
                             .orElse(CLASSIC_HAPI_TEST_NETWORK_SIZE);
             final var initialPortProperty = System.getProperty("hapi.spec.initial.port");
-            if (!initialPortProperty.isBlank()) {
+            if (initialPortProperty != null && !initialPortProperty.isBlank()) {
                 final var initialPort = Integer.parseInt(initialPortProperty);
                 SubProcessNetwork.initializeNextPortsForNetwork(networkSize, initialPort);
             }
