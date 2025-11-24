@@ -15,8 +15,6 @@ package com.hedera.hapi.node.state.blockstream;
 
 // SPDX-License-Identifier: Apache-2.0
 import "services/timestamp.proto";
-import "platform/state/virtual_map_state.proto";
-//import "block/stream/block_item.proto";
 
 option java_package = "com.hedera.hapi.block.stream.protoc";
 // <<<pbj.java_package = "com.hedera.hapi.node.state.blockstream">>> This comment is special code for setting PBJ Compiler java package

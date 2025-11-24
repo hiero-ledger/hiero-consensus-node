@@ -815,7 +815,7 @@ public class VirtualMapState implements MerkleNodeState {
             final Hash hashForPath = getHashForPath(siblingPath);
             final Hash normalizedHashForPath = hashForPath == null ? NULL_HASH : hashForPath;
 
-            siblingHashes.add(new SiblingHash(isSiblingRight, normalizedHashForPath));
+            siblingHashes.add(new SiblingHash(!isSiblingRight, normalizedHashForPath));
 
             innerParentHashes.add(getHashForPath(currentPath));
 

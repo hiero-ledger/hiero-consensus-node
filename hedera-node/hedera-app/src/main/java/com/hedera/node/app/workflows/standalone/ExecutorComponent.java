@@ -33,6 +33,7 @@ import com.swirlds.state.State;
 import dagger.BindsInstance;
 import dagger.Component;
 import javax.inject.Singleton;
+import org.hiero.interledger.clpr.impl.ClprModule;
 
 /**
  * A component that provides DI for construction of {@link StandaloneDispatchFactory}, {@link StandaloneNetworkInfo}, and
@@ -49,6 +50,7 @@ import javax.inject.Singleton;
             HederaStateInjectionModule.class,
             ThrottleServiceModule.class,
             FacilityInitModule.class,
+            ClprModule.class
         })
 public interface ExecutorComponent {
     @Component.Builder

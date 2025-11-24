@@ -55,6 +55,7 @@ import "services/state/token/token_relation.proto";
 import "services/state/tss/tss_encryption_keys.proto";
 import "services/state/tss/tss_message_map_key.proto";
 import "services/state/tss/tss_vote_map_key.proto";
+import "interledger/state/clpr/clpr_ledger.proto";
 
 /**
  * This message defines the State Item.
@@ -267,6 +268,11 @@ message StateKey {
      * A state identifier for account to node relationships.
      */
     proto.AccountID AddressBookService_I_ACCOUNT_NODE_REL = 53;
+
+    /**
+     * A state identifier for CLPR Ledger Configuration.
+     */
+    org.hiero.hapi.interledger.state.clpr.ClprLedgerId ClprService_I_CONFIGURATIONS = 54;
 
     // Queue states
     /**
@@ -605,6 +611,11 @@ message StateValue {
      * A state identifier for account to node relationships.
      */
     com.hedera.hapi.platform.state.NodeId AddressBookService_I_ACCOUNT_NODE_REL = 53;
+
+    /**
+     * A state identifier for CLPR Ledger Configuration.
+     */
+    org.hiero.hapi.interledger.state.clpr.ClprLedgerConfiguration ClprService_I_CONFIGURATIONS = 54;
 
     /**
      * Metadata of the round receipts queue.
