@@ -136,7 +136,7 @@ public class MultiNetworkExtension implements BeforeEachCallback, AfterEachCallb
         try {
             network.terminate();
         } catch (Throwable t) {
-            log.warn("Best-effort cleanup failed for subprocess network {}", network.getName(), t);
+            log.warn("Best-effort cleanup failed for subprocess network {}", network.name(), t);
         }
     }
 
