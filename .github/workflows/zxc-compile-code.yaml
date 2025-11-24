@@ -82,7 +82,7 @@ env:
 
 jobs:
   compile:
-    name: ${{ inputs.custom-job-label || 'Compiles' }}
+    name: "${{ inputs.custom-job-label  || '' }} Compiles"
     runs-on: hiero-network-node-linux-large
     outputs:
       failure-mode: ${{ steps.set-failure-mode.outputs.mode }}
@@ -136,7 +136,7 @@ jobs:
           echo "mode=${mode}" >> "${GITHUB_OUTPUT}"
 
   snyk-checks:
-    name: ${{ inputs.custom-job-label || 'Hapi Tests (Smart Contract)' }}
+    name: "${{ inputs.custom-job-label || '' }} Snyk Checks"
     runs-on: hiero-network-node-linux-large
     if: >-
       ${{
@@ -235,7 +235,7 @@ jobs:
           echo "mode=${mode}" >> "${GITHUB_OUTPUT}"
 
   calculate-failure-mode:
-    name: ${{ inputs.custom-job-label || 'Calculate Failure Mode' }}
+    name: "${{ inputs.custom-job-label || '' }} Calculate Failure Mode"
     runs-on: hiero-network-node-linux-large
     if: ${{ always() }}
     needs:
