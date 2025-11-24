@@ -5,6 +5,11 @@ import static org.hiero.hapi.fees.FeeScheduleUtils.lookupServiceFee;
 import static org.hiero.hapi.support.fees.Extra.ACCOUNTS;
 import static org.hiero.hapi.support.fees.Extra.CREATED_ACCOUNTS;
 import static org.hiero.hapi.support.fees.Extra.CREATED_AUTO_ASSOCIATIONS;
+import static org.hiero.hapi.support.fees.Extra.CRYPTO_TRANSFER_TOKEN_FUNGIBLE_COMMON;
+import static org.hiero.hapi.support.fees.Extra.CRYPTO_TRANSFER_TOKEN_FUNGIBLE_COMMON_WITH_CUSTOM_FEES;
+import static org.hiero.hapi.support.fees.Extra.CRYPTO_TRANSFER_TOKEN_NON_FUNGIBLE_UNIQUE;
+import static org.hiero.hapi.support.fees.Extra.CRYPTO_TRANSFER_TOKEN_NON_FUNGIBLE_UNIQUE_WITH_CUSTOM_FEES;
+import static org.hiero.hapi.support.fees.Extra.CRYPTO_TRANSFER_WITH_HOOKS;
 import static org.hiero.hapi.support.fees.Extra.CUSTOM_FEE_FUNGIBLE_TOKENS;
 import static org.hiero.hapi.support.fees.Extra.CUSTOM_FEE_NON_FUNGIBLE_TOKENS;
 import static org.hiero.hapi.support.fees.Extra.STANDARD_FUNGIBLE_TOKENS;
@@ -33,12 +38,21 @@ import org.hiero.hapi.support.fees.ServiceFeeDefinition;
 
 /**
  * Calculates CryptoTransfer fees per HIP-1261.
- * Uses the following extras:
+ *
+ * Uses transaction-type-specific base fees via CRYPTO_TRANSFER_* extras:
+ * - CRYPTO_TRANSFER_TOKEN_FUNGIBLE_COMMON: Base fee for fungible token transfers
+ * - CRYPTO_TRANSFER_TOKEN_NON_FUNGIBLE_UNIQUE: Base fee for NFT transfers
+ * - CRYPTO_TRANSFER_TOKEN_FUNGIBLE_COMMON_WITH_CUSTOM_FEES: Base fee for custom fee fungible tokens
+ * - CRYPTO_TRANSFER_TOKEN_NON_FUNGIBLE_UNIQUE_WITH_CUSTOM_FEES: Base fee for custom fee NFTs
+ * - CRYPTO_TRANSFER_WITH_HOOKS: Base fee for transfers with hooks (highest tier)
+ * - No extra charged for HBAR-only transfers (uses baseFee=0)
+ *
+ * Additional extras for items beyond included counts:
  * - ACCOUNTS: Number of unique accounts involved
- * - STANDARD_FUNGIBLE_TOKENS: Fungible token transfers without custom fees
- * - STANDARD_NON_FUNGIBLE_TOKENS: NFT transfers without custom fees
- * - CUSTOM_FEE_FUNGIBLE_TOKENS: Fungible token transfers with custom fees
- * - CUSTOM_FEE_NON_FUNGIBLE_TOKENS: NFT transfers with custom fees
+ * - STANDARD_FUNGIBLE_TOKENS: Additional fungible token transfers without custom fees
+ * - STANDARD_NON_FUNGIBLE_TOKENS: Additional NFT transfers without custom fees
+ * - CUSTOM_FEE_FUNGIBLE_TOKENS: Additional fungible token transfers with custom fees
+ * - CUSTOM_FEE_NON_FUNGIBLE_TOKENS: Additional NFT transfers with custom fees
  * - CREATED_AUTO_ASSOCIATIONS: Token associations created automatically
  * - CREATED_ACCOUNTS: Hollow accounts created automatically
  */
@@ -72,6 +86,13 @@ public class CryptoTransferFeeCalculator implements ServiceFeeCalculator {
         final ServiceFeeDefinition serviceDef = lookupServiceFee(feeSchedule, HederaFunctionality.CRYPTO_TRANSFER);
         feeResult.addServiceFee(1, serviceDef.baseFee());
 
+        // Determine and charge transaction-type-specific base fee
+        final Extra transferType = determineTransferType(op, tokenCounts);
+        if (transferType != null) {
+            addExtraFeeWithIncludedCount(feeResult, transferType, feeSchedule, serviceDef, 1);
+        }
+
+        // Charge for accounts and additional token movements beyond what's included
         addExtraFeeWithIncludedCount(feeResult, ACCOUNTS, feeSchedule, serviceDef, numAccounts);
         addExtraFeeWithIncludedCount(
                 feeResult, STANDARD_FUNGIBLE_TOKENS, feeSchedule, serviceDef, tokenCounts.standardFungible());
@@ -312,6 +333,52 @@ public class CryptoTransferFeeCalculator implements ServiceFeeCalculator {
         }
 
         return predictedHollowAccounts;
+    }
+
+    /**
+     * Determines which CRYPTO_TRANSFER_* extra should be charged as the transaction's base fee.
+     * The priority order ensures higher-tier transactions are charged appropriately:
+     * 1. CRYPTO_TRANSFER_WITH_HOOKS (if hooks present)
+     * 2. CRYPTO_TRANSFER_TOKEN_NON_FUNGIBLE_UNIQUE_WITH_CUSTOM_FEES (if custom fee NFTs)
+     * 3. CRYPTO_TRANSFER_TOKEN_NON_FUNGIBLE_UNIQUE (if standard NFTs)
+     * 4. CRYPTO_TRANSFER_TOKEN_FUNGIBLE_COMMON_WITH_CUSTOM_FEES (if custom fee fungible)
+     * 5. CRYPTO_TRANSFER_TOKEN_FUNGIBLE_COMMON (if standard fungible)
+     * 6. null (HBAR-only transfer, no transaction-type-specific base fee)
+     *
+     * @param op the CryptoTransfer operation
+     * @param tokenCounts analyzed token counts
+     * @return the Extra to use for base fee, or null for HBAR-only transfers
+     */
+    @Nullable
+    private Extra determineTransferType(
+            @NonNull final CryptoTransferTransactionBody op, @NonNull final TokenCounts tokenCounts) {
+        // TODO: Check for hooks when CryptoTransferTransactionBody supports them
+        // if (op.hasHooks()) {
+        //     return CRYPTO_TRANSFER_WITH_HOOKS;
+        // }
+
+        // Check for NFTs with custom fees (highest priority after hooks)
+        if (tokenCounts.customFeeNft() > 0) {
+            return CRYPTO_TRANSFER_TOKEN_NON_FUNGIBLE_UNIQUE_WITH_CUSTOM_FEES;
+        }
+
+        // Check for standard NFTs
+        if (tokenCounts.standardNft() > 0) {
+            return CRYPTO_TRANSFER_TOKEN_NON_FUNGIBLE_UNIQUE;
+        }
+
+        // Check for fungible tokens with custom fees
+        if (tokenCounts.customFeeFungible() > 0) {
+            return CRYPTO_TRANSFER_TOKEN_FUNGIBLE_COMMON_WITH_CUSTOM_FEES;
+        }
+
+        // Check for standard fungible tokens
+        if (tokenCounts.standardFungible() > 0) {
+            return CRYPTO_TRANSFER_TOKEN_FUNGIBLE_COMMON;
+        }
+
+        // HBAR-only transfer - no transaction-type-specific base fee
+        return null;
     }
 
     /**
