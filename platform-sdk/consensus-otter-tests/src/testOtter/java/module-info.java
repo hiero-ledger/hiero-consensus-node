@@ -4,6 +4,8 @@ open module org.hiero.otter.test {
     requires com.swirlds.platform.core;
     requires org.hiero.base.crypto;
     requires org.hiero.otter.fixtures;
+    requires org.apache.commons.compress;
+    requires org.apache.commons.lang3;
     requires org.junit.jupiter.params;
     requires static com.github.spotbugs.annotations;
 }
