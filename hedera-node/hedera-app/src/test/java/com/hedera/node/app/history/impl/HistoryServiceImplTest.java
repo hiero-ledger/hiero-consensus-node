@@ -147,13 +147,13 @@ class HistoryServiceImplTest {
                         HistoryProofConstruction.DEFAULT,
                         store,
                         HintsConstruction.DEFAULT,
-                        false,
-                        HistoryProofConstruction.DEFAULT))
+                        HistoryProofConstruction.DEFAULT,
+                        DEFAULT_CONFIG.getConfigData(TssConfig.class)))
                 .willReturn(controller);
 
         subject.reconcile(activeRosters, CURRENT_VK, store, CONSENSUS_NOW, tssConfig, true, HintsConstruction.DEFAULT);
 
-        verify(controller).advanceConstruction(CONSENSUS_NOW, CURRENT_VK, store, true);
+        verify(controller).advanceConstruction(CONSENSUS_NOW, CURRENT_VK, store, true, tssConfig);
     }
 
     @Test

@@ -137,7 +137,11 @@ public class ProofControllerImpl implements ProofController {
             @NonNull final Instant now,
             @Nullable final Bytes metadata,
             @NonNull final WritableHistoryStore historyStore,
-            final boolean isActive) {
+            final boolean isActive,
+            @NonNull final TssConfig tssConfig) {
+        requireNonNull(now);
+        requireNonNull(historyStore);
+        requireNonNull(tssConfig);
         if (construction.hasTargetProof() || construction.hasFailureReason()) {
             return;
         }
@@ -163,7 +167,8 @@ public class ProofControllerImpl implements ProofController {
         if (!isActive) {
             return;
         }
-        final var outcome = requireNonNull(prover).advance(now, construction, metadata, targetProofKeys);
+        final var outcome = requireNonNull(prover)
+                .advance(now, construction, metadata, targetProofKeys, tssConfig, historyStore.getLedgerId());
         switch (outcome) {
             case HistoryProver.Outcome.InProgress ignored -> {
                 construction = historyStore.getConstructionOrThrow(constructionId());

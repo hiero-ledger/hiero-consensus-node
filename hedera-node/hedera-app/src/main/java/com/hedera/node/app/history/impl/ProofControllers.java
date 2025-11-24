@@ -12,6 +12,7 @@ import com.hedera.node.app.history.HistoryService;
 import com.hedera.node.app.history.ReadableHistoryStore;
 import com.hedera.node.app.service.roster.impl.ActiveRosters;
 import com.hedera.node.app.spi.info.NodeInfo;
+import com.hedera.node.config.data.TssConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -62,8 +63,8 @@ public class ProofControllers {
      * @param construction the construction
      * @param historyStore the history store
      * @param activeHintsConstruction the active hinTS construction, if any
-     * @param wrapsEnabled whether recursive chain-of-trust proofs are enabled
      * @param activeProofConstruction the active proof construction, if any
+     * @param tssConfig the TSS configuration
      * @return the result of the operation
      */
     public @NonNull ProofController getOrCreateFor(
@@ -71,12 +72,13 @@ public class ProofControllers {
             @NonNull final HistoryProofConstruction construction,
             @NonNull final ReadableHistoryStore historyStore,
             @Nullable final HintsConstruction activeHintsConstruction,
-            final boolean wrapsEnabled,
-            @NonNull final HistoryProofConstruction activeProofConstruction) {
+            @NonNull final HistoryProofConstruction activeProofConstruction,
+            @NonNull final TssConfig tssConfig) {
         requireNonNull(activeRosters);
         requireNonNull(construction);
         requireNonNull(historyStore);
         requireNonNull(activeProofConstruction);
+        requireNonNull(tssConfig);
         if (currentConstructionId() != construction.constructionId()) {
             if (controller != null) {
                 controller.cancelPendingWork();
@@ -87,7 +89,7 @@ public class ProofControllers {
                     historyStore,
                     activeHintsConstruction,
                     activeProofConstruction,
-                    wrapsEnabled);
+                    tssConfig);
         }
         return requireNonNull(controller);
     }
@@ -121,7 +123,7 @@ public class ProofControllers {
      * @param historyStore the history store
      * @param activeHintsConstruction the active hinTS construction, if any
      * @param activeProofConstruction the active proof construction
-     * @param wrapsEnabled whether recursive chain-of-trust proofs are enabled
+     * @param tssConfig the TSS configuration
      * @return the controller
      */
     private ProofController newControllerFor(
@@ -130,7 +132,7 @@ public class ProofControllers {
             @NonNull final ReadableHistoryStore historyStore,
             @Nullable final HintsConstruction activeHintsConstruction,
             @NonNull final HistoryProofConstruction activeProofConstruction,
-            final boolean wrapsEnabled) {
+            @NonNull final TssConfig tssConfig) {
         final var weights = activeRosters.transitionWeights(maybeWeightsFrom(activeHintsConstruction));
         if (!weights.sourceNodesHaveTargetThreshold()) {
             return new InertProofController(construction.constructionId());
@@ -143,14 +145,16 @@ public class ProofControllers {
             final var votes = historyStore.getVotes(construction.constructionId(), weights.sourceNodeIds());
             final var selfId = selfNodeInfoSupplier.get().nodeId();
             final var schnorrKeyPair = keyAccessor.getOrCreateSchnorrKeyPair(construction.constructionId());
-            final var sourceProof = (wrapsEnabled && isWrapsExtensible(activeProofConstruction.targetProof()))
-                    ? activeProofConstruction.targetProofOrThrow()
-                    : null;
+            final var sourceProof =
+                    (tssConfig.wrapsEnabled() && isWrapsExtensible(activeProofConstruction.targetProof()))
+                            ? activeProofConstruction.targetProofOrThrow()
+                            : null;
             // Even if the source proof is not WRAPS-extensible, we want to use the WrapsHistoryProver
             // once _some_ viable proof exists to start bootstrapping the chain of trust from here
-            final HistoryProver.Factory proverFactory = (wrapsEnabled && activeProofConstruction.hasTargetProof())
-                    ? WrapsHistoryProver::new
-                    : ListOfSignaturesHistoryProver::new;
+            final HistoryProver.Factory proverFactory =
+                    (tssConfig.wrapsEnabled() && activeProofConstruction.hasTargetProof())
+                            ? WrapsHistoryProver::new
+                            : ListOfSignaturesHistoryProver::new;
             return new ProofControllerImpl(
                     selfId,
                     schnorrKeyPair,

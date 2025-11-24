@@ -33,16 +33,18 @@ public interface ProofController {
      * Acts relative to the given state to let this node help advance the ongoing metadata proof
      * construction toward a deterministic completion.
      *
-     * @param now                   the current consensus time
-     * @param metadata              the latest known metadata to be proven
-     * @param historyStore          the history store, in case the controller is able to complete the construction
-     * @param isActive              if platform is active
+     * @param now the current consensus time
+     * @param metadata the latest known metadata to be proven
+     * @param historyStore the history store, in case the controller is able to complete the construction
+     * @param isActive if platform is active
+     * @param tssConfig the TSS configuration
      */
     void advanceConstruction(
             @NonNull Instant now,
             @Nullable Bytes metadata,
             @NonNull WritableHistoryStore historyStore,
-            boolean isActive);
+            boolean isActive,
+            @NonNull TssConfig tssConfig);
 
     /**
      * Incorporates the proof key published by the given node, if this construction has not already "locked in"

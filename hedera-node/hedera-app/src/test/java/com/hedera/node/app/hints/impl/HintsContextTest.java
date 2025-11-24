@@ -75,6 +75,7 @@ class HintsContextTest {
                 false,
                 false,
                 false,
+                true,
                 false,
                 2);
     }

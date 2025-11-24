@@ -16,6 +16,7 @@ import com.hedera.node.app.history.HistoryLibrary;
 import com.hedera.node.app.history.ReadableHistoryStore.HistorySignaturePublication;
 import com.hedera.node.app.history.impl.ProofKeysAccessorImpl.SchnorrKeyPair;
 import com.hedera.node.app.service.roster.impl.RosterTransitionWeights;
+import com.hedera.node.config.data.TssConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -116,11 +117,14 @@ public class ListOfSignaturesHistoryProver implements HistoryProver {
             @NonNull final Instant now,
             @NonNull final HistoryProofConstruction construction,
             @NonNull final Bytes targetMetadata,
-            @NonNull final Map<Long, Bytes> targetProofKeys) {
+            @NonNull final Map<Long, Bytes> targetProofKeys,
+            @NonNull final TssConfig tssConfig,
+            Bytes ledgerId) {
         requireNonNull(now);
         requireNonNull(construction);
         requireNonNull(targetMetadata);
         requireNonNull(targetProofKeys);
+        requireNonNull(tssConfig);
         if (!construction.hasAssemblyStartTime()) {
             // Controller called us too early; nothing to do without an assembled history extension
             return Outcome.InProgress.INSTANCE;

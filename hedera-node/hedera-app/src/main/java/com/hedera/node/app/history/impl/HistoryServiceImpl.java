@@ -81,7 +81,6 @@ public class HistoryServiceImpl implements HistoryService {
         requireNonNull(tssConfig);
         switch (activeRosters.phase()) {
             case BOOTSTRAP, TRANSITION -> {
-                final boolean wrapsEnabled = tssConfig.wrapsEnabled();
                 final var construction = historyStore.getOrCreateConstruction(activeRosters, now, tssConfig);
                 if (!construction.hasTargetProof()) {
                     final var controller = component
@@ -91,9 +90,9 @@ public class HistoryServiceImpl implements HistoryService {
                                     construction,
                                     historyStore,
                                     activeHintsConstruction,
-                                    wrapsEnabled,
-                                    historyStore.getActiveConstruction());
-                    controller.advanceConstruction(now, metadata, historyStore, isActive);
+                                    historyStore.getActiveConstruction(),
+                                    tssConfig);
+                    controller.advanceConstruction(now, metadata, historyStore, isActive, tssConfig);
                 }
             }
             case HANDOFF -> {

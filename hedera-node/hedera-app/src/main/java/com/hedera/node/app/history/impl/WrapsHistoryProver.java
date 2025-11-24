@@ -11,6 +11,7 @@ import static com.hedera.node.app.service.roster.impl.RosterTransitionWeights.mo
 import static java.util.Collections.emptySortedMap;
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.cryptography.wraps.Proof;
 import com.hedera.hapi.block.stream.ChainOfTrustProof;
 import com.hedera.hapi.node.state.history.History;
 import com.hedera.hapi.node.state.history.HistoryProof;
@@ -50,7 +51,7 @@ public class WrapsHistoryProver implements HistoryProver {
 
     private final long selfId;
     private final SchnorrKeyPair schnorrKeyPair;
-    private final Map<Long, Bytes> sourcePublicKeys;
+    private final Map<Long, Bytes> sourceProofKeys;
     private final RosterTransitionWeights weights;
     private final Executor executor;
     private final HistoryLibrary historyLibrary;
@@ -63,6 +64,12 @@ public class WrapsHistoryProver implements HistoryProver {
      */
     @Nullable
     private byte[] wrapsMessage;
+
+    /**
+     * If not null, the target address book being added to the chain of trust.
+     */
+    @Nullable
+    private AddressBook targetAddressBook;
 
     /**
      * If not null, the WRAPS message being signed for the current construction.
@@ -123,7 +130,7 @@ public class WrapsHistoryProver implements HistoryProver {
         this.selfId = selfId;
         this.schnorrKeyPair = requireNonNull(schnorrKeyPair);
         this.weights = requireNonNull(weights);
-        this.sourcePublicKeys = requireNonNull(sourceProofKeys);
+        this.sourceProofKeys = requireNonNull(sourceProofKeys);
         this.executor = requireNonNull(executor);
         this.historyLibrary = requireNonNull(historyLibrary);
         this.submissions = requireNonNull(submissions);
@@ -135,11 +142,17 @@ public class WrapsHistoryProver implements HistoryProver {
             @NonNull final Instant now,
             @NonNull final HistoryProofConstruction construction,
             @NonNull final Bytes targetMetadata,
-            @NonNull final Map<Long, Bytes> targetProofKeys) {
+            @NonNull final Map<Long, Bytes> targetProofKeys,
+            @NonNull final TssConfig tssConfig,
+            @Nullable final Bytes ledgerId) {
         requireNonNull(now);
         requireNonNull(construction);
         requireNonNull(targetMetadata);
         requireNonNull(targetProofKeys);
+        requireNonNull(tssConfig);
+        if (ledgerId == null) {
+            return new Outcome.Failed("WRAPS proof requires ledger id");
+        }
         final var state = construction.wrapsSigningStateOrElse(WrapsSigningState.DEFAULT);
         if (state.phase() != AGGREGATE
                 && state.hasGracePeriodEndTime()
@@ -152,14 +165,14 @@ public class WrapsHistoryProver implements HistoryProver {
                     + " after end of grace period for phase " + state.phase());
         } else {
             if (wrapsMessage == null) {
-                final var targetAddressBook = AddressBook.from(weights.targetNodeWeights(), nodeId -> targetProofKeys
+                targetAddressBook = AddressBook.from(weights.targetNodeWeights(), nodeId -> targetProofKeys
                         .getOrDefault(nodeId, EMPTY_PUBLIC_KEY)
                         .toByteArray());
                 wrapsMessage = historyLibrary.computeWrapsMessage(targetAddressBook, targetMetadata.toByteArray());
                 targetAddressBookHash = historyLibrary.hashAddressBook(targetAddressBook);
             }
             ensureProtocolOutputPublished(
-                    construction.constructionId(), state.phase(), targetMetadata, targetProofKeys);
+                    construction.constructionId(), state.phase(), targetMetadata, targetProofKeys, tssConfig, ledgerId);
         }
         return Outcome.InProgress.INSTANCE;
     }
@@ -288,19 +301,19 @@ public class WrapsHistoryProver implements HistoryProver {
             final long constructionId,
             @NonNull final WrapsPhase phase,
             @NonNull final Bytes targetMetadata,
-            @NonNull final Map<Long, Bytes> targetProofKeys) {
-        requireNonNull(phase);
-        requireNonNull(targetMetadata);
-        requireNonNull(targetProofKeys);
+            @NonNull final Map<Long, Bytes> targetProofKeys,
+            @NonNull final TssConfig tssConfig,
+            @NonNull final Bytes ledgerId) {
         log.info("ensureProtocolOutputPublished({}, {})", constructionId, phase);
         if (futureOf(phase) == null
                 && (phase == AGGREGATE
                         || !phaseMessages.getOrDefault(phase, emptySortedMap()).containsKey(selfId))) {
             log.info("Publishing {} protocol output for WRAPS on construction #{}", phase, constructionId);
+            final var book = requireNonNull(targetAddressBook);
             final var bookHash = requireNonNull(targetAddressBookHash);
             final var proofKeyList = proofKeyListFrom(targetProofKeys);
             consumerOf(phase)
-                    .accept(outputFuture(phase)
+                    .accept(outputFuture(phase, tssConfig, ledgerId, book, targetMetadata)
                             .thenAcceptAsync(
                                     output -> {
                                         if (output == null) {
@@ -355,7 +368,12 @@ public class WrapsHistoryProver implements HistoryProver {
         }
     }
 
-    private CompletableFuture<WrapsPhaseOutput> outputFuture(@NonNull final WrapsPhase phase) {
+    private CompletableFuture<WrapsPhaseOutput> outputFuture(
+            @NonNull final WrapsPhase phase,
+            @NonNull final TssConfig tssConfig,
+            @NonNull final Bytes ledgerId,
+            @NonNull final AddressBook targetBook,
+            @NonNull final Bytes targetMetadata) {
         final var message = requireNonNull(wrapsMessage);
         return CompletableFuture.supplyAsync(
                 () -> switch (phase) {
@@ -401,8 +419,33 @@ public class WrapsHistoryProver implements HistoryProver {
                                     rawMessagesFor(R2),
                                     rawMessagesFor(R3),
                                     publicKeysForR1());
-                            // TODO - block on the long-running proof using this signature, yield that instead
-                            yield new ProofPhaseOutput(signature, signature);
+                            if (tssConfig.mockWrapsProof()) {
+                                yield new ProofPhaseOutput(signature, signature);
+                            } else {
+                                Proof proof;
+                                if (true) {
+                                    proof = historyLibrary.constructGenesisWrapsProof(
+                                            ledgerId.toByteArray(),
+                                            signature,
+                                            phaseMessages.get(R1).keySet(),
+                                            targetBook);
+                                } else {
+                                    final var sourceBook =
+                                            AddressBook.from(weights.sourceNodeWeights(), nodeId -> sourceProofKeys
+                                                    .getOrDefault(nodeId, EMPTY_PUBLIC_KEY)
+                                                    .toByteArray());
+                                    proof = historyLibrary.constructIncrementalWrapsProof(
+                                            ledgerId.toByteArray(),
+                                            // TODO
+                                            new byte[0],
+                                            sourceBook,
+                                            targetAddressBook,
+                                            targetMetadata.toByteArray(),
+                                            signature,
+                                            phaseMessages.get(R1).keySet());
+                                }
+                                yield new ProofPhaseOutput(proof.compressed(), proof.uncompressed());
+                            }
                         }
                         yield null;
                     }
@@ -412,7 +455,7 @@ public class WrapsHistoryProver implements HistoryProver {
 
     private byte[][] publicKeysForR1() {
         return phaseMessages.get(R1).keySet().stream()
-                .map(nodeId -> sourcePublicKeys.get(nodeId).toByteArray())
+                .map(nodeId -> sourceProofKeys.get(nodeId).toByteArray())
                 .toArray(byte[][]::new);
     }
 

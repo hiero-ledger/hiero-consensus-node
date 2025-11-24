@@ -15,6 +15,7 @@ import com.hedera.node.app.service.roster.impl.RosterTransitionWeights;
 import com.hedera.node.config.data.TssConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.Comparator;
 import java.util.List;
@@ -92,6 +93,8 @@ public interface HistoryProver {
      * @param construction current construction state
      * @param targetMetadata metadata to attach to the target roster
      * @param targetProofKeys current snapshot of nodeId -> Schnorr proof key for the target roster
+     * @param tssConfig the TSS configuration
+     * @param ledgerId the ledger id, if known
      * @return the current outcome of proof construction
      */
     @NonNull
@@ -99,7 +102,9 @@ public interface HistoryProver {
             @NonNull Instant now,
             @NonNull HistoryProofConstruction construction,
             @NonNull Bytes targetMetadata,
-            @NonNull Map<Long, Bytes> targetProofKeys);
+            @NonNull Map<Long, Bytes> targetProofKeys,
+            @NonNull TssConfig tssConfig,
+            @Nullable Bytes ledgerId);
 
     /**
      * Cancel any in-flight asynchronous work started by this prover.
