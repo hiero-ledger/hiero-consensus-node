@@ -105,7 +105,7 @@ public interface WritableHistoryStore extends ReadableHistoryStore {
      * @param constructionId the construction ID
      * @param spec the specification
      */
-    WrapsSigningState updateWrapsSigningState(long constructionId, @NonNull Consumer<WrapsSigningState.Builder> spec);
+    void updateWrapsSigningState(long constructionId, @NonNull Consumer<WrapsSigningState.Builder> spec);
 
     /**
      * Advances the WRAPS signing phase to the given phase and grace period end time.

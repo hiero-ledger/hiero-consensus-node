@@ -21,7 +21,6 @@ import static com.hedera.node.app.hapi.utils.blocks.BlockStreamUtils.stateNameOf
 import static com.hedera.node.app.hints.HintsService.maybeWeightsFrom;
 import static com.hedera.node.app.history.HistoryLibrary.EMPTY_PUBLIC_KEY;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
-import static com.hedera.node.app.service.roster.impl.RosterTransitionWeights.atLeastOneThirdOfTotal;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.APPLICATION_PROPERTIES;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.DATA_CONFIG_DIR;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.SAVED_STATES_DIR;
@@ -35,7 +34,6 @@ import static com.swirlds.platform.system.InitTrigger.GENESIS;
 import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.toMap;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.hapi.block.stream.Block;
@@ -712,8 +710,9 @@ public class StateChangesValidator implements BlockStreamValidator {
                     case UNSET ->
                         Assertions.fail("Empty chain-of-trust for hinTS key in proof (start round #" + firstRound
                                 + ") - " + proof);
-                    case NODE_SIGNATURES -> Assertions.fail("Unsupported chain-of-trust for hinTS key in proof (start round #" + firstRound
-                            + ") - " + proof);
+                    case NODE_SIGNATURES ->
+                        Assertions.fail("Unsupported chain-of-trust for hinTS key in proof (start round #" + firstRound
+                                + ") - " + proof);
                     case AGGREGATED_NODE_SIGNATURES -> {
                         final var context = vkContexts.get(vk);
                         final var wrapsMessage = context.wrapsMessageGiven(historyLibrary, vk);
@@ -741,7 +740,9 @@ public class StateChangesValidator implements BlockStreamValidator {
         } else {
             final var expectedSignature = Bytes.wrap(noThrowSha384HashOf(provenHash.toByteArray()));
             assertEquals(
-                    expectedSignature, proof.signedBlockProofOrThrow().blockSignature(), "Signature mismatch for " + proof);
+                    expectedSignature,
+                    proof.signedBlockProofOrThrow().blockSignature(),
+                    "Signature mismatch for " + proof);
         }
     }
 

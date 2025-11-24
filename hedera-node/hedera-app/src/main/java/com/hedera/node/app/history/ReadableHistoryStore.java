@@ -2,11 +2,13 @@
 package com.hedera.node.app.history;
 
 import static com.hedera.hapi.util.HapiUtils.asInstant;
+import static com.hedera.hapi.util.HapiUtils.asTimestamp;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.state.history.HistoryProofConstruction;
 import com.hedera.hapi.node.state.history.HistoryProofVote;
 import com.hedera.hapi.node.state.history.HistorySignature;
+import com.hedera.hapi.node.state.history.WrapsMessageDetails;
 import com.hedera.hapi.node.state.history.WrapsMessageHistory;
 import com.hedera.hapi.node.state.history.WrapsPhase;
 import com.hedera.node.app.service.roster.impl.ActiveRosters;
@@ -63,6 +65,13 @@ public interface ReadableHistoryStore {
                     .map(details -> new WrapsMessagePublication(
                             nodeId, details.message(), details.phase(), asInstant(details.publicationTimeOrThrow())))
                     .toList();
+        }
+
+        /**
+         * Returns this publication as a {@link WrapsMessageDetails}.
+         */
+        public WrapsMessageDetails asWrapsMessageDetails() {
+            return new WrapsMessageDetails(asTimestamp(receiptTime), phase, message);
         }
     }
 

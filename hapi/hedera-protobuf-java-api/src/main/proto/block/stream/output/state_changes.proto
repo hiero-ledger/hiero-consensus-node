@@ -1089,6 +1089,11 @@ message MapChangeValue {
          * A node identifier.
          */
         com.hedera.hapi.platform.state.NodeId node_id_value = 30;
+
+        /**
+         * A WRAPS message history.
+         */
+        com.hedera.hapi.node.state.history.WrapsMessageHistory wraps_message_history_value = 31;
     }
 }
 

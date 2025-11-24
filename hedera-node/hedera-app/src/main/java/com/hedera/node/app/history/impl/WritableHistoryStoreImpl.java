@@ -38,10 +38,12 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -50,7 +52,7 @@ import org.apache.logging.log4j.Logger;
  */
 public class WritableHistoryStoreImpl extends ReadableHistoryStoreImpl implements WritableHistoryStore {
 
-    private static final Logger logger = LogManager.getLogger(WritableHistoryStoreImpl.class);
+    private static final Logger log = LogManager.getLogger(WritableHistoryStoreImpl.class);
 
     private final WritableSingletonState<ProtoBytes> ledgerId;
     private final WritableSingletonState<HistoryProofConstruction> nextConstruction;
@@ -147,20 +149,28 @@ public class WritableHistoryStoreImpl extends ReadableHistoryStoreImpl implement
     @Override
     public void addWrapsMessage(final long constructionId, @NonNull final WrapsMessagePublication publication) {
         requireNonNull(publication);
-        throw new AssertionError("Not implemented");
+        final var key = new ConstructionNodeId(constructionId, publication.nodeId());
+        final var history = wrapsMessageHistories.get(key);
+        if (history == null) {
+            wrapsMessageHistories.put(key, new WrapsMessageHistory(List.of(publication.asWrapsMessageDetails())));
+        } else {
+            wrapsMessageHistories.put(
+                    key,
+                    new WrapsMessageHistory(
+                            Stream.concat(history.messages().stream(), Stream.of(publication.asWrapsMessageDetails()))
+                                    .toList()));
+        }
     }
 
     @Override
-    public WrapsSigningState updateWrapsSigningState(
+    public void updateWrapsSigningState(
             final long constructionId, @NonNull final Consumer<WrapsSigningState.Builder> spec) {
         requireNonNull(spec);
-        return updateOrThrow(constructionId, (c, b) -> {
-                    final var sb =
-                            c.wrapsSigningStateOrElse(WrapsSigningState.DEFAULT).copyBuilder();
-                    spec.accept(sb);
-                    return b.wrapsSigningState(sb.build());
-                })
-                .wrapsSigningStateOrThrow();
+        updateOrThrow(constructionId, (c, b) -> {
+            final var sb = c.wrapsSigningStateOrElse(WrapsSigningState.DEFAULT).copyBuilder();
+            spec.accept(sb);
+            return b.wrapsSigningState(sb.build());
+        });
     }
 
     @Override
@@ -227,10 +237,20 @@ public class WritableHistoryStoreImpl extends ReadableHistoryStoreImpl implement
             activeConstruction.put(
                     construction =
                             spec.apply(construction, construction.copyBuilder()).build());
+            log.info(
+                    "Updated active construction #{} to {} (next was {})",
+                    constructionId,
+                    construction,
+                    nextConstruction.get());
         } else if (requireNonNull(construction = nextConstruction.get()).constructionId() == constructionId) {
             nextConstruction.put(
                     construction =
                             spec.apply(construction, construction.copyBuilder()).build());
+            log.info(
+                    "Updated next construction #{} to {} (active was {})",
+                    constructionId,
+                    construction,
+                    activeConstruction.get());
         } else {
             throw new IllegalArgumentException("No construction with id " + constructionId);
         }
@@ -299,7 +319,7 @@ public class WritableHistoryStoreImpl extends ReadableHistoryStoreImpl implement
             @NonNull final InSlot slot,
             @NonNull final Bytes sourceRosterHash,
             @NonNull final Bytes targetRosterHash) {
-        logger.info(
+        log.info(
                 "Created {} construction #{} for rosters (source={}, target={}) {} source proof",
                 slot,
                 construction.constructionId(),
@@ -318,6 +338,7 @@ public class WritableHistoryStoreImpl extends ReadableHistoryStoreImpl implement
             final var key = new ConstructionNodeId(constructionId, entry.nodeId());
             votes.remove(key);
             signatures.remove(key);
+            wrapsMessageHistories.remove(key);
         });
     }
 

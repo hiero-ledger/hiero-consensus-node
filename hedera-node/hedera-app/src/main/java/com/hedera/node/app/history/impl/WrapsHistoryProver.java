@@ -161,8 +161,8 @@ public class WrapsHistoryProver implements HistoryProver {
         requireNonNull(targetMetadata);
         requireNonNull(targetProofKeys);
         requireNonNull(tssConfig);
-        if (ledgerId == null) {
-            return new Outcome.Failed("WRAPS proof requires ledger id");
+        if (ledgerId == null && sourceProof != null) {
+            return new Outcome.Failed("Only genesis WRAPS proofs are allowed to not have a ledger id");
         }
         final var state = construction.wrapsSigningStateOrElse(WrapsSigningState.DEFAULT);
         if (state.phase() != AGGREGATE
@@ -314,7 +314,7 @@ public class WrapsHistoryProver implements HistoryProver {
             @NonNull final Bytes targetMetadata,
             @NonNull final Map<Long, Bytes> targetProofKeys,
             @NonNull final TssConfig tssConfig,
-            @NonNull final Bytes ledgerId) {
+            @Nullable final Bytes ledgerId) {
         if (futureOf(phase) == null
                 && (phase == AGGREGATE
                         || !phaseMessages.getOrDefault(phase, emptySortedMap()).containsKey(selfId))) {
@@ -327,6 +327,7 @@ public class WrapsHistoryProver implements HistoryProver {
                             .thenAcceptAsync(
                                     output -> {
                                         if (output == null) {
+                                            log.info("Got null output for {} phase, so skipping publication", phase);
                                             return;
                                         }
                                         switch (output) {
@@ -407,7 +408,7 @@ public class WrapsHistoryProver implements HistoryProver {
     private CompletableFuture<WrapsPhaseOutput> outputFuture(
             @NonNull final WrapsPhase phase,
             @NonNull final TssConfig tssConfig,
-            @NonNull final Bytes ledgerId,
+            @Nullable final Bytes ledgerId,
             @NonNull final AddressBook targetBook,
             @NonNull final Bytes targetMetadata) {
         final var message = requireNonNull(wrapsMessage);
@@ -464,7 +465,7 @@ public class WrapsHistoryProver implements HistoryProver {
                                 Proof proof;
                                 if (!isWrapsExtensible(sourceProof)) {
                                     proof = historyLibrary.constructGenesisWrapsProof(
-                                            ledgerId.toByteArray(),
+                                            requireNonNull(ledgerId).toByteArray(),
                                             signature,
                                             phaseMessages.get(R1).keySet(),
                                             targetBook);
@@ -480,7 +481,7 @@ public class WrapsHistoryProver implements HistoryProver {
                                         .getOrDefault(nodeId, EMPTY_PUBLIC_KEY)
                                         .toByteArray());
                                 proof = historyLibrary.constructIncrementalWrapsProof(
-                                        ledgerId.toByteArray(),
+                                        requireNonNull(ledgerId).toByteArray(),
                                         proof.uncompressed(),
                                         sourceBook,
                                         targetBook,
