@@ -304,14 +304,15 @@ public class WrapsHistoryProver implements HistoryProver {
                             .thenAcceptAsync(
                                     output -> {
                                         if (output == null) {
-                                            log.warn("Got null output for WRAPS {} phase, abortingit .", phase);
                                             return;
                                         }
                                         switch (output) {
                                             case MessagePhaseOutput messageOutput -> {
                                                 submissions
                                                         .submitWrapsSigningMessage(
-                                                                phase, Bytes.wrap(messageOutput.message()))
+                                                                phase,
+                                                                Bytes.wrap(messageOutput.message()),
+                                                                constructionId)
                                                         .join();
                                                 log.info(
                                                         "Published {} message for WRAPS signature on construction #{}",
@@ -332,7 +333,8 @@ public class WrapsHistoryProver implements HistoryProver {
                                                                                         .wrapsProof(Bytes.wrap(
                                                                                                 proofOutput
                                                                                                         .compressed())))
-                                                                        .uncompressedWrapsProof(Bytes.wrap(proofOutput.uncompressed()))
+                                                                        .uncompressedWrapsProof(
+                                                                                Bytes.wrap(proofOutput.uncompressed()))
                                                                         .build())
                                                         .join();
                                                 log.info(
@@ -369,7 +371,7 @@ public class WrapsHistoryProver implements HistoryProver {
                         yield null;
                     }
                     case R2 -> {
-                        if (entropy != null) {
+                        if (entropy != null && phaseMessages.get(R1).containsKey(selfId)) {
                             yield new MessagePhaseOutput(historyLibrary.runWrapsPhaseR2(
                                     entropy,
                                     message,
@@ -380,7 +382,7 @@ public class WrapsHistoryProver implements HistoryProver {
                         yield null;
                     }
                     case R3 -> {
-                        if (entropy != null) {
+                        if (entropy != null && phaseMessages.get(R1).containsKey(selfId)) {
                             yield new MessagePhaseOutput(historyLibrary.runWrapsPhaseR3(
                                     entropy,
                                     message,

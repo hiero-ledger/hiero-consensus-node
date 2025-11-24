@@ -41,8 +41,13 @@ message HistoryProofKeyPublicationTransactionBody {
   }
 
   /**
+   * The id of the proof construction this publication is for.
+   */
+  uint64 construction_id = 3;
+
+  /**
    * The phase of the proof construction this key is being
    * published for.
    */
-  com.hedera.hapi.node.state.history.WrapsPhase phase = 3;
+  com.hedera.hapi.node.state.history.WrapsPhase phase = 4;
 }

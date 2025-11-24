@@ -136,6 +136,15 @@ public class HistoryLibraryImpl implements HistoryLibrary {
     }
 
     @Override
+    public boolean verifyAggregateSignature(
+            @NonNull final byte[] message, @NonNull final byte[][] publicKeys, @NonNull final byte[] signature) {
+        requireNonNull(message);
+        requireNonNull(publicKeys);
+        requireNonNull(signature);
+        return WRAPS.verifySignature(publicKeys, message, signature);
+    }
+
+    @Override
     public Proof constructGenesisWrapsProof(
             @NonNull final byte[] genesisAddressBookHash,
             @NonNull final byte[] aggregatedSignature,

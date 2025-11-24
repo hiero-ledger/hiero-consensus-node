@@ -188,7 +188,7 @@ public class ProofControllerImpl implements ProofController {
     }
 
     @Override
-    public void addWrapsMessagePublication(
+    public boolean addWrapsMessagePublication(
             @NonNull final WrapsMessagePublication publication,
             @NonNull final WritableHistoryStore writableHistoryStore,
             @NonNull final TssConfig tssConfig) {
@@ -196,9 +196,10 @@ public class ProofControllerImpl implements ProofController {
         requireNonNull(writableHistoryStore);
         requireNonNull(tssConfig);
         if (construction.hasTargetProof()) {
-            return;
+            return false;
         }
-        requireNonNull(prover).addWrapsSigningMessage(constructionId(), publication, writableHistoryStore, tssConfig);
+        return requireNonNull(prover)
+                .addWrapsSigningMessage(constructionId(), publication, writableHistoryStore, tssConfig);
     }
 
     @Override

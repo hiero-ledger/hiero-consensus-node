@@ -59,7 +59,7 @@ public interface ProofController {
      * @param writableHistoryStore the writable history store
      * @param tssConfig the TSS configuration
      */
-    void addWrapsMessagePublication(
+    boolean addWrapsMessagePublication(
             @NonNull WrapsMessagePublication publication,
             @NonNull WritableHistoryStore writableHistoryStore,
             @NonNull TssConfig tssConfig);

@@ -474,9 +474,14 @@ enum StateIdentifier {
     STATE_ID_LAMBDA_STORAGE = 52;
 
     /**
-     * A state identifier fro account to node relation.
+     * A state identifier for account to node relation.
      */
     STATE_ID_ACCOUNT_NODE_REL = 53;
+
+    /**
+     * A state identifier for WRAPS message histories.
+     */
+    STATE_ID_WRAPS_MESSAGE_HISTORIES = 54;
 
     /**
      * A state identifier for the round receipts queue. Queue state.

@@ -63,14 +63,14 @@ public class InertProofController implements ProofController {
     }
 
     @Override
-    public void addWrapsMessagePublication(
+    public boolean addWrapsMessagePublication(
             @NonNull final WrapsMessagePublication publication,
             @NonNull final WritableHistoryStore writableHistoryStore,
             @NonNull final TssConfig tssConfig) {
         requireNonNull(publication);
         requireNonNull(writableHistoryStore);
         requireNonNull(tssConfig);
-        // No-op
+        return false;
     }
 
     @Override

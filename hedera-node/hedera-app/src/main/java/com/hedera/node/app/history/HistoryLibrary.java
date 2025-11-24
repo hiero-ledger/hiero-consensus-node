@@ -217,6 +217,15 @@ public interface HistoryLibrary {
             @NonNull byte[][] publicKeys);
 
     /**
+     * Verifies an aggregated signature.
+     * @param message the message
+     * @param publicKeys the participating signers' public keys, in the same order as the R* messages
+     * @param signature the aggregated signature
+     * @return true if the signature is valid; false otherwise
+     */
+    boolean verifyAggregateSignature(@NonNull byte[] message, @NonNull byte[][] publicKeys, @NonNull byte[] signature);
+
+    /**
      * Constructs a genesis WRAPS proof.
      *
      * @param genesisAddressBookHash the genesis address book hash
