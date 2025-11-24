@@ -90,11 +90,11 @@ public interface WritableHistoryStore extends ReadableHistoryStore {
     /**
      * Hands off from the active construction to the next construction if appropriate.
      * @param fromRoster the roster to hand off from
-     * @param toRoster the roster to hand off to
+     * @param toRoster if applicable, the roster to hand off to
      * @param toRosterHash if applicable, the hash of the roster to hand off to
      * @return whether the handoff happened
      */
-    boolean handoff(@NonNull Roster fromRoster, @NonNull Roster toRoster, @Nullable Bytes toRosterHash);
+    boolean handoff(@NonNull Roster fromRoster, @Nullable Roster toRoster, @Nullable Bytes toRosterHash);
 
     /**
      * Updates the WRAPS signing state with the given specification.

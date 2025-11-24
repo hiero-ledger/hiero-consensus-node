@@ -937,25 +937,30 @@ public class HandleWorkflow {
                         logger.info("Set ledger id to '{}'", ledgerId);
                         return;
                     }
-                    if (rosterStore.candidateIsWeightRotation()) {
-                        final boolean isWrapsGenesis =
-                                tssConfig.wrapsEnabled() && !isWrapsExtensible(activeConstruction.targetProof());
+                    // WRAPS genesis is the first proof that bootstraps the chain of trust; but it takes a long time
+                    // to finish, so we make do right after network genesis with a list-of-signatures block proof
+                    final boolean isWrapsGenesis =
+                            tssConfig.wrapsEnabled() && !isWrapsExtensible(activeConstruction.targetProof());
+                    if (isWrapsGenesis || rosterStore.candidateIsWeightRotation()) {
                         historyStore.handoff(
                                 requireNonNull(rosterStore.getActiveRoster()),
-                                requireNonNull(rosterStore.getCandidateRoster()),
+                                rosterStore.getCandidateRoster(),
                                 isWrapsGenesis ? null : requireNonNull(rosterStore.getCandidateRosterHash()));
                         // Make sure we include the latest chain-of-trust proof in following block proofs
                         historyService.setLatestHistoryProof(construction.targetProofOrThrow());
-                        final var writableHintsStates = state.getWritableStates(HintsService.NAME);
-                        final var writableEntityStates = state.getWritableStates(EntityIdService.NAME);
-                        final var entityCounters = new WritableEntityIdStoreImpl(writableEntityStates);
-                        final var hintsStore = new WritableHintsStoreImpl(writableHintsStates, entityCounters);
-                        hintsService.handoff(
-                                hintsStore,
-                                requireNonNull(rosterStore.getActiveRoster()),
-                                requireNonNull(rosterStore.getCandidateRoster()),
-                                requireNonNull(rosterStore.getCandidateRosterHash()),
-                                tssConfig.forceHandoffs());
+                        // Finishing WRAPS genesis has no actual implications for hinTS
+                        if (!isWrapsGenesis) {
+                            final var writableHintsStates = state.getWritableStates(HintsService.NAME);
+                            final var writableEntityStates = state.getWritableStates(EntityIdService.NAME);
+                            final var entityCounters = new WritableEntityIdStoreImpl(writableEntityStates);
+                            final var hintsStore = new WritableHintsStoreImpl(writableHintsStates, entityCounters);
+                            hintsService.handoff(
+                                    hintsStore,
+                                    requireNonNull(rosterStore.getActiveRoster()),
+                                    requireNonNull(rosterStore.getCandidateRoster()),
+                                    requireNonNull(rosterStore.getCandidateRosterHash()),
+                                    tssConfig.forceHandoffs());
+                        }
                     }
                 });
             }

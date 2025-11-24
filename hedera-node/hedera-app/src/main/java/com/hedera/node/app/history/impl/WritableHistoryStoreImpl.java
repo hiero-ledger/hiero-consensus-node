@@ -172,13 +172,13 @@ public class WritableHistoryStoreImpl extends ReadableHistoryStoreImpl implement
 
     @Override
     public boolean handoff(
-            @NonNull final Roster fromRoster, @NonNull final Roster toRoster, @Nullable final Bytes toRosterHash) {
+            @NonNull final Roster fromRoster, @Nullable final Roster toRoster, @Nullable final Bytes toRosterHash) {
         if (toRosterHash == null
                 || requireNonNull(nextConstruction.get()).targetRosterHash().equals(toRosterHash)) {
             // The next construction is becoming the active one; so purge obsolete votes now
             final var upcomingConstruction = requireNonNull(activeConstruction.get());
             purgeVotesAndSignatures(upcomingConstruction.constructionId(), fromRoster);
-            if (fromRoster != toRoster && !isWeightRotation(fromRoster, toRoster)) {
+            if (toRoster != null && fromRoster != toRoster && !isWeightRotation(fromRoster, toRoster)) {
                 final var survivingNodeIds = toRoster.rosterEntries().stream()
                         .map(RosterEntry::nodeId)
                         .collect(Collectors.toSet());
