@@ -2,6 +2,7 @@
 package org.hiero.metrics.internal;
 
 import com.sun.management.UnixOperatingSystemMXBean;
+import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.lang.management.BufferPoolMXBean;
@@ -22,7 +23,7 @@ public final class JvmMetricsRegistration implements MetricsRegistrationProvider
 
     @NonNull
     @Override
-    public Collection<Metric.Builder<?, ?>> getMetricsToRegister() {
+    public Collection<Metric.Builder<?, ?>> getMetricsToRegister(@NonNull Configuration configuration) {
         Collection<Metric.Builder<?, ?>> builders = new ArrayList<>();
 
         final OperatingSystemMXBean osBean = ManagementFactory.getOperatingSystemMXBean();
