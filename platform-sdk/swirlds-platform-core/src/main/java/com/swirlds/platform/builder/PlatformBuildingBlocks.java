@@ -16,7 +16,6 @@ import com.swirlds.platform.reconnect.FallenBehindMonitor;
 import com.swirlds.platform.scratchpad.Scratchpad;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.state.iss.IssScratchpad;
-import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.system.status.StatusActionSubmitter;
 import com.swirlds.platform.wiring.PlatformComponents;
@@ -79,7 +78,6 @@ import org.hiero.consensus.roster.RosterHistory;
  *                                               made compatible with the wiring framework
  * @param firstPlatform                          if this is the first platform being built (there is static setup that
  *                                               needs to be done, long term plan is to stop using static variables)
- * @param platformStateFacade                    the facade to access the platform state
  * @param execution                              the instance of the execution layer, which allows consensus to interact
  *                                               with the execution layer
  * @param createStateFromVirtualMap              a function to instantiate the state object from a Virtual Map
@@ -114,7 +112,6 @@ public record PlatformBuildingBlocks(
         @NonNull AtomicReference<Supplier<ReservedSignedState>> getLatestCompleteStateReference,
         boolean firstPlatform,
         @NonNull ConsensusStateEventHandler consensusStateEventHandler,
-        @NonNull PlatformStateFacade platformStateFacade,
         @NonNull ExecutionLayer execution,
         @NonNull Function<VirtualMap, MerkleNodeState> createStateFromVirtualMap,
         @NonNull FallenBehindMonitor fallenBehindMonitor,
@@ -143,7 +140,6 @@ public record PlatformBuildingBlocks(
         requireNonNull(stateLifecycleManager);
         requireNonNull(getLatestCompleteStateReference);
         requireNonNull(consensusStateEventHandler);
-        requireNonNull(platformStateFacade);
         requireNonNull(execution);
         requireNonNull(createStateFromVirtualMap);
         requireNonNull(fallenBehindMonitor);

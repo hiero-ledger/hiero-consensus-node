@@ -30,7 +30,8 @@
     { "name":  "CUSTOM_FEE",                     "fee": 0 },
     { "name":  "GAS",                            "fee": 1 },
     { "name":  "ALLOWANCES",                     "fee": 2000 },
-    { "name":  "AIRDROPS",                       "fee": 8800 }
+    { "name":  "AIRDROPS",                       "fee": 8800 },
+    { "name":  "HOOKS",                          "fee": 10000000000 }
   ],
   "services": [
     {
@@ -40,14 +41,16 @@
           "name": "CryptoCreate",
           "baseFee": 499000000,
           "extras": [
-            { "name": "KEYS", "includedCount": 1 }
+            { "name": "KEYS", "includedCount": 1 },
+            { "name": "HOOKS", "includedCount": 0 }
           ]
         },
         {
           "name": "CryptoUpdate",
-          "baseFee": 22,
+          "baseFee": 1200000,
           "extras": [
-            {  "name": "KEYS",       "includedCount": 1 }
+            { "name": "KEYS", "includedCount": 1 },
+            { "name": "HOOKS", "includedCount": 0 }
           ]
         },
         {
@@ -76,28 +79,28 @@
       "schedule": [
         {
           "name": "ConsensusCreateTopic",
-          "baseFee": 99700000,
+          "baseFee": 99000000,
           "extras": [
             { "name": "KEYS", "includedCount": 0 }
           ]
         },
         {
           "name": "ConsensusUpdateTopic",
-          "baseFee": 3240000,
+          "baseFee": 1200000,
           "extras": [
             { "name": "KEYS",       "includedCount": 1 }
           ]
         },
         {
           "name": "ConsensusSubmitMessage",
-          "baseFee": 700000,
+          "baseFee": 0,
           "extras": [
-            { "name": "BYTES",      "includedCount": 256 }
+            { "name": "BYTES",      "includedCount": 100 }
           ]
         },
         {
           "name": "ConsensusDeleteTopic",
-          "baseFee": 21700000,
+          "baseFee": 49000000,
           "extras": [
           ]
         },

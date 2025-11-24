@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures.state;
 
+import static com.swirlds.platform.state.service.PlatformStateUtils.bulkUpdateOf;
 import static com.swirlds.platform.test.fixtures.config.ConfigUtils.CONFIGURATION;
 import static com.swirlds.platform.test.fixtures.state.manager.SignatureVerificationTestUtils.buildFakeSignature;
+import static com.swirlds.state.test.fixtures.merkle.VirtualMapStateTestUtils.createTestStateWithLabel;
 import static org.hiero.base.crypto.test.fixtures.CryptoRandomUtils.randomHash;
 import static org.hiero.base.crypto.test.fixtures.CryptoRandomUtils.randomHashBytes;
 import static org.hiero.base.crypto.test.fixtures.CryptoRandomUtils.randomSignature;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
-import static org.mockito.Mockito.spy;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
@@ -15,7 +16,6 @@ import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.hedera.hapi.platform.state.JudgeId;
 import com.hedera.hapi.platform.state.MinimumJudgeInfo;
-import com.swirlds.base.utility.Pair;
 import com.swirlds.common.Reservable;
 import com.swirlds.common.test.fixtures.WeightGenerators;
 import com.swirlds.config.api.Configuration;
@@ -27,7 +27,6 @@ import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import com.swirlds.platform.test.fixtures.state.manager.SignatureVerificationTestUtils;
 import com.swirlds.state.MerkleNodeState;
-import com.swirlds.state.test.fixtures.merkle.TestVirtualMapState;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.lang.reflect.Field;
@@ -112,16 +111,6 @@ public class RandomSignedStateGenerator {
      * @return a new signed state
      */
     public SignedState build() {
-        return buildWithFacade().left();
-    }
-
-    /**
-     * Build a pair of new signed state and a platform state facade used for that
-     *
-     * @return a new signed state
-     */
-    public Pair<SignedState, TestPlatformStateFacade> buildWithFacade() {
-
         final Roster rosterInstance;
         if (roster == null) {
             rosterInstance = RandomRosterBuilder.create(random)
@@ -147,11 +136,10 @@ public class RandomSignedStateGenerator {
             roundInstance = round;
         }
 
-        TestPlatformStateFacade platformStateFacade = new TestPlatformStateFacade();
         if (state == null) {
             final String virtualMapLabel =
                     "vm-" + RandomSignedStateGenerator.class.getSimpleName() + "-" + java.util.UUID.randomUUID();
-            stateInstance = TestVirtualMapState.createInstanceWithVirtualMapLabel(virtualMapLabel);
+            stateInstance = createTestStateWithLabel(virtualMapLabel);
         } else {
             stateInstance = state;
         }
@@ -203,7 +191,7 @@ public class RandomSignedStateGenerator {
         }
         TestingAppStateInitializer.initPlatformState(stateInstance);
 
-        platformStateFacade.bulkUpdateOf(stateInstance, v -> {
+        bulkUpdateOf(stateInstance, v -> {
             v.setSnapshot(consensusSnapshotInstance);
             v.setLegacyRunningEventHash(legacyRunningEventHashInstance);
             v.setCreationSoftwareVersion(softwareVersionInstance);
@@ -230,8 +218,7 @@ public class RandomSignedStateGenerator {
                 "RandomSignedStateGenerator.build()",
                 freezeStateInstance,
                 deleteOnBackgroundThread,
-                pcesRound,
-                platformStateFacade);
+                pcesRound);
 
         final Map<NodeId, Signature> signaturesInstance;
         if (signatureSupplier != null) {
@@ -265,7 +252,8 @@ public class RandomSignedStateGenerator {
         }
 
         builtSignedStates.get().add(signedState);
-        return Pair.of(signedState, spy(platformStateFacade));
+
+        return signedState;
     }
 
     /**

@@ -2,11 +2,13 @@
 package org.hiero.otter.fixtures.app.services.consistency;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
+import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.system.InitTrigger;
+import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
@@ -25,7 +27,6 @@ import org.hiero.consensus.model.hashgraph.ConsensusConstants;
 import org.hiero.consensus.model.hashgraph.Round;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
-import org.hiero.otter.fixtures.app.OtterAppState;
 import org.hiero.otter.fixtures.app.OtterService;
 import org.hiero.otter.fixtures.app.state.OtterServiceStateSpecification;
 import org.hiero.otter.fixtures.network.transactions.OtterTransaction;
@@ -68,7 +69,7 @@ public class ConsistencyService implements OtterService {
             @NonNull final InitTrigger trigger,
             @NonNull final NodeId selfId,
             @NonNull final Configuration configuration,
-            @NonNull final OtterAppState state) {
+            @NonNull final VirtualMapState state) {
         if (trigger != InitTrigger.GENESIS && trigger != InitTrigger.RESTART) {
             return;
         }
@@ -89,6 +90,8 @@ public class ConsistencyService implements OtterService {
 
         final Path historyFilePath = historyFileDirectory.resolve(consistencyServiceConfig.historyFileName());
         roundHistory.init(historyFilePath);
+
+        log.info(STARTUP.getMarker(), "ConsistencyService initialized");
     }
 
     /**

@@ -41,6 +41,10 @@ on:
         type: string
         description: "The solo version to use for the regression panels"
         default: "latest"
+      mirror-node-version:
+        type: string
+        description: "The mirror node version to deploy for the mirror node regression panel (if not specified, '0.142.2' will be used)"
+        default: "latest"
       helm-release-name:
         type: string
         description: "The helm release name to use for the mirror node regression panel"
@@ -71,10 +75,10 @@ on:
         required: false
       gradle-cache-username:
         description: "Gradle Cache Username"
-        required: true
+        required: false
       gradle-cache-password:
         description: "Gradle Cache Password"
-        required: true
+        required: false
       grafana-agent-username:
         description: "Grafana Agent Username"
         required: false
@@ -201,6 +205,20 @@ jobs:
       gradle-cache-username: ${{ secrets.gradle-cache-username }}
       gradle-cache-password: ${{ secrets.gradle-cache-password }}
 
+  xts-chaos-otter-tests:
+    name: XTS Chaos Otter Tests
+    if: ${{ inputs.enable-extended-test-suite == 'true' && contains(inputs.custom-job-label, 'Dry Run') }}
+    uses: ./.github/workflows/zxc-execute-otter-tests.yaml
+    with:
+      custom-job-label: "${{ inputs.custom-job-label }} Chaos Otter Tests"
+      enable-chaos-otter-tests: true
+      enable-network-log-capture: true
+      ref: ${{ inputs.commit_sha }}
+    secrets:
+      access-token: ${{ secrets.access-token }}
+      gradle-cache-username: ${{ secrets.gradle-cache-username }}
+      gradle-cache-password: ${{ secrets.gradle-cache-password }}
+
   abbreviated-panel:
     name: JRS Panel
     if: ${{ inputs.enable-abbreviated-panel == 'true' }}
@@ -271,6 +289,7 @@ jobs:
       custom-job-name: "${{ inputs.custom-job-label }} Mirror Node Regression"
       solo-version: ${{ inputs.solo-version }}
       helm-release-name: ${{ inputs.helm-release-name }}
+      mirror-node-version: ${{ inputs.mirror-node-version || '0.142.2' }}
     secrets:
       access-token: ${{ secrets.regression-access-token }}
       slack-detailed-report-webhook: ${{ secrets.slack-citr-details-token }}
