@@ -113,8 +113,8 @@ public class StandardGraphGenerator extends AbstractGraphGenerator {
      * Note: once an event source has been passed to this constructor it should not be modified by the outer context.
      *
      * @param platformContext the platform context
-     * @param seed The random seed used to generate events.
-     * @param eventSources One or more event sources.
+     * @param seed            The random seed used to generate events.
+     * @param eventSources    One or more event sources.
      */
     public StandardGraphGenerator(
             @NonNull final PlatformContext platformContext, final long seed, final EventSource... eventSources) {
@@ -125,8 +125,8 @@ public class StandardGraphGenerator extends AbstractGraphGenerator {
      * Construct a new StandardEventGenerator.
      *
      * @param platformContext the platform context
-     * @param seed The random seed used to generate events.
-     * @param eventSources One or more event sources.
+     * @param seed            The random seed used to generate events.
+     * @param eventSources    One or more event sources.
      */
     public StandardGraphGenerator(
             @NonNull final PlatformContext platformContext,
@@ -205,7 +205,7 @@ public class StandardGraphGenerator extends AbstractGraphGenerator {
      * the event sources from the addresses.
      *
      * @param eventSources the event sources to initialize.
-     * @param roster the roster to use.
+     * @param roster       the roster to use.
      */
     private void setAddressBookInitializeEventSources(
             @NonNull final List<EventSource> eventSources, @NonNull final Roster roster) {
@@ -222,8 +222,9 @@ public class StandardGraphGenerator extends AbstractGraphGenerator {
      * Set the affinity of each node for choosing the parents of its events.
      *
      * @param affinityMatrix An n by n matrix where n is the number of event sources. Each row defines the preference of
-     * a particular node when choosing other parents. Node 0 is described by the first row, node 1 by the next, etc.
-     * Each entry should be a weight. Weights of self (i.e. the weights on the diagonal) should be 0.
+     *                       a particular node when choosing other parents. Node 0 is described by the first row, node 1
+     *                       by the next, etc. Each entry should be a weight. Weights of self (i.e. the weights on the
+     *                       diagonal) should be 0.
      */
     public void setOtherParentAffinity(final List<List<Double>> affinityMatrix) {
         setOtherParentAffinity(staticDynamicValue(affinityMatrix));
@@ -233,7 +234,7 @@ public class StandardGraphGenerator extends AbstractGraphGenerator {
      * Set the affinity of each node for choosing the parents of its events.
      *
      * @param affinityMatrix A dynamic n by n matrix where n is the number of event sources. Each entry should be a
-     * weight. Weights of self (i.e. the weights on the diagonal) should be 0.
+     *                       weight. Weights of self (i.e. the weights on the diagonal) should be 0.
      */
     public void setOtherParentAffinity(final DynamicValue<List<List<Double>>> affinityMatrix) {
         this.affinityMatrix = new DynamicValueGenerator<>(affinityMatrix);
@@ -243,7 +244,7 @@ public class StandardGraphGenerator extends AbstractGraphGenerator {
      * Get the affinity vector for a particular node.
      *
      * @param eventIndex the current event index
-     * @param nodeId the node ID that is being requested
+     * @param nodeId     the node ID that is being requested
      */
     private List<Double> getOtherParentAffinityVector(final long eventIndex, final int nodeId) {
         return affinityMatrix.get(getRandom(), eventIndex).get(nodeId);

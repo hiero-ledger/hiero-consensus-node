@@ -31,12 +31,10 @@ public class DefaultLinkerLogsAndMetrics implements LinkerLogsAndMetrics {
     private final RateLimitedLogger missingParentLogger;
     private final RateLimitedLogger birthRoundMismatchLogger;
     private final RateLimitedLogger timeCreatedMismatchLogger;
-    private final RateLimitedLogger missingRosterLogger;
 
     private final LongAccumulator missingParentAccumulator;
     private final LongAccumulator birthRoundMismatchAccumulator;
     private final LongAccumulator timeCreatedMismatchAccumulator;
-    private final LongAccumulator missingRosterAccumulator;
 
     /**
      * Constructor.
@@ -48,7 +46,6 @@ public class DefaultLinkerLogsAndMetrics implements LinkerLogsAndMetrics {
         this.missingParentLogger = new RateLimitedLogger(logger, time, MINIMUM_LOG_PERIOD);
         this.birthRoundMismatchLogger = new RateLimitedLogger(logger, time, MINIMUM_LOG_PERIOD);
         this.timeCreatedMismatchLogger = new RateLimitedLogger(logger, time, MINIMUM_LOG_PERIOD);
-        this.missingRosterLogger = new RateLimitedLogger(logger, time, MINIMUM_LOG_PERIOD);
 
         missingParentAccumulator = metrics.getOrCreate(new LongAccumulator.Config(PLATFORM_CATEGORY, "missingParents")
                 .withDescription("Parent child relationships where a parent was missing"));
@@ -60,8 +57,6 @@ public class DefaultLinkerLogsAndMetrics implements LinkerLogsAndMetrics {
                 new LongAccumulator.Config(PLATFORM_CATEGORY, "timeCreatedMismatch")
                         .withDescription(
                                 "Parent child relationships where child time created wasn't strictly after parent time created"));
-        missingRosterAccumulator = metrics.getOrCreate(new LongAccumulator.Config(PLATFORM_CATEGORY, "missingRoster")
-                .withDescription("No roster is available in the roster history for the event's birth round"));
     }
 
     /**

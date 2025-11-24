@@ -59,7 +59,7 @@ public class TestIntake {
 
     /**
      * @param platformContext the platform context used to configure this intake.
-     * @param roster the roster used by this intake
+     * @param roster     the roster used by this intake
      */
     public TestIntake(@NonNull final PlatformContext platformContext, @NonNull final Roster roster) {
         final NodeId selfId = NodeId.of(0);
@@ -88,7 +88,6 @@ public class TestIntake {
 
         freezeCheckHolder = new FreezeCheckHolder();
         freezeCheckHolder.setFreezeCheckRef(i -> false);
-
         final ConsensusEngine consensusEngine =
                 new DefaultConsensusEngine(platformContext, roster, selfId, freezeCheckHolder);
 

@@ -12,18 +12,28 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 import org.hiero.base.Clearable;
+import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusConstants;
 import org.hiero.consensus.model.node.NodeId;
 
 /**
- * An internal platform event. This class that stores temporary data that is used while calculating consensus inside the
- * platform. This data is not relevant after consensus has been calculated.
+ * An internal platform event.
+ * This class that stores temporary data that is used while calculating consensus inside the platform.
+ * This data is not relevant after consensus has been calculated.
  */
-public class EventImpl extends LinkedEvent<EventImpl> implements Clearable {
+public class EventImpl implements Clearable {
+    /** The base event information, including some gossip specific information */
+    private final PlatformEvent baseEvent;
     /** the round number in which this event reached a consensus order */
     private long roundReceived = ConsensusConstants.ROUND_UNDEFINED;
+    /** the self parent of this */
+    private EventImpl selfParent;
+    /** the other-parents of this */
+    private List<EventImpl> otherParents;
+    /** the parents of this */
+    private List<EventImpl> allParents;
     /** has this event been cleared (because it was old and should be discarded)? */
     private boolean cleared = false;
     /** is this a witness? (is round > selfParent's round, or there is no self parent?) */
@@ -83,10 +93,20 @@ public class EventImpl extends LinkedEvent<EventImpl> implements Clearable {
      * Constructor
      *
      * @param platformEvent the event we are wrapping
-     * @param allParents pointers to all parent events
+     * @param allParents    pointers to all parent events
      */
     public EventImpl(@NonNull final PlatformEvent platformEvent, @NonNull final List<EventImpl> allParents) {
-        super(platformEvent, allParents);
+        this.baseEvent = Objects.requireNonNull(platformEvent, "baseEvent");
+        this.allParents = Objects.requireNonNull(allParents, "allParents");
+        if (!allParents.isEmpty() && allParents.getFirst().getCreatorId().equals(this.baseEvent.getCreatorId())) {
+            // this event DOES have a self parent that is linked
+            this.selfParent = allParents.getFirst();
+            this.otherParents = allParents.subList(1, allParents.size());
+        } else {
+            // this event DOESN'T have a self parent that is linked
+            this.selfParent = null;
+            this.otherParents = allParents;
+        }
         // ConsensusImpl.currMark starts at 1 and counts up, so all events initially count as
         // unmarked
         this.mark = ConsensusConstants.EVENT_UNMARKED;
@@ -100,7 +120,7 @@ public class EventImpl extends LinkedEvent<EventImpl> implements Clearable {
      * @return the base event
      */
     public @NonNull PlatformEvent getBaseEvent() {
-        return getPlatformEvent();
+        return baseEvent;
     }
 
     /**
@@ -118,6 +138,37 @@ public class EventImpl extends LinkedEvent<EventImpl> implements Clearable {
      */
     public void setRoundReceived(final long roundReceived) {
         this.roundReceived = roundReceived;
+    }
+
+    /**
+     * @return the self parent of this
+     */
+    public @Nullable EventImpl getSelfParent() {
+        return selfParent;
+    }
+
+    /**
+     * @return the other parent of this
+     */
+    public @Nullable EventImpl getOtherParent() {
+        if (otherParents.isEmpty()) {
+            return null;
+        }
+        return otherParents.getFirst();
+    }
+
+    /**
+     * @return the other parents of this
+     */
+    public @NonNull List<EventImpl> getOtherParents() {
+        return otherParents;
+    }
+
+    /**
+     * @return all parents of this
+     */
+    public @NonNull List<EventImpl> getAllParents() {
+        return allParents;
     }
 
     public boolean isWitness() {
@@ -177,8 +228,8 @@ public class EventImpl extends LinkedEvent<EventImpl> implements Clearable {
     }
 
     /**
-     * @return a field used to store consensus time while it is still not finalized. depending on the phase of consensus
-     * calculation, this field may or may not store the final consensus time.
+     * @return a field used to store consensus time while it is still not finalized. depending on the
+     *     phase of consensus calculation, this field may or may not store the final consensus time.
      */
     public @Nullable Instant getPreliminaryConsensusTimestamp() {
         return preliminaryConsensusTimestamp;
@@ -186,7 +237,6 @@ public class EventImpl extends LinkedEvent<EventImpl> implements Clearable {
 
     /**
      * Set the preliminary consensus timestamp
-     *
      * @param preliminaryConsensusTimestamp the preliminary consensus timestamp
      */
     public void setPreliminaryConsensusTimestamp(@Nullable final Instant preliminaryConsensusTimestamp) {
@@ -202,7 +252,8 @@ public class EventImpl extends LinkedEvent<EventImpl> implements Clearable {
     }
 
     /**
-     * remember event, the last ancestor created by m (memoizes lastSee function from Swirlds-TR-2020-01)
+     * remember event, the last ancestor created by m (memoizes lastSee function from
+     * Swirlds-TR-2020-01)
      *
      * @param m the member ID
      * @param event the last seen {@link EventImpl} object created by m
@@ -212,8 +263,8 @@ public class EventImpl extends LinkedEvent<EventImpl> implements Clearable {
     }
 
     /**
-     * Initialize the lastSee array to hold n elements (for n &ge; 0) (memoizes lastSee function from
-     * Swirlds-TR-2020-01)
+     * Initialize the lastSee array to hold n elements (for n &ge; 0) (memoizes lastSee function
+     * from Swirlds-TR-2020-01)
      *
      * @param n number of members in the initial address book
      */
@@ -222,7 +273,8 @@ public class EventImpl extends LinkedEvent<EventImpl> implements Clearable {
     }
 
     /**
-     * @return the number of elements lastSee holds (memoizes lastSee function from Swirlds-TR-2020-01)
+     * @return the number of elements lastSee holds (memoizes lastSee function from
+     *     Swirlds-TR-2020-01)
      */
     public int sizeLastSee() {
         return lastSee == null ? 0 : lastSee.length;
@@ -230,22 +282,24 @@ public class EventImpl extends LinkedEvent<EventImpl> implements Clearable {
 
     /**
      * @param m the member ID
-     * @return strongly-seen witness in parent round by m (memoizes stronglySeeP function from Swirlds-TR-2020-01)
+     * @return strongly-seen witness in parent round by m (memoizes stronglySeeP function from
+     *     Swirlds-TR-2020-01)
      */
     public @Nullable EventImpl getStronglySeeP(final int m) {
         return stronglySeeP[m];
     }
 
     /**
-     * @return strongly-seen witness in parent round (memoizes stronglySeeP function from Swirlds-TR-2020-01)
+     * @return strongly-seen witness in parent round (memoizes stronglySeeP function from
+     *     Swirlds-TR-2020-01)
      */
     public EventImpl[] getStronglySeeP() {
         return stronglySeeP;
     }
 
     /**
-     * remember event, the strongly-seen witness in parent round by m (memoizes stronglySeeP function from
-     * Swirlds-TR-2020-01)
+     * remember event, the strongly-seen witness in parent round by m (memoizes stronglySeeP
+     * function from Swirlds-TR-2020-01)
      *
      * @param m the member ID
      * @param event the strongly-seen witness in parent round created by m
@@ -255,8 +309,8 @@ public class EventImpl extends LinkedEvent<EventImpl> implements Clearable {
     }
 
     /**
-     * Initialize the stronglySeeP array to hold n elements (for n &ge; 0) (memoizes stronglySeeP function from
-     * Swirlds-TR-2020-01)
+     * Initialize the stronglySeeP array to hold n elements (for n &ge; 0) (memoizes stronglySeeP
+     * function from Swirlds-TR-2020-01)
      *
      * @param n number of members in AddressBook
      */
@@ -265,65 +319,72 @@ public class EventImpl extends LinkedEvent<EventImpl> implements Clearable {
     }
 
     /**
-     * @return the number of elements stronglySeeP holds (memoizes stronglySeeP function from Swirlds-TR-2020-01)
+     * @return the number of elements stronglySeeP holds (memoizes stronglySeeP function from
+     *     Swirlds-TR-2020-01)
      */
     public int sizeStronglySeeP() {
         return stronglySeeP == null ? 0 : stronglySeeP.length;
     }
 
     /**
-     * @return The first witness that's a self-ancestor in the self round (memoizes function from Swirlds-TR-2020-01)
+     * @return The first witness that's a self-ancestor in the self round (memoizes function from
+     *     Swirlds-TR-2020-01)
      */
     public @Nullable EventImpl getFirstSelfWitnessS() {
         return firstSelfWitnessS;
     }
 
     /**
-     * @param firstSelfWitnessS The first witness that's a self-ancestor in the self round (memoizes function from
-     * Swirlds-TR-2020-01)
+     * @param firstSelfWitnessS The first witness that's a self-ancestor in the self round (memoizes
+     *     function from Swirlds-TR-2020-01)
      */
     public void setFirstSelfWitnessS(@Nullable final EventImpl firstSelfWitnessS) {
         this.firstSelfWitnessS = firstSelfWitnessS;
     }
 
     /**
-     * @return the first witness that's an ancestor in the self round (memoizes function from Swirlds-TR-2020-01)
+     * @return the first witness that's an ancestor in the self round (memoizes function from
+     *     Swirlds-TR-2020-01)
      */
     public @Nullable EventImpl getFirstWitnessS() {
         return firstWitnessS;
     }
 
     /**
-     * @param firstWitnessS the first witness that's an ancestor in the self round (memoizes function from
-     * Swirlds-TR-2020-01)
+     * @param firstWitnessS the first witness that's an ancestor in the self round (memoizes
+     *     function from Swirlds-TR-2020-01)
      */
     public void setFirstWitnessS(@Nullable final EventImpl firstWitnessS) {
         this.firstWitnessS = firstWitnessS;
     }
 
     /**
-     * @return temporarily used during any graph algorithm that needs to mark vertices (events) already visited
+     * @return temporarily used during any graph algorithm that needs to mark vertices (events)
+     *     already visited
      */
     public int getMark() {
         return mark;
     }
 
     /**
-     * @param mark temporarily used during any graph algorithm that needs to mark vertices (events) already visited
+     * @param mark temporarily used during any graph algorithm that needs to mark vertices (events)
+     *     already visited
      */
     public void setMark(final int mark) {
         this.mark = mark;
     }
 
     /**
-     * @return the time at which each unique famous witness in the received round first received this event
+     * @return the time at which each unique famous witness in the received round first received
+     *     this event
      */
     public @Nullable List<Instant> getRecTimes() {
         return recTimes;
     }
 
     /**
-     * @param recTimes the time at which each unique famous witness in the received round first received this event
+     * @param recTimes the time at which each unique famous witness in the received round first
+     *     received this event
      */
     public void setRecTimes(@Nullable final List<Instant> recTimes) {
         this.recTimes = recTimes;
@@ -394,10 +455,10 @@ public class EventImpl extends LinkedEvent<EventImpl> implements Clearable {
     //
 
     /**
-     * Erase all references to other events within this event. This can be used so other events can be garbage
-     * collected, even if this one still has things pointing to it. The numEventsInMemory count is decremented here, and
-     * incremented when the event is instantiated, so it is important to ensure that this is eventually called on every
-     * event.
+     * Erase all references to other events within this event. This can be used so other events can
+     * be garbage collected, even if this one still has things pointing to it. The numEventsInMemory
+     * count is decremented here, and incremented when the event is instantiated, so it is important
+     * to ensure that this is eventually called on every event.
      */
     @Override
     public void clear() {
@@ -405,8 +466,10 @@ public class EventImpl extends LinkedEvent<EventImpl> implements Clearable {
             return;
         }
         cleared = true;
-        super.clear();
         EventCounter.decrementLinkedEventCount();
+        selfParent = null;
+        otherParents = List.of();
+        allParents = List.of();
         clearMetadata();
     }
 
@@ -442,7 +505,7 @@ public class EventImpl extends LinkedEvent<EventImpl> implements Clearable {
      * @return true if the event has a self parent
      */
     public boolean hasSelfParent() {
-        return getPlatformEvent().getSelfParent() != null;
+        return baseEvent.getSelfParent() != null;
     }
 
     /**
@@ -451,14 +514,21 @@ public class EventImpl extends LinkedEvent<EventImpl> implements Clearable {
      * @return true if the event has other parents
      */
     public boolean hasOtherParent() {
-        return !getPlatformEvent().getOtherParents().isEmpty();
+        return !baseEvent.getOtherParents().isEmpty();
     }
 
     /**
      * @return returns {@link PlatformEvent#getTimeCreated()}}
      */
     public Instant getTimeCreated() {
-        return getPlatformEvent().getTimeCreated();
+        return baseEvent.getTimeCreated();
+    }
+
+    /**
+     * @return returns {@link PlatformEvent#getHash()}}
+     */
+    public Hash getBaseHash() {
+        return baseEvent.getHash();
     }
 
     /**
@@ -467,7 +537,7 @@ public class EventImpl extends LinkedEvent<EventImpl> implements Clearable {
      * @return the consensus timestamp of this event
      */
     public Instant getConsensusTimestamp() {
-        return getPlatformEvent().getConsensusTimestamp();
+        return baseEvent.getConsensusTimestamp();
     }
 
     /**
@@ -476,7 +546,7 @@ public class EventImpl extends LinkedEvent<EventImpl> implements Clearable {
      * @return the non-deterministic generation of this event
      */
     public long getNGen() {
-        return getPlatformEvent().getNGen();
+        return baseEvent.getNGen();
     }
 
     /**
@@ -485,7 +555,7 @@ public class EventImpl extends LinkedEvent<EventImpl> implements Clearable {
      * @return the birth round of this event
      */
     public long getBirthRound() {
-        return getPlatformEvent().getBirthRound();
+        return baseEvent.getBirthRound();
     }
 
     /**
@@ -493,7 +563,7 @@ public class EventImpl extends LinkedEvent<EventImpl> implements Clearable {
      */
     @NonNull
     public NodeId getCreatorId() {
-        return getPlatformEvent().getCreatorId();
+        return baseEvent.getCreatorId();
     }
 
     /**
@@ -552,19 +622,19 @@ public class EventImpl extends LinkedEvent<EventImpl> implements Clearable {
 
         final EventImpl event = (EventImpl) o;
 
-        return Objects.equals(getPlatformEvent(), event.getPlatformEvent()) && roundReceived == event.roundReceived;
+        return Objects.equals(baseEvent, event.baseEvent) && roundReceived == event.roundReceived;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(getPlatformEvent(), roundReceived);
+        return Objects.hash(baseEvent, roundReceived);
     }
 
     @Override
     public String toString() {
         final StringBuilder sb = new StringBuilder();
-        getPlatformEvent().getDescriptor().shortString(sb);
-        final List<EventDescriptorWrapper> allParents = getPlatformEvent().getAllParents();
+        baseEvent.getDescriptor().shortString(sb);
+        final List<EventDescriptorWrapper> allParents = baseEvent.getAllParents();
         for (final EventDescriptorWrapper parent : allParents) {
             parent.shortString(sb);
         }
@@ -573,10 +643,9 @@ public class EventImpl extends LinkedEvent<EventImpl> implements Clearable {
 
     /**
      * Create a short string representation of this event without any parent information.
-     *
      * @return a short string
      */
     public String shortString() {
-        return getPlatformEvent().getDescriptor().shortString();
+        return baseEvent.getDescriptor().shortString();
     }
 }
