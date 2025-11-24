@@ -87,6 +87,15 @@ tasks.named<Test>("testChaos") {
     )
 }
 
+tasks.named<Test>("testIntegration") {
+    jvmArgs(
+        "--add-reads=org.testcontainers=org.apache.commons.lang3",
+        "--add-reads=org.testcontainers=org.apache.commons.compress",
+        "--add-reads=org.testcontainers=org.apache.commons.io",
+        "--add-reads=org.testcontainers=org.apache.commons.codec",
+    )
+}
+
 // This should probably not be necessary (Log4j issue?)
 // https://github.com/apache/logging-log4j2/pull/3053
 tasks.compileTestFixturesJava {
