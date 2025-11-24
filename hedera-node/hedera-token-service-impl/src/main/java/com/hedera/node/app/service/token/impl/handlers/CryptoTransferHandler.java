@@ -59,7 +59,6 @@ import com.hedera.node.config.data.FeesConfig;
 import com.hedera.node.config.data.HooksConfig;
 import com.hedera.node.config.data.LedgerConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
-
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -275,7 +274,7 @@ public class CryptoTransferHandler extends TransferExecutor implements Transacti
         weightedTokensInvolved += tokenMultiplier * involvedTokens.size();
         long rbs = (totalXfers * LONG_ACCOUNT_AMOUNT_BYTES)
                 + TOKEN_ENTITY_SIZES.bytesUsedToRecordTokenTransfers(
-                weightedTokensInvolved, weightedTokenXfers, numNftOwnershipChanges);
+                        weightedTokensInvolved, weightedTokenXfers, numNftOwnershipChanges);
 
         final var hookInfo = getHookInfo(op);
         /* Get subType based on the above information */
@@ -341,11 +340,13 @@ public class CryptoTransferHandler extends TransferExecutor implements Transacti
         long gas = 0L;
         int numHooks = 0;
         if (hasPreTxHook) {
-            gas = clampedAdd(gas, aa.preTxAllowanceHookOrThrow().evmHookCallOrThrow().gasLimit());
+            gas = clampedAdd(
+                    gas, aa.preTxAllowanceHookOrThrow().evmHookCallOrThrow().gasLimit());
             numHooks++;
         }
         if (hasPrePostTxHook) {
-            final long gasPerCall = aa.prePostTxAllowanceHookOrThrow().evmHookCallOrThrow().gasLimit();
+            final long gasPerCall =
+                    aa.prePostTxAllowanceHookOrThrow().evmHookCallOrThrow().gasLimit();
             gas = clampedAdd(clampedAdd(gas, gasPerCall), gasPerCall);
             numHooks += 2;
         }

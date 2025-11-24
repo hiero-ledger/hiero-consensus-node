@@ -14,7 +14,10 @@ import static com.hedera.node.app.service.token.impl.handlers.transfer.TransferE
 import static com.hedera.node.app.service.token.impl.util.CryptoTransferValidationHelper.checkReceiver;
 import static com.hedera.node.app.service.token.impl.util.CryptoTransferValidationHelper.checkSender;
 import static com.hedera.node.app.spi.validation.Validations.validateAccountID;
+import static org.hyperledger.besu.evm.internal.Words.clampedAdd;
+import static org.hyperledger.besu.evm.internal.Words.clampedMultiply;
 
+import com.esaulpaugh.headlong.abi.Function;
 import com.hedera.hapi.node.base.AccountAmount;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.EvmHookCall;
@@ -43,9 +46,11 @@ import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
+import com.hedera.node.config.data.HooksConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 
@@ -66,9 +71,9 @@ public class TransferExecutor extends BaseTokenHandler {
      */
     @Inject
     public TransferExecutor(
-            final CryptoTransferValidator validator,
-            final HookCallsFactory hookCallsFactory,
-            EntityIdFactory entityIdFactory) {
+            @NonNull final CryptoTransferValidator validator,
+            @NonNull final HookCallsFactory hookCallsFactory,
+            @NonNull final EntityIdFactory entityIdFactory) {
         // For Dagger injection
         this.validator = validator;
         this.hookCallsFactory = hookCallsFactory;
@@ -153,6 +158,7 @@ public class TransferExecutor extends BaseTokenHandler {
             boolean skipCustomFee) {
         final var topLevelPayer = context.payer();
         transferContext.validateHbarAllowances();
+        final var hooksConfig = context.configuration().getConfigData(HooksConfig.class);
 
         // Replace all aliases in the transaction body with its account ids; use in all further steps
         final var replacedOp = ensureAndReplaceAliasesInOp(txn, transferContext, validator);
@@ -162,20 +168,35 @@ public class TransferExecutor extends BaseTokenHandler {
         }
         final var hasHooks = HookUtils.hasHookExecutions(replacedOp);
         HookCalls hookCalls = null;
+        final AtomicInteger numAttemptedHookCalls = new AtomicInteger(0);
         if (hasHooks) {
             final var itemizedAssessedFees = transferContext.getItemizedAssessedFees();
             // Extract the HookCalls from the transaction bodies after custom fee assessment
             hookCalls = hookCallsFactory.from(transferContext.getHandleContext(), replacedOp, itemizedAssessedFees);
-            dispatchHookCalls(
-                    hookCalls.context(),
-                    hookCalls.preOnlyHooks(),
-                    transferContext.getHandleContext(),
-                    HooksABI.FN_ALLOW);
-            dispatchHookCalls(
-                    hookCalls.context(),
-                    hookCalls.prePostHooks(),
-                    transferContext.getHandleContext(),
-                    HooksABI.FN_ALLOW_PRE);
+            try {
+                dispatchHookCalls(
+                        hookCalls.context(),
+                        hookCalls.preOnlyHooks(),
+                        transferContext.getHandleContext(),
+                        HooksABI.FN_ALLOW,
+                        numAttemptedHookCalls);
+                dispatchHookCalls(
+                        hookCalls.context(),
+                        hookCalls.prePostHooks(),
+                        transferContext.getHandleContext(),
+                        HooksABI.FN_ALLOW_PRE,
+                        numAttemptedHookCalls);
+            } catch (HandleException e) {
+                // if hook execution failed, we still want to throw an exception but refund the charged fees
+                // for other hook calls that didnt execute
+                final var feeToRefund = getFeesToRefund(
+                        hookCalls,
+                        numAttemptedHookCalls.get(),
+                        hooksConfig.hookInvocationCostTinyCents(),
+                        context.getGasPriceInTinyCents());
+                context.refundServiceFee(topLevelPayer, feeToRefund);
+                throw new HandleException(e.getStatus());
+            }
         }
 
         for (final var t : txns) {
@@ -185,12 +206,25 @@ public class TransferExecutor extends BaseTokenHandler {
             new NFTOwnersChangeStep(t.tokenTransfers(), topLevelPayer).doIn(transferContext);
         }
         if (hasHooks) {
-            // Dispatch post hook calls
-            dispatchHookCalls(
-                    hookCalls.context(),
-                    hookCalls.prePostHooks(),
-                    transferContext.getHandleContext(),
-                    HooksABI.FN_ALLOW_POST);
+            try {
+                // Dispatch post hook calls
+                dispatchHookCalls(
+                        hookCalls.context(),
+                        hookCalls.prePostHooks(),
+                        transferContext.getHandleContext(),
+                        HooksABI.FN_ALLOW_POST,
+                        numAttemptedHookCalls);
+            } catch (HandleException e) {
+                // if hook execution failed, we still want to throw an exception but refund the charged fees
+                // for other hook calls that didnt execute
+                final var feeToRefund = getFeesToRefund(
+                        hookCalls,
+                        numAttemptedHookCalls.get(),
+                        hooksConfig.hookInvocationCostTinyCents(),
+                        context.getGasPriceInTinyCents());
+                context.refundServiceFee(topLevelPayer, feeToRefund);
+                throw new HandleException(e.getStatus());
+            }
         }
 
         if (!transferContext.getAutomaticAssociations().isEmpty()) {
@@ -199,6 +233,66 @@ public class TransferExecutor extends BaseTokenHandler {
         if (!transferContext.getAssessedCustomFees().isEmpty()) {
             recordBuilder.assessedCustomFees(transferContext.getAssessedCustomFees());
         }
+    }
+
+    /**
+     * Calculates the gas that should be refunded for unsuccessful hook calls.
+     * Every pre-hook is considered one hook invocation, and every pre-post hook is considered two invocations.
+     * Similarly, the gas charged for each hook invocation is refunded.
+     *
+     * @param hookCalls the hook calls
+     * @param numAttemptedHookCalls number of attempted hook calls
+     * @param hookInvocationCostTinyCents cost of hook invocation in tiny cents
+     * @return gas to refund
+     */
+    private long getFeesToRefund(
+            final HookCalls hookCalls,
+            final int numAttemptedHookCalls,
+            final long hookInvocationCostTinyCents,
+            final long gasPriceInTinyCents) {
+        final var preOnlyHooks = hookCalls.preOnlyHooks();
+        final var prePostHooks = hookCalls.prePostHooks();
+
+        // Total “logical” invocations:each pre-only hook: 1 call, each pre-post hook: 2 calls (pre + post)
+        final int totalHookCalls = preOnlyHooks.size() + (prePostHooks.size() * 2);
+        if (numAttemptedHookCalls >= totalHookCalls) {
+            // Everything that could run did run, so nothing to refund.
+            return 0L;
+        }
+
+        long gasToRefund = 0L;
+        int invocationsToRefund = 0;
+        int invocationIndex = 0;
+
+        // 1) pre-only hooks: FN_ALLOW
+        for (final var hook : preOnlyHooks) {
+            if (invocationIndex >= numAttemptedHookCalls) {
+                gasToRefund += hook.gasLimit();
+                invocationsToRefund++;
+            }
+            invocationIndex++;
+        }
+
+        // 2) pre part of pre-post hooks: FN_ALLOW_PRE
+        for (final var hook : prePostHooks) {
+            if (invocationIndex >= numAttemptedHookCalls) {
+                gasToRefund += hook.gasLimit();
+                invocationsToRefund++;
+            }
+            invocationIndex++;
+        }
+
+        // 3) post part of pre-post hooks: FN_ALLOW_POST
+        for (final var hook : prePostHooks) {
+            if (invocationIndex >= numAttemptedHookCalls) {
+                gasToRefund += hook.gasLimit();
+                invocationsToRefund++;
+            }
+            invocationIndex++;
+        }
+        final var feeToRefund = clampedMultiply(invocationsToRefund, hookInvocationCostTinyCents);
+        final var gasRefund = clampedMultiply(gasToRefund, gasPriceInTinyCents);
+        return clampedAdd(feeToRefund, gasRefund);
     }
 
     protected void executeAirdropCryptoTransfer(
@@ -315,12 +409,14 @@ public class TransferExecutor extends BaseTokenHandler {
      * @param hookInvocations the list of hook invocations to dispatch
      * @param handleContext the handle context to use for dispatching
      * @param function the ABI function to use for encoding
+     * @param numAttemptedHookCalls the number of successful hook calls
      */
     private void dispatchHookCalls(
             @NonNull final HookContext hookContext,
             @NonNull final List<HookInvocation> hookInvocations,
             @NonNull final HandleContext handleContext,
-            @NonNull final com.esaulpaugh.headlong.abi.Function function) {
+            @NonNull final Function function,
+            final AtomicInteger numAttemptedHookCalls) {
         final boolean isolated = hookInvocations.size() == 1;
         for (final var hookInvocation : hookInvocations) {
             byte[] calldata;
@@ -342,6 +438,7 @@ public class TransferExecutor extends BaseTokenHandler {
                             .hookId(hookInvocation.hookId())
                             .build())
                     .build();
+            numAttemptedHookCalls.incrementAndGet();
             dispatchExecution(handleContext, execution, function, entityIdFactory, isolated);
         }
     }

@@ -284,7 +284,9 @@ public final class FeeManager {
     }
 
     public long getGasPriceInTinyCents(@NonNull final Instant consensusTime) {
-        return getFeeData(CONTRACT_CALL, consensusTime, SubType.DEFAULT).servicedataOrThrow().gas();
+        return getFeeData(CONTRACT_CALL, consensusTime, SubType.DEFAULT)
+                .servicedataOrThrow()
+                .gas();
     }
 
     /** Gets the current exchange rate manager.

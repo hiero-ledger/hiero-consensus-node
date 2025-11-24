@@ -12,4 +12,4 @@ public record HooksConfig(
         @ConfigProperty(value = "evm.lambdaIntrinsicGasCost", defaultValue = "1000") @NetworkProperty
                 int lambdaIntrinsicGasCost,
         @ConfigProperty(value = "hookInvocationCostTinyCents", defaultValue = "50000000") @NetworkProperty
-                int hookInvocationCostTinyCents) {}
+                long hookInvocationCostTinyCents) {}
