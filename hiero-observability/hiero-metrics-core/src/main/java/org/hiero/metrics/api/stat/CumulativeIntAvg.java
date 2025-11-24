@@ -14,47 +14,44 @@ import org.hiero.metrics.api.stat.container.AtomicIntPair;
  * A statistic that atomically computes the cumulative average of integer values
  * using {@link AtomicIntPair} as the underlying container.
  */
-public final class CumulativeAverageIntStat implements DoubleSupplier {
+public final class CumulativeIntAvg implements DoubleSupplier {
 
     private final AtomicIntPair container = AtomicIntPair.createAccumulatingSum();
 
     /**
-     * Creates a {@link MetricKey} for a {@link GaugeAdapter} that holds a {@link CumulativeAverageIntStat}.
+     * Creates a {@link MetricKey} for a {@link GaugeAdapter} that holds a {@link CumulativeIntAvg}.
      *
      * @param name the name of the metric
      * @return the metric key
      */
     @NonNull
-    public static MetricKey<GaugeAdapter<CumulativeAverageIntStat>> key(@NonNull String name) {
+    public static MetricKey<GaugeAdapter<CumulativeIntAvg>> key(@NonNull String name) {
         return MetricKey.of(name, GaugeAdapter.class);
     }
 
     /**
-     * Creates a {@link GaugeAdapter.Builder} for a {@link CumulativeAverageIntStat}.
+     * Creates a {@link GaugeAdapter.Builder} for a {@link CumulativeIntAvg}.
      * Metric will reset the cumulative average after each export.
      *
      * @param key         the metric key
      * @return the metric builder
      */
     @NonNull
-    public static GaugeAdapter.Builder<CumulativeAverageIntStat> metricBuilder(
-            @NonNull MetricKey<GaugeAdapter<CumulativeAverageIntStat>> key) {
-        return GaugeAdapter.builder(
-                        key,
-                        CumulativeAverageIntStat::new,
-                        new ToNumberFunction<>(CumulativeAverageIntStat::getAndReset))
-                .withReset(CumulativeAverageIntStat::reset);
+    public static GaugeAdapter.Builder<CumulativeIntAvg> metricBuilder(
+            @NonNull MetricKey<GaugeAdapter<CumulativeIntAvg>> key) {
+        return GaugeAdapter.builder(key, CumulativeIntAvg::new, new ToNumberFunction<>(CumulativeIntAvg::getAndReset))
+                .withReset(CumulativeIntAvg::reset);
     }
 
     /**
-     * Creates a {@link GaugeAdapter.Builder} for a {@link CumulativeAverageIntStat}.
+     * Creates a {@link GaugeAdapter.Builder} for a {@link CumulativeIntAvg}.
      * Metric will reset the cumulative average after each export.
      *
      * @param name the name of the metric
      * @return the metric builder
      */
     @NonNull
-    public static GaugeAdapter.Builder<CumulativeAverageIntStat> metricBuilder(@NonNull String name) {
+    public static GaugeAdapter.Builder<CumulativeIntAvg> metricBuilder(@NonNull String name) {
         return metricBuilder(key(name));
     }
 
