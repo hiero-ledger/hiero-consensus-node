@@ -82,6 +82,7 @@ import java.nio.file.Paths;
 import java.security.MessageDigest;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
@@ -440,9 +441,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                             block.proofBuilder(),
                             pendingWriter,
                             block.pendingProof().blockTimestamp(),
-                            block.pendingProof()
-                                    .siblingHashesFromPrevBlockRoot()
-                                    .toArray(new MerkleSiblingHash[0])));
+                            block.siblingHashesIfUseful()));
                     log.info("Recovered pending block #{}", block.number());
                 } catch (Exception e) {
                     log.warn("Failed to recover pending block #{}", block.number(), e);
@@ -782,6 +781,8 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             if (currentPendingBlock.number() == blockNumber) {
                 // Block signatures on the current block will always produce a TssSignedBlockProof
                 proof = currentPendingBlock.proofBuilder().signedBlockProof(latestSignedBlockProof);
+                // Explicitly set empty per the protobuf spec
+                proof.siblingHashes(Collections.emptyList());
             } else {
                 // This is a pending block whose block number precedes the signed block number, so we construct an
                 // indirect state proof
@@ -792,6 +793,37 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                         // Pass the remaining pending blocks, but don't remove them from the queue
                         pendingBlocks.stream());
                 proof = currentPendingBlock.proofBuilder().blockStateProof(stateProof);
+
+                // The first mp2 path from the state proof has this block's sibling hashes
+                final var firstMp2Index = stateProof.paths().size() / 3;
+                final var firstMp2Path = stateProof.paths().get(firstMp2Index);
+                proof.siblingHashes(firstMp2Path.siblings().stream()
+                        .map(sib -> MerkleSiblingHash.newBuilder()
+                                .siblingHash(sib.hash())
+                                .isFirst(sib.isLeft())
+                                .build())
+                        .toList());
+
+                if (log.isDebugEnabled()) {
+                    final var tag = "Finishing proof (b=%s):".formatted(currentPendingBlock.number());
+                    log.debug("{} State proof inputs:", tag);
+                    log.debug("{}   - currentPendingBlock={}", tag, currentPendingBlock);
+                    log.debug("{}   - blockNumber={}", tag, blockNumber);
+                    log.debug("{}   - blockSignature={}", tag, blockSignature);
+                    log.debug("{}   - pending block siblings:", tag);
+                    final var pendingSibHashes = currentPendingBlock.siblingHashes();
+                    for (int i = 0; i < pendingSibHashes.length; i++) {
+                        final var sibling = pendingSibHashes[i];
+                        log.debug(
+                                "{}     ||-- ({}) isFirst={}, siblingHash={}",
+                                i,
+                                tag,
+                                sibling.isFirst(),
+                                sibling.siblingHash());
+                    }
+
+                    log.debug("{} Generated state proof: {}", tag, stateProof);
+                }
 
                 // Update the metrics
                 indirectProofCounter.increment();
