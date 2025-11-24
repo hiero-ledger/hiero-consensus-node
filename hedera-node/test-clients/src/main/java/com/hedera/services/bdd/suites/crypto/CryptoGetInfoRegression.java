@@ -47,7 +47,7 @@ import org.junit.jupiter.api.Tag;
 @Tag(CRYPTO)
 public class CryptoGetInfoRegression {
     static final Logger log = LogManager.getLogger(CryptoGetInfoRegression.class);
-    private static final String TARGET = "target";
+    private static final String TARGET_ACC = "targetAcc";
     private static final int NUM_ASSOCIATIONS = 10;
 
     /** For Demo purpose : The limit on each account info and account balance queries is set to 5 */
@@ -250,14 +250,14 @@ public class CryptoGetInfoRegression {
         final var ops = new ArrayList<SpecOperation>();
         ops.add(overridingThrottles("testSystemFiles/tiny-get-balance-throttle.json"));
         ops.add(overridingAllOf(props));
-        ops.add(com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate(TARGET)
+        ops.add(com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate(TARGET_ACC)
                 .withMatchingEvmAddress());
         tokenNames.forEach(t -> {
             ops.add(tokenCreate(t));
-            ops.add(tokenAssociate(TARGET, t));
+            ops.add(tokenAssociate(TARGET_ACC, t));
         });
-        ops.add(getAccountInfo(TARGET).exposingContractAccountIdTo(evmHexRef::set));
-        ops.add(getAccountBalance(TARGET).hasAnswerOnlyPrecheck(BUSY));
+        ops.add(getAccountInfo(TARGET_ACC).exposingContractAccountIdTo(evmHexRef::set));
+        ops.add(getAccountBalance(TARGET_ACC).hasAnswerOnlyPrecheck(BUSY));
         ops.add(sourcing(() -> getAliasedAccountBalance(ByteString.copyFrom(CommonUtils.unhex(evmHexRef.get())))
                 .hasAnswerOnlyPrecheck(BUSY)));
 
