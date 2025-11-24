@@ -16,8 +16,9 @@ final class BlockRecordFactoryImplTest extends AppTestBase {
         final var app = appBuilder()
                 .withConfigValue("hedera.recordStream.logDir", "hedera-node/data/recordStreams")
                 .build();
-        final var factory =
-                new BlockRecordWriterFactoryImpl(app.configProvider(), selfNodeInfo, SIGNER, FileSystems.getDefault());
+        final var selfNodeAccountIdManager = new SelfNodeAccountIdManagerImpl(app.configProvider(), app.networkInfo());
+        final var factory = new BlockRecordWriterFactoryImpl(
+                app.configProvider(), SIGNER, FileSystems.getDefault(), selfNodeAccountIdManager);
         final var writer = factory.create();
         assertThat(writer).isInstanceOf(BlockRecordWriterV6.class);
     }
@@ -28,9 +29,9 @@ final class BlockRecordFactoryImplTest extends AppTestBase {
                 .withConfigValue("hedera.recordStream.recordFileVersion", 7)
                 .withConfigValue("hedera.recordStream.logDir", "hedera-node/data/recordStreams")
                 .build();
-
-        final var factory =
-                new BlockRecordWriterFactoryImpl(app.configProvider(), selfNodeInfo, SIGNER, FileSystems.getDefault());
+        final var selfNodeAccountIdManager = new SelfNodeAccountIdManagerImpl(app.configProvider(), app.networkInfo());
+        final var factory = new BlockRecordWriterFactoryImpl(
+                app.configProvider(), SIGNER, FileSystems.getDefault(), selfNodeAccountIdManager);
         assertThatThrownBy(factory::create)
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("Record file version 7 is not yet supported");
@@ -42,9 +43,9 @@ final class BlockRecordFactoryImplTest extends AppTestBase {
                 .withConfigValue("hedera.recordStream.recordFileVersion", 99999)
                 .withConfigValue("hedera.recordStream.logDir", "hedera-node/data/recordStreams")
                 .build();
-
-        final var factory =
-                new BlockRecordWriterFactoryImpl(app.configProvider(), selfNodeInfo, SIGNER, FileSystems.getDefault());
+        final var selfNodeAccountIdManager = new SelfNodeAccountIdManagerImpl(app.configProvider(), app.networkInfo());
+        final var factory = new BlockRecordWriterFactoryImpl(
+                app.configProvider(), SIGNER, FileSystems.getDefault(), selfNodeAccountIdManager);
         assertThatThrownBy(factory::create)
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("Unknown record file version");

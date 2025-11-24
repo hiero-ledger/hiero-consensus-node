@@ -6,7 +6,6 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.node.app.records.impl.producers.BlockRecordWriter;
 import com.hedera.node.app.records.impl.producers.BlockRecordWriterFactory;
 import com.hedera.node.app.records.impl.producers.formats.v6.BlockRecordWriterV6;
-import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockRecordStreamConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -34,7 +33,6 @@ public class BlockRecordWriterFactoryImpl implements BlockRecordWriterFactory {
     @Inject
     public BlockRecordWriterFactoryImpl(
             @NonNull final ConfigProvider configProvider,
-            @NonNull final NodeInfo selfNodeInfo,
             @NonNull final Signer signer,
             @NonNull final FileSystem fileSystem,
             @NonNull final SelfNodeAccountIdManagerImpl selfNodeAccountIdManager) {
