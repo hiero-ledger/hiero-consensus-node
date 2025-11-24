@@ -26,8 +26,7 @@ import org.junit.jupiter.api.parallel.ResourceLock;
 @ResourceLock(value = "NETWORK", mode = READ)
 public @interface MultiNetworkHapiTest {
     Network[] networks() default {
-        @Network(name = "PRIMARY"),
-        @Network(name = "PEER"),
+        @Network(name = "PRIMARY"), @Network(name = "PEER"),
     };
 
     @interface Network {

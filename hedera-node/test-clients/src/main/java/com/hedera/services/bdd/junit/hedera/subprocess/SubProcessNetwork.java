@@ -83,6 +83,7 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
     private static final SplittableRandom RANDOM = new SplittableRandom();
     private static final int FIRST_CANDIDATE_PORT = 30000;
     private static final int LAST_CANDIDATE_PORT = 40000;
+    private static final int MAX_NODES_PER_NETWORK = 10;
 
     private static final String SUBPROCESS_HOST = "127.0.0.1";
     private static final ByteString SUBPROCESS_ENDPOINT = asOctets(SUBPROCESS_HOST);
@@ -461,8 +462,9 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
      */
     static synchronized SubProcessNetwork liveNetwork(
             @NonNull final String name, final int size, final long shard, final long realm) {
+        final int blockSize = Math.max(size, MAX_NODES_PER_NETWORK);
         if (!nextPortsInitialized) {
-            initializeNextPortsForNetwork(size);
+            initializeNextPortsForNetwork(blockSize);
         }
         final var network = new SubProcessNetwork(
                 name,
@@ -485,6 +487,11 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
                         .toList(),
                 shard,
                 realm);
+        nextGrpcPort += blockSize * 2;
+        nextNodeOperatorPort += blockSize;
+        nextInternalGossipPort += blockSize * 2;
+        nextExternalGossipPort += blockSize * 2;
+        nextPrometheusPort += blockSize;
         Runtime.getRuntime().addShutdownHook(new Thread(network::terminate));
         return network;
     }

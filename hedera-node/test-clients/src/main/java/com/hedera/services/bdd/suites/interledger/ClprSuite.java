@@ -59,7 +59,7 @@ public class ClprSuite {
     }
 
     @HapiTest
-    @DisplayName("updatesConfigurationsViaClprClientImpl")
+    @DisplayName("Updates configurations via ClprClientImpl")
     final Stream<DynamicTest> updatesConfigurationsViaClprClientImpl() {
         final var ledgerIdString = "clpr-ledger-" + Instant.now().toEpochMilli();
         final var ledgerId = ClprLedgerId.newBuilder()

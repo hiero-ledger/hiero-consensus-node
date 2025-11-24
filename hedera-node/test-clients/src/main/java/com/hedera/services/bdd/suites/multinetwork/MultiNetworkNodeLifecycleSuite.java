@@ -2,18 +2,16 @@
 package com.hedera.services.bdd.suites.multinetwork;
 
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccountString;
-import static com.hedera.services.bdd.spec.HapiSpec.multiHapiTest;
+import static com.hedera.services.bdd.spec.HapiSpec.multiNetworkHapiTest;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 
 import com.hedera.services.bdd.junit.MultiNetworkHapiTest;
 import com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork;
-import com.hedera.services.bdd.suites.hip869.NodeCreateTest;
 import com.hedera.services.bdd.spec.queries.QueryVerbs;
 import com.hedera.services.bdd.spec.transactions.TxnVerbs;
+import com.hedera.services.bdd.suites.hip869.NodeCreateTest;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
-import java.security.cert.X509Certificate;
-import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
@@ -23,12 +21,13 @@ import org.junit.jupiter.api.DynamicTest;
  * Exercises node delete/create against multiple networks to validate isolation and post-churn stability.
  */
 public class MultiNetworkNodeLifecycleSuite {
-    @MultiNetworkHapiTest(networks = {
-        @MultiNetworkHapiTest.Network(name = "NET_A", size = 4),
-        @MultiNetworkHapiTest.Network(name = "NET_B", size = 4),
-        @MultiNetworkHapiTest.Network(name = "NET_C", size = 4)
-    })
-    @DisplayName("multi-network-node-delete-create")
+    @MultiNetworkHapiTest(
+            networks = {
+                @MultiNetworkHapiTest.Network(name = "NET_A", size = 4),
+                @MultiNetworkHapiTest.Network(name = "NET_B", size = 4),
+                @MultiNetworkHapiTest.Network(name = "NET_C", size = 4)
+            })
+    @DisplayName("Multi-network node deletes and creates")
     Stream<DynamicTest> nodeDeleteCreateAcrossThreeNetworks(
             final SubProcessNetwork netA, final SubProcessNetwork netB, final SubProcessNetwork netC) {
         // Each network deletes a different existing node ID
@@ -42,8 +41,8 @@ public class MultiNetworkNodeLifecycleSuite {
         final var nodeAcctB = "netB-node4-account";
         final var nodeAcctC = "netC-node4-account";
 
-        return multiHapiTest(netA, netB, netC)
-                .on(
+        final var builder = multiNetworkHapiTest(netA, netB, netC)
+                .onNetwork(
                         "NET_A",
                         TxnVerbs.cryptoCreate("acctA")
                                 .balance(ONE_HBAR)
@@ -62,7 +61,7 @@ public class MultiNetworkNodeLifecycleSuite {
                         QueryVerbs.getAccountBalance(acctA::get).hasTinyBars(ONE_HBAR),
                         QueryVerbs.getScheduleInfo("0.0." + deleteA)
                                 .hasCostAnswerPrecheck(ResponseCodeEnum.INVALID_SCHEDULE_ID))
-                .on(
+                .onNetwork(
                         "NET_B",
                         TxnVerbs.cryptoCreate("acctB")
                                 .balance(ONE_HBAR)
@@ -81,7 +80,7 @@ public class MultiNetworkNodeLifecycleSuite {
                         QueryVerbs.getAccountBalance(acctB::get).hasTinyBars(ONE_HBAR),
                         QueryVerbs.getScheduleInfo("0.0." + deleteB)
                                 .hasCostAnswerPrecheck(ResponseCodeEnum.INVALID_SCHEDULE_ID))
-                .on(
+                .onNetwork(
                         "NET_C",
                         TxnVerbs.cryptoCreate("acctC")
                                 .balance(ONE_HBAR)
@@ -99,8 +98,9 @@ public class MultiNetworkNodeLifecycleSuite {
                                 .gossipCaCertificate(encodeCert()),
                         QueryVerbs.getAccountBalance(acctC::get).hasTinyBars(ONE_HBAR),
                         QueryVerbs.getScheduleInfo("0.0." + deleteC)
-                                .hasCostAnswerPrecheck(ResponseCodeEnum.INVALID_SCHEDULE_ID))
-                .asDynamicTests("multi-network-node-delete-create");
+                                .hasCostAnswerPrecheck(ResponseCodeEnum.INVALID_SCHEDULE_ID));
+
+        return builder.asDynamicTests();
     }
 
     private static byte[] encodeCert() {

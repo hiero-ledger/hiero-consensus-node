@@ -212,6 +212,7 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
 
     public static final ThreadLocal<TestLifecycle> TEST_LIFECYCLE = new ThreadLocal<>();
     public static final ThreadLocal<String> SPEC_NAME = new ThreadLocal<>();
+    public static final ThreadLocal<String> DISPLAY_NAME = new ThreadLocal<>();
 
     private static final String CI_PROPS_FLAG_FOR_NO_UNRECOVERABLE_NETWORK_FAILURES = "suppressNetworkFailures";
     private static final ThreadPoolExecutor THREAD_POOL =
@@ -1354,11 +1355,7 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
                         .withPrioritySetup(setupOverrides))));
     }
 
-    public static MultiNetworkSpecBuilder multiHapiTest(@NonNull final Map<String, HederaNetwork> networks) {
-        return new MultiNetworkSpecBuilder(requireNonNull(networks));
-    }
-
-    public static MultiNetworkSpecBuilder multiHapiTest(@NonNull final HederaNetwork... networks) {
+    public static MultiNetworkSpecBuilder multiNetworkHapiTest(@NonNull final HederaNetwork... networks) {
         requireNonNull(networks);
         final Map<String, HederaNetwork> networkMap = new LinkedHashMap<>();
         for (final var network : networks) {
@@ -1536,7 +1533,8 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
             this.networks = Map.copyOf(networks);
         }
 
-        public MultiNetworkSpecBuilder on(@NonNull final String networkName, @NonNull final SpecOperation... ops) {
+        public MultiNetworkSpecBuilder onNetwork(
+                @NonNull final String networkName, @NonNull final SpecOperation... ops) {
             requireNonNull(networkName);
             requireNonNull(ops);
             if (!networks.containsKey(networkName)) {
@@ -1548,25 +1546,35 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
             return this;
         }
 
-        public Stream<DynamicTest> asDynamicTests(@NonNull final String displayName) {
+        public Stream<DynamicTest> asDynamicTests() {
+            final var displayName = determineDisplayName();
+            return Stream.of(DynamicTest.dynamicTest(displayName, () -> runSteps(displayName)));
+        }
+
+        public void run(@NonNull final String displayName) {
+            runSteps(displayName);
+        }
+
+        private void runSteps(@NonNull final String displayName) {
             requireNonNull(displayName);
             if (steps.isEmpty()) {
                 throw new IllegalStateException("multiHapiTest requires at least one network step");
             }
-            return Stream.of(DynamicTest.dynamicTest(displayName, () -> executeSteps(displayName)));
-        }
-
-        private void executeSteps(final String displayName) {
             int index = 1;
             for (final var step : steps) {
                 if (step.operations().isEmpty()) {
                     continue;
                 }
                 final var network = networks.get(step.networkName());
-                final var specName =
-                        String.format("%s-%s-step-%d", displayName, step.networkName().toLowerCase(Locale.ROOT), index++);
+                final var specName = String.format(
+                        "%s-%s-step-%d", displayName, step.networkName().toLowerCase(Locale.ROOT), index++);
                 runSpec(specName, step.operations(), network);
             }
+        }
+
+        private String determineDisplayName() {
+            return Optional.ofNullable(DISPLAY_NAME.get())
+                    .orElseGet(() -> Optional.ofNullable(SPEC_NAME.get()).orElse("multi-network-spec"));
         }
 
         private void runSpec(final String specName, final List<SpecOperation> operations, final HederaNetwork network) {
