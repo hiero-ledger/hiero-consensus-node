@@ -168,6 +168,12 @@ public record Fees(long nodeFee, long networkFee, long serviceFee) {
             return this;
         }
 
+        public Builder addServiceFee(long fees) {
+            this.serviceFee += fees;
+            if (serviceFee < 0) throw new IllegalArgumentException("Service fees must be non-negative");
+            return this;
+        }
+
         /**
          * Build a {@link Fees} object from the data in this builder.
          * @return a {@link Fees} object

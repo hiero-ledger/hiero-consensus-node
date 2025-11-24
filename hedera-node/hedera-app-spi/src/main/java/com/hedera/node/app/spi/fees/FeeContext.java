@@ -83,4 +83,6 @@ public interface FeeContext extends CalculatorState {
      * @return the active exchange rate
      */
     ExchangeRate activeRate();
+
+    long getGasPriceInTinyCents();
 }

@@ -10,4 +10,6 @@ public record HooksConfig(
         @ConfigProperty(defaultValue = "10") @NetworkProperty int maxLambdaSStoreUpdates,
         @ConfigProperty(defaultValue = "true") @NetworkProperty boolean hooksEnabled,
         @ConfigProperty(value = "evm.lambdaIntrinsicGasCost", defaultValue = "1000") @NetworkProperty
-                int lambdaIntrinsicGasCost) {}
+                int lambdaIntrinsicGasCost,
+        @ConfigProperty(value = "hookInvocationCostTinyCents", defaultValue = "50000000") @NetworkProperty
+                int hookInvocationCostTinyCents) {}
