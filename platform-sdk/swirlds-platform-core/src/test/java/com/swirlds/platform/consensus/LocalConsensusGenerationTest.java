@@ -25,7 +25,7 @@ class LocalConsensusGenerationTest {
         // Create a simple graph
         graph = SimpleGraphs.graph8e4n(randotron);
         // Shuffle the events to simulate random order
-        final List<EventImpl> shuffledEvents = graph.getShuffledImpls();
+        final List<EventImpl> shuffledEvents = graph.shuffledImpls();
 
         // Assign cGen to the events
         LocalConsensusGeneration.assignCGen(shuffledEvents);
@@ -44,7 +44,7 @@ class LocalConsensusGenerationTest {
         LocalConsensusGeneration.clearCGen(shuffledEvents);
 
         // Check that the cGen values are cleared
-        for (final var event : graph.getImpls()) {
+        for (final var event : graph.impls()) {
             assertThat(event.getCGen())
                     .withFailMessage("Expected CGen to have been cleared")
                     .isEqualTo(LocalConsensusGeneration.GENERATION_UNDEFINED);
@@ -52,7 +52,7 @@ class LocalConsensusGenerationTest {
     }
 
     private void assertCGen(final int eventIndex, final int expectedCGen) {
-        final EventImpl event = graph.getImpls().get(eventIndex);
+        final EventImpl event = graph.impls().get(eventIndex);
         assertThat(event).withFailMessage("Event " + eventIndex + " is null").isNotNull();
         assertThat(event.getCGen())
                 .withFailMessage(

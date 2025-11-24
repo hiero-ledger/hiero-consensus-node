@@ -7,7 +7,6 @@ import com.swirlds.common.test.fixtures.Randotron;
 import com.swirlds.platform.internal.EventImpl;
 import com.swirlds.platform.test.fixtures.graph.SimpleGraph;
 import com.swirlds.platform.test.fixtures.graph.SimpleGraphs;
-import java.util.List;
 import org.hiero.consensus.model.hashgraph.ConsensusConstants;
 import org.junit.jupiter.api.Test;
 
@@ -28,12 +27,12 @@ class DeGenTest {
         graph = SimpleGraphs.graph9e3n(randotron);
 
         // We pick 3 & 4 to be judges, they and their descendants will have a round of 1
-        graph.getImpls().subList(3, 9).forEach(event -> event.setRoundCreated(ConsensusConstants.ROUND_FIRST));
+        graph.impls().subList(3, 9).forEach(event -> event.setRoundCreated(ConsensusConstants.ROUND_FIRST));
         // Events 0, 1 & 2 are not descendants of the judges, so their round is negative infinity
-        graph.getImpls().subList(0, 3).forEach(event -> event.setRoundCreated(ConsensusConstants.ROUND_NEGATIVE_INFINITY));
+        graph.impls().subList(0, 3).forEach(event -> event.setRoundCreated(ConsensusConstants.ROUND_NEGATIVE_INFINITY));
 
         // Assign DeGen to the events
-        for (final EventImpl event : graph.getImpls()) {
+        for (final EventImpl event : graph.impls()) {
             DeGen.calculateDeGen(event);
         }
 
@@ -49,12 +48,12 @@ class DeGenTest {
         assertDeGen(8, 3);
 
         // Clear DeGen from the events
-        for (final EventImpl event : graph.getImpls()) {
+        for (final EventImpl event : graph.impls()) {
             DeGen.clearDeGen(event);
         }
 
         // Check that the DeGen values are cleared
-        for (final var event : graph.getImpls()) {
+        for (final var event : graph.impls()) {
             assertThat(event.getDeGen())
                     .withFailMessage("Expected DeGen to have been cleared")
                     .isEqualTo(DeGen.GENERATION_UNDEFINED);
@@ -71,12 +70,12 @@ class DeGenTest {
         graph = SimpleGraphs.mopGraph(randotron);
 
         // We pick 4 & 7 to be judges, they and their descendants will have a round of 1
-        graph.getImpls(4,7,8,9,10,11).forEach(event -> event.setRoundCreated(ConsensusConstants.ROUND_FIRST));
+        graph.impls(4,7,8,9,10,11).forEach(event -> event.setRoundCreated(ConsensusConstants.ROUND_FIRST));
         // Events 0,1,2,3,5,6 are not descendants of the judges, so their round is negative infinity
-        graph.getImpls(0,1,2,3,5,6).forEach(event -> event.setRoundCreated(ConsensusConstants.ROUND_NEGATIVE_INFINITY));
+        graph.impls(0,1,2,3,5,6).forEach(event -> event.setRoundCreated(ConsensusConstants.ROUND_NEGATIVE_INFINITY));
 
         // Assign DeGen to the events
-        for (final EventImpl event : graph.getImpls()) {
+        for (final EventImpl event : graph.impls()) {
             DeGen.calculateDeGen(event);
         }
 
@@ -97,12 +96,12 @@ class DeGenTest {
         assertDeGen(11, 2);
 
         // Clear DeGen from the events
-        for (final EventImpl event : graph.getImpls()) {
+        for (final EventImpl event : graph.impls()) {
             DeGen.clearDeGen(event);
         }
 
         // Check that the DeGen values are cleared
-        for (final var event : graph.getImpls()) {
+        for (final var event : graph.impls()) {
             assertThat(event.getDeGen())
                     .withFailMessage("Expected DeGen to have been cleared")
                     .isEqualTo(DeGen.GENERATION_UNDEFINED);
@@ -110,7 +109,7 @@ class DeGenTest {
     }
 
     private void assertDeGen(final int eventIndex, final int expectedDeGen) {
-        final EventImpl event = graph.getImpls().get(eventIndex);
+        final EventImpl event = graph.impls().get(eventIndex);
         assertThat(event).withFailMessage("Event " + eventIndex + " is null").isNotNull();
         assertThat(event.getDeGen())
                 .withFailMessage(

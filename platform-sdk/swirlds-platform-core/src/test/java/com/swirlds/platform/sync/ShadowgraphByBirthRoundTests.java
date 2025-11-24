@@ -736,7 +736,7 @@ class ShadowgraphByBirthRoundTests {
         final SimpleGraph graph = SimpleGraphs.mopGraph(randotron);
 
         // add all events to shadow graph
-        graph.getEvents().forEach(shadowGraph::addEvent);
+        graph.events().forEach(shadowGraph::addEvent);
 
         // check the tips
         final Set<PlatformEvent> tips = shadowGraph.getTips().stream()
@@ -763,7 +763,7 @@ class ShadowgraphByBirthRoundTests {
             final int... expectedAncestorIndices) {
 
         final ShadowEvent shadow =
-                shadowGraph.shadow(graph.getEvent(indexToCheck).getDescriptor());
+                shadowGraph.shadow(graph.event(indexToCheck).getDescriptor());
         assertNotNull(shadow, "Shadow event for event %d should exist in the shadow graph".formatted(indexToCheck));
         final Set<PlatformEvent> ancestors = shadowGraph.findAncestors(List.of(shadow), e -> true).stream()
                 .map(ShadowEvent::getPlatformEvent)

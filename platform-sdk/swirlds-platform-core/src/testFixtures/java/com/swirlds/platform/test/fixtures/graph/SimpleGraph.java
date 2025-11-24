@@ -13,6 +13,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Random;
 import java.util.Set;
+import java.util.stream.Collectors;
+import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.model.event.PlatformEvent;
 
 public class SimpleGraph {
@@ -20,7 +22,7 @@ public class SimpleGraph {
     private final List<PlatformEvent> events;
     private final List<EventImpl> eventImpls;
 
-    public SimpleGraph(final Random random, final PlatformEvent... events) {
+    public SimpleGraph(@NonNull final Random random, @NonNull final PlatformEvent... events) {
         this.random = random;
         this.events = List.of(events);
         final List<EventImpl> eventImpls = new ArrayList<>();
@@ -45,15 +47,15 @@ public class SimpleGraph {
         this.eventImpls = Collections.unmodifiableList(eventImpls);
     }
 
-    public List<PlatformEvent> getEvents() {
+    public @NonNull List<PlatformEvent> events() {
         return events;
     }
 
-    public @NonNull PlatformEvent getEvent(final int index) {
+    public @NonNull PlatformEvent event(final int index) {
         return events.get(index);
     }
 
-    public @NonNull List<PlatformEvent> getEvents(final int... indices) {
+    public @NonNull List<PlatformEvent> events(@NonNull final int... indices) {
         final List<PlatformEvent> selectedEvents = new ArrayList<>();
         for (final int index : indices) {
             selectedEvents.add(events.get(index));
@@ -66,7 +68,7 @@ public class SimpleGraph {
      * @param indices the indices of events to include in the set
      * @return the set of events
      */
-    public Set<PlatformEvent> eventSet(final int... indices) {
+    public @NonNull Set<PlatformEvent> eventSet(@NonNull final int... indices) {
         final Set<PlatformEvent> eventSet = new HashSet<>();
         for (final int index : indices) {
             eventSet.add(events.get(index));
@@ -74,17 +76,17 @@ public class SimpleGraph {
         return Collections.unmodifiableSet(eventSet);
     }
 
-    public @NonNull List<EventImpl> getImpls() {
+    public @NonNull List<EventImpl> impls() {
         return eventImpls;
     }
 
-    public @NonNull List<EventImpl> getShuffledImpls() {
+    public @NonNull List<EventImpl> shuffledImpls() {
         final List<EventImpl> shuffledEvents = new ArrayList<>(eventImpls);
         Collections.shuffle(shuffledEvents, random);
         return shuffledEvents;
     }
 
-    public @NonNull List<EventImpl> getImpls(final int... indices) {
+    public @NonNull List<EventImpl> impls(@NonNull final int... indices) {
         final List<EventImpl> selectedEvents = new ArrayList<>();
         for (final int index : indices) {
             selectedEvents.add(eventImpls.get(index));
@@ -92,7 +94,11 @@ public class SimpleGraph {
         return Collections.unmodifiableList(selectedEvents);
     }
 
-    public @NonNull EventImpl getImpl(final int index) {
+    public @NonNull EventImpl impl(final int index) {
         return eventImpls.get(index);
+    }
+
+    public @NonNull Set<Hash> hashes(@NonNull final int... indices){
+        return events(indices).stream().map(PlatformEvent::getHash).collect(Collectors.toSet());
     }
 }

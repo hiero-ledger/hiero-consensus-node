@@ -189,18 +189,18 @@ class ConsensusLinkerTests {
         inOrderLinkerSetup();
 
         final SimpleGraph graph = SimpleGraphs.mopGraph(random);
-        assertParentsMop(linker.linkEvent(graph.getEvent(0)), null, List.of());
-        assertParentsMop(linker.linkEvent(graph.getEvent(1)), null, List.of());
-        assertParentsMop(linker.linkEvent(graph.getEvent(2)), null, List.of());
-        assertParentsMop(linker.linkEvent(graph.getEvent(3)), null, List.of());
-        assertParentsMop(linker.linkEvent(graph.getEvent(4)), graph.getEvent(0), List.of());
-        assertParentsMop(linker.linkEvent(graph.getEvent(5)), graph.getEvent(1), graph.getEvents(0,2));
-        assertParentsMop(linker.linkEvent(graph.getEvent(6)), graph.getEvent(2), graph.getEvents(1,3));
-        assertParentsMop(linker.linkEvent(graph.getEvent(7)), graph.getEvent(3), List.of());
-        assertParentsMop(linker.linkEvent(graph.getEvent(8)), graph.getEvent(4), List.of());
-        assertParentsMop(linker.linkEvent(graph.getEvent(9)), graph.getEvent(5), graph.getEvents(4,6));
-        assertParentsMop(linker.linkEvent(graph.getEvent(10)), graph.getEvent(6), graph.getEvents(5,7));
-        assertParentsMop(linker.linkEvent(graph.getEvent(11)), graph.getEvent(7), List.of());
+        assertParentsMop(linker.linkEvent(graph.event(0)), null, List.of());
+        assertParentsMop(linker.linkEvent(graph.event(1)), null, List.of());
+        assertParentsMop(linker.linkEvent(graph.event(2)), null, List.of());
+        assertParentsMop(linker.linkEvent(graph.event(3)), null, List.of());
+        assertParentsMop(linker.linkEvent(graph.event(4)), graph.event(0), List.of());
+        assertParentsMop(linker.linkEvent(graph.event(5)), graph.event(1), graph.events(0,2));
+        assertParentsMop(linker.linkEvent(graph.event(6)), graph.event(2), graph.events(1,3));
+        assertParentsMop(linker.linkEvent(graph.event(7)), graph.event(3), List.of());
+        assertParentsMop(linker.linkEvent(graph.event(8)), graph.event(4), List.of());
+        assertParentsMop(linker.linkEvent(graph.event(9)), graph.event(5), graph.events(4,6));
+        assertParentsMop(linker.linkEvent(graph.event(10)), graph.event(6), graph.events(5,7));
+        assertParentsMop(linker.linkEvent(graph.event(11)), graph.event(7), List.of());
     }
 
     @Test
