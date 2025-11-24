@@ -80,7 +80,6 @@ public class WorkingDirUtils {
     public static final String NODE_ADMIN_KEYS_JSON = "node-admin-keys.json";
     public static final String CANDIDATE_ROSTER_JSON = "candidate-roster.json";
     public static final String APPLICATION_PROPERTIES = "application.properties";
-    public static final String NODE_ACCOUNT_ID_TABLE = "node_account_id.csv";
 
     private static final List<String> WORKING_DIR_DATA_FOLDERS = List.of(KEYS_FOLDER, CONFIG_FOLDER, UPGRADE_DIR);
 

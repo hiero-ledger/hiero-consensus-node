@@ -7,7 +7,6 @@ import static com.hedera.hapi.node.freeze.FreezeType.PREPARE_UPGRADE;
 import static com.hedera.hapi.node.freeze.FreezeType.TELEMETRY_UPGRADE;
 import static com.hedera.hapi.node.freeze.FreezeType.UNKNOWN_FREEZE_TYPE;
 import static com.hedera.node.app.hapi.utils.CommonUtils.noThrowSha384HashOf;
-import static com.swirlds.common.io.utility.FileUtils.getAbsolutePath;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.FileID;
@@ -34,14 +33,11 @@ import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
-import com.hedera.node.config.data.BlockRecordStreamConfig;
 import com.hedera.node.config.data.FilesConfig;
 import com.hedera.node.config.types.LongPair;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.Objects;
@@ -323,21 +319,6 @@ public class FreezeHandler implements TransactionHandler {
                 log.error("Couldn't read (previously non-empty) bytes of file {}!", updateFileID, e);
                 throw new PreCheckException(ResponseCodeEnum.FREEZE_UPDATE_FILE_DOES_NOT_EXIST);
             }
-        }
-    }
-
-    protected void writeNodeAccountIdFile(BlockRecordStreamConfig networkAdminConfig, NodeInfo selfInfo) {
-        final Path recordsStreamPath = getAbsolutePath(networkAdminConfig.logDir());
-        final var filePath = recordsStreamPath.resolve("node_account_id.txt");
-        try {
-            String content = selfInfo.accountId().shardNum() + "."
-                    + selfInfo.accountId().realmNum()
-                    + "."
-                    + selfInfo.accountId().accountNum();
-            Files.writeString(filePath, content);
-            log.info("Wrote node account id file at {}", filePath);
-        } catch (final IOException e) {
-            log.error("Failed to write node account id file at {}", filePath, e);
         }
     }
 }

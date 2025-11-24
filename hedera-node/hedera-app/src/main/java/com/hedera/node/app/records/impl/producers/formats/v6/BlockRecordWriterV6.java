@@ -157,6 +157,8 @@ public final class BlockRecordWriterV6 implements BlockRecordWriter {
             throw new IllegalArgumentException("Configuration signature file version is not 6!");
         }
 
+        requireNonNull(nodeAccountId, "Node account id should not be null");
+
         this.state = State.UNINITIALIZED;
         this.signer = requireNonNull(signer);
         this.maxSideCarSizeInBytes = config.sidecarMaxSizeMb() * 1024 * 1024;

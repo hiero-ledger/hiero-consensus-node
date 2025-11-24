@@ -8,7 +8,6 @@ import static com.swirlds.common.utility.CommonUtils.nameToAlias;
 import static java.util.Objects.requireNonNull;
 import static java.util.concurrent.CompletableFuture.runAsync;
 
-import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.FileID;
 import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.base.Timestamp;
@@ -62,9 +61,6 @@ public class ReadableFreezeUpgradeActions {
     public static final String PREPARE_UPGRADE_DESC = "software";
     public static final String TELEMETRY_UPGRADE_DESC = "telemetry";
     public static final String MANUAL_REMEDIATION_ALERT = "Manual remediation may be necessary to avoid node ISS";
-
-    public static final String NODE_ACCOUNT_ID_TABLE = "node_account_id.csv";
-    public static final String CSV_SEPARATOR = ",";
 
     public static final String NOW_FROZEN_MARKER = "now_frozen.mf";
     public static final String EXEC_IMMEDIATE_MARKER = "execute_immediate.mf";
@@ -134,40 +130,6 @@ public class ReadableFreezeUpgradeActions {
         } catch (final IOException e) {
             log.error("Failed to write NMT marker {}", filePath, e);
             log.error(MANUAL_REMEDIATION_ALERT);
-        }
-    }
-
-    protected void writeNodeAccountIdTable(@NonNull List<ActiveNode> activeNodes) {
-        final Path artifactsDirPath = getAbsolutePath(networkAdminConfig.upgradeArtifactsPath());
-        final var filePath = artifactsDirPath.resolve(NODE_ACCOUNT_ID_TABLE);
-        try {
-            if (!artifactsDirPath.toFile().exists()) {
-                Files.createDirectories(artifactsDirPath);
-            }
-            final var contentBuilder = new StringBuilder();
-            activeNodes.forEach(activeNode -> {
-                final var node = activeNode.node;
-                if (!contentBuilder.isEmpty()) {
-                    contentBuilder.append("\n");
-                }
-                // append node id
-                contentBuilder.append(node.nodeId());
-                // append separator
-                contentBuilder.append(CSV_SEPARATOR);
-                // append account id
-                final var accountID = node.accountIdOrElse(
-                        AccountID.DEFAULT); // TODO: Check if we should throw if active node has no account id?
-                contentBuilder
-                        .append(accountID.shardNum())
-                        .append(".")
-                        .append(accountID.realmNum())
-                        .append(".")
-                        .append(accountID.accountNum());
-            });
-            Files.writeString(filePath, contentBuilder.toString());
-            log.info("Wrote node account id table {}", filePath);
-        } catch (final IOException e) {
-            log.error("Failed to write node account id table {}", filePath, e);
         }
     }
 
@@ -269,7 +231,7 @@ public class ReadableFreezeUpgradeActions {
                 executor);
     }
 
-    protected record ActiveNode(@NonNull Node node, @Nullable StakingNodeInfo stakingInfo) {}
+    private record ActiveNode(@NonNull Node node, @Nullable StakingNodeInfo stakingInfo) {}
 
     private List<ActiveNode> allActiveNodes() {
         return nodeStore.keys().stream()
@@ -306,10 +268,6 @@ public class ReadableFreezeUpgradeActions {
             if (nodes != null && nodesConfig.enableDAB() && networkAdminConfig.exportCandidateRoster()) {
                 generateConfigPem(artifactsLoc, keysLoc, nodes);
                 log.info("Finished generating config.txt and pem files into {}", artifactsLoc);
-            }
-            // write node-accountId table
-            if (nodes != null) {
-                writeNodeAccountIdTable(nodes);
             }
             writeSecondMarker(marker, now);
         } catch (final Exception t) {

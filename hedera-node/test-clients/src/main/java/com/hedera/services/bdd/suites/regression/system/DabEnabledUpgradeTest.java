@@ -4,7 +4,6 @@ package com.hedera.services.bdd.suites.regression.system;
 import static com.hedera.hapi.util.HapiUtils.asReadableIp;
 import static com.hedera.services.bdd.junit.SharedNetworkLauncherSessionListener.CLASSIC_HAPI_TEST_NETWORK_SIZE;
 import static com.hedera.services.bdd.junit.TestTags.UPGRADE;
-import static com.hedera.services.bdd.junit.hedera.NodeSelector.allNodes;
 import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
 import static com.hedera.services.bdd.junit.hedera.NodeSelector.exceptNodeIds;
 import static com.hedera.services.bdd.junit.hedera.utils.AddressBookUtils.CLASSIC_NODE_NAMES;
@@ -29,11 +28,13 @@ import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfe
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.ensureStakingActivated;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.logIt;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.recordStreamMustIncludePassFrom;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.selectedItems;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateCandidateRoster;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateNodeAccountIdTable;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitForActive;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitUntilStartOfNextStakingPeriod;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.spec.utilops.streams.assertions.VisibleItemsValidator.EXISTENCE_ONLY_VALIDATOR;
@@ -51,7 +52,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Fail.fail;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.hedera.hapi.node.state.roster.Roster;
@@ -67,6 +67,7 @@ import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.dsl.annotations.Account;
 import com.hedera.services.bdd.spec.dsl.entities.SpecAccount;
 import com.hedera.services.bdd.spec.queries.QueryVerbs;
+import com.hedera.services.bdd.spec.utilops.ContextualActionOp;
 import com.hedera.services.bdd.spec.utilops.FakeNmt;
 import com.hedera.services.bdd.suites.utils.sysfiles.AddressBookPojo;
 import com.hedera.services.bdd.suites.utils.sysfiles.BookEntryPojo;
@@ -74,6 +75,7 @@ import com.hederahashgraph.api.proto.java.AccountID;
 import com.hederahashgraph.api.proto.java.NodeAddressBook;
 import com.hederahashgraph.api.proto.java.SemanticVersion;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.time.Duration;
@@ -83,6 +85,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.LongStream;
 import java.util.stream.Stream;
+import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
@@ -218,8 +221,6 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
                 prepareFakeUpgrade(),
                 validateCandidateRoster(
                         addressBook -> assertThat(nodeIdsFrom(addressBook)).containsExactlyInAnyOrder(0L, 2L, 3L)),
-                doingContextual(spec -> validateNodeAccountIdTable(allNodes(), table -> assertThat(table)
-                        .doesNotContain(nodeIdAccountIdTableEntry(1, classicFeeCollectorIdFor(1), spec)))),
                 upgradeToNextConfigVersion(ENV_OVERRIDES, FakeNmt.removeNode(byNodeId(1))),
                 waitUntilStartOfNextStakingPeriod(1).withBackgroundTraffic(),
                 touchBalanceOf(NODE0_STAKER, NODE2_STAKER, NODE3_STAKER).andAssertStakingRewardCount(3),
@@ -245,8 +246,6 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
                 prepareFakeUpgrade(),
                 validateCandidateRoster(
                         addressBook -> assertThat(nodeIdsFrom(addressBook)).containsExactlyInAnyOrder(0L, 2L)),
-                doingContextual(spec -> validateNodeAccountIdTable(allNodes(), table -> assertThat(table)
-                        .doesNotContain(nodeIdAccountIdTableEntry(3, classicFeeCollectorIdFor(3), spec)))),
                 upgradeToNextConfigVersion(ENV_OVERRIDES, FakeNmt.removeNode(byNodeId(3))),
                 waitUntilStartOfNextStakingPeriod(1).withBackgroundTraffic(),
                 touchBalanceOf(NODE0_STAKER, NODE2_STAKER).andAssertStakingRewardCount(2),
@@ -268,8 +267,6 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
                 // node4 was not active before this the upgrade, so it could not have written a config.txt
                 validateCandidateRoster(exceptNodeIds(4L), addressBook -> assertThat(nodeIdsFrom(addressBook))
                         .contains(4L)),
-                doingContextual(spec -> validateNodeAccountIdTable(allNodes(), table -> assertThat(table)
-                        .doesNotContain(nodeIdAccountIdTableEntry(4, classicFeeCollectorIdFor(4), spec)))),
                 upgradeToNextConfigVersion(ENV_OVERRIDES, FakeNmt.addNode(4L)));
     }
 
@@ -333,10 +330,6 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
                     // Now make some changes that should not be incorporated in this upgrade
                     nodeDelete("5"),
                     nodeDelete("2"),
-                    doingContextual(spec -> validateNodeAccountIdTable(allNodes(), table -> assertThat(table)
-                            .containsExactly(
-                                    nodeIdAccountIdTableEntry(0, classicFeeCollectorIdFor(0), spec),
-                                    nodeIdAccountIdTableEntry(2, classicFeeCollectorIdFor(902), spec)))),
                     validateCandidateRoster(
                             NodeSelector.allNodes(), DabEnabledUpgradeTest::validateNodeId5MultipartEdits),
                     upgradeToNextConfigVersion(
@@ -393,28 +386,25 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
                                         .accountId("newNodeAccountId")
                                         .signedByPayerAnd("newNodeAccountId"),
 
-                                //                                // try death restart of node 4
-                                //
-                                // getVersionInfo().exposingServicesVersionTo(currentVersion::set),
-                                //                                FakeNmt.shutdownWithin(byNodeId(nodeId.get()),
-                                // SHUTDOWN_TIMEOUT),
-                                //                                logIt("Node 4 is supposedly down"),
-                                //                                sleepFor(PORT_UNBINDING_WAIT_PERIOD.toMillis()),
-                                //                                burstOfTps(MIXED_OPS_BURST_TPS,
-                                // MIXED_OPS_BURST_DURATION),
-                                //                                sourcing(() -> FakeNmt.restartWithConfigVersion(
-                                //                                        byNodeId(nodeId.get()),
-                                // configVersionOf(currentVersion.get()))),
-                                //                                waitForActive(byNodeId(4), Duration.ofSeconds(210)),
+                                // try death restart of node 4
+
+                                getVersionInfo().exposingServicesVersionTo(currentVersion::set),
+                                FakeNmt.shutdownWithin(byNodeId(nodeId.get()), SHUTDOWN_TIMEOUT),
+                                logIt("Node 4 is supposedly down"),
+                                sleepFor(PORT_UNBINDING_WAIT_PERIOD.toMillis()),
+                                burstOfTps(MIXED_OPS_BURST_TPS, MIXED_OPS_BURST_DURATION),
+                                sourcing(() -> FakeNmt.restartWithConfigVersion(
+                                        byNodeId(nodeId.get()), configVersionOf(currentVersion.get()))),
+                                waitForActive(byNodeId(4), Duration.ofSeconds(210)),
 
                                 // reconnect the node
                                 getVersionInfo().exposingServicesVersionTo(currentVersion::set),
                                 sourcing(() ->
                                         reconnectNode(byNodeId(nodeId.get()), configVersionOf(currentVersion.get()))),
-
+                                validateNodeAccountIdFile(nodeId.get(), initialNodeAccount.get(), newNodeAccount.get()),
                                 // validate record dir...
                                 withOpContext((spec1, log) -> {
-                                    final var csvPath =
+                                    final var nodeAccountIdFilePath =
                                             Paths.get(recordsPath(nodeId.get())).resolve("node_account_id.txt");
                                     final var newRecordPath = Paths.get(recordsPath(nodeId.get()) + "record"
                                             + asAccountString(newNodeAccount.get()));
@@ -422,7 +412,9 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
                                     assertFalse(newRecordPath.toFile().exists());
                                     // validate the node account id upgrade file content is pointing to the initial node
                                     // account
-                                    assertEquals(Files.readString(csvPath), asEntityString(initialNodeAccount.get()));
+                                    assertEquals(
+                                            Files.readString(nodeAccountIdFilePath),
+                                            asEntityString(initialNodeAccount.get()));
                                 }));
                     }));
         }
@@ -469,10 +461,8 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
                     prepareFakeUpgrade(),
                     upgradeToNextConfigVersion(),
                     burstOfTps(MIXED_OPS_BURST_TPS, Duration.ofSeconds(2)),
-                    withOpContext((spec, log) -> {
-                        final var newRecordPath = Paths.get(baseDir + "record" + asAccountString(newAccountId.get()));
-                        assertTrue(newRecordPath.toFile().exists());
-                    }));
+                    doingContextual(spec -> validateNodeAccountIdFile(
+                            Long.parseLong(nodeToUpdate), accountId.get(), newAccountId.get())));
         }
     }
 
@@ -509,11 +499,25 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
         assertEquals(classicIds, entries.stream().map(RosterEntry::nodeId).collect(toSet()), "Wrong ids");
     }
 
-    private static Map.Entry<Long, String> nodeIdAccountIdTableEntry(long nodeId, long accountNum, HapiSpec spec) {
-        return Map.entry(nodeId, asEntityString(spec.shard(), spec.realm(), accountNum));
-    }
-
     private static String recordsPath(long nodeId) {
         return "build/hapi-test/node%d/data/recordStreams/".formatted(nodeId);
+    }
+
+    private static ContextualActionOp validateNodeAccountIdFile(
+            long nodeId, AccountID oldAccountId, AccountID updatedAccountId) {
+        // validate record dir...
+        return doingContextual((spec) -> {
+            final var nodeAccountIdFilePath = Paths.get(recordsPath(nodeId)).resolve("node_account_id.txt");
+            final var newRecordPath = Paths.get(recordsPath(nodeId) + "record" + asAccountString(updatedAccountId));
+            // new record path doesn't exist
+            assertFalse(newRecordPath.toFile().exists());
+            // validate the node account id upgrade file content is pointing to the initial node
+            // account
+            try {
+                assertEquals(Files.readString(nodeAccountIdFilePath), asEntityString(oldAccountId));
+            } catch (IOException e) {
+                Assertions.fail("Can not read node account id file", e);
+            }
+        });
     }
 }

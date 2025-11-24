@@ -146,7 +146,6 @@ import com.hedera.services.bdd.spec.utilops.inventory.SpecKeyFromMutation;
 import com.hedera.services.bdd.spec.utilops.inventory.SpecKeyFromPem;
 import com.hedera.services.bdd.spec.utilops.inventory.UsableTxnId;
 import com.hedera.services.bdd.spec.utilops.lifecycle.ops.CandidateRosterValidationOp;
-import com.hedera.services.bdd.spec.utilops.lifecycle.ops.NodeAccountIdTableValidationOp;
 import com.hedera.services.bdd.spec.utilops.lifecycle.ops.PurgeUpgradeArtifactsOp;
 import com.hedera.services.bdd.spec.utilops.lifecycle.ops.WaitForMarkerFileOp;
 import com.hedera.services.bdd.spec.utilops.lifecycle.ops.WaitForStatusOp;
@@ -789,12 +788,6 @@ public class UtilVerbs {
     public static CandidateRosterValidationOp validateCandidateRoster(
             @NonNull final NodeSelector selector, @NonNull final Consumer<Roster> rosterValidator) {
         return new CandidateRosterValidationOp(selector, rosterValidator);
-    }
-
-    public static NodeAccountIdTableValidationOp validateNodeAccountIdTable(
-            @NonNull final NodeSelector selector,
-            @NonNull final Consumer<Map<Long, String>> nodeAccountIdTableValidator) {
-        return new NodeAccountIdTableValidationOp(selector, nodeAccountIdTableValidator);
     }
 
     /**
