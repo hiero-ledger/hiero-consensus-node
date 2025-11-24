@@ -13,7 +13,7 @@ public class JvmMetricsRegistrationTest {
 
     @Test
     void testJvmMetricsRegistration() {
-        Collection<Metric.Builder<?, ?>> metricsToRegister = new JvmMetricsRegistration().getMetricsToRegister();
+        Collection<Metric.Builder<?, ?>> metricsToRegister = new JvmMetricsRegistration().getMetricsToRegister(null);
         Stream<String> metricNames =
                 metricsToRegister.stream().map(Metric.Builder::key).map(MetricKey::name);
 

@@ -2,6 +2,7 @@
 package org.hiero.metrics.api.core;
 
 import com.swirlds.base.ArgumentUtils;
+import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -115,9 +116,10 @@ public sealed interface MetricRegistry permits org.hiero.metrics.internal.export
         private static final Logger logger = LogManager.getLogger(MetricRegistry.class);
 
         private final String registryName;
-        private boolean discoverMetricProviders = false;
         private final List<Label> globalLabels = new ArrayList<>();
         private final Set<String> globalLabelNames = new HashSet<>();
+
+        private Configuration configuration;
 
         public Builder(@NonNull String registryName) {
             this.registryName = ArgumentUtils.throwArgBlank(registryName, "registry name");
@@ -160,11 +162,12 @@ public sealed interface MetricRegistry permits org.hiero.metrics.internal.export
         /**
          * Enable discovery of {@link MetricsRegistrationProvider} implementations to register in the registry.
          *
+         * @param configuration the configuration to pass to the discovered providers, must not be {@code null}
          * @return this builder instance
          */
         @NonNull
-        public Builder withDiscoverMetricProviders() {
-            this.discoverMetricProviders = true;
+        public Builder withDiscoverMetricProviders(@NonNull Configuration configuration) {
+            this.configuration = Objects.requireNonNull(configuration, "configuration must not be null");
             return this;
         }
 
@@ -177,7 +180,7 @@ public sealed interface MetricRegistry permits org.hiero.metrics.internal.export
         public MetricRegistry build() {
             MetricRegistryImpl registry = new MetricRegistryImpl(registryName, globalLabels);
 
-            if (discoverMetricProviders) {
+            if (configuration != null) {
                 List<MetricsRegistrationProvider> providers = MetricUtils.load(MetricsRegistrationProvider.class);
 
                 if (providers.isEmpty()) {
@@ -189,7 +192,7 @@ public sealed interface MetricRegistry permits org.hiero.metrics.internal.export
                     Objects.requireNonNull(provider, "metrics registration provider must not be null");
                     logger.info("Registering metrics from provider: {}", provider.getClass());
 
-                    Collection<Metric.Builder<?, ?>> metricsToRegister = provider.getMetricsToRegister();
+                    Collection<Metric.Builder<?, ?>> metricsToRegister = provider.getMetricsToRegister(configuration);
                     Objects.requireNonNull(metricsToRegister, "metrics collection must not be null");
 
                     for (Metric.Builder<?, ?> builder : metricsToRegister) {

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.metrics.api.core;
 
+import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Collection;
 
@@ -17,7 +18,7 @@ import java.util.Collection;
  * </ul>
  * <p>
  * That way it can be discovered by SPI when creating a {@link MetricRegistry}
- * using {@link MetricRegistry.Builder#withDiscoverMetricProviders()}.
+ * using {@link MetricRegistry.Builder#withDiscoverMetricProviders(Configuration)}.
  * <p>
  * When registered metrics are used in multiple places, {@link MetricKey}'s can be saved in {@code public static final}
  * fields and used to retrieve the metrics from the registry propagated to the place where the metric is used. <br>
@@ -29,8 +30,10 @@ import java.util.Collection;
 public interface MetricsRegistrationProvider {
 
     /**
+     * @param configuration the configuration to use when creating the metrics
+     *
      * @return a collection of metric builders to register, never {@code null}
      */
     @NonNull
-    Collection<Metric.Builder<?, ?>> getMetricsToRegister();
+    Collection<Metric.Builder<?, ?>> getMetricsToRegister(@NonNull Configuration configuration);
 }
