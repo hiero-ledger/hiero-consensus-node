@@ -33,7 +33,7 @@ class LargeStateTests {
 
     // A basic test to make sure the service works in general
     @OtterTest
-    void basicAccountsTest(@NonNull final TestEnvironment env) throws Exception {
+    void basicAccountsTest(@NonNull final TestEnvironment env) {
         final Network network = env.network();
         final TimeManager timeManager = env.timeManager();
 
@@ -44,7 +44,7 @@ class LargeStateTests {
         timeManager.waitFor(Duration.ofSeconds(4));
 
         // Create a few accounts
-        createAccounts(10, network);
+        createAccounts(10, network, timeManager);
 
         timeManager.waitFor(Duration.ofSeconds(4));
 
@@ -77,7 +77,7 @@ class LargeStateTests {
 
         // Create some accounts
         timeManager.waitFor(Duration.ofSeconds(4L));
-        createAccounts(LARGE_COUNT, network);
+        createAccounts(LARGE_COUNT, network, timeManager);
 
         // Make sure all accounts are created
         timeManager.waitFor(Duration.ofSeconds(4L));
@@ -115,7 +115,7 @@ class LargeStateTests {
                 Duration.ofSeconds(60L));
 
         // Delete all accounts to make sure they were loaded from the snapshot after restart
-        deleteAccounts(LARGE_COUNT, network);
+        deleteAccounts(LARGE_COUNT, network, timeManager);
         deleteAccount(LARGE_COUNT + 1, network);
 
         // Make sure accounts are found and deleted
@@ -136,7 +136,8 @@ class LargeStateTests {
 
     // Helper test methods
 
-    private static void createAccounts(final int count, @NonNull final Network network) throws InterruptedException {
+    private static void createAccounts(
+            final int count, @NonNull final Network network, @NonNull final TimeManager timeMananager) {
         final int BATCH = 100;
         final List<OtterTransaction> transactions = new ArrayList<>();
         for (int i = 0; i < count; i++) {
@@ -146,10 +147,10 @@ class LargeStateTests {
                     .setCreateAccountTransaction(createAccountTransaction)
                     .build();
             transactions.add(createOtterTransaction);
-            if ((i > 0) && (i % BATCH == 0)) {
+            if (i % BATCH == BATCH - 1) {
                 network.submitTransactions(transactions);
                 transactions.clear();
-                Thread.sleep(10);
+                timeMananager.waitFor(Duration.ofMillis(10));
             }
         }
         if (!transactions.isEmpty()) {
@@ -158,7 +159,8 @@ class LargeStateTests {
         }
     }
 
-    private static void deleteAccounts(final int count, @NonNull final Network network) throws InterruptedException {
+    private static void deleteAccounts(
+            final int count, @NonNull final Network network, @NonNull final TimeManager timeManager) {
         final int BATCH = 100;
         final List<OtterTransaction> transactions = new ArrayList<>();
         for (int i = 1; i <= count; i++) {
@@ -171,7 +173,7 @@ class LargeStateTests {
             if (i % BATCH == 0) {
                 network.submitTransactions(transactions);
                 transactions.clear();
-                Thread.sleep(10);
+                timeManager.waitFor(Duration.ofMillis(10));
             }
         }
         if (!transactions.isEmpty()) {
