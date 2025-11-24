@@ -2,7 +2,6 @@
 package com.swirlds.platform.reconnect;
 
 import static com.swirlds.common.utility.Threshold.MAJORITY;
-import static com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade.TEST_PLATFORM_STATE_FACADE;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -18,7 +17,8 @@ import com.swirlds.platform.state.signed.SignedStateInvalidException;
 import com.swirlds.platform.state.signed.SignedStateValidationData;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterEntryBuilder;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
-import com.swirlds.state.test.fixtures.merkle.TestVirtualMapState;
+import com.swirlds.state.merkle.VirtualMapState;
+import com.swirlds.state.test.fixtures.merkle.VirtualMapStateTestUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -254,11 +254,10 @@ class DefaultSignedStateValidatorTests {
         final PlatformContext platformContext =
                 TestPlatformContextBuilder.create().build();
 
-        validator = new DefaultSignedStateValidator(platformContext, TEST_PLATFORM_STATE_FACADE);
+        validator = new DefaultSignedStateValidator(platformContext);
 
         final SignedState signedState = stateSignedByNodes(signingNodes);
-        final SignedStateValidationData originalData =
-                new SignedStateValidationData(signedState.getState(), roster, TEST_PLATFORM_STATE_FACADE);
+        final SignedStateValidationData originalData = new SignedStateValidationData(signedState.getState(), roster);
 
         final boolean shouldSucceed = stateHasEnoughWeight(nodes, signingNodes);
         if (shouldSucceed) {
@@ -313,7 +312,7 @@ class DefaultSignedStateValidatorTests {
      * @return the signed state
      */
     private SignedState stateSignedByNodes(final List<Node> signingNodes) {
-        final TestVirtualMapState state = new TestVirtualMapState();
+        final VirtualMapState state = VirtualMapStateTestUtils.createTestState();
 
         final SignatureVerifier signatureVerifier = (data, signature, key) -> {
             // a signature with a 0 byte is always invalid

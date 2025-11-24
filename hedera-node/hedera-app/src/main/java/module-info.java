@@ -26,7 +26,6 @@ module com.hedera.node.app {
     requires transitive com.swirlds.metrics.api;
     requires transitive com.swirlds.platform.core;
     requires transitive com.swirlds.state.api;
-    requires transitive com.swirlds.state.impl;
     requires transitive com.swirlds.virtualmap;
     requires transitive org.hiero.base.crypto;
     requires transitive org.hiero.base.utility;
@@ -52,6 +51,7 @@ module com.hedera.node.app {
     requires com.hedera.node.app.service.util;
     requires com.swirlds.config.extensions;
     requires com.swirlds.logging;
+    requires com.swirlds.state.impl;
     requires org.hiero.base.concurrent;
     requires com.github.benmanes.caffeine;
     requires com.google.common;
@@ -62,7 +62,6 @@ module com.hedera.node.app {
     requires io.netty.transport.classes.epoll;
     requires io.netty.transport;
     requires org.apache.commons.lang3;
-    requires org.json;
     requires static transitive com.github.spotbugs.annotations;
     requires static com.google.auto.service;
     requires static java.compiler;

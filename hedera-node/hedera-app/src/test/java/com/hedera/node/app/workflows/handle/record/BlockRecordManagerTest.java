@@ -41,14 +41,15 @@ import com.hedera.node.app.records.impl.producers.formats.BlockRecordWriterFacto
 import com.hedera.node.app.records.impl.producers.formats.v6.BlockRecordFormatV6;
 import com.hedera.node.config.data.BlockRecordStreamConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.platform.state.service.PlatformStateService;
 import com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.state.State;
+import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.spi.ReadableStates;
 import com.swirlds.state.test.fixtures.FunctionReadableSingletonState;
 import com.swirlds.state.test.fixtures.MapReadableStates;
-import com.swirlds.state.test.fixtures.merkle.TestVirtualMapState;
 import com.swirlds.state.test.fixtures.merkle.VirtualMapUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.FileSystem;
@@ -197,7 +198,7 @@ final class BlockRecordManagerTest extends AppTestBase {
                 quiescedHeartbeat,
                 platform)) {
             if (!startMode.equals("GENESIS")) {
-                blockRecordManager.switchBlocksAt(FORCED_BLOCK_SWITCH_TIME, state);
+                blockRecordManager.switchBlocksAt(FORCED_BLOCK_SWITCH_TIME);
             }
             assertThat(blockRecordManager.blockTimestamp()).isNotNull();
             assertThat(blockRecordManager.blockNo()).isEqualTo(blockRecordManager.lastBlockNo() + 1);
@@ -288,7 +289,7 @@ final class BlockRecordManagerTest extends AppTestBase {
                 quiescenceController,
                 quiescedHeartbeat,
                 platform)) {
-            blockRecordManager.switchBlocksAt(FORCED_BLOCK_SWITCH_TIME, state);
+            blockRecordManager.switchBlocksAt(FORCED_BLOCK_SWITCH_TIME);
             // write a blocks & record files
             int transactionCount = 0;
             Bytes runningHash = STARTING_RUNNING_HASH_OBJ.hash();
@@ -468,7 +469,7 @@ final class BlockRecordManagerTest extends AppTestBase {
         final var virtualMapLabel =
                 "vm-" + BlockRecordManagerTest.class.getSimpleName() + "-" + java.util.UUID.randomUUID();
         final var virtualMap = VirtualMapUtils.createVirtualMap(virtualMapLabel);
-        return new TestVirtualMapState(virtualMap) {
+        return new VirtualMapState(virtualMap, new NoOpMetrics()) {
             @NonNull
             @Override
             public ReadableStates getReadableStates(@NonNull final String serviceName) {
