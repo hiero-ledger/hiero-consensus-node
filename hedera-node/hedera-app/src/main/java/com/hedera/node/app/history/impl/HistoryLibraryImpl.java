@@ -196,9 +196,4 @@ public class HistoryLibraryImpl implements HistoryLibrary {
 
     // --- DEPRECATED METHODS ---
 
-    @Override
-    public Bytes hashHintsVerificationKey(@NonNull final Bytes hintsVerificationKey) {
-        requireNonNull(hintsVerificationKey);
-        return Bytes.wrap(RPM_BRIDGE.hashHintsVerificationKey(hintsVerificationKey.toByteArray()));
-    }
 }

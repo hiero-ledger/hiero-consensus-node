@@ -7,11 +7,13 @@ import static com.hedera.hapi.node.state.history.WrapsPhase.R2;
 import static com.hedera.hapi.node.state.history.WrapsPhase.R3;
 import static com.hedera.hapi.util.HapiUtils.asInstant;
 import static com.hedera.node.app.history.HistoryLibrary.EMPTY_PUBLIC_KEY;
+import static com.hedera.node.app.history.impl.ProofControllers.isWrapsExtensible;
 import static com.hedera.node.app.service.roster.impl.RosterTransitionWeights.moreThanHalfOfTotal;
 import static java.util.Collections.emptySortedMap;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.cryptography.wraps.Proof;
+import com.hedera.hapi.block.stream.AggregatedNodeSignatures;
 import com.hedera.hapi.block.stream.ChainOfTrustProof;
 import com.hedera.hapi.node.state.history.History;
 import com.hedera.hapi.node.state.history.HistoryProof;
@@ -31,6 +33,7 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.security.SecureRandom;
 import java.time.Instant;
 import java.util.EnumMap;
+import java.util.List;
 import java.util.Map;
 import java.util.SortedMap;
 import java.util.TreeMap;
@@ -51,9 +54,13 @@ public class WrapsHistoryProver implements HistoryProver {
 
     private final long selfId;
     private final SchnorrKeyPair schnorrKeyPair;
-    private final Map<Long, Bytes> sourceProofKeys;
+    private final Map<Long, Bytes> proofKeys;
     private final RosterTransitionWeights weights;
     private final Executor executor;
+
+    @Nullable
+    private final HistoryProof sourceProof;
+
     private final HistoryLibrary historyLibrary;
     private final HistorySubmissions submissions;
     private final Map<WrapsPhase, SortedMap<Long, WrapsMessagePublication>> phaseMessages =
@@ -113,24 +120,28 @@ public class WrapsHistoryProver implements HistoryProver {
      */
     private WrapsPhase wrapsPhase = R1;
 
-    private sealed interface WrapsPhaseOutput permits MessagePhaseOutput, ProofPhaseOutput {}
+    private sealed interface WrapsPhaseOutput permits MessagePhaseOutput, ProofPhaseOutput, AggregatePhaseOutput {}
 
     private record MessagePhaseOutput(byte[] message) implements WrapsPhaseOutput {}
+
+    private record AggregatePhaseOutput(byte[] signature, List<Long> nodeIds) implements WrapsPhaseOutput {}
 
     private record ProofPhaseOutput(byte[] compressed, byte[] uncompressed) implements WrapsPhaseOutput {}
 
     public WrapsHistoryProver(
             final long selfId,
-            @NonNull final Map<Long, Bytes> sourceProofKeys,
             @NonNull final SchnorrKeyPair schnorrKeyPair,
+            @Nullable final HistoryProof sourceProof,
             @NonNull final RosterTransitionWeights weights,
+            @NonNull final Map<Long, Bytes> proofKeys,
             @NonNull final Executor executor,
             @NonNull final HistoryLibrary historyLibrary,
             @NonNull final HistorySubmissions submissions) {
         this.selfId = selfId;
+        this.sourceProof = sourceProof;
         this.schnorrKeyPair = requireNonNull(schnorrKeyPair);
         this.weights = requireNonNull(weights);
-        this.sourceProofKeys = requireNonNull(sourceProofKeys);
+        this.proofKeys = requireNonNull(proofKeys);
         this.executor = requireNonNull(executor);
         this.historyLibrary = requireNonNull(historyLibrary);
         this.submissions = requireNonNull(submissions);
@@ -304,7 +315,6 @@ public class WrapsHistoryProver implements HistoryProver {
             @NonNull final Map<Long, Bytes> targetProofKeys,
             @NonNull final TssConfig tssConfig,
             @NonNull final Bytes ledgerId) {
-        log.info("ensureProtocolOutputPublished({}, {})", constructionId, phase);
         if (futureOf(phase) == null
                 && (phase == AGGREGATE
                         || !phaseMessages.getOrDefault(phase, emptySortedMap()).containsKey(selfId))) {
@@ -330,6 +340,32 @@ public class WrapsHistoryProver implements HistoryProver {
                                                 log.info(
                                                         "Published {} message for WRAPS signature on construction #{}",
                                                         phase,
+                                                        constructionId);
+                                            }
+                                            case AggregatePhaseOutput aggregatePhaseOutput -> {
+                                                // We are doing a non-recursive proof via an aggregate signature
+                                                submissions
+                                                        .submitProofVote(
+                                                                constructionId,
+                                                                HistoryProof.newBuilder()
+                                                                        .targetProofKeys(proofKeyList)
+                                                                        .targetHistory(new History(
+                                                                                Bytes.wrap(bookHash), targetMetadata))
+                                                                        .chainOfTrustProof(
+                                                                                ChainOfTrustProof.newBuilder()
+                                                                                        .aggregatedNodeSignatures(
+                                                                                                AggregatedNodeSignatures
+                                                                                                        .newBuilder()
+                                                                                                        .aggregatedSignature(
+                                                                                                                Bytes
+                                                                                                                        .wrap(
+                                                                                                                                aggregatePhaseOutput
+                                                                                                                                        .signature()))
+                                                                                                        .signingNodeIds()))
+                                                                        .build())
+                                                        .join();
+                                                log.info(
+                                                        "Published vote for aggregated signatures proof on construction #{}",
                                                         constructionId);
                                             }
                                             case ProofPhaseOutput proofOutput -> {
@@ -419,31 +455,38 @@ public class WrapsHistoryProver implements HistoryProver {
                                     rawMessagesFor(R2),
                                     rawMessagesFor(R3),
                                     publicKeysForR1());
-                            if (tssConfig.mockWrapsProof()) {
-                                yield new ProofPhaseOutput(signature, signature);
+                            // Sans source proof, we are at genesis and need an aggregate signature proof right away
+                            if (sourceProof == null || !tssConfig.wrapsEnabled()) {
+                                yield new AggregatePhaseOutput(
+                                        signature,
+                                        phaseMessages.get(R1).keySet().stream().toList());
                             } else {
                                 Proof proof;
-                                if (true) {
+                                if (!isWrapsExtensible(sourceProof)) {
                                     proof = historyLibrary.constructGenesisWrapsProof(
                                             ledgerId.toByteArray(),
                                             signature,
                                             phaseMessages.get(R1).keySet(),
                                             targetBook);
                                 } else {
-                                    final var sourceBook =
-                                            AddressBook.from(weights.sourceNodeWeights(), nodeId -> sourceProofKeys
-                                                    .getOrDefault(nodeId, EMPTY_PUBLIC_KEY)
+                                    proof = new Proof(
+                                            sourceProof.uncompressedWrapsProof().toByteArray(),
+                                            sourceProof
+                                                    .chainOfTrustProofOrThrow()
+                                                    .wrapsProofOrThrow()
                                                     .toByteArray());
-                                    proof = historyLibrary.constructIncrementalWrapsProof(
-                                            ledgerId.toByteArray(),
-                                            // TODO
-                                            new byte[0],
-                                            sourceBook,
-                                            targetAddressBook,
-                                            targetMetadata.toByteArray(),
-                                            signature,
-                                            phaseMessages.get(R1).keySet());
                                 }
+                                final var sourceBook = AddressBook.from(weights.sourceNodeWeights(), nodeId -> proofKeys
+                                        .getOrDefault(nodeId, EMPTY_PUBLIC_KEY)
+                                        .toByteArray());
+                                proof = historyLibrary.constructIncrementalWrapsProof(
+                                        ledgerId.toByteArray(),
+                                        proof.uncompressed(),
+                                        sourceBook,
+                                        targetBook,
+                                        targetMetadata.toByteArray(),
+                                        signature,
+                                        phaseMessages.get(R1).keySet());
                                 yield new ProofPhaseOutput(proof.compressed(), proof.uncompressed());
                             }
                         }
@@ -455,7 +498,7 @@ public class WrapsHistoryProver implements HistoryProver {
 
     private byte[][] publicKeysForR1() {
         return phaseMessages.get(R1).keySet().stream()
-                .map(nodeId -> sourceProofKeys.get(nodeId).toByteArray())
+                .map(nodeId -> proofKeys.get(nodeId).toByteArray())
                 .toArray(byte[][]::new);
     }
 

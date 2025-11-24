@@ -146,8 +146,8 @@ public class ProofControllers {
             final var selfId = selfNodeInfoSupplier.get().nodeId();
             final var schnorrKeyPair = keyAccessor.getOrCreateSchnorrKeyPair(construction.constructionId());
             final var sourceProof = isWrapsExtensible(activeProofConstruction.targetProof())
-                            ? activeProofConstruction.targetProofOrThrow()
-                            : null;
+                    ? activeProofConstruction.targetProofOrThrow()
+                    : null;
             return new ProofControllerImpl(
                     selfId,
                     schnorrKeyPair,

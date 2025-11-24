@@ -26,8 +26,6 @@ public record TssConfig(
         @ConfigProperty(defaultValue = "false") @NetworkProperty boolean historyEnabled,
         // Whether to switch to the WrapsHistoryProver after the genesis block
         @ConfigProperty(defaultValue = "false") @NetworkProperty boolean wrapsEnabled,
-        // Whether to use mock WRAPS proofs to save time in test environments
-        @ConfigProperty(defaultValue = "true") @NetworkProperty boolean mockWrapsProof,
         // Must be true if enabling TSS while also using an override network,
         // to give express consent for breaking the address book chain of trust
         @ConfigProperty(defaultValue = "false") @NetworkProperty boolean forceHandoffs,

@@ -266,11 +266,4 @@ public interface HistoryLibrary {
             @NonNull byte[] targetHintsVerificationKey,
             @NonNull byte[] aggregatedSignature,
             @NonNull Set<Long> signers);
-
-    /**
-     * Computes the hash of the given hints verification key.
-     * @param hintsVerificationKey the hints verification key
-     * @return the hash of the hints verification key
-     */
-    Bytes hashHintsVerificationKey(@NonNull Bytes hintsVerificationKey);
 }

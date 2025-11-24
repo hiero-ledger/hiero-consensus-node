@@ -108,7 +108,14 @@ public class ProofControllerImpl implements ProofController {
                     ? targetProofKeys
                     : sourceProof.targetProofKeys().stream().collect(toMap(ProofKey::nodeId, ProofKey::key));
             this.prover = proverFactory.create(
-                    selfId, sourceProofKeys, schnorrKeyPair, weights, executor, historyLibrary, submissions);
+                    selfId,
+                    schnorrKeyPair,
+                    sourceProof,
+                    weights,
+                    sourceProofKeys,
+                    executor,
+                    historyLibrary,
+                    submissions);
             log.info(
                     "Controller for history proof construction #{} using prover type {}",
                     construction.constructionId(),

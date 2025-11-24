@@ -201,6 +201,10 @@ public class StateChangesValidator implements BlockStreamValidator {
             return library.computeWrapsMessage(targetAddressBook, metadata.toByteArray());
         }
 
+        public byte[][] publicKeysFor(@NonNull final List<Long> nodeIds) {
+            return nodeIds.stream().map(proofKeys::get).map(Bytes::toByteArray).toArray(byte[][]::new);
+        }
+
         public byte[][] r3PublicKeys() {
             return r3Senders.stream()
                     .map(proofKeys::get)
@@ -708,35 +712,19 @@ public class StateChangesValidator implements BlockStreamValidator {
                     case UNSET ->
                         Assertions.fail("Empty chain-of-trust for hinTS key in proof (start round #" + firstRound
                                 + ") - " + proof);
-                    case NODE_SIGNATURES -> {
-                        requireNonNull(activeWeights);
+                    case NODE_SIGNATURES -> Assertions.fail("Unsupported chain-of-trust for hinTS key in proof (start round #" + firstRound
+                            + ") - " + proof);
+                    case AGGREGATED_NODE_SIGNATURES -> {
                         final var context = vkContexts.get(vk);
-                        assertNotNull(
-                                context, "No context for verification key in proof (start round #" + firstRound + ")");
-                        // Signatures are over (targetBookHash || hash(verificationKey))
-                        final var targetBookHash = context.targetBookHash(historyLibrary);
-                        final var message = targetBookHash.append(historyLibrary.hashHintsVerificationKey(vk));
-                        long signingWeight = 0;
-                        final var signatures =
-                                chainOfTrustProof.nodeSignaturesOrThrow().nodeSignatures();
-                        final var weights = context.proverWeights();
-                        for (final var s : signatures) {
-                            final long nodeId = s.nodeId();
-                            final var proofKey = context.proofKeys().get(nodeId);
-                            assertTrue(
-                                    historyLibrary.verifySchnorr(s.signature(), message, proofKey),
-                                    "Invalid signature for node" + nodeId
-                                            + " in chain-of-trust for hinTS key in proof (start round #" + firstRound
-                                            + ") - " + proof);
-                            signingWeight += weights.getOrDefault(s.nodeId(), 0L);
-                        }
-                        final long threshold = atLeastOneThirdOfTotal(weights);
+                        final var wrapsMessage = context.wrapsMessageGiven(historyLibrary, vk);
+                        final var nonRecursiveProof = chainOfTrustProof.aggregatedNodeSignaturesOrThrow();
                         assertTrue(
-                                signingWeight >= threshold,
-                                "Insufficient weight in chain-of-trust for hinTS key in proof (start round #"
-                                        + firstRound + ") - " + proof
-                                        + " (expected >= " + threshold + ", got " + signingWeight
-                                        + ")");
+                                historyLibrary.verifyAggregateSignature(
+                                        wrapsMessage,
+                                        context.publicKeysFor(nonRecursiveProof.signingNodeIds()),
+                                        nonRecursiveProof.aggregatedSignature().toByteArray()),
+                                "Invalid aggregated signature in proof (start round #" + firstRound + ") - context "
+                                        + context);
                     }
                     case WRAPS_PROOF -> {
                         final var context = vkContexts.get(vk);
@@ -753,7 +741,7 @@ public class StateChangesValidator implements BlockStreamValidator {
         } else {
             final var expectedSignature = Bytes.wrap(noThrowSha384HashOf(provenHash.toByteArray()));
             assertEquals(
-                    expectedSignature, proof.signedBlockProof().blockSignature(), "Signature mismatch for " + proof);
+                    expectedSignature, proof.signedBlockProofOrThrow().blockSignature(), "Signature mismatch for " + proof);
         }
     }
 
