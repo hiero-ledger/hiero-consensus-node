@@ -1212,10 +1212,10 @@ public class ConsensusImpl implements Consensus {
         if (x == null) {
             return false;
         }
-        if (!rosterIndicesMap.containsKey(x.getCreatorId().id())) {
+        final Integer memberIndex = rosterIndicesMap.get(x.getCreatorId().id());
+        if (memberIndex == null) {
             return false;
         }
-        final int memberIndex = rosterIndicesMap.get(x.getCreatorId().id());
         final long weight = getWeight(memberIndex);
         return Threshold.SUPER_MAJORITY.isSatisfiedBy(weight, rosterTotalWeight);
     }
