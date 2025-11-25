@@ -39,9 +39,6 @@ class HistorySubmissionsTest {
     @Mock
     private NodeInfo selfNodeInfo;
 
-    @Mock
-    private Consumer<TransactionBody.Builder> spec;
-
     private HistorySubmissions subject;
 
     @BeforeEach
@@ -78,6 +75,44 @@ class HistorySubmissionsTest {
         spec.accept(builder);
         final var body = builder.build();
         assertTrue(body.hasHistoryProofKeyPublication());
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void usesExpectedBodyForWrapsSigningMessage() {
+        given(selfNodeInfo.accountId()).willReturn(AccountID.DEFAULT);
+        given(appContext.selfNodeInfoSupplier()).willReturn(() -> selfNodeInfo);
+        given(appContext.instantSource()).willReturn(() -> Instant.EPOCH);
+        given(appContext.configSupplier()).willReturn(() -> DEFAULT_CONFIG);
+        given(appContext.gossip()).willReturn(gossip);
+
+        final var phase = com.hedera.hapi.node.state.history.WrapsPhase.R1;
+        final var message = Bytes.wrap("MSG");
+        final long constructionId = 42L;
+
+        subject.submitWrapsSigningMessage(phase, message, constructionId);
+
+        final ArgumentCaptor<Consumer<TransactionBody.Builder>> wrapsCaptor = ArgumentCaptor.forClass(Consumer.class);
+        verify(gossip)
+                .submitFuture(
+                        eq(AccountID.DEFAULT),
+                        eq(Instant.EPOCH),
+                        any(),
+                        wrapsCaptor.capture(),
+                        any(),
+                        anyInt(),
+                        anyInt(),
+                        any(),
+                        any());
+        final var wrapsSpec = wrapsCaptor.getValue();
+        final var wrapsBuilder = TransactionBody.newBuilder();
+        wrapsSpec.accept(wrapsBuilder);
+        final var wrapsBody = wrapsBuilder.build();
+        assertTrue(wrapsBody.hasHistoryProofKeyPublication());
+        final var op = wrapsBody.historyProofKeyPublicationOrThrow();
+        assertEquals(phase, op.phase());
+        assertEquals(message, op.wrapsMessage());
+        assertEquals(constructionId, op.constructionId());
     }
 
     @Test
