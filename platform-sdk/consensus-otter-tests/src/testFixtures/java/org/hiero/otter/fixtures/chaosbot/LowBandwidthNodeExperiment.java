@@ -95,8 +95,10 @@ public record LowBandwidthNodeExperiment(
         }
         final Node targetNode = candidates.get(randotron.nextInt(candidates.size()));
         affectedNodes.add(targetNode);
-        final BandwidthLimit bandwidthLimit = BandwidthLimit.ofKilobytesPerSecond(
-                randotron.nextInt(maxBandwidthLimit.toKilobytesPerSecond() - minBandwidthLimit.toKilobytesPerSecond()));
+        final int minimum = minBandwidthLimit.toKilobytesPerSecond();
+        final int maximum = maxBandwidthLimit.toKilobytesPerSecond();
+        final int value = randotron.nextInt(maximum - minimum) + minimum;
+        final BandwidthLimit bandwidthLimit = BandwidthLimit.ofKilobytesPerSecond(value);
         final Duration duration = randotron.nextDuration(minDuration, maxDuration);
 
         log.info(
