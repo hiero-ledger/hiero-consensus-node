@@ -93,6 +93,12 @@ public interface FeeContext extends CalculatorState {
      */
     long getGasPriceInTinyCents();
 
+    /**
+     * Gets the number of tinybars equivalent to the given number of tiny cents.
+     *
+     * @param amount the amount in tiny cents
+     * @return the amount in tinybars
+     */
     default long tinybarsFromTinycents(final long amount) {
         return tinycentsToTinybars(amount, fromPbj(activeRate()));
     }

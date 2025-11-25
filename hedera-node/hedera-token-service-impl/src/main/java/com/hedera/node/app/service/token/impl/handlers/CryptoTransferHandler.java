@@ -15,9 +15,9 @@ import static com.hedera.node.app.hapi.fees.usage.crypto.CryptoOpsUsage.LONG_ACC
 import static com.hedera.node.app.hapi.fees.usage.token.TokenOpsUsage.LONG_BASIC_ENTITY_ID_SIZE;
 import static com.hedera.node.app.hapi.fees.usage.token.entities.TokenEntitySizes.TOKEN_ENTITY_SIZES;
 import static com.hedera.node.app.hapi.utils.CommonUtils.clampedAdd;
+import static com.hedera.node.app.hapi.utils.CommonUtils.clampedMultiply;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
 import static java.util.Objects.requireNonNull;
-import static org.hyperledger.besu.evm.internal.Words.clampedMultiply;
 
 import com.hedera.hapi.node.base.AccountAmount;
 import com.hedera.hapi.node.base.AccountID;
@@ -290,7 +290,7 @@ public class CryptoTransferHandler extends TransferExecutor implements Transacti
                 .addBytesPerTransaction(bpt)
                 .addRamByteSeconds(rbs * USAGE_PROPERTIES.legacyReceiptStorageSecs())
                 .calculate();
-        if (hookInfo.numHooks() > 0) {
+        if (hookInfo.numHookInvocations() > 0) {
             final var hooksConfig = config.getConfigData(HooksConfig.class);
             // Avoid overflow in by clamping effective limit (out-of-bound txs will be failed or throttled anyway)
             final long effectiveGasLimit = Math.max(
@@ -300,7 +300,8 @@ public class CryptoTransferHandler extends TransferExecutor implements Transacti
                             hookInfo.totalGasLimitOfHooks()));
 
             final var gasFees = clampedMultiply(effectiveGasLimit, feeContext.getGasPriceInTinyCents());
-            final var hookFees = clampedMultiply(hookInfo.numHooks(), hooksConfig.hookInvocationCostTinyCents());
+            final var hookFees =
+                    clampedMultiply(hookInfo.numHookInvocations(), hooksConfig.hookInvocationCostTinyCents());
             final var tinyBarFees = feeContext.tinybarsFromTinycents(clampedAdd(gasFees, hookFees));
             return fees.copyBuilder().addServiceFee(tinyBarFees).build();
         }
@@ -439,13 +440,14 @@ public class CryptoTransferHandler extends TransferExecutor implements Transacti
      */
     private static HookInfo merge(final HookInfo a, final HookInfo b) {
         return new HookInfo(
-                a.numHooks() + b.numHooks(), clampedAdd(a.totalGasLimitOfHooks(), b.totalGasLimitOfHooks()));
+                a.numHookInvocations() + b.numHookInvocations(),
+                clampedAdd(a.totalGasLimitOfHooks(), b.totalGasLimitOfHooks()));
     }
 
     /**
      * Summary of hook usage and total gas.
      */
-    public record HookInfo(int numHooks, long totalGasLimitOfHooks) {
+    public record HookInfo(int numHookInvocations, long totalGasLimitOfHooks) {
         public static final HookInfo NO_HOOKS = new HookInfo(0, 0L);
     }
 }

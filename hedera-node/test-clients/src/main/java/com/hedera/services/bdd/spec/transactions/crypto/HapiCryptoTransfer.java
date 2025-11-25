@@ -692,7 +692,7 @@ public class HapiCryptoTransfer extends HapiBaseTransfer<HapiCryptoTransfer> {
                         numPayerKeys);
         final var hookInfo = CryptoTransferHandler.getHookInfo(
                 Objects.requireNonNull(toPbj(extractTransactionBody(txn)).cryptoTransfer()));
-        final var totalHookInvocations = hookInfo.numHooks();
+        final var totalHookInvocations = hookInfo.numHookInvocations();
         final var gasLimitOfHooks = hookInfo.totalGasLimitOfHooks();
 
         if (totalHookInvocations > 0) {

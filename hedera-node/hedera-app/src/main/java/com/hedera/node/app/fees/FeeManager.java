@@ -283,7 +283,11 @@ public final class FeeManager {
         }
         return result;
     }
-
+    /**
+     * Returns the gas price in tiny cents.
+     * @param consensusTime the consensus time
+     * @return the gas price in tiny cents
+     */
     public long getGasPriceInTinyCents(@NonNull final Instant consensusTime) {
         return getFeeData(CONTRACT_CALL, consensusTime, SubType.DEFAULT)
                         .servicedataOrThrow()
