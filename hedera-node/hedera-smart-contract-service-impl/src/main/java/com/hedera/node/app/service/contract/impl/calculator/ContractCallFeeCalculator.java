@@ -16,7 +16,8 @@ public class ContractCallFeeCalculator implements ServiceFeeCalculator {
             @Nullable final CalculatorState calculatorState,
             @NonNull final FeeResult feeResult,
             @NonNull final FeeSchedule feeSchedule) {
-        // we clear the node and network fee previously set, as contract call is paid only in gas
+        // we clear the node and network fee previously set by SimpleFeeCalculatorImpl,
+        // as contract call is paid only in gas
         feeResult.clearFees();
     }
 
