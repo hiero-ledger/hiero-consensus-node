@@ -466,39 +466,6 @@ class CryptoTransferFeeCalculatorTest {
     @Nested
     @DisplayName("Edge Cases")
     class EdgeCaseTests {
-        @Test
-        @DisplayName("Null calculator state uses base fee only")
-        void nullCalculatorState() {
-            // Given: null calculator state (no state access)
-            final var sender = AccountID.newBuilder().accountNum(1001L).build();
-            final var receiver = AccountID.newBuilder().accountNum(1002L).build();
-
-            final var hbarTransfers = TransferList.newBuilder()
-                    .accountAmounts(
-                            AccountAmount.newBuilder()
-                                    .accountID(sender)
-                                    .amount(-100L)
-                                    .build(),
-                            AccountAmount.newBuilder()
-                                    .accountID(receiver)
-                                    .amount(100L)
-                                    .build())
-                    .build();
-
-            final var op = CryptoTransferTransactionBody.newBuilder()
-                    .transfers(hbarTransfers)
-                    .build();
-            final var body = TransactionBody.newBuilder().cryptoTransfer(op).build();
-
-            // When
-            final var result = feeCalculator.calculateTxFee(body, null);
-
-            // Then: Base fees + charges for transfers
-            // node=100000, network=900000, service=0 (base)
-            assertThat(result.node).isEqualTo(100000L);
-            assertThat(result.network).isEqualTo(900000L);
-            assertThat(result.service).isEqualTo(0L);
-        }
 
         @Test
         @DisplayName("Empty transfer")
@@ -803,7 +770,7 @@ class CryptoTransferFeeCalculatorTest {
             // When
             final var result = feeCalculator.calculateTxFee(body, calculatorState);
 
-            // Then: service=10000000 (CRYPTO_TRANSFER_TOKEN_FUNGIBLE_COMMON base) + 0 (no auto-association)
+            // Then:
             assertThat(result.service).isEqualTo(10000000L);
         }
 
@@ -862,8 +829,7 @@ class CryptoTransferFeeCalculatorTest {
             // When
             final var result = feeCalculator.calculateTxFee(body, calculatorState);
 
-            // Then: No auto-association needed
-            // service=10000000 (CRYPTO_TRANSFER_TOKEN_FUNGIBLE_COMMON base) + 0 (no auto-association when relation exists)
+            // Then:
             assertThat(result.service).isEqualTo(10000000L);
         }
 
@@ -894,7 +860,7 @@ class CryptoTransferFeeCalculatorTest {
             final var recipient = Account.newBuilder()
                     .accountId(recipientId)
                     .maxAutoAssociations(10)
-                    .usedAutoAssociations(10) // All slots used
+                    .usedAutoAssociations(10)
                     .build();
 
             when(tokenStore.get(tokenId)).thenReturn(token);
@@ -917,8 +883,7 @@ class CryptoTransferFeeCalculatorTest {
             // When
             final var result = feeCalculator.calculateTxFee(body, calculatorState);
 
-            // Then: No auto-association
-            // service=10000000 (CRYPTO_TRANSFER_TOKEN_FUNGIBLE_COMMON base) + 0 (no auto-association when no slots)
+            // Then
             assertThat(result.service).isEqualTo(10000000L);
         }
     }
@@ -955,7 +920,7 @@ class CryptoTransferFeeCalculatorTest {
             // When
             final var result = feeCalculator.calculateTxFee(body, calculatorState);
 
-            // Then: Base fee only (CREATED_ACCOUNTS fee is 0)
+            // Then:
             assertThat(result.service).isEqualTo(0L);
         }
 
@@ -1031,8 +996,7 @@ class CryptoTransferFeeCalculatorTest {
             // When
             final var result = feeCalculator.calculateTxFee(body, calculatorState);
 
-            // Then: Base fee + standard fungible token fee (CREATED_ACCOUNTS fee is 0)
-            // service=10000000 (CRYPTO_TRANSFER_TOKEN_FUNGIBLE_COMMON base) + 0 (hollow account creation fee is 0)
+            // Then:
             assertThat(result.service).isEqualTo(10000000L);
         }
 
@@ -1079,8 +1043,7 @@ class CryptoTransferFeeCalculatorTest {
             // When
             final var result = feeCalculator.calculateTxFee(body, calculatorState);
 
-            // Then: Base fee + NFT fee (CREATED_ACCOUNTS fee is 0)
-            // service=10000000 (CRYPTO_TRANSFER_TOKEN_NON_FUNGIBLE_UNIQUE base) + 0 (hollow account creation fee is 0)
+            // Then:
             assertThat(result.service).isEqualTo(10000000L);
         }
 
@@ -1123,10 +1086,6 @@ class CryptoTransferFeeCalculatorTest {
         }
     }
 
-    /**
-     * Creates a test fee schedule matching simpleFeesSchedules.json
-     * Used in hedera-file-service-impl/src/main/resources/genesis/simpleFeesSchedules.json
-     */
     private static FeeSchedule createTestFeeSchedule() {
         return FeeSchedule.DEFAULT
                 .copyBuilder()
@@ -1146,13 +1105,14 @@ class CryptoTransferFeeCalculatorTest {
                         makeExtraDef(Extra.CUSTOM_FEE_NON_FUNGIBLE_TOKENS, 1000000L),
                         makeExtraDef(Extra.CREATED_AUTO_ASSOCIATIONS, 0L),
                         makeExtraDef(Extra.CREATED_ACCOUNTS, 0L),
+                        makeExtraDef(Extra.HOOKS, 10000000000L),
                         makeExtraDef(Extra.CRYPTO_TRANSFER_TOKEN_FUNGIBLE_COMMON, 10000000L),
                         makeExtraDef(Extra.CRYPTO_TRANSFER_TOKEN_NON_FUNGIBLE_UNIQUE, 10000000L),
                         makeExtraDef(Extra.CRYPTO_TRANSFER_TOKEN_FUNGIBLE_COMMON_WITH_CUSTOM_FEES, 20000000L),
                         makeExtraDef(Extra.CRYPTO_TRANSFER_TOKEN_NON_FUNGIBLE_UNIQUE_WITH_CUSTOM_FEES, 20000000L),
                         makeExtraDef(Extra.CRYPTO_TRANSFER_WITH_HOOKS, 50000000L))
                 .services(makeService(
-                        "CryptoService",
+                        "CryptoTransfer",
                         makeServiceFee(
                                 HederaFunctionality.CRYPTO_TRANSFER,
                                 0L,
@@ -1161,6 +1121,7 @@ class CryptoTransferFeeCalculatorTest {
                                 makeExtraIncluded(Extra.CRYPTO_TRANSFER_TOKEN_FUNGIBLE_COMMON_WITH_CUSTOM_FEES, 0),
                                 makeExtraIncluded(Extra.CRYPTO_TRANSFER_TOKEN_NON_FUNGIBLE_UNIQUE_WITH_CUSTOM_FEES, 0),
                                 makeExtraIncluded(Extra.CRYPTO_TRANSFER_WITH_HOOKS, 0),
+                                makeExtraIncluded(Extra.HOOKS, 0),
                                 makeExtraIncluded(Extra.ACCOUNTS, 2),
                                 makeExtraIncluded(Extra.STANDARD_FUNGIBLE_TOKENS, 1),
                                 makeExtraIncluded(Extra.STANDARD_NON_FUNGIBLE_TOKENS, 1),

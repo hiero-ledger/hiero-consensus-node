@@ -12,6 +12,7 @@ import static org.hiero.hapi.support.fees.Extra.CRYPTO_TRANSFER_TOKEN_NON_FUNGIB
 import static org.hiero.hapi.support.fees.Extra.CRYPTO_TRANSFER_WITH_HOOKS;
 import static org.hiero.hapi.support.fees.Extra.CUSTOM_FEE_FUNGIBLE_TOKENS;
 import static org.hiero.hapi.support.fees.Extra.CUSTOM_FEE_NON_FUNGIBLE_TOKENS;
+import static org.hiero.hapi.support.fees.Extra.HOOKS;
 import static org.hiero.hapi.support.fees.Extra.STANDARD_FUNGIBLE_TOKENS;
 import static org.hiero.hapi.support.fees.Extra.STANDARD_NON_FUNGIBLE_TOKENS;
 
@@ -70,29 +71,25 @@ public class CryptoTransferFeeCalculator implements ServiceFeeCalculator {
             @NonNull final FeeResult feeResult,
             @NonNull final FeeSchedule feeSchedule) {
 
-        final ReadableTokenStore tokenStore =
-                calculatorState != null ? calculatorState.readableStore(ReadableTokenStore.class) : null;
-        final ReadableAccountStore accountStore =
-                calculatorState != null ? calculatorState.readableStore(ReadableAccountStore.class) : null;
+        final ReadableTokenStore tokenStore = calculatorState.readableStore(ReadableTokenStore.class);
+        final ReadableAccountStore accountStore = calculatorState.readableStore(ReadableAccountStore.class);
         final ReadableTokenRelationStore tokenRelStore =
-                calculatorState != null ? calculatorState.readableStore(ReadableTokenRelationStore.class) : null;
-
+                calculatorState.readableStore(ReadableTokenRelationStore.class);
         final var op = txnBody.cryptoTransferOrThrow();
         final long numAccounts = countUniqueAccounts(op);
+        final long numHooks = countHooks(op);
         TokenCounts tokenCounts = analyzeTokenTransfers(op, tokenStore);
         final long numCreatedAutoAssociations = predictAutoAssociations(op, tokenStore, accountStore, tokenRelStore);
         final long numCreatedAccounts = predictHollowAccounts(op, accountStore);
 
         final ServiceFeeDefinition serviceDef = lookupServiceFee(feeSchedule, HederaFunctionality.CRYPTO_TRANSFER);
-        feeResult.addServiceFee(1, serviceDef.baseFee());
 
-        // Determine and charge transaction-type-specific base fee
-        final Extra transferType = determineTransferType(op, tokenCounts);
+        final Extra transferType = determineTransferType(op, tokenCounts, numHooks);
         if (transferType != null) {
             addExtraFeeWithIncludedCount(feeResult, transferType, feeSchedule, serviceDef, 1);
         }
 
-        // Charge for accounts and additional token movements beyond what's included
+        addExtraFeeWithIncludedCount(feeResult, HOOKS, feeSchedule, serviceDef, numHooks);
         addExtraFeeWithIncludedCount(feeResult, ACCOUNTS, feeSchedule, serviceDef, numAccounts);
         addExtraFeeWithIncludedCount(
                 feeResult, STANDARD_FUNGIBLE_TOKENS, feeSchedule, serviceDef, tokenCounts.standardFungible());
@@ -337,13 +334,6 @@ public class CryptoTransferFeeCalculator implements ServiceFeeCalculator {
 
     /**
      * Determines which CRYPTO_TRANSFER_* extra should be charged as the transaction's base fee.
-     * The priority order ensures higher-tier transactions are charged appropriately:
-     * 1. CRYPTO_TRANSFER_WITH_HOOKS (if hooks present)
-     * 2. CRYPTO_TRANSFER_TOKEN_NON_FUNGIBLE_UNIQUE_WITH_CUSTOM_FEES (if custom fee NFTs)
-     * 3. CRYPTO_TRANSFER_TOKEN_NON_FUNGIBLE_UNIQUE (if standard NFTs)
-     * 4. CRYPTO_TRANSFER_TOKEN_FUNGIBLE_COMMON_WITH_CUSTOM_FEES (if custom fee fungible)
-     * 5. CRYPTO_TRANSFER_TOKEN_FUNGIBLE_COMMON (if standard fungible)
-     * 6. null (HBAR-only transfer, no transaction-type-specific base fee)
      *
      * @param op the CryptoTransfer operation
      * @param tokenCounts analyzed token counts
@@ -351,34 +341,61 @@ public class CryptoTransferFeeCalculator implements ServiceFeeCalculator {
      */
     @Nullable
     private Extra determineTransferType(
-            @NonNull final CryptoTransferTransactionBody op, @NonNull final TokenCounts tokenCounts) {
-        // TODO: Check for hooks when CryptoTransferTransactionBody supports them
-        // if (op.hasHooks()) {
-        //     return CRYPTO_TRANSFER_WITH_HOOKS;
-        // }
-
-        // Check for NFTs with custom fees (highest priority after hooks)
+            @NonNull final CryptoTransferTransactionBody op,
+            @NonNull final TokenCounts tokenCounts,
+            final long numHooks) {
+        if (numHooks > 0) {
+            return CRYPTO_TRANSFER_WITH_HOOKS;
+        }
         if (tokenCounts.customFeeNft() > 0) {
             return CRYPTO_TRANSFER_TOKEN_NON_FUNGIBLE_UNIQUE_WITH_CUSTOM_FEES;
         }
-
-        // Check for standard NFTs
         if (tokenCounts.standardNft() > 0) {
             return CRYPTO_TRANSFER_TOKEN_NON_FUNGIBLE_UNIQUE;
         }
-
-        // Check for fungible tokens with custom fees
         if (tokenCounts.customFeeFungible() > 0) {
             return CRYPTO_TRANSFER_TOKEN_FUNGIBLE_COMMON_WITH_CUSTOM_FEES;
         }
-
-        // Check for standard fungible tokens
         if (tokenCounts.standardFungible() > 0) {
             return CRYPTO_TRANSFER_TOKEN_FUNGIBLE_COMMON;
         }
-
-        // HBAR-only transfer - no transaction-type-specific base fee
         return null;
+    }
+
+    /**
+     * Counts the number of hooks in a CryptoTransfer transaction.
+     *
+     * @param op the CryptoTransfer operation
+     * @return the total number of hooks in the transfer
+     */
+    private long countHooks(@NonNull final CryptoTransferTransactionBody op) {
+        long hookCount = 0;
+        if (op.hasTransfers()) {
+            for (final var aa : op.transfersOrThrow().accountAmounts()) {
+                if (aa.hasPreTxAllowanceHook()) {
+                    hookCount++;
+                }
+                if (aa.hasPrePostTxAllowanceHook()) {
+                    hookCount++;
+                }
+            }
+        }
+        for (final var ttl : op.tokenTransfers()) {
+            for (final var transfer : ttl.transfers()) {
+                if (transfer.hasPreTxAllowanceHook() || transfer.hasPrePostTxAllowanceHook()) {
+                    hookCount++;
+                }
+            }
+            for (final var nft : ttl.nftTransfers()) {
+                if (nft.hasPreTxSenderAllowanceHook() || nft.hasPrePostTxSenderAllowanceHook()) {
+                    hookCount++;
+                }
+                if (nft.hasPreTxReceiverAllowanceHook() || nft.hasPrePostTxReceiverAllowanceHook()) {
+                    hookCount++;
+                }
+            }
+        }
+        return hookCount;
     }
 
     /**
