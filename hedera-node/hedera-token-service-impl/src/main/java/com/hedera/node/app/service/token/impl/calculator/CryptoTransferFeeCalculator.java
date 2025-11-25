@@ -86,6 +86,7 @@ public class CryptoTransferFeeCalculator implements ServiceFeeCalculator {
 
         final Extra transferType = determineTransferType(op, tokenCounts, numHooks);
         if (transferType != null) {
+            feeResult.addServiceFee(1, serviceDef.baseFee());
             addExtraFeeWithIncludedCount(feeResult, transferType, feeSchedule, serviceDef, 1);
         }
 
@@ -102,6 +103,36 @@ public class CryptoTransferFeeCalculator implements ServiceFeeCalculator {
         addExtraFeeWithIncludedCount(
                 feeResult, CREATED_AUTO_ASSOCIATIONS, feeSchedule, serviceDef, numCreatedAutoAssociations);
         addExtraFeeWithIncludedCount(feeResult, CREATED_ACCOUNTS, feeSchedule, serviceDef, numCreatedAccounts);
+    }
+
+    /**
+     * Determines which CRYPTO_TRANSFER_* extra should be charged as the transaction's base fee.
+     *
+     * @param op the CryptoTransfer operation
+     * @param tokenCounts analyzed token counts
+     * @return the Extra to use for base fee, or null for HBAR-only transfers
+     */
+    @Nullable
+    private Extra determineTransferType(
+            @NonNull final CryptoTransferTransactionBody op,
+            @NonNull final TokenCounts tokenCounts,
+            final long numHooks) {
+        if (numHooks > 0) {
+            return CRYPTO_TRANSFER_WITH_HOOKS;
+        }
+        if (tokenCounts.customFeeNft() > 0) {
+            return CRYPTO_TRANSFER_TOKEN_NON_FUNGIBLE_UNIQUE_WITH_CUSTOM_FEES;
+        }
+        if (tokenCounts.standardNft() > 0) {
+            return CRYPTO_TRANSFER_TOKEN_NON_FUNGIBLE_UNIQUE;
+        }
+        if (tokenCounts.customFeeFungible() > 0) {
+            return CRYPTO_TRANSFER_TOKEN_FUNGIBLE_COMMON_WITH_CUSTOM_FEES;
+        }
+        if (tokenCounts.standardFungible() > 0) {
+            return CRYPTO_TRANSFER_TOKEN_FUNGIBLE_COMMON;
+        }
+        return null;
     }
 
     /**
@@ -330,36 +361,6 @@ public class CryptoTransferFeeCalculator implements ServiceFeeCalculator {
         }
 
         return predictedHollowAccounts;
-    }
-
-    /**
-     * Determines which CRYPTO_TRANSFER_* extra should be charged as the transaction's base fee.
-     *
-     * @param op the CryptoTransfer operation
-     * @param tokenCounts analyzed token counts
-     * @return the Extra to use for base fee, or null for HBAR-only transfers
-     */
-    @Nullable
-    private Extra determineTransferType(
-            @NonNull final CryptoTransferTransactionBody op,
-            @NonNull final TokenCounts tokenCounts,
-            final long numHooks) {
-        if (numHooks > 0) {
-            return CRYPTO_TRANSFER_WITH_HOOKS;
-        }
-        if (tokenCounts.customFeeNft() > 0) {
-            return CRYPTO_TRANSFER_TOKEN_NON_FUNGIBLE_UNIQUE_WITH_CUSTOM_FEES;
-        }
-        if (tokenCounts.standardNft() > 0) {
-            return CRYPTO_TRANSFER_TOKEN_NON_FUNGIBLE_UNIQUE;
-        }
-        if (tokenCounts.customFeeFungible() > 0) {
-            return CRYPTO_TRANSFER_TOKEN_FUNGIBLE_COMMON_WITH_CUSTOM_FEES;
-        }
-        if (tokenCounts.standardFungible() > 0) {
-            return CRYPTO_TRANSFER_TOKEN_FUNGIBLE_COMMON;
-        }
-        return null;
     }
 
     /**
