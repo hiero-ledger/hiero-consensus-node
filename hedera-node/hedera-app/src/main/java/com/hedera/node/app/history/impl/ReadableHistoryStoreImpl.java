@@ -128,21 +128,6 @@ public class ReadableHistoryStoreImpl implements ReadableHistoryStore {
         return publications;
     }
 
-    @Override
-    public @NonNull List<HistorySignaturePublication> getSignaturePublications(
-            final long constructionId, @NonNull final Set<Long> nodeIds) {
-        requireNonNull(nodeIds);
-        final List<HistorySignaturePublication> publications = new ArrayList<>();
-        for (final var nodeId : nodeIds) {
-            final var recorded = signatures.get(new ConstructionNodeId(constructionId, nodeId));
-            if (recorded != null) {
-                publications.add(new HistorySignaturePublication(
-                        nodeId, recorded.historySignatureOrThrow(), asInstant(recorded.signingTimeOrThrow())));
-            }
-        }
-        return publications;
-    }
-
     @NonNull
     @Override
     public List<WrapsMessagePublication> getWrapsMessagePublications(

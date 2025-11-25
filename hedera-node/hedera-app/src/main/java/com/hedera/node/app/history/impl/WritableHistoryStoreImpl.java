@@ -133,14 +133,6 @@ public class WritableHistoryStoreImpl extends ReadableHistoryStoreImpl implement
     }
 
     @Override
-    public void addSignature(final long constructionId, @NonNull final HistorySignaturePublication publication) {
-        requireNonNull(publication);
-        signatures.put(
-                new ConstructionNodeId(constructionId, publication.nodeId()),
-                new RecordedHistorySignature(asTimestamp(publication.at()), publication.signature()));
-    }
-
-    @Override
     public void addProofVote(final long nodeId, final long constructionId, @NonNull final HistoryProofVote vote) {
         requireNonNull(vote);
         votes.put(new ConstructionNodeId(constructionId, nodeId), vote);

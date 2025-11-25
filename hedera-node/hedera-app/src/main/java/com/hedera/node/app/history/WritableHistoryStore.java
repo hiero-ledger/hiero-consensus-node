@@ -55,11 +55,6 @@ public interface WritableHistoryStore extends ReadableHistoryStore {
     HistoryProofConstruction setAssemblyTime(long constructionId, @NonNull Instant now);
 
     /**
-     * Adds a node's signature on a particular assembled history proof for the given construction.
-     */
-    void addSignature(long constructionId, @NonNull HistorySignaturePublication publication);
-
-    /**
      * Adds a history proof vote for the given node and construction.
      */
     void addProofVote(long nodeId, long constructionId, @NonNull HistoryProofVote vote);

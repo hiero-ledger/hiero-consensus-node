@@ -127,8 +127,6 @@ public class ProofControllers {
             return new InertProofController(construction.constructionId());
         } else {
             final var keyPublications = historyStore.getProofKeyPublications(weights.targetNodeIds());
-            final var signaturePublications =
-                    historyStore.getSignaturePublications(construction.constructionId(), weights.targetNodeIds());
             final var wrapsMessagePublications =
                     historyStore.getWrapsMessagePublications(construction.constructionId(), weights.targetNodeIds());
             final var votes = historyStore.getVotes(construction.constructionId(), weights.sourceNodeIds());

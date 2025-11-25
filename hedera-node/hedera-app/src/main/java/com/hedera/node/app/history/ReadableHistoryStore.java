@@ -7,7 +7,6 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.state.history.HistoryProofConstruction;
 import com.hedera.hapi.node.state.history.HistoryProofVote;
-import com.hedera.hapi.node.state.history.HistorySignature;
 import com.hedera.hapi.node.state.history.WrapsMessageDetails;
 import com.hedera.hapi.node.state.history.WrapsMessageHistory;
 import com.hedera.hapi.node.state.history.WrapsPhase;
@@ -83,20 +82,6 @@ public interface ReadableHistoryStore {
     }
 
     /**
-     * The full record of a history signature, include the time the signature was published.
-     *
-     * @param nodeId the node ID submitting the signature
-     * @param signature the assembly signature
-     * @param at the time at which the signature was published
-     */
-    record HistorySignaturePublication(long nodeId, @NonNull HistorySignature signature, @NonNull Instant at) {
-        public HistorySignaturePublication {
-            requireNonNull(signature);
-            requireNonNull(at);
-        }
-    }
-
-    /**
      * Returns the ledger id initiating the chain of trusted history, if known.
      */
     @Nullable
@@ -154,15 +139,6 @@ public interface ReadableHistoryStore {
      */
     @NonNull
     List<ProofKeyPublication> getProofKeyPublications(@NonNull Set<Long> nodeIds);
-
-    /**
-     * Returns the history signatures published by the given set of nodes for the given construction.
-     * @param constructionId the construction id
-     * @param nodeIds the node ids
-     * @return the {@link HistorySignaturePublication}s
-     */
-    @NonNull
-    List<HistorySignaturePublication> getSignaturePublications(long constructionId, @NonNull Set<Long> nodeIds);
 
     /**
      * Returns the WRAPS messages published by the given set of nodes for the given construction.
