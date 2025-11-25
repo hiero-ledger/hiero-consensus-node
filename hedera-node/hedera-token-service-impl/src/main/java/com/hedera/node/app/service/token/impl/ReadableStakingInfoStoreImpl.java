@@ -58,13 +58,21 @@ public class ReadableStakingInfoStoreImpl implements ReadableStakingInfoStore {
             return Collections.emptySet();
         }
         final var nodeIds = new HashSet<Long>();
-        for (var i = 0; i < numStakingInfo; i++) {
+
+        // Loop until all expected node IDs are found in the staking info state.
+        // This handles cases where node IDs are not contiguous or some are missing,
+        // ensuring we collect exactly `numStakingInfo` unique node IDs present in the state.
+        // The upper bound on `i` prevents an infinite loop if the state is inconsistent.
+        int i = 0;
+        while (nodeIds.size() < numStakingInfo || i > 1000) {
             final var nodeId = new EntityNumber(i);
             if (stakingInfoState.contains(nodeId)) {
                 nodeIds.add(nodeId.number());
-            } else {
-                log.warn("Staking info for node {} not found in state", nodeId.number());
             }
+            i++;
+        }
+        if (nodeIds.size() < numStakingInfo) {
+            log.warn("Staking info for node not found in state");
         }
         return nodeIds;
     }

@@ -354,7 +354,7 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
     class writeRecordsInOldDirUntilUpgrade {
         @HapiTest
         @Order(0)
-        final Stream<DynamicTest> createNewNode() {
+        final Stream<DynamicTest> createNewNodeAndUpdate() {
             final AtomicReference<AccountID> initialNodeAccount = new AtomicReference<>();
             final AtomicReference<AccountID> newNodeAccount = new AtomicReference<>();
             final AtomicLong nodeId = new AtomicLong();
@@ -374,23 +374,20 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
                     doingContextual(spec -> {
                         allRunFor(
                                 spec,
-                                // This will not create a file on the new node's disk
+                                // Add the new node to the network
                                 prepareFakeUpgrade(),
                                 upgradeToNextConfigVersion(ENV_OVERRIDES, FakeNmt.addNode(nodeId.get())),
-
-                                // wait node 4 to catchup
+                                // wait the node to catchup
                                 burstOfTps(MIXED_OPS_BURST_TPS, MIXED_OPS_BURST_DURATION),
-
                                 // update the node account id
                                 nodeUpdate("newNode")
                                         .accountId("newNodeAccountId")
                                         .signedByPayerAnd("newNodeAccountId"),
 
-                                // try death restart of node 4
-
+                                // try death restart of the node
                                 getVersionInfo().exposingServicesVersionTo(currentVersion::set),
                                 FakeNmt.shutdownWithin(byNodeId(nodeId.get()), SHUTDOWN_TIMEOUT),
-                                logIt("Node 4 is supposedly down"),
+                                logIt("Node is supposedly down"),
                                 sleepFor(PORT_UNBINDING_WAIT_PERIOD.toMillis()),
                                 burstOfTps(MIXED_OPS_BURST_TPS, MIXED_OPS_BURST_DURATION),
                                 sourcing(() -> FakeNmt.restartWithConfigVersion(
@@ -402,7 +399,8 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
                                 sourcing(() ->
                                         reconnectNode(byNodeId(nodeId.get()), configVersionOf(currentVersion.get()))),
                                 validateNodeAccountIdFile(nodeId.get(), initialNodeAccount.get(), newNodeAccount.get()),
-                                // validate record dir...
+
+                                // validate that the record path is the initial one
                                 withOpContext((spec1, log) -> {
                                     final var nodeAccountIdFilePath =
                                             Paths.get(recordsPath(nodeId.get())).resolve("node_account_id.txt");
@@ -410,8 +408,8 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
                                             + asAccountString(newNodeAccount.get()));
                                     // new record path doesn't exist
                                     assertFalse(newRecordPath.toFile().exists());
-                                    // validate the node account id upgrade file content is pointing to the initial node
-                                    // account
+                                    // validate the node account id upgrade file content is pointing to the
+                                    // initial node account
                                     assertEquals(
                                             Files.readString(nodeAccountIdFilePath),
                                             asEntityString(initialNodeAccount.get()));
@@ -441,7 +439,7 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
                         assertFalse(newRecordPath.toFile().exists());
                     }),
 
-                    // 3. generate the record path override file on upgrade
+                    // 3. generate the record path override file on prepare upgrade
                     prepareFakeUpgrade(),
                     upgradeToNextConfigVersion(),
 
