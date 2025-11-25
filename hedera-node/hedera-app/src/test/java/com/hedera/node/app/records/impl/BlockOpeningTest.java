@@ -6,10 +6,15 @@ import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_STATE_ID;
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.RUNNING_HASHES_STATE_ID;
 import static com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID;
+import static org.hiero.consensus.model.quiescence.QuiescenceCommand.DONT_QUIESCE;
+import static org.hiero.consensus.model.quiescence.QuiescenceCommand.QUIESCE;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
@@ -99,6 +104,29 @@ class BlockOpeningTest {
                         .lastFrozenTime(Timestamp.DEFAULT)
                         .build());
         assertTrue(subject.willOpenNewBlock(CONSENSUS_NOW, state));
+    }
+
+    @Test
+    void maybeQuiesceStartsHeartbeatOnQuiesceCommandChange() {
+        setupBlockInfo(CONSENSUS_NOW);
+        given(quiescenceController.getQuiescenceStatus()).willReturn(QUIESCE);
+
+        subject.maybeQuiesce(state);
+        subject.maybeQuiesce(state);
+
+        verify(platform, times(1)).quiescenceCommand(QUIESCE);
+        verify(quiescedHeartbeat, times(1)).start(any(), any());
+    }
+
+    @Test
+    void maybeQuiesceDoesNothingWhenCommandRemainsDontQuiesce() {
+        setupBlockInfo(CONSENSUS_NOW);
+        given(quiescenceController.getQuiescenceStatus()).willReturn(DONT_QUIESCE);
+
+        subject.maybeQuiesce(state);
+
+        verify(platform, never()).quiescenceCommand(any());
+        verify(quiescedHeartbeat, never()).start(any(), any());
     }
 
     private void setupBlockInfo(@NonNull final Instant firstConsTimeOfCurrentBlock) {

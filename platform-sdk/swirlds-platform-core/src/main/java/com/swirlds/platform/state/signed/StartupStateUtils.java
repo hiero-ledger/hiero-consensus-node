@@ -4,6 +4,8 @@ package com.swirlds.platform.state.signed;
 import static com.swirlds.common.merkle.utility.MerkleUtils.rehashTree;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
+import static com.swirlds.platform.state.service.PlatformStateUtils.bulkUpdateOf;
+import static com.swirlds.platform.state.service.PlatformStateUtils.creationSoftwareVersionOf;
 import static com.swirlds.platform.state.signed.ReservedSignedState.createNullReservation;
 import static com.swirlds.platform.state.snapshot.SignedStateFileReader.readState;
 import static java.util.Objects.requireNonNull;
@@ -19,7 +21,6 @@ import com.swirlds.platform.config.BasicConfig;
 import com.swirlds.platform.config.StateConfig;
 import com.swirlds.platform.crypto.CryptoStatic;
 import com.swirlds.platform.internal.SignedStateLoadingException;
-import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.snapshot.DeserializedSignedState;
 import com.swirlds.platform.state.snapshot.SavedStateInfo;
 import com.swirlds.platform.state.snapshot.SignedStateFilePath;
@@ -77,7 +78,6 @@ public final class StartupStateUtils {
             @NonNull final String swirldName,
             @NonNull final NodeId selfId,
             @NonNull final AddressBook configAddressBook,
-            @NonNull final PlatformStateFacade platformStateFacade,
             @NonNull final PlatformContext platformContext)
             throws SignedStateLoadingException {
 
@@ -95,7 +95,6 @@ public final class StartupStateUtils {
                 swirldName,
                 createStateFromVirtualMap,
                 softwareVersion,
-                platformStateFacade,
                 platformContext);
 
         try (loadedState) {
@@ -105,15 +104,15 @@ public final class StartupStateUtils {
                         new SavedStateLoadedPayload(
                                 loadedState.get().getRound(), loadedState.get().getConsensusTimestamp()));
 
-                return copyInitialSignedState(loadedState.get(), platformStateFacade, platformContext);
+                return copyInitialSignedState(loadedState.get(), platformContext);
             }
         }
 
-        final ReservedSignedState genesisState = buildGenesisState(
-                configAddressBook, softwareVersion, genesisStateBuilder.get(), platformStateFacade, platformContext);
+        final ReservedSignedState genesisState =
+                buildGenesisState(configAddressBook, softwareVersion, genesisStateBuilder.get(), platformContext);
 
         try (genesisState) {
-            return copyInitialSignedState(genesisState.get(), platformStateFacade, platformContext);
+            return copyInitialSignedState(genesisState.get(), platformContext);
         }
     }
 
@@ -137,7 +136,6 @@ public final class StartupStateUtils {
             @NonNull final String swirldName,
             @NonNull final Function<VirtualMap, MerkleNodeState> createStateFromVirtualMap,
             @NonNull final SemanticVersion currentSoftwareVersion,
-            @NonNull final PlatformStateFacade platformStateFacade,
             @NonNull final PlatformContext platformContext) {
 
         final Configuration config = platformContext.getConfiguration();
@@ -155,12 +153,7 @@ public final class StartupStateUtils {
         }
 
         return loadLatestState(
-                recycleBin,
-                currentSoftwareVersion,
-                savedStateFiles,
-                createStateFromVirtualMap,
-                platformStateFacade,
-                platformContext);
+                recycleBin, currentSoftwareVersion, savedStateFiles, createStateFromVirtualMap, platformContext);
     }
 
     /**
@@ -171,9 +164,7 @@ public final class StartupStateUtils {
      * @return a copy of the initial signed state
      */
     public static @NonNull HashedReservedSignedState copyInitialSignedState(
-            @NonNull final SignedState initialSignedState,
-            @NonNull final PlatformStateFacade platformStateFacade,
-            @NonNull final PlatformContext platformContext) {
+            @NonNull final SignedState initialSignedState, @NonNull final PlatformContext platformContext) {
         requireNonNull(platformContext);
         requireNonNull(platformContext.getConfiguration());
         requireNonNull(initialSignedState);
@@ -186,8 +177,7 @@ public final class StartupStateUtils {
                 "StartupStateUtils: copy initial state",
                 false,
                 false,
-                false,
-                platformStateFacade);
+                false);
         signedStateCopy.setSigSet(initialSignedState.getSigSet());
 
         // FUTURE WORK: To support MerkleStateRoot in the testing apps we still need to use `digestTreeAsync` instead of
@@ -233,7 +223,6 @@ public final class StartupStateUtils {
             @NonNull final SemanticVersion currentSoftwareVersion,
             @NonNull final List<SavedStateInfo> savedStateList,
             @NonNull final Function<VirtualMap, MerkleNodeState> createStateFromVirtualMap,
-            @NonNull final PlatformStateFacade platformStateFacade,
             @NonNull final PlatformContext platformContext)
             throws SignedStateLoadingException {
 
@@ -241,12 +230,7 @@ public final class StartupStateUtils {
 
         for (final SavedStateInfo savedStateInfo : savedStateList) {
             final ReservedSignedState state = loadStateFile(
-                    recycleBin,
-                    currentSoftwareVersion,
-                    savedStateInfo,
-                    createStateFromVirtualMap,
-                    platformStateFacade,
-                    platformContext);
+                    recycleBin, currentSoftwareVersion, savedStateInfo, createStateFromVirtualMap, platformContext);
             if (state != null) {
                 return state;
             }
@@ -270,7 +254,6 @@ public final class StartupStateUtils {
             @NonNull final SemanticVersion currentSoftwareVersion,
             @NonNull final SavedStateInfo savedStateInfo,
             @NonNull final Function<VirtualMap, MerkleNodeState> createStateFromVirtualMap,
-            @NonNull final PlatformStateFacade platformStateFacade,
             @NonNull final PlatformContext platformContext)
             throws SignedStateLoadingException {
 
@@ -279,8 +262,8 @@ public final class StartupStateUtils {
         final DeserializedSignedState deserializedSignedState;
         final Configuration configuration = platformContext.getConfiguration();
         try {
-            deserializedSignedState = readState(
-                    savedStateInfo.stateDirectory(), createStateFromVirtualMap, platformStateFacade, platformContext);
+            deserializedSignedState =
+                    readState(savedStateInfo.stateDirectory(), createStateFromVirtualMap, platformContext);
         } catch (final IOException e) {
             logger.error(EXCEPTION.getMarker(), "unable to load state file {}", savedStateInfo.stateDirectory(), e);
 
@@ -299,7 +282,7 @@ public final class StartupStateUtils {
         final Hash oldHash = deserializedSignedState.originalHash();
         final Hash newHash = rehashTree(platformContext.getMerkleCryptography(), state.getRoot());
 
-        final SemanticVersion loadedVersion = platformStateFacade.creationSoftwareVersionOf(state);
+        final SemanticVersion loadedVersion = creationSoftwareVersionOf(state);
 
         if (oldHash.equals(newHash)) {
             logger.info(STARTUP.getMarker(), "Loaded state's hash is the same as when it was saved.");
@@ -353,9 +336,8 @@ public final class StartupStateUtils {
             @NonNull final AddressBook addressBook,
             @NonNull final SemanticVersion appVersion,
             @NonNull final MerkleNodeState stateRoot,
-            @NonNull final PlatformStateFacade platformStateFacade,
             @NonNull final PlatformContext platformContext) {
-        initGenesisState(platformContext.getConfiguration(), stateRoot, platformStateFacade, addressBook, appVersion);
+        initGenesisState(platformContext.getConfiguration(), stateRoot, addressBook, appVersion);
 
         final SignedState signedState = new SignedState(
                 platformContext.getConfiguration(),
@@ -364,8 +346,7 @@ public final class StartupStateUtils {
                 "genesis state",
                 false,
                 false,
-                false,
-                platformStateFacade);
+                false);
         return signedState.reserve("initial reservation on genesis state");
     }
 
@@ -373,19 +354,17 @@ public final class StartupStateUtils {
      * Initializes a genesis platform state and RosterService state.
      * @param configuration the configuration for this node
      * @param state the State instance to initialize
-     * @param platformStateFacade the facade to access the platform state
      * @param addressBook the current address book
      * @param appVersion the software version of the app
      */
     private static void initGenesisState(
             final Configuration configuration,
             final State state,
-            final PlatformStateFacade platformStateFacade,
             final AddressBook addressBook,
             final SemanticVersion appVersion) {
         final long round = 0L;
 
-        platformStateFacade.bulkUpdateOf(state, v -> {
+        bulkUpdateOf(state, v -> {
             v.setCreationSoftwareVersion(appVersion);
             v.setRound(round);
             v.setLegacyRunningEventHash(null);
@@ -407,7 +386,6 @@ public final class StartupStateUtils {
      * @param mainClassName       the name of the app's SwirldMain class
      * @param swirldName          the name of this swirld
      * @param selfId              the node id of this node
-     * @param platformStateFacade an object to access the platform state
      * @param platformContext     the platform context
      * @return the initial state to be used by this node
      */
@@ -419,7 +397,6 @@ public final class StartupStateUtils {
             @NonNull final String mainClassName,
             @NonNull final String swirldName,
             @NonNull final NodeId selfId,
-            @NonNull final PlatformStateFacade platformStateFacade,
             @NonNull final PlatformContext platformContext,
             @NonNull final Function<VirtualMap, MerkleNodeState> createStateFromVirtualMap) {
         final var loadedState = loadStateFile(
@@ -429,7 +406,6 @@ public final class StartupStateUtils {
                 swirldName,
                 createStateFromVirtualMap,
                 softwareVersion,
-                platformStateFacade,
                 platformContext);
         try (loadedState) {
             if (loadedState.isNotNull()) {
@@ -437,7 +413,7 @@ public final class StartupStateUtils {
                         STARTUP.getMarker(),
                         new SavedStateLoadedPayload(
                                 loadedState.get().getRound(), loadedState.get().getConsensusTimestamp()));
-                return copyInitialSignedState(loadedState.get(), platformStateFacade, platformContext);
+                return copyInitialSignedState(loadedState.get(), platformContext);
             }
         }
         final var stateRoot = stateRootSupplier.get();
@@ -448,11 +424,10 @@ public final class StartupStateUtils {
                 "genesis state",
                 false,
                 false,
-                false,
-                platformStateFacade);
+                false);
         final var reservedSignedState = signedState.reserve("initial reservation on genesis state");
         try (reservedSignedState) {
-            return copyInitialSignedState(reservedSignedState.get(), platformStateFacade, platformContext);
+            return copyInitialSignedState(reservedSignedState.get(), platformContext);
         }
     }
 }

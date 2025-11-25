@@ -376,7 +376,7 @@ public class BlockNodeConnectionManager {
                     TimeUnit.MILLISECONDS);
             logger.debug("{} Successfully scheduled reconnection task.", newConnection);
         } catch (final Exception e) {
-            logger.error("{} Failed to schedule connection task for block node.", newConnection, e);
+            logger.warn("{} Failed to schedule connection task for block node.", newConnection, e);
             newConnection.closeAtBlockBoundary();
         }
     }
@@ -386,10 +386,10 @@ public class BlockNodeConnectionManager {
      */
     public void shutdown() {
         if (!isConnectionManagerActive.compareAndSet(true, false)) {
-            logger.debug("Connection Manager already shutdown.");
+            logger.info("Connection Manager already shutdown.");
             return;
         }
-        logger.debug("Shutting down block node connection manager.");
+        logger.info("Shutting down block node connection manager.");
 
         stopConfigWatcher();
         blockBufferService.shutdown();
@@ -411,7 +411,7 @@ public class BlockNodeConnectionManager {
     }
 
     private void closeAllConnections() {
-        logger.debug("Stopping block node connections");
+        logger.info("Stopping block node connections");
         // Close all connections
         final Iterator<Map.Entry<BlockNodeConfiguration, BlockNodeConnection>> iterator =
                 connections.entrySet().iterator();
@@ -438,14 +438,14 @@ public class BlockNodeConnectionManager {
      */
     public void start() {
         if (!isStreamingEnabled()) {
-            logger.debug("Cannot start the connection manager, streaming is not enabled.");
+            logger.warn("Cannot start the connection manager, streaming is not enabled.");
             return;
         }
         if (!isConnectionManagerActive.compareAndSet(false, true)) {
-            logger.debug("Connection Manager already started.");
+            logger.info("Connection Manager already started.");
             return;
         }
-        logger.debug("Starting connection manager.");
+        logger.info("Starting connection manager.");
 
         // Start the block buffer service
         blockBufferService.start();
@@ -480,7 +480,7 @@ public class BlockNodeConnectionManager {
         final BlockNodeConfiguration selectedNode = getNextPriorityBlockNode();
 
         if (selectedNode == null) {
-            logger.debug("No available block nodes found for streaming.");
+            logger.info("No available block nodes found for streaming.");
             return false;
         }
 
@@ -761,7 +761,7 @@ public class BlockNodeConnectionManager {
                             <= connection.getNodeConfig().priority()) {
                         // this new connection has a lower (or equal) priority than the existing active connection
                         // this connection task should thus be cancelled/ignored
-                        logger.debug(
+                        logger.info(
                                 "{} Active connection has equal/higher priority. Ignoring candidate. Active: {}.",
                                 connection,
                                 activeConnection);
@@ -784,14 +784,14 @@ public class BlockNodeConnectionManager {
                     recordActiveConnectionIp(connection.getNodeConfig());
                 } else {
                     // Another connection task has preempted this task, reschedule and try again
-                    logger.debug("{} Current connection task was preempted, rescheduling.", connection);
+                    logger.info("{} Current connection task was preempted, rescheduling.", connection);
                     reschedule();
                 }
 
                 if (activeConnection != null) {
                     // close the old active connection
                     try {
-                        logger.debug("{} Closing current active connection {}.", connection, activeConnection);
+                        logger.info("{} Closing current active connection {}.", connection, activeConnection);
                         activeConnection.closeAtBlockBoundary();
 
                         // For a forced switch, reschedule the previously active connection to try again later
@@ -799,12 +799,12 @@ public class BlockNodeConnectionManager {
                             try {
                                 final Duration delay = getForcedSwitchRescheduleDelay();
                                 scheduleConnectionAttempt(activeConnection.getNodeConfig(), delay, null, false);
-                                logger.debug(
+                                logger.info(
                                         "Scheduled previously active connection {} in {} ms due to forced switch.",
                                         activeConnection,
                                         delay.toMillis());
                             } catch (final Exception e) {
-                                logger.error(
+                                logger.warn(
                                         "Failed to schedule reschedule for previous active connection after forced switch.",
                                         e);
                                 connections.remove(activeConnection.getNodeConfig());
@@ -818,7 +818,7 @@ public class BlockNodeConnectionManager {
                     }
                 }
             } catch (final Exception e) {
-                logger.debug("{} Failed to establish connection to block node. Will schedule a retry.", connection, e);
+                logger.warn("{} Failed to establish connection to block node. Will schedule a retry.", connection, e);
                 blockStreamMetrics.recordConnectionCreateFailure();
                 reschedule();
                 selectNewBlockNodeForStreaming(false);
@@ -868,7 +868,7 @@ public class BlockNodeConnectionManager {
                 sharedExecutorService.schedule(this, jitteredDelayMs, TimeUnit.MILLISECONDS);
                 logger.info("{} Rescheduled connection attempt (delayMillis={}).", connection, jitteredDelayMs);
             } catch (final Exception e) {
-                logger.error("{} Failed to reschedule connection attempt. Removing from retry map.", connection, e);
+                logger.warn("{} Failed to reschedule connection attempt. Removing from retry map.", connection, e);
                 connection.closeAtBlockBoundary();
             }
         }

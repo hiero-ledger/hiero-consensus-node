@@ -15,7 +15,6 @@ import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.utility.MerkleTreeSnapshotReader;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.crypto.CryptoStatic;
-import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.service.PlatformStateService;
 import com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema;
 import com.swirlds.platform.state.service.schemas.V0540RosterBaseSchema;
@@ -48,14 +47,12 @@ public final class SignedStateFileReader {
      *
      * @param stateDir                     the directory to read from
      * @param createStateFromVirtualMap     a function to instantiate the state object from a Virtual Map
-     * @param stateFacade                   the facade to access the platform state
      * @return a signed state with it's associated hash (as computed when the state was serialized)
      * @throws IOException if there is any problems with reading from a file
      */
     public static @NonNull DeserializedSignedState readState(
             @NonNull final Path stateDir,
             @NonNull final Function<VirtualMap, MerkleNodeState> createStateFromVirtualMap,
-            @NonNull final PlatformStateFacade stateFacade,
             @NonNull final PlatformContext platformContext)
             throws IOException {
 
@@ -84,8 +81,7 @@ public final class SignedStateFileReader {
                 "SignedStateFileReader.readState()",
                 false,
                 false,
-                false,
-                stateFacade);
+                false);
 
         registerServiceStates(newSignedState);
 
