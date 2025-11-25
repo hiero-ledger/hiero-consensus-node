@@ -371,7 +371,7 @@ public class CryptoTransferSimpleFeesSuite {
     }
 
     @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
-    @DisplayName("P1-CUSTOM: Mixed standard + custom fee tokens")
+    @DisplayName("CUSTOM: Mixed standard + custom fee tokens")
     final Stream<DynamicTest> customFeeMixedStandardAndCustom() {
         return compareSimpleToOld(
                 () -> Arrays.asList(
@@ -405,7 +405,7 @@ public class CryptoTransferSimpleFeesSuite {
     }
 
     @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
-    @DisplayName("P1-CUSTOM: Multiple custom fee tokens")
+    @DisplayName("CUSTOM: Multiple custom fee tokens")
     final Stream<DynamicTest> customFeeMultipleCustomFeeTokens() {
         return compareSimpleToOld(
                 () -> Arrays.asList(
@@ -440,7 +440,7 @@ public class CryptoTransferSimpleFeesSuite {
     }
 
     @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
-    @DisplayName("P1-CUSTOM: Custom fee fungible + custom fee NFT")
+    @DisplayName("CUSTOM: Custom fee fungible + custom fee NFT")
     final Stream<DynamicTest> customFeeMultipleFungibleAndNft() {
         return compareSimpleToOld(
                 () -> Arrays.asList(
@@ -477,7 +477,7 @@ public class CryptoTransferSimpleFeesSuite {
     }
 
     @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
-    @DisplayName("P2-BOUNDARY: Self-transfer (1 account)")
+    @DisplayName("BOUNDARY: Self-transfer (1 account)")
     final Stream<DynamicTest> accountBoundarySelfTransfer() {
         return compareSimpleToOld(
                 () -> Arrays.asList(
@@ -495,7 +495,7 @@ public class CryptoTransferSimpleFeesSuite {
     }
 
     @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
-    @DisplayName("P2-BOUNDARY: Three accounts (1 over threshold)")
+    @DisplayName("BOUNDARY: Three accounts (1 over threshold)")
     final Stream<DynamicTest> accountBoundaryThreeAccounts() {
         return compareSimpleToOld(
                 () -> Arrays.asList(
@@ -517,7 +517,7 @@ public class CryptoTransferSimpleFeesSuite {
     }
 
     @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
-    @DisplayName("P2-COUNTING: Fungible token with multiple recipients counts as 1")
+    @DisplayName("COUNTING: Fungible token with multiple recipients counts as 1")
     final Stream<DynamicTest> fungibleCountingMultipleRecipients() {
         return compareSimpleToOld(
                 () -> Arrays.asList(
@@ -549,7 +549,7 @@ public class CryptoTransferSimpleFeesSuite {
     }
 
     @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
-    @DisplayName("P2-COUNTING: Large NFT batch (10 serials)")
+    @DisplayName("COUNTING: Large NFT batch (10 serials)")
     final Stream<DynamicTest> nftCountingLargeCollection() {
         return compareSimpleToOld(
                 () -> Arrays.asList(
@@ -589,7 +589,7 @@ public class CryptoTransferSimpleFeesSuite {
     }
 
     @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
-    @DisplayName("P3-COMPLEX: HBAR + fungible + NFT in one transaction")
+    @DisplayName("COMPLEX: HBAR + fungible + NFT in one transaction")
     final Stream<DynamicTest> complexMixedAllTypes() {
         return compareSimpleToOld(
                 () -> Arrays.asList(
@@ -624,7 +624,7 @@ public class CryptoTransferSimpleFeesSuite {
     }
 
     @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
-    @DisplayName("P3-COMPLEX: Multiple fungible + multiple NFT")
+    @DisplayName("COMPLEX: Multiple fungible + multiple NFT")
     final Stream<DynamicTest> complexMultipleTokensAndNfts() {
         return compareSimpleToOld(
                 () -> Arrays.asList(
@@ -672,7 +672,7 @@ public class CryptoTransferSimpleFeesSuite {
     }
 
     @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
-    @DisplayName("P3-COMPLEX: Maximum complexity - all token types")
+    @DisplayName("COMPLEX: Maximum complexity - all token types")
     final Stream<DynamicTest> complexMaximumComplexity() {
         return compareSimpleToOld(
                 () -> Arrays.asList(
@@ -866,9 +866,9 @@ public class CryptoTransferSimpleFeesSuite {
                                 .signedBy(PAYER)
                                 .fee(THOUSAND_HBAR)
                                 .via("mixedWithHooksTxn")),
-//                | Simple fee (4 hooks × $1)  | ~$4  |
-//                | Gas execution (4 × 5M gas) | ~$32 |
-//                | Total                      | ~$36 |
+                //                | Simple fee (4 hooks × $1)  | ~$4  |
+                //                | Gas execution (4 × 5M gas) | ~$32 |
+                //                | Total                      | ~$36 |
                 "mixedWithHooksTxn",
                 36.005099998,
                 1.0,
