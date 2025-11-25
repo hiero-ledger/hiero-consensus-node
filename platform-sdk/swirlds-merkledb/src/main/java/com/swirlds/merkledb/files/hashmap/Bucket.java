@@ -336,7 +336,7 @@ public sealed class Bucket implements Closeable permits ParsedBucket {
             final int fieldNum = tag >> TAG_FIELD_OFFSET;
             if (fieldNum == FIELD_BUCKET_INDEX.number()) {
                 bucketIndexFieldOffset = fieldOffset;
-                return;
+                break;
             } else if (fieldNum == FIELD_BUCKET_ENTRIES.number()) {
                 final int entryBytesSize = bucketData.readVarInt(false);
                 bucketData.skip(entryBytesSize);
