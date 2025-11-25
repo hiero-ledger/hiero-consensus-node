@@ -177,7 +177,7 @@ class WritableHistoryStoreImplTest {
     }
 
     @Test
-    void createsBootstrapConstructionIfNotPresent() {
+    void createsBootstrapConstructionIfNotPresentOrWith() {
         givenARosterLookup();
         given(activeRosters.phase()).willReturn(BOOTSTRAP);
         given(activeRosters.sourceRosterHash()).willReturn(A_ROSTER_HASH);

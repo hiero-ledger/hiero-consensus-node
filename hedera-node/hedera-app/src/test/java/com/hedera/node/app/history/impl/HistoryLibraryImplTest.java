@@ -2,7 +2,9 @@
 package com.hedera.node.app.history.impl;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
@@ -24,6 +26,8 @@ class HistoryLibraryImplTest {
 
     @Mock
     private HistoryLibrary library;
+
+    private final HistoryLibraryImpl subject = new HistoryLibraryImpl();
 
     @Test
     void computeHashBuildsCanonicalAddressBookAndWrapsResult() {
@@ -102,5 +106,49 @@ class HistoryLibraryImplTest {
         final var expected = "AddressBook[(#0 :: weight=5 :: public_key=" + CommonUtils.hex(publicKeys[0]) + ")]";
 
         assertEquals(expected, addressBook.toString());
+    }
+
+    @Test
+    void newSchnorrKeyPairReturnsNonNull() {
+        final var keys = subject.newSchnorrKeyPair();
+        assertNotNull(keys);
+    }
+
+    @Test
+    void wrapsPhasesAndVerificationCoverAllMethods() {
+        final var keys = subject.newSchnorrKeyPair();
+
+        final var weights = new long[] {1L};
+        final var publicKeys = new byte[1][];
+        publicKeys[0] = keys.verifyingKey();
+        final var nodeIds = new long[] {123L};
+        final var addressBook = new HistoryLibrary.AddressBook(weights, publicKeys, nodeIds);
+
+        final var hash = subject.hashAddressBook(addressBook);
+        assertNotNull(hash);
+
+        final var hintsKey = new byte[32];
+        final var message = subject.computeWrapsMessage(addressBook, hintsKey);
+        assertNotNull(message);
+
+        final var entropy = new byte[32];
+        final var privateKey = keys.signingKey();
+
+        final var r1 = subject.runWrapsPhaseR1(entropy, message, privateKey);
+        assertNotNull(r1);
+
+        final var r1Messages = new byte[][] {r1};
+        final var r2 = subject.runWrapsPhaseR2(entropy, message, r1Messages, privateKey, publicKeys);
+        assertNotNull(r2);
+
+        final var r2Messages = new byte[][] {r2};
+        final var r3 = subject.runWrapsPhaseR3(entropy, message, r1Messages, r2Messages, privateKey, publicKeys);
+        assertNotNull(r3);
+
+        final var r3Messages = new byte[][] {r3};
+        final var signature = subject.runAggregationPhase(message, r1Messages, r2Messages, r3Messages, publicKeys);
+        assertNotNull(signature);
+
+        assertDoesNotThrow(() -> subject.verifyAggregateSignature(message, publicKeys, signature));
     }
 }

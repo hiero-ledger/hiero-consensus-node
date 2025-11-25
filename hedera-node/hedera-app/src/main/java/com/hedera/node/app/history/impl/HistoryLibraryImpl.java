@@ -14,15 +14,11 @@ import com.hedera.node.app.history.HistoryLibrary;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Set;
 import java.util.SplittableRandom;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 /**
  * Default implementation of the {@link HistoryLibrary}.
  */
 public class HistoryLibraryImpl implements HistoryLibrary {
-    private static final Logger log = LogManager.getLogger(HistoryLibraryImpl.class);
-
     private static final byte[] DUMMY_HINTS_KEY = new byte[1280];
     public static final SplittableRandom RANDOM = new SplittableRandom();
     public static final WRAPSLibraryBridge WRAPS = WRAPSLibraryBridge.getInstance();
@@ -37,6 +33,7 @@ public class HistoryLibraryImpl implements HistoryLibrary {
 
     @Override
     public byte[] hashAddressBook(@NonNull final AddressBook addressBook) {
+        requireNonNull(addressBook);
         return WRAPS.hashAddressBook(addressBook.publicKeys(), addressBook.weights());
     }
 
