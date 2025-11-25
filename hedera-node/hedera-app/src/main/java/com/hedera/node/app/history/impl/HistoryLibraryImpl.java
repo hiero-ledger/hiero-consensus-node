@@ -7,12 +7,10 @@ import static com.hedera.cryptography.wraps.WRAPSLibraryBridge.SigningProtocolPh
 import static com.hedera.cryptography.wraps.WRAPSLibraryBridge.SigningProtocolPhase.R3;
 import static java.util.Objects.requireNonNull;
 
-import com.hedera.cryptography.rpm.HistoryLibraryBridge;
 import com.hedera.cryptography.rpm.SigningAndVerifyingSchnorrKeys;
 import com.hedera.cryptography.wraps.Proof;
 import com.hedera.cryptography.wraps.WRAPSLibraryBridge;
 import com.hedera.node.app.history.HistoryLibrary;
-import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Set;
 import java.util.SplittableRandom;
@@ -27,7 +25,6 @@ public class HistoryLibraryImpl implements HistoryLibrary {
 
     private static final byte[] DUMMY_HINTS_KEY = new byte[1280];
     public static final SplittableRandom RANDOM = new SplittableRandom();
-    private static final HistoryLibraryBridge RPM_BRIDGE = HistoryLibraryBridge.getInstance();
     public static final WRAPSLibraryBridge WRAPS = WRAPSLibraryBridge.getInstance();
 
     @Override
@@ -39,32 +36,8 @@ public class HistoryLibraryImpl implements HistoryLibrary {
     }
 
     @Override
-    public Bytes signSchnorr(@NonNull final Bytes message, @NonNull final Bytes privateKey) {
-        requireNonNull(message);
-        requireNonNull(privateKey);
-        return Bytes.wrap(RPM_BRIDGE.signSchnorr(message.toByteArray(), privateKey.toByteArray()));
-    }
-
-    @Override
-    public boolean verifySchnorr(
-            @NonNull final Bytes signature, @NonNull final Bytes message, @NonNull final Bytes publicKey) {
-        requireNonNull(signature);
-        requireNonNull(message);
-        requireNonNull(publicKey);
-        // TODO - swap in the WRAPS Schnorr verification call when it is available
-        return true;
-    }
-
-    @Override
     public byte[] hashAddressBook(@NonNull final AddressBook addressBook) {
-        final var answer = WRAPS.hashAddressBook(addressBook.publicKeys(), addressBook.weights());
-        log.info(
-                "# nodes = {}, # weights = {}, # public keys = {}",
-                addressBook.nodeIds().length,
-                addressBook.weights().length,
-                addressBook.publicKeys().length);
-        log.info("Hashed {} and got answer {}", addressBook, answer);
-        return answer;
+        return WRAPS.hashAddressBook(addressBook.publicKeys(), addressBook.weights());
     }
 
     @Override
@@ -197,6 +170,6 @@ public class HistoryLibraryImpl implements HistoryLibrary {
     @Override
     public boolean isValidWraps(@NonNull final byte[] compressedProof) {
         requireNonNull(compressedProof);
-        return true;
+        return WRAPS.verifyCompressedProof(compressedProof);
     }
 }

@@ -2,7 +2,6 @@
 package com.hedera.node.app.history.impl;
 
 import com.hedera.hapi.node.state.history.HistoryProofVote;
-import com.hedera.node.app.history.ReadableHistoryStore.HistorySignaturePublication;
 import com.hedera.node.app.history.ReadableHistoryStore.ProofKeyPublication;
 import com.hedera.node.app.history.ReadableHistoryStore.WrapsMessagePublication;
 import com.hedera.node.app.history.WritableHistoryStore;
@@ -78,14 +77,6 @@ public interface ProofController {
      * @param historyStore the history store
      */
     void addProofVote(long nodeId, @NonNull HistoryProofVote vote, @NonNull WritableHistoryStore historyStore);
-
-    /**
-     * Incorporates the given history signature, if this construction still needs a proof, and does
-     * not already have a signature published by the associated node.
-     * @param publication the proof key publication
-     * @return if the signature was added
-     */
-    boolean addSignaturePublication(@NonNull HistorySignaturePublication publication);
 
     /**
      * Cancels any pending work that this controller has scheduled.

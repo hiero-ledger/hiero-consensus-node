@@ -4,7 +4,6 @@ package com.hedera.node.app.history.impl;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.state.history.HistoryProofVote;
-import com.hedera.node.app.history.ReadableHistoryStore.HistorySignaturePublication;
 import com.hedera.node.app.history.ReadableHistoryStore.ProofKeyPublication;
 import com.hedera.node.app.history.ReadableHistoryStore.WrapsMessagePublication;
 import com.hedera.node.app.history.WritableHistoryStore;
@@ -56,12 +55,6 @@ public class InertProofController implements ProofController {
         requireNonNull(vote);
         requireNonNull(historyStore);
         // No-op
-    }
-
-    @Override
-    public boolean addSignaturePublication(@NonNull final HistorySignaturePublication publication) {
-        requireNonNull(publication);
-        return false;
     }
 
     @Override

@@ -143,7 +143,6 @@ public class ProofControllers {
                     executor,
                     submissions,
                     keyPublications,
-                    signaturePublications,
                     wrapsMessagePublications,
                     votes,
                     historyService,

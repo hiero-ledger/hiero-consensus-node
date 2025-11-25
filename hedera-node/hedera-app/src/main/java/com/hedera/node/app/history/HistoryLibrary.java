@@ -127,26 +127,6 @@ public interface HistoryLibrary {
     SigningAndVerifyingSchnorrKeys newSchnorrKeyPair();
 
     /**
-     * Signs a message with a Schnorr private key. In Hiero TSS, this will always be the concatenation
-     * of an address book hash and the associated metadata.
-     *
-     * @param message the message
-     * @param privateKey the private key
-     * @return the signature
-     */
-    Bytes signSchnorr(@NonNull Bytes message, @NonNull Bytes privateKey);
-
-    /**
-     * Checks that a signature on a message verifies under a Schnorr public key.
-     *
-     * @param signature the signature
-     * @param message the message
-     * @param publicKey the public key
-     * @return true if the signature is valid; false otherwise
-     */
-    boolean verifySchnorr(@NonNull Bytes signature, @NonNull Bytes message, @NonNull Bytes publicKey);
-
-    /**
      * Computes the hash of the given address book with the same algorithm used by the SNARK circuit.
      *
      * @param addressBook the address book

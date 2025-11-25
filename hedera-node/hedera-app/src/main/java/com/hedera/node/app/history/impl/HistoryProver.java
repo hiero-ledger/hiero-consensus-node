@@ -7,7 +7,6 @@ import com.hedera.hapi.node.state.history.HistoryProof;
 import com.hedera.hapi.node.state.history.HistoryProofConstruction;
 import com.hedera.hapi.node.state.history.ProofKey;
 import com.hedera.node.app.history.HistoryLibrary;
-import com.hedera.node.app.history.ReadableHistoryStore.HistorySignaturePublication;
 import com.hedera.node.app.history.ReadableHistoryStore.WrapsMessagePublication;
 import com.hedera.node.app.history.WritableHistoryStore;
 import com.hedera.node.app.history.impl.ProofKeysAccessorImpl.SchnorrKeyPair;
@@ -114,20 +113,6 @@ public interface HistoryProver {
     boolean cancelPendingWork();
 
     /**
-     * Informs the prover of a new history signature publication that has reached consensus. Implementations decide
-     * if the publication is relevant.
-     * @param publication the signature publication
-     * @param sourceProofKeys current snapshot of nodeId -> Schnorr proof key for the source roster
-     * @return true if the publication was needed by this prover, false otherwise
-     */
-    default boolean addSignaturePublication(
-            @NonNull final HistorySignaturePublication publication, @NonNull final Map<Long, Bytes> sourceProofKeys) {
-        requireNonNull(publication);
-        requireNonNull(sourceProofKeys);
-        return false;
-    }
-
-    /**
      * Informs the prover of a new WRAPS message publication that has reached consensus. Implementations decide
      * if the publication is relevant.
      *
@@ -137,16 +122,11 @@ public interface HistoryProver {
      * @param tssConfig the TSS configuration
      * @return true if the publication was needed by this prover, false otherwise
      */
-    default boolean addWrapsSigningMessage(
-            final long constructionId,
-            @NonNull final WrapsMessagePublication publication,
-            @NonNull final WritableHistoryStore writableHistoryStore,
-            @NonNull final TssConfig tssConfig) {
-        requireNonNull(publication);
-        requireNonNull(writableHistoryStore);
-        requireNonNull(tssConfig);
-        return false;
-    }
+    boolean addWrapsSigningMessage(
+            long constructionId,
+            @NonNull WrapsMessagePublication publication,
+            @NonNull WritableHistoryStore writableHistoryStore,
+            @NonNull TssConfig tssConfig);
 
     /**
      * Replays a WRAPS message publication that previously reached consensus.

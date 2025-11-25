@@ -15,7 +15,6 @@ import com.hedera.hapi.node.state.history.HistoryProofVote;
 import com.hedera.hapi.node.state.history.ProofKey;
 import com.hedera.node.app.history.HistoryLibrary;
 import com.hedera.node.app.history.HistoryService;
-import com.hedera.node.app.history.ReadableHistoryStore.HistorySignaturePublication;
 import com.hedera.node.app.history.ReadableHistoryStore.ProofKeyPublication;
 import com.hedera.node.app.history.ReadableHistoryStore.WrapsMessagePublication;
 import com.hedera.node.app.history.WritableHistoryStore;
@@ -78,7 +77,6 @@ public class ProofControllerImpl implements ProofController {
             @NonNull final Executor executor,
             @NonNull final HistorySubmissions submissions,
             @NonNull final List<ProofKeyPublication> keyPublications,
-            @NonNull final List<HistorySignaturePublication> signaturePublications,
             @NonNull final List<WrapsMessagePublication> wrapsMessagePublications,
             @NonNull final Map<Long, HistoryProofVote> votes,
             @NonNull final HistoryService historyService,
@@ -116,8 +114,6 @@ public class ProofControllerImpl implements ProofController {
                     executor,
                     historyLibrary,
                     submissions);
-            signaturePublications.forEach(
-                    publication -> requireNonNull(prover).addSignaturePublication(publication, sourceProofKeys));
             wrapsMessagePublications.stream().sorted().forEach(publication -> requireNonNull(prover)
                     .replayWrapsSigningMessage(constructionId(), publication));
         } else {
@@ -206,15 +202,6 @@ public class ProofControllerImpl implements ProofController {
         }
         return requireNonNull(prover)
                 .addWrapsSigningMessage(constructionId(), publication, writableHistoryStore, tssConfig);
-    }
-
-    @Override
-    public boolean addSignaturePublication(@NonNull final HistorySignaturePublication publication) {
-        requireNonNull(publication);
-        if (construction.hasTargetProof()) {
-            return false;
-        }
-        return requireNonNull(prover).addSignaturePublication(publication, sourceProofKeys);
     }
 
     @Override

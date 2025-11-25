@@ -1,31 +1,106 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.history.impl;
 
-import static com.hedera.node.app.history.impl.HistoryLibraryImpl.RANDOM;
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.verify;
 
+import com.hedera.node.app.history.HistoryLibrary;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import java.util.Set;
+import java.util.SortedMap;
+import java.util.TreeMap;
 import org.hiero.base.utility.CommonUtils;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
 
+@ExtendWith(MockitoExtension.class)
 class HistoryLibraryImplTest {
-    private final HistoryLibraryImpl subject = new HistoryLibraryImpl();
+
+    @Mock
+    private HistoryLibrary library;
 
     @Test
-    void generatesValidSchnorrKeys() {
-        final var keys = subject.newSchnorrKeyPair();
-        final var message = Bytes.wrap("Hello, world!".getBytes());
-        final var signature = subject.signSchnorr(message, Bytes.wrap(keys.signingKey()));
-        assertTrue(subject.verifySchnorr(signature, message, Bytes.wrap(keys.verifyingKey())));
-        System.out.println("RPM key lengths: " + keys.signingKey().length + ", " + keys.verifyingKey().length);
+    void computeHashBuildsCanonicalAddressBookAndWrapsResult() {
+        final var nodeIds = Set.of(3L, 1L, 2L);
+        final var expectedHash = new byte[] {42};
+        given(library.hashAddressBook(any())).willReturn(expectedHash);
 
-        final var bytes = new byte[32];
-        RANDOM.nextBytes(bytes);
-        final var wrapsKeys = HistoryLibraryImpl.WRAPS.generateSchnorrKeys(bytes);
-        System.out.println("WRAPS key lengths: " + wrapsKeys.privateKey().length + ", " + wrapsKeys.publicKey().length);
-        System.out.println("private: " + CommonUtils.hex(wrapsKeys.privateKey()));
-        System.out.println("public: " + CommonUtils.hex(wrapsKeys.publicKey()));
-        final var wrapsSignature = subject.signSchnorr(message, Bytes.wrap(wrapsKeys.privateKey()));
-        assertTrue(subject.verifySchnorr(wrapsSignature, message, Bytes.wrap(wrapsKeys.publicKey())));
+        final var result =
+                HistoryLibrary.computeHash(library, nodeIds, id -> id * 10L, id -> Bytes.wrap(new byte[] {(byte) id}));
+
+        assertEquals(Bytes.wrap(expectedHash), result);
+
+        final ArgumentCaptor<HistoryLibrary.AddressBook> captor =
+                ArgumentCaptor.forClass(HistoryLibrary.AddressBook.class);
+        verify(library).hashAddressBook(captor.capture());
+
+        final var addressBook = captor.getValue();
+        assertArrayEquals(new long[] {10L, 20L, 30L}, addressBook.weights());
+        assertArrayEquals(new long[] {1L, 2L, 3L}, addressBook.nodeIds());
+        assertArrayEquals(new byte[] {1}, addressBook.publicKeys()[0]);
+        assertArrayEquals(new byte[] {2}, addressBook.publicKeys()[1]);
+        assertArrayEquals(new byte[] {3}, addressBook.publicKeys()[2]);
+    }
+
+    @Test
+    void addressBookFromUsesSortedWeightsAndDefaultsMissingPublicKeys() {
+        final SortedMap<Long, Long> weights = new TreeMap<>();
+        weights.put(2L, 20L);
+        weights.put(1L, 10L);
+
+        final SortedMap<Long, byte[]> publicKeys = new TreeMap<>();
+        publicKeys.put(1L, new byte[] {0x01});
+
+        final var addressBook = HistoryLibrary.AddressBook.from(weights, publicKeys);
+
+        assertArrayEquals(new long[] {10L, 20L}, addressBook.weights());
+        assertArrayEquals(new long[] {1L, 2L}, addressBook.nodeIds());
+        assertArrayEquals(new byte[] {0x01}, addressBook.publicKeys()[0]);
+        assertArrayEquals(
+                HistoryLibrary.EMPTY_PUBLIC_KEY.toByteArray(), addressBook.publicKeys()[1]);
+    }
+
+    @Test
+    void addressBookFromUsesFunctionForPublicKeys() {
+        final SortedMap<Long, Long> weights = new TreeMap<>();
+        weights.put(2L, 20L);
+        weights.put(1L, 10L);
+
+        final var addressBook = HistoryLibrary.AddressBook.from(weights, nodeId -> new byte[] {(byte) (nodeId + 40)});
+
+        assertArrayEquals(new long[] {10L, 20L}, addressBook.weights());
+        assertArrayEquals(new long[] {1L, 2L}, addressBook.nodeIds());
+        assertArrayEquals(new byte[] {41}, addressBook.publicKeys()[0]);
+        assertArrayEquals(new byte[] {42}, addressBook.publicKeys()[1]);
+    }
+
+    @Test
+    void signersMaskMarksOnlySignerNodeIds() {
+        final var weights = new long[] {1L, 1L, 1L};
+        final var publicKeys = new byte[][] {new byte[] {0}, new byte[] {1}, new byte[] {2}};
+        final var nodeIds = new long[] {10L, 20L, 30L};
+        final var addressBook = new HistoryLibrary.AddressBook(weights, publicKeys, nodeIds);
+
+        final var mask = addressBook.signersMask(Set.of(10L, 30L, 40L));
+
+        assertArrayEquals(new boolean[] {true, false, true}, mask);
+    }
+
+    @Test
+    void toStringIncludesIndexWeightAndHexKey() {
+        final var weights = new long[] {5L};
+        final var publicKeys = new byte[][] {new byte[] {0x01, 0x02}};
+        final var nodeIds = new long[] {123L};
+        final var addressBook = new HistoryLibrary.AddressBook(weights, publicKeys, nodeIds);
+
+        final var expected = "AddressBook[(#0 :: weight=5 :: public_key=" + CommonUtils.hex(publicKeys[0]) + ")]";
+
+        assertEquals(expected, addressBook.toString());
     }
 }

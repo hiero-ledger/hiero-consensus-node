@@ -5,8 +5,6 @@ import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
 import static org.junit.jupiter.api.Assertions.*;
 
 import com.hedera.hapi.node.state.history.HistoryProofVote;
-import com.hedera.hapi.node.state.history.HistorySignature;
-import com.hedera.node.app.history.ReadableHistoryStore.HistorySignaturePublication;
 import com.hedera.node.app.history.ReadableHistoryStore.ProofKeyPublication;
 import com.hedera.node.app.history.WritableHistoryStore;
 import com.hedera.node.config.data.TssConfig;
@@ -32,8 +30,6 @@ class InertProofControllerTest {
         assertDoesNotThrow(
                 () -> subject.addProofKeyPublication(new ProofKeyPublication(123L, Bytes.EMPTY, Instant.EPOCH)));
         assertDoesNotThrow(() -> subject.addProofVote(123L, HistoryProofVote.DEFAULT, store));
-        assertFalse(subject.addSignaturePublication(
-                new HistorySignaturePublication(123L, HistorySignature.DEFAULT, Instant.EPOCH)));
         assertDoesNotThrow(subject::cancelPendingWork);
     }
 }
