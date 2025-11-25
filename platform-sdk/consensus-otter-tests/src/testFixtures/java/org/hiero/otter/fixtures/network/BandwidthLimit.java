@@ -20,8 +20,8 @@ public class BandwidthLimit implements Comparable<BandwidthLimit> {
     private final int kilobytesPerSecond;
 
     private BandwidthLimit(final int kilobytesPerSecond) {
-        if (kilobytesPerSecond < 0) {
-            throw new IllegalArgumentException("Bandwidth cannot be negative");
+        if (kilobytesPerSecond <= 0) {
+            throw new IllegalArgumentException("Bandwidth must be positive");
         }
         this.kilobytesPerSecond = kilobytesPerSecond;
     }
@@ -83,7 +83,7 @@ public class BandwidthLimit implements Comparable<BandwidthLimit> {
      * @return the bandwidth in megabytes per second
      */
     public int toMegabytesPerSecond() {
-        return kilobytesPerSecond / 1024;
+        return (kilobytesPerSecond + 512) / 1024;
     }
 
     /**
