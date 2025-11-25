@@ -114,10 +114,11 @@ public record EthTxSigs(byte[] publicKey, byte[] address) {
     // a list of EOA addresses (via signatures) that are then associated with the code of a contract
     // More details: https://eips.ethereum.org/EIPS/eip-7702
     static byte[] resolveEIP7702(final EthTxData ethTx) {
-        return RLPEncoder.sequence(Integers.toBytes(1), new Object[] {
+        return RLPEncoder.sequence(Integers.toBytes(4), new Object[] {
             ethTx.chainId(),
             Integers.toBytes(ethTx.nonce()),
-            ethTx.gasPrice(),
+            ethTx.maxPriorityGas(),
+            ethTx.maxGas(),
             Integers.toBytes(ethTx.gasLimit()),
             ethTx.to(),
             Integers.toBytesUnsigned(ethTx.value()),
