@@ -23,7 +23,7 @@ val mockito = "5.18.0"
 val pbj = pluginVersions.version("com.hedera.pbj.pbj-compiler")
 val protobuf = "4.31.1"
 val blockNodeProtobufSources = "0.21.2"
-val testContainers = "1.21.3"
+val testContainers = "2.0.2"
 val tuweni = "2.4.2"
 val webcompare = "2.1.8"
 
