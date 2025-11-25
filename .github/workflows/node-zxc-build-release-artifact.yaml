@@ -867,9 +867,9 @@ jobs:
   create-github-release:
     name: Create GitHub Release
     uses: ./.github/workflows/zxc-create-github-release.yaml
-#    needs:
-#      - publish
-    if: ${{ needs.validate.outputs.create-release == 'true' }}
+    needs:
+      - publish
+    if: ${{ needs.publish.outputs.create-release == 'true' }}
     with:
       release-version: ${{ inputs.ref-name }}
       create-release-notes: true
