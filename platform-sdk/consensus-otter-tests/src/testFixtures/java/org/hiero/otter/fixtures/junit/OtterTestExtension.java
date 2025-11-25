@@ -7,6 +7,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Stream;
@@ -273,7 +274,7 @@ public class OtterTestExtension
                 AnnotationSupport.findAnnotation(extensionContext.getElement(), TurtleSpecs.class);
         final long randomSeed = turtleSpecs.map(TurtleSpecs::randomSeed).orElse(0L);
 
-        final var outputDirectory = EnvironmentUtils.getDefaultOutputDirectory("turtle", extensionContext);
+        final Path outputDirectory = EnvironmentUtils.getDefaultOutputDirectory("turtle", extensionContext);
         return new TurtleTestEnvironment(randomSeed, randomNodeIds, outputDirectory);
     }
 
@@ -290,7 +291,7 @@ public class OtterTestExtension
                 AnnotationSupport.findAnnotation(extensionContext.getElement(), OtterSpecs.class);
         final boolean randomNodeIds = otterSpecs.map(OtterSpecs::randomNodeIds).orElse(true);
 
-        final var outputDirectory = EnvironmentUtils.getDefaultOutputDirectory("container", extensionContext);
+        final Path outputDirectory = EnvironmentUtils.getDefaultOutputDirectory("container", extensionContext);
         return new ContainerTestEnvironment(randomNodeIds, outputDirectory);
     }
 
