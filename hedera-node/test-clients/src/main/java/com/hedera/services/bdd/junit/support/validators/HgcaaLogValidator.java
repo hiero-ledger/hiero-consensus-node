@@ -85,6 +85,10 @@ public class HgcaaLogValidator {
                 List.of("Properties file", "does not exist and won't be used as configuration source"),
                 // Using a 1-minute staking period in CI can lead to periods with no transactions, breaking invariants
                 List.of("StakingRewardsHelper", "Pending rewards decreased"),
+
+                // Nodes that are created and removed before the next upgrade,
+                // will not have staking info in the state
+                List.of("ReadableStakingInfoStoreImpl", "not found in state"),
                 // Some PR checks don't stake any HBAR, so after crossing a staking boundary all nodes
                 // have zero weight and the RosterStore rejects a zero-weight roster as invalid
                 List.of("Candidate roster was rejected"),
