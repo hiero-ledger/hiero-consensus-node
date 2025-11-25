@@ -866,6 +866,9 @@ public class CryptoTransferSimpleFeesSuite {
                                 .signedBy(PAYER)
                                 .fee(THOUSAND_HBAR)
                                 .via("mixedWithHooksTxn")),
+//                | Simple fee (4 hooks × $1)  | ~$4  |
+//                | Gas execution (4 × 5M gas) | ~$32 |
+//                | Total                      | ~$36 |
                 "mixedWithHooksTxn",
                 36.005099998,
                 1.0,
@@ -912,7 +915,7 @@ public class CryptoTransferSimpleFeesSuite {
                                 .fee(ONE_HUNDRED_HBARS)
                                 .via("customFeesWithHooksTxn")),
                 "customFeesWithHooksTxn",
-                // $0.005 + (3 × $1.00) + (2 × $3.00)
+                // $0.005 + (3 hooks × $1.00) + (2 × $3.00)
                 9.0052999992,
                 1.0,
                 9.0052999992,

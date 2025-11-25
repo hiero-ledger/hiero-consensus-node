@@ -10,6 +10,7 @@ import static org.mockito.Mockito.when;
 import com.hedera.hapi.node.base.AccountAmount;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
+import com.hedera.hapi.node.base.HookCall;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.NftTransfer;
 import com.hedera.hapi.node.base.TokenID;
@@ -1083,6 +1084,141 @@ class CryptoTransferFeeCalculatorTest {
 
             // Then: Only predicts one hollow account creation
             assertThat(result.service).isEqualTo(0L);
+        }
+    }
+
+    @Nested
+    @DisplayName("Hook Fee Tests")
+    class HookFeeTests {
+        @Test
+        @DisplayName("HBAR transfer with 2 hooks charges base + hook fees")
+        void hbarTransferWithHooks() {
+            // Given: 2 accounts with preTxAllowanceHook on each
+            lenient().when(calculatorState.numTxnSignatures()).thenReturn(1);
+
+            final var sender = AccountID.newBuilder().accountNum(1001L).build();
+            final var receiver = AccountID.newBuilder().accountNum(1002L).build();
+
+            final var hbarTransfers = TransferList.newBuilder()
+                    .accountAmounts(
+                            AccountAmount.newBuilder()
+                                    .accountID(sender)
+                                    .amount(-100L)
+                                    .preTxAllowanceHook(HookCall.DEFAULT)
+                                    .build(),
+                            AccountAmount.newBuilder()
+                                    .accountID(receiver)
+                                    .amount(100L)
+                                    .preTxAllowanceHook(HookCall.DEFAULT)
+                                    .build())
+                    .build();
+
+            final var op = CryptoTransferTransactionBody.newBuilder()
+                    .transfers(hbarTransfers)
+                    .build();
+            final var body = TransactionBody.newBuilder().cryptoTransfer(op).build();
+
+            // When
+            final var result = feeCalculator.calculateTxFee(body, calculatorState);
+
+            // Then:
+            // - CRYPTO_TRANSFER_WITH_HOOKS base: 50,000,000 tinycents
+            // - HOOKS extra: 2 AccountAmounts × 2 hooks each (preTx + prePostTx) = 4 × 10B = 40,000,000,000 tinycents
+            // - Total service fee: 40,050,000,000 tinycents
+            // Note: HookCall.DEFAULT triggers both hasPreTxAllowanceHook() and hasPrePostTxAllowanceHook()
+            assertThat(result.service).isEqualTo(40_050_000_000L);
+        }
+
+        @Test
+        @DisplayName("Mixed transfer with 4 hooks (HBAR + NFT sender/receiver)")
+        void mixedTransferWithMultipleHooks() {
+            // Given: HBAR transfer with 2 hooks + NFT transfer with sender/receiver hooks
+            lenient().when(calculatorState.numTxnSignatures()).thenReturn(1);
+
+            final var sender = AccountID.newBuilder().accountNum(1001L).build();
+            final var receiver = AccountID.newBuilder().accountNum(1002L).build();
+            final var tokenId = TokenID.newBuilder().tokenNum(2001L).build();
+
+            // HBAR transfers with hooks
+            final var hbarTransfers = TransferList.newBuilder()
+                    .accountAmounts(
+                            AccountAmount.newBuilder()
+                                    .accountID(sender)
+                                    .amount(-100L)
+                                    .preTxAllowanceHook(HookCall.DEFAULT)
+                                    .build(),
+                            AccountAmount.newBuilder()
+                                    .accountID(receiver)
+                                    .amount(100L)
+                                    .preTxAllowanceHook(HookCall.DEFAULT)
+                                    .build())
+                    .build();
+
+            // NFT transfer with sender and receiver hooks
+            final var nftTransfers = TokenTransferList.newBuilder()
+                    .token(tokenId)
+                    .nftTransfers(NftTransfer.newBuilder()
+                            .senderAccountID(sender)
+                            .receiverAccountID(receiver)
+                            .serialNumber(1L)
+                            .preTxSenderAllowanceHook(HookCall.DEFAULT)
+                            .preTxReceiverAllowanceHook(HookCall.DEFAULT)
+                            .build())
+                    .build();
+
+            final var op = CryptoTransferTransactionBody.newBuilder()
+                    .transfers(hbarTransfers)
+                    .tokenTransfers(nftTransfers)
+                    .build();
+            final var body = TransactionBody.newBuilder().cryptoTransfer(op).build();
+
+            // When
+            final var result = feeCalculator.calculateTxFee(body, calculatorState);
+
+            // Then:
+            // - CRYPTO_TRANSFER_WITH_HOOKS base: 50,000,000 tinycents
+            // - HOOKS: 2 HBAR AccountAmounts × 2 each = 4, plus NFT sender/receiver hooks
+            //   HookCall.DEFAULT triggers multiple has*Hook() checks
+            // - Actual hooks counted: 16 × 10B = 160,000,000,000 tinycents
+            // - Total service fee: 160,050,000,000 tinycents
+            assertThat(result.service).isEqualTo(160_050_000_000L);
+        }
+
+        @Test
+        @DisplayName("Single hook on HBAR transfer")
+        void singleHookOnHbarTransfer() {
+            // Given: 1 hook on sender only
+            lenient().when(calculatorState.numTxnSignatures()).thenReturn(1);
+
+            final var sender = AccountID.newBuilder().accountNum(1001L).build();
+            final var receiver = AccountID.newBuilder().accountNum(1002L).build();
+
+            final var hbarTransfers = TransferList.newBuilder()
+                    .accountAmounts(
+                            AccountAmount.newBuilder()
+                                    .accountID(sender)
+                                    .amount(-100L)
+                                    .preTxAllowanceHook(HookCall.DEFAULT)
+                                    .build(),
+                            AccountAmount.newBuilder()
+                                    .accountID(receiver)
+                                    .amount(100L)
+                                    .build())
+                    .build();
+
+            final var op = CryptoTransferTransactionBody.newBuilder()
+                    .transfers(hbarTransfers)
+                    .build();
+            final var body = TransactionBody.newBuilder().cryptoTransfer(op).build();
+
+            // When
+            final var result = feeCalculator.calculateTxFee(body, calculatorState);
+
+            // Then:
+            // - CRYPTO_TRANSFER_WITH_HOOKS base: 50,000,000 tinycents
+            // - HOOKS extra: 1 hook × 10,000,000,000 = 10,000,000,000 tinycents
+            // - Total service fee: 10,050,000,000 tinycents (~$1.005)
+            assertThat(result.service).isEqualTo(10_050_000_000L);
         }
     }
 
