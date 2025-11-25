@@ -29,6 +29,7 @@ import com.hedera.node.app.history.impl.HistoryLibraryImpl;
 import com.hedera.node.app.history.impl.HistoryServiceImpl;
 import com.hedera.node.app.info.NodeInfoImpl;
 import com.hedera.node.app.metrics.StoreMetricsServiceImpl;
+import com.hedera.node.app.service.consensus.impl.ConsensusServiceImpl;
 import com.hedera.node.app.service.contract.impl.ContractServiceImpl;
 import com.hedera.node.app.service.entityid.impl.AppEntityIdFactory;
 import com.hedera.node.app.service.file.impl.FileServiceImpl;
@@ -53,7 +54,6 @@ import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
 import java.time.InstantSource;
@@ -86,9 +86,6 @@ class IngestComponentTest {
 
     @Mock
     private BlockHashSigner blockHashSigner;
-
-    @Mock
-    private PlatformStateFacade platformStateFacade;
 
     private HederaInjectionComponent app;
 
@@ -167,7 +164,7 @@ class IngestComponentTest {
                 .hintsService(hintsService)
                 .historyService(historyService)
                 .tokenServiceImpl(new TokenServiceImpl(appContext))
-                .platformStateFacade(platformStateFacade)
+                .consensusServiceImpl(new ConsensusServiceImpl())
                 .build();
 
         final var state = new FakeState();

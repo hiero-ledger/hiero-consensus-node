@@ -3,7 +3,7 @@ package com.swirlds.demo.platform;
 
 import static com.swirlds.demo.platform.PlatformTestingToolMain.CONFIGURATION;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
-import static com.swirlds.platform.state.service.PlatformStateFacade.DEFAULT_PLATFORM_STATE_FACADE;
+import static com.swirlds.platform.state.service.PlatformStateUtils.roundOf;
 import static org.hiero.base.io.streams.SerializableStreamConstants.NULL_CLASS_ID;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
@@ -148,7 +148,7 @@ public class PlatformTestingToolState extends MerkleStateRoot<PlatformTestingToo
      */
     @Override
     public long getRound() {
-        return DEFAULT_PLATFORM_STATE_FACADE.roundOf(this);
+        return roundOf(this);
     }
 
     /**
