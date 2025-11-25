@@ -18,11 +18,20 @@ import java.util.stream.Collectors;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.model.event.PlatformEvent;
 
+/**
+ * A class that stores a simple hand-made graph for use in tests.
+ */
 public class SimpleGraph {
     private final Random random;
     private final List<PlatformEvent> events;
     private final List<EventImpl> eventImpls;
 
+    /**
+     * Constructor
+     *
+     * @param random the source of randomness
+     * @param events the events in the graph
+     */
     public SimpleGraph(@NonNull final Random random, @NonNull final PlatformEvent... events) {
         this.random = random;
         this.events = List.of(events);
@@ -48,14 +57,31 @@ public class SimpleGraph {
         this.eventImpls = Collections.unmodifiableList(eventImpls);
     }
 
+    /**
+     * Get the list of all events in the graph.
+     *
+     * @return the list of events
+     */
     public @NonNull List<PlatformEvent> events() {
         return events;
     }
 
+    /**
+     * Get a specific event by index.
+     *
+     * @param index the index of the event
+     * @return the event
+     */
     public @NonNull PlatformEvent event(final int index) {
         return events.get(index);
     }
 
+    /**
+     * Create a list of events from the provided indices.
+     *
+     * @param indices the indices of events to include in the list
+     * @return the list of events
+     */
     public @NonNull List<PlatformEvent> events(@NonNull final int... indices) {
         final List<PlatformEvent> selectedEvents = new ArrayList<>();
         for (final int index : indices) {
@@ -66,6 +92,7 @@ public class SimpleGraph {
 
     /**
      * Create a set of events from the provided indices.
+     *
      * @param indices the indices of events to include in the set
      * @return the set of events
      */
@@ -77,16 +104,32 @@ public class SimpleGraph {
         return Collections.unmodifiableSet(eventSet);
     }
 
+    /**
+     * Get all linked events in the graph.
+     *
+     * @return the list of events
+     */
     public @NonNull List<EventImpl> impls() {
         return eventImpls;
     }
 
+    /**
+     * Get all linked events in a random order.
+     *
+     * @return the list of events
+     */
     public @NonNull List<EventImpl> shuffledImpls() {
         final List<EventImpl> shuffledEvents = new ArrayList<>(eventImpls);
         Collections.shuffle(shuffledEvents, random);
         return shuffledEvents;
     }
 
+    /**
+     * Create a list of linked events from the provided indices.
+     *
+     * @param indices the indices of events to include in the list
+     * @return the list of events
+     */
     public @NonNull List<EventImpl> impls(@NonNull final int... indices) {
         final List<EventImpl> selectedEvents = new ArrayList<>();
         for (final int index : indices) {
@@ -95,10 +138,22 @@ public class SimpleGraph {
         return Collections.unmodifiableList(selectedEvents);
     }
 
+    /**
+     * Get a specific linked event by index.
+     *
+     * @param index the index of the event
+     * @return the event
+     */
     public @NonNull EventImpl impl(final int index) {
         return eventImpls.get(index);
     }
 
+    /**
+     * Get a set of event hashes from the provided indices.
+     *
+     * @param indices the indices of events to include in the set
+     * @return the set of hashes
+     */
     public @NonNull Set<Hash> hashes(@NonNull final int... indices) {
         return events(indices).stream().map(PlatformEvent::getHash).collect(Collectors.toSet());
     }

@@ -141,6 +141,7 @@ public class TestingEventBuilder {
      */
     private long nGen = NonDeterministicGeneration.GENERATION_UNDEFINED;
 
+    /** The hash to use for the event */
     private Hash hash = null;
 
     /**
@@ -371,8 +372,17 @@ public class TestingEventBuilder {
         return this;
     }
 
-    public @NonNull TestingEventBuilder setHash(final String hexString) {
+    /**
+     * Set a custom hash for the event. This is useful for having a human-readable hash for debugging purposes.
+     *
+     * @param hexString the hash as a hex string
+     * @return this instance
+     */
+    public @NonNull TestingEventBuilder setHash(@NonNull final String hexString) {
         final byte[] parsedHex = HexFormat.of().parseHex(hexString.toLowerCase());
+        if(parsedHex.length > DigestType.SHA_384.digestLength()) {
+            throw new IllegalArgumentException("Hash length is too long");
+        }
         final byte[] hash = new byte[DigestType.SHA_384.digestLength()];
         System.arraycopy(parsedHex, 0, hash, 0, parsedHex.length);
         this.hash = new Hash(hash);

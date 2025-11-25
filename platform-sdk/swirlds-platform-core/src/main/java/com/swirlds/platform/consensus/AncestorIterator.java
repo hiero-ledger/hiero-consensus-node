@@ -61,7 +61,7 @@ public class AncestorIterator implements Iterator<EventImpl> {
     private IteratorState state;
     /** is curr a self ancestor of the judge? */
     private boolean selfAncestor;
-
+    /** stack of the index of the next other parent to try to traverse into */
     private final Deque<Integer> stackNextOtherParentIndex = new ArrayDeque<>(INITIAL_STACK_SIZE);
     /** the index of the next other parent to try to traverse into */
     private int nextOtherParentIndex = 0;

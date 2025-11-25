@@ -61,7 +61,7 @@ class DeGenTest {
     }
 
     /**
-     * Test the assignment and clearing of DeGen values in a simple graph.
+     * Test the assignment and clearing of DeGen values in a graph with multiple other parents.
      */
     @Test
     void mopGraphTest() {

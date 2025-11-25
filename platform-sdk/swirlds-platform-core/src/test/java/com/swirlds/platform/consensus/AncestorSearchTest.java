@@ -10,6 +10,7 @@ import com.swirlds.common.test.fixtures.Randotron;
 import com.swirlds.platform.internal.EventImpl;
 import com.swirlds.platform.test.fixtures.graph.SimpleGraph;
 import com.swirlds.platform.test.fixtures.graph.SimpleGraphs;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.HashSet;
 import java.util.List;
@@ -24,10 +25,18 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
+/**
+ * Tests for the {@link AncestorSearch}
+ */
 class AncestorSearchTest {
+    /** A predicate that matches all events */
     private static final Predicate<EventImpl> ALL_EVENTS = e -> true;
+    /** A predicate that matches only non-consensus events */
     private static final Predicate<EventImpl> NON_CONSENSUS_EVENTS = e -> !e.isConsensus();
 
+    /**
+     * Tests the graph with multiple other-parents
+     */
     @Test
     void mopGraph() {
         final SimpleGraph graph = SimpleGraphs.mopGraph(Randotron.create());
@@ -54,6 +63,11 @@ class AncestorSearchTest {
                         .collect(Collectors.toSet()));
     }
 
+    /**
+     * Tests the graph with 9 events and 3 nodes. This test is parameterized to run with different starting marks to
+     * ensure that the marking system works correctly. It also validates that the recTimes are set correctly on the
+     * common ancestor.
+     */
     @ParameterizedTest
     @ValueSource(ints = {1, -1, Integer.MAX_VALUE})
     void graph9e3n(final int startingMark) {
@@ -86,12 +100,22 @@ class AncestorSearchTest {
         graph.impls(0, 2, 3, 4, 5, 6, 7, 8).stream().map(EventImpl::getRecTimes).forEach(Assertions::assertNull);
     }
 
-    private Set<Hash> getAncestors(final AncestorSearch search, final EventImpl event) {
+    /**
+     * Same as {@link #getAncestors(AncestorSearch, EventImpl, Predicate)} with a predicate that matches all events
+     */
+    private Set<Hash> getAncestors(@NonNull final AncestorSearch search, @NonNull final EventImpl event) {
         return getAncestors(search, event, ALL_EVENTS);
     }
 
+    /**
+     * Get the ancestors of an event that match the given predicate
+     * @param search the ancestor search instance to use
+     * @param event the event whose ancestors to find
+     * @param predicate the predicate to filter ancestors
+     * @return the set of ancestor hashes that match the predicate
+     */
     private Set<Hash> getAncestors(
-            final AncestorSearch search, final EventImpl event, final Predicate<EventImpl> predicate) {
+            @NonNull final AncestorSearch search, @NonNull final EventImpl event, @NonNull final Predicate<EventImpl> predicate) {
         final AncestorIterator ancestorIterator = search.initializeSearch(event, predicate);
         return StreamSupport.stream(Spliterators.spliteratorUnknownSize(ancestorIterator, 0), false)
                 .map(EventImpl::getBaseHash)

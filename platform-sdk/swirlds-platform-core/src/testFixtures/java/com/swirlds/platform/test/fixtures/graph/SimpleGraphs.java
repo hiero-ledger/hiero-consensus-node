@@ -23,7 +23,7 @@ public class SimpleGraphs {
      * </pre>
      *
      */
-    public static SimpleGraph mopGraph(@NonNull final Random random) {
+    public static @NonNull SimpleGraph mopGraph(@NonNull final Random random) {
         final PlatformEvent e0 = new TestingEventBuilder(random)
                 .setCreatorId(NodeId.of(1))
                 // setting hash to human-readable value for easier debugging
@@ -87,7 +87,7 @@ public class SimpleGraphs {
      *
      * Note that this graph has two parts which are not connected to each other
      */
-    public static SimpleGraph graph8e4n(final Random random) {
+    public static @NonNull SimpleGraph graph8e4n(final Random random) {
         final PlatformEvent e0 =
                 new TestingEventBuilder(random).setCreatorId(NodeId.of(1)).build();
         final PlatformEvent e1 =
@@ -134,7 +134,7 @@ public class SimpleGraphs {
      *
      * </pre>
      */
-    public static SimpleGraph graph9e3n(final Random random) {
+    public static @NonNull SimpleGraph graph9e3n(final Random random) {
         // generation 0
         final PlatformEvent e0 = new TestingEventBuilder(random)
                 .setCreatorId(NodeId.of(1))
