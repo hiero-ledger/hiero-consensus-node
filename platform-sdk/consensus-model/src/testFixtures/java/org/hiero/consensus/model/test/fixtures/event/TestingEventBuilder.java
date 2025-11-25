@@ -11,11 +11,14 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Random;
 import java.util.stream.Stream;
+import org.hiero.base.crypto.DigestType;
+import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.SignatureType;
 import org.hiero.base.crypto.test.fixtures.CryptoRandomUtils;
 import org.hiero.base.utility.test.fixtures.RandomUtils;
@@ -137,6 +140,8 @@ public class TestingEventBuilder {
      * Defaults to {@link EventConstants#GENERATION_UNDEFINED}
      */
     private long nGen = NonDeterministicGeneration.GENERATION_UNDEFINED;
+
+    private Hash hash = null;
 
     /**
      * Constructor
@@ -366,6 +371,14 @@ public class TestingEventBuilder {
         return this;
     }
 
+    public @NonNull TestingEventBuilder setHash(final String hexString) {
+        final byte[] parsedHex = HexFormat.of().parseHex(hexString.toLowerCase());
+        final byte[] hash = new byte[DigestType.SHA_384.digestLength()];
+        System.arraycopy(parsedHex, 0, hash, 0, parsedHex.length);
+        this.hash = new Hash(hash);
+        return this;
+    }
+
     /**
      * Generate transactions based on the settings provided.
      * <p>
@@ -494,7 +507,7 @@ public class TestingEventBuilder {
 
         final PlatformEvent platformEvent = new PlatformEvent(unsignedEvent, Bytes.wrap(signature));
 
-        platformEvent.setHash(CryptoRandomUtils.randomHash(random));
+        platformEvent.setHash(hash != null ? hash : CryptoRandomUtils.randomHash(random));
 
         platformEvent.setNGen(nGen);
 

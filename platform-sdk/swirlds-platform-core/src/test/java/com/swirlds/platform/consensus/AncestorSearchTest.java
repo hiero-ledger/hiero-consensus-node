@@ -15,6 +15,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.Spliterators;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 import org.hiero.base.crypto.Hash;
@@ -25,21 +26,44 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
 class AncestorSearchTest {
+    private static final Predicate<EventImpl> ALL_VALID = e -> true;
 
     @Test
     void mopGraph(){
         final SimpleGraph graph = SimpleGraphs.mopGraph(Randotron.create());
         final AncestorSearch search = new AncestorSearch();
 
-//        List<PlatformEvent> events = graph.events();
-//        for (int i = 0; i < events.size(); i++) {
-//            final PlatformEvent event = events.get(i);
-//            System.out.printf("%2d: %s%n", i, event.getHash());
-//        }
-
+        assertEquals(
+                graph.hashes(1,2,3,6),
+                getAncestors(search, graph.impl(6)));
+        assertEquals(
+                graph.hashes(0,4,8),
+                getAncestors(search, graph.impl(8)));
         assertEquals(
                 graph.hashes(0, 1, 2, 3, 4, 5, 6, 9),
                 getAncestors(search, graph.impl(9)));
+        assertEquals(
+                graph.hashes(0, 1, 2, 3, 5, 6, 7, 10),
+                getAncestors(search, graph.impl(10)));
+        assertEquals(
+                graph.hashes(3,7,11),
+                getAncestors(search, graph.impl(11)));
+
+        assertEquals(
+                graph.hashes(0,1,2,3,5,6),
+                search.commonAncestorsOf(graph.impls(9,10), ALL_VALID)
+                        .stream()
+                        .map(EventImpl::getBaseHash)
+                        .collect(Collectors.toSet()));
+        // clear the recTimes so they don't interfere with the next search
+        graph.impls().forEach(e -> e.setRecTimes(null));
+
+        assertEquals(
+                graph.hashes(0),
+                search.commonAncestorsOf(graph.impls(8,9,10), ALL_VALID)
+                        .stream()
+                        .map(EventImpl::getBaseHash)
+                        .collect(Collectors.toSet()));
     }
 
     @ParameterizedTest
@@ -59,7 +83,7 @@ class AncestorSearchTest {
 
         // test getting common ancestors of events 5,6 & 7
         final List<EventImpl> ancestors =
-                search.commonAncestorsOf(graph.impls(5,6,7), e -> true);
+                search.commonAncestorsOf(graph.impls(5,6,7), ALL_VALID);
         // we expect only one common ancestor: event 1
         assertEquals(1, ancestors.size());
         assertSame(graph.impl(1), ancestors.getFirst());
@@ -81,7 +105,7 @@ class AncestorSearchTest {
     }
 
     private Set<Hash> getAncestors(final AncestorSearch search, final EventImpl event) {
-        final AncestorIterator ancestorIterator = search.initializeSearch(event, e -> true);
+        final AncestorIterator ancestorIterator = search.initializeSearch(event, ALL_VALID);
         return StreamSupport.stream(
                         Spliterators.spliteratorUnknownSize(ancestorIterator, 0),
                         false)

@@ -6,6 +6,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.List;
 import java.util.Random;
+import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.NodeId;
@@ -26,40 +27,53 @@ public class SimpleGraphs {
      *
      */
     public static SimpleGraph mopGraph(@NonNull final Random random) {
-        final PlatformEvent e0 =
-                new TestingEventBuilder(random).setCreatorId(NodeId.of(1)).build();
-        final PlatformEvent e1 =
-                new TestingEventBuilder(random).setCreatorId(NodeId.of(2)).build();
-        final PlatformEvent e2 =
-                new TestingEventBuilder(random).setCreatorId(NodeId.of(3)).build();
-        final PlatformEvent e3 =
-                new TestingEventBuilder(random).setCreatorId(NodeId.of(4)).build();
+        final PlatformEvent e0 = new TestingEventBuilder(random)
+                .setCreatorId(NodeId.of(1))
+                .setHash("00")
+                .build();
+        final PlatformEvent e1 = new TestingEventBuilder(random)
+                .setCreatorId(NodeId.of(2))
+                .setHash("01").build();
+        final PlatformEvent e2 = new TestingEventBuilder(random)
+                .setCreatorId(NodeId.of(3))
+                .setHash("02").build();
+        final PlatformEvent e3 = new TestingEventBuilder(random)
+                .setCreatorId(NodeId.of(4))
+                .setHash("03").build();
 
-        final PlatformEvent e4 =
-                new TestingEventBuilder(random).setSelfParent(e0).build();
+        final PlatformEvent e4 = new TestingEventBuilder(random)
+                .setSelfParent(e0)
+                .setHash("04").build();
         final PlatformEvent e5 = new TestingEventBuilder(random)
                 .setSelfParent(e1)
                 .setOtherParents(List.of(e0, e2))
+                .setHash("05")
                 .build();
         final PlatformEvent e6 = new TestingEventBuilder(random)
                 .setSelfParent(e2)
                 .setOtherParents(List.of(e1, e3))
+                .setHash("06")
                 .build();
-        final PlatformEvent e7 =
-                new TestingEventBuilder(random).setSelfParent(e3).build();
+        final PlatformEvent e7 = new TestingEventBuilder(random)
+                .setSelfParent(e3)
+                .setHash("07").build();
 
-        final PlatformEvent e8 =
-                new TestingEventBuilder(random).setSelfParent(e4).build();
+        final PlatformEvent e8 = new TestingEventBuilder(random)
+                .setSelfParent(e4)
+                .setHash("08").build();
         final PlatformEvent e9 = new TestingEventBuilder(random)
                 .setSelfParent(e5)
                 .setOtherParents(List.of(e4, e6))
+                .setHash("09")
                 .build();
         final PlatformEvent e10 = new TestingEventBuilder(random)
                 .setSelfParent(e6)
                 .setOtherParents(List.of(e5, e7))
+                .setHash("10")
                 .build();
-        final PlatformEvent e11 =
-                new TestingEventBuilder(random).setSelfParent(e7).build();
+        final PlatformEvent e11 = new TestingEventBuilder(random)
+                .setSelfParent(e7)
+                .setHash("11").build();
         return new SimpleGraph(random, e0, e1, e2, e3, e4, e5, e6, e7, e8, e9, e10, e11);
     }
 
