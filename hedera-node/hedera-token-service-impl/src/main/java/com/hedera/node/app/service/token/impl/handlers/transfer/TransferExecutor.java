@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.handlers.transfer;
 
+import static com.hedera.hapi.node.base.ResponseCodeEnum.FAIL_INVALID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_HOOK_CALL;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TOKEN_ID;
@@ -49,6 +50,7 @@ import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.config.data.HooksConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
+
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import javax.inject.Inject;
@@ -189,13 +191,13 @@ public class TransferExecutor extends BaseTokenHandler {
             } catch (HandleException e) {
                 // if hook execution failed, we still want to throw an exception but refund the charged fees
                 // for other hook calls that didnt execute
-                final var feeToRefund = getFeesToRefund(
-                        hookCalls,
-                        numAttemptedHookCalls.get(),
-                        hooksConfig.hookInvocationCostTinyCents(),
-                        context.getGasPriceInTinyCents());
-                context.refundServiceFee(topLevelPayer, feeToRefund);
+                refundHookFees(context, hookCalls, numAttemptedHookCalls, hooksConfig, topLevelPayer);
                 throw new HandleException(e.getStatus());
+            } catch (Exception e) {
+                // if hook execution failed, we still want to throw an exception but refund the charged fees
+                // for other hook calls that didnt execute
+                refundHookFees(context, hookCalls, numAttemptedHookCalls, hooksConfig, topLevelPayer);
+                throw new HandleException(FAIL_INVALID);
             }
         }
 
@@ -217,13 +219,13 @@ public class TransferExecutor extends BaseTokenHandler {
             } catch (HandleException e) {
                 // if hook execution failed, we still want to throw an exception but refund the charged fees
                 // for other hook calls that didnt execute
-                final var feeToRefund = getFeesToRefund(
-                        hookCalls,
-                        numAttemptedHookCalls.get(),
-                        hooksConfig.hookInvocationCostTinyCents(),
-                        context.getGasPriceInTinyCents());
-                context.refundServiceFee(topLevelPayer, feeToRefund);
+                refundHookFees(context, hookCalls, numAttemptedHookCalls, hooksConfig, topLevelPayer);
                 throw new HandleException(e.getStatus());
+            } catch (Exception e) {
+                // if hook execution failed, we still want to throw an exception but refund the charged fees
+                // for other hook calls that didnt execute
+                refundHookFees(context, hookCalls, numAttemptedHookCalls, hooksConfig, topLevelPayer);
+                throw new HandleException(FAIL_INVALID);
             }
         }
 
@@ -233,6 +235,15 @@ public class TransferExecutor extends BaseTokenHandler {
         if (!transferContext.getAssessedCustomFees().isEmpty()) {
             recordBuilder.assessedCustomFees(transferContext.getAssessedCustomFees());
         }
+    }
+
+    private void refundHookFees(final HandleContext context, final HookCalls hookCalls, final AtomicInteger numAttemptedHookCalls, final HooksConfig hooksConfig, final AccountID topLevelPayer) {
+        final var feeToRefund = getFeesToRefund(
+                hookCalls,
+                numAttemptedHookCalls.get(),
+                hooksConfig.hookInvocationCostTinyCents(),
+                context.getGasPriceInTinyCents());
+        context.refundServiceFee(topLevelPayer, feeToRefund);
     }
 
     /**
@@ -557,5 +568,6 @@ public class TransferExecutor extends BaseTokenHandler {
         RECEIVER_KEY_IS_REQUIRED
     }
 
-    public record HookInvocations(List<HookInvocation> pre, List<HookInvocation> post) {}
+    public record HookInvocations(List<HookInvocation> pre, List<HookInvocation> post) {
+    }
 }
