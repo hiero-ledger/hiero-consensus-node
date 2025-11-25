@@ -17,21 +17,16 @@ import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.hedera.hapi.block.stream.ChainOfTrustProof;
 import com.hedera.hapi.node.base.Timestamp;
-import com.hedera.hapi.node.state.history.History;
 import com.hedera.hapi.node.state.history.HistoryProof;
 import com.hedera.hapi.node.state.history.HistoryProofConstruction;
 import com.hedera.hapi.node.state.history.WrapsPhase;
 import com.hedera.hapi.node.state.history.WrapsSigningState;
 import com.hedera.node.app.history.HistoryLibrary;
-import com.hedera.node.app.history.HistoryLibrary.AddressBook;
-import com.hedera.node.app.history.impl.HistoryProver;
 import com.hedera.node.app.history.ReadableHistoryStore.WrapsMessagePublication;
 import com.hedera.node.app.history.WritableHistoryStore;
 import com.hedera.node.app.service.roster.impl.RosterTransitionWeights;
 import com.hedera.node.config.data.TssConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-
-import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Map;
@@ -122,12 +117,7 @@ class WrapsHistoryProverTest {
                 SELF_ID, KEY_PAIR, nonGenesisSourceProof, weights, proofKeys, executor, historyLibrary, submissions);
 
         final var outcome = subject.advance(
-                EPOCH,
-                constructionWithPhase(R1, null),
-                TARGET_METADATA,
-                targetProofKeys,
-                tssConfig,
-                null);
+                EPOCH, constructionWithPhase(R1, null), TARGET_METADATA, targetProofKeys, tssConfig, null);
 
         assertInstanceOf(HistoryProver.Outcome.Failed.class, outcome);
         final var failed = (HistoryProver.Outcome.Failed) outcome;
@@ -150,8 +140,7 @@ class WrapsHistoryProverTest {
                 writableHistoryStore,
                 tssConfig);
 
-        final var outcome = subject.advance(
-                now, construction, TARGET_METADATA, targetProofKeys, tssConfig, LEDGER_ID);
+        final var outcome = subject.advance(now, construction, TARGET_METADATA, targetProofKeys, tssConfig, LEDGER_ID);
 
         assertInstanceOf(HistoryProver.Outcome.Failed.class, outcome);
         final var failed = (HistoryProver.Outcome.Failed) outcome;
@@ -161,26 +150,18 @@ class WrapsHistoryProverTest {
     @Test
     void advanceInitializesWrapsMessageAndPublishesR1() {
         subject = new WrapsHistoryProver(
-                SELF_ID,
-                KEY_PAIR,
-                null,
-                weights,
-                proofKeys,
-                Runnable::run,
-                historyLibrary,
-                submissions);
+                SELF_ID, KEY_PAIR, null, weights, proofKeys, Runnable::run, historyLibrary, submissions);
         given(historyLibrary.hashAddressBook(any())).willReturn("HASH".getBytes(UTF_8));
         given(historyLibrary.computeWrapsMessage(any(), any())).willReturn("MSG".getBytes(UTF_8));
         given(historyLibrary.runWrapsPhaseR1(any(), any(), any())).willReturn(MESSAGE_BYTES.toByteArray());
 
         final var construction = constructionWithPhase(R1, null);
-        final var outcome = subject.advance(
-                EPOCH, construction, TARGET_METADATA, targetProofKeys, tssConfig, LEDGER_ID);
+        final var outcome =
+                subject.advance(EPOCH, construction, TARGET_METADATA, targetProofKeys, tssConfig, LEDGER_ID);
 
         assertSame(HistoryProver.Outcome.InProgress.INSTANCE, outcome);
         final var captor = ArgumentCaptor.forClass(Bytes.class);
-        verify(submissions)
-                .submitWrapsSigningMessage(eq(R1), captor.capture(), eq(CONSTRUCTION_ID));
+        verify(submissions).submitWrapsSigningMessage(eq(R1), captor.capture(), eq(CONSTRUCTION_ID));
         assertEquals(MESSAGE_BYTES, captor.getValue());
     }
 
@@ -209,8 +190,7 @@ class WrapsHistoryProverTest {
                 writableHistoryStore,
                 tssConfig));
 
-        verify(writableHistoryStore)
-                .advanceWrapsSigningPhase(eq(CONSTRUCTION_ID), eq(R2), any());
+        verify(writableHistoryStore).advanceWrapsSigningPhase(eq(CONSTRUCTION_ID), eq(R2), any());
     }
 
     @Test
@@ -221,7 +201,6 @@ class WrapsHistoryProverTest {
         assertTrue(subject.addWrapsSigningMessage(CONSTRUCTION_ID, first, writableHistoryStore, tssConfig));
         assertFalse(subject.addWrapsSigningMessage(CONSTRUCTION_ID, duplicate, writableHistoryStore, tssConfig));
     }
-
 
     @Test
     void r2PhaseRequiresR1ParticipationAndAdvancesToR3() {
@@ -256,8 +235,7 @@ class WrapsHistoryProverTest {
                 writableHistoryStore,
                 tssConfig));
 
-        verify(writableHistoryStore)
-                .advanceWrapsSigningPhase(eq(CONSTRUCTION_ID), eq(R3), any());
+        verify(writableHistoryStore).advanceWrapsSigningPhase(eq(CONSTRUCTION_ID), eq(R3), any());
     }
 
     @Test
@@ -304,8 +282,7 @@ class WrapsHistoryProverTest {
                 writableHistoryStore,
                 tssConfig));
 
-        verify(writableHistoryStore)
-                .advanceWrapsSigningPhase(eq(CONSTRUCTION_ID), eq(AGGREGATE), isNull());
+        verify(writableHistoryStore).advanceWrapsSigningPhase(eq(CONSTRUCTION_ID), eq(AGGREGATE), isNull());
     }
 
     @Test

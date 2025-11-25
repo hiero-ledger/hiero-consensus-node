@@ -141,6 +141,7 @@ class HistoryServiceImplTest {
         given(activeRosters.phase()).willReturn(TRANSITION);
         given(store.getOrCreateConstruction(activeRosters, CONSENSUS_NOW, tssConfig))
                 .willReturn(HistoryProofConstruction.DEFAULT);
+        given(store.getActiveConstruction()).willReturn(HistoryProofConstruction.DEFAULT);
         given(component.controllers()).willReturn(controllers);
         given(controllers.getOrCreateFor(
                         activeRosters,
