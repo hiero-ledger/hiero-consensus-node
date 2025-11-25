@@ -1363,10 +1363,13 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         Files.deleteIfExists(file);
         awaitCondition(() -> availableNodes().isEmpty(), 3_000);
 
-        // Exercise unchanged path: write back same content and ensure no restart occurs
+        // Exercise unchanged path: write back the same content and ensure no restart occurs
         Files.writeString(
                 file, valid, StandardCharsets.UTF_8, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
         awaitCondition(() -> !availableNodes().isEmpty(), 5_000);
+
+        // Give the watcher some time to fully process the creation of the configuration file
+        Thread.sleep(1000);
         final Map<BlockNodeConfiguration, BlockNodeConnection> before = new HashMap<>(connections());
         invoke_refreshAvailableBlockNodes();
         final Map<BlockNodeConfiguration, BlockNodeConnection> after = new HashMap<>(connections());
