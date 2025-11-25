@@ -456,6 +456,8 @@ class ThrottleAccumulatorTest {
                         ENTITY_ID_STATE_ID, ENTITY_ID_STATE_LABEL, () -> EntityNumber.newBuilder()
                                 .build()))
                 .state(new FunctionReadableSingletonState<>(
+                        NODE_ID_STATE_ID, NODE_ID_STATE_LABEL, () -> NodeId.newBuilder()))
+                .state(new FunctionReadableSingletonState<>(
                         ENTITY_COUNTS_STATE_ID, ENTITY_COUNTS_STATE_LABEL, () -> EntityCounts.newBuilder()
                                 .build()))
                 .build();
