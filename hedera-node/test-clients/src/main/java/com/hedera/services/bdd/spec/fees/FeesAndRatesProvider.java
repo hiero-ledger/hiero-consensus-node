@@ -291,6 +291,6 @@ public class FeesAndRatesProvider {
     }
 
     public long tinycentGasPrice() {
-        return gasPrice / 1000;
+        return gasPrice;
     }
 }
