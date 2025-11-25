@@ -33,7 +33,6 @@ public record ChaosBotConfiguration(
                     new LowBandwidthNodeExperiment(),
                     new NetworkPartitionExperiment(),
                     new NodeFailureExperiment(),
-                    new NodeIsolationExperiment(),
                     new FlickeringIsolationExperiment()));
 
     /**
