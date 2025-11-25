@@ -83,7 +83,7 @@ message HistoryProof {
   History target_history = 2;
   /**
    * The proof of chain of trust from the ledger id to the target
-   * history's metadata. May be switched from a NodeSignatures list
+   * history's metadata. May be switched from AggregatedNodeSignatures
    * to a recursive proof when one becomes available.
    */
   com.hedera.hapi.block.stream.ChainOfTrustProof chain_of_trust_proof = 3;
