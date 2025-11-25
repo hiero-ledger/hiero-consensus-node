@@ -692,9 +692,6 @@ public class StateChangesValidator implements BlockStreamValidator {
                     case UNSET ->
                         Assertions.fail("Empty chain-of-trust for hinTS key in proof (start round #" + firstRound
                                 + ") - " + proof);
-                    case NODE_SIGNATURES ->
-                        Assertions.fail("Unsupported chain-of-trust for hinTS key in proof (start round #" + firstRound
-                                + ") - " + proof);
                     case AGGREGATED_NODE_SIGNATURES -> {
                         final var context = vkContexts.get(vk);
                         final var wrapsMessage = context.wrapsMessageGiven(historyLibrary, vk);

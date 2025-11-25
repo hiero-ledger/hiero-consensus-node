@@ -24,23 +24,16 @@ message ChainOfTrustProof {
     oneof proof {
         /**
          * If there is not yet a SNARK proving the chain of trust from ledger id to
-         * the hinTS verification key, the explicit list of Schnorr signatures on
+         * the hinTS verification key, an aggregation of Schnorr signatures on
          * the concatenation of the ledger id and genesis hinTS verification key
          * that serve as witnesses for the SNARK prover algorithm.
          */
-        NodeSignatures node_signatures = 1;
+        AggregatedNodeSignatures aggregated_node_signatures = 1;
         /**
          * If known, a ZK-compressed SNARK proof proving the chain of trust from
          * the ledger id to this hinTS verification key.
          */
         bytes wraps_proof = 2;
-        /**
-         * If there is not yet a SNARK proving the chain of trust from ledger id to
-         * the hinTS verification key, an aggregation of Schnorr signatures on
-         * the concatenation of the ledger id and genesis hinTS verification key
-         * that serve as witnesses for the SNARK prover algorithm.
-         */
-        AggregatedNodeSignatures aggregated_node_signatures = 3;
     }
 }
 
@@ -60,31 +53,4 @@ message AggregatedNodeSignatures {
    * In ascending order, the ids of the nodes that contributed signatures.
    */
   repeated uint64 signing_node_ids = 2;
-}
-
-/**
- * A list of valid node signatures on some data assumed known from the context
- * of the message, ordered by node id.
- * <p>
- * Can be used to prove the genesis hinTS verification key in a block proof; but
- * not succinct and not recursive; hence in normal operations with TSS, used only
- * until the first recursive proof is available.
- */
-message NodeSignatures {
-    repeated NodeSignature node_signatures = 1;
-}
-
-/**
- * A signature from a node on some data assumed known from the context of the
- * message.
- */
-message NodeSignature {
-    /**
-     * The node id of the signer.
-     */
-    uint64 node_id = 1;
-    /**
-     * The signature.
-     */
-    bytes signature = 2;
 }
