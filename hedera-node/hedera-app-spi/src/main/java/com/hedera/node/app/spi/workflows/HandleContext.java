@@ -186,9 +186,7 @@ public interface HandleContext {
              * A callback to be invoked to increment the nonce of the payer account.
              * This is used to ensure that the nonce is incremented when ethereum transaction fails inside a batch.
              */
-            ETHEREUM_NONCE_INCREMENT_CALLBACK,
-
-            FEE_TO_BE_REFUNDED
+            ETHEREUM_NONCE_INCREMENT_CALLBACK
         }
     }
 

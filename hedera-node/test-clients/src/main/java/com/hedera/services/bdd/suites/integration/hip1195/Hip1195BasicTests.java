@@ -79,6 +79,7 @@ import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
 import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
 import com.hedera.services.bdd.spec.utilops.EmbeddedVerbs;
 import com.hedera.services.bdd.spec.verification.traceability.SidecarWatcher;
+import com.hederahashgraph.api.proto.java.TokenSupplyType;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.Map;
@@ -97,6 +98,8 @@ public class Hip1195BasicTests {
     private static final double HOOK_INVOCATION_USD = 0.005;
     private static final long HOOK_GAS_LIMIT = 25000;
     private static final double HBAR_TRANSFER_BASE_USD = 0.0001;
+    private static final double NFT_TRANSFER_BASE_USD = 0.001;
+    private static final double NFT_TRANSFER_WITH_CUSTOM_BASE_USD = 0.002;
 
     @Contract(contract = "FalsePreHook", creationGas = 5_000_000)
     static SpecContract FALSE_ALLOWANCE_HOOK;
@@ -615,9 +618,65 @@ public class Hip1195BasicTests {
                 // Transfer without receiver signature and hook returns false
                 cryptoTransfer(TokenMovement.movingUnique("nft", 1L).between("sender", "receiverWithFalseHook"))
                         .withNftReceiverPreHookFor("receiverWithFalseHook", 241L, HOOK_GAS_LIMIT, "")
-                        .payingWith(DEFAULT_PAYER)
-                        .signedBy(DEFAULT_PAYER, "sender")
-                        .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK));
+                        .payingWith("sender")
+                        .signedBy("sender")
+                        .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK)
+                        .via("nftTransferFails"),
+                sourcingContextual(spec -> {
+                    final long tinybarGasCost =
+                            HOOK_GAS_LIMIT * spec.ratesProvider().currentTinybarGasPrice();
+                    final double usdGasCost = spec.ratesProvider().toUsdWithActiveRates(tinybarGasCost);
+                    return validateChargedUsd(
+                            "nftTransferFails", NFT_TRANSFER_BASE_USD + HOOK_INVOCATION_USD + usdGasCost);
+                }));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> nftTransferWithCustomFeesAndHooksFees() {
+        return hapiTest(
+                newKeyNamed("supplyKey"),
+                newKeyNamed("receiverKey"),
+                cryptoCreate("treasury").withHooks(accountAllowanceHook(241L, FALSE_TRUE_ALLOWANCE_HOOK.name())),
+                cryptoCreate("feeCollector"),
+                cryptoCreate("sender").withHooks(accountAllowanceHook(242L, TRUE_ALLOWANCE_HOOK.name())),
+                cryptoCreate("receiver")
+                        .receiverSigRequired(true)
+                        .key("receiverKey")
+                        .withHooks(accountAllowanceHook(243L, TRUE_PRE_POST_ALLOWANCE_HOOK.name())),
+                tokenCreate("nft")
+                        .tokenType(NON_FUNGIBLE_UNIQUE)
+                        .treasury("treasury")
+                        .supplyKey("supplyKey")
+                        .initialSupply(0L)
+                        .supplyType(TokenSupplyType.INFINITE)
+                        .withCustom(fixedHbarFee(1L, "feeCollector")),
+                tokenAssociate("sender", "nft"),
+                tokenAssociate("receiver", "nft"),
+                mintToken("nft", List.of(ByteString.copyFromUtf8("metadata1"))),
+                cryptoTransfer(TokenMovement.movingUnique("nft", 1L).between("treasury", "sender")),
+                cryptoTransfer(
+                                TokenMovement.movingUnique("nft", 1L).between("sender", "receiver"),
+                                TokenMovement.movingHbar(1L).between("sender", "treasury"))
+                        .withNftReceiverPrePostHookFor("receiver", 243L, 2 * HOOK_GAS_LIMIT, "")
+                        .withNftSenderPreHookFor("sender", 242L, 2 * HOOK_GAS_LIMIT, "")
+                        .withPreHookFor("sender", 242L, 3 * HOOK_GAS_LIMIT, "")
+                        .withPrePostHookFor("treasury", 241L, 2 * HOOK_GAS_LIMIT, "")
+                        .payingWith("sender")
+                        .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK)
+                        .via("nftTransferFails"),
+                sourcingContextual(spec -> {
+                    // There are 4 hooks - 2 pre and 2 pre-post.
+                    // 2 pre hooks succeed and third pre hook call fails
+                    // so we should refund the gas and hook invocation cost of other treasury post hook = 2 *
+                    // HOOK_GAS_LIMIT
+                    //  and also the receiver pre-post hook = 2 (2 * HOOK_GAS_LIMIT)
+                    final long tinybarGasCost =
+                            (7 * HOOK_GAS_LIMIT) * spec.ratesProvider().currentTinybarGasPrice();
+                    final double usdGasCost = spec.ratesProvider().toUsdWithActiveRates(tinybarGasCost);
+                    return validateChargedUsd(
+                            "nftTransferFails",
+                            NFT_TRANSFER_WITH_CUSTOM_BASE_USD + (3 * HOOK_INVOCATION_USD) + usdGasCost);
+                }));
     }
 
     @HapiTest
@@ -1027,8 +1086,6 @@ public class Hip1195BasicTests {
                     final long tinybarGasCost =
                             (2 * HOOK_GAS_LIMIT) * spec.ratesProvider().currentTinybarGasPrice();
                     final double usdGasCost = spec.ratesProvider().toUsdWithActiveRates(tinybarGasCost);
-                    System.out.println("usdGasCost: " + usdGasCost + " tinybarGasCost: " + tinybarGasCost
-                            + " currentTinybarGasPrice: " + spec.ratesProvider().currentTinybarGasPrice());
                     return validateChargedUsd(
                             "feeTxn", HBAR_TRANSFER_BASE_USD + (2 * HOOK_INVOCATION_USD) + usdGasCost);
                 }));
