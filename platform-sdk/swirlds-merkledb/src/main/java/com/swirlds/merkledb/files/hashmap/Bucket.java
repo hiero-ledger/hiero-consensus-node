@@ -481,14 +481,12 @@ public sealed class Bucket implements Closeable permits ParsedBucket {
                     long entryValue = 0;
                     long entryKeyBytesOffset = -1;
                     int entryKeyBytesSize = -1;
-                    boolean entryCandidate = true;
                     while (bucketData.hasRemaining()) {
                         final int entryTag = bucketData.readVarInt(false);
                         final int entryFieldNum = entryTag >> TAG_FIELD_OFFSET;
                         if (entryFieldNum == FIELD_BUCKETENTRY_HASHCODE.number()) {
                             entryHashCode = bucketData.readInt();
                             if (entryHashCode != keyHashCode) {
-                                entryCandidate = false;
                                 break;
                             }
                         } else if (entryFieldNum == FIELD_BUCKETENTRY_VALUE.number()) {
@@ -497,7 +495,6 @@ public sealed class Bucket implements Closeable permits ParsedBucket {
                         } else if (entryFieldNum == FIELD_BUCKETENTRY_KEYBYTES.number()) {
                             entryKeyBytesSize = bucketData.readVarInt(false);
                             if (entryKeyBytesSize != key.length()) {
-                                entryCandidate = false;
                                 break;
                             }
                             entryKeyBytesOffset = bucketData.position();
@@ -506,11 +503,11 @@ public sealed class Bucket implements Closeable permits ParsedBucket {
                             throw new IllegalArgumentException("Unknown bucket entry field: " + entryFieldNum);
                         }
                     }
-                    if (entryCandidate) {
-                        if ((entryValueOffset == -1) || (entryKeyBytesOffset == -1)) {
+                    if ((entryHashCode == keyHashCode) && (entryKeyBytesSize == key.length())) {
+                        if (entryValueOffset == -1) {
                             logger.warn(MERKLE_DB.getMarker(), "Broken bucket entry");
                         } else {
-                            if (keyEquals(entryKeyBytesOffset, entryKeyBytesSize, key)) {
+                            if (keyEquals(entryKeyBytesOffset, key)) {
                                 return new FindResult(
                                         true,
                                         fieldOffset,
@@ -531,10 +528,8 @@ public sealed class Bucket implements Closeable permits ParsedBucket {
         return FindResult.NOT_FOUND;
     }
 
-    private boolean keyEquals(final long pos, final int size, final Bytes key) {
-        if (size != key.length()) {
-            return false;
-        }
+    private boolean keyEquals(final long pos, final Bytes key) {
+        final int size = (int) key.length();
         for (int i = 0; i < size; i++) {
             if (bucketData.getByte(pos + i) != key.getByte(i)) {
                 return false;

@@ -768,7 +768,9 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
                 assert keyUpdates != null;
                 for (BucketMutation m = keyUpdates; m != null; m = m.getNext()) {
                     assert m.getOldValue() == INVALID_VALUE;
-                    bucket.addValue(m.getKeyBytes(), m.getKeyHashCode(), m.getValue());
+                    if (m.getValue() != INVALID_VALUE) {
+                        bucket.addValue(m.getKeyBytes(), m.getKeyHashCode(), m.getValue());
+                    }
                 }
                 bucketChanged = true;
             } else {
