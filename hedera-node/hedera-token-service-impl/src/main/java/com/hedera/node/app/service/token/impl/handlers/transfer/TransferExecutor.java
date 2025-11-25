@@ -193,11 +193,6 @@ public class TransferExecutor extends BaseTokenHandler {
                 // for other hook calls that didnt execute
                 refundHookFees(context, hookCalls, numAttemptedHookCalls, hooksConfig, topLevelPayer);
                 throw new HandleException(e.getStatus());
-            } catch (Exception e) {
-                // if hook execution failed, we still want to throw an exception but refund the charged fees
-                // for other hook calls that didnt execute
-                refundHookFees(context, hookCalls, numAttemptedHookCalls, hooksConfig, topLevelPayer);
-                throw new HandleException(FAIL_INVALID);
             }
         }
 
@@ -221,11 +216,6 @@ public class TransferExecutor extends BaseTokenHandler {
                 // for other hook calls that didnt execute
                 refundHookFees(context, hookCalls, numAttemptedHookCalls, hooksConfig, topLevelPayer);
                 throw new HandleException(e.getStatus());
-            } catch (Exception e) {
-                // if hook execution failed, we still want to throw an exception but refund the charged fees
-                // for other hook calls that didnt execute
-                refundHookFees(context, hookCalls, numAttemptedHookCalls, hooksConfig, topLevelPayer);
-                throw new HandleException(FAIL_INVALID);
             }
         }
 

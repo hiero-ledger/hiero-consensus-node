@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.integration.hip1195;
 
+import static com.hedera.node.app.hapi.fees.pricing.FeeSchedules.USD_TO_TINYCENTS;
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.toPbj;
 import static com.hedera.node.app.service.contract.impl.schemas.V065ContractSchema.EVM_HOOK_STATES_STATE_ID;
 import static com.hedera.services.bdd.junit.EmbeddedReason.NEEDS_STATE_ACCESS;
@@ -80,6 +81,10 @@ import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
 import com.hedera.services.bdd.spec.utilops.EmbeddedVerbs;
 import com.hedera.services.bdd.spec.verification.traceability.SidecarWatcher;
 import edu.umd.cs.findbugs.annotations.NonNull;
+
+import java.math.BigDecimal;
+import java.math.BigInteger;
+import java.math.RoundingMode;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
@@ -978,11 +983,11 @@ public class Hip1195BasicTests {
                         .payingWith(OWNER)
                         .via("feeTxn"),
                 sourcingContextual(spec -> {
-                    final long tinybarGasCost = 25_000L * spec.ratesProvider().currentTinybarGasPrice();
-                    final double usdGasCost = spec.ratesProvider().toUsdWithActiveRates(tinybarGasCost);
-                    System.out.println("usdGasCost: " + usdGasCost + " tinybarGasCost: " + tinybarGasCost
-                            + " currentTinybarGasPrice: " + spec.ratesProvider().currentTinybarGasPrice());
-                    return validateChargedUsd("feeTxn", 0.0001 + 0.005 + usdGasCost);
+                    final var USD_TO_TINYCENTS = BigDecimal.valueOf(100 * 100_000_000L);
+                    final var tinycentGasCost = BigDecimal.valueOf(25_000L * spec.ratesProvider().currentTinycentGasPrice()).divide(USD_TO_TINYCENTS, 5, RoundingMode.HALF_UP).doubleValue();
+                    System.out.println(" tinycentGasCost: " + tinycentGasCost
+                            + " currentTinybarGasPrice: " + spec.ratesProvider().currentTinycentGasPrice());
+                    return validateChargedUsd("feeTxn", 0.001 + 0.005 + tinycentGasCost);
                 })
                 //                cryptoTransfer(TokenMovement.movingHbar(10).between(OWNER, PAYER))
                 //                        .withPreHookFor(OWNER, 123L, 25_000L, "")
