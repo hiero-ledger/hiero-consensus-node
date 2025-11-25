@@ -288,7 +288,7 @@ public class ThrottleAccumulator {
     private int getAssociationCount(@NonNull final Query query, @NonNull final ReadableAccountStore accountStore) {
         final var accountID = query.cryptogetAccountBalanceOrThrow().accountID();
         if (accountID != null) {
-            final var account = accountStore.getAccountById(accountID);
+            final var account = accountStore.getAliasedAccountById(accountID);
             if (account != null) {
                 return account.numberAssociations();
             }

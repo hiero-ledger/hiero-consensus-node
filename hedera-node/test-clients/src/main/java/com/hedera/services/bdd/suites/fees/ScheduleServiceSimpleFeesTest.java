@@ -16,7 +16,6 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
-import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.schedule.ScheduleUtils.OTHER_PAYER;
 import static com.hedera.services.bdd.suites.schedule.ScheduleUtils.PAYING_SENDER;
 import static com.hedera.services.bdd.suites.schedule.ScheduleUtils.RECEIVER;
@@ -37,7 +36,8 @@ public class ScheduleServiceSimpleFeesTest {
     private static final double BASE_FEE_SCHEDULE_DELETE = 0.001;
     private static final double BASE_FEE_SCHEDULE_INFO = 0.0001;
     private static final double BASE_FEE_CONTRACT_CALL = 0.1;
-    private static final double SINGLE_SIGNATURE_COST = 0.001;
+    private static final double SINGLE_SIGNATURE_COST = 0.0001;
+    private static final double NETWORK_MULTIPLIER = 9;
 
     @HapiTest
     @DisplayName("Schedule ops have expected USD fees")
@@ -60,12 +60,12 @@ public class ScheduleServiceSimpleFeesTest {
                         .via("canonicalCreation")
                         .fee(ONE_HBAR),
                 scheduleSign(SCHEDULE_NAME)
-                        .fee(ONE_HUNDRED_HBARS)
+                        .fee(ONE_HBAR)
                         .via("canonicalSigning")
                         .payingWith(PAYING_SENDER)
                         .signedBy(PAYING_SENDER),
                 scheduleSign(SCHEDULE_NAME)
-                        .fee(ONE_HUNDRED_HBARS)
+                        .fee(ONE_HBAR)
                         .via("multiScheduleSign")
                         .payingWith(PAYING_SENDER)
                         .signedBy(RECEIVER, PAYING_SENDER),
@@ -74,7 +74,7 @@ public class ScheduleServiceSimpleFeesTest {
                                 cryptoTransfer(tinyBarsFromTo(PAYING_SENDER, RECEIVER, 1L))
                                         .memo("")
                                         .fee(ONE_HBAR))
-                        .fee(ONE_HUNDRED_HBARS)
+                        .fee(ONE_HBAR)
                         .payingWith(PAYING_SENDER)
                         .adminKey(PAYING_SENDER),
                 scheduleDelete("tbd")
@@ -90,7 +90,7 @@ public class ScheduleServiceSimpleFeesTest {
                                         .memo("")
                                         .fee(ONE_HBAR))
                         .payingWith(OTHER_PAYER)
-                        .fee(ONE_HUNDRED_HBARS)
+                        .fee(ONE_HBAR)
                         .via("canonicalContractCall")
                         .adminKey(OTHER_PAYER),
                 getScheduleInfo(SCHEDULE_NAME)
@@ -99,11 +99,15 @@ public class ScheduleServiceSimpleFeesTest {
                         .via("getScheduleInfoBasic"),
                 validateChargedUsd("canonicalCreation", BASE_FEE_SCHEDULE_CREATE),
                 validateChargedUsd("canonicalSigning", BASE_FEE_SCHEDULE_SIGN),
-                validateChargedUsd("multiScheduleSign", BASE_FEE_SCHEDULE_SIGN + SINGLE_SIGNATURE_COST),
+                // validate the fee when we have single overage signature
+                validateChargedUsd(
+                        "multiScheduleSign",
+                        BASE_FEE_SCHEDULE_SIGN + SINGLE_SIGNATURE_COST + SINGLE_SIGNATURE_COST * NETWORK_MULTIPLIER),
                 validateChargedUsd("canonicalDeletion", BASE_FEE_SCHEDULE_DELETE),
                 // TODO: enable when we have proper fees for scheduling contract call
 
                 //                    validateChargedUsd("canonicalContractCall", BASE_FEE_CONTRACT_CALL, 3.0),
+                // TODO: implement the query simple fee
                 validateChargedUsd("getScheduleInfoBasic", BASE_FEE_SCHEDULE_INFO, 3));
     }
 }
