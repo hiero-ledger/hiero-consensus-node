@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.assertions;
 
-import static org.hiero.otter.fixtures.internal.helpers.Utils.collect;
+import static org.hiero.otter.fixtures.internal.helpers.Utils.toSet;
 import static org.hiero.otter.fixtures.result.SubscriberAction.CONTINUE;
 import static org.hiero.otter.fixtures.result.SubscriberAction.UNSUBSCRIBE;
 
@@ -57,7 +57,7 @@ public class MultipleNodePlatformStatusResultsContinuousAssert
     @NonNull
     public MultipleNodePlatformStatusResultsContinuousAssert doNotEnterAnyStatusesOf(
             @NonNull final PlatformStatus first, @Nullable final PlatformStatus... rest) {
-        final Set<PlatformStatus> statuses = collect(first, rest);
+        final Set<PlatformStatus> statuses = toSet(first, rest);
         return checkContinuously((nodeId, status) -> {
             if (statuses.contains(status)) {
                 failWithMessage(
@@ -76,7 +76,7 @@ public class MultipleNodePlatformStatusResultsContinuousAssert
     @NonNull
     public MultipleNodePlatformStatusResultsContinuousAssert doOnlyEnterStatusesOf(
             @NonNull final PlatformStatus first, @Nullable final PlatformStatus... rest) {
-        final Set<PlatformStatus> statuses = collect(first, rest);
+        final Set<PlatformStatus> statuses = toSet(first, rest);
         return checkContinuously((nodeId, status) -> {
             if (!statuses.contains(status)) {
                 failWithMessage("Expected only to enter %s statuses, but node %s entered %s", statuses, nodeId, status);

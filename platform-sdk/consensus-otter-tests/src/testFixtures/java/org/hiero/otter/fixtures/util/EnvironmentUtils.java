@@ -5,6 +5,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.lang.reflect.Parameter;
 import java.nio.file.Path;
 import java.util.Objects;
+import java.util.stream.Stream;
 import org.hiero.otter.fixtures.TestEnvironment;
 import org.junit.jupiter.api.extension.ExtensionContext;
 
@@ -49,17 +50,7 @@ public class EnvironmentUtils {
      */
     private static boolean hasExtraParameters(@NonNull final ExtensionContext extensionContext) {
         final Parameter[] parameters = extensionContext.getRequiredTestMethod().getParameters();
-
-        // Count non-TestEnvironment parameters
-        int nonEnvironmentParameterCount = 0;
-        for (final Parameter param : parameters) {
-            if (!param.getType().equals(TestEnvironment.class)) {
-                nonEnvironmentParameterCount++;
-            }
-        }
-
-        // If there are any parameters other than TestEnvironment, return true
-        return nonEnvironmentParameterCount > 0;
+        return Stream.of(parameters).map(Parameter::getType).anyMatch(type -> !type.equals(TestEnvironment.class));
     }
 
     /**
