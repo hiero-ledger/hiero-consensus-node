@@ -131,7 +131,7 @@ public class DefaultStateSignatureCollector implements StateSignatureCollector {
 
         final long round = scopedTransaction.transaction().round();
         final Signature signature = new Signature(
-                SignatureType.RSA, scopedTransaction.transaction().signature().toByteArray());
+                SignatureType.ED25519, scopedTransaction.transaction().signature().toByteArray());
 
         signedStateMetrics.getStateSignaturesGatheredPerSecondMetric().cycle();
 
@@ -178,7 +178,7 @@ public class DefaultStateSignatureCollector implements StateSignatureCollector {
                 reservedState,
                 scopedTransaction.submitterId(),
                 new Signature(
-                        SignatureType.RSA,
+                        SignatureType.ED25519,
                         scopedTransaction.transaction().signature().toByteArray()));
     }
 
