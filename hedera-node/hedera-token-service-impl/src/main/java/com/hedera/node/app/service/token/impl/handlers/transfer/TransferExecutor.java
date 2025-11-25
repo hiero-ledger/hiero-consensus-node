@@ -42,7 +42,9 @@ import com.hedera.node.app.service.token.impl.handlers.transfer.hooks.HookInvoca
 import com.hedera.node.app.service.token.impl.handlers.transfer.hooks.HooksABI;
 import com.hedera.node.app.service.token.impl.validators.CryptoTransferValidator;
 import com.hedera.node.app.service.token.records.CryptoTransferStreamBuilder;
+import com.hedera.node.app.spi.fees.FeeCharging;
 import com.hedera.node.app.spi.fees.FeeContext;
+import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
@@ -168,12 +170,12 @@ public class TransferExecutor extends BaseTokenHandler {
             txns = new CustomFeeAssessmentStep(replacedOp).assessCustomFees(transferContext);
         }
         final var hasHooks = HookUtils.hasHookExecutions(replacedOp);
-        HookCalls hookCalls = null;
+        final HookCalls hookCalls = hasHooks
+                ? hookCallsFactory.from(
+                        transferContext.getHandleContext(), replacedOp, transferContext.getItemizedAssessedFees())
+                : null;
         final AtomicInteger numAttemptedHookCalls = new AtomicInteger(0);
         if (hasHooks) {
-            final var itemizedAssessedFees = transferContext.getItemizedAssessedFees();
-            // Extract the HookCalls from the transaction bodies after custom fee assessment
-            hookCalls = hookCallsFactory.from(transferContext.getHandleContext(), replacedOp, itemizedAssessedFees);
             try {
                 dispatchHookCalls(
                         hookCalls.context(),
@@ -189,9 +191,10 @@ public class TransferExecutor extends BaseTokenHandler {
                         numAttemptedHookCalls);
             } catch (HandleException e) {
                 // if hook execution failed, we still want to throw an exception but refund the charged fees
-                // for other hook calls that didnt execute
-                refundHookFees(context, hookCalls, numAttemptedHookCalls, hooksConfig, topLevelPayer);
-                throw new HandleException(e.getStatus());
+                // for other hook calls that didn't execute
+                throw new HandleException(e.getStatus(), ctx -> {
+                    refundHookFee(context, ctx, hookCalls, numAttemptedHookCalls, hooksConfig, topLevelPayer);
+                });
             }
         }
 
@@ -212,9 +215,10 @@ public class TransferExecutor extends BaseTokenHandler {
                         numAttemptedHookCalls);
             } catch (HandleException e) {
                 // if hook execution failed, we still want to throw an exception but refund the charged fees
-                // for other hook calls that didnt execute
-                refundHookFees(context, hookCalls, numAttemptedHookCalls, hooksConfig, topLevelPayer);
-                throw new HandleException(e.getStatus());
+                // for other hook calls that didn't execute
+                throw new HandleException(e.getStatus(), ctx -> {
+                    refundHookFee(context, ctx, hookCalls, numAttemptedHookCalls, hooksConfig, topLevelPayer);
+                });
             }
         }
 
@@ -224,6 +228,22 @@ public class TransferExecutor extends BaseTokenHandler {
         if (!transferContext.getAssessedCustomFees().isEmpty()) {
             recordBuilder.assessedCustomFees(transferContext.getAssessedCustomFees());
         }
+    }
+
+    private void refundHookFee(
+            final HandleContext context,
+            final FeeCharging.Context ctx,
+            final HookCalls hookCalls,
+            final AtomicInteger numAttemptedHookCalls,
+            final HooksConfig hooksConfig,
+            final AccountID topLevelPayer) {
+        final var feeToRefund = getFeesToRefund(
+                hookCalls,
+                numAttemptedHookCalls.get(),
+                hooksConfig.hookInvocationCostTinyCents(),
+                context.getGasPriceInTinyCents());
+        final long refundInTinybars = ((FeeContext) context).tinybarsFromTinycents(feeToRefund);
+        ctx.refund(topLevelPayer, new Fees(0, 0, refundInTinybars));
     }
 
     private void refundHookFees(
@@ -237,7 +257,7 @@ public class TransferExecutor extends BaseTokenHandler {
                 numAttemptedHookCalls.get(),
                 hooksConfig.hookInvocationCostTinyCents(),
                 context.getGasPriceInTinyCents());
-        final var refundInTinybars = ((FeeContext) context).tinybarsFromTinycents(feeToRefund);
+        final long refundInTinybars = ((FeeContext) context).tinybarsFromTinycents(feeToRefund);
         context.refundServiceFee(topLevelPayer, refundInTinybars);
     }
 

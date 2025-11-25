@@ -94,6 +94,9 @@ import org.junit.jupiter.api.Tag;
 @TargetEmbeddedMode(CONCURRENT)
 public class Hip1195BasicTests {
     private static final String BATCH_OPERATOR = "batchOperator";
+    private static final double HOOK_INVOCATION_USD = 0.005;
+    private static final long HOOK_GAS_LIMIT = 25000;
+    private static final double HBAR_TRANSFER_BASE_USD = 0.0001;
 
     @Contract(contract = "FalsePreHook", creationGas = 5_000_000)
     static SpecContract FALSE_ALLOWANCE_HOOK;
@@ -272,7 +275,7 @@ public class Hip1195BasicTests {
                         .withHooks(accountAllowanceHook(224L, TRUE_ALLOWANCE_HOOK.name())),
                 cryptoCreate("receiverAccount").balance(ONE_HUNDRED_HBARS),
                 cryptoTransfer(TokenMovement.movingHbar(10 * ONE_HBAR).between("senderWithHook", "receiverAccount"))
-                        .withPreHookFor("senderWithHook", 224L, 25_000L, "")
+                        .withPreHookFor("senderWithHook", 224L, HOOK_GAS_LIMIT, "")
                         .payingWith("payer"),
                 getAccountBalance("receiverAccount").hasTinyBars(ONE_HUNDRED_HBARS + (10 * ONE_HBAR)));
     }
@@ -286,7 +289,7 @@ public class Hip1195BasicTests {
                 cryptoCreate("receiverAccount").balance(ONE_HUNDRED_HBARS),
                 // Transfer should fail because there's no allowance approved
                 cryptoTransfer(TokenMovement.movingHbar(10 * ONE_HBAR).between("senderWithHook", "receiverAccount"))
-                        .withPreHookFor("senderWithHook", 225L, 25_000L, "")
+                        .withPreHookFor("senderWithHook", 225L, HOOK_GAS_LIMIT, "")
                         .payingWith("receiverAccount")
                         .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK));
     }
@@ -300,7 +303,7 @@ public class Hip1195BasicTests {
                 cryptoCreate("receiverAccount").balance(0L),
                 cryptoTransfer(TokenMovement.movingHbar(10 * ONE_HBAR)
                                 .between("senderWithFalseHook", "receiverAccount"))
-                        .withPreHookFor("senderWithFalseHook", 226L, 25_000L, "")
+                        .withPreHookFor("senderWithFalseHook", 226L, HOOK_GAS_LIMIT, "")
                         .payingWith(DEFAULT_PAYER)
                         .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK));
     }
@@ -314,7 +317,7 @@ public class Hip1195BasicTests {
                 cryptoCreate("receiverAccount").balance(0L),
                 cryptoTransfer(TokenMovement.movingHbar(10 * ONE_HBAR)
                                 .between("senderWithPrePostHook", "receiverAccount"))
-                        .withPrePostHookFor("senderWithPrePostHook", 227L, 25_000L, "")
+                        .withPrePostHookFor("senderWithPrePostHook", 227L, HOOK_GAS_LIMIT, "")
                         .payingWith(DEFAULT_PAYER),
                 getAccountBalance("receiverAccount").hasTinyBars(10 * ONE_HBAR));
     }
@@ -328,7 +331,7 @@ public class Hip1195BasicTests {
                 cryptoCreate("receiverAccount").balance(0L),
                 cryptoTransfer(TokenMovement.movingHbar(10 * ONE_HBAR)
                                 .between("senderWithPrePostHook", "receiverAccount"))
-                        .withPrePostHookFor("senderWithPrePostHook", 228L, 25_000L, "")
+                        .withPrePostHookFor("senderWithPrePostHook", 228L, HOOK_GAS_LIMIT, "")
                         .payingWith(DEFAULT_PAYER)
                         .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK));
     }
@@ -342,7 +345,7 @@ public class Hip1195BasicTests {
                 cryptoCreate("receiverAccount").balance(0L),
                 cryptoTransfer(TokenMovement.movingHbar(10 * ONE_HBAR)
                                 .between("senderWithPrePostHook", "receiverAccount"))
-                        .withPrePostHookFor("senderWithPrePostHook", 228L, 25_000L, "")
+                        .withPrePostHookFor("senderWithPrePostHook", 228L, HOOK_GAS_LIMIT, "")
                         .payingWith(DEFAULT_PAYER)
                         .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK));
     }
@@ -491,7 +494,7 @@ public class Hip1195BasicTests {
                 cryptoCreate("receiverAccount").balance(0L),
                 cryptoTransfer(TokenMovement.movingHbar(10 * ONE_HBAR)
                                 .between("senderWithFalsePreHook", "receiverAccount"))
-                        .withPrePostHookFor("senderWithFalsePreHook", 230L, 25_000L, "")
+                        .withPrePostHookFor("senderWithFalsePreHook", 230L, HOOK_GAS_LIMIT, "")
                         .payingWith(DEFAULT_PAYER)
                         .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK));
     }
@@ -505,7 +508,7 @@ public class Hip1195BasicTests {
                 cryptoCreate("receiverAccount").balance(0L),
                 cryptoTransfer(TokenMovement.movingHbar(10 * ONE_HBAR)
                                 .between("senderWithTruePrePostHook", "receiverAccount"))
-                        .withPrePostHookFor("senderWithTruePrePostHook", 231L, 25_000L, "")
+                        .withPrePostHookFor("senderWithTruePrePostHook", 231L, HOOK_GAS_LIMIT, "")
                         .payingWith(DEFAULT_PAYER),
                 getAccountBalance("receiverAccount").hasTinyBars(10 * ONE_HBAR));
     }
@@ -516,7 +519,7 @@ public class Hip1195BasicTests {
                 cryptoCreate("senderAccount").balance(ONE_HUNDRED_HBARS),
                 cryptoCreate("receiverAccount").balance(0L),
                 cryptoTransfer(TokenMovement.movingHbar(10 * ONE_HBAR).between("senderAccount", "receiverAccount"))
-                        .withPreHookFor("senderAccount", 999L, 25_000L, "")
+                        .withPreHookFor("senderAccount", 999L, HOOK_GAS_LIMIT, "")
                         .payingWith(DEFAULT_PAYER)
                         .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK)
                         .via("txWithNonExistentHook"),
@@ -540,7 +543,7 @@ public class Hip1195BasicTests {
                 tokenAssociate("senderWithHook", "tokenWithFees"),
                 cryptoTransfer(TokenMovement.moving(100, "tokenWithFees").between("treasury", "senderWithHook")),
                 cryptoTransfer(TokenMovement.moving(10, "tokenWithFees").between("senderWithHook", "treasury"))
-                        .withPreHookFor("senderWithHook", 232L, 25_000L, "")
+                        .withPreHookFor("senderWithHook", 232L, HOOK_GAS_LIMIT, "")
                         .payingWith(DEFAULT_PAYER)
                         .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK));
     }
@@ -558,7 +561,7 @@ public class Hip1195BasicTests {
                 tokenAssociate("senderWithHook", "tokenWithoutFees"),
                 cryptoTransfer(TokenMovement.moving(100, "tokenWithoutFees").between("treasury", "senderWithHook")),
                 cryptoTransfer(TokenMovement.moving(10, "tokenWithoutFees").between("senderWithHook", "treasury"))
-                        .withPreHookFor("senderWithHook", 233L, 25_000L, "")
+                        .withPreHookFor("senderWithHook", 233L, HOOK_GAS_LIMIT, "")
                         .payingWith(DEFAULT_PAYER));
     }
 
@@ -584,7 +587,7 @@ public class Hip1195BasicTests {
                 cryptoTransfer(TokenMovement.movingUnique("nft", 1L).between("treasury", "sender")),
                 // Transfer without receiver signature but with hook that returns true
                 cryptoTransfer(TokenMovement.movingUnique("nft", 1L).between("sender", "receiverWithHook"))
-                        .withNftReceiverPreHookFor("receiverWithHook", 240L, 25_000L, "")
+                        .withNftReceiverPreHookFor("receiverWithHook", 240L, HOOK_GAS_LIMIT, "")
                         .payingWith(DEFAULT_PAYER)
                         .signedBy(DEFAULT_PAYER, "sender"));
     }
@@ -611,7 +614,7 @@ public class Hip1195BasicTests {
                 cryptoTransfer(TokenMovement.movingUnique("nft", 1L).between("treasury", "sender")),
                 // Transfer without receiver signature and hook returns false
                 cryptoTransfer(TokenMovement.movingUnique("nft", 1L).between("sender", "receiverWithFalseHook"))
-                        .withNftReceiverPreHookFor("receiverWithFalseHook", 241L, 25_000L, "")
+                        .withNftReceiverPreHookFor("receiverWithFalseHook", 241L, HOOK_GAS_LIMIT, "")
                         .payingWith(DEFAULT_PAYER)
                         .signedBy(DEFAULT_PAYER, "sender")
                         .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK));
@@ -637,7 +640,7 @@ public class Hip1195BasicTests {
                 cryptoTransfer(TokenMovement.movingUnique("nft", 1L).between("treasury", "sender")),
                 // Transfer with receiver signature even though not required
                 cryptoTransfer(TokenMovement.movingUnique("nft", 1L).between("sender", "receiverWithHook"))
-                        .withNftReceiverPreHookFor("receiverWithHook", 242L, 25_000L, "")
+                        .withNftReceiverPreHookFor("receiverWithHook", 242L, HOOK_GAS_LIMIT, "")
                         .payingWith(DEFAULT_PAYER)
                         .signedBy(DEFAULT_PAYER, "sender", "receiverWithHook"));
     }
@@ -662,7 +665,7 @@ public class Hip1195BasicTests {
                 cryptoTransfer(TokenMovement.movingUnique("nft", 1L).between("treasury", "sender")),
                 // Transfer without receiver signature and hook returns true
                 cryptoTransfer(TokenMovement.movingUnique("nft", 1L).between("sender", "receiverWithHook"))
-                        .withNftReceiverPreHookFor("receiverWithHook", 243L, 25_000L, "")
+                        .withNftReceiverPreHookFor("receiverWithHook", 243L, HOOK_GAS_LIMIT, "")
                         .payingWith(DEFAULT_PAYER)
                         .signedBy(DEFAULT_PAYER, "sender"));
     }
@@ -687,7 +690,7 @@ public class Hip1195BasicTests {
                 cryptoTransfer(TokenMovement.movingUnique("nft", 1L).between("treasury", "sender")),
                 // Transfer without receiver signature and hook returns false
                 cryptoTransfer(TokenMovement.movingUnique("nft", 1L).between("sender", "receiverWithFalseHook"))
-                        .withNftReceiverPreHookFor("receiverWithFalseHook", 244L, 25_000L, "")
+                        .withNftReceiverPreHookFor("receiverWithFalseHook", 244L, HOOK_GAS_LIMIT, "")
                         .payingWith(DEFAULT_PAYER)
                         .signedBy(DEFAULT_PAYER, "sender")
                         .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK));
@@ -721,7 +724,7 @@ public class Hip1195BasicTests {
                 cryptoTransfer(
                                 TokenMovement.moving(10, "ft").between("senderWithHook", "rcvFungible"),
                                 TokenMovement.movingUnique("nft", 1L).between("senderWithHook", "rcvNft"))
-                        .withPreHookFor("senderWithHook", 260L, 25_000L, "")
+                        .withPreHookFor("senderWithHook", 260L, HOOK_GAS_LIMIT, "")
                         .payingWith(DEFAULT_PAYER)
                         .signedBy(DEFAULT_PAYER)
                         .hasKnownStatus(com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE));
@@ -974,24 +977,27 @@ public class Hip1195BasicTests {
                                 accountAllowanceHook(123L, TRUE_PRE_POST_ALLOWANCE_HOOK.name()),
                                 accountAllowanceHook(124L, TRUE_ALLOWANCE_HOOK.name())),
                 cryptoTransfer(TokenMovement.movingHbar(10).between(OWNER, GENESIS))
-                        .withPreHookFor(OWNER, 124L, 25_000L, "")
+                        .withPreHookFor(OWNER, 124L, HOOK_GAS_LIMIT, "")
                         .payingWith(OWNER)
                         .via("feeTxn"),
                 sourcingContextual(spec -> {
-                    final long tinybarGasCost = 25_000L * spec.ratesProvider().currentTinybarGasPrice();
+                    final long tinybarGasCost =
+                            HOOK_GAS_LIMIT * spec.ratesProvider().currentTinybarGasPrice();
                     final double usdGasCost = spec.ratesProvider().toUsdWithActiveRates(tinybarGasCost);
-                    return validateChargedUsd("feeTxn", 0.0001 + 0.005 + usdGasCost);
+                    return validateChargedUsd("feeTxn", HBAR_TRANSFER_BASE_USD + HOOK_INVOCATION_USD + usdGasCost);
                 }),
                 cryptoTransfer(TokenMovement.movingHbar(10).between(OWNER, PAYER))
-                        .withPreHookFor(OWNER, 123L, 25_000L, "")
-                        .withPrePostHookFor(PAYER, 123L, 25_000L, "")
+                        .withPreHookFor(OWNER, 123L, HOOK_GAS_LIMIT, "")
+                        .withPrePostHookFor(PAYER, 123L, HOOK_GAS_LIMIT, "")
                         .payingWith(OWNER)
                         .via("feeTxn2"),
                 sourcingContextual(spec -> {
                     // Pre-post hook is called twice, so gas usage is double the given limit
-                    final long tinybarGasCost = 75_000L * spec.ratesProvider().currentTinybarGasPrice();
+                    final long tinybarGasCost =
+                            (3 * HOOK_GAS_LIMIT) * spec.ratesProvider().currentTinybarGasPrice();
                     final double usdGasCost = spec.ratesProvider().toUsdWithActiveRates(tinybarGasCost);
-                    return validateChargedUsd("feeTxn2", 0.001 + 0.005 + 0.005 + 0.005 + usdGasCost);
+                    return validateChargedUsd(
+                            "feeTxn2", HBAR_TRANSFER_BASE_USD + (3 * HOOK_INVOCATION_USD) + usdGasCost);
                 }));
     }
 
@@ -1010,19 +1016,21 @@ public class Hip1195BasicTests {
                                 accountAllowanceHook(123L, FALSE_TRUE_ALLOWANCE_HOOK.name()),
                                 accountAllowanceHook(124L, TRUE_ALLOWANCE_HOOK.name())),
                 cryptoTransfer(TokenMovement.movingHbar(10).between(OWNER, PAYER))
-                        .withPrePostHookFor(OWNER, 123L, 25_000L, "")
-                        .withPrePostHookFor(PAYER, 123L, 25_000L, "")
+                        .withPrePostHookFor(OWNER, 123L, HOOK_GAS_LIMIT, "")
+                        .withPrePostHookFor(PAYER, 123L, HOOK_GAS_LIMIT, "")
                         .payingWith(OWNER)
                         .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK)
                         .via("feeTxn"),
                 sourcingContextual(spec -> {
                     // There are two pre-post hooks, pre parts are run before and post are run after.
                     // second pre hook fails, so we should refund the gas and hook invocation cost of two calls
-                    final long tinybarGasCost = 50_000L * spec.ratesProvider().currentTinybarGasPrice();
+                    final long tinybarGasCost =
+                            (2 * HOOK_GAS_LIMIT) * spec.ratesProvider().currentTinybarGasPrice();
                     final double usdGasCost = spec.ratesProvider().toUsdWithActiveRates(tinybarGasCost);
                     System.out.println("usdGasCost: " + usdGasCost + " tinybarGasCost: " + tinybarGasCost
                             + " currentTinybarGasPrice: " + spec.ratesProvider().currentTinybarGasPrice());
-                    return validateChargedUsd("feeTxn", 0.001 + 0.005 + 0.005 + usdGasCost);
+                    return validateChargedUsd(
+                            "feeTxn", HBAR_TRANSFER_BASE_USD + (2 * HOOK_INVOCATION_USD) + usdGasCost);
                 }));
     }
 
@@ -1040,7 +1048,7 @@ public class Hip1195BasicTests {
                                 accountAllowanceHook(123L, TRUE_ALLOWANCE_HOOK.name()),
                                 accountAllowanceHook(124L, TRUE_PRE_POST_ALLOWANCE_HOOK.name())),
                 cryptoTransfer(TokenMovement.movingHbar(10).between(OWNER, PAYER))
-                        .withPrePostHookFor(PAYER, 123L, 25_000L, "")
+                        .withPrePostHookFor(PAYER, 123L, HOOK_GAS_LIMIT, "")
                         .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK)
                         .payingWith(OWNER)
                         .via("failedTxn"),
@@ -1048,7 +1056,7 @@ public class Hip1195BasicTests {
                         .andAllChildRecords()
                         .hasChildRecords(TransactionRecordAsserts.recordWith().status(CONTRACT_REVERT_EXECUTED)),
                 cryptoTransfer(TokenMovement.movingHbar(10).between(OWNER, PAYER))
-                        .withPrePostHookFor(PAYER, 124L, 25_000L, "")
+                        .withPrePostHookFor(PAYER, 124L, HOOK_GAS_LIMIT, "")
                         .payingWith(OWNER));
     }
 
@@ -1066,7 +1074,7 @@ public class Hip1195BasicTests {
                                 accountAllowanceHook(123L, TRUE_ALLOWANCE_HOOK.name()),
                                 accountAllowanceHook(124L, TRUE_PRE_POST_ALLOWANCE_HOOK.name())),
                 atomicBatch(cryptoTransfer(TokenMovement.movingHbar(10).between(OWNER, PAYER))
-                                .withPreHookFor(PAYER, 123L, 25_000L, "")
+                                .withPreHookFor(PAYER, 123L, HOOK_GAS_LIMIT, "")
                                 .batchKey(BATCH_OPERATOR)
                                 .hasKnownStatus(HOOKS_EXECUTIONS_REQUIRE_TOP_LEVEL_CRYPTO_TRANSFER)
                                 .via("transferTxn"))
@@ -1090,7 +1098,7 @@ public class Hip1195BasicTests {
                 scheduleCreate(
                                 "schedule",
                                 cryptoTransfer(TokenMovement.movingHbar(10).between(OWNER, PAYER))
-                                        .withPreHookFor(PAYER, 123L, 25_000L, ""))
+                                        .withPreHookFor(PAYER, 123L, HOOK_GAS_LIMIT, ""))
                         .hasPrecheck(HOOKS_EXECUTIONS_REQUIRE_TOP_LEVEL_CRYPTO_TRANSFER)
                         .payingWith(PAYER));
     }

@@ -12,6 +12,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.NOT_SUPPORTED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.UNAUTHORIZED;
+import static com.hedera.node.app.spi.workflows.HandleContext.DispatchMetadata.Type.FEE_TO_BE_REFUNDED;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.BATCH_INNER;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.CHILD;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.NODE;
@@ -253,7 +254,16 @@ public class DispatchProcessor {
         if (hasWaivedFees) {
             return Fees.FREE;
         }
-        final var feesToCharge = waiveServiceFee ? fees.withoutServiceComponent() : fees;
+        var feesToCharge = waiveServiceFee ? fees.withoutServiceComponent() : fees;
+        final var feeToBeRefunded =
+                dispatch.handleContext().dispatchMetadata().getMetadata(FEE_TO_BE_REFUNDED, Long.class);
+
+        if (feeToBeRefunded.isPresent()) {
+            feesToCharge = feesToCharge
+                    .copyBuilder()
+                    .addServiceFee(-feeToBeRefunded.get())
+                    .build();
+        }
         return dispatch.feeChargingOrElse(appFeeCharging).charge(dispatch, validation, feesToCharge);
     }
 
