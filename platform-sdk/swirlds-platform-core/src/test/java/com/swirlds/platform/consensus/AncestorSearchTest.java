@@ -19,14 +19,14 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 import org.hiero.base.crypto.Hash;
-import org.hiero.consensus.model.event.PlatformEvent;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
 class AncestorSearchTest {
-    private static final Predicate<EventImpl> ALL_VALID = e -> true;
+    private static final Predicate<EventImpl> ALL_EVENTS = e -> true;
+    private static final Predicate<EventImpl> NON_CONSENSUS_EVENTS = e -> !e.isConsensus();
 
     @Test
     void mopGraph(){
@@ -51,7 +51,7 @@ class AncestorSearchTest {
 
         assertEquals(
                 graph.hashes(0,1,2,3,5,6),
-                search.commonAncestorsOf(graph.impls(9,10), ALL_VALID)
+                search.commonAncestorsOf(graph.impls(9,10), ALL_EVENTS)
                         .stream()
                         .map(EventImpl::getBaseHash)
                         .collect(Collectors.toSet()));
@@ -60,7 +60,7 @@ class AncestorSearchTest {
 
         assertEquals(
                 graph.hashes(0),
-                search.commonAncestorsOf(graph.impls(8,9,10), ALL_VALID)
+                search.commonAncestorsOf(graph.impls(8,9,10), ALL_EVENTS)
                         .stream()
                         .map(EventImpl::getBaseHash)
                         .collect(Collectors.toSet()));
@@ -79,11 +79,11 @@ class AncestorSearchTest {
         // test getting ancestors of the latest event(8)
         assertEquals(
                 graph.hashes(2, 3, 4, 6, 7, 8),
-                getAncestors(search, graph.impl(8)));
+                getAncestors(search, graph.impl(8), NON_CONSENSUS_EVENTS));
 
         // test getting common ancestors of events 5,6 & 7
         final List<EventImpl> ancestors =
-                search.commonAncestorsOf(graph.impls(5,6,7), ALL_VALID);
+                search.commonAncestorsOf(graph.impls(5,6,7), ALL_EVENTS);
         // we expect only one common ancestor: event 1
         assertEquals(1, ancestors.size());
         assertSame(graph.impl(1), ancestors.getFirst());
@@ -105,7 +105,11 @@ class AncestorSearchTest {
     }
 
     private Set<Hash> getAncestors(final AncestorSearch search, final EventImpl event) {
-        final AncestorIterator ancestorIterator = search.initializeSearch(event, ALL_VALID);
+        return getAncestors(search, event, ALL_EVENTS);
+    }
+
+    private Set<Hash> getAncestors(final AncestorSearch search, final EventImpl event, final Predicate<EventImpl> predicate) {
+        final AncestorIterator ancestorIterator = search.initializeSearch(event, predicate);
         return StreamSupport.stream(
                         Spliterators.spliteratorUnknownSize(ancestorIterator, 0),
                         false)
