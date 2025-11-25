@@ -70,9 +70,10 @@ class DeGenTest {
         graph = SimpleGraphs.mopGraph(randotron);
 
         // We pick 4 & 7 to be judges, they and their descendants will have a round of 1
-        graph.impls(4,7,8,9,10,11).forEach(event -> event.setRoundCreated(ConsensusConstants.ROUND_FIRST));
+        graph.impls(4, 7, 8, 9, 10, 11).forEach(event -> event.setRoundCreated(ConsensusConstants.ROUND_FIRST));
         // Events 0,1,2,3,5,6 are not descendants of the judges, so their round is negative infinity
-        graph.impls(0,1,2,3,5,6).forEach(event -> event.setRoundCreated(ConsensusConstants.ROUND_NEGATIVE_INFINITY));
+        graph.impls(0, 1, 2, 3, 5, 6)
+                .forEach(event -> event.setRoundCreated(ConsensusConstants.ROUND_NEGATIVE_INFINITY));
 
         // Assign DeGen to the events
         for (final EventImpl event : graph.impls()) {

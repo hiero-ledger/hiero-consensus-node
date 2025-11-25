@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures.graph;
 
 import com.swirlds.common.metrics.noop.NoOpMetrics;
@@ -98,7 +99,7 @@ public class SimpleGraph {
         return eventImpls.get(index);
     }
 
-    public @NonNull Set<Hash> hashes(@NonNull final int... indices){
+    public @NonNull Set<Hash> hashes(@NonNull final int... indices) {
         return events(indices).stream().map(PlatformEvent::getHash).collect(Collectors.toSet());
     }
 }

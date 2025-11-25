@@ -742,8 +742,7 @@ class ShadowgraphByBirthRoundTests {
         final Set<PlatformEvent> tips = shadowGraph.getTips().stream()
                 .map(ShadowEvent::getPlatformEvent)
                 .collect(Collectors.toSet());
-        assertEquals(
-                graph.eventSet( 8, 9, 10, 11), tips, "Tips should be the last row of events in the MOP graph");
+        assertEquals(graph.eventSet(8, 9, 10, 11), tips, "Tips should be the last row of events in the MOP graph");
 
         checkAncestors(1, graph);
         checkAncestors(5, graph, 0, 1, 2);
@@ -758,12 +757,9 @@ class ShadowgraphByBirthRoundTests {
      * @param expectedAncestorIndices the indices of the expected ancestors
      */
     private void checkAncestors(
-            final int indexToCheck,
-            @NonNull final SimpleGraph graph,
-            final int... expectedAncestorIndices) {
+            final int indexToCheck, @NonNull final SimpleGraph graph, final int... expectedAncestorIndices) {
 
-        final ShadowEvent shadow =
-                shadowGraph.shadow(graph.event(indexToCheck).getDescriptor());
+        final ShadowEvent shadow = shadowGraph.shadow(graph.event(indexToCheck).getDescriptor());
         assertNotNull(shadow, "Shadow event for event %d should exist in the shadow graph".formatted(indexToCheck));
         final Set<PlatformEvent> ancestors = shadowGraph.findAncestors(List.of(shadow), e -> true).stream()
                 .map(ShadowEvent::getPlatformEvent)

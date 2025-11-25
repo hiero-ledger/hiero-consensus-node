@@ -25,7 +25,10 @@ public class DeGen {
      * @param event the event to set the DeGen value for
      */
     public static void calculateDeGen(@NonNull final EventImpl event) {
-        final int maxParentDeGen = event.getAllParents().stream().mapToInt(DeGen::parentDeGen).max().orElse(GENERATION_UNDEFINED);
+        final int maxParentDeGen = event.getAllParents().stream()
+                .mapToInt(DeGen::parentDeGen)
+                .max()
+                .orElse(GENERATION_UNDEFINED);
         if (maxParentDeGen == GENERATION_UNDEFINED) {
             event.setDeGen(FIRST_GENERATION);
         } else {

@@ -194,12 +194,12 @@ class ConsensusLinkerTests {
         assertParentsMop(linker.linkEvent(graph.event(2)), null, List.of());
         assertParentsMop(linker.linkEvent(graph.event(3)), null, List.of());
         assertParentsMop(linker.linkEvent(graph.event(4)), graph.event(0), List.of());
-        assertParentsMop(linker.linkEvent(graph.event(5)), graph.event(1), graph.events(0,2));
-        assertParentsMop(linker.linkEvent(graph.event(6)), graph.event(2), graph.events(1,3));
+        assertParentsMop(linker.linkEvent(graph.event(5)), graph.event(1), graph.events(0, 2));
+        assertParentsMop(linker.linkEvent(graph.event(6)), graph.event(2), graph.events(1, 3));
         assertParentsMop(linker.linkEvent(graph.event(7)), graph.event(3), List.of());
         assertParentsMop(linker.linkEvent(graph.event(8)), graph.event(4), List.of());
-        assertParentsMop(linker.linkEvent(graph.event(9)), graph.event(5), graph.events(4,6));
-        assertParentsMop(linker.linkEvent(graph.event(10)), graph.event(6), graph.events(5,7));
+        assertParentsMop(linker.linkEvent(graph.event(9)), graph.event(5), graph.events(4, 6));
+        assertParentsMop(linker.linkEvent(graph.event(10)), graph.event(6), graph.events(5, 7));
         assertParentsMop(linker.linkEvent(graph.event(11)), graph.event(7), List.of());
     }
 

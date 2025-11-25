@@ -29,30 +29,19 @@ class AncestorSearchTest {
     private static final Predicate<EventImpl> NON_CONSENSUS_EVENTS = e -> !e.isConsensus();
 
     @Test
-    void mopGraph(){
+    void mopGraph() {
         final SimpleGraph graph = SimpleGraphs.mopGraph(Randotron.create());
         final AncestorSearch search = new AncestorSearch();
 
-        assertEquals(
-                graph.hashes(1,2,3,6),
-                getAncestors(search, graph.impl(6)));
-        assertEquals(
-                graph.hashes(0,4,8),
-                getAncestors(search, graph.impl(8)));
-        assertEquals(
-                graph.hashes(0, 1, 2, 3, 4, 5, 6, 9),
-                getAncestors(search, graph.impl(9)));
-        assertEquals(
-                graph.hashes(0, 1, 2, 3, 5, 6, 7, 10),
-                getAncestors(search, graph.impl(10)));
-        assertEquals(
-                graph.hashes(3,7,11),
-                getAncestors(search, graph.impl(11)));
+        assertEquals(graph.hashes(1, 2, 3, 6), getAncestors(search, graph.impl(6)));
+        assertEquals(graph.hashes(0, 4, 8), getAncestors(search, graph.impl(8)));
+        assertEquals(graph.hashes(0, 1, 2, 3, 4, 5, 6, 9), getAncestors(search, graph.impl(9)));
+        assertEquals(graph.hashes(0, 1, 2, 3, 5, 6, 7, 10), getAncestors(search, graph.impl(10)));
+        assertEquals(graph.hashes(3, 7, 11), getAncestors(search, graph.impl(11)));
 
         assertEquals(
-                graph.hashes(0,1,2,3,5,6),
-                search.commonAncestorsOf(graph.impls(9,10), ALL_EVENTS)
-                        .stream()
+                graph.hashes(0, 1, 2, 3, 5, 6),
+                search.commonAncestorsOf(graph.impls(9, 10), ALL_EVENTS).stream()
                         .map(EventImpl::getBaseHash)
                         .collect(Collectors.toSet()));
         // clear the recTimes so they don't interfere with the next search
@@ -60,8 +49,7 @@ class AncestorSearchTest {
 
         assertEquals(
                 graph.hashes(0),
-                search.commonAncestorsOf(graph.impls(8,9,10), ALL_EVENTS)
-                        .stream()
+                search.commonAncestorsOf(graph.impls(8, 9, 10), ALL_EVENTS).stream()
                         .map(EventImpl::getBaseHash)
                         .collect(Collectors.toSet()));
     }
@@ -77,13 +65,10 @@ class AncestorSearchTest {
         mark.setMark(startingMark);
 
         // test getting ancestors of the latest event(8)
-        assertEquals(
-                graph.hashes(2, 3, 4, 6, 7, 8),
-                getAncestors(search, graph.impl(8), NON_CONSENSUS_EVENTS));
+        assertEquals(graph.hashes(2, 3, 4, 6, 7, 8), getAncestors(search, graph.impl(8), NON_CONSENSUS_EVENTS));
 
         // test getting common ancestors of events 5,6 & 7
-        final List<EventImpl> ancestors =
-                search.commonAncestorsOf(graph.impls(5,6,7), ALL_EVENTS);
+        final List<EventImpl> ancestors = search.commonAncestorsOf(graph.impls(5, 6, 7), ALL_EVENTS);
         // we expect only one common ancestor: event 1
         assertEquals(1, ancestors.size());
         assertSame(graph.impl(1), ancestors.getFirst());
@@ -98,21 +83,17 @@ class AncestorSearchTest {
         assertTrue(recTimes.contains(graph.impl(7).getTimeCreated()));
 
         // verify that other events' recTimes are still null
-        graph.impls(0, 2, 3, 4, 5, 6, 7, 8)
-                .stream()
-                .map(EventImpl::getRecTimes)
-                .forEach(Assertions::assertNull);
+        graph.impls(0, 2, 3, 4, 5, 6, 7, 8).stream().map(EventImpl::getRecTimes).forEach(Assertions::assertNull);
     }
 
     private Set<Hash> getAncestors(final AncestorSearch search, final EventImpl event) {
         return getAncestors(search, event, ALL_EVENTS);
     }
 
-    private Set<Hash> getAncestors(final AncestorSearch search, final EventImpl event, final Predicate<EventImpl> predicate) {
+    private Set<Hash> getAncestors(
+            final AncestorSearch search, final EventImpl event, final Predicate<EventImpl> predicate) {
         final AncestorIterator ancestorIterator = search.initializeSearch(event, predicate);
-        return StreamSupport.stream(
-                        Spliterators.spliteratorUnknownSize(ancestorIterator, 0),
-                        false)
+        return StreamSupport.stream(Spliterators.spliteratorUnknownSize(ancestorIterator, 0), false)
                 .map(EventImpl::getBaseHash)
                 .collect(Collectors.toSet());
     }
