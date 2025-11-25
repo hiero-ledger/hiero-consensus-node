@@ -57,6 +57,7 @@ public class FeesAndRatesProvider {
     private KeyFactory keys;
     private HapiSpecSetup setup;
     private HapiSpecRegistry registry;
+
     private static long gasPrice;
     private static FeeSchedule feeSchedule;
     private static ExchangeRateSet rateSet;
@@ -287,5 +288,9 @@ public class FeesAndRatesProvider {
                 .findFirst()
                 .map(feeData -> feeData.getServicedata().getGas())
                 .orElse(0L);
+    }
+
+    public long tinycentGasPrice() {
+        return gasPrice / 1000;
     }
 }

@@ -628,8 +628,7 @@ public class BaseOperationUsage {
     UsageAccumulator htsCryptoTransfer() {
         final var xferUsageMeta = new CryptoTransferMeta(380, 1, 2, 0);
         final var into = new UsageAccumulator();
-        CRYPTO_OPS_USAGE.cryptoTransferUsage(
-                SINGLE_SIG_USAGE, xferUsageMeta, NO_MEMO_AND_NO_EXPLICIT_XFERS, into);
+        CRYPTO_OPS_USAGE.cryptoTransferUsage(SINGLE_SIG_USAGE, xferUsageMeta, NO_MEMO_AND_NO_EXPLICIT_XFERS, into);
 
         return into;
     }
@@ -638,8 +637,7 @@ public class BaseOperationUsage {
         final var xferUsageMeta = new CryptoTransferMeta(380, 1, 2, 0);
         xferUsageMeta.setCustomFeeHbarTransfers(2);
         final var into = new UsageAccumulator();
-        CRYPTO_OPS_USAGE.cryptoTransferUsage(
-                SINGLE_SIG_USAGE, xferUsageMeta, NO_MEMO_AND_NO_EXPLICIT_XFERS, into);
+        CRYPTO_OPS_USAGE.cryptoTransferUsage(SINGLE_SIG_USAGE, xferUsageMeta, NO_MEMO_AND_NO_EXPLICIT_XFERS, into);
 
         return into;
     }
@@ -647,8 +645,7 @@ public class BaseOperationUsage {
     UsageAccumulator nftCryptoTransfer() {
         final var xferUsageMeta = new CryptoTransferMeta(380, 1, 0, 1);
         final var into = new UsageAccumulator();
-        CRYPTO_OPS_USAGE.cryptoTransferUsage(
-                SINGLE_SIG_USAGE, xferUsageMeta, NO_MEMO_AND_NO_EXPLICIT_XFERS, into);
+        CRYPTO_OPS_USAGE.cryptoTransferUsage(SINGLE_SIG_USAGE, xferUsageMeta, NO_MEMO_AND_NO_EXPLICIT_XFERS, into);
 
         return into;
     }
@@ -657,8 +654,7 @@ public class BaseOperationUsage {
         final var xferUsageMeta = new CryptoTransferMeta(380, 1, 0, 1);
         xferUsageMeta.setCustomFeeHbarTransfers(2);
         final var into = new UsageAccumulator();
-        CRYPTO_OPS_USAGE.cryptoTransferUsage(
-                SINGLE_SIG_USAGE, xferUsageMeta, NO_MEMO_AND_NO_EXPLICIT_XFERS, into);
+        CRYPTO_OPS_USAGE.cryptoTransferUsage(SINGLE_SIG_USAGE, xferUsageMeta, NO_MEMO_AND_NO_EXPLICIT_XFERS, into);
 
         return into;
     }

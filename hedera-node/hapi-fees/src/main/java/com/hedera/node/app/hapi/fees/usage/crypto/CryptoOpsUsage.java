@@ -24,7 +24,6 @@ import com.hedera.node.app.hapi.fees.usage.state.UsageAccumulator;
 import com.hederahashgraph.api.proto.java.FeeData;
 import com.hederahashgraph.api.proto.java.Query;
 import com.hederahashgraph.api.proto.java.ResponseType;
-
 import java.nio.charset.StandardCharsets;
 import java.util.function.Function;
 import javax.inject.Inject;

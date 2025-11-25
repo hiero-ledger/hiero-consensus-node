@@ -16,10 +16,7 @@ public class CryptoTransferMeta {
     private int numHookInvocations;
 
     public CryptoTransferMeta(
-            int tokenMultiplier,
-            int numTokensInvolved,
-            int numFungibleTokenTransfers,
-            int numNftOwnershipChanges) {
+            int tokenMultiplier, int numTokensInvolved, int numFungibleTokenTransfers, int numNftOwnershipChanges) {
         this.tokenMultiplier = tokenMultiplier;
         this.numTokensInvolved = numTokensInvolved;
         this.numFungibleTokenTransfers = numFungibleTokenTransfers;

@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.transactions.crypto;
 
+import static com.hedera.node.app.hapi.utils.CommonPbjConverters.toPbj;
+import static com.hedera.node.app.hapi.utils.CommonUtils.clampedAdd;
+import static com.hedera.node.app.hapi.utils.CommonUtils.extractTransactionBody;
 import static com.hedera.services.bdd.spec.infrastructure.meta.InitialAccountIdentifiers.throwIfNotEcdsa;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.asId;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.asIdForKeyLookUp;
@@ -13,13 +16,14 @@ import static java.util.stream.Collectors.reducing;
 import static java.util.stream.Collectors.summingLong;
 import static java.util.stream.Collectors.toList;
 import static org.hiero.base.utility.CommonUtils.unhex;
+import static org.hyperledger.besu.evm.internal.Words.clampedMultiply;
 
 import com.esaulpaugh.headlong.abi.Address;
 import com.google.common.base.MoreObjects;
 import com.google.protobuf.ByteString;
-import com.hedera.node.app.hapi.utils.CommonUtils;
 import com.hedera.node.app.hapi.utils.EthSigsUtils;
 import com.hedera.node.app.hapi.utils.fee.FeeObject;
+import com.hedera.node.app.service.token.impl.handlers.CryptoTransferHandler;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.transactions.HapiBaseTransfer;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
@@ -43,6 +47,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
@@ -62,6 +67,7 @@ public class HapiCryptoTransfer extends HapiBaseTransfer<HapiCryptoTransfer> {
 
     private static final List<TokenMovement> MISSING_TOKEN_AWARE_PROVIDERS = Collections.emptyList();
     private static final Function<HapiSpec, TransferList> MISSING_HBAR_ONLY_PROVIDER = null;
+    private static final long HOOK_INVOCATION_TINYCENTS = 50000000L;
 
     private boolean logResolvedStatus = false;
     private boolean breakNetZeroTokenChangeInvariant = false;
@@ -667,8 +673,9 @@ public class HapiCryptoTransfer extends HapiBaseTransfer<HapiCryptoTransfer> {
 
     @Override
     protected long feeFor(final HapiSpec spec, final Transaction txn, final int numPayerKeys) throws Throwable {
+        long fees = 0L;
         if (feesObserver.isPresent()) {
-            return spec.fees()
+            fees = spec.fees()
                     .forActivityBasedOpWithDetails(
                             HederaFunctionality.CryptoTransfer,
                             (_txn, _svo) ->
@@ -677,12 +684,23 @@ public class HapiCryptoTransfer extends HapiBaseTransfer<HapiCryptoTransfer> {
                             numPayerKeys,
                             feesObserver.get());
         }
-        return spec.fees()
+        fees = spec.fees()
                 .forActivityBasedOp(
                         HederaFunctionality.CryptoTransfer,
                         (_txn, _svo) -> usageEstimate(_txn, _svo, spec.fees().tokenTransferUsageMultiplier()),
                         txn,
                         numPayerKeys);
+        final var hookInfo = CryptoTransferHandler.getHookInfo(
+                Objects.requireNonNull(toPbj(extractTransactionBody(txn)).cryptoTransfer()));
+        final var totalHookInvocations = hookInfo.numHooks();
+        final var gasLimitOfHooks = hookInfo.totalGasLimitOfHooks();
+
+        if (totalHookInvocations > 0) {
+            fees = clampedAdd(fees, clampedMultiply(totalHookInvocations, HOOK_INVOCATION_TINYCENTS));
+            fees = clampedAdd(
+                    fees, clampedMultiply(gasLimitOfHooks, spec.ratesProvider().tinycentGasPrice()));
+        }
+        return fees;
     }
 
     @Override
@@ -695,7 +713,7 @@ public class HapiCryptoTransfer extends HapiBaseTransfer<HapiCryptoTransfer> {
         final MoreObjects.ToStringHelper helper = super.toStringHelper();
         if (txnSubmitted != null) {
             try {
-                final TransactionBody txn = CommonUtils.extractTransactionBody(txnSubmitted);
+                final TransactionBody txn = extractTransactionBody(txnSubmitted);
                 helper.add(
                         "transfers",
                         TxnUtils.readableTransferList(txn.getCryptoTransfer().getTransfers()));
