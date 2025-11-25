@@ -79,6 +79,9 @@ class WrapsHistoryProverTest {
     private RosterTransitionWeights weights;
 
     private WrapsHistoryProver subject;
+    private static final Bytes AGG_SIG = Bytes.wrap("aggSig");
+    private static final Bytes UNCOMPRESSED = Bytes.wrap("uncompressed");
+    private static final Bytes COMPRESSED = Bytes.wrap("compressed");
 
     @BeforeEach
     void setUp() {
@@ -150,10 +153,12 @@ class WrapsHistoryProverTest {
     @Test
     void advanceInitializesWrapsMessageAndPublishesR1() {
         subject = new WrapsHistoryProver(
-                SELF_ID, KEY_PAIR, null, weights, proofKeys, Runnable::run, historyLibrary, submissions);
+                SELF_ID, KEY_PAIR, null, weights, proofKeys, runnable -> runnable.run(), historyLibrary, submissions);
         given(historyLibrary.hashAddressBook(any())).willReturn("HASH".getBytes(UTF_8));
         given(historyLibrary.computeWrapsMessage(any(), any())).willReturn("MSG".getBytes(UTF_8));
         given(historyLibrary.runWrapsPhaseR1(any(), any(), any())).willReturn(MESSAGE_BYTES.toByteArray());
+        given(submissions.submitWrapsSigningMessage(eq(R1), any(), eq(CONSTRUCTION_ID)))
+                .willReturn(CompletableFuture.completedFuture(null));
 
         final var construction = constructionWithPhase(R1, null);
         final var outcome =
@@ -163,6 +168,82 @@ class WrapsHistoryProverTest {
         final var captor = ArgumentCaptor.forClass(Bytes.class);
         verify(submissions).submitWrapsSigningMessage(eq(R1), captor.capture(), eq(CONSTRUCTION_ID));
         assertEquals(MESSAGE_BYTES, captor.getValue());
+    }
+
+    @Test
+    void advancePublishesR3WhenEligible() {
+        subject = new WrapsHistoryProver(
+                SELF_ID, KEY_PAIR, null, weights, proofKeys, runnable -> runnable.run(), historyLibrary, submissions);
+        given(historyLibrary.hashAddressBook(any())).willReturn("HASH".getBytes(UTF_8));
+        given(historyLibrary.computeWrapsMessage(any(), any())).willReturn("MSG".getBytes(UTF_8));
+        given(historyLibrary.runWrapsPhaseR3(any(), any(), any(), any(), any(), any()))
+                .willReturn(R3_MESSAGE.toByteArray());
+        given(submissions.submitWrapsSigningMessage(eq(R3), any(), eq(CONSTRUCTION_ID)))
+                .willReturn(CompletableFuture.completedFuture(null));
+
+        setField("entropy", new byte[32]);
+        subject.addWrapsSigningMessage(
+                CONSTRUCTION_ID,
+                new WrapsMessagePublication(SELF_ID, R1_MESSAGE, R1, EPOCH),
+                writableHistoryStore,
+                tssConfig);
+        subject.addWrapsSigningMessage(
+                CONSTRUCTION_ID,
+                new WrapsMessagePublication(OTHER_NODE_ID, R1_MESSAGE, R1, EPOCH),
+                writableHistoryStore,
+                tssConfig);
+
+        subject.addWrapsSigningMessage(
+                CONSTRUCTION_ID,
+                new WrapsMessagePublication(SELF_ID, R2_MESSAGE, R2, EPOCH),
+                writableHistoryStore,
+                tssConfig);
+        subject.addWrapsSigningMessage(
+                CONSTRUCTION_ID,
+                new WrapsMessagePublication(OTHER_NODE_ID, R2_MESSAGE, R2, EPOCH),
+                writableHistoryStore,
+                tssConfig);
+
+        final var construction = constructionWithPhase(R3, null);
+        final var outcome =
+                subject.advance(EPOCH, construction, TARGET_METADATA, targetProofKeys, tssConfig, LEDGER_ID);
+
+        assertSame(HistoryProver.Outcome.InProgress.INSTANCE, outcome);
+        final var captor = ArgumentCaptor.forClass(Bytes.class);
+        verify(submissions).submitWrapsSigningMessage(eq(R3), captor.capture(), eq(CONSTRUCTION_ID));
+        assertEquals(R3_MESSAGE, captor.getValue());
+    }
+
+    @Test
+    void advancePublishesR2WhenEligible() {
+        subject = new WrapsHistoryProver(
+                SELF_ID, KEY_PAIR, null, weights, proofKeys, runnable -> runnable.run(), historyLibrary, submissions);
+        given(historyLibrary.hashAddressBook(any())).willReturn("HASH".getBytes(UTF_8));
+        given(historyLibrary.computeWrapsMessage(any(), any())).willReturn("MSG".getBytes(UTF_8));
+        given(historyLibrary.runWrapsPhaseR2(any(), any(), any(), any(), any())).willReturn(R2_MESSAGE.toByteArray());
+        given(submissions.submitWrapsSigningMessage(eq(R2), any(), eq(CONSTRUCTION_ID)))
+                .willReturn(CompletableFuture.completedFuture(null));
+
+        setField("entropy", new byte[32]);
+        subject.addWrapsSigningMessage(
+                CONSTRUCTION_ID,
+                new WrapsMessagePublication(SELF_ID, R1_MESSAGE, R1, EPOCH),
+                writableHistoryStore,
+                tssConfig);
+        subject.addWrapsSigningMessage(
+                CONSTRUCTION_ID,
+                new WrapsMessagePublication(OTHER_NODE_ID, R1_MESSAGE, R1, EPOCH),
+                writableHistoryStore,
+                tssConfig);
+
+        final var construction = constructionWithPhase(R2, null);
+        final var outcome =
+                subject.advance(EPOCH, construction, TARGET_METADATA, targetProofKeys, tssConfig, LEDGER_ID);
+
+        assertSame(HistoryProver.Outcome.InProgress.INSTANCE, outcome);
+        final var captor = ArgumentCaptor.forClass(Bytes.class);
+        verify(submissions).submitWrapsSigningMessage(eq(R2), captor.capture(), eq(CONSTRUCTION_ID));
+        assertEquals(R2_MESSAGE, captor.getValue());
     }
 
     @Test
@@ -200,6 +281,197 @@ class WrapsHistoryProverTest {
 
         assertTrue(subject.addWrapsSigningMessage(CONSTRUCTION_ID, first, writableHistoryStore, tssConfig));
         assertFalse(subject.addWrapsSigningMessage(CONSTRUCTION_ID, duplicate, writableHistoryStore, tssConfig));
+    }
+
+    @Test
+    void aggregatePhasePublishesAggregateVoteWhenWrapsDisabledOrNoSourceProof() {
+        subject = new WrapsHistoryProver(
+                SELF_ID, KEY_PAIR, null, weights, proofKeys, runnable -> runnable.run(), historyLibrary, submissions);
+        given(historyLibrary.hashAddressBook(any())).willReturn("HASH".getBytes(UTF_8));
+        given(historyLibrary.computeWrapsMessage(any(), any())).willReturn("MSG".getBytes(UTF_8));
+        given(historyLibrary.runAggregationPhase(any(), any(), any(), any(), any()))
+                .willReturn(AGG_SIG.toByteArray());
+        given(submissions.submitProofVote(eq(CONSTRUCTION_ID), any()))
+                .willReturn(CompletableFuture.completedFuture(null));
+
+        setField("entropy", new byte[32]);
+        subject.replayWrapsSigningMessage(CONSTRUCTION_ID, new WrapsMessagePublication(SELF_ID, R1_MESSAGE, R1, EPOCH));
+        subject.replayWrapsSigningMessage(
+                CONSTRUCTION_ID, new WrapsMessagePublication(OTHER_NODE_ID, R1_MESSAGE, R1, EPOCH));
+
+        subject.replayWrapsSigningMessage(CONSTRUCTION_ID, new WrapsMessagePublication(SELF_ID, R2_MESSAGE, R2, EPOCH));
+        subject.replayWrapsSigningMessage(
+                CONSTRUCTION_ID, new WrapsMessagePublication(OTHER_NODE_ID, R2_MESSAGE, R2, EPOCH));
+
+        subject.replayWrapsSigningMessage(CONSTRUCTION_ID, new WrapsMessagePublication(SELF_ID, R3_MESSAGE, R3, EPOCH));
+        subject.replayWrapsSigningMessage(
+                CONSTRUCTION_ID, new WrapsMessagePublication(OTHER_NODE_ID, R3_MESSAGE, R3, EPOCH));
+
+        final var construction = constructionWithPhase(AGGREGATE, null);
+        final var outcome =
+                subject.advance(EPOCH, construction, TARGET_METADATA, targetProofKeys, tssConfig, LEDGER_ID);
+
+        assertSame(HistoryProver.Outcome.InProgress.INSTANCE, outcome);
+        final var captor = ArgumentCaptor.forClass(HistoryProof.class);
+        verify(submissions).submitProofVote(eq(CONSTRUCTION_ID), captor.capture());
+        final var proof = captor.getValue();
+        final var chainOfTrust = proof.chainOfTrustProofOrThrow();
+        assertTrue(chainOfTrust.hasAggregatedNodeSignatures());
+    }
+
+    @Test
+    void aggregatePhasePublishesIncrementalWrapsVoteWhenSourceProofExtensible() {
+        final var sourceProof = HistoryProof.newBuilder()
+                .uncompressedWrapsProof(UNCOMPRESSED)
+                .chainOfTrustProof(
+                        ChainOfTrustProof.newBuilder().wrapsProof(COMPRESSED).build())
+                .build();
+
+        subject = new WrapsHistoryProver(
+                SELF_ID,
+                KEY_PAIR,
+                sourceProof,
+                weights,
+                proofKeys,
+                runnable -> runnable.run(),
+                historyLibrary,
+                submissions);
+        given(historyLibrary.hashAddressBook(any())).willReturn("HASH".getBytes(UTF_8));
+        given(historyLibrary.computeWrapsMessage(any(), any())).willReturn("MSG".getBytes(UTF_8));
+        given(historyLibrary.runAggregationPhase(any(), any(), any(), any(), any()))
+                .willReturn(AGG_SIG.toByteArray());
+        given(tssConfig.wrapsEnabled()).willReturn(true);
+        given(submissions.submitProofVote(eq(CONSTRUCTION_ID), any()))
+                .willReturn(CompletableFuture.completedFuture(null));
+
+        final var incremental =
+                new com.hedera.cryptography.wraps.Proof(UNCOMPRESSED.toByteArray(), COMPRESSED.toByteArray());
+        given(historyLibrary.constructIncrementalWrapsProof(any(), any(), any(), any(), any(), any(), any()))
+                .willReturn(incremental);
+
+        setField("entropy", new byte[32]);
+        subject.addWrapsSigningMessage(
+                CONSTRUCTION_ID,
+                new WrapsMessagePublication(SELF_ID, R1_MESSAGE, R1, EPOCH),
+                writableHistoryStore,
+                tssConfig);
+        subject.addWrapsSigningMessage(
+                CONSTRUCTION_ID,
+                new WrapsMessagePublication(OTHER_NODE_ID, R1_MESSAGE, R1, EPOCH),
+                writableHistoryStore,
+                tssConfig);
+
+        subject.addWrapsSigningMessage(
+                CONSTRUCTION_ID,
+                new WrapsMessagePublication(SELF_ID, R2_MESSAGE, R2, EPOCH),
+                writableHistoryStore,
+                tssConfig);
+        subject.addWrapsSigningMessage(
+                CONSTRUCTION_ID,
+                new WrapsMessagePublication(OTHER_NODE_ID, R2_MESSAGE, R2, EPOCH),
+                writableHistoryStore,
+                tssConfig);
+
+        subject.addWrapsSigningMessage(
+                CONSTRUCTION_ID,
+                new WrapsMessagePublication(SELF_ID, R3_MESSAGE, R3, EPOCH),
+                writableHistoryStore,
+                tssConfig);
+        subject.addWrapsSigningMessage(
+                CONSTRUCTION_ID,
+                new WrapsMessagePublication(OTHER_NODE_ID, R3_MESSAGE, R3, EPOCH),
+                writableHistoryStore,
+                tssConfig);
+
+        final var construction = constructionWithPhase(AGGREGATE, null);
+        final var outcome =
+                subject.advance(EPOCH, construction, TARGET_METADATA, targetProofKeys, tssConfig, LEDGER_ID);
+
+        assertSame(HistoryProver.Outcome.InProgress.INSTANCE, outcome);
+        final var captor = ArgumentCaptor.forClass(HistoryProof.class);
+        verify(submissions).submitProofVote(eq(CONSTRUCTION_ID), captor.capture());
+        final var proof = captor.getValue();
+        assertEquals(UNCOMPRESSED, proof.uncompressedWrapsProof());
+        final var chainOfTrust = proof.chainOfTrustProofOrThrow();
+        assertTrue(chainOfTrust.hasWrapsProof());
+    }
+
+    @Test
+    void aggregatePhasePublishesGenesisWrapsVoteWhenSourceProofNotExtensible() {
+        final var sourceProof = HistoryProof.newBuilder()
+                .uncompressedWrapsProof(Bytes.EMPTY)
+                .chainOfTrustProof(ChainOfTrustProof.DEFAULT)
+                .build();
+
+        subject = new WrapsHistoryProver(
+                SELF_ID,
+                KEY_PAIR,
+                sourceProof,
+                weights,
+                proofKeys,
+                runnable -> runnable.run(),
+                historyLibrary,
+                submissions);
+        given(historyLibrary.hashAddressBook(any())).willReturn("HASH".getBytes(UTF_8));
+        given(historyLibrary.computeWrapsMessage(any(), any())).willReturn("MSG".getBytes(UTF_8));
+        given(historyLibrary.runAggregationPhase(any(), any(), any(), any(), any()))
+                .willReturn(AGG_SIG.toByteArray());
+        given(tssConfig.wrapsEnabled()).willReturn(true);
+        given(submissions.submitProofVote(eq(CONSTRUCTION_ID), any()))
+                .willReturn(CompletableFuture.completedFuture(null));
+
+        final var genesis =
+                new com.hedera.cryptography.wraps.Proof(UNCOMPRESSED.toByteArray(), COMPRESSED.toByteArray());
+        given(historyLibrary.constructGenesisWrapsProof(any(), any(), any(), any()))
+                .willReturn(genesis);
+        given(historyLibrary.constructIncrementalWrapsProof(any(), any(), any(), any(), any(), any(), any()))
+                .willReturn(genesis);
+
+        setField("entropy", new byte[32]);
+        subject.addWrapsSigningMessage(
+                CONSTRUCTION_ID,
+                new WrapsMessagePublication(SELF_ID, R1_MESSAGE, R1, EPOCH),
+                writableHistoryStore,
+                tssConfig);
+        subject.addWrapsSigningMessage(
+                CONSTRUCTION_ID,
+                new WrapsMessagePublication(OTHER_NODE_ID, R1_MESSAGE, R1, EPOCH),
+                writableHistoryStore,
+                tssConfig);
+
+        subject.addWrapsSigningMessage(
+                CONSTRUCTION_ID,
+                new WrapsMessagePublication(SELF_ID, R2_MESSAGE, R2, EPOCH),
+                writableHistoryStore,
+                tssConfig);
+        subject.addWrapsSigningMessage(
+                CONSTRUCTION_ID,
+                new WrapsMessagePublication(OTHER_NODE_ID, R2_MESSAGE, R2, EPOCH),
+                writableHistoryStore,
+                tssConfig);
+
+        subject.addWrapsSigningMessage(
+                CONSTRUCTION_ID,
+                new WrapsMessagePublication(SELF_ID, R3_MESSAGE, R3, EPOCH),
+                writableHistoryStore,
+                tssConfig);
+        subject.addWrapsSigningMessage(
+                CONSTRUCTION_ID,
+                new WrapsMessagePublication(OTHER_NODE_ID, R3_MESSAGE, R3, EPOCH),
+                writableHistoryStore,
+                tssConfig);
+
+        final var construction = constructionWithPhase(AGGREGATE, null);
+        final var outcome =
+                subject.advance(EPOCH, construction, TARGET_METADATA, targetProofKeys, tssConfig, LEDGER_ID);
+
+        assertSame(HistoryProver.Outcome.InProgress.INSTANCE, outcome);
+        final var captor = ArgumentCaptor.forClass(HistoryProof.class);
+        verify(submissions).submitProofVote(eq(CONSTRUCTION_ID), captor.capture());
+        final var proof = captor.getValue();
+        assertEquals(UNCOMPRESSED, proof.uncompressedWrapsProof());
+        final var chainOfTrust = proof.chainOfTrustProofOrThrow();
+        assertTrue(chainOfTrust.hasWrapsProof());
     }
 
     @Test
