@@ -182,8 +182,8 @@ public class ObservingStatusLogic implements PlatformStatusLogic {
         if (freezeRound != null) {
             return new FreezingStatusLogic(freezeRound);
         } else {
-            //            return new ActiveStatusLogic(action.instant(), config);
-            return new CheckingStatusLogic(config);
+            return new ActiveStatusLogic(action.instant(), config);
+//            return new CheckingStatusLogic(config);
         }
     }
 

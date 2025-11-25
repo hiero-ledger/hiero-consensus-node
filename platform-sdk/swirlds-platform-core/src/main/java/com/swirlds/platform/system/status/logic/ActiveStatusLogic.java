@@ -186,12 +186,12 @@ public class ActiveStatusLogic implements PlatformStatusLogic {
         final Duration timeSinceSelfEventReachedConsensus =
                 Duration.between(lastWallClockTimeSelfEventReachedConsensus, action.instant());
 
-        //        return this;
-        if (DurationUtils.isLonger(timeSinceSelfEventReachedConsensus, config.activeStatusDelay())) {
-            return new CheckingStatusLogic(config);
-        } else {
-            return this;
-        }
+        return this;
+//        if (DurationUtils.isLonger(timeSinceSelfEventReachedConsensus, config.activeStatusDelay())) {
+//            return new CheckingStatusLogic(config);
+//        } else {
+//            return this;
+//        }
     }
 
     /**
