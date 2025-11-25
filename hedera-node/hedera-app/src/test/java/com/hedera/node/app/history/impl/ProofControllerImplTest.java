@@ -225,6 +225,143 @@ class ProofControllerImplTest {
     }
 
     @Test
+    void advanceConstructionDoesNothingWhenAssemblyStartedAndInactive() {
+        construction = HistoryProofConstruction.newBuilder()
+                .constructionId(CONSTRUCTION_ID)
+                .assemblyStartTime(asTimestamp(Instant.EPOCH))
+                .build();
+
+        subject = new ProofControllerImpl(
+                SELF_ID,
+                keyPair,
+                construction,
+                weights,
+                executor,
+                submissions,
+                keyPublications,
+                wrapsMessagePublications,
+                existingVotes,
+                historyService,
+                historyLibrary,
+                proverFactory,
+                null);
+
+        subject.advanceConstruction(Instant.EPOCH.plusSeconds(1), METADATA, writableHistoryStore, false, tssConfig);
+
+        verifyNoMoreInteractions(writableHistoryStore, prover);
+    }
+
+    @Test
+    void advanceConstructionDelegatesToProverWhenAssemblyStartedAndInProgress() {
+        construction = HistoryProofConstruction.newBuilder()
+                .constructionId(CONSTRUCTION_ID)
+                .assemblyStartTime(asTimestamp(Instant.EPOCH))
+                .build();
+
+        subject = new ProofControllerImpl(
+                SELF_ID,
+                keyPair,
+                construction,
+                weights,
+                executor,
+                submissions,
+                keyPublications,
+                wrapsMessagePublications,
+                existingVotes,
+                historyService,
+                historyLibrary,
+                proverFactory,
+                null);
+
+        given(writableHistoryStore.getLedgerId()).willReturn(Bytes.EMPTY);
+        given(prover.advance(any(), any(), any(), any(), eq(tssConfig), any()))
+                .willReturn(HistoryProver.Outcome.InProgress.INSTANCE);
+        given(writableHistoryStore.getConstructionOrThrow(CONSTRUCTION_ID)).willReturn(construction);
+
+        final var now = Instant.EPOCH.plusSeconds(1);
+        subject.advanceConstruction(now, METADATA, writableHistoryStore, true, tssConfig);
+
+        verify(writableHistoryStore).getLedgerId();
+        verify(prover).advance(eq(now), eq(construction), eq(METADATA), any(), eq(tssConfig), any());
+        verify(writableHistoryStore).getConstructionOrThrow(CONSTRUCTION_ID);
+    }
+
+    @Test
+    void advanceConstructionFinishesProofWhenProverCompletes() {
+        construction = HistoryProofConstruction.newBuilder()
+                .constructionId(CONSTRUCTION_ID)
+                .assemblyStartTime(asTimestamp(Instant.EPOCH))
+                .build();
+
+        subject = new ProofControllerImpl(
+                SELF_ID,
+                keyPair,
+                construction,
+                weights,
+                executor,
+                submissions,
+                keyPublications,
+                wrapsMessagePublications,
+                existingVotes,
+                historyService,
+                historyLibrary,
+                proverFactory,
+                null);
+
+        final var proof = HistoryProof.newBuilder().build();
+
+        given(writableHistoryStore.getLedgerId()).willReturn(Bytes.EMPTY);
+        given(prover.advance(any(), any(), any(), any(), eq(tssConfig), any()))
+                .willReturn(new HistoryProver.Outcome.Completed(proof));
+        given(writableHistoryStore.completeProof(CONSTRUCTION_ID, proof)).willReturn(construction);
+
+        final var now = Instant.EPOCH.plusSeconds(1);
+        subject.advanceConstruction(now, METADATA, writableHistoryStore, true, tssConfig);
+
+        verify(writableHistoryStore).getLedgerId();
+        verify(prover).advance(eq(now), eq(construction), eq(METADATA), any(), eq(tssConfig), any());
+        verify(writableHistoryStore).completeProof(CONSTRUCTION_ID, proof);
+        verify(historyService).onFinished(eq(writableHistoryStore), eq(construction));
+    }
+
+    @Test
+    void advanceConstructionFailsConstructionWhenProverFails() {
+        construction = HistoryProofConstruction.newBuilder()
+                .constructionId(CONSTRUCTION_ID)
+                .assemblyStartTime(asTimestamp(Instant.EPOCH))
+                .build();
+
+        subject = new ProofControllerImpl(
+                SELF_ID,
+                keyPair,
+                construction,
+                weights,
+                executor,
+                submissions,
+                keyPublications,
+                wrapsMessagePublications,
+                existingVotes,
+                historyService,
+                historyLibrary,
+                proverFactory,
+                null);
+
+        final var reason = "test-failure";
+
+        given(writableHistoryStore.getLedgerId()).willReturn(Bytes.EMPTY);
+        given(prover.advance(any(), any(), any(), any(), eq(tssConfig), any()))
+                .willReturn(new HistoryProver.Outcome.Failed(reason));
+        given(writableHistoryStore.failForReason(CONSTRUCTION_ID, reason)).willReturn(construction);
+
+        final var now = Instant.EPOCH.plusSeconds(1);
+        subject.advanceConstruction(now, METADATA, writableHistoryStore, true, tssConfig);
+
+        verify(writableHistoryStore).getLedgerId();
+        verify(prover).advance(eq(now), eq(construction), eq(METADATA), any(), eq(tssConfig), any());
+        verify(writableHistoryStore).failForReason(CONSTRUCTION_ID, reason);
+    }
+
+    @Test
     void addProofKeyPublicationIgnoredWhenNoGracePeriod() {
         construction = HistoryProofConstruction.newBuilder()
                 .constructionId(CONSTRUCTION_ID)
