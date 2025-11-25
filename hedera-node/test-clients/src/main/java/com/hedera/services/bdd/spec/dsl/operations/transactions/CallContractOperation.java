@@ -52,6 +52,7 @@ public class CallContractOperation extends AbstractSpecTransaction<CallContractO
                         function,
                         withSubstitutedTypes(spec.targetNetworkOrThrow(), parameters))
                 .sending(sendValue)
+                .payingWith(payer.name())
                 .via(txnName)
                 .exposingResultTo(resultObserver)
                 .gas(gas);

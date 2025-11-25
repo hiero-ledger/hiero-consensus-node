@@ -15,22 +15,22 @@ import org.hiero.hapi.fees.FeeResult;
 import org.hiero.hapi.support.fees.FeeSchedule;
 import org.hiero.hapi.support.fees.ServiceFeeDefinition;
 
-public class ContractCreateFeeCalculator implements ServiceFeeCalculator {
+public class ContractUpdateFeeCalculator implements ServiceFeeCalculator {
     @Override
     public void accumulateServiceFee(
             @NonNull final TransactionBody txnBody,
             @Nullable final CalculatorState calculatorState,
             @NonNull final FeeResult feeResult,
             @NonNull final FeeSchedule feeSchedule) {
-        final var adminKey = txnBody.contractCreateInstanceOrThrow().adminKey();
+        final var adminKey = txnBody.contractUpdateInstanceOrThrow().adminKey();
         final long keys = adminKey != null ? countKeys(adminKey) : 0;
-        final ServiceFeeDefinition serviceDef = lookupServiceFee(feeSchedule, HederaFunctionality.CONTRACT_CREATE);
+        final ServiceFeeDefinition serviceDef = lookupServiceFee(feeSchedule, HederaFunctionality.CONTRACT_UPDATE);
         feeResult.addServiceFee(1, serviceDef.baseFee());
         addExtraFee(feeResult, serviceDef, KEYS, feeSchedule, keys);
     }
 
     @Override
     public TransactionBody.DataOneOfType getTransactionType() {
-        return TransactionBody.DataOneOfType.CONTRACT_CREATE_INSTANCE;
+        return TransactionBody.DataOneOfType.CONTRACT_UPDATE_INSTANCE;
     }
 }

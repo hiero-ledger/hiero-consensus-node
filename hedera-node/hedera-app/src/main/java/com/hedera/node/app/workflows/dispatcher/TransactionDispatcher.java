@@ -150,7 +150,11 @@ public class TransactionDispatcher {
                     FILE_APPEND,
                     FILE_UPDATE,
                     FILE_DELETE,
-                 CONTRACT_CREATE_INSTANCE, CONTRACT_CALL-> true;
+                    CONTRACT_CREATE_INSTANCE,
+                    CONTRACT_DELETE_INSTANCE,
+                    CONTRACT_CALL,
+                    CONTRACT_UPDATE_INSTANCE,
+                    ETHEREUM_TRANSACTION -> true;
             default -> false;
         };
     }

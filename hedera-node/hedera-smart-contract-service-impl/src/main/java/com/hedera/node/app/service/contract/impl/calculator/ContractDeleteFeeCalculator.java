@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.calculator;
 
+import static org.hiero.hapi.fees.FeeScheduleUtils.lookupServiceFee;
+
+import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.spi.fees.CalculatorState;
 import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
@@ -8,20 +11,21 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import org.hiero.hapi.fees.FeeResult;
 import org.hiero.hapi.support.fees.FeeSchedule;
+import org.hiero.hapi.support.fees.ServiceFeeDefinition;
 
-public class ContractCallFeeCalculator implements ServiceFeeCalculator {
+public class ContractDeleteFeeCalculator implements ServiceFeeCalculator {
     @Override
     public void accumulateServiceFee(
             @NonNull final TransactionBody txnBody,
             @Nullable final CalculatorState calculatorState,
             @NonNull final FeeResult feeResult,
             @NonNull final FeeSchedule feeSchedule) {
-        // we clear the node and network fee previously set, as contract call is paid only in gas
-        feeResult.clearFees();
+        final ServiceFeeDefinition serviceDef = lookupServiceFee(feeSchedule, HederaFunctionality.CONTRACT_DELETE);
+        feeResult.addServiceFee(1, serviceDef.baseFee());
     }
 
     @Override
     public TransactionBody.DataOneOfType getTransactionType() {
-        return TransactionBody.DataOneOfType.CONTRACT_CALL;
+        return TransactionBody.DataOneOfType.CONTRACT_DELETE_INSTANCE;
     }
 }

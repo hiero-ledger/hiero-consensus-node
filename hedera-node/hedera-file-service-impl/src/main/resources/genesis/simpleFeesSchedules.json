@@ -205,7 +205,27 @@
         },
         {
           "name": "ContractCall",
-          "baseFee": 49000000,
+          "baseFee": 0,
+          "extras": []
+        },
+        {
+          "name": "ContractUpdate",
+          "baseFee": 259000000,
+          "extras": [
+            {
+              "name": "KEYS",
+              "includedCount": 1
+            }
+          ]
+        },
+        {
+          "name": "ContractDelete",
+          "baseFee": 69000000,
+          "extras": []
+        },
+        {
+          "name": "EthereumTransaction",
+          "baseFee": 0,
           "extras": []
         }
       ]
