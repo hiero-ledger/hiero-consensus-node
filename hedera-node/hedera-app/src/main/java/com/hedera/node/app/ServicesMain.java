@@ -13,7 +13,6 @@ import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.getMet
 import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.initLogging;
 import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.setupGlobalMetrics;
 import static com.swirlds.platform.config.internal.PlatformConfigUtils.checkConfiguration;
-import static com.swirlds.platform.crypto.CryptoStatic.initNodeSecurity;
 import static com.swirlds.platform.state.signed.StartupStateUtils.loadInitialState;
 import static com.swirlds.platform.system.InitTrigger.GENESIS;
 import static com.swirlds.platform.system.InitTrigger.RESTART;
@@ -21,11 +20,13 @@ import static com.swirlds.platform.system.SystemExitCode.NODE_ADDRESS_MISMATCH;
 import static com.swirlds.platform.system.SystemExitUtils.exitSystem;
 import static com.swirlds.platform.util.BootstrapUtils.getNodesToRun;
 import static java.util.Objects.requireNonNull;
-import static org.hiero.consensus.roster.RosterUtils.buildAddressBook;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.SemanticVersion;
+import com.hedera.hapi.node.state.roster.Roster;
+import com.hedera.hapi.node.state.roster.RosterEntry;
+import com.hedera.hapi.node.state.roster.RoundRosterPair;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.node.app.hints.impl.HintsLibraryImpl;
 import com.hedera.node.app.hints.impl.HintsServiceImpl;
@@ -43,6 +44,7 @@ import com.hedera.node.app.tss.TssBlockHashSigner;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.internal.network.Network;
 import com.hedera.node.internal.network.NodeMetadata;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.filesystem.FileSystemManager;
@@ -61,7 +63,9 @@ import com.swirlds.platform.config.BasicConfig;
 import com.swirlds.platform.config.legacy.ConfigurationException;
 import com.swirlds.platform.config.legacy.LegacyConfigProperties;
 import com.swirlds.platform.config.legacy.LegacyConfigPropertiesLoader;
+import com.swirlds.platform.crypto.KeysAndCertsGenerator;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
+import com.swirlds.platform.state.service.PlatformStateUtils;
 import com.swirlds.platform.state.signed.HashedReservedSignedState;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.system.InitTrigger;
@@ -73,9 +77,13 @@ import com.swirlds.state.State;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.security.SecureRandom;
+import java.security.cert.CertificateEncodingException;
 import java.time.Duration;
 import java.time.InstantSource;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ForkJoinPool;
@@ -88,10 +96,13 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.RuntimeConstructable;
 import org.hiero.base.crypto.CryptographyProvider;
+import org.hiero.consensus.crypto.SigningSchema;
+import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.roster.AddressBook;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.model.transaction.TimestampedTransaction;
+import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.roster.RosterUtils;
 import org.hiero.consensus.transaction.TransactionLimits;
 
@@ -354,14 +365,45 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
         // --- Create the platform context and initialize the cryptography ---
         final var rosterHistory = RosterUtils.createRosterHistory(state);
         final var currentRoster = rosterHistory.getCurrentRoster();
-        // For now we convert to a legacy representation of the roster for convenience
-        final var addressBook = requireNonNull(buildAddressBook(currentRoster));
-        if (!addressBook.contains(selfId)) {
-            throw new IllegalStateException("Self node id " + selfId + " is not in the address book");
+
+        final Map<NodeId, KeysAndCerts> networkKeysAndCerts =
+                new HashMap<>(currentRoster.rosterEntries().size());
+        final SecureRandom secureRandom = SecureRandom.getInstance("SHA1PRNG", "SUN");
+        secureRandom.setSeed(7535865539383709308L);
+        final List<NodeId> sortedNodeIds = currentRoster.rosterEntries().stream()
+                .map(RosterEntry::nodeId)
+                .sorted()
+                .map(NodeId::of)
+                .toList();
+        for (final NodeId nodeId : sortedNodeIds) {
+            networkKeysAndCerts.put(
+                    nodeId, KeysAndCertsGenerator.generate(nodeId, SigningSchema.ED25519, secureRandom, secureRandom));
         }
-        final var networkKeysAndCerts = initNodeSecurity(addressBook, platformConfig, Set.copyOf(nodesToRun));
-        final var keysAndCerts = networkKeysAndCerts.get(selfId);
-        cryptography.digestSync(addressBook);
+        final KeysAndCerts keysAndCerts = networkKeysAndCerts.get(selfId);
+
+        final List<RosterEntry> updatedRosterEntries = currentRoster.rosterEntries().stream()
+                .map(entry -> {
+                    try {
+                        final NodeId nodeId = NodeId.of(entry.nodeId());
+                        final byte[] certificate =
+                                networkKeysAndCerts.get(nodeId).sigCert().getEncoded();
+                        return entry.copyBuilder()
+                                .gossipCaCertificate(Bytes.wrap(certificate))
+                                .build();
+                    } catch (final CertificateEncodingException e) {
+                        throw new RuntimeException(e);
+                    }
+                })
+                .toList();
+        final Roster updatedRoster = new Roster(updatedRosterEntries);
+        final Bytes currentRosterHash = RosterUtils.hash(currentRoster).getBytes();
+        final Bytes updatedRosterHash = RosterUtils.hash(updatedRoster).getBytes();
+        final long round = PlatformStateUtils.roundOf(state);
+        final List<RoundRosterPair> roundRosterPairs =
+                List.of(new RoundRosterPair(round + 1, updatedRosterHash), new RoundRosterPair(0L, currentRosterHash));
+        final Map<Bytes, Roster> updatedRosterMap =
+                Map.of(updatedRosterHash, updatedRoster, currentRosterHash, currentRoster);
+        final RosterHistory updatedRosterHistory = new RosterHistory(roundRosterPairs, updatedRosterMap);
 
         // --- Now build the platform and start it ---
         final var platformBuilder = PlatformBuilder.create(
@@ -376,7 +418,7 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
                                 .map(network -> eventStreamLocOrThrow(network, selfId.id()))
                                 // Otherwise derive if from the node's id in state or
                                 .orElseGet(() -> canonicalEventStreamLoc(selfId.id(), state)),
-                        rosterHistory,
+                        updatedRosterHistory,
                         hedera.stateRootFromVirtualMap(metrics))
                 .withPlatformContext(platformContext)
                 .withConfiguration(platformConfig)
