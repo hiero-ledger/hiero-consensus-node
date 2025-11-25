@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.integration.hip1195;
 
-import static com.hedera.node.app.hapi.fees.pricing.FeeSchedules.USD_TO_TINYCENTS;
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.toPbj;
 import static com.hedera.node.app.service.contract.impl.schemas.V065ContractSchema.EVM_HOOK_STATES_STATE_ID;
 import static com.hedera.services.bdd.junit.EmbeddedReason.NEEDS_STATE_ACCESS;
@@ -81,10 +80,6 @@ import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
 import com.hedera.services.bdd.spec.utilops.EmbeddedVerbs;
 import com.hedera.services.bdd.spec.verification.traceability.SidecarWatcher;
 import edu.umd.cs.findbugs.annotations.NonNull;
-
-import java.math.BigDecimal;
-import java.math.BigInteger;
-import java.math.RoundingMode;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
@@ -983,28 +978,52 @@ public class Hip1195BasicTests {
                         .payingWith(OWNER)
                         .via("feeTxn"),
                 sourcingContextual(spec -> {
-                    final var USD_TO_TINYCENTS = BigDecimal.valueOf(100 * 100_000_000L);
-                    final var tinycentGasCost = BigDecimal.valueOf(25_000L * spec.ratesProvider().currentTinycentGasPrice()).divide(USD_TO_TINYCENTS, 5, RoundingMode.HALF_UP).doubleValue();
-                    System.out.println(" tinycentGasCost: " + tinycentGasCost
-                            + " currentTinybarGasPrice: " + spec.ratesProvider().currentTinycentGasPrice());
-                    return validateChargedUsd("feeTxn", 0.001 + 0.005 + tinycentGasCost);
-                })
-                //                cryptoTransfer(TokenMovement.movingHbar(10).between(OWNER, PAYER))
-                //                        .withPreHookFor(OWNER, 123L, 25_000L, "")
-                //                        .withPrePostHookFor(PAYER, 123L, 25_000L, "")
-                //                        .payingWith(OWNER)
-                //                        .via("feeTxn2"),
-                //                sourcingContextual(spec -> {
-                //                    // Pre-post hook is called twice, so gas usage is double the given limit
-                //                    final long tinybarGasCost = 75_000L *
-                // spec.ratesProvider().currentTinybarGasPrice();
-                //                    final double usdGasCost =
-                // spec.ratesProvider().toUsdWithActiveRates(tinybarGasCost);
-                //                    System.out.println("usdGasCost: " + usdGasCost + " tinybarGasCost: " +
-                // tinybarGasCost + " currentTinybarGasPrice: " + spec.ratesProvider().currentTinybarGasPrice());
-                //                    return validateChargedUsd("feeTxn2", 0.005 + 0.005 + 0.005 + usdGasCost);
-                //                })
-                );
+                    final long tinybarGasCost = 25_000L * spec.ratesProvider().currentTinybarGasPrice();
+                    final double usdGasCost = spec.ratesProvider().toUsdWithActiveRates(tinybarGasCost);
+                    return validateChargedUsd("feeTxn", 0.0001 + 0.005 + usdGasCost);
+                }),
+                cryptoTransfer(TokenMovement.movingHbar(10).between(OWNER, PAYER))
+                        .withPreHookFor(OWNER, 123L, 25_000L, "")
+                        .withPrePostHookFor(PAYER, 123L, 25_000L, "")
+                        .payingWith(OWNER)
+                        .via("feeTxn2"),
+                sourcingContextual(spec -> {
+                    // Pre-post hook is called twice, so gas usage is double the given limit
+                    final long tinybarGasCost = 75_000L * spec.ratesProvider().currentTinybarGasPrice();
+                    final double usdGasCost = spec.ratesProvider().toUsdWithActiveRates(tinybarGasCost);
+                    return validateChargedUsd("feeTxn2", 0.001 + 0.005 + 0.005 + 0.005 + usdGasCost);
+                }));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> hookExecutionFeeRefundsOnFailure() {
+        return hapiTest(
+                newKeyNamed("supplyKey"),
+                cryptoCreate(OWNER)
+                        .withHooks(
+                                accountAllowanceHook(123L, TRUE_PRE_POST_ALLOWANCE_HOOK.name()),
+                                accountAllowanceHook(124L, TRUE_ALLOWANCE_HOOK.name()))
+                        .balance(ONE_MILLION_HBARS),
+                cryptoCreate(PAYER)
+                        .receiverSigRequired(true)
+                        .withHooks(
+                                accountAllowanceHook(123L, FALSE_TRUE_ALLOWANCE_HOOK.name()),
+                                accountAllowanceHook(124L, TRUE_ALLOWANCE_HOOK.name())),
+                cryptoTransfer(TokenMovement.movingHbar(10).between(OWNER, PAYER))
+                        .withPrePostHookFor(OWNER, 123L, 25_000L, "")
+                        .withPrePostHookFor(PAYER, 123L, 25_000L, "")
+                        .payingWith(OWNER)
+                        .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK)
+                        .via("feeTxn"),
+                sourcingContextual(spec -> {
+                    // There are two pre-post hooks, pre parts are run before and post are run after.
+                    // second pre hook fails, so we should refund the gas and hook invocation cost of two calls
+                    final long tinybarGasCost = 50_000L * spec.ratesProvider().currentTinybarGasPrice();
+                    final double usdGasCost = spec.ratesProvider().toUsdWithActiveRates(tinybarGasCost);
+                    System.out.println("usdGasCost: " + usdGasCost + " tinybarGasCost: " + tinybarGasCost
+                            + " currentTinybarGasPrice: " + spec.ratesProvider().currentTinybarGasPrice());
+                    return validateChargedUsd("feeTxn", 0.001 + 0.005 + 0.005 + usdGasCost);
+                }));
     }
 
     @HapiTest

@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.handlers.transfer;
 
-import static com.hedera.hapi.node.base.ResponseCodeEnum.FAIL_INVALID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_HOOK_CALL;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TOKEN_ID;
@@ -43,6 +42,7 @@ import com.hedera.node.app.service.token.impl.handlers.transfer.hooks.HookInvoca
 import com.hedera.node.app.service.token.impl.handlers.transfer.hooks.HooksABI;
 import com.hedera.node.app.service.token.impl.validators.CryptoTransferValidator;
 import com.hedera.node.app.service.token.records.CryptoTransferStreamBuilder;
+import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
@@ -50,7 +50,6 @@ import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.config.data.HooksConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
-
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import javax.inject.Inject;
@@ -227,13 +226,19 @@ public class TransferExecutor extends BaseTokenHandler {
         }
     }
 
-    private void refundHookFees(final HandleContext context, final HookCalls hookCalls, final AtomicInteger numAttemptedHookCalls, final HooksConfig hooksConfig, final AccountID topLevelPayer) {
+    private void refundHookFees(
+            final HandleContext context,
+            final HookCalls hookCalls,
+            final AtomicInteger numAttemptedHookCalls,
+            final HooksConfig hooksConfig,
+            final AccountID topLevelPayer) {
         final var feeToRefund = getFeesToRefund(
                 hookCalls,
                 numAttemptedHookCalls.get(),
                 hooksConfig.hookInvocationCostTinyCents(),
                 context.getGasPriceInTinyCents());
-        context.refundServiceFee(topLevelPayer, feeToRefund);
+        final var refundInTinybars = ((FeeContext) context).tinybarsFromTinycents(feeToRefund);
+        context.refundServiceFee(topLevelPayer, refundInTinybars);
     }
 
     /**
@@ -254,9 +259,9 @@ public class TransferExecutor extends BaseTokenHandler {
         final var preOnlyHooks = hookCalls.preOnlyHooks();
         final var prePostHooks = hookCalls.prePostHooks();
 
-        // Total “logical” invocations:each pre-only hook: 1 call, each pre-post hook: 2 calls (pre + post)
+        // Total invocations - each pre-only hook: 1 call, each pre-post hook: 2 calls (pre + post)
         final int totalHookCalls = preOnlyHooks.size() + (prePostHooks.size() * 2);
-        if (numAttemptedHookCalls >= totalHookCalls) {
+        if (numAttemptedHookCalls == totalHookCalls) {
             // Everything that could run did run, so nothing to refund.
             return 0L;
         }
@@ -265,7 +270,7 @@ public class TransferExecutor extends BaseTokenHandler {
         int invocationsToRefund = 0;
         int invocationIndex = 0;
 
-        // 1) pre-only hooks: FN_ALLOW
+        // pre-only hooks: FN_ALLOW
         for (final var hook : preOnlyHooks) {
             if (invocationIndex >= numAttemptedHookCalls) {
                 gasToRefund += hook.gasLimit();
@@ -274,7 +279,7 @@ public class TransferExecutor extends BaseTokenHandler {
             invocationIndex++;
         }
 
-        // 2) pre part of pre-post hooks: FN_ALLOW_PRE
+        // pre part of pre-post hooks: FN_ALLOW_PRE
         for (final var hook : prePostHooks) {
             if (invocationIndex >= numAttemptedHookCalls) {
                 gasToRefund += hook.gasLimit();
@@ -283,7 +288,7 @@ public class TransferExecutor extends BaseTokenHandler {
             invocationIndex++;
         }
 
-        // 3) post part of pre-post hooks: FN_ALLOW_POST
+        // post part of pre-post hooks: FN_ALLOW_POST
         for (final var hook : prePostHooks) {
             if (invocationIndex >= numAttemptedHookCalls) {
                 gasToRefund += hook.gasLimit();
@@ -558,6 +563,5 @@ public class TransferExecutor extends BaseTokenHandler {
         RECEIVER_KEY_IS_REQUIRED
     }
 
-    public record HookInvocations(List<HookInvocation> pre, List<HookInvocation> post) {
-    }
+    public record HookInvocations(List<HookInvocation> pre, List<HookInvocation> post) {}
 }

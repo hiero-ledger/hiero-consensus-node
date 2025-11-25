@@ -81,6 +81,7 @@ public class FeeAccumulator {
             @NonNull final AccountID nodeAccount,
             @NonNull final Fees fees,
             @Nullable final ObjLongConsumer<AccountID> cb) {
+        System.out.println("Charging fees: " + fees + " to " + payer + " for " + nodeAccount);
         requireNonNull(payer);
         requireNonNull(nodeAccount);
         requireNonNull(fees);

@@ -92,7 +92,6 @@ public class FeesAndRatesProvider {
         return toTbWithActiveRates(gasPrice / 1000L);
     }
 
-
     public long currentTinycentGasPrice() {
         return gasPrice / 1000L;
     }

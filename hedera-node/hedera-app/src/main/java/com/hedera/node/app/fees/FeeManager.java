@@ -10,6 +10,7 @@ import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_GET_ACCOUNT_NF
 import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_GET_NFT_INFOS;
 import static com.hedera.hapi.node.base.HederaFunctionality.TRANSACTION_GET_FAST_RECORD;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
+import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.FEE_DIVISOR_FACTOR;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.hapi.fees.FeeScheduleUtils.isValid;
 
@@ -285,8 +286,9 @@ public final class FeeManager {
 
     public long getGasPriceInTinyCents(@NonNull final Instant consensusTime) {
         return getFeeData(CONTRACT_CALL, consensusTime, SubType.DEFAULT)
-                .servicedataOrThrow()
-                .gas()/1000;
+                        .servicedataOrThrow()
+                        .gas()
+                / FEE_DIVISOR_FACTOR;
     }
 
     /** Gets the current exchange rate manager.

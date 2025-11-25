@@ -301,9 +301,8 @@ public class CryptoTransferHandler extends TransferExecutor implements Transacti
 
             final var gasFees = clampedMultiply(effectiveGasLimit, feeContext.getGasPriceInTinyCents());
             final var hookFees = clampedMultiply(hookInfo.numHooks(), hooksConfig.hookInvocationCostTinyCents());
-            return fees.copyBuilder()
-                    .addServiceFee(clampedAdd(gasFees, hookFees))
-                    .build();
+            final var tinyBarFees = feeContext.tinybarsFromTinycents(clampedAdd(gasFees, hookFees));
+            return fees.copyBuilder().addServiceFee(tinyBarFees).build();
         }
         return fees;
     }
