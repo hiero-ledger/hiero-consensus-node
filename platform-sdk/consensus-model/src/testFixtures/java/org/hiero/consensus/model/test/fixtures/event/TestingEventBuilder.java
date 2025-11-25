@@ -380,7 +380,7 @@ public class TestingEventBuilder {
      */
     public @NonNull TestingEventBuilder setHash(@NonNull final String hexString) {
         final byte[] parsedHex = HexFormat.of().parseHex(hexString.toLowerCase());
-        if(parsedHex.length > DigestType.SHA_384.digestLength()) {
+        if (parsedHex.length > DigestType.SHA_384.digestLength()) {
             throw new IllegalArgumentException("Hash length is too long");
         }
         final byte[] hash = new byte[DigestType.SHA_384.digestLength()];

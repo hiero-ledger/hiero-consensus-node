@@ -115,7 +115,9 @@ class AncestorSearchTest {
      * @return the set of ancestor hashes that match the predicate
      */
     private Set<Hash> getAncestors(
-            @NonNull final AncestorSearch search, @NonNull final EventImpl event, @NonNull final Predicate<EventImpl> predicate) {
+            @NonNull final AncestorSearch search,
+            @NonNull final EventImpl event,
+            @NonNull final Predicate<EventImpl> predicate) {
         final AncestorIterator ancestorIterator = search.initializeSearch(event, predicate);
         return StreamSupport.stream(Spliterators.spliteratorUnknownSize(ancestorIterator, 0), false)
                 .map(EventImpl::getBaseHash)
