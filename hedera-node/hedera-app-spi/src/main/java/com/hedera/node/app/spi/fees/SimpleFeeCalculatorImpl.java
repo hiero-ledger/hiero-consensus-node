@@ -66,8 +66,7 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
      */
     @NonNull
     @Override
-    public FeeResult calculateTxFee(
-            @NonNull final TransactionBody txnBody, @Nullable final FeeContext feeContext) {
+    public FeeResult calculateTxFee(@NonNull final TransactionBody txnBody, @Nullable final FeeContext feeContext) {
         // Extract primitive counts (no allocations)
         final long signatures = feeContext != null ? feeContext.numTxnSignatures() : 0;
         final var result = new FeeResult();
