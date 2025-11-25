@@ -120,7 +120,7 @@ public class ConsensusNodeManager {
         final HashedReservedSignedState reservedState = loadInitialState(
                 recycleBin,
                 version,
-                () -> createGenesisState(platformConfig, metrics, version, otterApp.allServices()),
+                () -> createGenesisState(platformConfig, metrics, activeRoster, version, otterApp.allServices()),
                 OtterApp.APP_NAME,
                 OtterApp.SWIRLD_NAME,
                 selfId,
@@ -132,7 +132,7 @@ public class ConsensusNodeManager {
         // Set active the roster
         final ReadablePlatformStateStore store =
                 new ReadablePlatformStateStore(state.getReadableStates(PlatformStateService.NAME));
-        RosterUtils.setActiveRoster(state, activeRoster, store.getRound());
+        RosterUtils.setActiveRoster(state, activeRoster, store.getRound() + 1);
 
         final RosterHistory rosterHistory = RosterUtils.createRosterHistory(state);
         executionCallback = new OtterExecutionLayer(new Random(), metrics, time);

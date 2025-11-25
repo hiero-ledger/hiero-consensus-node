@@ -3,7 +3,6 @@ package org.hiero.otter.fixtures.app.state;
 
 import static org.hiero.otter.fixtures.app.OtterStateUtils.commitState;
 
-import com.hedera.hapi.node.base.SemanticVersion;
 import com.swirlds.state.lifecycle.StateDefinition;
 import com.swirlds.state.lifecycle.StateMetadata;
 import com.swirlds.state.merkle.VirtualMapState;
@@ -22,13 +21,10 @@ public class OtterStateInitializer {
      * Initialize the state for the OtterApp.
      *
      * @param state the state to initialize
-     * @param version the software version to set in the state
      * @param services the services to initialize
      */
     public static void initOtterAppState(
-            @NonNull final VirtualMapState state,
-            @NonNull final SemanticVersion version,
-            @NonNull final List<OtterService> services) {
+            @NonNull final VirtualMapState state, @NonNull final List<OtterService> services) {
         for (final OtterService service : services) {
             final OtterServiceStateSpecification specification = service.stateSpecification();
             for (final StateDefinition<?, ?> stateDefinition : specification.statesToCreate()) {
