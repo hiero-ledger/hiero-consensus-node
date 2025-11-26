@@ -22,7 +22,7 @@ public final class SyncLogging {
             return "null";
         }
         return shadows.stream()
-                .map(s -> s.getEvent().getDescriptor().toString())
+                .map(s -> s.getPlatformEvent().getDescriptor().toString())
                 .collect(Collectors.joining(","));
     }
 

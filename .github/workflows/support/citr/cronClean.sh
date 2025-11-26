@@ -22,5 +22,6 @@ userpwd=`grep MINIO_ROOT_PASSWORD /tmp/.$$.tmp.s | awk -F = '{print $NF}'`
 kubectl -n ${NAMESPACE} exec ${nlgpod} -- bash -c "if [ ! -f ./mc ]; then curl https://dl.min.io/client/mc/release/linux-amd64/mc -o mc; fi"
 kubectl -n ${NAMESPACE} exec ${nlgpod} -- bash -c "chmod a+rx ./mc"
 kubectl -n ${NAMESPACE} exec ${nlgpod} -- bash -c "./mc alias set myminio http://${minioIP}:9000 ${username} ${userpwd}"
-kubectl -n ${NAMESPACE} exec ${nlgpod} -- bash -c "./mc rm --older-than 0d1h0s --recursive --force myminio/solo-streams/ >/dev/null 2>&1"
-kubectl -n ${NAMESPACE} exec ${nlgpod} -- bash -c "./mc rm --older-than 0d1h0s --recursive --force myminio/solo-backups/ >/dev/null 2>&1"
+kubectl -n ${NAMESPACE} exec ${nlgpod} -- bash -c "./mc rm --older-than 0d1h0s --recursive --versions --force myminio/solo-streams/ >/dev/null 2>&1"
+kubectl -n ${NAMESPACE} exec ${nlgpod} -- bash -c "./mc rm --older-than 0d1h0s --recursive --versions --force myminio/solo-backups/ >/dev/null 2>&1"
+
