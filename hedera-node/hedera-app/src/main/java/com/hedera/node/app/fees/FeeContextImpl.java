@@ -151,4 +151,9 @@ public class FeeContextImpl implements FeeContext {
     public ExchangeRate activeRate() {
         return feeManager.getExchangeRateManager().activeRate(consensusTime);
     }
+
+    @Override
+    public long getGasPriceInTinyCents() {
+        return feeManager.getGasPriceInTinyCents(consensusTime);
+    }
 }
