@@ -341,6 +341,46 @@ public class BlockNodeConnection extends AbstractBlockNodeConnection implements 
         }
     }
 
+    private void updateAcknowledgementMetrics(long acknowledgedBlockNumber) {
+        final long currentBlockProducing = blockBufferService.getLastBlockNumberProduced();
+        // Record latencies for all acknowledged blocks
+        if (acknowledgedBlockNumber != Long.MAX_VALUE) {
+            final long nowMs = System.currentTimeMillis();
+
+            final long previousAcknowledgedBlockNumber = blockBufferService.getHighestAckedBlockNumber();
+            final long lowestAvailableBlockInBuffer = blockBufferService.getEarliestAvailableBlockNumber();
+
+            final long start = Math.max(previousAcknowledgedBlockNumber + 1, lowestAvailableBlockInBuffer);
+            final long end = Math.min(acknowledgedBlockNumber, currentBlockProducing);
+
+            if (start <= end) {
+                for (long blkNum = start; blkNum <= end; blkNum++) {
+                    final BlockState blockState = blockBufferService.getBlockState(blkNum);
+                    if (blockState != null) {
+                        if (blockState.openedTimestamp() != null) {
+                            final long headerProducedToAckMs =
+                                    nowMs - blockState.openedTimestamp().toEpochMilli();
+                            blockStreamMetrics.recordHeaderProducedToAckLatency(headerProducedToAckMs);
+                        }
+                        if (blockState.closedTimestamp() != null) {
+                            final long blockClosedToAckMs =
+                                    nowMs - blockState.closedTimestamp().toEpochMilli();
+                            blockStreamMetrics.recordBlockClosedToAckLatency(blockClosedToAckMs);
+                        }
+                        if (blockState.getHeaderSentMs() != null) {
+                            final long latencyMs = nowMs - blockState.getHeaderSentMs();
+                            blockStreamMetrics.recordHeaderSentAckLatency(latencyMs);
+                        }
+                        if (blockState.getBlockEndSentMs() != null) {
+                            final long latencyMs = nowMs - blockState.getBlockEndSentMs();
+                            blockStreamMetrics.recordBlockEndSentToAckLatency(latencyMs);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     /**
      * Acknowledges the blocks up to the specified block number.
      * @param acknowledgedBlockNumber the block number that has been known to be persisted and verified by the block node
@@ -350,6 +390,8 @@ public class BlockNodeConnection extends AbstractBlockNodeConnection implements 
 
         final long currentBlockStreaming = streamingBlockNumber.get();
         final long currentBlockProducing = blockBufferService.getLastBlockNumberProduced();
+
+        updateAcknowledgementMetrics(acknowledgedBlockNumber);
 
         // Update the last verified block by the current connection
         blockBufferService.setLatestAcknowledgedBlock(acknowledgedBlockNumber);
@@ -661,6 +703,14 @@ public class BlockNodeConnection extends AbstractBlockNodeConnection implements 
                             connectionManager.recordBlockProofSent(
                                     configuration(), r.blockNumber(), Instant.ofEpochMilli(sentMs));
                         }
+                        if (r.hasBlockHeader()) {
+                            final BlockState blockState = blockBufferService.getBlockState(r.blockNumber());
+                            if (blockState != null) {
+                                blockState.setHeaderSentMs(sentMs);
+                            }
+                        }
+                        blockStreamMetrics.recordRequestBlockItemCount(r.numItems());
+                        blockStreamMetrics.recordRequestBytes(r.streamRequest().protobufSize());
                     }
                 }
             }
@@ -887,6 +937,7 @@ public class BlockNodeConnection extends AbstractBlockNodeConnection implements 
         private long pendingRequestBytes;
         private int itemIndex = 0;
         private boolean pendingRequestHasBlockProof = false;
+        private boolean pendingRequestHasBlockHeader = false;
         private BlockState block;
         private long lastSendTimeMillis = -1;
         private final AtomicInteger requestCtr = new AtomicInteger(1);
@@ -973,6 +1024,7 @@ public class BlockNodeConnection extends AbstractBlockNodeConnection implements 
                 if (itemIndex == 0) {
                     logger.trace(
                             "{} Starting to process items for block {}", BlockNodeConnection.this, block.blockNumber());
+                    blockStreamMetrics.recordStreamingBlockNumber(block.blockNumber());
                     if (lastSendTimeMillis == -1) {
                         // if we've never sent a request and this is the first time we are processing a block, update
                         // the last send time to the current time. this will avoid prematurely sending a request
@@ -1013,6 +1065,7 @@ public class BlockNodeConnection extends AbstractBlockNodeConnection implements 
                     pendingRequestItems.add(item);
                     pendingRequestBytes += itemSize;
                     pendingRequestHasBlockProof |= item.hasBlockProof();
+                    pendingRequestHasBlockHeader |= item.hasBlockHeader();
                     ++itemIndex;
 
                     if (!trySendPendingRequest()) {
@@ -1029,6 +1082,7 @@ public class BlockNodeConnection extends AbstractBlockNodeConnection implements 
                     pendingRequestItems.add(item);
                     pendingRequestBytes += itemSize;
                     pendingRequestHasBlockProof |= item.hasBlockProof();
+                    pendingRequestHasBlockHeader |= item.hasBlockHeader();
                     ++itemIndex;
                 }
             }
@@ -1086,7 +1140,14 @@ public class BlockNodeConnection extends AbstractBlockNodeConnection implements 
                     .endOfBlock(BlockEnd.newBuilder().blockNumber(block.blockNumber()))
                     .build();
             try {
-                sendRequest(new BlockEndRequest(endOfBlock, block.blockNumber(), requestCtr.get()));
+                if (sendRequest(new BlockEndRequest(endOfBlock, block.blockNumber(), requestCtr.get()))) {
+                    blockStreamMetrics.recordLatestBlockEndOfBlockSent(block.blockNumber());
+                    block.setBlockEndSentMs(System.currentTimeMillis());
+                    if (block.getHeaderSentMs() != null) {
+                        long latencyMs = block.getBlockEndSentMs() - block.getHeaderSentMs();
+                        blockStreamMetrics.recordHeaderSentToBlockEndSentLatency(latencyMs);
+                    }
+                }
             } catch (final RuntimeException e) {
                 logger.warn("{} Error sending EndOfBlock request", BlockNodeConnection.this, e);
                 handleStreamFailureWithoutOnComplete();
@@ -1177,6 +1238,9 @@ public class BlockNodeConnection extends AbstractBlockNodeConnection implements 
                 if (item.hasBlockProof()) {
                     pendingRequestHasBlockProof = false;
                 }
+                if (item.hasBlockHeader()) {
+                    pendingRequestHasBlockHeader = false;
+                }
                 return trySendPendingRequest();
             } else if (reqBytes > hardLimitBytes) {
                 // the request exceeds the hard limit size... abandon all hope
@@ -1206,7 +1270,8 @@ public class BlockNodeConnection extends AbstractBlockNodeConnection implements 
                         block.blockNumber(),
                         requestCtr.get(),
                         pendingRequestItems.size(),
-                        pendingRequestHasBlockProof))) {
+                        pendingRequestHasBlockProof,
+                        pendingRequestHasBlockHeader))) {
                     // record that we've sent the request
                     lastSendTimeMillis = System.currentTimeMillis();
 
@@ -1215,6 +1280,7 @@ public class BlockNodeConnection extends AbstractBlockNodeConnection implements 
                     pendingRequestItems.clear();
                     requestCtr.incrementAndGet();
                     pendingRequestHasBlockProof = false;
+                    pendingRequestHasBlockHeader = false;
                     return true;
                 } else {
                     logger.warn(
@@ -1288,6 +1354,7 @@ public class BlockNodeConnection extends AbstractBlockNodeConnection implements 
             pendingRequestItems.clear();
             requestCtr.set(1);
             pendingRequestHasBlockProof = false;
+            pendingRequestHasBlockHeader = false;
 
             if (block == null) {
                 logger.trace(
@@ -1429,7 +1496,8 @@ public class BlockNodeConnection extends AbstractBlockNodeConnection implements 
             long blockNumber,
             int requestNumber,
             int numItems,
-            boolean hasBlockProof)
+            boolean hasBlockProof,
+            boolean hasBlockHeader)
             implements BlockRequest {
         BlockItemsStreamRequest {
             requireNonNull(streamRequest);

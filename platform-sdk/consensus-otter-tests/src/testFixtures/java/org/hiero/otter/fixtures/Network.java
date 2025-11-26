@@ -252,7 +252,7 @@ public interface Network extends Configurable<Network> {
      */
     @NonNull
     default Partition createNetworkPartition(@NonNull final Node node0, @NonNull final Node... nodes) {
-        return createNetworkPartition(Utils.collect(node0, nodes));
+        return createNetworkPartition(Utils.toSet(node0, nodes));
     }
 
     /**

@@ -507,6 +507,7 @@ public final class VirtualNodeCache implements FastCopyable, SelfSerializable {
             p.dirtyLeaves.merge(dirtyLeaves);
             p.dirtyLeafPaths.merge(dirtyLeafPaths);
             p.dirtyHashes.merge(dirtyHashes);
+            // Estimated sizes include both mutations and concurrent array overheads
             p.estimatedLeavesSizeInBytes.addAndGet(estimatedLeavesSizeInBytes.get());
             p.estimatedLeafPathsSizeInBytes.addAndGet(estimatedLeafPathsSizeInBytes.get());
             p.estimatedHashesSizeInBytes.addAndGet(estimatedHashesSizeInBytes.get());
@@ -539,6 +540,11 @@ public final class VirtualNodeCache implements FastCopyable, SelfSerializable {
         dirtyLeaves.seal();
         dirtyHashes.seal();
         dirtyLeafPaths.seal();
+
+        // Update estimated size to include concurrent arrays storage overhead
+        estimatedHashesSizeInBytes.addAndGet(dirtyHashes.estimatedStorageMemoryOverhead());
+        estimatedLeavesSizeInBytes.addAndGet(dirtyLeaves.estimatedStorageMemoryOverhead());
+        estimatedLeafPathsSizeInBytes.addAndGet(dirtyLeafPaths.estimatedStorageMemoryOverhead());
     }
 
     // --------------------------------------------------------------------------------------------

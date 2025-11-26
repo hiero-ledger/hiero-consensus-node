@@ -9,7 +9,7 @@ import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.token.CryptoDeleteTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
-import com.hedera.node.app.spi.fees.CalculatorState;
+import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.SimpleFeeCalculatorImpl;
 import java.util.List;
 import java.util.Set;
@@ -29,7 +29,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 class CryptoDeleteFeeCalculatorTest {
 
     @Mock
-    private CalculatorState calculatorState;
+    private FeeContext feeContext;
 
     private SimpleFeeCalculatorImpl feeCalculator;
     private FeeSchedule testSchedule;
@@ -47,7 +47,7 @@ class CryptoDeleteFeeCalculatorTest {
         @DisplayName("calculateTxFee with basic delete operation")
         void calculateTxFeeBasicDelete() {
             // Given
-            lenient().when(calculatorState.numTxnSignatures()).thenReturn(1);
+            lenient().when(feeContext.numTxnSignatures()).thenReturn(1);
             final var op = CryptoDeleteTransactionBody.newBuilder()
                     .deleteAccountID(AccountID.newBuilder().accountNum(1001).build())
                     .transferAccountID(AccountID.newBuilder().accountNum(1002).build())
@@ -55,7 +55,7 @@ class CryptoDeleteFeeCalculatorTest {
             final var body = TransactionBody.newBuilder().cryptoDelete(op).build();
 
             // When
-            final var result = feeCalculator.calculateTxFee(body, calculatorState);
+            final var result = feeCalculator.calculateTxFee(body, feeContext);
 
             // Then: Real production values from simpleFeesSchedules.json
             // node=100000, network=200000, service=49850000 (base only, no extras)
@@ -69,14 +69,14 @@ class CryptoDeleteFeeCalculatorTest {
         @DisplayName("calculateTxFee with zero signatures")
         void calculateTxFeeWithZeroSignatures() {
             // Given
-            lenient().when(calculatorState.numTxnSignatures()).thenReturn(0);
+            lenient().when(feeContext.numTxnSignatures()).thenReturn(0);
             final var op = CryptoDeleteTransactionBody.newBuilder()
                     .deleteAccountID(AccountID.newBuilder().accountNum(1001).build())
                     .build();
             final var body = TransactionBody.newBuilder().cryptoDelete(op).build();
 
             // When
-            final var result = feeCalculator.calculateTxFee(body, calculatorState);
+            final var result = feeCalculator.calculateTxFee(body, feeContext);
 
             // Then: Base service fee only - CryptoDelete doesn't call addExtraFee
             // service=49850000
@@ -87,14 +87,14 @@ class CryptoDeleteFeeCalculatorTest {
         @DisplayName("calculateTxFee with multiple signatures")
         void calculateTxFeeWithMultipleSignatures() {
             // Given
-            lenient().when(calculatorState.numTxnSignatures()).thenReturn(5);
+            lenient().when(feeContext.numTxnSignatures()).thenReturn(5);
             final var op = CryptoDeleteTransactionBody.newBuilder()
                     .deleteAccountID(AccountID.newBuilder().accountNum(1001).build())
                     .build();
             final var body = TransactionBody.newBuilder().cryptoDelete(op).build();
 
             // When
-            final var result = feeCalculator.calculateTxFee(body, calculatorState);
+            final var result = feeCalculator.calculateTxFee(body, feeContext);
 
             // Then: Base service fee only - CryptoDelete doesn't call addExtraFee
             // service=49850000 (SIGNATURES are handled by node fee, not service fee)
