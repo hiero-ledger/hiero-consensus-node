@@ -103,17 +103,7 @@ jobs:
           MIRROR_NODE_VERSION: ${{ inputs.mirror-node-version || '0.142.2' }}
         run: |
           set -ex
-        
-          cat <<EOF > mirror.yml
-          test:
-            annotations:
-              helm.sh/hook-delete-policy: before-hook-creation
-            env:
-              HIERO_MIRROR_TEST_ACCEPTANCE_NETWORK: OTHER
-            cucumberTags: "@acceptance and not @estimateprecompile"
-            enabled: true
-          EOF
-        
+          
           # Create kind cluster
           kind create cluster -n "${SOLO_CLUSTER_NAME}"
           
@@ -127,9 +117,16 @@ jobs:
           fi
         
           echo "::debug::Using storageClassName=$STORAGE_CLASS"
-        
-          # Create solo override values to ensure MinIO Tenant validates correctly
-          cat <<EOF > solo-values.yaml
+          
+          cat <<EOF > mirror.yml
+          test:
+            annotations:
+              helm.sh/hook-delete-policy: before-hook-creation
+            env:
+              HIERO_MIRROR_TEST_ACCEPTANCE_NETWORK: OTHER
+            cucumberTags: "@acceptance and not @estimateprecompile"
+            enabled: true
+          
           minio:
             tenant:
               pools:
@@ -139,8 +136,8 @@ jobs:
           EOF
           
           # echo out the solo-values file
-          echo "Solo Values file:"
-          cat solo-values.yaml
+          echo "Values file:"
+          cat mirror.yml
           
           # init solo with the storage class values
           solo init
