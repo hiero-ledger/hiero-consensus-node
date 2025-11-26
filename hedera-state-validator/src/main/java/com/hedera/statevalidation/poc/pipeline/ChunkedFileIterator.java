@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.hedera.statevalidation.poc;
+package com.hedera.statevalidation.poc.pipeline;
 
 import static com.hedera.pbj.runtime.ProtoParserTools.TAG_FIELD_OFFSET;
 import static com.swirlds.merkledb.files.DataFileCommon.FIELD_DATAFILE_ITEMS;
@@ -9,13 +9,15 @@ import com.hedera.pbj.runtime.ProtoConstants;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
-import com.hedera.statevalidation.poc.ItemData.Type;
+import com.hedera.statevalidation.poc.model.ItemData;
+import com.hedera.statevalidation.poc.model.ItemData.Type;
 import com.swirlds.merkledb.files.DataFileCommon;
 import com.swirlds.merkledb.files.DataFileMetadata;
 import com.swirlds.merkledb.files.hashmap.Bucket;
 import com.swirlds.merkledb.files.hashmap.ParsedBucket;
 import com.swirlds.virtualmap.datasource.VirtualHashRecord;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.BufferedInputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -26,7 +28,7 @@ import java.nio.file.StandardOpenOption;
 import java.util.concurrent.atomic.AtomicLong;
 
 public class ChunkedFileIterator implements AutoCloseable {
-    private final static int BUFFER_SIZE = 128 * 1024;
+    private static final int BUFFER_SIZE = 128 * 1024;
 
     private final FileChannel channel;
     private final DataFileMetadata metadata;
@@ -43,8 +45,12 @@ public class ChunkedFileIterator implements AutoCloseable {
     private boolean closed = false;
 
     public ChunkedFileIterator(
-            Path path, DataFileMetadata metadata, Type dataType, long startByte, long endByte,
-            AtomicLong totalBoundarySearchMillis)
+            @NonNull final Path path,
+            @NonNull final DataFileMetadata metadata,
+            @NonNull final Type dataType,
+            long startByte,
+            long endByte,
+            @NonNull final AtomicLong totalBoundarySearchMillis)
             throws IOException {
         this.channel = FileChannel.open(path, StandardOpenOption.READ);
         this.metadata = metadata;
@@ -56,10 +62,10 @@ public class ChunkedFileIterator implements AutoCloseable {
 
         if (startByte > 0) {
             // Find boundary, then position channel and open streams
-            long startTime = System.currentTimeMillis();
+            final long startTime = System.currentTimeMillis();
             this.startByte += findBoundaryOffset();
             long boundaryOffsetSearchTime = System.currentTimeMillis() - startTime;
-//            System.out.println("Found boundary offset in:" + boundaryOffsetSearchTime + " ms");
+            //            System.out.println("Found boundary offset in:" + boundaryOffsetSearchTime + " ms");
             totalBoundarySearchMillis.addAndGet(boundaryOffsetSearchTime);
             channel.position(this.startByte);
             openStreams();
@@ -71,7 +77,7 @@ public class ChunkedFileIterator implements AutoCloseable {
     }
 
     private void openStreams() {
-        var channelStream = Channels.newInputStream(channel);
+        final var channelStream = Channels.newInputStream(channel);
         this.bufferedInputStream = new BufferedInputStream(channelStream, BUFFER_SIZE);
         this.in = new ReadableStreamingData(bufferedInputStream);
     }
@@ -79,7 +85,7 @@ public class ChunkedFileIterator implements AutoCloseable {
     private long findBoundaryOffset() throws IOException {
         // Use buffer to minimize disk I/O and channel repositioning
         // It should account for boundary + full data item to validate its proto schema
-        ByteBuffer scanBuffer = ByteBuffer.allocate(BUFFER_SIZE);
+        final ByteBuffer scanBuffer = ByteBuffer.allocate(BUFFER_SIZE);
 
         // Read large chunk at current position
         scanBuffer.clear();
@@ -90,28 +96,27 @@ public class ChunkedFileIterator implements AutoCloseable {
         }
 
         scanBuffer.flip();
-        BufferedData bufferData = BufferedData.wrap(scanBuffer);
+        final BufferedData bufferData = BufferedData.wrap(scanBuffer);
 
         // Scan through buffer looking for valid boundary
         while (bufferData.hasRemaining()) {
-            long positionInBuffer = bufferData.position();
+            final long positionInBuffer = bufferData.position();
 
             try {
-                int tag = bufferData.readVarInt(false);
-                int fieldNum = tag >> TAG_FIELD_OFFSET;
+                final int tag = bufferData.readVarInt(false);
+                final int fieldNum = tag >> TAG_FIELD_OFFSET;
 
                 if ((fieldNum == FIELD_DATAFILE_ITEMS.number())
-                        && ((tag & ProtoConstants.TAG_WIRE_TYPE_MASK) == ProtoConstants.WIRE_TYPE_DELIMITED.ordinal())) {
-                    int dataItemSize = bufferData.readVarInt(false);
-                    long dataStartPosition = bufferData.position();
+                        && ((tag & ProtoConstants.TAG_WIRE_TYPE_MASK)
+                                == ProtoConstants.WIRE_TYPE_DELIMITED.ordinal())) {
+                    final int dataItemSize = bufferData.readVarInt(false);
+                    final long dataStartPosition = bufferData.position();
 
                     if (dataItemSize > 0 && (dataStartPosition + dataItemSize <= bufferData.limit())) {
                         bufferData.limit(dataStartPosition + dataItemSize);
-                        long savedPos = bufferData.position();
+                        final long savedPos = bufferData.position();
 
                         if (isValidDataItem(bufferData)) {
-//                            System.out.println(
-//                                    "Found valid item at " + positionInBuffer + " data size: " + dataItemSize);
                             return positionInBuffer;
                         }
 
@@ -122,7 +127,6 @@ public class ChunkedFileIterator implements AutoCloseable {
 
                 // Not found, advance by 1 byte
                 bufferData.position(positionInBuffer + 1);
-
             } catch (Exception e) {
                 // Parsing failed, advance by 1 byte
                 bufferData.position(positionInBuffer + 1);
@@ -132,7 +136,7 @@ public class ChunkedFileIterator implements AutoCloseable {
         throw new IOException("No valid data item boundary found in chunk");
     }
 
-    private boolean isValidDataItem(BufferedData buffer) {
+    private boolean isValidDataItem(@NonNull final BufferedData buffer) {
         try {
             if (!buffer.hasRemaining()) {
                 return false;
@@ -151,7 +155,7 @@ public class ChunkedFileIterator implements AutoCloseable {
         }
     }
 
-    private boolean validateVirtualHashRecord(BufferedData buffer) {
+    private boolean validateVirtualHashRecord(@NonNull final BufferedData buffer) {
         try {
             VirtualHashRecord.parseFrom(buffer);
             return true;
@@ -160,7 +164,7 @@ public class ChunkedFileIterator implements AutoCloseable {
         }
     }
 
-    private boolean validateVirtualLeafBytes(BufferedData buffer) {
+    private boolean validateVirtualLeafBytes(@NonNull final BufferedData buffer) {
         try {
             VirtualLeafBytes.parseFrom(buffer);
             return true;
@@ -169,7 +173,7 @@ public class ChunkedFileIterator implements AutoCloseable {
         }
     }
 
-    private boolean validateBucket(BufferedData buffer) {
+    private boolean validateBucket(@NonNull final BufferedData buffer) {
         try {
             final Bucket bucket = new ParsedBucket();
             bucket.readFrom(buffer);
