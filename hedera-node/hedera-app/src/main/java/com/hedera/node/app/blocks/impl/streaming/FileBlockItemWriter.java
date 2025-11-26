@@ -9,15 +9,12 @@ import com.hedera.hapi.block.stream.Block;
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.BlockProof;
 import com.hedera.hapi.block.stream.MerkleSiblingHash;
-import com.hedera.hapi.block.stream.schema.BlockSchema;
 import com.hedera.node.app.blocks.BlockItemWriter;
 import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.internal.network.PendingProof;
 import com.hedera.pbj.runtime.ParseException;
-import com.hedera.pbj.runtime.ProtoConstants;
-import com.hedera.pbj.runtime.ProtoWriterTools;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
@@ -337,42 +334,20 @@ public class FileBlockItemWriter implements BlockItemWriter {
         }
     }
 
-    /**
-     * Writes a serialized item to the destination stream.
-     *
-     * @param bytes the serialized item to write
-     */
-    void writeItem(@NonNull final byte[] bytes) {
-        requireNonNull(bytes);
+    @Override
+    public void writePbjItem(@NonNull final BlockItem item) {
+        requireNonNull(item, "item must not be null");
         if (state != State.OPEN) {
             throw new IllegalStateException(
                     "Cannot write to a FileBlockItemWriter that is not open for block: " + this.blockNumber);
         }
-
-        // Write the ITEMS tag.
-        ProtoWriterTools.writeTag(writableStreamingData, BlockSchema.ITEMS, ProtoConstants.WIRE_TYPE_DELIMITED);
-        // Write the length of the item.
-        writableStreamingData.writeVarInt(bytes.length, false);
-        // Write the item bytes themselves.
-        writableStreamingData.writeBytes(bytes);
-    }
-
-    /**
-     * Writes a block item and its serialized bytes to the destination stream.
-     * Only the serialized bytes are used, the block item is ignored.
-     *
-     * @param item the item to write (ignored in this implementation)
-     * @param bytes the serialized item to write
-     */
-    @Override
-    public void writePbjItemAndBytes(@NonNull final BlockItem item, @NonNull final Bytes bytes) {
-        requireNonNull(bytes, "bytes must not be null");
-        writeItem(bytes.toByteArray());
-    }
-
-    @Override
-    public void writePbjItem(@NonNull BlockItem item) {
-        throw new UnsupportedOperationException("writePbjItem is not supported in this implementation");
+        try {
+            BlockItem.PROTOBUF.write(item,
+                    writableStreamingData); // this writes the tag, size, and payload like #writeItem did
+        } catch (final IOException e) {
+            logger.error("Error writing block item in FileBlockItemWriter", e);
+            throw new UncheckedIOException(e);
+        }
     }
 
     @Override
@@ -432,11 +407,6 @@ public class FileBlockItemWriter implements BlockItemWriter {
         } else {
             logger.warn("Block #{} flushed in non-OPEN state '{}'", blockNumber, state, new IllegalStateException());
         }
-    }
-
-    @Override
-    public void jumpToBlockAfterFreeze(long blockNumber) {
-        // no-op
     }
 
     /**

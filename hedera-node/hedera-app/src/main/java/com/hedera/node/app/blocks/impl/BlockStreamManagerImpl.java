@@ -66,6 +66,7 @@ import com.hedera.node.config.data.TssConfig;
 import com.hedera.node.config.data.VersionConfig;
 import com.hedera.node.config.types.DiskNetworkExport;
 import com.hedera.node.internal.network.PendingProof;
+import com.hedera.pbj.runtime.hashing.WritableMessageDigest;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Counter;
@@ -451,8 +452,6 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                     blockDirPath, blockNumber, maxReadDepth(config), maxReadBytesSize(config));
             if (onDiskPendingBlocks.isEmpty()) {
                 log.info("No contiguous pending blocks found for block #{}", blockNumber);
-                final var pendingWriter = writerSupplier.get();
-                pendingWriter.jumpToBlockAfterFreeze(blockNumber);
                 return;
             }
 
@@ -460,15 +459,8 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                 var block = onDiskPendingBlocks.get(i);
                 try {
                     final var pendingWriter = writerSupplier.get();
-                    if (i == 0) { // jump to the first pending block
-                        pendingWriter.jumpToBlockAfterFreeze(
-                                onDiskPendingBlocks.getFirst().number());
-                    }
-
                     pendingWriter.openBlock(block.number());
-                    block.items()
-                            .forEach(
-                                    item -> pendingWriter.writePbjItemAndBytes(item, BlockItem.PROTOBUF.toBytes(item)));
+                    block.items().forEach(pendingWriter::writePbjItem);
                     final var blockHash = block.blockHash();
                     pendingBlocks.add(new PendingBlock(
                             block.number(),
@@ -836,7 +828,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                 }
             }
             final var proofItem = BlockItem.newBuilder().blockProof(proof).build();
-            block.writer().writePbjItemAndBytes(proofItem, BlockItem.PROTOBUF.toBytes(proofItem));
+            block.writer().writePbjItem(proofItem);
             block.writer().closeCompleteBlock();
             // Only report signatures to the quiescence controller if they were created in-memory first
             if (quiescenceEnabled && block.contentsPath() == null) {
@@ -942,7 +934,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         @Override
         protected boolean onExecute() {
             try {
-                Bytes bytes = BlockItem.PROTOBUF.toBytes(item);
+                final WritableMessageDigest wmd = new WritableMessageDigest(sha384DigestOrThrow());
                 final var kind = item.item().kind();
                 ByteBuffer hash = null;
                 switch (kind) {
@@ -954,12 +946,11 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                             ROUND_HEADER,
                             BLOCK_HEADER,
                             TRACE_DATA -> {
-                        MessageDigest digest = sha384DigestOrThrow();
-                        bytes.writeTo(digest);
-                        hash = ByteBuffer.wrap(digest.digest());
+                        BlockItem.PROTOBUF.write(item, wmd);
+                        hash = ByteBuffer.wrap(wmd.digest());
                     }
                 }
-                out.send(item, hash, bytes);
+                out.send(item, hash);
                 return true;
             } catch (Exception e) {
                 log.error("{} - error hashing item {}", ALERT_MESSAGE, item, e);
@@ -972,7 +963,6 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
 
         SequentialTask next;
         BlockItem item;
-        Bytes serialized;
         ByteBuffer hash;
 
         SequentialTask() {
@@ -1003,7 +993,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             if (header != null) {
                 writer.openBlock(header.number());
             }
-            writer.writePbjItemAndBytes(item, serialized);
+            writer.writePbjItem(item);
 
             next.send();
             return true;
@@ -1019,10 +1009,9 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             send();
         }
 
-        void send(BlockItem item, ByteBuffer hash, Bytes serialized) {
+        void send(BlockItem item, ByteBuffer hash) {
             this.item = item;
             this.hash = hash;
-            this.serialized = serialized;
             send();
         }
     }
