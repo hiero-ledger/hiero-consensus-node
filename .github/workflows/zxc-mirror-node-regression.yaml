@@ -138,6 +138,10 @@ jobs:
                       storageClassName: "$STORAGE_CLASS"
           EOF
           
+          # echo out the solo-values file
+          echo "Solo Values file:"
+          cat solo-values.yaml
+          
           # init solo with the storage class values
           solo init
 
