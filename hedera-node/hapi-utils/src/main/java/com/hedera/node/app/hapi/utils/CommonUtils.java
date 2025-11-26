@@ -188,6 +188,14 @@ public final class CommonUtils {
         }
     }
 
+    public static long clampedMultiply(final long addendA, final long addendB) {
+        try {
+            return Math.multiplyExact(addendA, addendB);
+        } catch (final ArithmeticException ae) {
+            return addendA > 0 ? Long.MAX_VALUE : Long.MIN_VALUE;
+        }
+    }
+
     /**
      * Returns the given hash if it is non-null and non-empty; otherwise, returns {@code NULL_HASH}
      * @param maybeHash the possibly null or empty hash

@@ -232,6 +232,15 @@ public class DispatchHandleContext implements HandleContext, FeeContext, FeeChar
         }
     }
 
+    @Override
+    public void refundServiceFee(@NonNull final AccountID accountId, final long amount) {
+        requireNonNull(accountId);
+        if (amount < 0) {
+            throw new IllegalArgumentException("Cannot refund negative amount " + amount);
+        }
+        feeCharging.refund(accountId, this, new Fees(0, 0, amount));
+    }
+
     @NonNull
     @Override
     public Configuration configuration() {
@@ -260,6 +269,11 @@ public class DispatchHandleContext implements HandleContext, FeeContext, FeeChar
     @Override
     public ExchangeRate activeRate() {
         return feeManager.getExchangeRateManager().activeRate(consensusNow);
+    }
+
+    @Override
+    public long getGasPriceInTinyCents() {
+        return feeManager.getGasPriceInTinyCents(consensusNow);
     }
 
     @NonNull
