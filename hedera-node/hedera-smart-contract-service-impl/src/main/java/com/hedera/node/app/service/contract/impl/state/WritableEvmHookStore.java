@@ -95,6 +95,13 @@ public class WritableEvmHookStore extends ReadableEvmHookStoreImpl {
     }
 
     /**
+     * Gets the number of storage slots in state, including all mutations up to the time of the call.
+     */
+    public long numStorageSlotsInState() {
+        return entityCounters.getCounterFor(LAMBDA_STORAGE);
+    }
+
+    /**
      * Puts the given single slot value for the given lambda
      *
      * @param key the slot key

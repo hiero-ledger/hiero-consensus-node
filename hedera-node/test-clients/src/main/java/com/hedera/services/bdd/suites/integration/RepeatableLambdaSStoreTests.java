@@ -12,6 +12,7 @@ import static com.hedera.node.app.service.contract.impl.handlers.LambdaSStoreHan
 import static com.hedera.node.app.service.contract.impl.handlers.LambdaSStoreHandler.ZERO_INTO_NONZERO_GAS_COST;
 import static com.hedera.node.app.service.contract.impl.handlers.LambdaSStoreHandler.ZERO_INTO_ZERO_GAS_COST;
 import static com.hedera.node.app.service.contract.impl.schemas.V065ContractSchema.EVM_HOOK_STATES_STATE_ID;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
 import static com.hedera.services.bdd.junit.RepeatableReason.NEEDS_STATE_ACCESS;
 import static com.hedera.services.bdd.junit.TestTags.INTEGRATION;
 import static com.hedera.services.bdd.junit.hedera.embedded.EmbeddedMode.REPEATABLE;
@@ -19,6 +20,7 @@ import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.accountAllowanceHook;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.accountLambdaSStore;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
+import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.viewSingleton;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
@@ -31,6 +33,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_DELETE
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.HOOK_NOT_FOUND;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_HOOK_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.LAMBDA_STORAGE_UPDATE_BYTES_MUST_USE_MINIMAL_REPRESENTATION;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.MAX_STORAGE_IN_PRICE_REGIME_HAS_BEEN_USED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOO_MANY_LAMBDA_STORAGE_UPDATES;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -44,11 +47,13 @@ import com.hedera.hapi.node.hooks.HookCreation;
 import com.hedera.hapi.node.hooks.HookCreationDetails;
 import com.hedera.hapi.node.hooks.LambdaEvmHook;
 import com.hedera.hapi.node.hooks.LambdaMappingEntry;
+import com.hedera.hapi.node.state.entity.EntityCounts;
 import com.hedera.hapi.node.state.hooks.EvmHookState;
 import com.hedera.hapi.node.state.hooks.LambdaSlotKey;
 import com.hedera.node.app.service.contract.ContractService;
 import com.hedera.node.app.service.contract.impl.state.ReadableEvmHookStoreImpl;
 import com.hedera.node.app.service.contract.impl.state.WritableEvmHookStore;
+import com.hedera.node.app.service.entityid.EntityIdService;
 import com.hedera.pbj.runtime.OneOf;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
@@ -340,6 +345,38 @@ public class RepeatableLambdaSStoreTests {
                         .via("zeroIntoNonZero"),
                 sourcing(() ->
                         validateChargedFee("zeroIntoNonZero", ZERO_INTO_NONZERO_GAS_COST * tinybarGasPrice.get())));
+    }
+
+    @Order(12)
+    @LeakyRepeatableHapiTest(
+            value = NEEDS_STATE_ACCESS,
+            overrides = {"hooks.maxLambdaStorageSlots"})
+    Stream<DynamicTest> lambdaSStoreLimitedToMaxStorageSlots() {
+        final var currentNumStorageSlots = new AtomicLong();
+        return hapiTest(
+                viewSingleton(
+                        EntityIdService.NAME,
+                        ENTITY_COUNTS_STATE_ID,
+                        (EntityCounts entityCounts) ->
+                                currentNumStorageSlots.set(entityCounts.numLambdaStorageSlots())),
+                sourcing(() -> overriding("hooks.maxLambdaStorageSlots", "" + (currentNumStorageSlots.get() + 1))),
+                cryptoCreate(CIVILIAN_PAYER)
+                        .balance(ONE_HUNDRED_HBARS)
+                        .withHook(accountAllowanceHook(1L, HOOK_CONTRACT.name())),
+                accountLambdaSStore(CIVILIAN_PAYER, 1L)
+                        .payingWith(CIVILIAN_PAYER)
+                        .signedBy(CIVILIAN_PAYER)
+                        .putMappingEntryWithKey(Bytes.EMPTY, A, F),
+                accountLambdaSStore(CIVILIAN_PAYER, 1L)
+                        .payingWith(CIVILIAN_PAYER)
+                        .signedBy(CIVILIAN_PAYER)
+                        .putMappingEntryWithKey(Bytes.EMPTY, B, F)
+                        .hasKnownStatus(MAX_STORAGE_IN_PRICE_REGIME_HAS_BEEN_USED),
+                viewSingleton(
+                        EntityIdService.NAME,
+                        ENTITY_COUNTS_STATE_ID,
+                        (EntityCounts entityCounts) ->
+                                assertEquals(currentNumStorageSlots.get() + 1, entityCounts.numLambdaStorageSlots())));
     }
 
     @Order(99)
