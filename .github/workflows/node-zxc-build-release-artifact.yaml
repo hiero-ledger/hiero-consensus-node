@@ -113,7 +113,7 @@ permissions:
 jobs:
   validate:
     name: Validate
-    runs-on: hiero-network-node-linux-large
+    runs-on: hiero-network-node-linux-medium
     if: ${{ !github.event.workflow_call.repository.fork }}
     outputs:
       branch-name: ${{ steps.parameters.outputs.branch-name }}
@@ -695,9 +695,9 @@ jobs:
 #
   publish:
     name: Publish to ${{ inputs.version-policy == 'specified' && 'Maven Central' || 'GCP Registry' }}
-    runs-on: hiero-network-node-linux-large
+    runs-on: hiero-network-node-linux-medium
     outputs:
-      create-release: ${{ steps.set-release-flags.outputs.create-release }}
+      create-release: ${{ steps.set-gh-release-flag.outputs.create-release }}
 #    needs:
 #      - validate
     if: ${{ inputs.release-profile != 'none' }}
@@ -854,7 +854,7 @@ jobs:
 #          gsutil -m cp -r "${SDK_ARCHIVE_DIR}"/* gs://platform-sdk-ci-release-artifacts/${RELEASE_TAG}/
 
       - name: Set GH Create Release Flag
-        id: set-gh-release-flags
+        id: set-gh-release-flag
         if: ${{ inputs.version-policy == 'specified' && inputs.dry-run-enabled != true && inputs.release-profile != 'none' && !cancelled() && !failure() }}
         run: |
           CREATE_RELEASE="false"
