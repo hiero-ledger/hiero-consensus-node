@@ -37,7 +37,6 @@ import com.hedera.hapi.util.UnknownHederaFunctionality;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.workflows.prehandle.DueDiligenceException;
 import com.hedera.node.config.ConfigProvider;
-import com.hedera.node.config.data.AccountsConfig;
 import com.hedera.node.config.data.GovernanceTransactionsConfig;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.JumboTransactionsConfig;
@@ -49,6 +48,7 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.metrics.api.Counter;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -373,63 +373,55 @@ public class TransactionChecker {
     }
 
     /**
-     * Validates the transaction size
+     * Validates the transaction size during preliminary checks (before payer is known).
+     * This is a "soft" check that allows governance-sized transactions through for later validation.
+     *
      * @param txInfo the {@link TransactionInfo} to check
+     * @throws PreCheckException if the transaction exceeds the maximum allowed size
      */
     public void checkTransactionSize(@NonNull final TransactionInfo txInfo) throws PreCheckException {
         final int txSize = txInfo.signedTx().protobufSize();
         final HederaFunctionality functionality = txInfo.functionality();
-        final boolean isJumboTxnEnabled = jumboTransactionsConfig().isEnabled();
-        final boolean isGovernanceTxnEnabled = governanceTransactionsConfig().isEnabled();
-        boolean exceedsLimit;
 
-        // If neither jumbo nor governance features are enabled, use basic validation
-        if (!isJumboTxnEnabled && !isGovernanceTxnEnabled) {
-            // Allow NON_JUMBO_TRANSACTIONS_BIGGER_THAN_6_KB to exceed the standard limit
-            exceedsLimit = txSize > hederaConfig().transactionMaxBytes()
-                    && !NON_JUMBO_TRANSACTIONS_BIGGER_THAN_6_KB.contains(functionality);
-        }
-        // For jumbo enabled and governance disabled, only ETHEREUM_TRANSACTION can exceed standard limits
-        else if (isJumboTxnEnabled && !isGovernanceTxnEnabled) {
-            exceedsLimit = checkJumboRequirements(txInfo);
-        }
-        // For governance transactions enabled, allow transactions through for final validation
-        // (since payer-based limits are applied in checkTransactionSizeLimitBasedOnPayer)
-        // Only reject extremely oversized transactions that exceed governance limits
-        else {
-            exceedsLimit = txSize > governanceTransactionsConfig().maxTxnSize();
-        }
+        // Get max size without payer context (preliminary check)
+        final int maxSizeAllowed = getMaxAllowedTransactionSize(functionality, null);
 
-        if (exceedsLimit) throw new PreCheckException(TRANSACTION_OVERSIZE);
+        // Check if the transaction exceeds the limit
+        if (txSize > maxSizeAllowed && !isExemptFromStandardSizeLimit(functionality)) {
+            throw new PreCheckException(TRANSACTION_OVERSIZE);
+        }
     }
 
     /**
      * Validates transaction size limits based on the payer account's privileges.
+     * This is the "hard" check that enforces payer-specific limits.
+     *
+     * <p>This method should be called after {@link #checkTransactionSize(TransactionInfo)}
+     * once the payer account is known. It re-evaluates the size limit based on whether
+     * the payer is a governance account.
+     *
      * @param txInfo the {@link TransactionInfo} to check
      * @param payerAccountId the {@link AccountID} of the transaction payer
+     * @throws PreCheckException if the transaction exceeds the payer-specific size limit
      */
     public void checkTransactionSizeLimitBasedOnPayer(
             @NonNull final TransactionInfo txInfo, @NonNull final AccountID payerAccountId) throws PreCheckException {
-        boolean exceedsLimit;
-        final int txSize = txInfo.signedTx().protobufSize();
-        // Check if the payer is a governance account
-        final boolean isGovernancePayer =
-                governanceTransactionsConfig().accountsRange().contains(payerAccountId.accountNumOrThrow());
-
-        if (isGovernancePayer) {
-            exceedsLimit = txSize > governanceTransactionsConfig().maxTxnSize();
-        } else {
-            // Non-governance payers follow jumbo logic when the jumbo feature is enabled
-            if (jumboTransactionsConfig().isEnabled()) {
-                exceedsLimit = checkJumboRequirements(txInfo);
-            } else {
-                // Only governance enabled, non-governance payers are limited to standard size
-                exceedsLimit = txSize > hederaConfig().transactionMaxBytes()
-                        && !NON_JUMBO_TRANSACTIONS_BIGGER_THAN_6_KB.contains(txInfo.functionality());
-            }
+        // Only perform payer-based validation when governance transactions are enabled
+        // (otherwise the preliminary check in checkTransactionSize is sufficient)
+        if (!governanceTransactionsConfig().isEnabled()) {
+            return;
         }
 
-        if (exceedsLimit) {
+        final int txSize = txInfo.signedTx().protobufSize();
+        final HederaFunctionality functionality = txInfo.functionality();
+
+        // Get max size with payer context
+        final int maxSizeAllowed = getMaxAllowedTransactionSize(functionality, payerAccountId);
+
+        // Check if the transaction exceeds the payer-specific limit
+        if (txSize > maxSizeAllowed && !isExemptFromStandardSizeLimit(functionality)) {
+            // Track non-governance oversized transactions
+            final boolean isGovernancePayer = isGovernanceAccount(payerAccountId);
             if (!isGovernancePayer) {
                 nonGovernanceOversizedTransactionsCounter.increment();
             }
@@ -438,18 +430,70 @@ public class TransactionChecker {
     }
 
     /**
-     * Validates can be considered a jumbo transaction.
-     * @param txInfo the {@link TransactionInfo} to check
-     * @return whether the transaction is considered jumbo
+     * Determines the maximum allowed transaction size based on the current feature flags
+     * and optionally the payer's privileges.
+     *
+     * <p>The size limit determination follows this priority:
+     * <ol>
+     *   <li>If governance is enabled and payer is a governance account → governance max size</li>
+     *   <li>If governance is enabled but payer is unknown (preliminary check) → governance max size (permissive)</li>
+     *   <li>If jumbo is enabled and functionality is allowed for jumbo → jumbo max size</li>
+     *   <li>Otherwise → standard max bytes</li>
+     * </ol>
+     *
+     * @param functionality the transaction functionality type
+     * @param payerAccountId the payer account ID (null if payer is not yet known)
+     * @return the maximum allowed transaction size in bytes
      */
-    private boolean checkJumboRequirements(@NonNull final TransactionInfo txInfo) {
-        final int txSize = txInfo.signedTx().protobufSize();
-        final HederaFunctionality functionality = txInfo.functionality();
-        final var allowedJumboHederaFunctionalities = jumboTransactionsConfig().allowedHederaFunctionalities();
+    private int getMaxAllowedTransactionSize(
+            @NonNull final HederaFunctionality functionality, @Nullable final AccountID payerAccountId) {
+        final boolean isJumboEnabled = jumboTransactionsConfig().isEnabled();
+        final boolean isGovernanceEnabled = governanceTransactionsConfig().isEnabled();
 
-        return !allowedJumboHederaFunctionalities.contains(fromPbj(functionality))
-                && txSize > hederaConfig().transactionMaxBytes()
-                && !NON_JUMBO_TRANSACTIONS_BIGGER_THAN_6_KB.contains(functionality);
+        // If governance is enabled but payer is unknown (early check), use governance max
+        // to allow the transaction through for later payer-based validation
+        if (isGovernanceEnabled && payerAccountId == null) {
+            return governanceTransactionsConfig().maxTxnSize();
+        }
+
+        // If governance is enabled, and we have a payer, check if they're a governance account
+        if (isGovernanceEnabled) {
+            if (isGovernanceAccount(payerAccountId)) {
+                return governanceTransactionsConfig().maxTxnSize();
+            }
+        }
+
+        // If jumbo is enabled, check if this functionality is allowed for jumbo
+        if (isJumboEnabled) {
+            final var allowedJumboFunctionalities = jumboTransactionsConfig().allowedHederaFunctionalities();
+            if (allowedJumboFunctionalities.contains(fromPbj(functionality))) {
+                return jumboTransactionsConfig().maxTxnSize();
+            }
+        }
+
+        // Default to standard max bytes
+        return hederaConfig().transactionMaxBytes();
+    }
+
+    /**
+     * Checks if the transaction functionality is exempt from standard size limits.
+     * These are internal transaction types that may exceed 6KB but are not jumbo transactions.
+     *
+     * @param functionality the transaction functionality to check
+     * @return true if the functionality is exempt from standard size limits
+     */
+    private boolean isExemptFromStandardSizeLimit(@NonNull final HederaFunctionality functionality) {
+        return NON_JUMBO_TRANSACTIONS_BIGGER_THAN_6_KB.contains(functionality);
+    }
+
+    /**
+     * Checks if the given account is a governance account.
+     *
+     * @param accountId the account ID to check
+     * @return true if the account is a governance account
+     */
+    private boolean isGovernanceAccount(@NonNull final AccountID accountId) {
+        return governanceTransactionsConfig().accountsRange().contains(accountId.accountNumOrThrow());
     }
 
     public enum RequireMinValidLifetimeBuffer {
@@ -678,13 +722,6 @@ public class TransactionChecker {
      */
     private HederaConfig hederaConfig() {
         return configProvider.getConfiguration().getConfigData(HederaConfig.class);
-    }
-
-    /**
-     * @return the current accounts configuration
-     */
-    private AccountsConfig accountsConfig() {
-        return configProvider.getConfiguration().getConfigData(AccountsConfig.class);
     }
 
     /**

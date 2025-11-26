@@ -115,9 +115,7 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
                 "contracts.throttle.throttleByGas",
                 "false", // to avoid gas throttling
                 "hedera.transaction.maxMemoUtf8Bytes",
-                "10000", // to avoid memo size limit
-                "governanceTransactions.isEnabled",
-                "false"));
+                "10000")); // to avoid memo size limit
     }
 
     @HapiTest
@@ -437,7 +435,8 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
                     cryptoCreate("receiver"),
                     cryptoTransfer(tinyBarsFromTo("payer", "receiver", ONE_HUNDRED_HBARS))
                             .memo(StringUtils.repeat("a", 6145))
-                            .hasKnownStatus(TRANSACTION_OVERSIZE)
+                            .payingWith("payer")
+                            .hasPrecheck(TRANSACTION_OVERSIZE)
                             .orUnavailableStatus());
         }
 

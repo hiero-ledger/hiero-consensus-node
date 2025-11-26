@@ -108,11 +108,12 @@ public class GovernanceTransactionsTests implements LifecycleTest {
     public Stream<DynamicTest> nonGovernanceAccountTransactionLargerThan6kb() {
         final var largeSizeMemo = new String(randomMemoBytes, StandardCharsets.UTF_8);
         return hapiTest(
-                cryptoCreate("payer").balance(ONE_MILLION_HBARS),
+                cryptoCreate(PAYER).balance(ONE_MILLION_HBARS),
                 cryptoCreate("receiver"),
-                cryptoTransfer(tinyBarsFromTo("payer", "receiver", ONE_HUNDRED_HBARS))
+                cryptoTransfer(tinyBarsFromTo(PAYER, "receiver", ONE_HUNDRED_HBARS))
                         .memo(largeSizeMemo)
-                        .hasKnownStatus(TRANSACTION_OVERSIZE)
+                        .payingWith(PAYER)
+                        .hasPrecheck(TRANSACTION_OVERSIZE)
                         .orUnavailableStatus());
     }
 
@@ -131,12 +132,18 @@ public class GovernanceTransactionsTests implements LifecycleTest {
                         .submitKeyName(SUBMIT_KEY)
                         .payingWith(GENESIS)
                         .memo(largeSizeMemo)
-                        .hasKnownStatus(TRANSACTION_OVERSIZE),
+                        .hasPrecheck(TRANSACTION_OVERSIZE)
+                        // the submitted transaction exceeds 6144 bytes and will have its
+                        // gRPC request terminated immediately
+                        .orUnavailableStatus(),
                 createTopic(TOPIC2)
                         .submitKeyName(SUBMIT_KEY2)
                         .payingWith(SYSTEM_ADMIN)
                         .memo(largeSizeMemo)
-                        .hasKnownStatus(TRANSACTION_OVERSIZE));
+                        .hasPrecheck(TRANSACTION_OVERSIZE)
+                        // the submitted transaction exceeds 6144 bytes and will have its
+                        // gRPC request terminated immediately
+                        .orUnavailableStatus());
     }
 
     // --- Disable the governance transactions feature and test nothing has changed in the previous behavior ---
