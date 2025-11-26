@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.spec.fees;
 
+import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.FEE_DIVISOR_FACTOR;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asFileString;
 import static com.hedera.services.bdd.spec.queries.QueryUtils.answerCostHeader;
 import static com.hedera.services.bdd.spec.queries.QueryUtils.answerHeader;
@@ -57,6 +58,7 @@ public class FeesAndRatesProvider {
     private KeyFactory keys;
     private HapiSpecSetup setup;
     private HapiSpecRegistry registry;
+
     private static long gasPrice;
     private static FeeSchedule feeSchedule;
     private static ExchangeRateSet rateSet;
@@ -88,7 +90,11 @@ public class FeesAndRatesProvider {
     }
 
     public long currentTinybarGasPrice() {
-        return toTbWithActiveRates(gasPrice / 1000L);
+        return toTbWithActiveRates(gasPrice / FEE_DIVISOR_FACTOR);
+    }
+
+    public long currentTinycentGasPrice() {
+        return gasPrice / FEE_DIVISOR_FACTOR;
     }
 
     public ExchangeRate rates() {
@@ -287,5 +293,9 @@ public class FeesAndRatesProvider {
                 .findFirst()
                 .map(feeData -> feeData.getServicedata().getGas())
                 .orElse(0L);
+    }
+
+    public long tinycentGasPrice() {
+        return gasPrice;
     }
 }

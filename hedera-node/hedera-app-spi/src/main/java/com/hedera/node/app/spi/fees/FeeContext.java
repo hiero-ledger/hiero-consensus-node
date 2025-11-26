@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.spi.fees;
 
+import static com.hedera.node.app.hapi.fees.calc.OverflowCheckingCalc.tinycentsToTinybars;
+import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
+
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.transaction.ExchangeRate;
 import com.hedera.hapi.node.transaction.TransactionBody;
@@ -83,4 +86,20 @@ public interface FeeContext extends CalculatorState {
      * @return the active exchange rate
      */
     ExchangeRate activeRate();
+
+    /**
+     * Returns the gas price in tiny cents.
+     * @return the gas price in tiny cents
+     */
+    long getGasPriceInTinyCents();
+
+    /**
+     * Gets the number of tinybars equivalent to the given number of tiny cents.
+     *
+     * @param amount the amount in tiny cents
+     * @return the amount in tinybars
+     */
+    default long tinybarsFromTinycents(final long amount) {
+        return tinycentsToTinybars(amount, fromPbj(activeRate()));
+    }
 }

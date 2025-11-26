@@ -6,6 +6,8 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_HOOK_CALL;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TOKEN_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSFER_ACCOUNT_ID;
 import static com.hedera.hapi.util.HapiUtils.isHollow;
+import static com.hedera.node.app.hapi.utils.CommonUtils.clampedAdd;
+import static com.hedera.node.app.hapi.utils.CommonUtils.clampedMultiply;
 import static com.hedera.node.app.service.token.AliasUtils.isAlias;
 import static com.hedera.node.app.service.token.HookDispatchUtils.dispatchExecution;
 import static com.hedera.node.app.service.token.impl.handlers.BaseCryptoHandler.isStakingAccount;
@@ -15,6 +17,7 @@ import static com.hedera.node.app.service.token.impl.util.CryptoTransferValidati
 import static com.hedera.node.app.service.token.impl.util.CryptoTransferValidationHelper.checkSender;
 import static com.hedera.node.app.spi.validation.Validations.validateAccountID;
 
+import com.esaulpaugh.headlong.abi.Function;
 import com.hedera.hapi.node.base.AccountAmount;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.EvmHookCall;
@@ -39,13 +42,18 @@ import com.hedera.node.app.service.token.impl.handlers.transfer.hooks.HookInvoca
 import com.hedera.node.app.service.token.impl.handlers.transfer.hooks.HooksABI;
 import com.hedera.node.app.service.token.impl.validators.CryptoTransferValidator;
 import com.hedera.node.app.service.token.records.CryptoTransferStreamBuilder;
+import com.hedera.node.app.spi.fees.FeeCharging;
+import com.hedera.node.app.spi.fees.FeeContext;
+import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
+import com.hedera.node.config.data.HooksConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 
@@ -66,9 +74,9 @@ public class TransferExecutor extends BaseTokenHandler {
      */
     @Inject
     public TransferExecutor(
-            final CryptoTransferValidator validator,
-            final HookCallsFactory hookCallsFactory,
-            EntityIdFactory entityIdFactory) {
+            @NonNull final CryptoTransferValidator validator,
+            @NonNull final HookCallsFactory hookCallsFactory,
+            @NonNull final EntityIdFactory entityIdFactory) {
         // For Dagger injection
         this.validator = validator;
         this.hookCallsFactory = hookCallsFactory;
@@ -153,6 +161,7 @@ public class TransferExecutor extends BaseTokenHandler {
             boolean skipCustomFee) {
         final var topLevelPayer = context.payer();
         transferContext.validateHbarAllowances();
+        final var hooksConfig = context.configuration().getConfigData(HooksConfig.class);
 
         // Replace all aliases in the transaction body with its account ids; use in all further steps
         final var replacedOp = ensureAndReplaceAliasesInOp(txn, transferContext, validator);
@@ -161,21 +170,32 @@ public class TransferExecutor extends BaseTokenHandler {
             txns = new CustomFeeAssessmentStep(replacedOp).assessCustomFees(transferContext);
         }
         final var hasHooks = HookUtils.hasHookExecutions(replacedOp);
-        HookCalls hookCalls = null;
+        final HookCalls hookCalls = hasHooks
+                ? hookCallsFactory.from(
+                        transferContext.getHandleContext(), replacedOp, transferContext.getItemizedAssessedFees())
+                : null;
+        final AtomicInteger numAttemptedHookCalls = new AtomicInteger(0);
         if (hasHooks) {
-            final var itemizedAssessedFees = transferContext.getItemizedAssessedFees();
-            // Extract the HookCalls from the transaction bodies after custom fee assessment
-            hookCalls = hookCallsFactory.from(transferContext.getHandleContext(), replacedOp, itemizedAssessedFees);
-            dispatchHookCalls(
-                    hookCalls.context(),
-                    hookCalls.preOnlyHooks(),
-                    transferContext.getHandleContext(),
-                    HooksABI.FN_ALLOW);
-            dispatchHookCalls(
-                    hookCalls.context(),
-                    hookCalls.prePostHooks(),
-                    transferContext.getHandleContext(),
-                    HooksABI.FN_ALLOW_PRE);
+            try {
+                dispatchHookCalls(
+                        hookCalls.context(),
+                        hookCalls.preOnlyHooks(),
+                        transferContext.getHandleContext(),
+                        HooksABI.FN_ALLOW,
+                        numAttemptedHookCalls);
+                dispatchHookCalls(
+                        hookCalls.context(),
+                        hookCalls.prePostHooks(),
+                        transferContext.getHandleContext(),
+                        HooksABI.FN_ALLOW_PRE,
+                        numAttemptedHookCalls);
+            } catch (HandleException e) {
+                // if hook execution failed, we still want to throw an exception but refund the charged fees
+                // for other hook calls that didn't execute
+                throw new HandleException(e.getStatus(), ctx -> {
+                    refundHookFee(context, ctx, hookCalls, numAttemptedHookCalls, hooksConfig, topLevelPayer);
+                });
+            }
         }
 
         for (final var t : txns) {
@@ -185,12 +205,21 @@ public class TransferExecutor extends BaseTokenHandler {
             new NFTOwnersChangeStep(t.tokenTransfers(), topLevelPayer).doIn(transferContext);
         }
         if (hasHooks) {
-            // Dispatch post hook calls
-            dispatchHookCalls(
-                    hookCalls.context(),
-                    hookCalls.prePostHooks(),
-                    transferContext.getHandleContext(),
-                    HooksABI.FN_ALLOW_POST);
+            try {
+                // Dispatch post hook calls
+                dispatchHookCalls(
+                        hookCalls.context(),
+                        hookCalls.prePostHooks(),
+                        transferContext.getHandleContext(),
+                        HooksABI.FN_ALLOW_POST,
+                        numAttemptedHookCalls);
+            } catch (HandleException e) {
+                // if hook execution failed, we still want to throw an exception but refund the charged fees
+                // for other hook calls that didn't execute
+                throw new HandleException(e.getStatus(), ctx -> {
+                    refundHookFee(context, ctx, hookCalls, numAttemptedHookCalls, hooksConfig, topLevelPayer);
+                });
+            }
         }
 
         if (!transferContext.getAutomaticAssociations().isEmpty()) {
@@ -199,6 +228,97 @@ public class TransferExecutor extends BaseTokenHandler {
         if (!transferContext.getAssessedCustomFees().isEmpty()) {
             recordBuilder.assessedCustomFees(transferContext.getAssessedCustomFees());
         }
+    }
+
+    private void refundHookFee(
+            final HandleContext context,
+            final FeeCharging.Context ctx,
+            final HookCalls hookCalls,
+            final AtomicInteger numAttemptedHookCalls,
+            final HooksConfig hooksConfig,
+            final AccountID topLevelPayer) {
+        final var feeToRefund = getFeesToRefund(
+                hookCalls,
+                numAttemptedHookCalls.get(),
+                hooksConfig.hookInvocationCostTinyCents(),
+                context.getGasPriceInTinyCents());
+        final long refundInTinybars = ((FeeContext) context).tinybarsFromTinycents(feeToRefund);
+        ctx.refund(topLevelPayer, new Fees(0, 0, refundInTinybars));
+    }
+
+    private void refundHookFees(
+            final HandleContext context,
+            final HookCalls hookCalls,
+            final AtomicInteger numAttemptedHookCalls,
+            final HooksConfig hooksConfig,
+            final AccountID topLevelPayer) {
+        final var feeToRefund = getFeesToRefund(
+                hookCalls,
+                numAttemptedHookCalls.get(),
+                hooksConfig.hookInvocationCostTinyCents(),
+                context.getGasPriceInTinyCents());
+        final long refundInTinybars = ((FeeContext) context).tinybarsFromTinycents(feeToRefund);
+        context.refundServiceFee(topLevelPayer, refundInTinybars);
+    }
+
+    /**
+     * Calculates the gas that should be refunded for unsuccessful hook calls.
+     * Every pre-hook is considered one hook invocation, and every pre-post hook is considered two invocations.
+     * Similarly, the gas charged for each hook invocation is refunded.
+     *
+     * @param hookCalls the hook calls
+     * @param numAttemptedHookCalls number of attempted hook calls
+     * @param hookInvocationCostTinyCents cost of hook invocation in tiny cents
+     * @return gas to refund
+     */
+    private long getFeesToRefund(
+            final HookCalls hookCalls,
+            final int numAttemptedHookCalls,
+            final long hookInvocationCostTinyCents,
+            final long gasPriceInTinyCents) {
+        final var preOnlyHooks = hookCalls.preOnlyHooks();
+        final var prePostHooks = hookCalls.prePostHooks();
+
+        // Total invocations - each pre-only hook: 1 call, each pre-post hook: 2 calls (pre + post)
+        final int totalHookCalls = preOnlyHooks.size() + (prePostHooks.size() * 2);
+        if (numAttemptedHookCalls == totalHookCalls) {
+            // Everything that could run did run, so nothing to refund.
+            return 0L;
+        }
+
+        long gasToRefund = 0L;
+        int invocationsToRefund = 0;
+        int invocationIndex = 0;
+
+        // pre-only hooks: FN_ALLOW
+        for (final var hook : preOnlyHooks) {
+            if (invocationIndex >= numAttemptedHookCalls) {
+                gasToRefund += hook.gasLimit();
+                invocationsToRefund++;
+            }
+            invocationIndex++;
+        }
+
+        // pre part of pre-post hooks: FN_ALLOW_PRE
+        for (final var hook : prePostHooks) {
+            if (invocationIndex >= numAttemptedHookCalls) {
+                gasToRefund += hook.gasLimit();
+                invocationsToRefund++;
+            }
+            invocationIndex++;
+        }
+
+        // post part of pre-post hooks: FN_ALLOW_POST
+        for (final var hook : prePostHooks) {
+            if (invocationIndex >= numAttemptedHookCalls) {
+                gasToRefund += hook.gasLimit();
+                invocationsToRefund++;
+            }
+            invocationIndex++;
+        }
+        final var feeToRefund = clampedMultiply(invocationsToRefund, hookInvocationCostTinyCents);
+        final var gasRefund = clampedMultiply(gasToRefund, gasPriceInTinyCents);
+        return clampedAdd(feeToRefund, gasRefund);
     }
 
     protected void executeAirdropCryptoTransfer(
@@ -315,12 +435,14 @@ public class TransferExecutor extends BaseTokenHandler {
      * @param hookInvocations the list of hook invocations to dispatch
      * @param handleContext the handle context to use for dispatching
      * @param function the ABI function to use for encoding
+     * @param numAttemptedHookCalls the number of successful hook calls
      */
     private void dispatchHookCalls(
             @NonNull final HookContext hookContext,
             @NonNull final List<HookInvocation> hookInvocations,
             @NonNull final HandleContext handleContext,
-            @NonNull final com.esaulpaugh.headlong.abi.Function function) {
+            @NonNull final Function function,
+            final AtomicInteger numAttemptedHookCalls) {
         final boolean isolated = hookInvocations.size() == 1;
         for (final var hookInvocation : hookInvocations) {
             byte[] calldata;
@@ -342,6 +464,7 @@ public class TransferExecutor extends BaseTokenHandler {
                             .hookId(hookInvocation.hookId())
                             .build())
                     .build();
+            numAttemptedHookCalls.incrementAndGet();
             dispatchExecution(handleContext, execution, function, entityIdFactory, isolated);
         }
     }
