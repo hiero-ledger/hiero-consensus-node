@@ -11,7 +11,6 @@ import com.hedera.node.app.grpc.impl.TransactionMethod;
 import com.hedera.node.app.workflows.ingest.IngestWorkflow;
 import com.hedera.node.app.workflows.query.QueryWorkflow;
 import com.hedera.node.config.ConfigProvider;
-import com.hedera.node.config.data.GovernanceTransactionsConfig;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.JumboTransactionsConfig;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
@@ -51,6 +50,11 @@ import org.apache.logging.log4j.Logger;
 final class GrpcServiceBuilder {
     /** Logger */
     private static final Logger logger = LogManager.getLogger(GrpcServiceBuilder.class);
+
+    /**
+     * The max transaction size in bytes supported by gRPC.
+     */
+    private static final int MAX_TRANSACTION_SIZE = 133120; // 130 KB
 
     /**
      * The marshaller to use to read/write byte arrays to/from {@link InputStream}s. This class is thread safe.
@@ -167,12 +171,8 @@ final class GrpcServiceBuilder {
     @NonNull
     public ServerServiceDefinition build(@NonNull final Metrics metrics, ConfigProvider configProvider) {
         final var jumboTxnConfig = configProvider.getConfiguration().getConfigData(JumboTransactionsConfig.class);
-        final var govTxnConfig = configProvider.getConfiguration().getConfigData(GovernanceTransactionsConfig.class);
-
         final var jumboTxnIsEnabled = jumboTxnConfig.isEnabled();
         final var jumboTxnMaxSize = jumboTxnConfig.maxTxnSize();
-        final var governanceTxnIsEnabled = govTxnConfig.isEnabled();
-        final var governanceTxnMaxSize = govTxnConfig.maxTxnSize();
 
         final var messageMaxSize = configProvider
                 .getConfiguration()
@@ -190,8 +190,7 @@ final class GrpcServiceBuilder {
                 addMethod(builder, serviceName, methodName, method, jumboMarshaller);
             } else {
                 // add regular transaction methods
-                final int transactionMaxSize = governanceTxnIsEnabled ? governanceTxnMaxSize : messageMaxSize;
-                method = new TransactionMethod(serviceName, methodName, ingestWorkflow, metrics, transactionMaxSize);
+                method = new TransactionMethod(serviceName, methodName, ingestWorkflow, metrics, MAX_TRANSACTION_SIZE);
                 addMethod(builder, serviceName, methodName, method, marshaller);
             }
         });

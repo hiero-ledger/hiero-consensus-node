@@ -375,7 +375,7 @@ final class TransactionCheckerTest extends AppTestBase {
             assertThatThrownBy(() -> checker.parseAndCheck(randomBytes(MAX_TX_SIZE + 1), MAX_LARGE_TX_SIZE))
                     .isInstanceOf(PreCheckException.class)
                     .isNot(responseCode(TRANSACTION_OVERSIZE));
-            // assert that even if we are sending a transaction with up to the limit of 13KB,
+            // assert that even if we are sending a transaction with up to the limit of 130KB,
             // it will not fail with TRANSACTION_OVERSIZE
             assertThatThrownBy(() -> checker.parseAndCheck(randomBytes(maxJumboTxnSize), MAX_LARGE_TX_SIZE))
                     .isInstanceOf(PreCheckException.class)
@@ -404,7 +404,7 @@ final class TransactionCheckerTest extends AppTestBase {
         }
 
         @Test
-        void passedWithMoreThan6KbWithGovernanceEnabled() {
+        void passedWithCornerValuesGovernanceEnabled() {
             // Enabled governance transactions
             props = () -> new VersionedConfigImpl(
                     HederaTestConfigBuilder.create()
@@ -418,12 +418,47 @@ final class TransactionCheckerTest extends AppTestBase {
                     .getConfigData(GovernanceTransactionsConfig.class)
                     .maxTxnSize();
 
+            // less than 6KB, does not fail with TRANSACTION_OVERSIZE
+            assertThatThrownBy(() -> checker.parseAndCheck(randomBytes(MAX_TX_SIZE - 1), MAX_LARGE_TX_SIZE))
+                    .isInstanceOf(PreCheckException.class)
+                    .isNot(responseCode(TRANSACTION_OVERSIZE));
             // assert that even if we are sending a transaction with more than 6KB,
             // it will not fail with TRANSACTION_OVERSIZE
             assertThatThrownBy(() -> checker.parseAndCheck(randomBytes(MAX_TX_SIZE + 1), MAX_LARGE_TX_SIZE))
                     .isInstanceOf(PreCheckException.class)
                     .isNot(responseCode(TRANSACTION_OVERSIZE));
-            // assert that even if we are sending a transaction with up to the limit of 13KB,
+            // assert that even if we are sending a transaction with up to the limit of 130KB,
+            // it will not fail with TRANSACTION_OVERSIZE
+            assertThatThrownBy(() -> checker.parseAndCheck(randomBytes(maxGovernanceTxnSize), MAX_LARGE_TX_SIZE))
+                    .isInstanceOf(PreCheckException.class)
+                    .isNot(responseCode(TRANSACTION_OVERSIZE));
+        }
+
+        @Test
+        void passedWithCornerValuesGovernanceDisabled() {
+            // Disabled governance transactions
+            props = () -> new VersionedConfigImpl(
+                    HederaTestConfigBuilder.create()
+                            .withValue("governanceTransactions.isEnabled", false)
+                            .getOrCreateConfig(),
+                    1);
+
+            checker = new TransactionChecker(props, metrics);
+
+            final int maxGovernanceTxnSize = props.getConfiguration()
+                    .getConfigData(GovernanceTransactionsConfig.class)
+                    .maxTxnSize();
+
+            // less than 6KB, does not fail with TRANSACTION_OVERSIZE
+            assertThatThrownBy(() -> checker.parseAndCheck(randomBytes(MAX_TX_SIZE - 1), MAX_LARGE_TX_SIZE))
+                    .isInstanceOf(PreCheckException.class)
+                    .isNot(responseCode(TRANSACTION_OVERSIZE));
+            // assert that even if we are sending a transaction with more than 6KB,
+            // it will not fail with TRANSACTION_OVERSIZE
+            assertThatThrownBy(() -> checker.parseAndCheck(randomBytes(MAX_TX_SIZE + 1), MAX_LARGE_TX_SIZE))
+                    .isInstanceOf(PreCheckException.class)
+                    .isNot(responseCode(TRANSACTION_OVERSIZE));
+            // assert that even if we are sending a transaction with up to the limit of 130KB,
             // it will not fail with TRANSACTION_OVERSIZE
             assertThatThrownBy(() -> checker.parseAndCheck(randomBytes(maxGovernanceTxnSize), MAX_LARGE_TX_SIZE))
                     .isInstanceOf(PreCheckException.class)

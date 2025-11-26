@@ -15,7 +15,6 @@ import com.hedera.node.app.workflows.query.QueryWorkflow;
 import com.hedera.node.app.workflows.query.annotations.OperatorQueries;
 import com.hedera.node.app.workflows.query.annotations.UserQueries;
 import com.hedera.node.config.ConfigProvider;
-import com.hedera.node.config.data.GovernanceTransactionsConfig;
 import com.hedera.node.config.data.GrpcConfig;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.JumboTransactionsConfig;
@@ -74,6 +73,11 @@ public final class NettyGrpcServerManager implements GrpcServerManager {
      * The supported protocols for TLS
      */
     private static final List<String> SUPPORTED_PROTOCOLS = List.of("TLSv1.2", "TLSv1.3");
+
+    /**
+     * The max transaction size in bytes supported by gRPC.
+     */
+    private static final int MAX_TRANSACTION_SIZE = 133120; // 130 KB
 
     /**
      * The set of {@link ServiceDescriptor}s for services that the gRPC server will expose
@@ -424,7 +428,7 @@ public final class NettyGrpcServerManager implements GrpcServerManager {
             @NonNull final QueryWorkflow queryWorkflow,
             @NonNull final Metrics metrics) {
 
-        final int standardMaxTxnSize = configProvider
+        final int maxTxnSize = configProvider
                 .getConfiguration()
                 .getConfigData(HederaConfig.class)
                 .transactionMaxBytes();
@@ -437,23 +441,13 @@ public final class NettyGrpcServerManager implements GrpcServerManager {
                         .getConfiguration()
                         .getConfigData(JumboTransactionsConfig.class)
                         .maxTxnSize()
-                : standardMaxTxnSize;
-        final boolean isGovTxnEnabled = configProvider
-                .getConfiguration()
-                .getConfigData(GovernanceTransactionsConfig.class)
-                .isEnabled();
-        final int govMaxTxnSize = isGovTxnEnabled
-                ? configProvider
-                        .getConfiguration()
-                        .getConfigData(GovernanceTransactionsConfig.class)
-                        .maxTxnSize()
-                : standardMaxTxnSize;
+                : maxTxnSize;
 
         // set buffer capacity to be big enough to hold the largest transaction
-        final int bufferCapacity = Math.max(Math.max(govMaxTxnSize, jumboMaxTxnSize), standardMaxTxnSize) + 1;
+        final var bufferCapacity = isJumboEnabled ? jumboMaxTxnSize + 1 : maxTxnSize + 1;
         // set capacity and max transaction size for both normal and jumbo transactions
-        final var dataBufferMarshaller = new DataBufferMarshaller(bufferCapacity, govMaxTxnSize);
-        final var jumboBufferMarshaller = new DataBufferMarshaller(bufferCapacity, jumboMaxTxnSize);
+        final var dataBufferMarshaller = new DataBufferMarshaller(bufferCapacity, MAX_TRANSACTION_SIZE);
+        final var jumboBufferMarshaller = new DataBufferMarshaller(bufferCapacity, MAX_TRANSACTION_SIZE);
         return rpcServiceDefinitions
                 .get()
                 .map(d -> {

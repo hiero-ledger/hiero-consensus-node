@@ -16,7 +16,6 @@ import com.hedera.node.config.data.BootstrapConfig;
 import com.hedera.node.config.data.ContractsConfig;
 import com.hedera.node.config.data.FeesConfig;
 import com.hedera.node.config.data.FilesConfig;
-import com.hedera.node.config.data.GovernanceTransactionsConfig;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.JumboTransactionsConfig;
 import com.hedera.node.config.data.LedgerConfig;
@@ -69,7 +68,6 @@ public class BootstrapConfigProviderImpl extends ConfigProviderBase {
                 .withConfigDataType(BlockNodeConnectionConfig.class)
                 .withConfigDataType(OpsDurationConfig.class)
                 .withConfigDataType(JumboTransactionsConfig.class)
-                .withConfigDataType(GovernanceTransactionsConfig.class)
                 .withConfigDataType(FeesConfig.class)
                 .withConverter(Bytes.class, new BytesConverter())
                 .withConverter(SemanticVersion.class, new SemanticVersionConverter())

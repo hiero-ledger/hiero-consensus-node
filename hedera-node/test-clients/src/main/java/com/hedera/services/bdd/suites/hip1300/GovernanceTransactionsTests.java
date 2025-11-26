@@ -5,11 +5,14 @@ import static com.hedera.services.bdd.junit.TestTags.ONLY_SUBPROCESS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.createTopic;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
+import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.noOp;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
+import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.SYSTEM_ADMIN;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TRANSACTION_OVERSIZE;
@@ -99,6 +102,20 @@ public class GovernanceTransactionsTests implements LifecycleTest {
 
     @HapiTest
     @Order(2)
+    @DisplayName("something")
+    public Stream<DynamicTest> nonJumboTransactionBiggerThan130kb() {
+        final var largeSizeMemo = new String(randomMemoBytes, StandardCharsets.UTF_8);
+        return hapiTest(
+                cryptoCreate("payer").balance(ONE_MILLION_HBARS),
+                cryptoCreate("receiver"),
+                cryptoTransfer(tinyBarsFromTo("payer", "receiver", ONE_HUNDRED_HBARS))
+                        .memo(largeSizeMemo)
+                        .hasKnownStatus(TRANSACTION_OVERSIZE)
+                        .orUnavailableStatus());
+    }
+
+    @HapiTest
+    @Order(3)
     @DisplayName(
             "Treasury and system admin accounts cannot submit more than 6KB transactions when the feature is disabled at runtime")
     public Stream<DynamicTest> governanceAccountCannotSubmitLargeSizeTransactionsWhenDisabledDynamically() {
@@ -123,7 +140,7 @@ public class GovernanceTransactionsTests implements LifecycleTest {
     // --- Disable the governance transactions feature and test nothing has changed in the previous behavior ---
 
     @HapiTest
-    @Order(3)
+    @Order(4)
     @DisplayName("Update the governance config to disable governance transactions")
     public Stream<DynamicTest> updateTheConfig() {
         return hapiTest(
@@ -134,7 +151,7 @@ public class GovernanceTransactionsTests implements LifecycleTest {
     }
 
     @HapiTest
-    @Order(4)
+    @Order(5)
     @DisplayName("Normal account cannot submit more than 6KB transactions when the feature is disabled")
     public Stream<DynamicTest> nonGovernanceAccountCannotSubmitLargeSizeTransactions() {
         final var largeSizeMemo = new String(randomMemoBytes, StandardCharsets.UTF_8);
@@ -153,7 +170,7 @@ public class GovernanceTransactionsTests implements LifecycleTest {
     }
 
     @HapiTest
-    @Order(5)
+    @Order(6)
     @DisplayName(
             "Treasury and system admin accounts cannot submit more than 6KB transactions when the feature is disabled")
     public Stream<DynamicTest> governanceAccountsCannotSubmitLargeSizeTransactions() {
