@@ -12,7 +12,7 @@ import java.time.Duration;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
-import java.util.Optional;
+import java.util.NoSuchElementException;
 import java.util.stream.IntStream;
 import org.hiero.metrics.api.LongCounter;
 import org.hiero.metrics.api.LongGauge;
@@ -207,10 +207,10 @@ public class MetricRegistryTest {
         }
 
         @Test
-        void testFindMetricWithNullKeyThrows() {
+        void testContainsMetricWithNullKeyThrows() {
             MetricRegistry registry = testBuilder().build();
 
-            assertThatThrownBy(() -> registry.findMetric(null))
+            assertThatThrownBy(() -> registry.containsMetric(null))
                     .isInstanceOf(NullPointerException.class)
                     .hasMessageContaining("metric key must not be null");
         }
@@ -229,7 +229,7 @@ public class MetricRegistryTest {
             MetricRegistry registry = testBuilder().build();
 
             assertThatThrownBy(() -> registry.getMetric(LongCounter.key("unknown_metric")))
-                    .isInstanceOf(IllegalArgumentException.class)
+                    .isInstanceOf(NoSuchElementException.class)
                     .hasMessageContaining("Metric not found");
         }
 
@@ -240,7 +240,7 @@ public class MetricRegistryTest {
             registry.register(LongCounter.builder(name));
 
             assertThatThrownBy(() -> registry.getMetric(LongCounter.key(name + "_")))
-                    .isInstanceOf(IllegalArgumentException.class)
+                    .isInstanceOf(NoSuchElementException.class)
                     .hasMessageContaining("Metric not found");
         }
 
@@ -250,9 +250,7 @@ public class MetricRegistryTest {
             String name = "test_metric";
             registry.register(LongCounter.builder(name));
 
-            assertThatThrownBy(() -> registry.getMetric(LongGauge.key(name)))
-                    .isInstanceOf(IllegalArgumentException.class)
-                    .hasMessageContaining("Metric not found");
+            assertThatThrownBy(() -> registry.getMetric(LongGauge.key(name))).isInstanceOf(ClassCastException.class);
         }
     }
 
@@ -369,7 +367,7 @@ public class MetricRegistryTest {
 
         LongCounter registeredCounter = registry.register(LongCounter.builder(metricName));
 
-        assertThat(registry.findMetric(LongCounter.key(metricName))).isPresent().containsSame(registeredCounter);
+        assertThat(registry.containsMetric(LongCounter.key(metricName))).isTrue();
         assertThat(registry.getMetric(LongCounter.key(metricName))).isSameAs(registeredCounter);
     }
 
@@ -378,9 +376,11 @@ public class MetricRegistryTest {
         String metricName = "test_metric";
         MetricRegistry registry = createRegistryMockDiscovery(config -> List.of(LongCounter.builder(metricName)));
 
-        Optional<LongCounter> metric = registry.findMetric(LongCounter.key(metricName));
-        assertThat(metric).isPresent();
-        assertThat(registry.getMetric(LongCounter.key(metricName))).isSameAs(metric.get());
+        assertThat(registry.containsMetric(LongCounter.key(metricName))).isTrue();
+
+        LongCounter metric = registry.getMetric(LongCounter.key(metricName));
+        assertThat(metric).isNotNull();
+        assertThat(metric.metadata().name()).isEqualTo(metricName);
     }
 
     @Test
@@ -389,7 +389,7 @@ public class MetricRegistryTest {
         String name = "test_metric";
         registry.register(LongCounter.builder(name));
 
-        assertThat(registry.findMetric(LongCounter.key(name + "_"))).isEmpty();
+        assertThat(registry.containsMetric(LongCounter.key(name + "_"))).isFalse();
     }
 
     @Test
@@ -398,7 +398,7 @@ public class MetricRegistryTest {
         String name = "test_metric";
         registry.register(LongCounter.builder(name));
 
-        assertThat(registry.findMetric(LongGauge.key(name))).isEmpty();
+        assertThat(registry.containsMetric(LongGauge.key(name))).isFalse();
     }
 
     @Test

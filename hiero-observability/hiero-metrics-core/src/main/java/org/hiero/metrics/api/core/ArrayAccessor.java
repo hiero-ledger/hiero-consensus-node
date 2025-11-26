@@ -10,7 +10,8 @@ import java.util.Iterator;
  * <br>
  * <pre>
  *  {@code
- *      for (int i = 0; i &lt; arrayAccessor.size(); i++) {
+ *      int size = arrayAccessor.size();
+ *      for (int i = 0; i < size; i++) {
  *           T element = arrayAccessor.get(i);
  *           // process element
  *      }

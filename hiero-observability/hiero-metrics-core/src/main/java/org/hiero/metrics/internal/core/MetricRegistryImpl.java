@@ -5,8 +5,8 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.NoSuchElementException;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -75,16 +75,22 @@ public final class MetricRegistryImpl implements SnapshotableMetricsRegistry {
         }));
     }
 
-    @NonNull
     @Override
-    @SuppressWarnings("unchecked")
-    public <M extends Metric> Optional<M> findMetric(@NonNull MetricKey<M> key) {
+    public boolean containsMetric(@NonNull MetricKey<?> key) {
         Objects.requireNonNull(key, "metric key must not be null");
         Metric metric = metrics.get(key.name());
-        if (key.type().isInstance(metric)) {
-            return Optional.of((M) metric);
+        return key.type().isInstance(metric);
+    }
+
+    @NonNull
+    @Override
+    public <M extends Metric> M getMetric(@NonNull MetricKey<M> key) {
+        Objects.requireNonNull(key, "metric key must not be null");
+        Metric metric = metrics.get(key.name());
+        if (metric == null) {
+            throw new NoSuchElementException("Metric not found: " + key);
         }
-        return Optional.empty();
+        return key.type().cast(metric);
     }
 
     @NonNull

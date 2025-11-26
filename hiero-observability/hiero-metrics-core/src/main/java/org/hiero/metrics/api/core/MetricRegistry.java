@@ -8,8 +8,8 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
+import java.util.NoSuchElementException;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -63,31 +63,26 @@ public sealed interface MetricRegistry permits org.hiero.metrics.internal.export
     <M extends Metric, B extends Metric.Builder<?, M>> M register(@NonNull B builder);
 
     /**
-     * Finds a metric by its key.
+     * Checks if a metric with the given key is registered in the registry.
+     * Metric to be found has to have the same name as the provided key and be of compatible type.
      *
      * @param key the metric key, must not be {@code null}
-     * @param <M> the type of the metric
-     * @return an {@link Optional} for the found metric. If no metric is found, an empty {@link Optional} is returned.
+     * @return {@code true} if a metric with the given key is registered, {@code false} otherwise
      */
-    @NonNull
-    <M extends Metric> Optional<M> findMetric(@NonNull MetricKey<M> key);
+    boolean containsMetric(@NonNull MetricKey<?> key);
 
     /**
      * Gets a metric by its key.
+     * Metric to be found has to have the same name as the provided key and be of compatible type.
      *
      * @param key the metric key, must not be {@code null}
      * @param <M> the type of the metric
      * @return the found metric, never {@code null}
-     * @throws IllegalArgumentException if no metric is found for the given key
+     * @throws NoSuchElementException if no metric is found for the given key name
+     * @throws ClassCastException if metric found with the given name is not of the expected type
      */
     @NonNull
-    default <M extends Metric> M getMetric(@NonNull MetricKey<M> key) {
-        Optional<M> metric = findMetric(key);
-        if (metric.isPresent()) {
-            return metric.get();
-        }
-        throw new IllegalArgumentException("Metric not found: " + key);
-    }
+    <M extends Metric> M getMetric(@NonNull MetricKey<M> key);
 
     /**
      * Resets all registered metrics to their initial state.

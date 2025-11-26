@@ -72,22 +72,40 @@ public abstract class AbstractStatefulMetricBaseTest<
         }
 
         @Test
-        void testMultipleDynamicLabelDataPointsAccess() {
+        void testDataPointAccessSameLabelsDifferentOrder() {
             M metric = emptyMetricBuilder()
                     // just to ensure constant labels don't interfere
                     .withConstantLabel(new Label("environment", "test"))
-                    .withDynamicLabelNames("label3", "label1", "label2")
+                    .withDynamicLabelNames("l1", "l2", "l3")
                     .build();
 
-            Object datapoint1 = metric.getOrCreateLabeled("label1", "a", "label2", "a", "label3", "a");
+            Object datapoint = metric.getOrCreateLabeled("l1", "a", "l2", "b", "l3", "c");
+            assertThat(datapoint).isNotNull();
+
+            assertThat(datapoint).isSameAs(metric.getOrCreateLabeled("l1", "a", "l3", "c", "l2", "b"));
+            assertThat(datapoint).isSameAs(metric.getOrCreateLabeled("l2", "b", "l1", "a", "l3", "c"));
+            assertThat(datapoint).isSameAs(metric.getOrCreateLabeled("l2", "b", "l3", "c", "l1", "a"));
+            assertThat(datapoint).isSameAs(metric.getOrCreateLabeled("l3", "c", "l2", "b", "l1", "a"));
+            assertThat(datapoint).isSameAs(metric.getOrCreateLabeled("l3", "c", "l1", "a", "l2", "b"));
+        }
+
+        @Test
+        void testDataPointAccessDifferentLabels() {
+            M metric = emptyMetricBuilder()
+                    // just to ensure constant labels don't interfere
+                    .withConstantLabel(new Label("environment", "test"))
+                    .withDynamicLabelNames("l3", "l1", "l2")
+                    .build();
+
+            Object datapoint1 = metric.getOrCreateLabeled("l1", "a", "l2", "a", "l3", "a");
             // single value difference
-            Object datapoint2 = metric.getOrCreateLabeled("label1", "a", "label2", "a", "label3", "b");
+            Object datapoint2 = metric.getOrCreateLabeled("l1", "a", "l2", "a", "l3", "b");
             // different order of labels
-            Object datapoint3 = metric.getOrCreateLabeled("label2", "a", "label1", "a", "label3", "a");
+            Object datapoint3 = metric.getOrCreateLabeled("l2", "a", "l1", "a", "l3", "a");
             // two values difference
-            Object datapoint4 = metric.getOrCreateLabeled("label1", "a", "label2", "b", "label3", "b");
+            Object datapoint4 = metric.getOrCreateLabeled("l1", "a", "l2", "b", "l3", "b");
             // three values difference
-            Object datapoint5 = metric.getOrCreateLabeled("label1", "b", "label2", "b", "label3", "b");
+            Object datapoint5 = metric.getOrCreateLabeled("l1", "b", "l2", "b", "l3", "b");
 
             assertThat(datapoint1).isNotNull();
             assertThat(datapoint2).isNotNull();
@@ -134,12 +152,12 @@ public abstract class AbstractStatefulMetricBaseTest<
             assertThatThrownBy(metric::getOrCreateLabeled)
                     .as("accessing getOrCreateLabeled() less labels should be IAE")
                     .isInstanceOf(IllegalArgumentException.class)
-                    .hasMessage("Expected 1 label names and values, got 0");
+                    .hasMessage("Expected 1 labels, got 0");
 
             assertThatThrownBy(() -> metric.getOrCreateLabeled("label", "value", "extraLabel", "extraValue"))
                     .as("accessing getOrCreateLabeled() with labels should be IAE")
                     .isInstanceOf(IllegalArgumentException.class)
-                    .hasMessage("Expected 1 label names and values, got 2");
+                    .hasMessage("Expected 1 labels, got 2");
 
             assertThatThrownBy(() -> metric.getOrCreateLabeled("label", null))
                     .as("accessing with null value should be NPE")
