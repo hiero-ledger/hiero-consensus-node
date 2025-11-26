@@ -38,11 +38,6 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Semaphore;
-import java.util.concurrent.TimeUnit;
 import java.util.function.ToLongFunction;
 import java.util.function.UnaryOperator;
 import java.util.zip.GZIPInputStream;
@@ -51,7 +46,10 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 /**
- * Writes serialized block items to files, one per block number.
+ * Writes serialized block items to files with in-memory buffering, one file per block number.
+ *
+ * <p>This implementation uses an in-memory ByteArrayOutputStream buffer to collect block data
+ * before compression, eliminating the triple-buffered streaming overhead of the original implementation.
  */
 public class FileBlockItemWriterV2 implements BlockItemWriter {
 
@@ -68,20 +66,6 @@ public class FileBlockItemWriterV2 implements BlockItemWriter {
     /** The suffix added to RECORD_EXTENSION when they are compressed. */
     private static final String COMPRESSION_ALGORITHM_EXTENSION = ".gz";
 
-    /** Maximum concurrent compression tasks to prevent memory explosion */
-    private static final int MAX_CONCURRENT_COMPRESSIONS = 2;
-
-    /** Shared executor for async compression across all writer instances */
-    private static final ExecutorService COMPRESSION_EXECUTOR =
-            Executors.newFixedThreadPool(MAX_CONCURRENT_COMPRESSIONS, runnable -> {
-                Thread thread = new Thread(runnable, "block-compressor");
-                thread.setDaemon(true);
-                return thread;
-            });
-
-    /** Semaphore to limit concurrent compressions and provide backpressure */
-    private static final Semaphore COMPRESSION_PERMITS = new Semaphore(MAX_CONCURRENT_COMPRESSIONS);
-
     /** The node-specific path to the directory where block files are written */
     private final Path nodeScopedBlockDir;
 
@@ -95,14 +79,11 @@ public class FileBlockItemWriterV2 implements BlockItemWriter {
      */
     private final UnaryOperator<String> pendingFileName;
 
-    /** Writable streaming data for writing block items to the in-memory buffer before async compression */
+    /** Writable streaming data for writing block items to the in-memory buffer */
     private WritableStreamingData writableStreamingData;
 
-    /** In-memory buffer for async compression */
+    /** In-memory buffer for collecting block data before compression */
     private ByteArrayOutputStream uncompressedBuffer;
-
-    /** Future tracking the async compression task for this block */
-    private CompletableFuture<Void> compressionFuture;
 
     /** The state of this writer */
     private State state;
@@ -120,7 +101,7 @@ public class FileBlockItemWriterV2 implements BlockItemWriter {
     }
 
     /**
-     * Construct a new FileBlockItemWriter.
+     * Construct a new FileBlockItemWriterV2.
      *
      * @param configProvider configuration provider
      * @param nodeInfo information about the current node
@@ -322,7 +303,7 @@ public class FileBlockItemWriterV2 implements BlockItemWriter {
 
     @Override
     public void openBlock(final long blockNumber) {
-        if (state == State.OPEN) throw new IllegalStateException("Cannot initialize a FileBlockItemWriter twice");
+        if (state == State.OPEN) throw new IllegalStateException("Cannot initialize a FileBlockItemWriterV2 twice");
         if (blockNumber < 0) throw new IllegalArgumentException("Block number must be non-negative");
 
         this.blockNumber = blockNumber;
@@ -332,11 +313,11 @@ public class FileBlockItemWriterV2 implements BlockItemWriter {
                 Files.createDirectories(nodeScopedBlockDir);
             }
 
-            // Write to in-memory buffer for async compression
-            // Estimate 10 MB initial capacity for typical block size
+            // Write to in-memory buffer - no compression yet
+            // Pre-allocate 10 MB initial capacity for typical block size
+            // This avoids multiple reallocations and array copies during block writing
             this.uncompressedBuffer = new ByteArrayOutputStream(10 * 1024 * 1024);
             this.writableStreamingData = new WritableStreamingData(uncompressedBuffer);
-            this.compressionFuture = null; // Will be set in closeCompleteBlock
 
         } catch (final IOException e) {
             logger.fatal("Could not create block directory {}", nodeScopedBlockDir, e);
@@ -345,7 +326,7 @@ public class FileBlockItemWriterV2 implements BlockItemWriter {
 
         state = State.OPEN;
         if (logger.isDebugEnabled()) {
-            logger.debug("Started new block in FileBlockItemWriter {}", blockNumber);
+            logger.debug("Started new block in FileBlockItemWriterV2 {}", blockNumber);
         }
     }
 
@@ -358,7 +339,7 @@ public class FileBlockItemWriterV2 implements BlockItemWriter {
         requireNonNull(bytes);
         if (state != State.OPEN) {
             throw new IllegalStateException(
-                    "Cannot write to a FileBlockItemWriter that is not open for block: " + this.blockNumber);
+                    "Cannot write to a FileBlockItemWriterV2 that is not open for block: " + this.blockNumber);
         }
 
         // Write the ITEMS tag.
@@ -390,114 +371,82 @@ public class FileBlockItemWriterV2 implements BlockItemWriter {
     @Override
     public void closeCompleteBlock() {
         if (state.ordinal() < State.OPEN.ordinal()) {
-            throw new IllegalStateException("Cannot close a FileBlockItemWriter that is not open");
+            throw new IllegalStateException("Cannot close a FileBlockItemWriterV2 that is not open");
         } else if (state.ordinal() == State.CLOSED.ordinal()) {
-            throw new IllegalStateException("Cannot close a FileBlockItemWriter that is already closed");
+            throw new IllegalStateException("Cannot close a FileBlockItemWriterV2 that is already closed");
         }
 
         // Close the writableStreamingData to finish writing to the buffer
         try {
             writableStreamingData.close();
         } catch (final IOException e) {
-            logger.error("Error closing the FileBlockItemWriter buffer", e);
+            logger.error("Error closing the FileBlockItemWriterV2 buffer", e);
             throw new UncheckedIOException(e);
         }
 
-        // Capture data for async compression
+        // Get the uncompressed data from the buffer
         final byte[] uncompressedData = uncompressedBuffer.toByteArray();
-        final long blockNum = this.blockNumber;
-        final Path blockFilePath = pathOf(blockNum, completeFileName);
-        final Path markerFile = pathOf(blockNum, name -> name + ".mf");
+        final Path blockFilePath = pathOf(blockNumber, completeFileName);
+        final Path markerFile = pathOf(blockNumber, name -> name + ".mf");
 
-        // Acquire permit for backpressure (blocks if too many compressions are in flight)
-        try {
-            COMPRESSION_PERMITS.acquire();
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new RuntimeException("Interrupted while waiting for compression permit", e);
-        }
-
-        // Launch async compression and write
-        this.compressionFuture = CompletableFuture.runAsync(
-                () -> {
-                    try {
-                        compressAndWriteBlock(uncompressedData, blockFilePath, markerFile, blockNum);
-                    } finally {
-                        // Always release the permit
-                        COMPRESSION_PERMITS.release();
-                    }
-                },
-                COMPRESSION_EXECUTOR);
-
-        // Handle exceptions in the background task
-        compressionFuture.exceptionally(throwable -> {
-            logger.error("Async compression failed for block #{}", blockNum, throwable);
-            return null;
-        });
-
-        state = State.CLOSED;
-        if (logger.isDebugEnabled()) {
-            logger.debug("Scheduled async compression for block #{}", blockNum);
-        }
-    }
-
-    /**
-     * Compress and write block data to disk (runs in background thread).
-     */
-    private void compressAndWriteBlock(
-            @NonNull final byte[] uncompressedData,
-            @NonNull final Path blockFilePath,
-            @NonNull final Path markerFile,
-            final long blockNum) {
         OutputStream out = null;
         try {
             out = Files.newOutputStream(blockFilePath);
 
-            // Optimized buffer strategy: consolidated 2 MB buffer instead of multiple layers
+            // Buffer configuration explanation:
+            // - BufferedOutputStream (2 MB): Batches compressed output before writing to disk,
+            //   reducing system calls. Larger than default since we're writing 4+ MB blocks.
+            // - GZIPOutputStream (1 MB): Internal buffer for the Deflater. Larger buffer allows
+            //   Deflater to find better compression opportunities by analyzing more data at once.
+            //
+            // Total memory overhead: 3 MB per concurrent block write (in addition to the
+            // 10 MB uncompressed buffer allocated in openBlock).
+            //
+            // Alternative: Since we already have all data in memory, we could use smaller buffers
+            // or even write directly without BufferedOutputStream. However, these sizes match
+            // production workloads and the memory overhead is acceptable.
             out = new BufferedOutputStream(out, 2 * 1024 * 1024);
-
-            // Standard GZIP compression with 1 MB buffer for optimal balance
-            // of compression ratio (around 93% reduction) and speed (around 0.5ms per block).
-            // Async compression in background threads prevents blocking the main thread.
             out = new GZIPOutputStream(out, 1024 * 1024);
 
-            // Write and flush
+            // Write uncompressed data through the compression stream
             out.write(uncompressedData);
             out.close();
+            out = null; // Mark as closed
 
-            // Write marker file
+            // Write marker file to indicate block is complete and valid
             if (Files.exists(markerFile)) {
                 logger.info("Skipping block marker file for {} as it already exists", markerFile);
             } else {
                 Files.createFile(markerFile);
             }
 
+            state = State.CLOSED;
             if (logger.isDebugEnabled()) {
-                logger.debug("Completed async compression and write for block #{}", blockNum);
+                logger.debug("Closed block in FileBlockItemWriterV2 {}", blockNumber);
             }
+
         } catch (final IOException e) {
-            logger.error("Error in async compression/write for block #{}", blockNum, e);
+            logger.error("Error in compression/write for block #{}", blockNumber, e);
+
+            // Clean up partial files to prevent corruption
+            try {
+                Files.deleteIfExists(blockFilePath);
+                Files.deleteIfExists(markerFile);
+                logger.info("Cleaned up partial files for failed block #{}", blockNumber);
+            } catch (IOException cleanupEx) {
+                logger.error("Failed to clean up partial files for block #{}", blockNumber, cleanupEx);
+            }
+
+            // Close stream if still open
             if (out != null) {
                 try {
                     out.close();
                 } catch (IOException ex) {
-                    logger.error("Error closing output stream for block #{}", blockNum, ex);
+                    logger.error("Error closing output stream for block #{}", blockNumber, ex);
                 }
             }
-            throw new UncheckedIOException(e);
-        }
-    }
 
-    /**
-     * Wait for any pending async compression to complete (for testing/shutdown).
-     */
-    public void awaitCompressionComplete() {
-        if (compressionFuture != null) {
-            try {
-                compressionFuture.get(30, TimeUnit.SECONDS);
-            } catch (Exception e) {
-                logger.error("Error waiting for compression to complete for block #{}", blockNumber, e);
-            }
+            throw new UncheckedIOException(e);
         }
     }
 
@@ -506,26 +455,35 @@ public class FileBlockItemWriterV2 implements BlockItemWriter {
         requireNonNull(pendingProof);
         if (state == State.OPEN) {
             try {
+                // Close the in-memory buffer
                 writableStreamingData.close();
-                writableStreamingData.flush();
-                Files.move(pathOf(blockNumber, completeFileName), pathOf(blockNumber, pendingFileName));
+                final byte[] uncompressedData = uncompressedBuffer.toByteArray();
+
+                // Write directly to .pnd.gz file (SYNCHRONOUSLY - this is called during shutdown/freeze)
+                final Path pendingFilePath = pathOf(blockNumber, pendingFileName);
+                try (OutputStream out = Files.newOutputStream(pendingFilePath);
+                        BufferedOutputStream buffered = new BufferedOutputStream(out, 2 * 1024 * 1024);
+                        GZIPOutputStream gzip = new GZIPOutputStream(buffered, 1024 * 1024)) {
+                    gzip.write(uncompressedData);
+                }
+
+                // Write proof JSON metadata
+                final var json = PendingProof.JSON.toJSON(pendingProof);
+                Files.writeString(pathOf(blockNumber, name -> name + ".pnd.json"), json);
+
+                logger.info(
+                        "Flushed pending block #{} ({}, {})",
+                        blockNumber,
+                        pendingFilePath,
+                        pathOf(blockNumber, name -> name + ".pnd.json"));
+
             } catch (IOException e) {
                 logger.error("Error flushing pending block #{}", blockNumber, e);
-                return;
+                // Note: We don't rethrow here as this is a best-effort flush during shutdown/freeze
+                // State will be set to CLOSED in finally block regardless
             } finally {
                 state = State.CLOSED;
             }
-            final var json = PendingProof.JSON.toJSON(pendingProof);
-            try {
-                Files.writeString(pathOf(blockNumber, name -> name + ".pnd.json"), json);
-            } catch (IOException e) {
-                logger.error("Error flushing pending proof metadata #{}", blockNumber, e);
-            }
-            logger.info(
-                    "Flushed pending block #{} ({}, {})",
-                    blockNumber,
-                    pathOf(blockNumber, pendingFileName),
-                    pathOf(blockNumber, name -> name + ".pnd.json"));
         } else {
             logger.warn("Block #{} flushed in non-OPEN state '{}'", blockNumber, state, new IllegalStateException());
         }
