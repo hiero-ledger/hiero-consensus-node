@@ -101,6 +101,13 @@ public interface FacilityInitModule {
     }
 
     @Provides
+    @ElementsIntoSet
+    @Singleton
+    static Set<ServiceFeeCalculator> provideFileServiceFeeCalculators(FileServiceImpl fileService) {
+        return fileService.serviceFeeCalculators();
+    }
+
+    @Provides
     @Singleton
     static Map<Class<?>, ServiceApiProvider<?>> provideApiProviders(@NonNull final ScheduleService scheduleService) {
         requireNonNull(scheduleService);
