@@ -12,7 +12,7 @@ import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 
-public interface FeeContext extends CalculatorState {
+public interface FeeContext {
     /**
      * Gets the payer {@link AccountID} whose expiration time will be "inherited"
      * by account-scoped properties like allowances.
