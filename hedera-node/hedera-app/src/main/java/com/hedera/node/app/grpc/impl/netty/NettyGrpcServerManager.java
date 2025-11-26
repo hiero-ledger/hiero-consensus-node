@@ -77,7 +77,7 @@ public final class NettyGrpcServerManager implements GrpcServerManager {
     /**
      * The max transaction size in bytes supported by gRPC.
      */
-    private static final int MAX_TRANSACTION_SIZE = 133120; // 130 KB
+    public static final int MAX_TRANSACTION_SIZE = 133120; // 130 KB
 
     /**
      * The set of {@link ServiceDescriptor}s for services that the gRPC server will expose

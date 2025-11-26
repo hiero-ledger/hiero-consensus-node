@@ -22,12 +22,11 @@ import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.OrderedInIsolation;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
-import com.hedera.services.bdd.spec.transactions.TxnUtils;
 import com.hedera.services.bdd.suites.regression.system.LifecycleTest;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import java.util.stream.Stream;
+import org.apache.commons.lang3.StringUtils;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
@@ -37,15 +36,15 @@ import org.junit.jupiter.api.Tag;
 /**
  * A class with Governance Transactions tests.
  */
-@Tag(ONLY_SUBPROCESS)
 @Tag(MATS)
+@Tag(ONLY_SUBPROCESS)
 @HapiTestLifecycle
 @OrderedInIsolation
 @DisplayName("Governance Transactions Tests")
 public class GovernanceTransactionsTests implements LifecycleTest {
     private static final int OVERSIZED_TXN_SIZE = 130 * 1024; // ~130KB
     private static final int LARGE_TXN_SIZE = 90 * 1024; // ~90KB
-    private static final byte[] randomMemoBytes = TxnUtils.randomUtf8BytesNoZeroBytes(LARGE_TXN_SIZE);
+    private static final String largeSizeMemo = StringUtils.repeat("a", LARGE_TXN_SIZE);
 
     private static final String PAYER = "payer";
     private static final String RECEIVER = "receiver";
@@ -66,7 +65,6 @@ public class GovernanceTransactionsTests implements LifecycleTest {
     @Order(0)
     @DisplayName("Normal account still cannot submit more than 6KB transactions when the feature is enabled")
     public Stream<DynamicTest> nonGovernanceAccountCannotSubmitLargeSizeTransactionsIfEnabled() {
-        final var largeSizeMemo = new String(randomMemoBytes, StandardCharsets.UTF_8);
         return hapiTest(
                 cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                 cryptoCreate(RECEIVER).balance(0L),
@@ -85,7 +83,6 @@ public class GovernanceTransactionsTests implements LifecycleTest {
     @Order(1)
     @DisplayName("Treasury and system admin accounts can submit more than 6KB transactions when the feature is enabled")
     public Stream<DynamicTest> governanceAccountCanSubmitLargeSizeTransactions() {
-        final var largeSizeMemo = new String(randomMemoBytes, StandardCharsets.UTF_8);
         return hapiTest(
                 cryptoCreate(RECEIVER).balance(0L),
                 newKeyNamed(SUBMIT_KEY),
@@ -106,7 +103,6 @@ public class GovernanceTransactionsTests implements LifecycleTest {
     @Order(2)
     @DisplayName("Non-governance account cannot submit transfers larger than 6KB even when the feature is enabled")
     public Stream<DynamicTest> nonGovernanceAccountTransactionLargerThan6kb() {
-        final var largeSizeMemo = new String(randomMemoBytes, StandardCharsets.UTF_8);
         return hapiTest(
                 cryptoCreate(PAYER).balance(ONE_MILLION_HBARS),
                 cryptoCreate("receiver"),
@@ -122,7 +118,6 @@ public class GovernanceTransactionsTests implements LifecycleTest {
     @DisplayName(
             "Treasury and system admin accounts cannot submit more than 6KB transactions when the feature is disabled at runtime")
     public Stream<DynamicTest> governanceAccountCannotSubmitLargeSizeTransactionsWhenDisabledDynamically() {
-        final var largeSizeMemo = new String(randomMemoBytes, StandardCharsets.UTF_8);
         return hapiTest(
                 cryptoCreate(RECEIVER).balance(0L),
                 newKeyNamed(SUBMIT_KEY),
@@ -163,7 +158,6 @@ public class GovernanceTransactionsTests implements LifecycleTest {
     @Order(5)
     @DisplayName("Normal account cannot submit more than 6KB transactions when the feature is disabled")
     public Stream<DynamicTest> nonGovernanceAccountCannotSubmitLargeSizeTransactions() {
-        final var largeSizeMemo = new String(randomMemoBytes, StandardCharsets.UTF_8);
         return hapiTest(
                 cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                 cryptoCreate(RECEIVER).balance(0L),
@@ -183,7 +177,6 @@ public class GovernanceTransactionsTests implements LifecycleTest {
     @DisplayName(
             "Treasury and system admin accounts cannot submit more than 6KB transactions when the feature is disabled")
     public Stream<DynamicTest> governanceAccountsCannotSubmitLargeSizeTransactions() {
-        final var largeSizeMemo = new String(randomMemoBytes, StandardCharsets.UTF_8);
         return hapiTest(
                 cryptoCreate(RECEIVER).balance(0L),
                 newKeyNamed(SUBMIT_KEY),

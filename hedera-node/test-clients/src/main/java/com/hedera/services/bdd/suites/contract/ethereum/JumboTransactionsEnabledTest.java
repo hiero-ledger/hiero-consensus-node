@@ -75,6 +75,8 @@ import org.junit.jupiter.api.Tag;
 @HapiTestLifecycle
 public class JumboTransactionsEnabledTest implements LifecycleTest {
 
+    private static final String PAYER = "payer";
+    private static final String RECEIVER = "receiver";
     private static final String CONTRACT_CALLDATA_SIZE = "CalldataSize";
     private static final String FUNCTION = "callme";
     private static final int SIX_KB_SIZE = 6 * 1024;
@@ -130,10 +132,11 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
         return hapiTest(
                 newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
                 cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_HUNDRED_HBARS)),
-
+                cryptoCreate(PAYER).balance(ONE_MILLION_HBARS),
                 // send jumbo payload to non jumbo endpoint
                 contractCall(CONTRACT_CALLDATA_SIZE, FUNCTION, jumboPayload)
                         .gas(1_000_000L)
+                        .payingWith(PAYER)
                         .hasPrecheck(TRANSACTION_OVERSIZE)
                         // gRPC request terminated immediately
                         .orUnavailableStatus(),
@@ -431,11 +434,11 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
         // JUMBO_N_07
         public Stream<DynamicTest> nonJumboTransactionBiggerThan6kb() {
             return hapiTest(
-                    cryptoCreate("payer").balance(ONE_MILLION_HBARS),
-                    cryptoCreate("receiver"),
-                    cryptoTransfer(tinyBarsFromTo("payer", "receiver", ONE_HUNDRED_HBARS))
+                    cryptoCreate(PAYER).balance(ONE_MILLION_HBARS),
+                    cryptoCreate(RECEIVER),
+                    cryptoTransfer(tinyBarsFromTo(PAYER, RECEIVER, ONE_HUNDRED_HBARS))
                             .memo(StringUtils.repeat("a", 6145))
-                            .payingWith("payer")
+                            .payingWith(PAYER)
                             .hasPrecheck(TRANSACTION_OVERSIZE)
                             .orUnavailableStatus());
         }
@@ -496,8 +499,8 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
                             .markAsJumboTxn()
                             .type(EthTxData.EthTransactionType.EIP1559)
                             .gasLimit(1_000_000L),
-                    cryptoCreate("receiver"),
-                    cryptoTransfer(tinyBarsFromTo(GENESIS, "receiver", ONE_HUNDRED_HBARS)));
+                    cryptoCreate(RECEIVER),
+                    cryptoTransfer(tinyBarsFromTo(GENESIS, RECEIVER, ONE_HUNDRED_HBARS)));
         }
 
         @RepeatableHapiTest(RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)

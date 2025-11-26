@@ -37,42 +37,12 @@ Note: Setting size limits on the `ethereumCall` endpoint does not mean only ethe
 - Modify `GrpcServiceBuilder.java`, `MethodBase.java`, and `DataBufferMarshaller.java` so the request buffer size can be read from the configuration.\
 In `GrpcServiceBuilder`, when building service definition, add a condition, based on the feature flag and service/method names.
 
-```java
-// check if method should be a jumbo transaction
-if (jumboTxnIsEnabled && jumboTxnConfig.grpcMethodNames().contains(methodName)) {
-    // add jumbo transaction methods
-    method = new TransactionMethod(serviceName, methodName, ingestWorkflow, metrics, jumboTxnMaxSize);
-    addMethod(builder, serviceName, methodName, method, jumboMarshaller);
-} else {
-    // add regular transaction methods
-    final int transactionMaxSize = governanceTxnIsEnabled ? governanceTxnMaxSize : messageMaxSize;
-    method = new TransactionMethod(serviceName, methodName, ingestWorkflow, metrics, transactionMaxSize);
-    addMethod(builder, serviceName, methodName, method, marshaller);
-}
-```
-
 ### Ingest workflow validations
 
 - In `IngestChecker.runAllChecks` use the size limit from the configuration and pass it to `TransactionChecker.parseAndCheck` to validate the transaction size.
+- Fail fast if there are too many transaction bytes
 
 ```java
-private static int maxIngestParseSize(Configuration configuration) {
-    final boolean jumboTxnEnabled =
-            configuration.getConfigData(JumboTransactionsConfig.class).isEnabled();
-    final int jumboMaxTxnSize =
-            configuration.getConfigData(JumboTransactionsConfig.class).maxTxnSize();
-    final int transactionMaxBytes =
-            configuration.getConfigData(HederaConfig.class).transactionMaxBytes();
-    final boolean governanceTxnEnabled =
-            configuration.getConfigData(GovernanceTransactionsConfig.class).isEnabled();
-    final int governanceTxnSize =
-            configuration.getConfigData(GovernanceTransactionsConfig.class).maxTxnSize();
-    return governanceTxnEnabled ? governanceTxnSize : jumboTxnEnabled ? jumboMaxTxnSize : transactionMaxBytes;
-}
-```
-
-```java
-// Fail fast if there are too many transaction bytes
 if (buffer.length() > maxSize) {
     throw new PreCheckException(TRANSACTION_OVERSIZE);
 }
@@ -82,53 +52,16 @@ if (buffer.length() > maxSize) {
 - The performed validations are based on\
   two feature flags: `jumboTransactions` and `governanceTransactions`
 - For more context on how governance transactions work, refer to: [Governance Transactions](../../../governance-transactions.md)
+- Check the transaction size during preliminary checks (before payer is known).
 
 ```java
-void checkTransactionSize(TransactionInfo txInfo) throws PreCheckException {
-    final int txSize = txInfo.signedTx().protobufSize();
-    final HederaFunctionality functionality = txInfo.functionality();
-    final boolean isJumboTxnEnabled = jumboTransactionsConfig.isEnabled();
-    final boolean isGovernanceTxnEnabled = governanceTransactionsConfig.isEnabled();
-    boolean exceedsLimit;
-
-    if (!isJumboTxnEnabled && !isGovernanceTxnEnabled) {
-        exceedsLimit = txSize > hederaConfig.transactionMaxBytes()
-                && !NON_JUMBO_TRANSACTIONS_BIGGER_THAN_6_KB.contains(functionality);
-    }
-    else if (isJumboTxnEnabled && !isGovernanceTxnEnabled) {
-        exceedsLimit = checkJumboRequirements(txInfo);
-    }
-    else {
-        exceedsLimit = txSize > governanceTransactionsConfig.maxTxnSize();
-    }
-
-    if (exceedsLimit) throw new PreCheckException(TRANSACTION_OVERSIZE);
-}
-```
-
-```java
-boolean checkJumboRequirements(@NonNull final TransactionInfo txInfo) {
-        final int txSize = txInfo.signedTx().protobufSize();
-        final HederaFunctionality functionality = txInfo.functionality();
-        final var allowedJumboHederaFunctionalities = jumboTransactionsConfig.allowedHederaFunctionalities();
-
-        return !allowedJumboHederaFunctionalities.contains(fromPbj(txInfo.functionality()))
-                && txSize > hederaConfig.transactionMaxBytes()
-                && !NON_JUMBO_TRANSACTIONS_BIGGER_THAN_6_KB.contains(functionality);
-    }
+void checkTransactionSize(TransactionInfo txInfo);
 ```
 
 - Additionally, check after Ethereum hydrate is done if the `ethereumCallData` field is up to 128KB
 
 ```java
-private void validateHevmTransaction(HederaEvmTransaction hevmTransaction) {
-    final var maxJumboEthereumCallDataSize =
-            configuration.getConfigData(JumboTransactionsConfig.class).ethereumMaxCallDataSize();
-
-    if (hevmTransaction.payload().length() > maxJumboEthereumCallDataSize) {
-        throw new HandleException(TRANSACTION_OVERSIZE);
-    }
-}
+void validateHevmTransaction(HederaEvmTransaction hevmTransaction);
 ```
 
 ### Throttles

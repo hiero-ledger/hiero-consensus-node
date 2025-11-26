@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.grpc.impl.netty;
 
+import static com.hedera.node.app.grpc.impl.netty.NettyGrpcServerManager.MAX_TRANSACTION_SIZE;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.Transaction;
@@ -50,11 +51,6 @@ import org.apache.logging.log4j.Logger;
 final class GrpcServiceBuilder {
     /** Logger */
     private static final Logger logger = LogManager.getLogger(GrpcServiceBuilder.class);
-
-    /**
-     * The max transaction size in bytes supported by gRPC.
-     */
-    private static final int MAX_TRANSACTION_SIZE = 133120; // 130 KB
 
     /**
      * The marshaller to use to read/write byte arrays to/from {@link InputStream}s. This class is thread safe.
@@ -173,7 +169,6 @@ final class GrpcServiceBuilder {
         final var jumboTxnConfig = configProvider.getConfiguration().getConfigData(JumboTransactionsConfig.class);
         final var jumboTxnIsEnabled = jumboTxnConfig.isEnabled();
         final var jumboTxnMaxSize = jumboTxnConfig.maxTxnSize();
-
         final var messageMaxSize = configProvider
                 .getConfiguration()
                 .getConfigData(HederaConfig.class)
