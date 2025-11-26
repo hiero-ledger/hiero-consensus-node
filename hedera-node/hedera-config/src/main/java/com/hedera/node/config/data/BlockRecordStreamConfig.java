@@ -24,6 +24,7 @@ import com.swirlds.config.api.validation.annotation.Min;
 @ConfigData("hedera.recordStream")
 public record BlockRecordStreamConfig(
         @ConfigProperty(defaultValue = "/opt/hgcapp/recordStreams") @NodeProperty String logDir,
+        @ConfigProperty(defaultValue = "data/generated/node_account_id.txt") @NodeProperty String nodeAccountIdFileDir,
         @ConfigProperty(defaultValue = "sidecar") @NodeProperty String sidecarDir,
         @ConfigProperty(defaultValue = "2") @Min(1) @NodeProperty int logPeriod,
         @ConfigProperty(defaultValue = "5000") @Min(1) @NodeProperty int queueCapacity,

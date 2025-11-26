@@ -33,15 +33,12 @@ public class SelfNodeAccountIdManagerImpl implements SelfNodeAccountIdManager {
     private final NodeInfo nodeInfo;
     private final Path filePath;
 
-    private static final String NODE_ACCOUNT_ID_FILE = "node_account_id.txt";
-
     @Inject
     public SelfNodeAccountIdManagerImpl(@NonNull ConfigProvider configProvider, @NonNull NetworkInfo networkInfo) {
         this.nodeInfo = networkInfo.selfNodeInfo();
         final BlockRecordStreamConfig recordStreamConfig =
                 configProvider.getConfiguration().getConfigData(BlockRecordStreamConfig.class);
-        final Path recordsStreamPath = getAbsolutePath(recordStreamConfig.logDir());
-        this.filePath = recordsStreamPath.resolve(NODE_ACCOUNT_ID_FILE);
+        this.filePath = getAbsolutePath(recordStreamConfig.nodeAccountIdFileDir());
     }
 
     /**
@@ -69,7 +66,7 @@ public class SelfNodeAccountIdManagerImpl implements SelfNodeAccountIdManager {
                     .build();
 
         } catch (IOException e) {
-            logger.info("Failed to read node account id from {}", NODE_ACCOUNT_ID_FILE, e);
+            logger.info("Failed to read node account id from {}", filePath, e);
             return nodeInfo.accountId();
         }
     }
@@ -86,7 +83,7 @@ public class SelfNodeAccountIdManagerImpl implements SelfNodeAccountIdManager {
         try {
             writeAccountIdFile(accountId);
         } catch (IOException e) {
-            logger.info("Failed to write node account id to {}", NODE_ACCOUNT_ID_FILE, e);
+            logger.info("Failed to write node account id to {}", filePath, e);
         }
     }
 
