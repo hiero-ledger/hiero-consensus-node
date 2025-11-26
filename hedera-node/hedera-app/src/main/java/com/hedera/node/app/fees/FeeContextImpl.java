@@ -153,7 +153,7 @@ public class FeeContextImpl implements FeeContext {
     }
 
     @Override
-    public long getGasPriceInTinyCents() {
+    public long getGasPriceInTinycents() {
         return feeManager.getGasPriceInTinyCents(consensusTime);
     }
 }

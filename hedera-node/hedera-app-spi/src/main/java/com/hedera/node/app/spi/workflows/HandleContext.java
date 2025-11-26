@@ -245,13 +245,6 @@ public interface HandleContext {
     void refundBestEffort(AccountID accountId, long amount);
 
     /**
-     * Refunds the requested account in this context the given amount of service fee.
-     * @param accountId the account to refund
-     * @param amount the amount to refund.
-     */
-    void refundServiceFee(@NonNull final AccountID accountId, final long amount);
-
-    /**
      * Returns the current {@link Configuration} for the node.
      *
      * @return the {@code Configuration}
