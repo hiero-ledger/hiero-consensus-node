@@ -272,7 +272,7 @@ public class DispatchHandleContext implements HandleContext, FeeContext, FeeChar
     }
 
     @Override
-    public long getGasPriceInTinyCents() {
+    public long getGasPriceInTinycents() {
         return feeManager.getGasPriceInTinyCents(consensusNow);
     }
 

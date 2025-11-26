@@ -289,6 +289,7 @@ public final class FeeManager {
      * @return the gas price in tiny cents
      */
     public long getGasPriceInTinyCents(@NonNull final Instant consensusTime) {
+        requireNonNull(consensusTime);
         return getFeeData(CONTRACT_CALL, consensusTime, SubType.DEFAULT)
                         .servicedataOrThrow()
                         .gas()
