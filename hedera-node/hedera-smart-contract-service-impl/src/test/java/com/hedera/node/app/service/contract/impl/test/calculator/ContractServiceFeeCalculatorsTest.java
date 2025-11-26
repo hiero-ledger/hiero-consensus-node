@@ -21,7 +21,7 @@ import com.hedera.node.app.service.contract.impl.calculator.ContractCreateFeeCal
 import com.hedera.node.app.service.contract.impl.calculator.ContractDeleteFeeCalculator;
 import com.hedera.node.app.service.contract.impl.calculator.ContractUpdateFeeCalculator;
 import com.hedera.node.app.service.contract.impl.calculator.EthereumFeeCalculator;
-import com.hedera.node.app.spi.fees.CalculatorState;
+import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
 import com.hedera.node.app.spi.fees.SimpleFeeCalculatorImpl;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -45,7 +45,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 class ContractServiceFeeCalculatorsTest {
 
     @Mock
-    private CalculatorState calculatorState;
+    private FeeContext feeContext;
 
     private SimpleFeeCalculatorImpl feeCalculator;
 
@@ -136,9 +136,9 @@ class ContractServiceFeeCalculatorsTest {
     @MethodSource("provideTestCases")
     @DisplayName("Fee calculation for all ContractFeeCalculators")
     void testFeeCalculators(TestCase testCase) {
-        lenient().when(calculatorState.numTxnSignatures()).thenReturn(testCase.numSignatures);
+        lenient().when(feeContext.numTxnSignatures()).thenReturn(testCase.numSignatures);
 
-        final var result = feeCalculator.calculateTxFee(testCase.body, calculatorState);
+        final var result = feeCalculator.calculateTxFee(testCase.body, feeContext);
 
         assertThat(result).isNotNull();
         assertThat(result.node).isEqualTo(testCase.expectedNodeFee);
