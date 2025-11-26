@@ -12,7 +12,6 @@ import static com.hedera.services.bdd.junit.hedera.utils.AddressBookUtils.entryB
 import static com.hedera.services.bdd.junit.hedera.utils.AddressBookUtils.nodeIdsFrom;
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.VALID_CERT;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asAccountString;
-import static com.hedera.services.bdd.spec.HapiPropertySource.asEntityString;
 import static com.hedera.services.bdd.spec.HapiPropertySource.asServiceEndpoint;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.dsl.operations.transactions.TouchBalancesOperation.touchBalanceOf;
@@ -51,7 +50,6 @@ import static java.util.stream.Collectors.toSet;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Fail.fail;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.hedera.hapi.node.state.roster.Roster;
@@ -349,12 +347,12 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
 
     @Nested
     @Order(7)
-    @DisplayName("account id update effects records output dir on prepare upgrade")
+    @DisplayName("account id update affects records output dir on prepare upgrade")
     @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
-    class writeRecordsInOldDirUntilUpgrade {
+    class RecordsOutputPath {
         @HapiTest
         @Order(0)
-        final Stream<DynamicTest> createNewNodeAndUpdate() {
+        final Stream<DynamicTest> newNodeUpdate() {
             final AtomicReference<AccountID> initialNodeAccount = new AtomicReference<>();
             final AtomicReference<AccountID> newNodeAccount = new AtomicReference<>();
             final AtomicLong nodeId = new AtomicLong();
@@ -398,22 +396,11 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
                                 getVersionInfo().exposingServicesVersionTo(currentVersion::set),
                                 sourcing(() ->
                                         reconnectNode(byNodeId(nodeId.get()), configVersionOf(currentVersion.get()))),
-                                validateNodeAccountIdFile(nodeId.get(), initialNodeAccount.get(), newNodeAccount.get()),
 
-                                // validate that the record path is the initial one
-                                withOpContext((spec1, log) -> {
-                                    final var nodeAccountIdFilePath =
-                                            Paths.get(recordsPath(nodeId.get())).resolve("node_account_id.txt");
-                                    final var newRecordPath = Paths.get(recordsPath(nodeId.get()) + "record"
-                                            + asAccountString(newNodeAccount.get()));
-                                    // new record path doesn't exist
-                                    assertFalse(newRecordPath.toFile().exists());
-                                    // validate the node account id upgrade file content is pointing to the
-                                    // initial node account
-                                    assertEquals(
-                                            Files.readString(nodeAccountIdFilePath),
-                                            asEntityString(initialNodeAccount.get()));
-                                }));
+                                // validate the node is using the initial node account for the record output dir
+                                // and the content of the node_accoun_id.txt
+                                validateRecordsPathAfterUpdate(
+                                        String.valueOf(nodeId.get()), initialNodeAccount, newNodeAccount));
                     }));
         }
 
@@ -434,33 +421,30 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
                     nodeUpdate(nodeToUpdate).accountId("account").signedByPayerAnd("account"),
                     burstOfTps(MIXED_OPS_BURST_TPS, Duration.ofSeconds(2)),
                     // 2. validate the new record path is empty after update.
-                    withOpContext((spec, log) -> {
-                        final var newRecordPath = Paths.get(baseDir + "record" + asAccountString(accountId.get()));
-                        assertFalse(newRecordPath.toFile().exists());
-                    }),
+                    validateRecordsPathDoesntExist(nodeToUpdate, accountId),
 
-                    // 3. generate the record path override file on prepare upgrade
+                    // 3. generate the node_account_id.txt on prepare upgrade.
                     prepareFakeUpgrade(),
                     upgradeToNextConfigVersion(),
+                    // After the upgrade the node should start using the new record path
+                    burstOfTps(MIXED_OPS_BURST_TPS, Duration.ofSeconds(2)),
+                    validateRecordsPathExist(nodeToUpdate, accountId),
 
                     // 4. update again
                     nodeUpdate(nodeToUpdate).accountId("newAccount").signedByPayerAnd("newAccount"),
                     // 5. reconnect
                     getVersionInfo().exposingServicesVersionTo(startVersion::set),
-                    sourcing(() -> reconnectNode(byNodeId(2), configVersionOf(startVersion.get()))),
-                    // 6. validate the new record path is empty even after reconnect (record11.12.1002)
+                    sourcing(() ->
+                            reconnectNode(byNodeId(Long.parseLong(nodeToUpdate)), configVersionOf(startVersion.get()))),
+                    // 6. validate the new record path is empty even after reconnect
                     burstOfTps(MIXED_OPS_BURST_TPS, Duration.ofSeconds(2)),
-                    withOpContext((spec, log) -> {
-                        final var newRecordPath = Paths.get(baseDir + "record" + asAccountString(newAccountId.get()));
-                        assertFalse(newRecordPath.toFile().exists());
-                    }),
+                    validateRecordsPathAfterUpdate(nodeToUpdate, accountId, newAccountId),
 
                     // 7. Then upgrade and use the last updated account id as record dir (record11.12.1002)
                     prepareFakeUpgrade(),
                     upgradeToNextConfigVersion(),
                     burstOfTps(MIXED_OPS_BURST_TPS, Duration.ofSeconds(2)),
-                    doingContextual(spec -> validateNodeAccountIdFile(
-                            Long.parseLong(nodeToUpdate), accountId.get(), newAccountId.get())));
+                    validateRecordsPathExist(nodeToUpdate, newAccountId));
         }
     }
 
@@ -497,25 +481,39 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
         assertEquals(classicIds, entries.stream().map(RosterEntry::nodeId).collect(toSet()), "Wrong ids");
     }
 
-    private static String recordsPath(long nodeId) {
-        return "build/hapi-test/node%d/data/recordStreams/".formatted(nodeId);
+    private static String recordsPath(String nodeId) {
+        return "build/hapi-test/node%s/data/recordStreams/".formatted(nodeId);
     }
 
-    private static ContextualActionOp validateNodeAccountIdFile(
-            long nodeId, AccountID oldAccountId, AccountID updatedAccountId) {
-        // validate record dir...
+    private static ContextualActionOp validateRecordsPathAfterUpdate(
+            String nodeId, AtomicReference<AccountID> oldAccountId, AtomicReference<AccountID> updatedAccountId) {
         return doingContextual((spec) -> {
             final var nodeAccountIdFilePath = Paths.get(recordsPath(nodeId)).resolve("node_account_id.txt");
-            final var newRecordPath = Paths.get(recordsPath(nodeId) + "record" + asAccountString(updatedAccountId));
+            final var newRecordPath =
+                    Paths.get(recordsPath(nodeId) + "record" + asAccountString(updatedAccountId.get()));
             // new record path doesn't exist
-            assertFalse(newRecordPath.toFile().exists());
-            // validate the node account id upgrade file content is pointing to the initial node
-            // account
+            assertThat(newRecordPath.toFile().exists()).isFalse();
+            // validate the node_account_id.txt is pointing to the initial node account
             try {
-                assertEquals(Files.readString(nodeAccountIdFilePath), asEntityString(oldAccountId));
+                assertThat(Files.readString(nodeAccountIdFilePath)).isEqualTo(asAccountString(oldAccountId.get()));
             } catch (IOException e) {
                 Assertions.fail("Can not read node account id file", e);
             }
+        });
+    }
+
+    private static ContextualActionOp validateRecordsPathDoesntExist(
+            String nodeId, AtomicReference<AccountID> accountId) {
+        return doingContextual((spec) -> {
+            final var recordPath = Paths.get(recordsPath(nodeId) + "record" + asAccountString(accountId.get()));
+            assertThat(recordPath.toFile().exists()).isFalse();
+        });
+    }
+
+    private static ContextualActionOp validateRecordsPathExist(String nodeId, AtomicReference<AccountID> accountId) {
+        return doingContextual((spec) -> {
+            final var recordPath = Paths.get(recordsPath(nodeId) + "record" + asAccountString(accountId.get()));
+            assertThat(recordPath.toFile().exists()).isTrue();
         });
     }
 }

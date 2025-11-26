@@ -7,6 +7,7 @@ import static com.hedera.hapi.streams.schema.RecordStreamFileSchema.HAPI_PROTO_V
 import static com.hedera.hapi.streams.schema.RecordStreamFileSchema.RECORD_STREAM_ITEMS;
 import static com.hedera.hapi.streams.schema.RecordStreamFileSchema.SIDECARS;
 import static com.hedera.hapi.streams.schema.RecordStreamFileSchema.START_OBJECT_RUNNING_HASH;
+import static com.hedera.hapi.util.HapiUtils.asAccountString;
 import static com.hedera.node.app.records.impl.producers.BlockRecordFormat.TAG_TYPE_BITS;
 import static com.hedera.node.app.records.impl.producers.BlockRecordFormat.WIRE_TYPE_DELIMITED;
 import static com.hedera.node.app.records.impl.producers.formats.v6.BlockRecordFormatV6.VERSION_6;
@@ -16,6 +17,7 @@ import static com.hedera.pbj.runtime.ProtoWriterTools.writeMessage;
 import static com.swirlds.common.stream.LinkedObjectStreamUtilities.convertInstantToStringWithPadding;
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.streams.HashAlgorithm;
 import com.hedera.hapi.streams.HashObject;
@@ -139,7 +141,7 @@ public final class BlockRecordWriterV6 implements BlockRecordWriter {
      */
     public BlockRecordWriterV6(
             @NonNull final BlockRecordStreamConfig config,
-            @NonNull final String nodeAccountId,
+            @NonNull final AccountID nodeAccountId,
             @NonNull final Signer signer,
             @NonNull final FileSystem fileSystem) {
 
@@ -165,7 +167,7 @@ public final class BlockRecordWriterV6 implements BlockRecordWriter {
 
         // Compute directories for record and sidecar files
         final Path recordDir = fileSystem.getPath(config.logDir());
-        nodeScopedRecordDir = recordDir.resolve("record" + nodeAccountId);
+        nodeScopedRecordDir = recordDir.resolve("record" + asAccountString(nodeAccountId));
         nodeScopedSidecarDir = nodeScopedRecordDir.resolve(config.sidecarDir());
 
         // Create parent directories if needed for the record file itself

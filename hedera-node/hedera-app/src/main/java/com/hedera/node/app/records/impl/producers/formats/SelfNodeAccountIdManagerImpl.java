@@ -4,7 +4,6 @@ package com.hedera.node.app.records.impl.producers.formats;
 import static com.swirlds.common.io.utility.FileUtils.getAbsolutePath;
 
 import com.hedera.hapi.node.base.AccountID;
-import com.hedera.hapi.util.HapiUtils;
 import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.records.SelfNodeAccountIdManager;
@@ -31,50 +30,47 @@ import org.apache.logging.log4j.Logger;
 public class SelfNodeAccountIdManagerImpl implements SelfNodeAccountIdManager {
     private static final Logger logger = LogManager.getLogger(SelfNodeAccountIdManagerImpl.class);
 
-    private final ConfigProvider configProvider;
     private final NodeInfo nodeInfo;
+    private final Path filePath;
 
     private static final String NODE_ACCOUNT_ID_FILE = "node_account_id.txt";
 
     @Inject
     public SelfNodeAccountIdManagerImpl(@NonNull ConfigProvider configProvider, @NonNull NetworkInfo networkInfo) {
-
-        this.configProvider = configProvider;
         this.nodeInfo = networkInfo.selfNodeInfo();
+        final BlockRecordStreamConfig recordStreamConfig =
+                configProvider.getConfiguration().getConfigData(BlockRecordStreamConfig.class);
+        final Path recordsStreamPath = getAbsolutePath(recordStreamConfig.logDir());
+        this.filePath = recordsStreamPath.resolve(NODE_ACCOUNT_ID_FILE);
     }
 
     /**
-     * Retrieves the self node's account ID as a string.
+     * Retrieves the self node's account ID.
      * <p>
      * If the backing file {@code node_account_id.txt} exists, returns the value stored in the file.
      * If the file is missing (such as on a new node), creates the file using the current
      * node account ID from "NodeInfo selfInfo" and returns that value.
      *
-     * @return the self node's account ID as a string
+     * @return the self node's account ID
      */
-    public String getSelfNodeAccountId() {
-        // If NODE_ACCOUNT_ID_FILE is missing, create new one
-        final BlockRecordStreamConfig recordStreamConfig =
-                configProvider.getConfiguration().getConfigData(BlockRecordStreamConfig.class);
-        final Path recordsStreamPath = getAbsolutePath(recordStreamConfig.logDir());
-        final var filePath = recordsStreamPath.resolve(NODE_ACCOUNT_ID_FILE);
+    public AccountID getSelfNodeAccountId() {
         try {
             // if the file don't exist, create one
             if (!filePath.toFile().exists()) {
-                String content = nodeInfo.accountId().shardNum() + "."
-                        + nodeInfo.accountId().realmNum()
-                        + "."
-                        + nodeInfo.accountId().accountNum();
-                Files.createDirectories(filePath.getParent());
-                Files.writeString(filePath, content);
-                logger.info("Wrote node account id file at {}", filePath);
+                writeAccountIdFile(nodeInfo.accountId());
             }
 
-            return Files.readString(filePath);
+            final var accountIdString = Files.readString(filePath);
+            String[] parts = accountIdString.split("[.]");
+            return AccountID.newBuilder()
+                    .shardNum(Long.parseLong(parts[0]))
+                    .realmNum(Long.parseLong(parts[1]))
+                    .accountNum(Long.parseLong(parts[2]))
+                    .build();
 
         } catch (IOException e) {
-            logger.info("Failed to read node account id from {} file", NODE_ACCOUNT_ID_FILE, e);
-            return HapiUtils.asAccountString(nodeInfo.accountId());
+            logger.info("Failed to read node account id from {}", NODE_ACCOUNT_ID_FILE, e);
+            return nodeInfo.accountId();
         }
     }
 
@@ -87,21 +83,17 @@ public class SelfNodeAccountIdManagerImpl implements SelfNodeAccountIdManager {
      * @param accountId the new account ID to persist
      */
     public void setSelfNodeAccountId(final AccountID accountId) {
-        // If NODE_ACCOUNT_ID_FILE is missing create new one
-        final BlockRecordStreamConfig recordStreamConfig =
-                configProvider.getConfiguration().getConfigData(BlockRecordStreamConfig.class);
-        final Path recordsStreamPath = getAbsolutePath(recordStreamConfig.logDir());
-        final var filePath = recordsStreamPath.resolve(NODE_ACCOUNT_ID_FILE);
         try {
-            // if the file don't exist, create one
-            if (!filePath.toFile().exists()) {
-                String content = accountId.shardNum() + "." + accountId.realmNum() + "." + accountId.accountNum();
-                Files.createDirectories(filePath.getParent());
-                Files.writeString(filePath, content);
-                logger.info("Wrote node account id file at {}", filePath);
-            }
+            writeAccountIdFile(accountId);
         } catch (IOException e) {
-            logger.info("Failed to read node account id from {} file", NODE_ACCOUNT_ID_FILE, e);
+            logger.info("Failed to write node account id to {}", NODE_ACCOUNT_ID_FILE, e);
         }
+    }
+
+    private void writeAccountIdFile(AccountID accountId) throws IOException {
+        Files.createDirectories(filePath.getParent());
+        String content = accountId.shardNum() + "." + accountId.realmNum() + "." + accountId.accountNum();
+        Files.writeString(filePath, content);
+        logger.info("Wrote node account id file at {}", filePath);
     }
 }

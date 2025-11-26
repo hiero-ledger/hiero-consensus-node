@@ -159,7 +159,7 @@ final class BlockRecordManagerTest extends AppTestBase {
     @ParameterizedTest
     @CsvSource({"GENESIS, false", "NON_GENESIS, false", "GENESIS, true", "NON_GENESIS, true"})
     void testRecordStreamProduction(final String startMode, final boolean concurrent) throws Exception {
-        given(selfNodeAccountIdManager.getSelfNodeAccountId()).willReturn(asAccountString(NODE_INFO.accountId()));
+        given(selfNodeAccountIdManager.getSelfNodeAccountId()).willReturn(NODE_INFO.accountId());
         // setup initial block info
         final long STARTING_BLOCK;
         if (startMode.equals("GENESIS")) {
@@ -261,7 +261,7 @@ final class BlockRecordManagerTest extends AppTestBase {
     @Test
     void testBlockInfoMethods() throws Exception {
         // setup initial block info, pretend that previous block was 2 seconds before first test transaction
-        given(selfNodeAccountIdManager.getSelfNodeAccountId()).willReturn(asAccountString(NODE_INFO.accountId()));
+        given(selfNodeAccountIdManager.getSelfNodeAccountId()).willReturn(NODE_INFO.accountId());
         app.stateMutator(NAME)
                 .withSingletonState(
                         BLOCKS_STATE_ID,

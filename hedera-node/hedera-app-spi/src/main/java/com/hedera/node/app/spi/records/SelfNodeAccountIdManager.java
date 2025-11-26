@@ -9,11 +9,11 @@ import com.hedera.hapi.node.base.AccountID;
 public interface SelfNodeAccountIdManager {
 
     /**
-     * Retrieves the self node's account ID as a string.
+     * Retrieves the self node's account ID.
      *
-     * @return the self node's account ID as a string
+     * @return the self node's account ID
      */
-    String getSelfNodeAccountId();
+    AccountID getSelfNodeAccountId();
 
     /**
      * Creates or updates the file {@code node_account_id.txt} containing the self node's account ID.
