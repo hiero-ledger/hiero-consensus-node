@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.hip1300;
 
+import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.ONLY_SUBPROCESS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.createTopic;
@@ -37,6 +38,7 @@ import org.junit.jupiter.api.Tag;
  * A class with Governance Transactions tests.
  */
 @Tag(ONLY_SUBPROCESS)
+@Tag(MATS)
 @HapiTestLifecycle
 @OrderedInIsolation
 @DisplayName("Governance Transactions Tests")
@@ -102,8 +104,8 @@ public class GovernanceTransactionsTests implements LifecycleTest {
 
     @HapiTest
     @Order(2)
-    @DisplayName("something")
-    public Stream<DynamicTest> nonJumboTransactionBiggerThan130kb() {
+    @DisplayName("Non-governance account cannot submit transfers larger than 6KB even when the feature is enabled")
+    public Stream<DynamicTest> nonGovernanceAccountTransactionLargerThan6kb() {
         final var largeSizeMemo = new String(randomMemoBytes, StandardCharsets.UTF_8);
         return hapiTest(
                 cryptoCreate("payer").balance(ONE_MILLION_HBARS),

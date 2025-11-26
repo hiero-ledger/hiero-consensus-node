@@ -412,11 +412,9 @@ public class TransactionChecker {
             @NonNull final TransactionInfo txInfo, @NonNull final AccountID payerAccountId) throws PreCheckException {
         boolean exceedsLimit;
         final int txSize = txInfo.signedTx().protobufSize();
-        // Check if the payer is governance account
+        // Check if the payer is a governance account
         final boolean isGovernancePayer =
-                governanceTransactionsConfig().accountsRange().contains(payerAccountId.accountNumOrElse(0L))
-                        && payerAccountId.shardNum() == 0L
-                        && payerAccountId.realmNum() == 0L;
+                governanceTransactionsConfig().accountsRange().contains(payerAccountId.accountNumOrThrow());
 
         if (isGovernancePayer) {
             exceedsLimit = txSize > governanceTransactionsConfig().maxTxnSize();
