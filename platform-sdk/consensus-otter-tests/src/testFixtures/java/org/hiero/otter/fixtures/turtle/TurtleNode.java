@@ -238,7 +238,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
             final ReservedSignedState initialState = reservedState.state();
             final MerkleNodeState state = initialState.get().getState();
 
-            // Set active the roster
+            // Set the active roster
             final ReadablePlatformStateStore store =
                     new ReadablePlatformStateStore(state.getReadableStates(PlatformStateService.NAME));
             RosterUtils.setActiveRoster(state, roster(), store.getRound() + 1);

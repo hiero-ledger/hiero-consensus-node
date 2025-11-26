@@ -253,7 +253,7 @@ public class OtterApp implements ConsensusStateEventHandler<VirtualMapState> {
                     .map(state::getReadableStates)
                     .allMatch(ReadableStates::isEmpty);
             if (stateNotInitialized) {
-                OtterStateInitializer.initOtterAppState(state, version, appServices);
+                OtterStateInitializer.initOtterAppState(state, appServices);
             }
         }
 
