@@ -77,8 +77,8 @@ public class HookDispatchHandler extends AbstractContractTransactionHandler impl
         final var op = context.body().hookDispatchOrThrow();
         final var recordBuilder = context.savepointStack().getBaseBuilder(HookDispatchStreamBuilder.class);
 
-        final var hookConfig = context.configuration().getConfigData(HooksConfig.class);
-        validateTrue(hookConfig.hooksEnabled(), HOOKS_NOT_ENABLED);
+        final var hooksConfig = context.configuration().getConfigData(HooksConfig.class);
+        validateTrue(hooksConfig.hooksEnabled(), HOOKS_NOT_ENABLED);
 
         switch (op.action().kind()) {
             case CREATION -> {
@@ -89,7 +89,7 @@ public class HookDispatchHandler extends AbstractContractTransactionHandler impl
                 if (details.hasAdminKey()) {
                     context.attributeValidator().validateKey(details.adminKeyOrThrow(), INVALID_HOOK_ADMIN_KEY);
                 }
-                final var updatedSlots = evmHookStore.createEvmHook(op.creationOrThrow());
+                final var updatedSlots = evmHookStore.createEvmHook(op.creationOrThrow(), hooksConfig.maxNumber());
                 recordBuilder.setDeltaStorageSlotsUpdated(updatedSlots);
             }
             case HOOK_ID_TO_DELETE -> {

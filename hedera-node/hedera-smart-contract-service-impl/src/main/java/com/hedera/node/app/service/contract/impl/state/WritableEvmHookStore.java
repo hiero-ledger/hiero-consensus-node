@@ -4,6 +4,7 @@ package com.hedera.node.app.service.contract.impl.state;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOK_DELETION_REQUIRES_ZERO_STORAGE_SLOTS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOK_ID_IN_USE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOK_NOT_FOUND;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.MAX_ENTITIES_IN_PRICE_REGIME_HAVE_BEEN_CREATED;
 import static com.hedera.hapi.node.state.hooks.EvmHookType.LAMBDA;
 import static com.hedera.node.app.hapi.utils.EntityType.HOOK;
 import static com.hedera.node.app.hapi.utils.EntityType.LAMBDA_STORAGE;
@@ -113,6 +114,7 @@ public class WritableEvmHookStore extends ReadableEvmHookStoreImpl {
      * @throws HandleException if the lambda ID is not found
      */
     public void remove(@NonNull final HookId hookId) {
+        requireNonNull(hookId);
         final var state = hookStates.get(hookId);
         validateTrue(state != null, HOOK_NOT_FOUND);
         validateTrue(state.numStorageSlots() == 0, HOOK_DELETION_REQUIRES_ZERO_STORAGE_SLOTS);
@@ -156,10 +158,14 @@ public class WritableEvmHookStore extends ReadableEvmHookStoreImpl {
      * Tries to create a new EVM hook for the given entity.
      *
      * @param creation the hook creation spec
+     * @param maxNumber the hooks configuration
      * @return the number of storage slots initialized
      * @throws HandleException if the creation fails
      */
-    public int createEvmHook(@NonNull final HookCreation creation) throws HandleException {
+    public int createEvmHook(@NonNull final HookCreation creation, final long maxNumber) throws HandleException {
+        requireNonNull(creation);
+        validateTrue(
+                entityCounters.getCounterFor(HOOK) + 1 <= maxNumber, MAX_ENTITIES_IN_PRICE_REGIME_HAVE_BEEN_CREATED);
         final var details = creation.detailsOrThrow();
         final var hookId = new HookId(creation.entityIdOrThrow(), details.hookId());
         validateTrue(hookStates.get(hookId) == null, HOOK_ID_IN_USE);
@@ -357,6 +363,7 @@ public class WritableEvmHookStore extends ReadableEvmHookStoreImpl {
     private SlotValue slotValueFor(@NonNull final LambdaSlotKey slotKey, @NonNull final String msgOnError) {
         return requireNonNull(storage.get(slotKey), () -> msgOnError + " " + slotKey.key());
     }
+
     /**
      * Applies the given storage mutations to the storage of the given lambda, ensuring linked list pointers
      * are preserved.
