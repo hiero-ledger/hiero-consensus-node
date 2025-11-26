@@ -104,6 +104,9 @@ jobs:
         run: |
           set -ex
           
+          # Create kind cluster
+          kind create cluster -n "${SOLO_CLUSTER_NAME}"
+          
           # Detect the default storage class (is-default-class=true)
           STORAGE_CLASS=$(kubectl get sc -o jsonpath='{range .items[*]}{.metadata.name}{" "}{.metadata.annotations.storageclass\.kubernetes\.io/is-default-class}{"\n"}{end}' \
           | awk '$2=="true"{print $1}')
@@ -132,9 +135,6 @@ jobs:
                     spec:
                       storageClassName: "$STORAGE_CLASS"
           EOF
-          
-          # Create kind cluster
-          kind create cluster -n "${SOLO_CLUSTER_NAME}"
           
           # echo out the solo-values file
           echo "Values file:"
