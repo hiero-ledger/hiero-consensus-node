@@ -2,8 +2,8 @@
 
 ## Purpose
 
-- Allow privileged accounts ([`accounts.governanceTransactions=2,42-799`](../hedera-node/src/main/resources/bootstrap.properties)) to submit transactions up to 130KB in size.
-- Non-privileged accounts remain constraint to the standard limit of 6KB transaction size.
+- Allow governance accounts ([`governanceTransactions.accountsRange=2,42-799`](../hedera-node/src/main/resources/bootstrap.properties)) to submit transactions up to 130KB in size.
+- Non-governance accounts remain constraint to the standard limit of 6KB transaction size.
 - Apply size limits in ingest after parsing the payer account.
 - Differentiate from [jumbo transactions](./design/services/smart-contract-service/jumbo-transactions.md) which apply to Ethereum transaction types regardless of payer.
 
@@ -29,7 +29,7 @@ public record GovernanceTransactionsConfig(
 
 ### Changes to the gRPC layer
 
-- To ensure all RPC endpoints can handle large transactions submitted by privileged payers:
+- To ensure all RPC endpoints can handle large transactions submitted by governance payers:
 - Increase the gRPC marshaller buffer to governance size for all RPC endpoints when governance transactions are enabled.
 - Set the `DataBufferMarshaller` buffer capacity to `max(governanceMaxTxnSize, jumboMaxTxnSize, standardMaxTxnSize) + 1` for all marshallers.
 - This ensures all endpoints can handle transactions up to the maximum size allowed by any enabled feature, with final size validation happening at ingest based on transaction type and payer account.
@@ -121,8 +121,8 @@ void checkTransactionSize(TransactionInfo txInfo) throws PreCheckException {
 #### Phase 2: Payer-specific size validation (after payer is known)
 
 - Additionally, check the transaction size limit based on the payer account in `TransactionChecker.checkTransactionSizeLimitBasedOnPayer`
-- When governance transactions are enabled, allow privileged payers ([`accounts.governanceTransactions=2,42-799`](../hedera-node/src/main/resources/bootstrap.properties)) up to governance limits (130KB) for any transaction type
-- Non-privileged payers remain limited to standard limits (6KB), except for allowed jumbo Ethereum transactions
+- When governance transactions are enabled, allow governance payers ([`governanceTransactions.accountsRange=2,42-799`](../hedera-node/src/main/resources/bootstrap.properties)) up to governance limits (130KB) for any transaction type
+- Non-governance payers remain limited to standard limits (6KB), except for allowed jumbo Ethereum transactions
 
 ```java
 void checkTransactionSizeLimitBasedOnPayer(
@@ -130,10 +130,10 @@ void checkTransactionSizeLimitBasedOnPayer(
         throws PreCheckException {
 
     final int txSize = txInfo.signedTx().protobufSize();
-    final boolean isPrivilegedPayer = accountsConfig.isSuperuser(payerAccountId);
+    final boolean isGovernancePayer = accountsConfig.isSuperuser(payerAccountId);
     boolean exceedsLimit;
 
-    if (isPrivilegedPayer) {
+    if (isGovernancePayer) {
         exceedsLimit = txSize > governanceTransactionsConfig.maxTxnSize();
     } else {
         if (jumboTransactionsConfig.isEnabled()) {
@@ -145,8 +145,8 @@ void checkTransactionSizeLimitBasedOnPayer(
     }
 
     if (exceedsLimit) {
-        if (!isPrivilegedPayer) {
-            nonPrivilegedOversizedTransactionsCounter.increment();
+        if (!isGovernancePayer) {
+            nonGovernanceOversizedTransactionsCounter.increment();
         }
         throw new PreCheckException(TRANSACTION_OVERSIZE);
     }
@@ -157,12 +157,12 @@ void checkTransactionSizeLimitBasedOnPayer(
 
 #### Positive test cases
 
-- Transactions up to 130KB in size submitted by a privileged payer should be accepted
+- Transactions up to 130KB in size submitted by a governance payer should be accepted
 
 #### Negative test cases
 
-- Transactions more than 6KB in size submitted by a non-privileged payer should be rejected
-- Transactions more than 130KB in size submitted by a privileged payer should be rejected.
+- Transactions more than 6KB in size submitted by a non-governance payer should be rejected
+- Transactions more than 130KB in size submitted by a governance payer should be rejected.
 
 #### Important notes
 

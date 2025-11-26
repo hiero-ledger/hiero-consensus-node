@@ -60,7 +60,7 @@ public class GovernanceTransactionsTests implements LifecycleTest {
     @HapiTest
     @Order(0)
     @DisplayName("Normal account still cannot submit more than 6KB transactions when the feature is enabled")
-    public Stream<DynamicTest> nonPrivilegedAccountCannotSubmitLargeSizeTransactionsIfEnabled() {
+    public Stream<DynamicTest> nonGovernanceAccountCannotSubmitLargeSizeTransactionsIfEnabled() {
         final var largeSizeMemo = new String(randomMemoBytes, StandardCharsets.UTF_8);
         return hapiTest(
                 cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
@@ -79,7 +79,7 @@ public class GovernanceTransactionsTests implements LifecycleTest {
     @HapiTest
     @Order(1)
     @DisplayName("Treasury and system admin accounts can submit more than 6KB transactions when the feature is enabled")
-    public Stream<DynamicTest> privilegedAccountCanSubmitLargeSizeTransactions() {
+    public Stream<DynamicTest> governanceAccountCanSubmitLargeSizeTransactions() {
         final var largeSizeMemo = new String(randomMemoBytes, StandardCharsets.UTF_8);
         return hapiTest(
                 cryptoCreate(RECEIVER).balance(0L),
@@ -101,7 +101,7 @@ public class GovernanceTransactionsTests implements LifecycleTest {
     @Order(2)
     @DisplayName(
             "Treasury and system admin accounts cannot submit more than 6KB transactions when the feature is disabled at runtime")
-    public Stream<DynamicTest> privilegedAccountCannotSubmitLargeSizeTransactionsWhenDisabledDynamically() {
+    public Stream<DynamicTest> governanceAccountCannotSubmitLargeSizeTransactionsWhenDisabledDynamically() {
         final var largeSizeMemo = new String(randomMemoBytes, StandardCharsets.UTF_8);
         return hapiTest(
                 cryptoCreate(RECEIVER).balance(0L),
@@ -136,7 +136,7 @@ public class GovernanceTransactionsTests implements LifecycleTest {
     @HapiTest
     @Order(4)
     @DisplayName("Normal account cannot submit more than 6KB transactions when the feature is disabled")
-    public Stream<DynamicTest> nonPrivilegedAccountCannotSubmitLargeSizeTransactions() {
+    public Stream<DynamicTest> nonGovernanceAccountCannotSubmitLargeSizeTransactions() {
         final var largeSizeMemo = new String(randomMemoBytes, StandardCharsets.UTF_8);
         return hapiTest(
                 cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
@@ -156,7 +156,7 @@ public class GovernanceTransactionsTests implements LifecycleTest {
     @Order(5)
     @DisplayName(
             "Treasury and system admin accounts cannot submit more than 6KB transactions when the feature is disabled")
-    public Stream<DynamicTest> privilegedAccountsCannotSubmitLargeSizeTransactions() {
+    public Stream<DynamicTest> governanceAccountsCannotSubmitLargeSizeTransactions() {
         final var largeSizeMemo = new String(randomMemoBytes, StandardCharsets.UTF_8);
         return hapiTest(
                 cryptoCreate(RECEIVER).balance(0L),

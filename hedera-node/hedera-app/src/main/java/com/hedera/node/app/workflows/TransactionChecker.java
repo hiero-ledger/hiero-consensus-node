@@ -83,16 +83,16 @@ public class TransactionChecker {
     private static final String COUNTER_SUPER_DEPRECATED_TXNS_NAME = "SuperDeprTxnsRcv";
     private static final String COUNTER_RECEIVED_SUPER_DEPRECATED_DESC =
             "number of super-deprecated txns (body, sigs) received";
-    private static final String COUNTER_NON_PRIVILEGED_OVERSIZED_TXNS = "NonPrivilegedOversizedTxnsRcv";
-    private static final String NON_PRIVILEGED_OVERSIZED_TXNS_DESC =
-            "number of oversized txns received from a non-privileged payer";
+    private static final String COUNTER_NON_GOVERNANCE_OVERSIZED_TXNS = "NonGovernanceOversizedTxnsRcv";
+    private static final String NON_GOVERNANCE_OVERSIZED_TXNS_DESC =
+            "number of oversized txns received from a non-governance payer";
 
     /** The {@link Counter} used to track the number of deprecated transactions (bodyBytes, sigMap) received. */
     private final Counter deprecatedCounter;
     /** The {@link Counter} used to track the number of super deprecated transactions (body, sigs) received. */
     private final Counter superDeprecatedCounter;
-    /** The {@link Counter} used to track the number of oversized transactions from a non-privileged payer. */
-    private final Counter nonPrivilegedOversizedTransactionsCounter;
+    /** The {@link Counter} used to track the number of oversized transactions from a non-governance payer. */
+    private final Counter nonGovernanceOversizedTransactionsCounter;
 
     private final ConfigProvider configProvider;
 
@@ -116,9 +116,9 @@ public class TransactionChecker {
                 .withDescription(COUNTER_RECEIVED_DEPRECATED_DESC));
         this.superDeprecatedCounter = metrics.getOrCreate(new Counter.Config("app", COUNTER_SUPER_DEPRECATED_TXNS_NAME)
                 .withDescription(COUNTER_RECEIVED_SUPER_DEPRECATED_DESC));
-        this.nonPrivilegedOversizedTransactionsCounter =
-                metrics.getOrCreate(new Counter.Config("app", COUNTER_NON_PRIVILEGED_OVERSIZED_TXNS)
-                        .withDescription(NON_PRIVILEGED_OVERSIZED_TXNS_DESC));
+        this.nonGovernanceOversizedTransactionsCounter =
+                metrics.getOrCreate(new Counter.Config("app", COUNTER_NON_GOVERNANCE_OVERSIZED_TXNS)
+                        .withDescription(NON_GOVERNANCE_OVERSIZED_TXNS_DESC));
     }
 
     /**
@@ -412,26 +412,28 @@ public class TransactionChecker {
             @NonNull final TransactionInfo txInfo, @NonNull final AccountID payerAccountId) throws PreCheckException {
         boolean exceedsLimit;
         final int txSize = txInfo.signedTx().protobufSize();
-        // Check if the payer is privileged (treasury or systemAdmin)
-        final boolean isPrivilegedPayer =
-                accountsConfig().governanceTransactions().contains(payerAccountId.accountNumOrElse(0L));
+        // Check if the payer is governance account
+        final boolean isGovernancePayer =
+                governanceTransactionsConfig().accountsRange().contains(payerAccountId.accountNumOrElse(0L))
+                        && payerAccountId.shardNum() == 0L
+                        && payerAccountId.realmNum() == 0L;
 
-        if (isPrivilegedPayer) {
+        if (isGovernancePayer) {
             exceedsLimit = txSize > governanceTransactionsConfig().maxTxnSize();
         } else {
-            // Non-privileged payers follow jumbo logic when the jumbo feature is enabled
+            // Non-governance payers follow jumbo logic when the jumbo feature is enabled
             if (jumboTransactionsConfig().isEnabled()) {
                 exceedsLimit = checkJumboRequirements(txInfo);
             } else {
-                // Only governance enabled, non-privileged payers are limited to standard size
+                // Only governance enabled, non-governance payers are limited to standard size
                 exceedsLimit = txSize > hederaConfig().transactionMaxBytes()
                         && !NON_JUMBO_TRANSACTIONS_BIGGER_THAN_6_KB.contains(txInfo.functionality());
             }
         }
 
         if (exceedsLimit) {
-            if (!isPrivilegedPayer) {
-                nonPrivilegedOversizedTransactionsCounter.increment();
+            if (!isGovernancePayer) {
+                nonGovernanceOversizedTransactionsCounter.increment();
             }
             throw new PreCheckException(TRANSACTION_OVERSIZE);
         }
@@ -447,7 +449,7 @@ public class TransactionChecker {
         final HederaFunctionality functionality = txInfo.functionality();
         final var allowedJumboHederaFunctionalities = jumboTransactionsConfig().allowedHederaFunctionalities();
 
-        return !allowedJumboHederaFunctionalities.contains(fromPbj(txInfo.functionality()))
+        return !allowedJumboHederaFunctionalities.contains(fromPbj(functionality))
                 && txSize > hederaConfig().transactionMaxBytes()
                 && !NON_JUMBO_TRANSACTIONS_BIGGER_THAN_6_KB.contains(functionality);
     }

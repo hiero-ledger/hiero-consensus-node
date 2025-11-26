@@ -8,7 +8,6 @@ module com.swirlds.config.impl {
     exports com.swirlds.config.impl.validators;
 
     requires transitive com.swirlds.config.api;
-    requires com.hedera.node.config;
     requires com.swirlds.base;
     requires com.swirlds.config.extensions;
     requires static transitive com.github.spotbugs.annotations;

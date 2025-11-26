@@ -310,10 +310,7 @@ public final class IngestChecker {
         // 5. Get payer account
         final var storeFactory = new ReadableStoreFactory(state);
         final var payer = solvencyPreCheck.getPayerAccount(storeFactory, txInfo.payerID());
-        final var payerAccountId = payer.accountId();
-        if (payerAccountId == null) {
-            throw new PreCheckException(UNAUTHORIZED);
-        }
+        final var payerAccountId = payer.accountIdOrThrow();
 
         // 5a. Check transaction size limits based on the payer account,
         // if the governance transactions feature is enabled

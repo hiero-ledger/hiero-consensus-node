@@ -142,9 +142,9 @@ treasury account always requires the new key to sign.
 
 This class of privileges applies to all transactions that are paid by either the treasury account or any of the accounts between 42 and 799 inclusive. These privileges waive the enforced standard limit of 6KB for the transaction size and increase it to 130KB.
 
-|                                                Payer                                                 | All transaction types have their size limit increased to 130KB |
-|------------------------------------------------------------------------------------------------------|:--------------------------------------------------------------:|
-| [`accounts.governanceTransactions=2,42-799`](../hedera-node/src/main/resources/bootstrap.properties) |                               X                                |
+|                                                   Payer                                                   | All transaction types have their size limit increased to 130KB |
+|-----------------------------------------------------------------------------------------------------------|:--------------------------------------------------------------:|
+| [`governanceTransactions.accountsRange=2,42-799`](../hedera-node/src/main/resources/bootstrap.properties) |                               X                                |
 
 # Miscellanea
 

@@ -1044,153 +1044,152 @@ final class TransactionCheckerTest extends AppTestBase {
                 }
             }
         }
+    }
 
-        @Nested
-        @DisplayName("Governance Transaction Size Limit Tests")
-        class GovernanceTransactionSizeLimitTests {
-            // Required test scenarios for governance transactions
-            @Test
-            void oversizedTransactionWithPrivilegedPayerFails() {
-                // Given governance transactions enabled, privileged payer (account 2), transaction > 130KB
-                props = () -> new VersionedConfigImpl(
-                        HederaTestConfigBuilder.create()
-                                .withValue("governanceTransactions.isEnabled", true)
-                                .withValue("governanceTransactions.maxTxnSize", MAX_LARGE_TX_SIZE) // 130 KB
-                                .withValue("hedera.transaction.maxBytes", MAX_TX_SIZE) // 6 KB
-                                .withValue("accounts.governanceTransactions", GOVERNANCE_ACCOUNTS_RANGE)
-                                .getOrCreateConfig(),
-                        1);
+    @Nested
+    @DisplayName("Governance Transaction Size Limit Tests")
+    class GovernanceTransactionSizeLimitTests {
+        // Required test scenarios for governance transactions
+        @Test
+        void oversizedTransactionWithGovernancePayerFails() {
+            // Given governance transactions enabled, governance payer (account 2), transaction > 130KB
+            props = () -> new VersionedConfigImpl(
+                    HederaTestConfigBuilder.create()
+                            .withValue("governanceTransactions.isEnabled", true)
+                            .withValue("governanceTransactions.maxTxnSize", MAX_LARGE_TX_SIZE) // 130 KB
+                            .withValue("governanceTransactions.accountsRange", GOVERNANCE_ACCOUNTS_RANGE)
+                            .withValue("hedera.transaction.maxBytes", MAX_TX_SIZE) // 6 KB
+                            .getOrCreateConfig(),
+                    1);
 
-                checker = new TransactionChecker(props, metrics);
-                final var txInfo = mock(TransactionInfo.class);
-                when(txInfo.signedTx())
-                        .thenReturn(SignedTransaction.newBuilder()
-                                .bodyBytes(Bytes.wrap(new byte[1024 * 131])) // 131 KB transaction
-                                .build());
-                when(txInfo.functionality()).thenReturn(CRYPTO_TRANSFER);
+            checker = new TransactionChecker(props, metrics);
+            final var txInfo = mock(TransactionInfo.class);
+            when(txInfo.signedTx())
+                    .thenReturn(SignedTransaction.newBuilder()
+                            .bodyBytes(Bytes.wrap(new byte[1024 * 131])) // 131 KB transaction
+                            .build());
+            when(txInfo.functionality()).thenReturn(CRYPTO_TRANSFER);
 
-                // When checking transaction size even before the payer is known, it fails early validation
-                assertThatThrownBy(() -> checker.checkTransactionSize(txInfo))
-                        .isInstanceOf(PreCheckException.class)
-                        .has(responseCode(TRANSACTION_OVERSIZE));
+            // When checking transaction size even before the payer is known, it fails early validation
+            assertThatThrownBy(() -> checker.checkTransactionSize(txInfo))
+                    .isInstanceOf(PreCheckException.class)
+                    .has(responseCode(TRANSACTION_OVERSIZE));
 
-                assertThat(counterMetric("NonPrivilegedOversizedTxnsRcv").get()).isZero();
+            assertThat(counterMetric("NonGovernanceOversizedTxnsRcv").get()).isZero();
+        }
+
+        @Test
+        void oversizedTransactionWithNonGovernancePayerFails() throws PreCheckException {
+            // Given governance transactions enabled, non-governance payer, transaction > 6KB (not exempt)
+            props = () -> new VersionedConfigImpl(
+                    HederaTestConfigBuilder.create()
+                            .withValue("governanceTransactions.isEnabled", true)
+                            .withValue("governanceTransactions.maxTxnSize", MAX_LARGE_TX_SIZE) // 130 KB
+                            .withValue("governanceTransactions.accountsRange", GOVERNANCE_ACCOUNTS_RANGE)
+                            .withValue("hedera.transaction.maxBytes", MAX_TX_SIZE) // 6 KB
+                            .getOrCreateConfig(),
+                    1);
+
+            checker = new TransactionChecker(props, metrics);
+            final var txInfo = mock(TransactionInfo.class);
+            when(txInfo.signedTx())
+                    .thenReturn(SignedTransaction.newBuilder()
+                            .bodyBytes(Bytes.wrap(new byte[1024 * 7])) // 7 KB transaction
+                            .build());
+            when(txInfo.functionality()).thenReturn(CRYPTO_TRANSFER); // Not exempt from size limits
+
+            final var nonGovernanceAccountId = AccountID.newBuilder()
+                    .accountNum(1000) // Non-governance account
+                    .build();
+
+            final var accountIdInExcludedRange = AccountID.newBuilder()
+                    .accountNum(24) // Non-governance account
+                    .build();
+
+            // When checking transaction size before the payer is known, it passes early validation
+            checker.checkTransactionSize(txInfo);
+
+            // When checking transaction size limit based on payer, it fails for non-governance payer
+            assertThatThrownBy(() -> checker.checkTransactionSizeLimitBasedOnPayer(txInfo, nonGovernanceAccountId))
+                    .isInstanceOf(PreCheckException.class)
+                    .has(responseCode(TRANSACTION_OVERSIZE));
+            // When checking transaction size limit based on payer,
+            // it also fails for an account within the excluded range account
+            assertThatThrownBy(() -> checker.checkTransactionSizeLimitBasedOnPayer(txInfo, accountIdInExcludedRange))
+                    .isInstanceOf(PreCheckException.class)
+                    .has(responseCode(TRANSACTION_OVERSIZE));
+
+            assertThat(counterMetric("NonGovernanceOversizedTxnsRcv").get()).isEqualTo(2L);
+        }
+
+        private static Stream<Arguments> governanceAccountNumbers() {
+            // Parse governance range from config to generate all account numbers
+            final List<Long> accountNumbers = new ArrayList<>();
+            if (StringUtils.isEmpty(GOVERNANCE_ACCOUNTS_RANGE)) {
+                return Stream.empty();
             }
 
-            @Test
-            void oversizedTransactionWithNonPrivilegedPayerFails() throws PreCheckException {
-                // Given governance transactions enabled, non-privileged payer, transaction > 6KB (not exempt)
-                props = () -> new VersionedConfigImpl(
-                        HederaTestConfigBuilder.create()
-                                .withValue("governanceTransactions.isEnabled", true)
-                                .withValue("governanceTransactions.maxTxnSize", MAX_LARGE_TX_SIZE) // 130 KB
-                                .withValue("hedera.transaction.maxBytes", MAX_TX_SIZE) // 6 KB
-                                .withValue("accounts.governanceTransactions", GOVERNANCE_ACCOUNTS_RANGE)
-                                .getOrCreateConfig(),
-                        1);
-
-                checker = new TransactionChecker(props, metrics);
-                final var txInfo = mock(TransactionInfo.class);
-                when(txInfo.signedTx())
-                        .thenReturn(SignedTransaction.newBuilder()
-                                .bodyBytes(Bytes.wrap(new byte[1024 * 7])) // 7 KB transaction
-                                .build());
-                when(txInfo.functionality()).thenReturn(CRYPTO_TRANSFER); // Not exempt from size limits
-
-                final var nonPrivilegedAccountId = AccountID.newBuilder()
-                        .accountNum(1000) // Non-privileged account
-                        .build();
-
-                final var accountIdInExcludedRange = AccountID.newBuilder()
-                        .accountNum(24) // Non-privileged account
-                        .build();
-
-                // When checking transaction size before the payer is known, it passes early validation
-                checker.checkTransactionSize(txInfo);
-
-                // When checking transaction size limit based on payer, it fails for non-privileged payer
-                assertThatThrownBy(() -> checker.checkTransactionSizeLimitBasedOnPayer(txInfo, nonPrivilegedAccountId))
-                        .isInstanceOf(PreCheckException.class)
-                        .has(responseCode(TRANSACTION_OVERSIZE));
-                // When checking transaction size limit based on payer,
-                // it also fails for an account within the excluded range account
-                assertThatThrownBy(
-                                () -> checker.checkTransactionSizeLimitBasedOnPayer(txInfo, accountIdInExcludedRange))
-                        .isInstanceOf(PreCheckException.class)
-                        .has(responseCode(TRANSACTION_OVERSIZE));
-
-                assertThat(counterMetric("NonPrivilegedOversizedTxnsRcv").get()).isEqualTo(2L);
-            }
-
-            private static Stream<Arguments> privilegedAccountNumbers() {
-                // Parse governance range from config to generate all account numbers
-                final List<Long> accountNumbers = new ArrayList<>();
-                if (StringUtils.isEmpty(GOVERNANCE_ACCOUNTS_RANGE)) {
-                    return Stream.empty();
-                }
-
-                final String[] parts = GOVERNANCE_ACCOUNTS_RANGE.split(",");
-                for (String part : parts) {
-                    part = part.trim();
-                    if (part.contains("-")) {
-                        // It's a range like "42-799"
-                        String[] rangeParts = part.split("-");
-                        if (rangeParts.length == 2) {
-                            try {
-                                final long from = Long.parseLong(rangeParts[0].trim());
-                                final long to = Long.parseLong(rangeParts[1].trim());
-                                for (long i = from; i <= to; i++) {
-                                    accountNumbers.add(i);
-                                }
-                            } catch (NumberFormatException e) {
-                                // Invalid number, skip
-                            }
-                        }
-                    } else {
-                        // It's a single account like "2"
+            final String[] parts = GOVERNANCE_ACCOUNTS_RANGE.split(",");
+            for (String part : parts) {
+                part = part.trim();
+                if (part.contains("-")) {
+                    // It's a range like "42-799"
+                    String[] rangeParts = part.split("-");
+                    if (rangeParts.length == 2) {
                         try {
-                            accountNumbers.add(Long.parseLong(part.trim()));
+                            final long from = Long.parseLong(rangeParts[0].trim());
+                            final long to = Long.parseLong(rangeParts[1].trim());
+                            for (long i = from; i <= to; i++) {
+                                accountNumbers.add(i);
+                            }
                         } catch (NumberFormatException e) {
                             // Invalid number, skip
                         }
                     }
+                } else {
+                    // It's a single account like "2"
+                    try {
+                        accountNumbers.add(Long.parseLong(part.trim()));
+                    } catch (NumberFormatException e) {
+                        // Invalid number, skip
+                    }
                 }
-                return accountNumbers.stream()
-                        .map(accountNum -> Arguments.of(Named.of("Account " + accountNum, accountNum)));
             }
+            return accountNumbers.stream()
+                    .map(accountNum -> Arguments.of(Named.of("Account " + accountNum, accountNum)));
+        }
 
-            @ParameterizedTest
-            @DisplayName("Large transaction with privileged payers passes")
-            @MethodSource("privilegedAccountNumbers")
-            void largeTransactionWithPrivilegedPayerPasses(final long privilegedAccountNum) throws PreCheckException {
-                // Given governance transactions enabled, privileged payer in governance range, transaction 6-130KB
-                props = () -> new VersionedConfigImpl(
-                        HederaTestConfigBuilder.create()
-                                .withValue("governanceTransactions.isEnabled", true)
-                                .withValue("governanceTransactions.maxTxnSize", MAX_LARGE_TX_SIZE) // 130 KB
-                                .withValue("hedera.transaction.maxBytes", MAX_TX_SIZE) // 6 KB
-                                .withValue("accounts.governanceTransactions", GOVERNANCE_ACCOUNTS_RANGE)
-                                .getOrCreateConfig(),
-                        1);
+        @ParameterizedTest
+        @DisplayName("Large transaction with governance payers passes")
+        @MethodSource("governanceAccountNumbers")
+        void largeTransactionWithGovernancePayerPasses(final long governanceAccountNum) throws PreCheckException {
+            // Given governance transactions enabled, governance payer in governance range, transaction 6-130KB
+            props = () -> new VersionedConfigImpl(
+                    HederaTestConfigBuilder.create()
+                            .withValue("governanceTransactions.isEnabled", true)
+                            .withValue("governanceTransactions.maxTxnSize", MAX_LARGE_TX_SIZE) // 130 KB
+                            .withValue("governanceTransactions.accountsRange", GOVERNANCE_ACCOUNTS_RANGE)
+                            .withValue("hedera.transaction.maxBytes", MAX_TX_SIZE) // 6 KB
+                            .getOrCreateConfig(),
+                    1);
 
-                checker = new TransactionChecker(props, metrics);
-                final var txInfo = mock(TransactionInfo.class);
-                when(txInfo.signedTx())
-                        .thenReturn(SignedTransaction.newBuilder()
-                                .bodyBytes(Bytes.wrap(new byte[1024 * 100])) // 100 KB transaction
-                                .build());
-                when(txInfo.functionality()).thenReturn(CRYPTO_TRANSFER);
+            checker = new TransactionChecker(props, metrics);
+            final var txInfo = mock(TransactionInfo.class);
+            when(txInfo.signedTx())
+                    .thenReturn(SignedTransaction.newBuilder()
+                            .bodyBytes(Bytes.wrap(new byte[1024 * 100])) // 100 KB transaction
+                            .build());
+            when(txInfo.functionality()).thenReturn(CRYPTO_TRANSFER);
 
-                final var privilegedAccountId =
-                        AccountID.newBuilder().accountNum(privilegedAccountNum).build();
+            final var governanceAccountId =
+                    AccountID.newBuilder().accountNum(governanceAccountNum).build();
 
-                // When checking transaction size before the payer is known, it passes early validation
-                checker.checkTransactionSize(txInfo);
+            // When checking transaction size before the payer is known, it passes early validation
+            checker.checkTransactionSize(txInfo);
 
-                // When checking transaction size limit based on payer, it passes for privileged payer
-                assertDoesNotThrow(() -> checker.checkTransactionSizeLimitBasedOnPayer(txInfo, privilegedAccountId));
-                assertThat(counterMetric("NonPrivilegedOversizedTxnsRcv").get()).isZero();
-            }
+            // When checking transaction size limit based on payer, it passes for governance payer
+            assertDoesNotThrow(() -> checker.checkTransactionSizeLimitBasedOnPayer(txInfo, governanceAccountId));
+            assertThat(counterMetric("NonGovernanceOversizedTxnsRcv").get()).isZero();
         }
     }
 

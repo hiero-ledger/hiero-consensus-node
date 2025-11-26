@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.config.impl.internal;
 
-import com.hedera.node.config.converter.PermissionedAccountsRangeConverter;
-import com.hedera.node.config.types.PermissionedAccountsRange;
 import com.swirlds.config.api.converter.ConfigConverter;
 import com.swirlds.config.impl.converters.BigDecimalConverter;
 import com.swirlds.config.impl.converters.BigIntegerConverter;
@@ -82,8 +80,6 @@ class ConverterService implements ConfigLifecycle {
     private static final ConfigConverter<ChronoUnit> CHRONO_UNIT_CONVERTER = new ChronoUnitConverter();
 
     private static final ConfigConverter<InetAddress> INET_ADDRESS_CONFIG_CONVERTER = new InetAddressConverter();
-    private static final ConfigConverter<PermissionedAccountsRange> PERMISSIONED_ACCOUNTS_RANGE_CONVERTER =
-            new PermissionedAccountsRangeConverter();
 
     ConverterService() {
         this.converters = new ConcurrentHashMap<>();
@@ -172,7 +168,6 @@ class ConverterService implements ConfigLifecycle {
         addConverter(Duration.class, DURATION_CONVERTER);
         addConverter(ChronoUnit.class, CHRONO_UNIT_CONVERTER);
         addConverter(InetAddress.class, INET_ADDRESS_CONFIG_CONVERTER);
-        addConverter(PermissionedAccountsRange.class, PERMISSIONED_ACCOUNTS_RANGE_CONVERTER);
 
         initialized = true;
     }
