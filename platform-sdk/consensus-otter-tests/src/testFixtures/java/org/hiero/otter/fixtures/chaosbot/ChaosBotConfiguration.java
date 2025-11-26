@@ -6,7 +6,7 @@ import static java.util.Objects.requireNonNull;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
-import java.util.Set;
+import java.util.List;
 import org.hiero.otter.fixtures.internal.helpers.Utils;
 
 /**
@@ -21,19 +21,19 @@ public record ChaosBotConfiguration(
         @NonNull Duration minInterval,
         @NonNull Duration maxInterval,
         @Nullable Long seed,
-        @NonNull Set<Experiment> experiments) {
+        @NonNull List<Experiment> experiments) {
 
     /** Default configuration for the chaos bot. */
     public static final ChaosBotConfiguration DEFAULT = new ChaosBotConfiguration(
             Duration.ofSeconds(30L),
             Duration.ofSeconds(90L),
             null,
-            Set.of(
+            List.of(
                     new HighLatencyNodeExperiment(),
                     new LowBandwidthNodeExperiment(),
                     new NetworkPartitionExperiment(),
                     new NodeFailureExperiment(),
-                    new NodeIsolationExperiment()));
+                    new FlickeringIsolationExperiment()));
 
     /**
      * Create a new configuration.
@@ -91,7 +91,7 @@ public record ChaosBotConfiguration(
      * @param newExperiments the new experiments
      * @return the new configuration
      */
-    public ChaosBotConfiguration withExperiments(@NonNull final Set<Experiment> newExperiments) {
+    public ChaosBotConfiguration withExperiments(@NonNull final List<Experiment> newExperiments) {
         return new ChaosBotConfiguration(this.minInterval, this.maxInterval, this.seed, newExperiments);
     }
 
@@ -103,6 +103,6 @@ public record ChaosBotConfiguration(
      * @return the new configuration
      */
     public ChaosBotConfiguration withExperiments(@NonNull final Experiment first, @NonNull final Experiment... others) {
-        return new ChaosBotConfiguration(this.minInterval, this.maxInterval, this.seed, Utils.collect(first, others));
+        return new ChaosBotConfiguration(this.minInterval, this.maxInterval, this.seed, Utils.toList(first, others));
     }
 }
