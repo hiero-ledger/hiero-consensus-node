@@ -205,7 +205,8 @@ class EthTxSigsTest {
 
         final var chainId = new byte[] {0x01, 0x2A};
         final long nonce = 9;
-        final var gasPrice = fillBytes(8, 0x01);
+        final byte[] maxPriorityGas = fillBytes(4, 0x11);
+        final byte[] maxGas = fillBytes(6, 0x33);
         final long gasLimit = 123456;
         final var to = fillBytes(20, 0x22);
         final long value = 987654321L;
@@ -217,7 +218,8 @@ class EthTxSigsTest {
 
         when(ethTx.chainId()).thenReturn(chainId);
         when(ethTx.nonce()).thenReturn(nonce);
-        when(ethTx.gasPrice()).thenReturn(gasPrice);
+        when(ethTx.maxPriorityGas()).thenReturn(maxPriorityGas);
+        when(ethTx.maxGas()).thenReturn(maxGas);
         when(ethTx.gasLimit()).thenReturn(gasLimit);
         when(ethTx.to()).thenReturn(to);
         when(ethTx.value()).thenReturn(BigInteger.valueOf(value));
@@ -227,10 +229,11 @@ class EthTxSigsTest {
 
         final byte[] actual = EthTxSigs.resolveEIP7702(ethTx);
 
-        final byte[] expected = RLPEncoder.sequence(Integers.toBytes(1), new Object[] {
+        final byte[] expected = RLPEncoder.sequence(Integers.toBytes(4), new Object[] {
             chainId,
             Integers.toBytes(nonce),
-            gasPrice,
+            maxPriorityGas,
+            maxGas,
             Integers.toBytes(gasLimit),
             to,
             Integers.toBytesUnsigned(BigInteger.valueOf(value)),
@@ -248,7 +251,8 @@ class EthTxSigsTest {
 
         final var chainId = new byte[] {0x01};
         final long nonce = 1;
-        final var gasPrice = new byte[] {0x05};
+        final byte[] maxPriorityGas = fillBytes(2, 0x00);
+        final byte[] maxGas = fillBytes(8, 0x02);
         final long gasLimit = 21000;
         final var to = fillBytes(20, 0x01);
         final long value = 1L;
@@ -258,7 +262,8 @@ class EthTxSigsTest {
 
         when(ethTx.chainId()).thenReturn(chainId);
         when(ethTx.nonce()).thenReturn(nonce);
-        when(ethTx.gasPrice()).thenReturn(gasPrice);
+        when(ethTx.maxPriorityGas()).thenReturn(maxPriorityGas);
+        when(ethTx.maxGas()).thenReturn(maxGas);
         when(ethTx.gasLimit()).thenReturn(gasLimit);
         when(ethTx.to()).thenReturn(to);
         when(ethTx.value()).thenReturn(BigInteger.valueOf(value));
@@ -268,10 +273,11 @@ class EthTxSigsTest {
 
         final byte[] actual = EthTxSigs.resolveEIP7702(ethTx);
 
-        final byte[] expected = RLPEncoder.sequence(Integers.toBytes(1), new Object[] {
+        final byte[] expected = RLPEncoder.sequence(Integers.toBytes(4), new Object[] {
             chainId,
             Integers.toBytes(nonce),
-            gasPrice,
+            maxPriorityGas,
+            maxGas,
             Integers.toBytes(gasLimit),
             to,
             Integers.toBytesUnsigned(BigInteger.valueOf(value)),
