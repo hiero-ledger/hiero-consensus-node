@@ -3,6 +3,7 @@ package com.hedera.services.bdd.suites.fees;
 
 import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SIMPLE_FEES;
+import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.accountAllowanceHook;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoApproveAllowance;
@@ -17,6 +18,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.*;
 import static com.hedera.services.bdd.suites.HapiSuite.*;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
+import static java.util.List.*;
 
 import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
@@ -396,148 +398,119 @@ public class CryptoSimpleFeesSuite {
     @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
     @DisplayName("crypto approve allowance plain")
     final Stream<DynamicTest> cryptoApproveAllowancePlain() {
-        return compareSimpleToOld(
-                () -> Arrays.asList(
-                        cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
-                        cryptoCreate("spender"),
-                        cryptoApproveAllowance()
-                                .payingWith(PAYER)
-                                .addCryptoAllowance(PAYER, "spender", 100L)
-                                .via("approveTxn")),
-                "approveTxn",
-                0.050,
-                1.0,
-                0.050,
-                1.0);
+        return hapiTest(
+                cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
+                cryptoCreate("spender"),
+                cryptoApproveAllowance()
+                        .payingWith(PAYER)
+                        .addCryptoAllowance(PAYER, "spender", 100L)
+                        .via("approveTxn"),
+                validateChargedUsd("approveTxn", 0.05));
     }
 
     @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
     @DisplayName("crypto approve allowance with multiple allowances")
     final Stream<DynamicTest> cryptoApproveAllowanceMultiple() {
-        return compareSimpleToOld(
-                () -> Arrays.asList(
-                        cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
-                        cryptoCreate("spender1"),
-                        cryptoCreate("spender2"),
-                        cryptoCreate("spender3"),
-                        cryptoApproveAllowance()
-                                .payingWith(PAYER)
-                                .addCryptoAllowance(PAYER, "spender1", 100L)
-                                .addCryptoAllowance(PAYER, "spender2", 200L)
-                                .addCryptoAllowance(PAYER, "spender3", 300L)
-                                .via("approveMultipleTxn")),
-                "approveMultipleTxn",
-                0.051099999599999994,
-                1.0,
-                0.051099999599999994,
-                1.0);
+        return hapiTest(
+                cryptoCreate(PAYER).balance(ONE_MILLION_HBARS),
+                cryptoCreate("spender1"),
+                cryptoCreate("spender2"),
+                cryptoCreate("spender3"),
+                cryptoApproveAllowance()
+                        .payingWith(PAYER)
+                        .fee(THOUSAND_HBAR)
+                        .addCryptoAllowance(PAYER, "spender1", 100L)
+                        .addCryptoAllowance(PAYER, "spender2", 200L)
+                        .addCryptoAllowance(PAYER, "spender3", 300L)
+                        .via("approveMultipleTxn"),
+                validateChargedUsd("approveMultipleTxn", 0.151099999599999994));
     }
 
     @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
     @DisplayName("crypto delete allowance plain")
     final Stream<DynamicTest> cryptoDeleteAllowancePlain() {
-        return compareSimpleToOld(
-                () -> Arrays.asList(
-                        cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
-                        tokenCreate("nft1")
-                                .tokenType(NON_FUNGIBLE_UNIQUE)
-                                .supplyKey(PAYER)
-                                .treasury(PAYER)
-                                .initialSupply(0L),
-                        mintToken("nft1", java.util.List.of(ByteString.copyFromUtf8("1"))),
-                        cryptoDeleteAllowance()
-                                .payingWith(PAYER)
-                                .addNftDeleteAllowance(PAYER, "nft1", java.util.List.of(1L))
-                                .via("deleteTxn")),
-                "deleteTxn",
-                0.05,
-                1.0,
-                0.05,
-                1.0);
+        return hapiTest(
+                cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
+                tokenCreate("nft1")
+                        .tokenType(NON_FUNGIBLE_UNIQUE)
+                        .supplyKey(PAYER)
+                        .treasury(PAYER)
+                        .initialSupply(0L),
+                mintToken("nft1", of(ByteString.copyFromUtf8("1"))),
+                cryptoDeleteAllowance()
+                        .payingWith(PAYER)
+                        .addNftDeleteAllowance(PAYER, "nft1", of(1L))
+                        .via("deleteTxn"),
+                validateChargedUsd("deleteTxn", 0.05));
     }
 
     @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
     @DisplayName("crypto delete allowance with multiple allowances")
     final Stream<DynamicTest> cryptoDeleteAllowanceMultiple() {
-        return compareSimpleToOld(
-                () -> Arrays.asList(
-                        cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
-                        tokenCreate("nft1")
-                                .tokenType(NON_FUNGIBLE_UNIQUE)
-                                .supplyKey(PAYER)
-                                .treasury(PAYER)
-                                .initialSupply(0L),
-                        tokenCreate("nft2")
-                                .tokenType(NON_FUNGIBLE_UNIQUE)
-                                .supplyKey(PAYER)
-                                .treasury(PAYER)
-                                .initialSupply(0L),
-                        tokenCreate("nft3")
-                                .tokenType(NON_FUNGIBLE_UNIQUE)
-                                .supplyKey(PAYER)
-                                .treasury(PAYER)
-                                .initialSupply(0L),
-                        mintToken("nft1", java.util.List.of(ByteString.copyFromUtf8("1"))),
-                        mintToken("nft2", java.util.List.of(ByteString.copyFromUtf8("2"))),
-                        mintToken("nft3", java.util.List.of(ByteString.copyFromUtf8("3"))),
-                        cryptoDeleteAllowance()
-                                .payingWith(PAYER)
-                                .addNftDeleteAllowance(PAYER, "nft1", java.util.List.of(1L))
-                                .addNftDeleteAllowance(PAYER, "nft2", java.util.List.of(1L))
-                                .addNftDeleteAllowance(PAYER, "nft3", java.util.List.of(1L))
-                                .via("deleteMultipleTxn")),
-                "deleteMultipleTxn",
-                0.051099999599999994,
-                1.0,
-                0.051099999599999994,
-                1.0);
+        return hapiTest(
+                cryptoCreate(PAYER).balance(ONE_MILLION_HBARS),
+                tokenCreate("nft1")
+                        .tokenType(NON_FUNGIBLE_UNIQUE)
+                        .supplyKey(PAYER)
+                        .treasury(PAYER)
+                        .initialSupply(0L),
+                tokenCreate("nft2")
+                        .tokenType(NON_FUNGIBLE_UNIQUE)
+                        .supplyKey(PAYER)
+                        .treasury(PAYER)
+                        .initialSupply(0L),
+                tokenCreate("nft3")
+                        .tokenType(NON_FUNGIBLE_UNIQUE)
+                        .supplyKey(PAYER)
+                        .treasury(PAYER)
+                        .initialSupply(0L),
+                mintToken("nft1", of(ByteString.copyFromUtf8("1"))),
+                mintToken("nft2", of(ByteString.copyFromUtf8("2"))),
+                mintToken("nft3", of(ByteString.copyFromUtf8("3"))),
+                cryptoDeleteAllowance()
+                        .payingWith(PAYER)
+                        .fee(THOUSAND_HBAR)
+                        .addNftDeleteAllowance(PAYER, "nft1", of(1L))
+                        .addNftDeleteAllowance(PAYER, "nft2", of(1L))
+                        .addNftDeleteAllowance(PAYER, "nft3", of(1L))
+                        .via("deleteMultipleTxn"),
+                validateChargedUsd("deleteMultipleTxn", 0.151099999599999994));
     }
 
     @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
     @DisplayName("crypto approve allowance with multiple signatures")
     final Stream<DynamicTest> cryptoApproveAllowanceMultipleSignatures() {
-        return compareSimpleToOld(
-                () -> Arrays.asList(
-                        newKeyNamed("payerKey"),
-                        newKeyNamed("spenderKey"),
-                        cryptoCreate(PAYER).key("payerKey").balance(ONE_HUNDRED_HBARS),
-                        cryptoCreate("spender").key("spenderKey"),
-                        cryptoApproveAllowance()
-                                .payingWith(PAYER)
-                                .addCryptoAllowance(PAYER, "spender", 100L)
-                                .signedBy("payerKey", "spenderKey")
-                                .via("approveMultiSigTxn")),
-                "approveMultiSigTxn",
-                0.0500999988,
-                1.0,
-                0.0500999988,
-                1.0);
+        return hapiTest(
+                newKeyNamed("payerKey"),
+                newKeyNamed("spenderKey"),
+                cryptoCreate(PAYER).key("payerKey").balance(ONE_HUNDRED_HBARS),
+                cryptoCreate("spender").key("spenderKey"),
+                cryptoApproveAllowance()
+                        .payingWith(PAYER)
+                        .addCryptoAllowance(PAYER, "spender", 100L)
+                        .signedBy("payerKey", "spenderKey")
+                        .via("approveMultiSigTxn"),
+                validateChargedUsd("approveMultiSigTxn", 0.0500999988));
     }
 
     @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
     @DisplayName("crypto delete allowance with multiple signatures")
     final Stream<DynamicTest> cryptoDeleteAllowanceMultipleSignatures() {
-        return compareSimpleToOld(
-                () -> Arrays.asList(
-                        newKeyNamed("payerKey"),
-                        newKeyNamed("ownerKey"),
-                        cryptoCreate(PAYER).key("payerKey").balance(ONE_HUNDRED_HBARS),
-                        cryptoCreate("owner").key("ownerKey").balance(ONE_HBAR),
-                        tokenCreate("nft1")
-                                .tokenType(NON_FUNGIBLE_UNIQUE)
-                                .supplyKey("owner")
-                                .treasury("owner")
-                                .initialSupply(0L),
-                        mintToken("nft1", java.util.List.of(ByteString.copyFromUtf8("1"))),
-                        cryptoDeleteAllowance()
-                                .payingWith(PAYER)
-                                .addNftDeleteAllowance("owner", "nft1", java.util.List.of(1L))
-                                .signedBy("payerKey", "ownerKey")
-                                .via("deleteMultiSigTxn")),
-                "deleteMultiSigTxn",
-                0.051099998400000006,
-                1.0,
-                0.051099998400000006,
-                1.0);
+        return hapiTest(
+                newKeyNamed("payerKey"),
+                newKeyNamed("extraKey"),
+                cryptoCreate(PAYER).key("payerKey").balance(ONE_HUNDRED_HBARS),
+                tokenCreate("nft1")
+                        .tokenType(NON_FUNGIBLE_UNIQUE)
+                        .supplyKey(PAYER)
+                        .treasury(PAYER)
+                        .initialSupply(0L),
+                mintToken("nft1", of(ByteString.copyFromUtf8("1"))),
+                cryptoDeleteAllowance()
+                        .payingWith(PAYER)
+                        .addNftDeleteAllowance(PAYER, "nft1", of(1L))
+                        .signedBy("payerKey", "extraKey")
+                        .via("deleteMultiSigTxn"),
+                validateChargedUsd("deleteMultiSigTxn", 0.0500999988));
     }
 }

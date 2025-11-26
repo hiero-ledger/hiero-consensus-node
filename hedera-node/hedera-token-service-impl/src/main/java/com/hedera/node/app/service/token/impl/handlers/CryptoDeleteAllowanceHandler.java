@@ -85,15 +85,9 @@ public class CryptoDeleteAllowanceHandler implements TransactionHandler {
                 final var store = context.createStore(ReadableAccountStore.class);
                 final var ownerId = allowance.ownerOrThrow();
                 final var owner = store.getAccountById(ownerId);
-                // Check if owner exists (could be null if account was deleted)
-                final boolean approvedForAll;
-                if (owner == null) {
-                    approvedForAll = false;
-                } else {
-                    approvedForAll = owner.approveForAllNftAllowances().stream()
-                            .anyMatch(approveForAll -> approveForAll.tokenId().equals(allowance.tokenId())
-                                    && approveForAll.spenderId().equals(context.payer()));
-                }
+                final var approvedForAll = owner.approveForAllNftAllowances().stream()
+                        .anyMatch(approveForAll -> approveForAll.tokenId().equals(allowance.tokenId())
+                                && approveForAll.spenderId().equals(context.payer()));
                 if (!context.payer().equals(ownerId) && !approvedForAll) {
                     context.requireKeyOrThrow(ownerId, INVALID_ALLOWANCE_OWNER_ID);
                 }

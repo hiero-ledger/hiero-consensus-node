@@ -29,7 +29,7 @@
     { "name":  "CREATED_ACCOUNTS",               "fee": 0 },
     { "name":  "CUSTOM_FEE",                     "fee": 0 },
     { "name":  "GAS",                            "fee": 1 },
-    { "name":  "ALLOWANCES",                     "fee": 5000000 },
+    { "name":  "ALLOWANCES",                     "fee": 500000000 },
     { "name":  "AIRDROPS",                       "fee": 8800 },
     { "name":  "HOOKS",                          "fee": 10000000000 }
   ],
