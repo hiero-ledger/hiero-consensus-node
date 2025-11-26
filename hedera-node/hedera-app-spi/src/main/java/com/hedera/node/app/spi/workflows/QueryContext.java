@@ -3,6 +3,7 @@ package com.hedera.node.app.spi.workflows;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.transaction.Query;
+import com.hedera.node.app.spi.fees.CalculatorState;
 import com.hedera.node.app.spi.fees.ExchangeRateInfo;
 import com.hedera.node.app.spi.fees.FeeCalculator;
 import com.hedera.node.app.spi.records.BlockRecordInfo;
@@ -14,7 +15,7 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 /**
  * Context of a single query. Contains all query specific information.
  */
-public interface QueryContext {
+public interface QueryContext extends CalculatorState {
 
     /**
      * Returns the {@link Query} that is currently being processed.

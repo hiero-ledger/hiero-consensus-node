@@ -31,6 +31,7 @@ public class QueryContextImpl implements QueryContext {
     private final ExchangeRateManager exchangeRateManager;
     private final AccountID payer;
     private final FeeCalculator feeCalculator;
+    private final int numSignatures;
     private BlockRecordInfo blockRecordInfo; // lazily created
     private ExchangeRateInfo exchangeRateInfo; // lazily created
 
@@ -55,7 +56,8 @@ public class QueryContextImpl implements QueryContext {
             @NonNull final RecordCache recordCache,
             @NonNull final ExchangeRateManager exchangeRateManager,
             @NonNull final FeeCalculator feeCalculator,
-            @Nullable final AccountID payer) {
+            @Nullable final AccountID payer,
+            final int numSignatures) {
         this.state = requireNonNull(state, "state must not be null");
         this.storeFactory = requireNonNull(storeFactory, "storeFactory must not be null");
         this.query = requireNonNull(query, "query must not be null");
@@ -64,6 +66,7 @@ public class QueryContextImpl implements QueryContext {
         this.exchangeRateManager = requireNonNull(exchangeRateManager, "exchangeRateManager must not be null");
         this.feeCalculator = requireNonNull(feeCalculator, "feeCalculator must not be null");
         this.payer = payer;
+        this.numSignatures = numSignatures;
     }
 
     @Override
@@ -117,5 +120,10 @@ public class QueryContextImpl implements QueryContext {
     @Override
     public FeeCalculator feeCalculator() {
         return feeCalculator;
+    }
+
+    @Override
+    public int numTxnSignatures() {
+        return numSignatures;
     }
 }
