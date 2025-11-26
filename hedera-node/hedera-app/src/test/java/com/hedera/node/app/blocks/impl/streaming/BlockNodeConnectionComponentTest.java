@@ -21,14 +21,10 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.block.stream.BlockItem;
-import com.hedera.node.app.blocks.impl.streaming.BlockNodeConnection.ConnectionState;
 import com.hedera.node.app.metrics.BlockStreamMetrics;
 import com.hedera.node.config.ConfigProvider;
-import com.hedera.pbj.grpc.client.helidon.PbjGrpcClientConfig;
 import com.hedera.pbj.runtime.grpc.Pipeline;
-import com.hedera.pbj.runtime.grpc.ServiceInterface.RequestOptions;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
-import io.helidon.webclient.api.WebClient;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodHandles.Lookup;
@@ -147,7 +143,7 @@ class BlockNodeConnectionComponentTest extends BlockNodeCommunicationTestBase {
         lenient()
                 .doReturn(grpcServiceClient)
                 .when(clientFactory)
-                .createClient(any(WebClient.class), any(PbjGrpcClientConfig.class), any(RequestOptions.class));
+                .createStreamingClient(any(BlockNodeConfiguration.class), any(Duration.class));
         connection = new BlockNodeConnection(
                 configProvider,
                 nodeConfig,
@@ -216,7 +212,7 @@ class BlockNodeConnectionComponentTest extends BlockNodeCommunicationTestBase {
         lenient()
                 .doReturn(grpcServiceClient)
                 .when(localFactory)
-                .createClient(any(WebClient.class), any(PbjGrpcClientConfig.class), any(RequestOptions.class));
+                .createStreamingClient(any(BlockNodeConfiguration.class), any(Duration.class));
 
         final BlockNodeConfiguration cfgWithMax = BlockNodeConfiguration.newBuilder()
                 .address(nodeConfig.address())
@@ -268,7 +264,7 @@ class BlockNodeConnectionComponentTest extends BlockNodeCommunicationTestBase {
                 .when(connectionManager)
                 .notifyConnectionClosed(connection);
 
-        connection.createRequestPipeline();
+        connection.initialize();
         connection.updateConnectionState(ConnectionState.ACTIVE);
 
         // Wait for connection to close due to oversized item
@@ -306,7 +302,7 @@ class BlockNodeConnectionComponentTest extends BlockNodeCommunicationTestBase {
 
         streamingBlockNumber.set(10);
 
-        final BlockNodeConfiguration config = connection.getNodeConfig();
+        final BlockNodeConfiguration config = connection.configuration();
         // sanity check to make sure the sizes we are about to use are within the scope of the soft and hard limits
         assertThat(config.messageSizeSoftLimitBytes()).isEqualTo(2_097_152L); // soft limit = 2 MB
         assertThat(config.messageSizeHardLimitBytes()).isEqualTo(6_292_480L); // hard limit = 6 MB + 1 KB
@@ -405,7 +401,7 @@ class BlockNodeConnectionComponentTest extends BlockNodeCommunicationTestBase {
 
         streamingBlockNumber.set(10);
 
-        final BlockNodeConfiguration config = connection.getNodeConfig();
+        final BlockNodeConfiguration config = connection.configuration();
         // sanity check to make sure the sizes we are about to use are within the scope of the soft and hard limits
         assertThat(config.messageSizeSoftLimitBytes()).isEqualTo(2_097_152L); // soft limit = 2 MB
         assertThat(config.messageSizeHardLimitBytes()).isEqualTo(6_292_480L); // hard limit = 6 MB + 1 KB
@@ -487,7 +483,7 @@ class BlockNodeConnectionComponentTest extends BlockNodeCommunicationTestBase {
         doReturn(block5).when(bufferService).getBlockState(block5.blockNumber());
         doReturn(block6).when(bufferService).getBlockState(block6.blockNumber());
 
-        final BlockNodeConfiguration config = connection.getNodeConfig();
+        final BlockNodeConfiguration config = connection.configuration();
         // sanity check to make sure the sizes we are about to use are within the scope of the soft and hard limits
         assertThat(config.messageSizeSoftLimitBytes()).isEqualTo(2_097_152L); // soft limit = 2 MB
         assertThat(config.messageSizeHardLimitBytes()).isEqualTo(6_292_480L); // hard limit = 6 MB + 1 KB
@@ -597,7 +593,7 @@ class BlockNodeConnectionComponentTest extends BlockNodeCommunicationTestBase {
                 .recordRequestSent(any(RequestOneOfType.class));
 
         // Create the request pipeline before starting the worker thread
-        connection.createRequestPipeline();
+        connection.initialize();
 
         // Start the actual worker thread
         connection.updateConnectionState(ConnectionState.ACTIVE);
@@ -634,7 +630,7 @@ class BlockNodeConnectionComponentTest extends BlockNodeCommunicationTestBase {
 
         lenient().doReturn(requestPipeline).when(grpcServiceClient).publishBlockStream(connection);
 
-        connection.createRequestPipeline();
+        connection.initialize();
         connection.updateConnectionState(ConnectionState.ACTIVE); // this will start the worker thread
 
         final Thread workerThread = workerThreadRef().get();
@@ -650,7 +646,7 @@ class BlockNodeConnectionComponentTest extends BlockNodeCommunicationTestBase {
         assertThat(workerThread.join(Duration.ofSeconds(2))).isTrue();
 
         // now the connection should be closed and all the items are sent
-        assertThat(connection.getConnectionState()).isEqualTo(ConnectionState.CLOSED);
+        assertThat(connection.currentState()).isEqualTo(ConnectionState.CLOSED);
 
         final ArgumentCaptor<PublishStreamRequest> requestCaptor = ArgumentCaptor.forClass(PublishStreamRequest.class);
 
@@ -698,7 +694,7 @@ class BlockNodeConnectionComponentTest extends BlockNodeCommunicationTestBase {
 
         lenient().doReturn(requestPipeline).when(grpcServiceClient).publishBlockStream(connection);
 
-        connection.createRequestPipeline();
+        connection.initialize();
         connection.updateConnectionState(ConnectionState.ACTIVE); // this will start the worker thread
 
         final Thread workerThread = workerThreadRef().get();
@@ -720,7 +716,7 @@ class BlockNodeConnectionComponentTest extends BlockNodeCommunicationTestBase {
         assertThat(workerThread.join(Duration.ofSeconds(2))).isTrue();
 
         // now the connection should be closed and all the items are sent
-        assertThat(connection.getConnectionState()).isEqualTo(ConnectionState.CLOSED);
+        assertThat(connection.currentState()).isEqualTo(ConnectionState.CLOSED);
 
         final ArgumentCaptor<PublishStreamRequest> requestCaptor = ArgumentCaptor.forClass(PublishStreamRequest.class);
 
@@ -889,7 +885,7 @@ class BlockNodeConnectionComponentTest extends BlockNodeCommunicationTestBase {
         verify(metrics).recordConnectionClosed();
 
         // Connection should still be CLOSED despite interruption
-        assertThat(connection.getConnectionState()).isEqualTo(ConnectionState.CLOSED);
+        assertThat(connection.currentState()).isEqualTo(ConnectionState.CLOSED);
 
         assertThat(isInterrupted.get()).isTrue();
     }
@@ -990,7 +986,7 @@ class BlockNodeConnectionComponentTest extends BlockNodeCommunicationTestBase {
         verify(metrics, times(totalRequestsSent - endOfBlockRequest)).recordRequestSent(RequestOneOfType.BLOCK_ITEMS);
         verify(metrics, times(totalRequestsSent - endOfBlockRequest)).recordBlockItemsSent(anyInt());
         verify(metrics, times(totalRequestsSent)).recordRequestLatency(anyLong());
-        verify(connectionManager).recordBlockProofSent(eq(connection.getNodeConfig()), eq(10L), any(Instant.class));
+        verify(connectionManager).recordBlockProofSent(eq(connection.configuration()), eq(10L), any(Instant.class));
         verify(bufferService, atLeastOnce()).getBlockState(10);
         verify(bufferService, atLeastOnce()).getBlockState(11);
         verify(bufferService, atLeastOnce()).getEarliestAvailableBlockNumber();
@@ -1003,7 +999,7 @@ class BlockNodeConnectionComponentTest extends BlockNodeCommunicationTestBase {
     // Utilities
 
     private void openConnectionAndResetMocks() {
-        connection.createRequestPipeline();
+        connection.initialize();
         // reset the mocks interactions to remove tracked interactions as a result of starting the connection
         reset(connectionManager, requestPipeline, bufferService, metrics);
     }
