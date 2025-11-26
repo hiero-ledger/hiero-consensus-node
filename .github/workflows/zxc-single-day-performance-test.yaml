@@ -85,7 +85,7 @@ env:
   GRAFANA_SYSADM_CHI: https://grafana.lat.ope.eng.hashgraph.io/d/rYdddlPWk/node-exporter-single-node?orgId=1&timezone=utc&var-datasource=P631E2BA859A814B3&var-job=performance-chicago-node-exporter
 
   #Release version from jFrog
-  NLG_VERSION: 0.9.0
+  NLG_VERSION: 0.9.1
 
   #Thresholds for performance
   #benchmarks
@@ -398,7 +398,7 @@ jobs:
           set +e
           git clone https://"${GITHUB_PAGES_URL}"@github.com/hashgraph/network-load-generator network-load-generator
           cd network-load-generator
-          git checkout 00361-increase-ops-throttles #main
+          git checkout main
           ./gradlew --no-daemon clean assemble
           cd build/libs
           tar cvf /tmp/NLG.tar lib network-load-generator-*.jar
