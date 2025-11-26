@@ -60,7 +60,7 @@ public abstract class AbstractStatefulMetric<I, D, S extends DataPointSnapshot> 
     @NonNull
     @Override
     public final D getOrCreateNotLabeled() {
-        if (!dynamicLabelNames().isEmpty()) {
+        if (dataPoints != null) {
             throw new IllegalStateException("This metric has dynamic labels, so you must call getOrCreateLabeled()");
         }
         // lazy init of no labels data point
@@ -93,7 +93,7 @@ public abstract class AbstractStatefulMetric<I, D, S extends DataPointSnapshot> 
     @NonNull
     @Override
     public D getOrCreateLabeled(@NonNull I initializer, @NonNull String... namesAndValues) {
-        if (dynamicLabelNames().isEmpty()) {
+        if (dataPoints == null) {
             throw new IllegalStateException(
                     "This metric has no dynamic labels, so you must call getOrCreateNotLabeled()");
         }

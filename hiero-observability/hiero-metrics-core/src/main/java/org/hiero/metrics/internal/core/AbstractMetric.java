@@ -64,7 +64,7 @@ public abstract class AbstractMetric<D, S extends DataPointSnapshot> implements 
 
         if (namesAndValues.length / 2 != labelNames.size()) {
             throw new IllegalArgumentException(
-                    "Expected " + labelNames.size() + " label names and values, got " + namesAndValues.length / 2);
+                    "Expected " + labelNames.size() + " labels, got " + namesAndValues.length / 2);
         }
 
         if (labelNames.isEmpty()) {
