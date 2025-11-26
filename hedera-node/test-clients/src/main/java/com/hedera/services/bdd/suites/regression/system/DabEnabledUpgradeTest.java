@@ -27,10 +27,13 @@ import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfe
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.ensureStakingActivated;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.logIt;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.recordStreamMustIncludePassFrom;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.selectedItems;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateCandidateRoster;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitForActive;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitUntilStartOfNextStakingPeriod;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.spec.utilops.streams.assertions.VisibleItemsValidator.EXISTENCE_ONLY_VALIDATOR;
@@ -380,18 +383,14 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
                                         .signedByPayerAnd("newNodeAccountId"),
 
                                 // try death restart of the node
-                                //
-                                // getVersionInfo().exposingServicesVersionTo(currentVersion::set),
-                                //                                FakeNmt.shutdownWithin(byNodeId(nodeId.get()),
-                                // SHUTDOWN_TIMEOUT),
-                                //                                logIt("Node is supposedly down"),
-                                //                                sleepFor(PORT_UNBINDING_WAIT_PERIOD.toMillis()),
-                                //                                burstOfTps(MIXED_OPS_BURST_TPS,
-                                // MIXED_OPS_BURST_DURATION),
-                                //                                sourcing(() -> FakeNmt.restartWithConfigVersion(
-                                //                                        byNodeId(nodeId.get()),
-                                // configVersionOf(currentVersion.get()))),
-                                //                                waitForActive(byNodeId(4), Duration.ofSeconds(210)),
+                                getVersionInfo().exposingServicesVersionTo(currentVersion::set),
+                                FakeNmt.shutdownWithin(byNodeId(nodeId.get()), SHUTDOWN_TIMEOUT),
+                                logIt("Node is supposedly down"),
+                                sleepFor(PORT_UNBINDING_WAIT_PERIOD.toMillis()),
+                                burstOfTps(MIXED_OPS_BURST_TPS, MIXED_OPS_BURST_DURATION),
+                                sourcing(() -> FakeNmt.restartWithConfigVersion(
+                                        byNodeId(nodeId.get()), configVersionOf(currentVersion.get()))),
+                                waitForActive(byNodeId(4), Duration.ofSeconds(210)),
 
                                 // reconnect the node
                                 getVersionInfo().exposingServicesVersionTo(currentVersion::set),
@@ -487,7 +486,7 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
     }
 
     private static String nodeAccountIdFilePath(String nodeId) {
-        return "build/hapi-test/node%s/data/nodeAccountId/".formatted(nodeId);
+        return "build/hapi-test/node%s/data/generated/".formatted(nodeId);
     }
 
     private static ContextualActionOp validateRecordsPathAfterUpdate(
