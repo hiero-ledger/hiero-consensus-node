@@ -9,7 +9,7 @@ import com.hedera.hapi.node.base.*;
 import com.hedera.hapi.node.token.CryptoDeleteAllowanceTransactionBody;
 import com.hedera.hapi.node.token.NftRemoveAllowance;
 import com.hedera.hapi.node.transaction.TransactionBody;
-import com.hedera.node.app.spi.fees.CalculatorState;
+import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.SimpleFeeCalculatorImpl;
 import java.util.List;
 import java.util.Set;
@@ -30,7 +30,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 class CryptoDeleteAllowanceFeeCalculatorTest {
 
     @Mock
-    private CalculatorState calculatorState;
+    private FeeContext feeContext;
 
     private SimpleFeeCalculatorImpl feeCalculator;
 
@@ -47,7 +47,7 @@ class CryptoDeleteAllowanceFeeCalculatorTest {
         @DisplayName("calculateTxFee with single NFT allowance")
         void calculateTxFeeWithSingleNftAllowance() {
             // Given
-            lenient().when(calculatorState.numTxnSignatures()).thenReturn(1);
+            lenient().when(feeContext.numTxnSignatures()).thenReturn(1);
             final var allowance = NftRemoveAllowance.newBuilder()
                     .tokenId(TokenID.newBuilder().tokenNum(123).build())
                     .owner(AccountID.newBuilder().accountNum(456).build())
@@ -60,10 +60,10 @@ class CryptoDeleteAllowanceFeeCalculatorTest {
                     TransactionBody.newBuilder().cryptoDeleteAllowance(op).build();
 
             // When
-            final var result = feeCalculator.calculateTxFee(body, calculatorState);
+            final var result = feeCalculator.calculateTxFee(body, feeContext);
 
-            // Then: Base fee (4990000) with 1 allowance included (includedCount=1)
-            assertThat(result.service).isEqualTo(4990000L);
+            // Then: Base fee (500000000) with 1 allowance included (includedCount=1)
+            assertThat(result.service).isEqualTo(500000000L);
             assertThat(result.node).isEqualTo(100000L);
             assertThat(result.network).isEqualTo(900000L);
         }
@@ -72,7 +72,7 @@ class CryptoDeleteAllowanceFeeCalculatorTest {
         @DisplayName("calculateTxFee with multiple NFT allowances")
         void calculateTxFeeWithMultipleNftAllowances() {
             // Given
-            lenient().when(calculatorState.numTxnSignatures()).thenReturn(1);
+            lenient().when(feeContext.numTxnSignatures()).thenReturn(1);
             final var allowance1 = NftRemoveAllowance.newBuilder()
                     .tokenId(TokenID.newBuilder().tokenNum(123).build())
                     .owner(AccountID.newBuilder().accountNum(456).build())
@@ -95,17 +95,17 @@ class CryptoDeleteAllowanceFeeCalculatorTest {
                     TransactionBody.newBuilder().cryptoDeleteAllowance(op).build();
 
             // When
-            final var result = feeCalculator.calculateTxFee(body, calculatorState);
+            final var result = feeCalculator.calculateTxFee(body, feeContext);
 
-            // Then: Base fee (4990000) + 2 extra allowances (2 * 2000 = 4000)
-            assertThat(result.service).isEqualTo(4994000L);
+            // Then: Base fee (500000000) + 2 extra allowances (2 * 500000000 = 1000000000)
+            assertThat(result.service).isEqualTo(1500000000L);
         }
 
         @Test
         @DisplayName("calculateTxFee with many NFT allowances")
         void calculateTxFeeWithManyNftAllowances() {
             // Given
-            lenient().when(calculatorState.numTxnSignatures()).thenReturn(1);
+            lenient().when(feeContext.numTxnSignatures()).thenReturn(1);
             final var allowances = new NftRemoveAllowance[10];
             for (int i = 0; i < 10; i++) {
                 allowances[i] = NftRemoveAllowance.newBuilder()
@@ -121,10 +121,10 @@ class CryptoDeleteAllowanceFeeCalculatorTest {
                     TransactionBody.newBuilder().cryptoDeleteAllowance(op).build();
 
             // When
-            final var result = feeCalculator.calculateTxFee(body, calculatorState);
+            final var result = feeCalculator.calculateTxFee(body, feeContext);
 
-            // Then: Base fee (4990000) + 9 extra allowances (9 * 2000 = 18000)
-            assertThat(result.service).isEqualTo(5008000L);
+            // Then: Base fee (500000000) + 9 extra allowances (9 * 500000000 = 4500000000)
+            assertThat(result.service).isEqualTo(5000000000L);
         }
 
         @Test
@@ -151,13 +151,13 @@ class CryptoDeleteAllowanceFeeCalculatorTest {
                 .network(NetworkFee.newBuilder().multiplier(9).build())
                 .extras(
                         makeExtraDef(Extra.SIGNATURES, 1000000L),
-                        makeExtraDef(Extra.ALLOWANCES, 2000L),
-                        makeExtraDef(Extra.BYTES, 110L))
+                        makeExtraDef(Extra.ALLOWANCES, 500000000L),
+                        makeExtraDef(Extra.BYTES, 110000L))
                 .services(makeService(
                         "CryptoService",
                         makeServiceFee(
                                 HederaFunctionality.CRYPTO_DELETE_ALLOWANCE,
-                                4990000L,
+                                500000000L,
                                 makeExtraIncluded(Extra.ALLOWANCES, 1))))
                 .build();
     }
