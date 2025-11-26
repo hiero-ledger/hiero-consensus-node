@@ -5,6 +5,7 @@ import static com.hedera.hapi.util.HapiUtils.asAccountString;
 import static com.swirlds.common.io.utility.FileUtils.getAbsolutePath;
 import static java.util.Objects.requireNonNull;
 
+import com.github.luben.zstd.ZstdInputStream;
 import com.hedera.hapi.block.stream.Block;
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.BlockProof;
@@ -179,8 +180,8 @@ public class FileBlockItemWriter implements BlockItemWriter {
 
     /**
      * Loads pending blocks from the given directory, identifying them by the presence of {@code .pnd.json} files
-     * with pending block proofs. The contents of the blocks are read from the corresponding {@code .pnd.gz} or
-     * {@code .pnd} files.
+     * with pending block proofs. The contents of the blocks are read from the corresponding {@code .pnd.zst},
+     * {@code .pnd.gz}, or {@code .pnd} files.
      * @param blockDirPath the directory containing subdirectories to load pending blocks from
      * @param followingBlockNumber the block number the pending blocks should be immediately preceding
      * @param maxReadDepth the max allowed depth of nested protobuf messages
@@ -239,20 +240,31 @@ public class FileBlockItemWriter implements BlockItemWriter {
             }
             Block partialBlock = null;
             final var name = proofJson.getName();
-            Path contentsPath = proofJson.toPath().resolveSibling(name.replace(".pnd.json", ".pnd.gz"));
+
+            // Try ZSTD first (V3 format), then GZIP (legacy), then uncompressed
+            Path contentsPath = proofJson.toPath().resolveSibling(name.replace(".pnd.json", ".pnd.zst"));
             if (contentsPath.toFile().exists()) {
-                try (final GZIPInputStream in = new GZIPInputStream(Files.newInputStream(contentsPath))) {
+                try (final ZstdInputStream in = new ZstdInputStream(Files.newInputStream(contentsPath))) {
                     partialBlock = parseBlock(in.readAllBytes(), maxReadDepth, maxReadSize);
                 } catch (IOException | ParseException e) {
-                    logger.error("Error reading zipped pending block contents from {}", contentsPath, e);
+                    logger.error("Error reading ZSTD pending block contents from {}", contentsPath, e);
                 }
             } else {
-                contentsPath = proofJson.toPath().resolveSibling(name.replace(".pnd.json", ".pnd"));
+                contentsPath = proofJson.toPath().resolveSibling(name.replace(".pnd.json", ".pnd.gz"));
                 if (contentsPath.toFile().exists()) {
-                    try {
-                        partialBlock = parseBlock(Files.readAllBytes(contentsPath), maxReadDepth, maxReadSize);
+                    try (final GZIPInputStream in = new GZIPInputStream(Files.newInputStream(contentsPath))) {
+                        partialBlock = parseBlock(in.readAllBytes(), maxReadDepth, maxReadSize);
                     } catch (IOException | ParseException e) {
-                        logger.error("Error reading pending block contents from {}", contentsPath, e);
+                        logger.error("Error reading GZIP pending block contents from {}", contentsPath, e);
+                    }
+                } else {
+                    contentsPath = proofJson.toPath().resolveSibling(name.replace(".pnd.json", ".pnd"));
+                    if (contentsPath.toFile().exists()) {
+                        try {
+                            partialBlock = parseBlock(Files.readAllBytes(contentsPath), maxReadDepth, maxReadSize);
+                        } catch (IOException | ParseException e) {
+                            logger.error("Error reading uncompressed pending block contents from {}", contentsPath, e);
+                        }
                     }
                 }
             }
@@ -278,12 +290,13 @@ public class FileBlockItemWriter implements BlockItemWriter {
 
     /**
      * Cleans up the pending block at the given path by deleting the corresponding {@code .pnd.json} and block contents.
+     * Supports both .pnd.zst, .pnd.gz, and .pnd formats.
      * @param contentsPath the path to the block contents
      */
     public static void cleanUpPendingBlock(@NonNull final Path contentsPath) {
         requireNonNull(contentsPath);
         final var name = contentsPath.getFileName().toString();
-        final var suffix = name.endsWith(".pnd.gz") ? ".pnd.gz" : ".pnd";
+        final var suffix = name.endsWith(".pnd.zst") ? ".pnd.zst" : name.endsWith(".pnd.gz") ? ".pnd.gz" : ".pnd";
         final var proofJsonPath = contentsPath.resolveSibling(name.replace(suffix, ".pnd.json"));
         logger.info("Cleaning up pending block ({}, {})", proofJsonPath, contentsPath);
         if (!proofJsonPath.toFile().delete()) {

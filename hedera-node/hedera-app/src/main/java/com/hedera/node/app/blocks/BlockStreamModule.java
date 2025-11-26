@@ -6,7 +6,7 @@ import com.hedera.node.app.blocks.impl.BoundaryStateChangeListener;
 import com.hedera.node.app.blocks.impl.streaming.BlockBufferService;
 import com.hedera.node.app.blocks.impl.streaming.BlockNodeConnectionManager;
 import com.hedera.node.app.blocks.impl.streaming.FileAndGrpcBlockItemWriter;
-import com.hedera.node.app.blocks.impl.streaming.FileBlockItemWriter;
+import com.hedera.node.app.blocks.impl.streaming.FileBlockItemWriterV3;
 import com.hedera.node.app.blocks.impl.streaming.GrpcBlockItemWriter;
 import com.hedera.node.app.metrics.BlockStreamMetrics;
 import com.hedera.node.app.services.NodeRewardManager;
@@ -68,7 +68,7 @@ public interface BlockStreamModule {
         final var config = configProvider.getConfiguration();
         final var blockStreamConfig = config.getConfigData(BlockStreamConfig.class);
         return switch (blockStreamConfig.writerMode()) {
-            case FILE -> () -> new FileBlockItemWriter(configProvider, selfNodeInfo, fileSystem);
+            case FILE -> () -> new FileBlockItemWriterV3(configProvider, selfNodeInfo, fileSystem);
             case GRPC -> () -> new GrpcBlockItemWriter(blockBufferService, blockNodeConnectionManager);
             case FILE_AND_GRPC ->
                 () -> new FileAndGrpcBlockItemWriter(

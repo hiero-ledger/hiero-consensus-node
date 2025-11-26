@@ -7,6 +7,8 @@ plugins {
 
 description = "Hedera Application - Implementation"
 
+dependencies { implementation("com.github.luben:zstd-jni") }
+
 mainModuleInfo {
     annotationProcessor("dagger.compiler")
     annotationProcessor("com.google.auto.service.processor")
@@ -19,6 +21,7 @@ mainModuleInfo {
     runtimeOnly("io.helidon.webclient.grpc")
     runtimeOnly("com.hedera.pbj.grpc.client.helidon")
     runtimeOnly("com.hedera.pbj.grpc.helidon")
+    runtimeOnly("com.github.luben:zstd-jni")
 }
 
 testModuleInfo {

@@ -3,7 +3,12 @@ plugins { id("org.hiero.gradle.module.library") }
 
 description = "Hedera Services API Utilities"
 
-mainModuleInfo { annotationProcessor("dagger.compiler") }
+dependencies { implementation("com.github.luben:zstd-jni") }
+
+mainModuleInfo {
+    annotationProcessor("dagger.compiler")
+    runtimeOnly("com.github.luben:zstd-jni")
+}
 
 testModuleInfo {
     requires("org.junit.jupiter.api")

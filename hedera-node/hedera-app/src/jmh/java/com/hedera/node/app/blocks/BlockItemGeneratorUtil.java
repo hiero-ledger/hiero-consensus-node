@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.blocks;
 
 import com.hedera.hapi.block.stream.BlockItem;
@@ -19,7 +20,6 @@ import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.platform.event.EventCore;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.SplittableRandom;

@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.blocks;
 
+import static com.hedera.node.app.blocks.BlockItemGeneratorUtil.generateBlockItems;
+
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.BufferedOutputStream;
 import java.io.ByteArrayOutputStream;
@@ -27,8 +29,6 @@ import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.TearDown;
 import org.openjdk.jmh.annotations.Warmup;
 import org.openjdk.jmh.infra.Blackhole;
-
-import static com.hedera.node.app.blocks.BlockItemGeneratorUtil.generateBlockItems;
 
 /**
  * Benchmark to demonstrate that GZIP compression level is the primary performance factor.
@@ -138,10 +138,10 @@ public class FileBlockItemWriterCompressionBenchmark {
         Path blockDir = tempDir.resolve("blocks");
         Files.createDirectories(blockDir);
         Path blockFile = blockDir.resolve(String.format("%036d.blk.gz", blockNumber++));
-        
+
         try (OutputStream fileOut = Files.newOutputStream(blockFile);
-             BufferedOutputStream buffered = new BufferedOutputStream(fileOut, 2 * 1024 * 1024);
-             GZIPOutputStream gzip = new ConfigurableGZIPOutputStream(buffered, compressionLevel, 1024 * 1024)) {
+                BufferedOutputStream buffered = new BufferedOutputStream(fileOut, 2 * 1024 * 1024);
+                GZIPOutputStream gzip = new ConfigurableGZIPOutputStream(buffered, compressionLevel, 1024 * 1024)) {
             gzip.write(uncompressedData);
         }
 

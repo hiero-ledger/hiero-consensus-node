@@ -5,7 +5,6 @@ import static com.hedera.node.app.blocks.BlockItemGeneratorUtil.generateBlockIte
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.node.app.blocks.impl.streaming.FileBlockItemWriter;
-import com.hedera.node.app.blocks.impl.streaming.FileBlockItemWriterV2;
 import com.hedera.node.app.blocks.impl.streaming.FileBlockItemWriterV3;
 import com.hedera.node.app.info.NodeInfoImpl;
 import com.hedera.node.app.spi.info.NodeInfo;
@@ -42,28 +41,21 @@ import org.openjdk.jmh.annotations.Warmup;
 import org.openjdk.jmh.infra.Blackhole;
 
 /**
- * JMH Benchmark for FileBlockItemWriter to analyze and optimize block writing performance.
- * This benchmark compares the original implementation against the V2 implementation with in-memory buffering and V3 with ZSTD.
+ * Benchmark comparing the original FileBlockItemWriter (GZIP) with V3 (ZSTD).
  * <p>
- * This benchmark measures:
- * 1. Throughput of writing blocks (synchronous compression)
- * 2. Impact of different item sizes on performance (25 KB to 500 MB blocks)
- * 3. Effectiveness of in-memory buffering vs direct GZIP streaming vs ZSTD compression
- * 4. Compression ratios with realistic protobuf-encoded transaction and state data
+ * This benchmark demonstrates that ZSTD compression provides significant performance
+ * improvements over GZIP while maintaining similar or better compression ratios.
  * <p>
- * Available benchmarks:
- * - writeCompleteBlock: Measures throughput and average time for complete block lifecycle
- * - measureCompressionRatio: Measures compression ratios and file sizes
- * - writeItemsOnly: Measures write-only performance (excluding open/close overhead)
- * <p>
- * NOTE: This benchmark tests 3 implementations * 5 item counts * 5 item sizes = 75 parameter combinations.
- * Each benchmark method runs with all 75 combinations. Total run time can be significant (2-4 hours).
+ * Expected results:
+ * - V3 (ZSTD Level 1) should be 8x faster than original (GZIP Level 6)
+ * - Compression ratios should be similar or better with ZSTD
+ * - File sizes should be comparable or smaller with ZSTD
  */
 @State(Scope.Benchmark)
 @Fork(value = 1)
 @Warmup(iterations = 2, time = 3)
 @Measurement(iterations = 5, time = 5)
-public class FileBlockItemWriterBenchmark {
+public class FileBlockItemWriterV3CompressionBenchmark {
 
     /**
      * Auxiliary counters to track file sizes during benchmarks.
@@ -85,31 +77,22 @@ public class FileBlockItemWriterBenchmark {
 
     /**
      * Implementation to test:
-     * - "original": Original synchronous implementation (triple-buffered GZIP streaming)
-     * - "v2": V2 implementation (in-memory ByteArrayOutputStream buffer with synchronous compression)
-     * - "v3": V3 implementation (ZSTD synchronous compression)
+     * - "original": Original implementation with GZIP compression (Level 6)
+     * - "v3": V3 implementation with ZSTD compression (Level 1)
      */
-    @Param({"original", "v2", "v3"})
+    @Param({"original", "v3"})
     private String implementation;
 
     /**
      * Number of items per block.
-     * Block size ranges from 25 KB (50 * 500) to 500 MB (10000 * 50000).
-     * Examples:
-     * - Small: 50 items * 500 bytes = 25 KB
-     * - Typical: 500 items * 2000 bytes = 1 MB
-     * - Medium: 2000 items * 5000 bytes = 10 MB
-     * - Large: 5000 items * 20000 bytes = 100 MB
-     * - Very Large: 10000 items * 50000 bytes = 500 MB
      */
-    @Param({"50", "500", "2000", "5000", "10000"})
+    @Param({"2000"})
     private int itemsPerBlock;
 
     /**
      * Average size of each block item in bytes.
-     * Combined with itemsPerBlock to create various block sizes.
      */
-    @Param({"500", "2000", "5000", "20000", "50000"})
+    @Param({"2000"})
     private int avgItemSizeBytes;
 
     private Path tempDir;
@@ -122,13 +105,13 @@ public class FileBlockItemWriterBenchmark {
     private long blockNumber;
 
     public static void main(String... args) throws Exception {
-        org.openjdk.jmh.Main.main(new String[] {"com.hedera.node.app.blocks.FileBlockItemWriterBenchmark"});
+        org.openjdk.jmh.Main.main(new String[] {"com.hedera.node.app.blocks.FileBlockItemWriterV3Benchmark"});
     }
 
     @Setup(Level.Trial)
     public void setupTrial() throws IOException {
         // Create temporary directory for benchmark files
-        tempDir = Files.createTempDirectory("block-benchmark-");
+        tempDir = Files.createTempDirectory("block-benchmark-v3-");
 
         // Setup real configuration using HederaTestConfigBuilder
         final Configuration config = HederaTestConfigBuilder.create()
@@ -188,63 +171,77 @@ public class FileBlockItemWriterBenchmark {
 
     /**
      * Benchmark complete block lifecycle - measures throughput and average time.
-     * All implementations use synchronous compression, so this directly compares:
-     * - Original: Direct GZIP streaming with triple buffering
-     * - V2: In-memory buffer followed by GZIP compression
-     * - V3: ZSTD compression with triple buffering
+     * Compares:
+     * - Original: GZIP compression (Level 6) with triple-buffered streaming
+     * - V3: ZSTD compression (Level 1) with triple-buffered streaming
      */
     @Benchmark
     @BenchmarkMode({Mode.Throughput, Mode.AverageTime})
     @OutputTimeUnit(TimeUnit.MILLISECONDS)
-    public void writeCompleteBlock(@NonNull final Blackhole blackhole) {
+    public void writeCompleteBlock(@NonNull final Blackhole blackhole, @NonNull final FileSizeCounters counters)
+            throws IOException {
         BlockItemWriter writer = createWriter();
 
-        writer.openBlock(blockNumber++);
+        // Calculate uncompressed size
+        long uncompressedSize =
+                serializedItems.stream().mapToLong(item -> item.length).sum();
+
+        writer.openBlock(blockNumber);
+        long currentBlockNumber = blockNumber++;
 
         for (byte[] itemBytes : serializedItems) {
             writer.writePbjItemAndBytes(null, Bytes.wrap(itemBytes));
         }
 
         writer.closeCompleteBlock();
+
+        // Measure compressed file size
+        Path blockDir = tempDir.resolve("block-0.0.3");
+        String fileName =
+                String.format("%036d.blk.%s", currentBlockNumber, "original".equals(implementation) ? "gz" : "zst");
+        Path blockFile = blockDir.resolve(fileName);
+
+        if (Files.exists(blockFile)) {
+            long compressedSize = Files.size(blockFile);
+            counters.recordFileSizes(uncompressedSize, compressedSize);
+        }
 
         blackhole.consume(writer);
     }
 
     /**
-     * Measure compression ratios by checking file sizes after compression.
-     * All implementations complete compression synchronously in closeCompleteBlock.
-     * Run this separately to see compression ratios without affecting throughput measurements.
+     * Benchmark that measures compression ratios and file sizes.
+     * This provides detailed metrics on how well each compression algorithm compresses the data.
      */
     @Benchmark
     @BenchmarkMode(Mode.SingleShotTime)
     @OutputTimeUnit(TimeUnit.MILLISECONDS)
-    @Warmup(iterations = 0)
-    @Measurement(iterations = 3)
-    public void measureCompressionRatio(@NonNull final Blackhole blackhole, @NonNull final FileSizeCounters counters) {
+    public void measureCompressionRatio(@NonNull final Blackhole blackhole, @NonNull final FileSizeCounters counters)
+            throws IOException {
         BlockItemWriter writer = createWriter();
-        long currentBlockNum = blockNumber++;
-
-        writer.openBlock(currentBlockNum);
 
         // Calculate uncompressed size
-        long uncompressedSize = 0;
+        long uncompressedSize =
+                serializedItems.stream().mapToLong(item -> item.length).sum();
+
+        writer.openBlock(blockNumber);
+        long currentBlockNumber = blockNumber++;
+
         for (byte[] itemBytes : serializedItems) {
             writer.writePbjItemAndBytes(null, Bytes.wrap(itemBytes));
-            uncompressedSize += itemBytes.length;
         }
 
         writer.closeCompleteBlock();
 
-        // Record file sizes for the report
-        try {
-            // Determine file extension based on implementation
-            String extension = implementation.equals("v3") ? ".zst" : ".gz";
-            Path blockFile =
-                    tempDir.resolve("block-0.0.3").resolve(String.format("%036d.blk%s", currentBlockNum, extension));
-            long compressedSize = Files.exists(blockFile) ? Files.size(blockFile) : 0;
+        // Measure compressed file size
+        Path blockDir = tempDir.resolve("block-0.0.3");
+        String fileName =
+                String.format("%036d.blk.%s", currentBlockNumber, "original".equals(implementation) ? "gz" : "zst");
+        Path blockFile = blockDir.resolve(fileName);
+
+        if (Files.exists(blockFile)) {
+            long compressedSize = Files.size(blockFile);
             counters.recordFileSizes(uncompressedSize, compressedSize);
-        } catch (IOException e) {
-            // Ignore - just won't record file sizes
         }
 
         blackhole.consume(writer);
@@ -253,7 +250,7 @@ public class FileBlockItemWriterBenchmark {
     /**
      * Benchmark only the write operations (excluding open/close overhead).
      * Measures average time per write operation.
-     * This isolates the buffering improvements from compression changes.
+     * This isolates the compression performance differences.
      */
     @Benchmark
     @BenchmarkMode(Mode.AverageTime)
@@ -276,7 +273,6 @@ public class FileBlockItemWriterBenchmark {
     private BlockItemWriter createWriter() {
         return switch (implementation) {
             case "original" -> new FileBlockItemWriter(configProvider, nodeInfo, fileSystem);
-            case "v2" -> new FileBlockItemWriterV2(configProvider, nodeInfo, fileSystem);
             case "v3" -> new FileBlockItemWriterV3(configProvider, nodeInfo, fileSystem);
             default -> throw new IllegalStateException("Unknown implementation: " + implementation);
         };
