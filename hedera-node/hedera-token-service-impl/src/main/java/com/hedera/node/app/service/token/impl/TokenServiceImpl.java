@@ -8,6 +8,14 @@ import com.hedera.node.app.service.token.TokenService;
 import com.hedera.node.app.service.token.impl.calculator.CryptoCreateFeeCalculator;
 import com.hedera.node.app.service.token.impl.calculator.CryptoDeleteFeeCalculator;
 import com.hedera.node.app.service.token.impl.calculator.CryptoUpdateFeeCalculator;
+import com.hedera.node.app.service.token.impl.calculator.TokenBurnFeeCalculator;
+import com.hedera.node.app.service.token.impl.calculator.TokenCreateFeeCalculator;
+import com.hedera.node.app.service.token.impl.calculator.TokenDeleteFeeCalculator;
+import com.hedera.node.app.service.token.impl.calculator.TokenFreezeAccountFeeCalculator;
+import com.hedera.node.app.service.token.impl.calculator.TokenMintFeeCalculator;
+import com.hedera.node.app.service.token.impl.calculator.TokenPauseFeeCalculator;
+import com.hedera.node.app.service.token.impl.calculator.TokenUnfreezeAccountFeeCalculator;
+import com.hedera.node.app.service.token.impl.calculator.TokenUnpauseFeeCalculator;
 import com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema;
 import com.hedera.node.app.service.token.impl.schemas.V0530TokenSchema;
 import com.hedera.node.app.service.token.impl.schemas.V0610TokenSchema;
@@ -43,6 +51,16 @@ public class TokenServiceImpl implements TokenService {
     @Override
     public Set<ServiceFeeCalculator> serviceFeeCalculators() {
         return Set.of(
-                new CryptoCreateFeeCalculator(), new CryptoDeleteFeeCalculator(), new CryptoUpdateFeeCalculator());
+                new CryptoCreateFeeCalculator(),
+                new CryptoDeleteFeeCalculator(),
+                new CryptoUpdateFeeCalculator(),
+                new TokenCreateFeeCalculator(),
+                new TokenMintFeeCalculator(),
+                new TokenPauseFeeCalculator(),
+                new TokenUnpauseFeeCalculator(),
+                new TokenFreezeAccountFeeCalculator(),
+                new TokenUnfreezeAccountFeeCalculator(),
+                new TokenBurnFeeCalculator(),
+                new TokenDeleteFeeCalculator());
     }
 }
