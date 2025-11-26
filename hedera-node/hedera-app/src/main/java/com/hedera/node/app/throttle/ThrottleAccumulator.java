@@ -420,7 +420,7 @@ public class ThrottleAccumulator {
             @NonNull final TransactionInfo txnInfo,
             @NonNull final Instant now,
             @NonNull final State state,
-            List<ThrottleUsage> throttleUsages,
+            @Nullable final List<ThrottleUsage> throttleUsages,
             final boolean gasThrottleAlwaysEnabled) {
         final var function = txnInfo.functionality();
         final var configuration = configSupplier.get();
@@ -470,7 +470,7 @@ public class ThrottleAccumulator {
         return switch (function) {
             case SCHEDULE_CREATE -> shouldThrottleScheduleCreate(manager, txnInfo, now, state, throttleUsages);
             case TOKEN_MINT ->
-                shouldThrottleMint(manager, txnInfo.txBody().tokenMint(), now, configuration, throttleUsages);
+                shouldThrottleMint(manager, txnInfo.txBody().tokenMintOrThrow(), now, configuration, throttleUsages);
             case CRYPTO_TRANSFER -> {
                 final var accountStore = new ReadableStoreFactory(state).getStore(ReadableAccountStore.class);
                 final var relationStore = new ReadableStoreFactory(state).getStore(ReadableTokenRelationStore.class);
@@ -629,6 +629,7 @@ public class ThrottleAccumulator {
             }
             return answer;
         } else {
+            gasThrottle.leakUntil(now);
             return false;
         }
     }
