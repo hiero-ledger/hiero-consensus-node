@@ -78,6 +78,7 @@ public class HapiEthereumCall extends HapiBaseCall<HapiEthereumCall> {
     private Integer chainId = CHAIN_ID;
     private boolean wrongRecId;
     private boolean isJumboTxn = false;
+    private byte[] authorizationList = null;
 
     public HapiEthereumCall withExplicitParams(final Supplier<String> supplier) {
         explicitHexedParams = Optional.of(supplier);
@@ -339,7 +340,7 @@ public class HapiEthereumCall extends HapiBaseCall<HapiEthereumCall> {
                 callData,
                 new byte[] {},
                 null,
-                null,
+                authorizationList,
                 0,
                 null,
                 null,
@@ -439,6 +440,11 @@ public class HapiEthereumCall extends HapiBaseCall<HapiEthereumCall> {
 
     public HapiEthereumCall markAsJumboTxn() {
         isJumboTxn = true;
+        return this;
+    }
+
+    public HapiEthereumCall withAuthorizationList(final byte[] authorizationList) {
+        this.authorizationList = authorizationList;
         return this;
     }
 }

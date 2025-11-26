@@ -227,8 +227,8 @@ public record EthTxData(
         }
         return switch (type) {
             case LEGACY_ETHEREUM -> new BigInteger(1, gasPrice).multiply(BigInteger.valueOf(multiple));
-            case EIP2930, EIP7702 -> new BigInteger(1, gasPrice);
-            case EIP1559 -> new BigInteger(1, maxGas);
+            case EIP2930 -> new BigInteger(1, gasPrice);
+            case EIP1559, EIP7702 -> new BigInteger(1, maxGas);
         };
     }
 
