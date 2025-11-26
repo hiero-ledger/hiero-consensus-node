@@ -141,14 +141,19 @@ class HistoryServiceImplTest {
         given(activeRosters.phase()).willReturn(TRANSITION);
         given(store.getOrCreateConstruction(activeRosters, CONSENSUS_NOW, tssConfig))
                 .willReturn(HistoryProofConstruction.DEFAULT);
+        given(store.getActiveConstruction()).willReturn(HistoryProofConstruction.DEFAULT);
         given(component.controllers()).willReturn(controllers);
         given(controllers.getOrCreateFor(
-                        activeRosters, HistoryProofConstruction.DEFAULT, store, HintsConstruction.DEFAULT, false))
+                        activeRosters,
+                        HistoryProofConstruction.DEFAULT,
+                        store,
+                        HintsConstruction.DEFAULT,
+                        HistoryProofConstruction.DEFAULT))
                 .willReturn(controller);
 
         subject.reconcile(activeRosters, CURRENT_VK, store, CONSENSUS_NOW, tssConfig, true, HintsConstruction.DEFAULT);
 
-        verify(controller).advanceConstruction(CONSENSUS_NOW, CURRENT_VK, store, true);
+        verify(controller).advanceConstruction(CONSENSUS_NOW, CURRENT_VK, store, true, tssConfig);
     }
 
     @Test
