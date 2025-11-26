@@ -253,7 +253,7 @@ public class TransferExecutor extends BaseTokenHandler {
                 hookCalls,
                 numAttemptedHookCalls,
                 hooksConfig.hookInvocationCostTinyCents(),
-                context.getGasPriceInTinyCents());
+                context.getGasPriceInTinycents());
         final long refundInTinybars = ((FeeContext) context).tinybarsFromTinycents(tinycentsToRefund);
         ctx.refund(payerId, new Fees(0, 0, refundInTinybars));
     }
