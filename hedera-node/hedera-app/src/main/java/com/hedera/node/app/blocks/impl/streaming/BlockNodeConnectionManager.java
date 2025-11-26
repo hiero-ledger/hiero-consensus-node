@@ -1080,7 +1080,6 @@ public class BlockNodeConnectionManager {
         final long latencyMs = result.latencyMs();
 
         // Update metrics
-        blockStreamMetrics.recordAcknowledgementLatency(latencyMs);
         if (result.isHighLatency()) {
             if (logger.isDebugEnabled()) {
                 logger.debug(
