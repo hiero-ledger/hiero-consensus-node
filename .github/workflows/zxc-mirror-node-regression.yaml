@@ -103,6 +103,7 @@ jobs:
           MIRROR_NODE_VERSION: ${{ inputs.mirror-node-version || '0.142.2' }}
         run: |
           set -ex
+        
           cat <<EOF > mirror.yml
           test:
             annotations:
@@ -112,10 +113,33 @@ jobs:
             cucumberTags: "@acceptance and not @estimateprecompile"
             enabled: true
           EOF
+        
+          # Create kind cluster
           kind create cluster -n "${SOLO_CLUSTER_NAME}"
-
-          # initialize solo
-          solo init
+          
+          # Detect the default storage class (is-default-class=true)
+          STORAGE_CLASS=$(kubectl get sc -o jsonpath='{range .items[*]}{.metadata.name}{" "}{.metadata.annotations.storageclass\.kubernetes\.io/is-default-class}{"\n"}{end}' \
+          | awk '$2=="true"{print $1}')
+        
+          # If no default exists, use the first available SC
+          if [[ -z "$STORAGE_CLASS" ]]; then
+            STORAGE_CLASS=$(kubectl get sc -o jsonpath='{.items[0].metadata.name}')
+          fi
+        
+          echo "::debug::Using storageClassName=$STORAGE_CLASS"
+        
+          # Create solo override values to ensure MinIO Tenant validates correctly
+          cat <<EOF > solo-values.yaml
+          minio:
+            tenant:
+              pools:
+                - volumeClaimTemplate:
+                    spec:
+                      storageClassName: "$STORAGE_CLASS"
+          EOF
+          
+          # init solo with the storage class values
+          solo init --values-file solo-values.yaml
 
           # check solo version
           version=$(solo --version | grep Version | awk '{print $3}')
