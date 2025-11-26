@@ -1,6 +1,8 @@
+# Workflow Manifest
+
 |                   Current File Name                   |                       Current Workflow Name                       | Future File Name | Future Workflow Name |
 |-------------------------------------------------------|-------------------------------------------------------------------|------------------|----------------------|
-| # Cron                                                |                                                                   |                  |                      |
+| # SCHEDULED                                           |                                                                   |                  |                      |
 | zxcron-extended-test-suite.yaml                       | ZXCron: [CITR] Extended Test Suite                                |                  |                      |
 | zxcron-promote-build-candidate.yaml                   | ZXCron: [CITR] Promote Build Candidate                            |                  |                      |
 | node-zxcron-release-branching.yaml                    | ZXCron: Automatic Release Branching                               |                  |                      |
@@ -22,10 +24,17 @@
 | zxc-tck-regression.yaml                               | ZXC: TCK Regression                                               |                  |                      |
 | platform-zxc-launch-jrs-workflow.yaml                 | ZXC: Launch JRS Workflow                                          |                  |                      |
 | node-zxc-build-release-artifact.yaml                  | ZXC: [Node] Deploy Release Artifacts                              |                  |                      |
-| node-zxc-compile-application-code.yaml                | ZXC: [Node] Compile Application Code                              |                  |                      |
 | node-zxc-deploy-preview.yaml                          | ZXC: [Node] Deploy Preview Network Release                        |                  |                      |
+| zxc-compile-code.yaml                                 | ZXC: Compile Code                                                 |                  |                      |
 | zxc-xts-tests.yaml                                    | ZXC: Executable XTS Tests                                         |                  |                      |
 | zxc-mats-tests.yaml                                   | ZXC: Executable MATS Tests                                        |                  |                      |
+| zxc-run-unit-tests.yaml                               | ZXC: Run Unit Tests                                               |                  |                      |
+| zxc-run-hammer-tests.yaml                             | ZXC: Run Hammer Tests                                             |                  |                      |
+| zxc-run-hapi-tests.yaml                               | ZXC: Run HAPI Tests                                               |                  |                      |
+| zxc-run-integration-tests.yaml                        | ZXC: Run Integration Tests                                        |                  |                      |
+| zxc-run-otter-tests.yaml                              | ZXC: Run Otter Tests                                              |                  |                      |
+| zxc-run-time-consuming-tests.yaml                     | ZXC: Run Time Consuming Tests                                     |                  |                      |
+| zxc-run-timing-sensitive-tests.yaml                   | ZXC: Run Timing Sensitive Tests                                   |                  |                      |
 |                                                       |                                                                   |                  |                      |
 | # CICD                                                |                                                                   |                  |                      |
 | zxf-collect-workflow-logs.yaml                        | ZXF: Collect Workflow Run Logs                                    |                  |                      |
@@ -57,10 +66,10 @@
 | node-flow-deploy-preview.yaml                         | Node: Deploy Preview                                              |                  |                      |
 | node-zxf-deploy-integration.yaml                      | ZXF: [Node] Deploy Integration Network Release                    |                  |                      |
 |                                                       |                                                                   |                  |                      |
-| # General Testing                                     |                                                                   |                  |                      |
+| # GENERAL TESTING                                     |                                                                   |                  |                      |
 | node-flow-pull-request-checks.yaml                    | Node: PR Checks                                                   |                  |                      |
 |                                                       |                                                                   |                  |                      |
-| # JRS Testing                                         |                                                                   |                  |                      |
+| # JRS TESTING                                         |                                                                   |                  |                      |
 | platform-pull-request-extended-checks.yaml            | Platform: PR Extended Checks                                      |                  |                      |
 | node-flow-fsts-custom-regression.yaml                 | Node: FSTS Custom Regression                                      |                  |                      |
 | node-flow-fsts-daily-interval-01.yaml                 | ZXF: [Node] FSTS Daily (Interval: 1)                              |                  |                      |

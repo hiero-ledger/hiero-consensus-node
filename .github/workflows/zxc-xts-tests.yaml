@@ -124,10 +124,9 @@ jobs:
   xts-timing-sensitive-tests:
     name: XTS Timing Sensitive Tests
     if: ${{ inputs.enable-extended-test-suite == 'true' }}
-    uses: ./.github/workflows/node-zxc-compile-application-code.yaml
+    uses: ./.github/workflows/zxc-run-timing-sensitive-tests.yaml
     with:
       custom-job-label: "${{ inputs.custom-job-label }} Timing Sensitive"
-      enable-timing-sensitive-tests: true
       enable-network-log-capture: true
       ref: ${{ inputs.commit_sha }}
     secrets:
@@ -138,10 +137,9 @@ jobs:
   xts-time-consuming-tests:
     name: XTS Time Consuming Tests
     if: ${{ inputs.enable-extended-test-suite == 'true' }}
-    uses: ./.github/workflows/node-zxc-compile-application-code.yaml
+    uses: ./.github/workflows/zxc-run-time-consuming-tests.yaml
     with:
       custom-job-label: "${{ inputs.custom-job-label }} Time Consuming"
-      enable-time-consuming-tests: true
       enable-network-log-capture: true
       ref: ${{ inputs.commit_sha }}
     secrets:
@@ -152,10 +150,9 @@ jobs:
   xts-hammer-tests:
     name: XTS Hammer Tests
     if: ${{ inputs.enable-extended-test-suite == 'true' }}
-    uses: ./.github/workflows/node-zxc-compile-application-code.yaml
+    uses: ./.github/workflows/zxc-run-hammer-tests.yaml
     with:
       custom-job-label: "${{ inputs.custom-job-label }} Hammer Tests"
-      enable-hammer-tests: true
       enable-network-log-capture: true
       ref: ${{ inputs.commit_sha }}
     secrets:
@@ -163,26 +160,12 @@ jobs:
       gradle-cache-username: ${{ secrets.gradle-cache-username }}
       gradle-cache-password: ${{ secrets.gradle-cache-password }}
 
-  xts-hapi-time-consuming-tests:
+  xts-hapi-tests:
     name: XTS HAPI Tests (Time Consuming)
     if: ${{ inputs.enable-extended-test-suite == 'true' }}
-    uses: ./.github/workflows/node-zxc-compile-application-code.yaml
+    uses: ./.github/workflows/zxc-run-hapi-tests.yaml
     with:
-      custom-job-label: "${{ inputs.custom-job-label }} HAPI Time Consuming"
       enable-hapi-tests-time-consuming: true
-      enable-network-log-capture: true
-      ref: ${{ inputs.commit_sha }}
-    secrets:
-      access-token: ${{ secrets.access-token }}
-      gradle-cache-username: ${{ secrets.gradle-cache-username }}
-      gradle-cache-password: ${{ secrets.gradle-cache-password }}
-
-  xts-hapi-block-node-comms-tests:
-    name: XTS HAPI Tests (Block Node Communication)
-    if: ${{ inputs.enable-extended-test-suite == 'true' }}
-    uses: ./.github/workflows/node-zxc-compile-application-code.yaml
-    with:
-      custom-job-label: "${{ inputs.custom-job-label }} HAPI Block Node Comms"
       enable-hapi-tests-bn-communication: true
       enable-network-log-capture: true
       ref: ${{ inputs.commit_sha }}
@@ -194,7 +177,7 @@ jobs:
   xts-otter-tests:
     name: XTS Otter Tests
     if: ${{ inputs.enable-extended-test-suite == 'true' }}
-    uses: ./.github/workflows/zxc-execute-otter-tests.yaml
+    uses: ./.github/workflows/zxc-run-otter-tests.yaml
     with:
       custom-job-label: "${{ inputs.custom-job-label }} Otter Tests"
       enable-full-otter-tests: true
@@ -328,8 +311,7 @@ jobs:
       - xts-timing-sensitive-tests
       - xts-time-consuming-tests
       - xts-hammer-tests
-      - xts-hapi-time-consuming-tests
-      - xts-hapi-block-node-comms-tests
+      - xts-hapi-tests
       - xts-otter-tests
       - abbreviated-panel
       - hedera-node-jrs-panel
