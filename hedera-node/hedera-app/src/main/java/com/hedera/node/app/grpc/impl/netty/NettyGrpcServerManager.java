@@ -446,7 +446,7 @@ public final class NettyGrpcServerManager implements GrpcServerManager {
         // set buffer capacity to be big enough to hold the largest transaction
         final var bufferCapacity = isJumboEnabled ? jumboMaxTxnSize + 1 : maxTxnSize + 1;
         // set capacity and max transaction size for both normal and jumbo transactions
-        final var dataBufferMarshaller = new DataBufferMarshaller(bufferCapacity, MAX_TRANSACTION_SIZE);
+        final var dataBufferMarshaller = new DataBufferMarshaller(MAX_TRANSACTION_SIZE + 1, MAX_TRANSACTION_SIZE);
         final var jumboBufferMarshaller = new DataBufferMarshaller(bufferCapacity, MAX_TRANSACTION_SIZE);
         return rpcServiceDefinitions
                 .get()
