@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.hedera.statevalidation.poc;
+package com.hedera.statevalidation.poc.model;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 
