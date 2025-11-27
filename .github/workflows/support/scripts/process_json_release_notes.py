@@ -87,7 +87,7 @@ for item in data:
       seen.add(a)
 
   if deduped_authors:
-    desc = f"{desc} — {', '.join(deduped_authors)}"
+    desc = f"{desc} by {', '.join(deduped_authors)}"
 
   # Categorize lines
   if commit_type == "feat":
