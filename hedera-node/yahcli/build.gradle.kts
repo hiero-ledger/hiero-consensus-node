@@ -19,6 +19,7 @@ testModuleInfo {
     requires("org.assertj.core")
     requires("org.junit.jupiter.params")
     requires("org.junit.platform.launcher")
+    requires("org.apache.commons.lang3")
     opensTo("org.junit.platform.commons")
 }
 
