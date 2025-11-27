@@ -8,7 +8,7 @@ import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.records.SelfNodeAccountIdManager;
 import com.hedera.node.config.ConfigProvider;
-import com.hedera.node.config.data.BlockRecordStreamConfig;
+import com.hedera.node.config.data.NodesConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -36,9 +36,8 @@ public class SelfNodeAccountIdManagerImpl implements SelfNodeAccountIdManager {
     @Inject
     public SelfNodeAccountIdManagerImpl(@NonNull ConfigProvider configProvider, @NonNull NetworkInfo networkInfo) {
         this.nodeInfo = networkInfo.selfNodeInfo();
-        final BlockRecordStreamConfig recordStreamConfig =
-                configProvider.getConfiguration().getConfigData(BlockRecordStreamConfig.class);
-        this.filePath = getAbsolutePath(recordStreamConfig.nodeAccountIdFileDir());
+        final NodesConfig nodesConfig = configProvider.getConfiguration().getConfigData(NodesConfig.class);
+        this.filePath = getAbsolutePath(nodesConfig.nodeGeneratedDir()).resolve(nodesConfig.nodeAccountIdFile());
     }
 
     /**
@@ -66,7 +65,10 @@ public class SelfNodeAccountIdManagerImpl implements SelfNodeAccountIdManager {
                     .build();
 
         } catch (IOException e) {
-            logger.info("Failed to read node account id from {}", filePath, e);
+            logger.error("Failed to read node account id from {}", filePath, e);
+            return nodeInfo.accountId();
+        } catch (NumberFormatException | IndexOutOfBoundsException e) {
+            logger.error("Failed to parse account id from {}", filePath, e);
             return nodeInfo.accountId();
         }
     }
@@ -83,7 +85,7 @@ public class SelfNodeAccountIdManagerImpl implements SelfNodeAccountIdManager {
         try {
             writeAccountIdFile(accountId);
         } catch (IOException e) {
-            logger.info("Failed to write node account id to {}", filePath, e);
+            logger.error("Failed to write node account id to {}", filePath, e);
         }
     }
 

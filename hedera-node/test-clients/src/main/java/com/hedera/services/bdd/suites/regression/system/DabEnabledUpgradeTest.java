@@ -375,8 +375,6 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
                                 // Add the new node to the network
                                 prepareFakeUpgrade(),
                                 upgradeToNextConfigVersion(ENV_OVERRIDES, FakeNmt.addNode(nodeId.get())),
-                                // wait the node to catchup
-                                burstOfTps(MIXED_OPS_BURST_TPS, MIXED_OPS_BURST_DURATION),
                                 // update the node account id
                                 nodeUpdate("newNode")
                                         .accountId("newNodeAccountId")
@@ -387,7 +385,6 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
                                 FakeNmt.shutdownWithin(byNodeId(nodeId.get()), SHUTDOWN_TIMEOUT),
                                 logIt("Node is supposedly down"),
                                 sleepFor(PORT_UNBINDING_WAIT_PERIOD.toMillis()),
-                                burstOfTps(MIXED_OPS_BURST_TPS, MIXED_OPS_BURST_DURATION),
                                 sourcing(() -> FakeNmt.restartWithConfigVersion(
                                         byNodeId(nodeId.get()), configVersionOf(currentVersion.get()))),
                                 waitForActive(byNodeId(4), Duration.ofSeconds(210)),
@@ -397,9 +394,9 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
                                 sourcing(() ->
                                         reconnectNode(byNodeId(nodeId.get()), configVersionOf(currentVersion.get()))),
 
-                                // validate the node is using the initial node account for the record output dir
-                                // and the content of the node_accoun_id.txt
-                                validateRecordsPathAfterUpdate(
+                                // validate the node is using the initial node account for the records and blocks output
+                                // paths and the content of the node_accoun_id.txt
+                                validatePathsAfterUpdate(
                                         String.valueOf(nodeId.get()), initialNodeAccount, newNodeAccount));
                     }));
         }
@@ -411,24 +408,21 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
             final AtomicReference<AccountID> newAccountId = new AtomicReference<>();
             final AtomicReference<SemanticVersion> startVersion = new AtomicReference<>();
             final String nodeToUpdate = "2";
-            final String baseDir = "build/hapi-test/node" + nodeToUpdate + "/data/recordStreams/";
 
             return hapiTest(
                     cryptoCreate("account").exposingCreatedIdTo(accountId::set),
                     cryptoCreate("newAccount").exposingCreatedIdTo(newAccountId::set),
 
-                    // 1. update the node account id, the new record path should be empty (record11.12.1001)
+                    // 1. update existing node account id
                     nodeUpdate(nodeToUpdate).accountId("account").signedByPayerAnd("account"),
-                    burstOfTps(MIXED_OPS_BURST_TPS, Duration.ofSeconds(2)),
                     // 2. validate the new record path is empty after update.
-                    validateRecordsPathDoesntExist(nodeToUpdate, accountId),
+                    validatePathsDoesntExist(nodeToUpdate, accountId),
 
-                    // 3. generate the node_account_id.txt on prepare upgrade.
+                    // 3. generate/update the node_account_id.txt on prepare upgrade
                     prepareFakeUpgrade(),
                     upgradeToNextConfigVersion(),
-                    // After the upgrade the node should start using the new record path
-                    burstOfTps(MIXED_OPS_BURST_TPS, Duration.ofSeconds(2)),
-                    validateRecordsPathExist(nodeToUpdate, accountId),
+                    // after the upgrade the node should start using the new paths
+                    validatePathsExist(nodeToUpdate, accountId),
 
                     // 4. update again
                     nodeUpdate(nodeToUpdate).accountId("newAccount").signedByPayerAnd("newAccount"),
@@ -436,15 +430,13 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
                     getVersionInfo().exposingServicesVersionTo(startVersion::set),
                     sourcing(() ->
                             reconnectNode(byNodeId(Long.parseLong(nodeToUpdate)), configVersionOf(startVersion.get()))),
-                    // 6. validate the new record path is empty even after reconnect
-                    burstOfTps(MIXED_OPS_BURST_TPS, Duration.ofSeconds(2)),
-                    validateRecordsPathAfterUpdate(nodeToUpdate, accountId, newAccountId),
+                    // 6. validate the new record paths are empty even after reconnect
+                    validatePathsAfterUpdate(nodeToUpdate, accountId, newAccountId),
 
-                    // 7. Then upgrade and use the last updated account id as record dir (record11.12.1002)
+                    // 7. upgrade and validate the new records and blocks paths exist
                     prepareFakeUpgrade(),
                     upgradeToNextConfigVersion(),
-                    burstOfTps(MIXED_OPS_BURST_TPS, Duration.ofSeconds(2)),
-                    validateRecordsPathExist(nodeToUpdate, newAccountId));
+                    validatePathsExist(nodeToUpdate, newAccountId));
         }
     }
 
@@ -485,21 +477,31 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
         return "build/hapi-test/node%s/data/recordStreams/".formatted(nodeId);
     }
 
+    private static String blocksPath(String nodeId) {
+        return "build/hapi-test/node%s/data/blockStreams/".formatted(nodeId);
+    }
+
     private static String nodeAccountIdFilePath(String nodeId) {
         return "build/hapi-test/node%s/data/generated/".formatted(nodeId);
     }
 
-    private static ContextualActionOp validateRecordsPathAfterUpdate(
+    private static ContextualActionOp validatePathsAfterUpdate(
             String nodeId, AtomicReference<AccountID> oldAccountId, AtomicReference<AccountID> updatedAccountId) {
         return doingContextual((spec) -> {
             final var nodeAccountIdFilePath =
                     Paths.get(nodeAccountIdFilePath(nodeId)).resolve("node_account_id.txt");
             final var newRecordPath =
                     Paths.get(recordsPath(nodeId) + "record" + asAccountString(updatedAccountId.get()));
+            final var newBlocksPath =
+                    Paths.get(blocksPath(nodeId) + "block-" + asAccountString(updatedAccountId.get()));
+
             // new record path doesn't exist
             assertThat(newRecordPath.toFile().exists()).isFalse();
-            // validate the node_account_id.txt is pointing to the initial node account
+            // new blocks path doesn't exist
+            assertThat(newBlocksPath.toFile().exists()).isFalse();
+
             try {
+                // validate the node_account_id.txt is pointing to the initial node account
                 assertThat(Files.readString(nodeAccountIdFilePath)).isEqualTo(asAccountString(oldAccountId.get()));
             } catch (IOException e) {
                 Assertions.fail("Can not read node account id file", e);
@@ -507,18 +509,23 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
         });
     }
 
-    private static ContextualActionOp validateRecordsPathDoesntExist(
-            String nodeId, AtomicReference<AccountID> accountId) {
+    private static ContextualActionOp validatePathsDoesntExist(String nodeId, AtomicReference<AccountID> accountId) {
         return doingContextual((spec) -> {
             final var recordPath = Paths.get(recordsPath(nodeId) + "record" + asAccountString(accountId.get()));
             assertThat(recordPath.toFile().exists()).isFalse();
+
+            final var blockPath = Paths.get(blocksPath(nodeId) + "block-" + asAccountString(accountId.get()));
+            assertThat(blockPath.toFile().exists()).isFalse();
         });
     }
 
-    private static ContextualActionOp validateRecordsPathExist(String nodeId, AtomicReference<AccountID> accountId) {
+    private static ContextualActionOp validatePathsExist(String nodeId, AtomicReference<AccountID> accountId) {
         return doingContextual((spec) -> {
             final var recordPath = Paths.get(recordsPath(nodeId) + "record" + asAccountString(accountId.get()));
             assertThat(recordPath.toFile().exists()).isTrue();
+
+            final var blockPath = Paths.get(blocksPath(nodeId) + "block-" + asAccountString(accountId.get()));
+            assertThat(blockPath.toFile().exists()).isTrue();
         });
     }
 }
