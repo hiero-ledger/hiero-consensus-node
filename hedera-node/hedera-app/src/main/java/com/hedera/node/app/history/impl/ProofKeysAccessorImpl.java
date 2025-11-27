@@ -43,13 +43,6 @@ public class ProofKeysAccessorImpl
     }
 
     @Override
-    public Bytes sign(final long constructionId, @NonNull final Bytes message) {
-        requireNonNull(message);
-        final var keyPair = contentManager().getOrCreateContent(constructionId);
-        return library.signSchnorr(message, keyPair.privateKey());
-    }
-
-    @Override
     public SchnorrKeyPair getOrCreateSchnorrKeyPair(final long constructionId) {
         return contentManager().getOrCreateContent(constructionId);
     }

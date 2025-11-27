@@ -27,8 +27,8 @@ import org.hiero.hapi.fees.FeeResult;
 public interface SimpleFeeCalculator {
 
     @NonNull
-    FeeResult calculateTxFee(@NonNull TransactionBody txnBody, @NonNull CalculatorState calculatorState);
+    FeeResult calculateTxFee(@NonNull TransactionBody txnBody, @NonNull FeeContext feeContext);
 
     @NonNull
-    FeeResult calculateQueryFee(@NonNull Query query, @Nullable CalculatorState calculatorState);
+    FeeResult calculateQueryFee(@NonNull Query query, @Nullable FeeContext feeContext);
 }

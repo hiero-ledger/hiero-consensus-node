@@ -83,10 +83,16 @@ message HistoryProof {
   History target_history = 2;
   /**
    * The proof of chain of trust from the ledger id to the target
-   * history's metadata. Maybe replaced from a NodeSignatures list
-   * with a recursive proof when one becomes available.
+   * history's metadata. May be switched from AggregatedNodeSignatures
+   * to a recursive proof when one becomes available.
    */
   com.hedera.hapi.block.stream.ChainOfTrustProof chain_of_trust_proof = 3;
+  /**
+   * If set, the uncompressed proof of chain of trust from the ledger id to
+   * the target address book; the uncompressed version of the WRAPS proof is
+   * required to keep extending the chain of trust.
+   */
+  bytes uncompressed_wraps_proof = 4;
 }
 
 /**
@@ -95,6 +101,8 @@ message HistoryProof {
  * weight to enact its own constructions.
  */
 message HistoryProofConstruction {
+  reserved 3;
+
   /**
    * The construction id.
    */
@@ -104,12 +112,6 @@ message HistoryProofConstruction {
    * certain thresholds are during construction.
    */
   bytes source_roster_hash = 2;
-  /**
-   * If set, the proof that the address book of the source roster belongs
-   * to the the ledger id's chain of trust; if not set, the source roster's
-   * address book must *be* the ledger id.
-   */
-  HistoryProof source_proof = 3;
   /**
    * The hash of the roster whose weights are used to assess progress
    * toward obtaining proof keys for parties that hold at least a
@@ -121,7 +123,7 @@ message HistoryProofConstruction {
     /**
      * If the network is still gathering proof keys for this
      * construction, the next time at which nodes should stop waiting
-     * for tardy proof keys and assembly the history to be proven as
+     * for tardy proof keys and assemble the history to be proven as
      * soon as it has the associated metadata and proof keys for nodes
      * with >2/3 weight in the target roster.
      */
@@ -133,17 +135,39 @@ message HistoryProofConstruction {
      */
     proto.Timestamp assembly_start_time = 6;
     /**
-     * When this construction is complete, the recursive proof that
-     * the target roster's address book and associated metadata belong
-     * to the ledger id's chain of trust.
+     * When this construction is complete, the proof that the target
+     * roster's address book and associated metadata belong to the
+     * ledger id's chain of trust.
      */
     HistoryProof target_proof = 7;
-
     /**
      * If set, the reason the construction failed.
      */
     string failure_reason = 8;
+    /**
+     * If set, the state of the WRAPS signing protocol for this construction.
+     */
+    WrapsSigningState wraps_signing_state = 9;
   }
+}
+
+/**
+ * The state of an ongoing WRAPS signature protocol.
+ */
+message WrapsSigningState {
+  /**
+   * The phase of the WRAPS protocol.
+   */
+  WrapsPhase phase = 1;
+
+  /**
+   * If the network is still gathering WRAPS messages for the R2 or R3
+   * protocol phase, the next time at which nodes should stop waiting
+   * for tardy messages from R1 participants and start over.
+   * soon as it has WRAPS messages from nodes with >2/3 weight in the
+   * target roster.
+   */
+  proto.Timestamp grace_period_end_time = 2;
 }
 
 /**
@@ -206,5 +230,56 @@ message RecordedHistorySignature {
    * The signature on some new history.
    */
   HistorySignature history_signature = 2;
+}
+
+
+/**
+ * The phase of a WRAPS proof construction.
+ */
+enum WrapsPhase {
+  /**
+   * Nodes are publishing their proof keys and R1 messages.
+   */
+  R1 = 0;
+  /**
+   * Nodes are publishing their R2 messages.
+   */
+  R2 = 1;
+  /**
+   * Nodes are publishing their R3 messages.
+   */
+  R3 = 2;
+  /**
+   * Nodes are aggregating all messages to produce a final signature.
+   */
+  AGGREGATE = 3;
+}
+
+/**
+ * A message published by a node during a WRAPS proof construction.
+ */
+message WrapsMessageDetails {
+  /**
+   * The time at which the message was published.
+   */
+  proto.Timestamp publication_time = 1;
+  /**
+   * The phase of the construction the message applies to.
+   */
+  WrapsPhase phase = 2;
+  /**
+   * The message itself.
+   */
+  bytes message = 3;
+}
+
+/**
+ * A history of messages published during a WRAPS proof construction.
+ */
+message WrapsMessageHistory {
+  /*
+   * The published messages.
+   */
+  repeated WrapsMessageDetails messages = 1;
 }
 

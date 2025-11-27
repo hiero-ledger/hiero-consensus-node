@@ -193,6 +193,16 @@ public record RosterTransitionWeights(
     }
 
     /**
+     * Returns the smallest whole weight that is strictly greater than half of the total weight.
+     * @param weights the weights of the nodes in the roster
+     * @return more than half the total weight
+     */
+    public static long moreThanHalfOfTotal(@NonNull final Map<Long, Long> weights) {
+        requireNonNull(weights);
+        return weights.values().stream().mapToLong(Long::longValue).sum() / 2 + 1;
+    }
+
+    /**
      * Returns the weight that, assuming no corruption beyond the Byzantine threshold, guarantees sufficient
      * honest nodes to reach agreement backed by at least 1/3 of the total network weight.
      * @param totalWeight the total weight of the network

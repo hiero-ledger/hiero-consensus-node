@@ -46,13 +46,19 @@ public class BlockTestUtils {
 
         final Block blk = new Block(items);
         final Instant closedInstant = block.closedTimestamp();
+        final Instant openedInstant = block.openedTimestamp();
 
+        final Timestamp openedTimestamp = Timestamp.newBuilder()
+                .seconds(openedInstant.getEpochSecond())
+                .nanos(openedInstant.getNano())
+                .build();
         final Timestamp closedTimestamp = Timestamp.newBuilder()
                 .seconds(closedInstant.getEpochSecond())
                 .nanos(closedInstant.getNano())
                 .build();
         final BufferedBlock bufferedBlock = BufferedBlock.newBuilder()
                 .blockNumber(block.blockNumber())
+                .openedTimestamp(openedTimestamp)
                 .closedTimestamp(closedTimestamp)
                 .isAcknowledged(isAcked)
                 .block(blk)
@@ -80,6 +86,12 @@ public class BlockTestUtils {
         final Timestamp closedTimestamp = bufferedBlock.closedTimestamp();
         final Instant closedInstant = Instant.ofEpochSecond(closedTimestamp.seconds(), closedTimestamp.nanos());
         block.closeBlock(closedInstant);
+
+        final Timestamp openedTimestamp = bufferedBlock.openedTimestamp();
+        if (openedTimestamp != null) {
+            final Instant openedInstant = Instant.ofEpochSecond(openedTimestamp.seconds(), openedTimestamp.nanos());
+            block.setOpenedTimestamp(openedInstant);
+        }
 
         return block;
     }
