@@ -44,6 +44,7 @@ import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movi
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertCreationMaxAssociations;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertCreationViaCallMaxAssociations;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertHgcaaLogDoesNotContainText;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.contractListWithPropertiesInheritedFrom;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.getEcdsaPrivateKeyFromSpec;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyListNamed;
@@ -95,6 +96,7 @@ import com.google.protobuf.ByteString;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
+import com.hedera.services.bdd.junit.hedera.NodeSelector;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.assertions.ContractInfoAsserts;
 import com.hedera.services.bdd.spec.keys.KeyShape;
@@ -114,6 +116,7 @@ import java.io.UncheckedIOException;
 import java.math.BigInteger;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
@@ -911,6 +914,20 @@ public class ContractCreateSuite {
                             .getGasUsed();
                     assertEquals(117661, gasUsed);
                 }));
+    }
+
+    // Reproducing issue stated in #21821
+    @HapiTest
+    Stream<DynamicTest> contractDeployFailsDuringExecution() {
+        return hapiTest(
+                uploadInitCode("HushSenseManager"),
+                // fails during execution due to insufficient gas
+                contractCreate("HushSenseManager").gas(200_000L).hasKnownStatus(ResponseCodeEnum.INSUFFICIENT_GAS),
+                // Ensure we don't log for empty action stack anymore
+                assertHgcaaLogDoesNotContainText(
+                        NodeSelector.allNodes(), "Action stack prematurely empty", Duration.ofSeconds(10)),
+                // succeeds with enough gas
+                contractCreate("HushSenseManager").gas(1_000_000L).hasKnownStatus(ResponseCodeEnum.SUCCESS));
     }
 
     private TransactionRecord getRecord(HapiSpec spec, String txn, ResponseCodeEnum status) {
