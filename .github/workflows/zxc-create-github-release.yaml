@@ -102,7 +102,7 @@ jobs:
           fi
 
   generate-release-notes:
-    name: Create Full Release Notes
+    name: Generate Release Notes File
     needs: validate-input-version
     runs-on: hiero-network-node-linux-medium
     if: ${{ inputs.create-release-notes == true }}
@@ -137,13 +137,13 @@ jobs:
           pip install requests
           python3 .github/workflows/support/scripts/process_json_release_notes.py ./changes.json ./RELEASE_NOTES.md
 
-      - name: Create Release Notes - Full Markdown Format
+      - name: Generate Release Notes - Full Markdown Format
         run: |
           echo "Release Notes - Full Markdown Format" | tee -a "${GITHUB_STEP_SUMMARY}"
           echo "" | tee -a "${GITHUB_STEP_SUMMARY}"
           cat RELEASE_NOTES.md | tee -a "${GITHUB_STEP_SUMMARY}"
 
-      - name: Upload release notes as artifact
+      - name: Upload Release Notes as Artifact
         uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
         with:
           name: release-notes
@@ -196,18 +196,6 @@ jobs:
         with:
           name: release-notes
           path: ./
-
-      - name: Create Github Release - Logging Before Release
-        run: |
-          echo "Creating the GitHub Release for version ${{ inputs.release-version  }}"
-          echo "Downloaded Release Notes artifact:"
-          ls
-          cat ${{ github.workspace }}/RELEASE_NOTES.md
-          echo "Logging values:"
-          echo "inputs create-release: ${{ inputs.create-release }}"
-          echo "inputs release-version: ${{ inputs.release-version }}"
-          echo "inputs dry-run: ${{ inputs.dry-run }}"
-          echo "body file: ${{ github.workspace }}/RELEASE_NOTES.md"
 
       - name: Create Official Github Release
         if: ${{ inputs.create-release && !inputs.dry-run }}
