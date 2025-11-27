@@ -1,7 +1,8 @@
-import json
-import re
 import os
 import sys
+import json
+import re
+import requests
 
 if len(sys.argv) < 3:
   print("Usage: process_json_release_notes.py <input_json> <output_md>")
@@ -11,7 +12,24 @@ json_file = sys.argv[1]
 output_file = sys.argv[2]
 
 repo = os.environ.get("GITHUB_REPOSITORY")
+if not repo:
+  print("GITHUB_REPOSITORY must be set")
+  sys.exit(1)
+
+token = os.environ.get("GITHUB_TOKEN")
+if not token:
+  print("GITHUB_TOKEN must be set")
+  sys.exit(1)
+
 pr_url_prefix = f"https://github.com/{repo}/pull/"
+
+# GitHub API session with token
+session = requests.Session()
+session.headers["Authorization"] = f"Bearer {token}"
+session.headers["Accept"] = "application/vnd.github+json"
+
+# Cache PR number -> username to avoid multiple API calls
+pr_user_cache = {}
 
 with open(json_file) as f:
   data = json.load(f)
@@ -28,46 +46,50 @@ style = []
 tests = []
 others = []
 
+def get_pr_author(pr_number: str):
+  if pr_number in pr_user_cache:
+    return pr_user_cache[pr_number]
+
+  url = f"https://api.github.com/repos/{repo}/pulls/{pr_number}"
+  resp = session.get(url)
+  if resp.status_code != 200:
+    pr_user_cache[pr_number] = None
+    return None
+  data = resp.json()
+  username = data.get("user", {}).get("login")
+  pr_user_cache[pr_number] = username
+  return username
+
 for item in data:
   commit_type = item.get("type")
   desc = item.get("description", "").strip()
   if not desc:
     continue
 
-  # Convert PR numbers (#12345) into links
+  # Find all PR numbers
+  pr_numbers = re.findall(r"#(\d+)", desc)
+
+  # Convert PR numbers into Markdown links
   desc = re.sub(r"\(#(\d+)\)", r"[#\1](" + pr_url_prefix + r"\1)", desc)
 
-  # ----------------------------
-  # Add GitHub username extraction
-  # ----------------------------
   authors = []
+  for pr_number in pr_numbers:
+    username = get_pr_author(pr_number)
+    if username:
+      authors.append(f"@{username}")
 
-  footers = item.get("footers", {})
-  if "Signed-off-by" in footers:
-    authors.extend(footers["Signed-off-by"])
-  if "Co-authored-by" in footers:
-    authors.extend(footers["Co-authored-by"])
+  # Deduplicate authors while keeping order
+  seen = set()
+  deduped_authors = []
+  for a in authors:
+    if a not in seen:
+      deduped_authors.append(a)
+      seen.add(a)
 
-  pretty_authors = []
-  for author in authors:
-    match = re.search(r"<([^>]+)>", author)
-    if not match:
-      continue
-    email = match.group(1)
+  if deduped_authors:
+    desc = f"{desc} — {', '.join(deduped_authors)}"
 
-    if email.endswith("users.noreply.github.com"):
-      username = email.split("@")[0]
-      pretty_authors.append(f"@{username}")
-    else:
-      username = email.split("@")[0]
-      pretty_authors.append(f"@{username}")
-
-  if pretty_authors:
-    desc = f"{desc} by {', '.join(pretty_authors)}"
-  # ----------------------------
-  # End GitHub username extraction
-  # ----------------------------
-
+  # Categorize lines
   if commit_type == "feat":
     features.append(desc)
   elif commit_type == "fix":

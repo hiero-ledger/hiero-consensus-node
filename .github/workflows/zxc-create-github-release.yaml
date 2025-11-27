@@ -122,6 +122,11 @@ jobs:
       - name: Git-Semver Setup Action
         uses: PandasWhoCode/setup-git-semver@91baf2ca207495aa35db3441038ddeae2b6904c7 # v1.0.2
 
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests
+
       - name: Get All Changes in JSON Format
         run: |
           echo "Create Release Notes of Conventional Commits"
