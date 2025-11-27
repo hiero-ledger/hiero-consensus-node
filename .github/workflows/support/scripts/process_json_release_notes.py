@@ -1,8 +1,8 @@
-import os
-import sys
 import json
+import os
 import re
 import requests
+import sys
 
 if len(sys.argv) < 3:
   print("Usage: process_json_release_notes.py <input_json> <output_md>")
