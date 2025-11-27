@@ -37,6 +37,37 @@ for item in data:
   # Convert PR numbers (#12345) into links
   desc = re.sub(r"\(#(\d+)\)", r"[#\1](" + pr_url_prefix + r"\1)", desc)
 
+  # ----------------------------
+  # Add GitHub username extraction
+  # ----------------------------
+  authors = []
+
+  footers = item.get("footers", {})
+  if "Signed-off-by" in footers:
+    authors.extend(footers["Signed-off-by"])
+  if "Co-authored-by" in footers:
+    authors.extend(footers["Co-authored-by"])
+
+  pretty_authors = []
+  for author in authors:
+    match = re.search(r"<([^>]+)>", author)
+    if not match:
+      continue
+    email = match.group(1)
+
+    if email.endswith("users.noreply.github.com"):
+      username = email.split("@")[0]
+      pretty_authors.append(f"@{username}")
+    else:
+      username = email.split("@")[0]
+      pretty_authors.append(f"@{username}")
+
+  if pretty_authors:
+    desc = f"{desc} by {', '.join(pretty_authors)}"
+  # ----------------------------
+  # End GitHub username extraction
+  # ----------------------------
+
   if commit_type == "feat":
     features.append(desc)
   elif commit_type == "fix":

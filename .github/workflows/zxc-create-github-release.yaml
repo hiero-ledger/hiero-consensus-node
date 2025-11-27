@@ -126,8 +126,6 @@ jobs:
         run: |
           echo "Create Release Notes of Conventional Commits"
           git-semver log --conventional-commits "${{ needs.validate-input-version.outputs.release-identifier }}" | tee changes.json
-          echo "JSON file of changes"
-          cat changes.json
 
       - name: Process All Changes to Markdown File
         id: generate-md
