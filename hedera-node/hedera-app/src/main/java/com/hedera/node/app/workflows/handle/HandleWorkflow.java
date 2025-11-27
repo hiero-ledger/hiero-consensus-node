@@ -4,6 +4,7 @@ package com.hedera.node.app.workflows.handle;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.BUSY;
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
 import static com.hedera.node.app.blocks.BlockStreamManager.PendingWork.GENESIS_WORK;
+import static com.hedera.node.app.history.impl.ProofControllers.isWrapsExtensible;
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_STATE_ID;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.SCHEDULED;
 import static com.hedera.node.app.state.logging.TransactionStateLogger.logStartEvent;
@@ -940,7 +941,8 @@ public class HandleWorkflow {
             if (tssConfig.historyEnabled()) {
                 historyService.onFinishedConstruction((historyStore, construction) -> {
                     final var rosterStore = new ReadableRosterStoreImpl(state.getReadableStates(RosterService.NAME));
-                    if (historyStore.getActiveConstruction().constructionId() == construction.constructionId()) {
+                    final var activeConstruction = historyStore.getActiveConstruction();
+                    if (activeConstruction.constructionId() == construction.constructionId()) {
                         // We just finished the genesis proof, so we use it immediately
                         final var proof = construction.targetProofOrThrow();
                         historyService.setLatestHistoryProof(proof);
@@ -950,23 +952,30 @@ public class HandleWorkflow {
                         logger.info("Set ledger id to '{}'", ledgerId);
                         return;
                     }
-                    if (rosterStore.candidateIsWeightRotation()) {
+                    // WRAPS genesis is the first proof that bootstraps the chain of trust; but it takes a long time
+                    // to finish, so we make do right after network genesis with a list-of-signatures block proof
+                    final boolean isWrapsGenesis =
+                            tssConfig.wrapsEnabled() && !isWrapsExtensible(activeConstruction.targetProof());
+                    if (isWrapsGenesis || rosterStore.candidateIsWeightRotation()) {
                         historyStore.handoff(
                                 requireNonNull(rosterStore.getActiveRoster()),
-                                requireNonNull(rosterStore.getCandidateRoster()),
-                                requireNonNull(rosterStore.getCandidateRosterHash()));
+                                rosterStore.getCandidateRoster(),
+                                isWrapsGenesis ? null : requireNonNull(rosterStore.getCandidateRosterHash()));
                         // Make sure we include the latest chain-of-trust proof in following block proofs
                         historyService.setLatestHistoryProof(construction.targetProofOrThrow());
-                        final var writableHintsStates = state.getWritableStates(HintsService.NAME);
-                        final var writableEntityStates = state.getWritableStates(EntityIdService.NAME);
-                        final var entityCounters = new WritableEntityIdStoreImpl(writableEntityStates);
-                        final var hintsStore = new WritableHintsStoreImpl(writableHintsStates, entityCounters);
-                        hintsService.handoff(
-                                hintsStore,
-                                requireNonNull(rosterStore.getActiveRoster()),
-                                requireNonNull(rosterStore.getCandidateRoster()),
-                                requireNonNull(rosterStore.getCandidateRosterHash()),
-                                tssConfig.forceHandoffs());
+                        // Finishing WRAPS genesis has no actual implications for hinTS
+                        if (!isWrapsGenesis) {
+                            final var writableHintsStates = state.getWritableStates(HintsService.NAME);
+                            final var writableEntityStates = state.getWritableStates(EntityIdService.NAME);
+                            final var entityCounters = new WritableEntityIdStoreImpl(writableEntityStates);
+                            final var hintsStore = new WritableHintsStoreImpl(writableHintsStates, entityCounters);
+                            hintsService.handoff(
+                                    hintsStore,
+                                    requireNonNull(rosterStore.getActiveRoster()),
+                                    requireNonNull(rosterStore.getCandidateRoster()),
+                                    requireNonNull(rosterStore.getCandidateRosterHash()),
+                                    tssConfig.forceHandoffs());
+                        }
                     }
                 });
             }
@@ -1012,14 +1021,22 @@ public class HandleWorkflow {
                     final var hintsStore = new ReadableHintsStoreImpl(hintsWritableStates, entityCounters);
                     final var historyStore = new WritableHistoryStoreImpl(historyWritableStates);
                     // If we are doing a chain-of-trust proof, this is the verification key we are proving;
-                    // at genesis, the active construction's key---otherwise, the next construction's key
+                    // at genesis (including WRAPS genesis), the active hinTS construction's key---otherwise,
+                    // the next hinTS construction's key...note that even when this is null, the controller
+                    // can still make progress on publishing proof keys as needed
                     final var vk = Optional.ofNullable(
-                                    historyStore.getLedgerId() == null
+                                    (historyStore.getLedgerId() == null
+                                                    || (tssConfig.wrapsEnabled()
+                                                            && historyStore
+                                                                    .getActiveConstruction()
+                                                                    .hasTargetProof()
+                                                            && !isWrapsExtensible(historyStore
+                                                                    .getActiveConstruction()
+                                                                    .targetProof())))
                                             ? hintsStore.getActiveConstruction().hintsScheme()
                                             : hintsStore.getNextConstruction().hintsScheme())
                             .map(s -> s.preprocessedKeysOrThrow().verificationKey())
                             .orElse(null);
-                    // If applicable, this is the verification key that needs a chain-of-trust proof
                     doStreamingKVChanges(
                             historyWritableStates,
                             null,

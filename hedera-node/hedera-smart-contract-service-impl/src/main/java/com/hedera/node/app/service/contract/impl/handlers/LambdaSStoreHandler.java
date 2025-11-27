@@ -8,6 +8,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOK_NOT_FOUND;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_HOOK_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.LAMBDA_STORAGE_UPDATE_BYTES_MUST_USE_MINIMAL_REPRESENTATION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.LAMBDA_STORAGE_UPDATE_BYTES_TOO_LONG;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.MAX_STORAGE_IN_PRICE_REGIME_HAS_BEEN_USED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOO_MANY_LAMBDA_STORAGE_UPDATES;
 import static com.hedera.hapi.node.state.hooks.EvmHookType.LAMBDA;
 import static com.hedera.node.app.hapi.utils.contracts.HookUtils.asAccountId;
@@ -128,13 +129,16 @@ public class LambdaSStoreHandler implements TransactionHandler {
     public void handle(@NonNull final HandleContext context) throws HandleException {
         requireNonNull(context);
         final var op = context.body().lambdaSstoreOrThrow();
-        final var lambdaStore = context.storeFactory().writableStore(WritableEvmHookStore.class);
+        final var evmHookStore = context.storeFactory().writableStore(WritableEvmHookStore.class);
         final var storageUpdates = op.storageUpdates();
         final var config = context.configuration().getConfigData(HooksConfig.class);
         validateTrue(storageUpdates.size() <= config.maxLambdaSStoreUpdates(), TOO_MANY_LAMBDA_STORAGE_UPDATES);
         // We translate any contract id used at the HAPI boundary for internal simplicity
         final var hookId = effectiveHookId(op.hookIdOrThrow());
-        final int delta = lambdaStore.updateStorage(hookId, op.storageUpdates());
+        final int delta = evmHookStore.updateStorage(hookId, op.storageUpdates());
+        validateTrue(
+                evmHookStore.numStorageSlotsInState() <= config.maxLambdaStorageSlots(),
+                MAX_STORAGE_IN_PRICE_REGIME_HAS_BEEN_USED);
         final var tokenServiceApi = context.storeFactory().serviceApi(TokenServiceApi.class);
         tokenServiceApi.updateLambdaStorageSlots(
                 hookId.entityIdOrThrow().accountIdOrThrow(),

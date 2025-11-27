@@ -268,6 +268,11 @@ message StateKey {
      */
     proto.AccountID AddressBookService_I_ACCOUNT_NODE_REL = 53;
 
+    /**
+     * A state identifier for WRAPS message histories used in a roster transition proof.
+     */
+    com.hedera.hapi.node.state.history.ConstructionNodeId HistoryService_I_WRAPS_MESSAGE_HISTORIES = 54;
+
     // Queue states
     /**
      * Queue index for the round receipts queue.
@@ -607,9 +612,14 @@ message StateValue {
     com.hedera.hapi.platform.state.NodeId AddressBookService_I_ACCOUNT_NODE_REL = 53;
 
     /**
+     * A state identifier for WRAPS message histories used in a roster transition proof.
+     */
+    com.hedera.hapi.node.state.history.WrapsMessageHistory HistoryService_I_WRAPS_MESSAGE_HISTORIES = 54;
+
+    /**
      * A state identifier for the next node Identifier.
      */
-    com.hedera.hapi.platform.state.NodeId EntityIdService_I_NODE_ID = 54;
+    com.hedera.hapi.platform.state.NodeId EntityIdService_I_NODE_ID = 55;
 
     /**
      * Metadata of the round receipts queue.

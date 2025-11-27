@@ -479,9 +479,14 @@ enum StateIdentifier {
     STATE_ID_ACCOUNT_NODE_REL = 53;
 
     /**
+     * A state identifier for WRAPS message histories.
+     */
+    STATE_ID_WRAPS_MESSAGE_HISTORIES = 54;
+
+    /**
      * A state identifier for the highest node identifier allocated so far.
      */
-    HIGHEST_NODE_ID_STATE_ID = 54;
+    HIGHEST_NODE_ID_STATE_ID = 55;
 
     /**
      * A state identifier for the round receipts queue. Queue state.
@@ -1094,6 +1099,11 @@ message MapChangeValue {
          * A node identifier.
          */
         com.hedera.hapi.platform.state.NodeId node_id_value = 30;
+
+        /**
+         * A WRAPS message history.
+         */
+        com.hedera.hapi.node.state.history.WrapsMessageHistory wraps_message_history_value = 31;
     }
 }
 

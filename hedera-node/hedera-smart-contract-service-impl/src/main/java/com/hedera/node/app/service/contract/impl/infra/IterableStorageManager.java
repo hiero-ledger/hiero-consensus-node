@@ -57,7 +57,7 @@ public class IterableStorageManager {
      * @param allAccesses the pending changes to storage values
      * @param allSizeChanges the pending changes to storage sizes
      * @param store the writable state store
-     * @param writableEvmHookStore
+     * @param writableEvmHookStore the writable hook store
      */
     public void persistChanges(
             @NonNull final Enhancement enhancement,
@@ -65,16 +65,13 @@ public class IterableStorageManager {
             @NonNull final List<StorageSizeChange> allSizeChanges,
             @NonNull final ContractStateStore store,
             @NonNull final WritableEvmHookStore writableEvmHookStore) {
-        // map to store the first storage key for each contract
+        // Stores the first storage key for each contract
         final Map<ContractID, Bytes> firstKeys = new HashMap<>();
-        final var hooksContract =
-                enhancement.nativeOperations().entityIdFactory().newContractId(HTS_HOOKS_CONTRACT_NUM);
-
         // Adjust the storage linked lists for each contract
         allAccesses.forEach(contractAccesses -> contractAccesses.accesses().forEach(access -> {
             if (access.isUpdate()) {
                 final var contractId = contractAccesses.contractID();
-                if (contractId.equals(hooksContract)) {
+                if (contractId.contractNumOrThrow() == HTS_HOOKS_CONTRACT_NUM) {
                     // Skip managing linked list for 0x16d, as its storage is managed separately
                     return;
                 }
@@ -116,7 +113,7 @@ public class IterableStorageManager {
         // Update contract metadata with the net change in slots used
         long slotUsageChange = 0;
         for (final var change : allSizeChanges) {
-            if (change.contractID().equals(hooksContract)) {
+            if (change.contractID().contractNumOrThrow() == HTS_HOOKS_CONTRACT_NUM) {
                 // Skip managing slot count for 0x16d, as its storage is managed separately
                 continue;
             }
@@ -160,7 +157,6 @@ public class IterableStorageManager {
     /**
      * @param enhancement the enhancement for the current transaction
      * Returns the first storage key for the contract or Bytes.Empty if none exists. df
-     * @param enhancement the enhancement for the current transaction
      * @param contractID the contract id
      * @return the first storage key for the contract or null if none exists.
      */
