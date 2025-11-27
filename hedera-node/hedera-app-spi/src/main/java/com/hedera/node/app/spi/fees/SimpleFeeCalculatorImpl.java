@@ -71,15 +71,14 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
      * CryptoDelete uses only SIGNATURES extra for the service fee.
      *
      * @param txnBody the transaction body
-     * @param calculatorState the calculator state containing signature count
+     * @param feeContext the fee context containing signature count
      * @return the calculated fee result
      */
     @NonNull
     @Override
-    public FeeResult calculateTxFee(
-            @NonNull final TransactionBody txnBody, @Nullable final CalculatorState calculatorState) {
+    public FeeResult calculateTxFee(@NonNull final TransactionBody txnBody, @Nullable final FeeContext feeContext) {
         // Extract primitive counts (no allocations)
-        final long signatures = calculatorState != null ? calculatorState.numTxnSignatures() : 0;
+        final long signatures = feeContext != null ? feeContext.numTxnSignatures() : 0;
         final var result = new FeeResult();
 
         // Add node base and extras
@@ -91,7 +90,7 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
 
         final var serviceFeeCalculator =
                 serviceFeeCalculators.get(txnBody.data().kind());
-        serviceFeeCalculator.accumulateServiceFee(txnBody, calculatorState, result, feeSchedule);
+        serviceFeeCalculator.accumulateServiceFee(txnBody, feeContext, result, feeSchedule);
         return result;
     }
 
@@ -121,27 +120,27 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
      * Default implementation for query fee calculation.
      *
      * @param query The query to calculate fees for
-     * @param calculatorState calculator state
+     * @param feeContext fee context
      * @return Never returns normally
      * @throws UnsupportedOperationException always
      */
     @Override
     @NonNull
-    public FeeResult calculateQueryFee(@NonNull final Query query, @Nullable final CalculatorState calculatorState) {
-        final long signatures = calculatorState != null ? calculatorState.numTxnSignatures() : 0;
+    public FeeResult calculateQueryFee(@NonNull final Query query, @Nullable final FeeContext feeContext) {
+        final long signatures = feeContext != null ? feeContext.numTxnSignatures() : 0;
         final long bytes = Query.PROTOBUF.toBytes(query).length();
 
         final var result = new FeeResult();
         // Add node base + extras
         result.addNodeFee(1, feeSchedule.node().baseFee());
-        addExtraFees(result, "Node", feeSchedule.node().extras(), signatures, bytes, 0);
+        addNodeExtras(result, "Node", feeSchedule.node().extras(), signatures, bytes, 0);
 
         // Add network fee
         final int multiplier = feeSchedule.network().multiplier();
         result.addNetworkFee(result.node * multiplier);
 
         final var queryFeeCalculator = queryFeeCalculators.get(query.query().kind());
-        queryFeeCalculator.accumulateServiceFee(query, calculatorState, result, feeSchedule);
+        queryFeeCalculator.accumulateServiceFee(query, feeContext, result, feeSchedule);
         return result;
     }
 }
