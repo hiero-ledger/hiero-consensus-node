@@ -50,7 +50,7 @@ import com.swirlds.config.api.validation.annotation.Min;
 public record VirtualMapConfig(
         @Min(0) @Max(100) @ConfigProperty(defaultValue = "50.0") double percentHashThreads,
         @Min(-1) @ConfigProperty(defaultValue = "-1") int numHashThreads,
-        @Min(1) @Max(64) @ConfigProperty(defaultValue = "1") int virtualHasherChunkHeight,
+        @Min(1) @Max(64) @ConfigProperty(defaultValue = "5") int virtualHasherChunkHeight,
         @ConfigProperty(defaultValue = PUSH) String reconnectMode,
         @Min(0) @ConfigProperty(defaultValue = "500000") int reconnectFlushInterval,
         @Min(0) @Max(100) @ConfigProperty(defaultValue = "25.0") double percentCleanerThreads,

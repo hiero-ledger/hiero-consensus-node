@@ -471,13 +471,13 @@ public final class VirtualNodeCache implements FastCopyable {
             releaseLock.unlock();
         }
 
-//        logger.info(
-//                VIRTUAL_MERKLE_STATS.getMarker(),
-//                "Release {}: {} / {} / {}",
-//                getFastCopyVersion(),
-//                estimatedHashesSizeInBytes.get(),
-//                estimatedLeavesSizeInBytes.get(),
-//                estimatedLeafPathsSizeInBytes.get());
+        logger.info(
+                VIRTUAL_MERKLE_STATS.getMarker(),
+                "Release {}: {} / {} / {}",
+                getFastCopyVersion(),
+                estimatedHashesSizeInBytes.get(),
+                estimatedLeavesSizeInBytes.get(),
+                estimatedLeafPathsSizeInBytes.get());
 
         // Fire off the cleaning threads to go and clear out data in the indexes that doesn't need
         // to be there anymore.
@@ -543,12 +543,12 @@ public final class VirtualNodeCache implements FastCopyable {
             p.estimatedLeavesSizeInBytes.addAndGet(estimatedLeavesSizeInBytes.get());
             p.estimatedLeafPathsSizeInBytes.addAndGet(estimatedLeafPathsSizeInBytes.get());
             p.estimatedHashesSizeInBytes.addAndGet(estimatedHashesSizeInBytes.get());
-//            logger.info(
-//                    VIRTUAL_MERKLE_STATS.getMarker(),
-//                    "Merge into {} size old {}",
-//                    p.getFastCopyVersion(),
-//                    p.getEstimatedSize());
-            if (next.get() == null) {
+            logger.info(
+                    VIRTUAL_MERKLE_STATS.getMarker(),
+                    "Merge into {} size old {}",
+                    p.getFastCopyVersion(),
+                    p.getEstimatedSize());
+            if ((next.get() == null) && !p.mergedCopy.get()) {
 //                p.estimatedLeafPathsSizeInBytes.addAndGet(-p.purgeOnMerge(p.dirtyLeafPaths, Bytes::length));
 //                final long oneHashChunkSize =
 //                        (long) VirtualHashChunk.getChunkSize(hashChunkHeight) *
@@ -556,10 +556,10 @@ public final class VirtualNodeCache implements FastCopyable {
                 p.estimatedHashesSizeInBytes.addAndGet(-p.purgeOnMerge(
                         p.dirtyHashChunks,
                         t -> (long) t.getChunkSize() * Cryptography.DEFAULT_DIGEST_TYPE.digestLength()));
-//                logger.info(VIRTUAL_MERKLE_STATS.getMarker(),
-//                        "Merge into {} size new {}",
-//                        p.getFastCopyVersion(),
-//                        p.getEstimatedSize());
+                logger.info(VIRTUAL_MERKLE_STATS.getMarker(),
+                        "Merge into {} size new {}",
+                        p.getFastCopyVersion(),
+                        p.getEstimatedSize());
             }
             p.mergedCopy.set(true);
 
@@ -590,6 +590,17 @@ public final class VirtualNodeCache implements FastCopyable {
         dirtyLeaves.seal();
         dirtyHashChunks.seal();
         dirtyLeafPaths.seal();
+
+        logger.info(
+                VIRTUAL_MERKLE_STATS.getMarker(),
+                "Seal {}: H={}/{} L={}/{} LP={}/{}",
+                getFastCopyVersion(),
+                dirtyHashChunks.size(),
+                estimatedHashesSizeInBytes.get(),
+                dirtyLeaves.size(),
+                estimatedLeavesSizeInBytes.get(),
+                dirtyLeafPaths.size(),
+                estimatedLeafPathsSizeInBytes.get());
     }
 
     // --------------------------------------------------------------------------------------------
@@ -1271,28 +1282,16 @@ public final class VirtualNodeCache implements FastCopyable {
     private void updateHashChunk(final VirtualHashChunk chunk) {
         final long hashChunkId = chunk.getChunkId();
         idToDirtyHashChunkIndex.compute(hashChunkId, (id, mutation) -> {
-            Mutation<Long, VirtualHashChunk> nextMutation = mutation;
-            Mutation<Long, VirtualHashChunk> previousMutation = null;
-            while (nextMutation != null && nextMutation.version > fastCopyVersion.get()) {
-                previousMutation = nextMutation;
-                nextMutation = nextMutation.next;
-            }
             long sizeDelta = 0;
-            if ((nextMutation == null) || (nextMutation.version != fastCopyVersion.get())) {
-                nextMutation = new Mutation<>(nextMutation, hashChunkId, chunk, fastCopyVersion.get());
-                dirtyHashChunks.add(nextMutation);
+            if ((mutation == null) || (mutation.version != fastCopyVersion.get())) {
+                mutation = new Mutation<>(mutation, hashChunkId, chunk, fastCopyVersion.get());
+                dirtyHashChunks.add(mutation);
                 sizeDelta += (long) chunk.getChunkSize() * Cryptography.DEFAULT_DIGEST_TYPE.digestLength();
             } else {
-                assert nextMutation.notFiltered();
-                sizeDelta -= (long) nextMutation.value.getChunkSize() * Cryptography.DEFAULT_DIGEST_TYPE.digestLength();
-                nextMutation.value = chunk;
+                assert mutation.notFiltered();
+                sizeDelta -= (long) mutation.value.getChunkSize() * Cryptography.DEFAULT_DIGEST_TYPE.digestLength();
+                mutation.value = chunk;
                 sizeDelta += (long) chunk.getChunkSize() * Cryptography.DEFAULT_DIGEST_TYPE.digestLength();
-            }
-            if (previousMutation != null) {
-                assert previousMutation.notFiltered();
-                previousMutation.next = nextMutation;
-            } else {
-                mutation = nextMutation;
             }
             estimatedHashesSizeInBytes.addAndGet(sizeDelta);
             return mutation;

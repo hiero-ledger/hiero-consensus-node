@@ -83,6 +83,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
@@ -1086,15 +1087,21 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
                 cache.putHashChunk(chunk);
             }
         };
+        final AtomicInteger hl =  new AtomicInteger();
         Hash virtualHash = hasher.hash(
                 records::findHash,
-                cache::preloadHashChunk,
+//                cache::preloadHashChunk,
+                i -> {
+                    hl.incrementAndGet();
+                    return cache.preloadHashChunk(i);
+                },
                 cache.dirtyLeavesForHash(metadata.getFirstLeafPath(), metadata.getLastLeafPath())
                         .iterator(),
                 metadata.getFirstLeafPath(),
                 metadata.getLastLeafPath(),
                 hashListener,
                 virtualMapConfig);
+        logger.info(VIRTUAL_MERKLE_STATS.getMarker(), "Hash chunks loaded {}: {}", getFastCopyVersion(), hl.get());
 
         if (virtualHash == null) {
             final Hash rootHash = (metadata.getSize() == 0) ? null : records.findRootHash();

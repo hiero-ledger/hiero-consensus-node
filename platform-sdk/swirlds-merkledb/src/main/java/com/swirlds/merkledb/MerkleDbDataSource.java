@@ -56,6 +56,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
@@ -1209,7 +1210,9 @@ public final class MerkleDbDataSource implements VirtualDataSource {
 
         hashChunkStore.startWriting();
 
+        final AtomicInteger hc = new AtomicInteger(0);
         dirtyHashes.forEach(chunk -> {
+            hc.incrementAndGet();
             statisticsUpdater.countFlushHashesWritten();
             final long chunkId = chunk.getChunkId();
             if (useCache && (chunkId < hashChunkCacheThreshold)) {
@@ -1223,6 +1226,7 @@ public final class MerkleDbDataSource implements VirtualDataSource {
                 }
             }
         });
+        logger.info(MERKLE_DB.getMarker(), "Hash chunks flushed: {}", hc.get());
 
         final DataFileReader newHashesFile = hashChunkStore.endWriting();
         statisticsUpdater.setFlushHashesStoreFileSize(newHashesFile);
