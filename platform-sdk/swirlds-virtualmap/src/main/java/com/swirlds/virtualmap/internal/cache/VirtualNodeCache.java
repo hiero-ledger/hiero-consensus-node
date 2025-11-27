@@ -553,13 +553,13 @@ public final class VirtualNodeCache implements FastCopyable {
 //                final long oneHashChunkSize =
 //                        (long) VirtualHashChunk.getChunkSize(hashChunkHeight) *
 //                        Cryptography.DEFAULT_DIGEST_TYPE.digestLength();
-                p.estimatedHashesSizeInBytes.addAndGet(-p.purgeOnMerge(
-                        p.dirtyHashChunks,
-                        t -> (long) t.getChunkSize() * Cryptography.DEFAULT_DIGEST_TYPE.digestLength()));
-                logger.info(VIRTUAL_MERKLE_STATS.getMarker(),
-                        "Merge into {} size new {}",
-                        p.getFastCopyVersion(),
-                        p.getEstimatedSize());
+//                p.estimatedHashesSizeInBytes.addAndGet(-p.purgeOnMerge(
+//                        p.dirtyHashChunks,
+//                        t -> (long) t.getChunkSize() * Cryptography.DEFAULT_DIGEST_TYPE.digestLength()));
+//                logger.info(VIRTUAL_MERKLE_STATS.getMarker(),
+//                        "Merge into {} size new {}",
+//                        p.getFastCopyVersion(),
+//                        p.getEstimatedSize());
             }
             p.mergedCopy.set(true);
 
