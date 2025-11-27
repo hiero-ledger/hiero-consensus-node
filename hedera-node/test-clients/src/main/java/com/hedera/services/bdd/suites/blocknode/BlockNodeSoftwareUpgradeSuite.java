@@ -108,18 +108,21 @@ public class BlockNodeSoftwareUpgradeSuite implements LifecycleTest {
                     timeRef.set(Instant.now());
                     // Create a new block-nodes.json file at runtime with localhost and the correct port
                     final var node0Port = spec.getBlockNodePortById(0);
-                    List<com.hedera.node.internal.network.BlockNodeConfig> blockNodes = new ArrayList<>();
-                    blockNodes.add(new com.hedera.node.internal.network.BlockNodeConfig(
-                            "localhost", node0Port, 0, null, null));
-                    BlockNodeConnectionInfo connectionInfo = new BlockNodeConnectionInfo(blockNodes);
+                    final List<com.hedera.node.internal.network.BlockNodeConfig> blockNodes = new ArrayList<>();
+                    blockNodes.add(com.hedera.node.internal.network.BlockNodeConfig.newBuilder()
+                            .address("localhost")
+                            .port(node0Port)
+                            .priority(0)
+                            .build());
+                    final BlockNodeConnectionInfo connectionInfo = new BlockNodeConnectionInfo(blockNodes);
                     try {
                         // Write the config to this consensus node's block-nodes.json
-                        Path configPath = spec.getNetworkNodes()
+                        final Path configPath = spec.getNetworkNodes()
                                 .getFirst()
                                 .getExternalPath(DATA_CONFIG_DIR)
                                 .resolve("block-nodes.json");
                         Files.writeString(configPath, BlockNodeConnectionInfo.JSON.toJSON(connectionInfo));
-                    } catch (IOException e) {
+                    } catch (final IOException e) {
                         throw new RuntimeException(e);
                     }
                 }),
