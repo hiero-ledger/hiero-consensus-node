@@ -23,12 +23,11 @@ if not token:
 
 pr_url_prefix = f"https://github.com/{repo}/pull/"
 
-# GitHub API session with token
 session = requests.Session()
 session.headers["Authorization"] = f"Bearer {token}"
 session.headers["Accept"] = "application/vnd.github+json"
 
-# Cache PR number -> username to avoid multiple API calls
+# cache PR number list if we have multiple PR lookups
 pr_user_cache = {}
 
 with open(json_file) as f:
@@ -46,6 +45,7 @@ style = []
 tests = []
 others = []
 
+# func to get the author of a PR
 def get_pr_author(pr_number: str):
   if pr_number in pr_user_cache:
     return pr_user_cache[pr_number]
@@ -66,19 +66,20 @@ for item in data:
   if not desc:
     continue
 
-  # Find all PR numbers
+  # find all PR numbers in the release notes
   pr_numbers = re.findall(r"#(\d+)", desc)
 
-  # Convert PR numbers into Markdown links
+  # convert PR numbers into links
   desc = re.sub(r"\(#(\d+)\)", r"[#\1](" + pr_url_prefix + r"\1)", desc)
 
+  # get the authors on the PR
   authors = []
   for pr_number in pr_numbers:
     username = get_pr_author(pr_number)
     if username:
       authors.append(f"@{username}")
 
-  # Deduplicate authors while keeping order
+  # deduplicate authors while keeping order
   seen = set()
   deduped_authors = []
   for a in authors:
@@ -86,10 +87,11 @@ for item in data:
       deduped_authors.append(a)
       seen.add(a)
 
+  # add the deduped authors to description
   if deduped_authors:
     desc = f"{desc} by {', '.join(deduped_authors)}"
 
-  # Categorize lines
+  # categorize commits by conventional commit type
   if commit_type == "feat":
     features.append(desc)
   elif commit_type == "fix":
@@ -113,6 +115,7 @@ for item in data:
   else:
     others.append(desc)
 
+# if we have other commits, we'll need to create the Other Changes section
 other_commits_exist = any([
   build,
   chore,
