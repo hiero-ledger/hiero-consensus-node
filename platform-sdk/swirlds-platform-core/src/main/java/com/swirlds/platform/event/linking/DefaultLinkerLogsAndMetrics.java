@@ -59,6 +59,9 @@ public class DefaultLinkerLogsAndMetrics implements LinkerLogsAndMetrics {
                                 "Parent child relationships where child time created wasn't strictly after parent time created"));
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void childHasMissingParent(
             @NonNull final PlatformEvent child, @NonNull final EventDescriptorWrapper parentDescriptor) {
@@ -70,6 +73,9 @@ public class DefaultLinkerLogsAndMetrics implements LinkerLogsAndMetrics {
         missingParentAccumulator.update(1);
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void parentHasIncorrectBirthRound(
             @NonNull final PlatformEvent child,
@@ -86,6 +92,9 @@ public class DefaultLinkerLogsAndMetrics implements LinkerLogsAndMetrics {
         birthRoundMismatchAccumulator.update(1);
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void childTimeIsNotAfterSelfParentTime(
             @NonNull final PlatformEvent child,

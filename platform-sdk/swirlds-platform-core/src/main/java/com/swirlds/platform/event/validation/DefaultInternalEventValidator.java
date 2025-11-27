@@ -38,11 +38,6 @@ public class DefaultInternalEventValidator implements InternalEventValidator {
     private static final Duration MINIMUM_LOG_PERIOD = Duration.ofMinutes(1);
 
     /**
-     * Whether this node is in a single-node network.
-     */
-    private final boolean singleNodeNetwork;
-
-    /**
      * Keeps track of the number of events in the intake pipeline from each peer
      */
     private final IntakeEventCounter intakeEventCounter;
@@ -64,18 +59,14 @@ public class DefaultInternalEventValidator implements InternalEventValidator {
     /**
      * Constructor
      *
-     * @param platformContext    the platform context
-     * @param singleNodeNetwork  true if this node is in a single-node network, otherwise false
+     * @param platformContext the platform context
      * @param intakeEventCounter keeps track of the number of events in the intake pipeline from each peer
-     * @param transactionLimits  transaction size limits for validation
+     * @param transactionLimits transaction size limits for validation
      */
     public DefaultInternalEventValidator(
             @NonNull final PlatformContext platformContext,
-            final boolean singleNodeNetwork,
             @NonNull final IntakeEventCounter intakeEventCounter,
             @NonNull final TransactionLimits transactionLimits) {
-
-        this.singleNodeNetwork = singleNodeNetwork;
         this.intakeEventCounter = Objects.requireNonNull(intakeEventCounter);
 
         this.transactionLimits = Objects.requireNonNull(transactionLimits);
@@ -144,6 +135,7 @@ public class DefaultInternalEventValidator implements InternalEventValidator {
 
     /**
      * Checks whether the transaction is null.
+     *
      * @param transaction the transaction to check
      * @return true if the transaction is null, otherwise false
      */
@@ -198,30 +190,26 @@ public class DefaultInternalEventValidator implements InternalEventValidator {
     }
 
     /**
-     * Checks that if parents are present, then the generation and birth round of the parents are internally
-     * consistent.
+     * Checks that no more than 1 parent is from the same creator.
      *
      * @param event the event to check
-     * @return true if the parent hashes and generations of the event are internally consistent, otherwise false
+     * @return true if the parents are all from unique creators, otherwise false
      */
-    private boolean areParentsInternallyConsistent(@NonNull final PlatformEvent event) {
-        // If a parent is not missing, then the generation and birth round must be valid.
-        final EventDescriptorWrapper selfParent = event.getSelfParent();
+    private boolean areParentsFromUniqueCreators(@NonNull final PlatformEvent event) {
+        final long numUniqueParentCreators = event.getAllParents().stream()
+                .map(EventDescriptorWrapper::creator)
+                .distinct()
+                .count();
 
-        // only single node networks are allowed to have identical self-parent and other-parent hashes
-        if (!singleNodeNetwork && selfParent != null) {
-            for (final EventDescriptorWrapper otherParent : event.getOtherParents()) {
-                if (selfParent.hash().equals(otherParent.hash())) {
-                    invalidParentsLogger.error(
-                            EXCEPTION.getMarker(),
-                            "Event %s has identical self-parent and other-parent hash: %s"
-                                    .formatted(event, selfParent.hash()));
-                    invalidParentsAccumulator.update(1);
-                    return false;
-                }
-            }
+        if (numUniqueParentCreators < event.getAllParents().size()) {
+            invalidParentsAccumulator.update(1);
+            invalidParentsLogger.error(
+                    EXCEPTION.getMarker(),
+                    "Event {} has multiple parents from the same creator: {}",
+                    event.getDescriptor(),
+                    event.getAllParents());
+            return false;
         }
-
         return true;
     }
 
@@ -263,7 +251,7 @@ public class DefaultInternalEventValidator implements InternalEventValidator {
         if (areRequiredFieldsNonNull(event)
                 && areByteFieldsCorrectLength(event)
                 && isTransactionByteCountValid(event)
-                && areParentsInternallyConsistent(event)
+                && areParentsFromUniqueCreators(event)
                 && isEventBirthRoundValid(event)) {
             return event;
         } else {
