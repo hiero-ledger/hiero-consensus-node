@@ -14,7 +14,7 @@ val bouncycastle = "1.81"
 val dagger = "2.56.2"
 val eclipseCollections = "13.0.0"
 val grpc = "1.72.0"
-val hederaCryptography = "2.0.2"
+val hederaCryptography = "3.0.0"
 val helidon = "4.3.2"
 val jackson = "2.19.0"
 val junit5 = "5.10.3!!" // no updates beyond 5.10.3 until #17125 is resolved
@@ -127,7 +127,10 @@ dependencies.constraints {
     api("com.hedera.cryptography:hedera-cryptography-rpm:$hederaCryptography") {
         because("com.hedera.cryptography.rpm")
     }
-    api("com.hedera.cryptography:hedera-cryptography-hinTS:$hederaCryptography") {
+    api("com.hedera.cryptography:hedera-cryptography-wraps:$hederaCryptography") {
+        because("com.hedera.cryptography.wraps")
+    }
+    api("com.hedera.cryptography:hedera-cryptography-hints:$hederaCryptography") {
         because("com.hedera.cryptography.hints")
     }
 

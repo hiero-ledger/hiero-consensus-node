@@ -7,7 +7,7 @@ import static org.hiero.hapi.support.fees.Extra.KEYS;
 
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.transaction.TransactionBody;
-import com.hedera.node.app.spi.fees.CalculatorState;
+import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
 import com.hedera.node.app.spi.fees.SimpleFeeCalculatorImpl;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -20,7 +20,7 @@ public class FileUpdateFeeCalculator implements ServiceFeeCalculator {
     @Override
     public void accumulateServiceFee(
             @NonNull final TransactionBody txnBody,
-            @Nullable final CalculatorState calculatorState,
+            @Nullable final FeeContext feeContext,
             @NonNull final FeeResult feeResult,
             @NonNull final FeeSchedule feeSchedule) {
         final var op = txnBody.fileUpdateOrThrow();
