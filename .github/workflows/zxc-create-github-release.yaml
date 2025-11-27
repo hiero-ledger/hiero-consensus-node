@@ -129,6 +129,9 @@ jobs:
 
       - name: Process All Changes to Markdown File
         id: generate-md
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
         run: |
           python3 -m pip install --upgrade pip
           pip install requests
