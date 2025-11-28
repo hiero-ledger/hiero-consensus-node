@@ -240,16 +240,8 @@ public class CrystalTransplantCommand extends AbstractCommand {
                 new SimpleRecycleBin(),
                 appMain.getSemanticVersion(),
                 savedStateFiles,
-                v -> {
-                    try {
-                        return appMain.stateRootFromVirtualMap(platformContext.getMetrics())
-                                .apply(v);
-                    } catch (UnsupportedOperationException e) {
-                        // FUTURE WORK: https://github.com/hiero-ledger/hiero-consensus-node/issues/19003
-                        return appMain.newStateRoot();
-                    }
-                },
-                platformContext)) {
+                platformContext,
+                appMain.getStateLifecycleManager())) {
             final Hash newHash = rehashTree(
                     platformContext.getMerkleCryptography(),
                     state.get().getState().getRoot());

@@ -42,7 +42,6 @@ class MerkleDbTableConfigTest {
 
     @Test
     void deserializeDefaultsTest() throws IOException {
-        final MerkleDbConfig merkleDbConfig = CONFIGURATION.getConfigData(MerkleDbConfig.class);
         final MerkleDbTableConfig tableConfig = new MerkleDbTableConfig(
                 (short) 1, DigestType.SHA_384, 1_000, 0); // Default protobuf value, will not be serialized
 

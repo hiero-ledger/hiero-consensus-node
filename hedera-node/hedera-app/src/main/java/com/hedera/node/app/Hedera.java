@@ -110,6 +110,7 @@ import com.hedera.node.config.data.VersionConfig;
 import com.hedera.node.config.types.StreamMode;
 import com.hedera.node.internal.network.Network;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.notification.NotificationEngine;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
@@ -126,10 +127,11 @@ import com.swirlds.platform.system.state.notifications.StateHashedListener;
 import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.State;
 import com.swirlds.state.StateChangeListener;
+import com.swirlds.state.StateLifecycleManager;
+import com.swirlds.state.merkle.StateLifecycleManagerImpl;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.spi.WritableSingletonStateBase;
-import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.charset.Charset;
@@ -146,7 +148,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 import java.util.function.BiPredicate;
 import java.util.function.Consumer;
-import java.util.function.Function;
 import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -382,7 +383,10 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
     private Supplier<Network> genesisNetworkSupplier;
 
     @NonNull
-    private StoreMetricsServiceImpl storeMetricsService;
+    private final StoreMetricsServiceImpl storeMetricsService;
+
+    @NonNull
+    private final StateLifecycleManager stateLifecycleManager;
 
     private boolean onceOnlyServiceInitializationPostDaggerHasHappened = false;
 
@@ -553,11 +557,18 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
         final var blockStreamsEnabled = isBlockStreamEnabled();
         stateRootSupplier = blockStreamsEnabled ? () -> withListeners(baseSupplier.get()) : baseSupplier;
         onSealConsensusRound = blockStreamsEnabled ? this::manageBlockEndRound : (round, state) -> true;
+        final PlatformContext context = platform.getContext();
+        stateLifecycleManager = new StateLifecycleManagerImpl(
+                metrics,
+                context.getTime(),
+                virtualMap -> new VirtualMapState(virtualMap, metrics),
+                context.getConfiguration());
     }
 
     /**
      * {@inheritDoc}
      */
+    @NonNull
     @Override
     public SemanticVersion getSemanticVersion() {
         return version;
@@ -580,14 +591,6 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
     @NonNull
     public MerkleNodeState newStateRoot() {
         return stateRootSupplier.get();
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public Function<VirtualMap, MerkleNodeState> stateRootFromVirtualMap(@NonNull final Metrics metrics) {
-        return virtualMap -> new VirtualMapState(virtualMap, metrics);
     }
 
     /**
@@ -1165,24 +1168,45 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
         return SignedTransaction.PROTOBUF.toBytes(signedTx);
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void submitStateSignature(@NonNull final StateSignatureTransaction stateSignatureTransaction) {
         transactionPool.submitPriorityTransaction(encodeSystemTransaction(stateSignatureTransaction));
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public @NonNull List<TimestampedTransaction> getTransactionsForEvent() {
         return transactionPool.getTransactionsForEvent();
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public boolean hasBufferedSignatureTransactions() {
         return transactionPool.hasBufferedSignatureTransactions();
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public @NonNull TransactionLimits getTransactionLimits() {
         return transactionLimits;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @NonNull
+    @Override
+    public StateLifecycleManager getStateLifecycleManager() {
+        return stateLifecycleManager;
     }
 
     /*==================================================================================================================

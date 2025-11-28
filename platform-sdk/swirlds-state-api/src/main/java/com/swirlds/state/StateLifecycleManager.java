@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.state;
 
+import com.swirlds.common.merkle.MerkleNode;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.io.IOException;
 import java.nio.file.Path;
 
 /**
@@ -21,7 +23,9 @@ public interface StateLifecycleManager {
      *
      * @param state the initial state
      */
-    void initState(@NonNull final MerkleNodeState state, boolean onStartup);
+    void initState(@NonNull MerkleNodeState state);
+
+    MerkleNodeState initStateOnReconnect(@NonNull MerkleNode rootNode);
 
     /**
      * Get the mutable state. Consecutive calls to this method may return different instances,
@@ -63,7 +67,7 @@ public interface StateLifecycleManager {
      * @param targetPath The path to load the snapshot from.
      * @return mutable copy of the loaded state
      */
-    MerkleNodeState loadSnapshot(@NonNull Path targetPath);
+    MerkleNodeState loadSnapshot(@NonNull Path targetPath) throws IOException;
 
     /**
      * Creates a mutable copy of the mutable state. The previous mutable state becomes immutable,

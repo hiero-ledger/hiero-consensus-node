@@ -8,6 +8,7 @@ import static java.nio.file.Files.exists;
 import static java.nio.file.Files.isDirectory;
 
 import com.swirlds.common.config.StateCommonConfig;
+import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -197,8 +198,18 @@ public class SignedStateFilePath {
                 for (final Path subDir : dirs) {
                     try {
                         final long round = Long.parseLong(subDir.getFileName().toString());
+                        final Path vmMetadataPath = subDir.resolve(VirtualMap.METADATA_FILE_NAME);
                         final Path stateFile = subDir.resolve(SIGNED_STATE_FILE_NAME);
-                        if (!exists(stateFile)) {
+                        final boolean oldFormat = VirtualMap.isOldFormat(subDir);
+                        if (oldFormat) {
+                            logger.warn(
+                                    EXCEPTION.getMarker(),
+                                    "Saved state file ({}) not found, but directory exists '{}'. Probably a snapshot of version prior to 0.70",
+                                    vmMetadataPath.getFileName(),
+                                    subDir.toAbsolutePath());
+                        }
+
+                        if (oldFormat && !exists(stateFile)) {
                             logger.warn(
                                     EXCEPTION.getMarker(),
                                     "Saved state file ({}) not found, but directory exists '{}'",
@@ -207,15 +218,15 @@ public class SignedStateFilePath {
                             continue;
                         }
 
-                        final Path metdataPath = subDir.resolve(SavedStateMetadata.FILE_NAME);
+                        final Path stateMetadataPath = subDir.resolve(SavedStateMetadata.FILE_NAME);
                         final SavedStateMetadata metadata;
                         try {
-                            metadata = SavedStateMetadata.parse(metdataPath);
+                            metadata = SavedStateMetadata.parse(stateMetadataPath);
                         } catch (final IOException e) {
                             logger.error(
                                     EXCEPTION.getMarker(),
                                     "Unable to read saved state metadata file '{}'",
-                                    metdataPath);
+                                    stateMetadataPath);
                             continue;
                         }
 

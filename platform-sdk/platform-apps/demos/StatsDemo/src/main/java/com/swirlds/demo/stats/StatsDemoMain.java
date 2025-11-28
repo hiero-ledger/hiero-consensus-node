@@ -22,17 +22,15 @@ import com.swirlds.common.threading.framework.StoppableThread;
 import com.swirlds.common.threading.framework.config.StoppableThreadConfiguration;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
-import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.ParameterProvider;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.state.NoOpConsensusStateEventHandler;
 import com.swirlds.platform.system.DefaultSwirldMain;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
-import com.swirlds.virtualmap.VirtualMap;
+import com.swirlds.state.StateLifecycleManager;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Random;
-import java.util.function.Function;
 import org.hiero.base.constructable.ClassConstructorPair;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
@@ -139,19 +137,6 @@ public class StatsDemoMain extends DefaultSwirldMain<StatsDemoState> {
         return state;
     }
 
-    /**
-     * {@inheritDoc}
-     * <p>
-     * FUTURE WORK: https://github.com/hiero-ledger/hiero-consensus-node/issues/19004
-     * </p>
-     */
-    @Override
-    public Function<VirtualMap, StatsDemoState> stateRootFromVirtualMap(@NonNull final Metrics metrics) {
-        return (virtualMap) -> {
-            throw new UnsupportedOperationException();
-        };
-    }
-
     @NonNull
     @Override
     public ConsensusStateEventHandler newConsensusStateEvenHandler() {
@@ -164,5 +149,14 @@ public class StatsDemoMain extends DefaultSwirldMain<StatsDemoState> {
     @Override
     public SemanticVersion getSemanticVersion() {
         return semanticVersion;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @NonNull
+    @Override
+    public StateLifecycleManager getStateLifecycleManager() {
+        throw new UnsupportedOperationException();
     }
 }

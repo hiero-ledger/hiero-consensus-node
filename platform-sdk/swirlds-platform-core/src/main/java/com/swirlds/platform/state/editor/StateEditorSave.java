@@ -15,6 +15,7 @@ import com.swirlds.platform.config.DefaultConfiguration;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.StateLifecycleManagerImpl;
+import com.swirlds.state.merkle.VirtualMapState;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
@@ -48,10 +49,10 @@ public class StateEditorSave extends StateEditorOperation {
 
             logger.info(LogMarker.CLI.getMarker(), "Hashing state");
             final StateLifecycleManager stateLifecycleManager = new StateLifecycleManagerImpl(
-                    platformContext.getMetrics(), platformContext.getTime(), (virtualMap) -> {
-                        // FUTURE WORK: https://github.com/hiero-ledger/hiero-consensus-node/issues/19003
-                        throw new UnsupportedOperationException();
-                    });
+                    platformContext.getMetrics(),
+                    platformContext.getTime(),
+                    (virtualMap) -> new VirtualMapState(virtualMap, platformContext.getMetrics()),
+                    platformContext.getConfiguration());
 
             platformContext
                     .getMerkleCryptography()

@@ -8,6 +8,7 @@ import com.swirlds.base.utility.ToStringBuilder;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.internal.Path;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.Objects;
 
 /**
  * Contains state for a {@link VirtualMap}. This state is stored in memory. When an instance of {@link VirtualMap}
@@ -39,6 +40,16 @@ public class VirtualMapMetadata {
         requireNonNull(label);
         firstLeafPath = INVALID_PATH;
         lastLeafPath = INVALID_PATH;
+        this.label = label;
+    }
+
+    /**
+     * Create a new {@link VirtualMapMetadata}.
+     */
+    public VirtualMapMetadata(@NonNull final String label, final long firstLeafPath, final long lastLeafPath) {
+        requireNonNull(label);
+        this.firstLeafPath = firstLeafPath;
+        this.lastLeafPath = lastLeafPath;
         this.label = label;
     }
 
@@ -157,6 +168,9 @@ public class VirtualMapMetadata {
         return new VirtualMapMetadata(this);
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public String toString() {
         return new ToStringBuilder(this)
@@ -165,5 +179,25 @@ public class VirtualMapMetadata {
                 .append("size", getSize())
                 .append("label", label)
                 .toString();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public boolean equals(Object o) {
+        if (o == null || getClass() != o.getClass()) return false;
+        VirtualMapMetadata that = (VirtualMapMetadata) o;
+        return firstLeafPath == that.firstLeafPath
+                && lastLeafPath == that.lastLeafPath
+                && Objects.equals(label, that.label);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public int hashCode() {
+        return Objects.hash(firstLeafPath, lastLeafPath, label);
     }
 }
