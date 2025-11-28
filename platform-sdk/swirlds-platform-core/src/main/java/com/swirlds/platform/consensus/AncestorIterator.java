@@ -61,6 +61,10 @@ public class AncestorIterator implements Iterator<EventImpl> {
     private IteratorState state;
     /** is curr a self ancestor of the judge? */
     private boolean selfAncestor;
+    /** stack of the index of the next other parent to try to traverse into */
+    private final Deque<Integer> stackNextOtherParentIndex = new ArrayDeque<>(INITIAL_STACK_SIZE);
+    /** the index of the next other parent to try to traverse into */
+    private int nextOtherParentIndex = 0;
 
     private enum IteratorState {
         TRAVERSING_SELF_PARENT,
@@ -96,6 +100,7 @@ public class AncestorIterator implements Iterator<EventImpl> {
         hasNext = true;
         state = IteratorState.TRAVERSING_SELF_PARENT;
         selfAncestor = true;
+        nextOtherParentIndex = 0;
     }
 
     private void clear() {
@@ -148,10 +153,16 @@ public class AncestorIterator implements Iterator<EventImpl> {
             switch (state) {
                 case TRAVERSING_SELF_PARENT -> { // try to traverse into selfParent
                     final EventImpl parent = curr.getSelfParent();
-                    state = IteratorState.TRAVERSING_OTHER_PARENT;
+                    if (curr.getOtherParents().isEmpty()) {
+                        state = IteratorState.BOTTOM;
+                    } else {
+                        state = IteratorState.TRAVERSING_OTHER_PARENT;
+                        nextOtherParentIndex = 0;
+                    }
                     if (mark.isNotVisited(parent) && valid.test(parent)) {
                         stackRef.push(curr);
                         stackState.push(state);
+                        stackNextOtherParentIndex.push(nextOtherParentIndex);
                         stackSelfAncestor.push(selfAncestor);
                         stackTime.push(timeReachedRoot);
                         curr = parent;
@@ -162,11 +173,17 @@ public class AncestorIterator implements Iterator<EventImpl> {
                     } // there is no selfParent, or it was already visited, or it was not valid
                 }
                 case TRAVERSING_OTHER_PARENT -> { // try to traverse into otherParent
-                    final EventImpl parent = curr.getOtherParent();
-                    state = IteratorState.BOTTOM;
+                    final EventImpl parent = curr.getOtherParents().get(nextOtherParentIndex);
+                    if (nextOtherParentIndex + 1 >= curr.getOtherParents().size()) {
+                        state = IteratorState.BOTTOM;
+                    } else {
+                        state = IteratorState.TRAVERSING_OTHER_PARENT;
+                        nextOtherParentIndex++;
+                    }
                     if (mark.isNotVisited(parent) && valid.test(parent)) {
                         stackRef.push(curr);
                         stackState.push(state);
+                        stackNextOtherParentIndex.push(nextOtherParentIndex);
                         stackSelfAncestor.push(selfAncestor);
                         stackTime.push(timeReachedRoot);
                         curr = parent;
@@ -184,6 +201,7 @@ public class AncestorIterator implements Iterator<EventImpl> {
                     final EventImpl toReturn = curr; // else we are done with all the descendents, so backtrack
                     curr = stackRef.pop();
                     state = stackState.pop();
+                    nextOtherParentIndex = stackNextOtherParentIndex.pop();
                     selfAncestor = stackSelfAncestor.pop();
                     timeReachedRoot = stackTime.pop();
                     return toReturn; // return the child of the vertex we just backtracked to

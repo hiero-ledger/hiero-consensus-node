@@ -18,6 +18,7 @@ import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.platform.internal.EventImpl;
 import com.swirlds.platform.test.fixtures.event.generator.StandardGraphGenerator;
 import com.swirlds.platform.test.fixtures.event.source.StandardEventSource;
+import com.swirlds.platform.test.fixtures.graph.SimpleGraph;
 import com.swirlds.platform.test.fixtures.graph.SimpleGraphs;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -187,19 +188,19 @@ class ConsensusLinkerTests {
     void multipleOtherParents() {
         inOrderLinkerSetup();
 
-        final List<PlatformEvent> events = SimpleGraphs.mopGraph(random);
-        assertParentsMop(linker.linkEvent(events.get(0)), null, List.of());
-        assertParentsMop(linker.linkEvent(events.get(1)), null, List.of());
-        assertParentsMop(linker.linkEvent(events.get(2)), null, List.of());
-        assertParentsMop(linker.linkEvent(events.get(3)), null, List.of());
-        assertParentsMop(linker.linkEvent(events.get(4)), events.get(0), List.of());
-        assertParentsMop(linker.linkEvent(events.get(5)), events.get(1), List.of(events.get(0), events.get(2)));
-        assertParentsMop(linker.linkEvent(events.get(6)), events.get(2), List.of(events.get(1), events.get(3)));
-        assertParentsMop(linker.linkEvent(events.get(7)), events.get(3), List.of());
-        assertParentsMop(linker.linkEvent(events.get(8)), events.get(4), List.of());
-        assertParentsMop(linker.linkEvent(events.get(9)), events.get(5), List.of(events.get(4), events.get(6)));
-        assertParentsMop(linker.linkEvent(events.get(10)), events.get(6), List.of(events.get(5), events.get(7)));
-        assertParentsMop(linker.linkEvent(events.get(11)), events.get(7), List.of());
+        final SimpleGraph graph = SimpleGraphs.mopGraph(random);
+        assertParentsMop(linker.linkEvent(graph.event(0)), null, List.of());
+        assertParentsMop(linker.linkEvent(graph.event(1)), null, List.of());
+        assertParentsMop(linker.linkEvent(graph.event(2)), null, List.of());
+        assertParentsMop(linker.linkEvent(graph.event(3)), null, List.of());
+        assertParentsMop(linker.linkEvent(graph.event(4)), graph.event(0), List.of());
+        assertParentsMop(linker.linkEvent(graph.event(5)), graph.event(1), graph.events(0, 2));
+        assertParentsMop(linker.linkEvent(graph.event(6)), graph.event(2), graph.events(1, 3));
+        assertParentsMop(linker.linkEvent(graph.event(7)), graph.event(3), List.of());
+        assertParentsMop(linker.linkEvent(graph.event(8)), graph.event(4), List.of());
+        assertParentsMop(linker.linkEvent(graph.event(9)), graph.event(5), graph.events(4, 6));
+        assertParentsMop(linker.linkEvent(graph.event(10)), graph.event(6), graph.events(5, 7));
+        assertParentsMop(linker.linkEvent(graph.event(11)), graph.event(7), List.of());
     }
 
     @Test
