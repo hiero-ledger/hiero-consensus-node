@@ -9,6 +9,7 @@ import static com.hedera.statevalidation.poc.validator.HdhmBucketIntegrityValida
 import static com.hedera.statevalidation.poc.validator.LeafBytesIntegrityValidator.LEAF_TAG;
 import static com.hedera.statevalidation.poc.validator.TokenRelationsIntegrityValidator.TOKEN_RELATIONS_TAG;
 import static com.swirlds.base.units.UnitConstants.BYTES_TO_MEBIBYTES;
+import static com.swirlds.base.units.UnitConstants.MEBIBYTES_TO_BYTES;
 
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -57,7 +58,8 @@ import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 import picocli.CommandLine.ParentCommand;
 
-@Command(name = "validate2", mixinStandardHelpOptions = true, description = "Validate command v2.")
+@SuppressWarnings("FieldMayBeFinal")
+@Command(name = "validate2", mixinStandardHelpOptions = true, description = "Validate command v2. Validates the state by running some of the validators in parallel.")
 public class Validate2Command implements Runnable {
 
     private static final Logger log = LogManager.getLogger(Validate2Command.class);
@@ -80,12 +82,24 @@ public class Validate2Command implements Runnable {
             description = "Queue capacity for backpressure control.")
     private int queueCapacity = 1000;
 
-    // remove string duplication here
-    // add tag "all"?
     @CommandLine.Parameters(
             arity = "1..*",
             description =
-                    "Tag to run: [internal, leaf, hdhm, account, tokenRelations, entityIdCount, entityIdUniqueness]")
+                    "Tag to run: ["
+                            + INTERNAL_TAG
+                            + ", "
+                            + LEAF_TAG
+                            + ", "
+                            + HDHM_TAG
+                            + ", "
+                            + ACCOUNT_TAG
+                            + ", "
+                            + TOKEN_RELATIONS_TAG
+                            + ", "
+                            + ENTITY_ID_COUNT_TAG
+                            + ", "
+                            + ENTITY_ID_UNIQUENESS_TAG
+                            + "]")
     private String[] tags = {
         INTERNAL_TAG,
         LEAF_TAG,
@@ -102,170 +116,178 @@ public class Validate2Command implements Runnable {
     public void run() {
         try {
             final BlockingQueue<ItemData> dataQueue = new LinkedBlockingQueue<>(queueCapacity);
-            final ExecutorService ioPool = Executors.newFixedThreadPool(ioThreads);
-            final ExecutorService processPool = Executors.newFixedThreadPool(processThreads);
+            try (ExecutorService ioPool = Executors.newFixedThreadPool(ioThreads)) {
+                try (ExecutorService processPool = Executors.newFixedThreadPool(processThreads)) {
 
-            final long startTime = System.currentTimeMillis();
-            final AtomicLong totalBoundarySearchMillis = new AtomicLong(0L);
+                    final long startTime = System.currentTimeMillis();
+                    final AtomicLong totalBoundarySearchMillis = new AtomicLong(0L);
 
-            // Initialize state and get data file collections
-            parent.initializeStateDir();
-            final DeserializedSignedState deserializedSignedState = StateUtils.getDeserializedSignedState();
-            final MerkleNodeState state =
-                    deserializedSignedState.reservedSignedState().get().getState();
-            final VirtualMap virtualMap = (VirtualMap) state.getRoot();
-            final MerkleDbDataSource vds = (MerkleDbDataSource) virtualMap.getDataSource();
+                    // Initialize state and get data file collections
+                    parent.initializeStateDir();
+                    final DeserializedSignedState deserializedSignedState = StateUtils.getDeserializedSignedState();
+                    final MerkleNodeState state =
+                            deserializedSignedState.reservedSignedState().get().getState();
+                    final VirtualMap virtualMap = (VirtualMap) state.getRoot();
+                    final MerkleDbDataSource vds = (MerkleDbDataSource) virtualMap.getDataSource();
 
-            final DataFileCollection pathToKeyValueDfc = vds.getPathToKeyValue().getFileCollection();
-            final DataFileCollection pathToHashDfc = vds.getHashStoreDisk().getFileCollection();
-            final DataFileCollection keyToPathDfc = vds.getKeyToPath().getFileCollection();
+                    final DataFileCollection pathToKeyValueDfc = vds.getPathToKeyValue().getFileCollection();
+                    final DataFileCollection pathToHashDfc = vds.getHashStoreDisk().getFileCollection();
+                    final DataFileCollection keyToPathDfc = vds.getKeyToPath().getFileCollection();
 
-            // Initialize validators and listeners
-            final List<ValidationListener> validationListeners = List.of(new LoggingValidationListener());
-            final Map<Type, Set<Validator>> validators = createAndInitValidators(state, tags, validationListeners);
+                    // Initialize validators and listeners
+                    final List<ValidationListener> validationListeners = List.of(new LoggingValidationListener());
+                    final Map<Type, Set<Validator>> validators = createAndInitValidators(state, tags,
+                            validationListeners);
 
-            int totalFiles = 0;
-            long globalTotalSize = 0L;
-            final List<FileReadTask> fileReadTasks = new ArrayList<>();
+                    int totalFiles = 0;
+                    long globalTotalSize = 0L;
+                    final List<FileReadTask> fileReadTasks = new ArrayList<>();
 
-            if (validators.containsKey(Type.P2KV)) {
-                totalFiles += pathToKeyValueDfc.getAllCompletedFiles().size();
-                globalTotalSize += pathToKeyValueDfc.getAllCompletedFiles().stream()
-                        .mapToLong(DataFileReader::getSize)
-                        .sum();
-                log.debug(
-                        "P2KV file count: {}",
-                        pathToKeyValueDfc.getAllCompletedFiles().size());
-            }
-            if (validators.containsKey(Type.P2H)) {
-                totalFiles += pathToHashDfc.getAllCompletedFiles().size();
-                globalTotalSize += pathToHashDfc.getAllCompletedFiles().stream()
-                        .mapToLong(DataFileReader::getSize)
-                        .sum();
-                log.debug(
-                        "P2H file count: {}",
-                        pathToHashDfc.getAllCompletedFiles().size());
-            }
-            if (validators.containsKey(Type.K2P)) {
-                totalFiles += keyToPathDfc.getAllCompletedFiles().size();
-                globalTotalSize += keyToPathDfc.getAllCompletedFiles().stream()
-                        .mapToLong(DataFileReader::getSize)
-                        .sum();
-                log.debug(
-                        "K2P file count: {}",
-                        keyToPathDfc.getAllCompletedFiles().size());
-            }
-
-            // Plan all file read tasks (calculate chunks for each file)
-            if (validators.containsKey(Type.P2KV)) {
-                fileReadTasks.addAll(planTasksFor(pathToKeyValueDfc, Type.P2KV, ioThreads, globalTotalSize));
-            }
-            if (validators.containsKey(Type.P2H)) {
-                fileReadTasks.addAll(planTasksFor(pathToHashDfc, Type.P2H, ioThreads, globalTotalSize));
-            }
-            if (validators.containsKey(Type.K2P)) {
-                fileReadTasks.addAll(planTasksFor(keyToPathDfc, Type.K2P, ioThreads, globalTotalSize));
-            }
-
-            log.debug("File count: {}", totalFiles);
-            log.debug("Total data size: {} MB", globalTotalSize * BYTES_TO_MEBIBYTES);
-
-            // Sort tasks: largest chunks first (better thread utilization)
-            fileReadTasks.sort((a, b) -> Long.compare(b.endByte - b.startByte, a.endByte - a.startByte));
-
-            final int totalFileReadTasks = fileReadTasks.size();
-
-            log.debug("Total file read tasks: {}", totalFileReadTasks);
-
-            final CountDownLatch readerLatch = new CountDownLatch(totalFileReadTasks);
-            final CountDownLatch processorsLatch = new CountDownLatch(processThreads);
-
-            final DataStats dataStats = new DataStats();
-
-            // Start processor threads
-            for (int i = 0; i < processThreads; i++) {
-                processPool.submit(
-                        new ProcessorTask(validators, validationListeners, dataQueue, vds, dataStats, processorsLatch));
-            }
-
-            // Submit all planned file read tasks to read file in chunks
-            for (final FileReadTask task : fileReadTasks) {
-                ioPool.submit(() -> {
-                    try {
-                        readFileChunk(
-                                task.reader,
-                                dataQueue,
-                                task.type,
-                                task.startByte,
-                                task.endByte,
-                                totalBoundarySearchMillis);
-                    } catch (InterruptedException e) {
-                        Thread.currentThread().interrupt();
-                        e.printStackTrace(); // double check this exception
-                        throw new RuntimeException("Reader interrupted", e);
-                    } catch (Exception e) {
-                        e.printStackTrace(); // double check this exception
-                        throw new RuntimeException("Reader failed for chunk " + task.startByte + "-" + task.endByte, e);
-                    } finally {
-                        readerLatch.countDown();
+                    if (validators.containsKey(Type.P2KV)) {
+                        totalFiles += pathToKeyValueDfc.getAllCompletedFiles().size();
+                        globalTotalSize += pathToKeyValueDfc.getAllCompletedFiles().stream()
+                                .mapToLong(DataFileReader::getSize)
+                                .sum();
+                        log.debug(
+                                "P2KV file count: {}",
+                                pathToKeyValueDfc.getAllCompletedFiles().size());
                     }
-                });
-            }
+                    if (validators.containsKey(Type.P2H)) {
+                        totalFiles += pathToHashDfc.getAllCompletedFiles().size();
+                        globalTotalSize += pathToHashDfc.getAllCompletedFiles().stream()
+                                .mapToLong(DataFileReader::getSize)
+                                .sum();
+                        log.debug(
+                                "P2H file count: {}",
+                                pathToHashDfc.getAllCompletedFiles().size());
+                    }
+                    if (validators.containsKey(Type.K2P)) {
+                        totalFiles += keyToPathDfc.getAllCompletedFiles().size();
+                        globalTotalSize += keyToPathDfc.getAllCompletedFiles().stream()
+                                .mapToLong(DataFileReader::getSize)
+                                .sum();
+                        log.debug(
+                                "K2P file count: {}",
+                                keyToPathDfc.getAllCompletedFiles().size());
+                    }
 
-            // Wait for all readers to finish
-            readerLatch.await();
-            ioPool.shutdown();
-            if (!ioPool.awaitTermination(1, TimeUnit.MINUTES)) {
-                throw new RuntimeException("IO pool did not terminate within timeout");
-            }
+                    // Plan all file read tasks (calculate chunks for each file)
+                    if (validators.containsKey(Type.P2KV)) {
+                        fileReadTasks.addAll(planTasksFor(pathToKeyValueDfc, Type.P2KV, ioThreads, globalTotalSize));
+                    }
+                    if (validators.containsKey(Type.P2H)) {
+                        fileReadTasks.addAll(planTasksFor(pathToHashDfc, Type.P2H, ioThreads, globalTotalSize));
+                    }
+                    if (validators.containsKey(Type.K2P)) {
+                        fileReadTasks.addAll(planTasksFor(keyToPathDfc, Type.K2P, ioThreads, globalTotalSize));
+                    }
 
-            // Send one poison pill per processor
-            for (int i = 0; i < processThreads; i++) {
-                dataQueue.put(ItemData.poisonPill());
-            }
+                    log.debug("File count: {}", totalFiles);
+                    log.debug("Total data size: {} MB", globalTotalSize * BYTES_TO_MEBIBYTES);
 
-            // Wait for processors to finish
-            processorsLatch.await();
-            processPool.shutdown();
-            if (!processPool.awaitTermination(1, TimeUnit.MINUTES)) {
-                throw new RuntimeException("Process pool did not terminate within timeout");
-            }
+                    // Sort tasks: largest chunks first (better thread utilization)
+                    fileReadTasks.sort((a, b) -> Long.compare(b.endByte - b.startByte, a.endByte - a.startByte));
 
-            validators
-                    .values()
-                    .forEach(validatorSet -> validatorSet.forEach(validator -> {
-                        try {
-                            validator.validate();
-                        } catch (ValidationException e) {
-                            log.error("Validation failed: {}", e.getMessage());
-                        }
-                    }));
+                    final int totalFileReadTasks = fileReadTasks.size();
 
-            if (validators.containsKey(Type.P2KV)) {
-                log.info(
-                        "P2KV (Path -> Key/Value) Data Stats: \n {}",
-                        dataStats.getP2kv().toStringContent());
-            }
-            if (validators.containsKey(Type.P2H)) {
-                log.info(
-                        "P2H (Path -> Hash) Data Stats: \n {}",
-                        dataStats.getP2h().toStringContent());
-            }
-            if (validators.containsKey(Type.K2P)) {
-                log.info(
-                        "K2P (Key -> Path) Data Stats: \n {}",
-                        dataStats.getK2p().toStringContent());
-            }
+                    log.debug("Total file read tasks: {}", totalFileReadTasks);
 
-            log.info(dataStats);
+                    final CountDownLatch readerLatch = new CountDownLatch(totalFileReadTasks);
+                    final CountDownLatch processorsLatch = new CountDownLatch(processThreads);
 
-            // common validation for error reads
-            if (dataStats.hasErrorReads()) {
-                throw new RuntimeException("Error reads found. Full info: \n " + dataStats);
+                    final DataStats dataStats = new DataStats();
+
+                    // Start processor threads
+                    for (int i = 0; i < processThreads; i++) {
+                        processPool.submit(
+                                new ProcessorTask(validators, validationListeners, dataQueue, vds, dataStats,
+                                        processorsLatch));
+                    }
+
+                    // Submit all planned file read tasks to read file in chunks
+                    for (final FileReadTask task : fileReadTasks) {
+                        ioPool.submit(() -> {
+                            try {
+                                readFileChunk(
+                                        task.reader,
+                                        dataQueue,
+                                        task.type,
+                                        task.startByte,
+                                        task.endByte,
+                                        totalBoundarySearchMillis);
+                            } catch (InterruptedException e) {
+                                Thread.currentThread().interrupt();
+                                e.printStackTrace(); // TODO: double check this exception
+                                throw new RuntimeException("Reader interrupted", e);
+                            } catch (Exception e) {
+                                e.printStackTrace(); // TODO: double check this exception
+                                throw new RuntimeException(
+                                        "Reader failed for chunk " + task.startByte + "-" + task.endByte,
+                                        e);
+                            } finally {
+                                readerLatch.countDown();
+                            }
+                        });
+                    }
+
+                    // Wait for all readers to finish
+                    readerLatch.await();
+                    ioPool.shutdown();
+                    if (!ioPool.awaitTermination(1, TimeUnit.MINUTES)) {
+                        throw new RuntimeException("IO pool did not terminate within timeout");
+                    }
+
+                    // Send one poison pill per processor
+                    for (int i = 0; i < processThreads; i++) {
+                        dataQueue.put(ItemData.poisonPill());
+                    }
+
+                    // Wait for processors to finish
+                    processorsLatch.await();
+                    processPool.shutdown();
+                    if (!processPool.awaitTermination(1, TimeUnit.MINUTES)) {
+                        throw new RuntimeException("Process pool did not terminate within timeout");
+                    }
+
+                    validators
+                            .values()
+                            .forEach(validatorSet -> validatorSet.forEach(validator -> {
+                                try {
+                                    validator.validate();
+                                    validationListeners.forEach(
+                                            listener -> listener.onValidationCompleted(validator.getTag()));
+                                } catch (ValidationException e) {
+                                    log.error("Validation failed: {}", e.getMessage());
+                                }
+                            }));
+
+                    if (validators.containsKey(Type.P2KV)) {
+                        log.info(
+                                "P2KV (Path -> Key/Value) Data Stats: \n {}",
+                                dataStats.getP2kv().toStringContent());
+                    }
+                    if (validators.containsKey(Type.P2H)) {
+                        log.info(
+                                "P2H (Path -> Hash) Data Stats: \n {}",
+                                dataStats.getP2h().toStringContent());
+                    }
+                    if (validators.containsKey(Type.K2P)) {
+                        log.info(
+                                "K2P (Key -> Path) Data Stats: \n {}",
+                                dataStats.getK2p().toStringContent());
+                    }
+
+                    log.info(dataStats);
+
+                    // common validation for error reads
+                    if (dataStats.hasErrorReads()) {
+                        throw new RuntimeException("Error reads found. Full info: \n " + dataStats);
+                    }
+
+                    log.debug("Total boundary search time: {} ms", totalBoundarySearchMillis.get());
+                    log.debug("Total processing time: {} ms", System.currentTimeMillis() - startTime);
+                }
             }
-
-            log.debug("Total boundary search time: {} ms", totalBoundarySearchMillis.get());
-            log.debug("Total processing time: {} ms", System.currentTimeMillis() - startTime);
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
@@ -371,14 +393,17 @@ public class Validate2Command implements Runnable {
 
         final List<FileReadTask> tasks = new ArrayList<>();
 
+        final long collectionTotalSize = dfc.getAllCompletedFiles().stream()
+                .mapToLong(DataFileReader::getSize)
+                .sum();
+
         for (final DataFileReader reader : dfc.getAllCompletedFiles()) {
             final long fileSize = reader.getSize();
             if (fileSize == 0) {
                 continue;
             }
 
-            // Calculate optimal chunks using GLOBAL total
-            final int chunks = calculateOptimalChunks(reader, ioThreads, globalTotalSize);
+            final int chunks = calculateOptimalChunks(reader, ioThreads, collectionTotalSize);
             final long chunkSize = (fileSize + chunks - 1) / chunks;
 
             log.debug(
@@ -408,7 +433,9 @@ public class Validate2Command implements Runnable {
             @NonNull final DataFileReader reader, final int ioThreads, final long globalTotalDataSize) {
 
         final long fileSize = reader.getSize();
-        final long targetChunkSize = globalTotalDataSize / (ioThreads * 4);
+
+        // literals here can be extracted to params
+        final long targetChunkSize = Math.max(globalTotalDataSize / (ioThreads * 2), 128 * MEBIBYTES_TO_BYTES);
 
         if (fileSize < targetChunkSize) {
             return 1;
