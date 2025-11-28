@@ -10,6 +10,7 @@ import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.BlockProof;
 import com.hedera.hapi.block.stream.MerkleSiblingHash;
 import com.hedera.hapi.block.stream.schema.BlockSchema;
+import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.node.app.blocks.BlockItemWriter;
 import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.config.ConfigProvider;
@@ -37,6 +38,7 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Objects;
 import java.util.function.ToLongFunction;
 import java.util.function.UnaryOperator;
 import java.util.zip.GZIPInputStream;
@@ -233,6 +235,16 @@ public class FileBlockItemWriter implements BlockItemWriter {
             } catch (IOException | ParseException e) {
                 logger.warn(
                         "Error reading pending proof metadata from {} (not considering remaining - {})",
+                        proofJson.toPath(),
+                        Arrays.toString(Arrays.copyOfRange(proofJsons.toArray(), i + 1, proofJsons.size())));
+                break;
+            }
+            // Verify old proofs without block timestamp or sibling hashes are skipped
+            if (pendingProof.blockTimestamp() == null
+                    || Objects.equals(pendingProof.blockTimestamp(), Timestamp.DEFAULT)
+                    || pendingProof.siblingHashesFromPrevBlockRoot().size() != 4) {
+                logger.warn(
+                        "Pending proof metadata from {} is missing required fields (not considering remaining - {})",
                         proofJson.toPath(),
                         Arrays.toString(Arrays.copyOfRange(proofJsons.toArray(), i + 1, proofJsons.size())));
                 break;

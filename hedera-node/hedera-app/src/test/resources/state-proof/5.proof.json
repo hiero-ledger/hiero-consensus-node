@@ -1,0 +1,44 @@
+{
+  "paths": [{
+    "leaf": {
+      "blockConsensusTimestamp": "CL3C5bMGEICSsOgB"
+    },
+    "nextPathIndex": 5
+  }, {
+    "leaf": {
+      "blockConsensusTimestamp": "CLXC5bMGEICSsOgB"
+    },
+    "nextPathIndex": 3
+  }, {
+    "hash": "tD/7wCXYI5YS2fMsur8ipqXMqqI4pazLP454IuNSGRKlI5nVxonuqwPZZ6rce6kA",
+    "siblings": [{
+      "hash": "8GX/IuTb9+VSXInQuqZgDILp9VMlxRK/LQValRqDmKQEc9VUhZpQ3cggogckuzPK"
+    }, {
+      "hash": "+dLXqaF5Xst/QNT7K1nHWM7ZARKHVhLst6OgjveF8qYEkPwlqk679N/mllAQc0AK"
+    }, {
+      "hash": "vXUeiaHdtUj/PeIphE5MGY8EDEbqR0BzhQHPpojmr+qFls1XvDs98a2NybTSFW50"
+    }, {
+      "hash": "lKZJTObkh5rypO5MfNgYXOicQFzs3UlFSDs3Y/x7GEWQ25p7xsvZGH/Cd6GttwzK"
+    }],
+    "nextPathIndex": 3
+  }, {
+    "nextPathIndex": 4
+  }, {
+    "hash": "+pXXoIejOOqFcxALwmnxUvzwUSL+H/zX/iZedOtzVryRKW0CnWiwplpUJZp6mslt",
+    "siblings": [{
+      "hash": "bPbxwgcQSiQOvi6PUQ8tjXbXcJNtc1f5voMC65FxjAAPqo9rOTPujR0+/H9G4/h/"
+    }, {
+      "hash": "yhWzVw/VxOcB9IHCXrSLJ3Hr8tfWtraim/A+deDY+mpaJCJg7E0oQDhWMfHYUNf4"
+    }, {
+      "hash": "2WKum8SZ95JoMNchiBJN2AOFSSpHRg2CKWOoFBhmtUxsQSvUDr9afz6MD+P9M3+j"
+    }, {
+      "hash": "lKZJTObkh5rypO5MfNgYXOicQFzs3UlFSDs3Y/x7GEWQ25p7xsvZGH/Cd6GttwzK"
+    }],
+    "nextPathIndex": 5
+  }, {
+    "nextPathIndex": -1
+  }],
+  "signedBlockProof": {
+    "blockSignature": "3cZW1b2FyoXsPv1ANCFQU1KiqkbxL539NKvkJ2UpCW9VVJK9/0a0twPc7ZLbDFoi"
+  }
+}
