@@ -8,7 +8,9 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_TX_FEE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_AMOUNTS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_RECEIVING_NODE_ACCOUNT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.NOT_SUPPORTED;
+import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
 import static com.hedera.node.app.workflows.handle.dispatch.DispatchValidator.WorkflowCheck.NOT_INGEST;
+import static com.hedera.node.app.workflows.query.QueryWorkflowImpl.feeResultToFees;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
@@ -31,6 +33,7 @@ import com.hedera.node.app.workflows.TransactionChecker;
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
 import com.hedera.node.app.workflows.purechecks.PureChecksContextImpl;
+import com.hedera.node.config.data.FeesConfig;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
@@ -48,7 +51,6 @@ public class QueryChecker {
     private final ExpiryValidation expiryValidation;
     private final FeeManager feeManager;
     private final TransactionDispatcher dispatcher;
-    private final TransactionChecker transactionChecker;
 
     /**
      * Constructor of {@code QueryChecker}
@@ -59,7 +61,7 @@ public class QueryChecker {
      * @param solvencyPreCheck      the {@link SolvencyPreCheck} that checks if the payer has enough
      * @param expiryValidation      the {@link ExpiryValidation} that checks if an account is expired
      * @param feeManager            the {@link FeeManager} that calculates the fees
-     * @param dispatcher
+     * @param dispatcher            the {@link TransactionDispatcher} the transaction dispatcher
      * @throws NullPointerException if one of the arguments is {@code null}
      */
     @Inject
@@ -77,7 +79,6 @@ public class QueryChecker {
         this.expiryValidation = requireNonNull(expiryValidation);
         this.feeManager = requireNonNull(feeManager);
         this.dispatcher = requireNonNull(dispatcher);
-        this.transactionChecker = requireNonNull(transactionChecker);
     }
 
     /**
@@ -219,6 +220,13 @@ public class QueryChecker {
                 // Signatures aren't applicable to queries
                 -1,
                 dispatcher);
+        // enable this when crypto transfer fee calculator is enabled
+        if (configuration.getConfigData(FeesConfig.class).simpleFeesEnabled() && false) {
+            final var transferFeeResult = requireNonNull(feeManager.getSimpleFeeCalculator())
+                    .calculateTxFee(transactionInfo.txBody(), feeContext);
+            final var fees = feeResultToFees(transferFeeResult, fromPbj(feeContext.activeRate()));
+            return fees.totalFee();
+        }
         return cryptoTransferHandler.calculateFees(feeContext).totalFee();
     }
 }

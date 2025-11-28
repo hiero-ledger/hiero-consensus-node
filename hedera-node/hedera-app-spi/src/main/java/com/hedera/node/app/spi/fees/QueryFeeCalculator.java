@@ -2,6 +2,7 @@
 package com.hedera.node.app.spi.fees;
 
 import com.hedera.hapi.node.transaction.Query;
+import com.hedera.node.app.spi.workflows.QueryContext;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import org.hiero.hapi.fees.FeeResult;
@@ -13,13 +14,13 @@ public interface QueryFeeCalculator {
      * single handler's fee calculator.
      *
      * @param query the transaction body
-     * @param calculatorState the calculator state
+     * @param queryContext the query state
      * @param feeResult the fee result
      * @param feeSchedule the fee schedule
      */
     void accumulateServiceFee(
             @NonNull Query query,
-            @Nullable CalculatorState calculatorState,
+            @Nullable QueryContext queryContext,
             @NonNull FeeResult feeResult,
             @NonNull FeeSchedule feeSchedule);
     /**

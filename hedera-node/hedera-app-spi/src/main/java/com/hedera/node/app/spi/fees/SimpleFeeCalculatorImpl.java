@@ -7,6 +7,7 @@ import static org.hiero.hapi.support.fees.Extra.SIGNATURES;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.transaction.Query;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.node.app.spi.workflows.QueryContext;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Map;
@@ -120,27 +121,23 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
      * Default implementation for query fee calculation.
      *
      * @param query The query to calculate fees for
-     * @param feeContext fee context
+     * @param queryContext the query context
      * @return Never returns normally
      * @throws UnsupportedOperationException always
      */
     @Override
     @NonNull
-    public FeeResult calculateQueryFee(@NonNull final Query query, @Nullable final FeeContext feeContext) {
-        final long signatures = feeContext != null ? feeContext.numTxnSignatures() : 0;
-        final long bytes = Query.PROTOBUF.toBytes(query).length();
-
+    public FeeResult calculateQueryFee(@NonNull final Query query, @NonNull final QueryContext queryContext) {
         final var result = new FeeResult();
         // Add node base + extras
         result.addNodeFee(1, feeSchedule.node().baseFee());
-        addNodeExtras(result, "Node", feeSchedule.node().extras(), signatures, bytes, 0);
 
         // Add network fee
         final int multiplier = feeSchedule.network().multiplier();
         result.addNetworkFee(result.node * multiplier);
 
         final var queryFeeCalculator = queryFeeCalculators.get(query.query().kind());
-        queryFeeCalculator.accumulateServiceFee(query, feeContext, result, feeSchedule);
+        queryFeeCalculator.accumulateServiceFee(query, queryContext, result, feeSchedule);
         return result;
     }
 }

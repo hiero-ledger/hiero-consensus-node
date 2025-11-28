@@ -5,8 +5,8 @@ import static org.hiero.hapi.fees.FeeScheduleUtils.lookupServiceFee;
 
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.transaction.Query;
-import com.hedera.node.app.spi.fees.CalculatorState;
 import com.hedera.node.app.spi.fees.QueryFeeCalculator;
+import com.hedera.node.app.spi.workflows.QueryContext;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import org.hiero.hapi.fees.FeeResult;
@@ -17,10 +17,9 @@ public class ConsensusGetTopicInfoFeeCalculator implements QueryFeeCalculator {
     @Override
     public void accumulateServiceFee(
             @NonNull Query query,
-            @Nullable CalculatorState calculatorState,
+            @Nullable QueryContext queryContext,
             @NonNull FeeResult feeResult,
             @NonNull FeeSchedule feeSchedule) {
-        final var op = query.consensusGetTopicInfoOrThrow();
         final ServiceFeeDefinition serviceDef =
                 lookupServiceFee(feeSchedule, HederaFunctionality.CONSENSUS_GET_TOPIC_INFO);
         feeResult.addServiceFee(1, serviceDef.baseFee());

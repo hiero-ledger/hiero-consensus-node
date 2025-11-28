@@ -216,9 +216,7 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
                                 recordCache,
                                 exchangeRateManager,
                                 feeCalculator,
-                                payerID,
-                                // TODO: this doesn't feel right, where should the real number of signatures come from?
-                                -1);
+                                payerID);
 
                         // A super-user does not have to pay for a query and has all permissions
                         if (!authorizer.isSuperUser(payerID)) {
@@ -241,30 +239,40 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
 
                             // 3.iv Calculate costs
                             long queryFees = 0;
-                            long txFees = 0;
-                            // TODO: this code is yucky. Would it be better to refactor into a separate function
-                            // that returns true or false if the balances are valid?
                             if (shouldUseSimpleFees(context)) {
-                                var feeResult = requireNonNull(feeManager.getSimpleFeeCalculator())
+                                var queryFeeResult = requireNonNull(feeManager.getSimpleFeeCalculator())
                                         .calculateQueryFee(context.query(), context);
                                 var fees = feeResultToFees(
-                                        feeResult,
+                                        queryFeeResult,
                                         fromPbj(context.exchangeRateInfo().activeRate(consensusTime)));
-                                queryFees = fees.serviceFee();
-                                txFees = fees.nodeFee() + fees.networkFee();
+                                queryFees = fees.totalFee();
+
                             } else {
                                 queryFees = handler.computeFees(context).totalFee();
-                                txFees = queryChecker.estimateTxFees(
-                                        storeFactory,
-                                        consensusTime,
-                                        checkerResult.txnInfoOrThrow(),
-                                        payer.keyOrThrow(),
-                                        configuration);
                             }
+
+                            // The payment offered in the query header
+                            //                            final var paymentOffered = -1
+                            //                                    *
+                            // txBody.cryptoTransferOrThrow().transfersOrThrow().accountAmounts().stream()
+                            //                                            .filter(aa -> aa.amount() < 0)
+                            //                                            .mapToLong(AccountAmount::amount)
+                            //                                            .findFirst().orElseThrow();
+                            // The fee for the crypto transfer that pays the fee
+                            final var cryptoTransferTxnFee = queryChecker.estimateTxFees(
+                                    storeFactory,
+                                    consensusTime,
+                                    checkerResult.txnInfoOrThrow(),
+                                    payer.keyOrThrow(),
+                                    configuration);
 
                             // 3.v Check account balances
                             queryChecker.validateAccountBalances(
-                                    accountStore, checkerResult.txnInfoOrThrow(), payer, queryFees, txFees);
+                                    accountStore,
+                                    checkerResult.txnInfoOrThrow(),
+                                    payer,
+                                    queryFees,
+                                    cryptoTransferTxnFee);
 
                             // 3.vi Submit payment to platform
                             submissionManager.submit(txBody, txInfo.serializedSignedTxOrThrow());
@@ -285,9 +293,7 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
                             recordCache,
                             exchangeRateManager,
                             feeCalculator,
-                            null,
-                            // TODO: this doesn't feel right, where should the real number of signatures come from?
-                            -1);
+                            null);
                 }
 
                 // 4. Check validity of query
@@ -311,7 +317,6 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
                     } else {
                         queryFees = handler.computeFees(context).totalFee();
                     }
-                    System.out.println("fees are " + queryFees);
 
                     final var header = createResponseHeader(responseType, OK, queryFees);
                     response = handler.createEmptyResponse(header);
@@ -367,7 +372,7 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
         return amount * hbarEquiv / rate.getCentEquiv();
     }
 
-    private static Fees feeResultToFees(FeeResult feeResult, ExchangeRate rate) {
+    static Fees feeResultToFees(FeeResult feeResult, ExchangeRate rate) {
         return new Fees(
                 tinycentsToTinybars(feeResult.node, rate),
                 tinycentsToTinybars(feeResult.network, rate),

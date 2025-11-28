@@ -11,8 +11,8 @@ import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.consensus.ConsensusGetTopicInfoQuery;
 import com.hedera.hapi.node.transaction.Query;
 import com.hedera.node.app.service.consensus.impl.calculator.ConsensusGetTopicInfoFeeCalculator;
-import com.hedera.node.app.spi.fees.CalculatorState;
 import com.hedera.node.app.spi.fees.SimpleFeeCalculatorImpl;
+import com.hedera.node.app.spi.workflows.QueryContext;
 import java.util.List;
 import java.util.Set;
 import org.assertj.core.api.Assertions;
@@ -33,7 +33,7 @@ public class ConsensusGetTopicInfoFeeCalculatorTest {
     private SimpleFeeCalculatorImpl feeCalculator;
 
     @Mock
-    private CalculatorState calculatorState;
+    private QueryContext queryContext;
 
     @BeforeEach
     void setUp() {
@@ -47,7 +47,7 @@ public class ConsensusGetTopicInfoFeeCalculatorTest {
     void calculateFee() {
         final var op = ConsensusGetTopicInfoQuery.newBuilder().build();
         final var query = Query.newBuilder().consensusGetTopicInfo(op).build();
-        final var result = feeCalculator.calculateQueryFee(query, calculatorState);
+        final var result = feeCalculator.calculateQueryFee(query, queryContext);
 
         assertThat(result).isNotNull();
         Assertions.assertThat(result.node).isEqualTo(100000L);
