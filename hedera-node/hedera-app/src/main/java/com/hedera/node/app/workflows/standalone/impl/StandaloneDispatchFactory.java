@@ -169,6 +169,7 @@ public class StandaloneDispatchFactory {
                 new ResourcePriceCalculatorImpl(consensusNow, txnInfo, feeManager, readableStoreFactory);
         final var storeFactory = new StoreFactoryImpl(readableStoreFactory, writableStoreFactory, serviceApiFactory);
         final var entityNumGenerator = new EntityNumGeneratorImpl(entityIdStore);
+        final var nodeIdGenerator = new com.hedera.node.app.service.entityid.impl.NodeIdGeneratorImpl(entityIdStore);
         final var throttleAdvisor = new AppThrottleAdviser(networkUtilizationManager, consensusNow);
         final var baseBuilder = initializeBuilderInfo(
                 stack.getBaseBuilder(StreamBuilder.class), txnInfo, exchangeRateManager.exchangeRates());
@@ -194,6 +195,7 @@ public class StandaloneDispatchFactory {
                 exchangeRateManager,
                 stack,
                 entityNumGenerator,
+                nodeIdGenerator,
                 transactionDispatcher,
                 networkInfo,
                 childDispatchFactory,
