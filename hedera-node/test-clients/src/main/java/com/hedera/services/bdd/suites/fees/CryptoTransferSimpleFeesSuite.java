@@ -243,9 +243,9 @@ public class CryptoTransferSimpleFeesSuite {
                                 .fee(ONE_HBAR)
                                 .via("nftMultiSameTxn")),
                 "nftMultiSameTxn",
-                0.0015,
+                0.0013,
                 1.0,
-                0.0015,
+                0.0013,
                 1.0);
     }
 
@@ -433,9 +433,9 @@ public class CryptoTransferSimpleFeesSuite {
                                 .fee(10 * ONE_HBAR)
                                 .via("multipleCustomFeeTxn")),
                 "multipleCustomFeeTxn",
-                0.0025,
+                0.0023,
                 1.0,
-                0.0025,
+                0.0023,
                 1.0);
     }
 
@@ -582,9 +582,9 @@ public class CryptoTransferSimpleFeesSuite {
                                 .fee(ONE_HBAR)
                                 .via("nftLargeBatchTxn")),
                 "nftLargeBatchTxn",
-                0.0092,
+                0.0020,
                 1.0,
-                0.0092,
+                0.0020,
                 1.0);
     }
 
@@ -822,9 +822,9 @@ public class CryptoTransferSimpleFeesSuite {
                                 .fee(50 * ONE_HBAR)
                                 .via("nftWithTwoHooksTxn")),
                 "nftWithTwoHooksTxn",
-                4.0051,
+                2.0051,
                 1.0,
-                4.0051,
+                2.0051,
                 1.0);
     }
 
@@ -866,13 +866,10 @@ public class CryptoTransferSimpleFeesSuite {
                                 .signedBy(PAYER)
                                 .fee(THOUSAND_HBAR)
                                 .via("mixedWithHooksTxn")),
-                //                | Simple fee (4 hooks × $1)  | ~$4  |
-                //                | Gas execution (4 × 5M gas) | ~$32 |
-                //                | Total                      | ~$36 |
                 "mixedWithHooksTxn",
-                36.005099998,
+                6.0051,
                 1.0,
-                36.0050999988,
+                6.0051,
                 1.0);
     }
 
@@ -915,10 +912,9 @@ public class CryptoTransferSimpleFeesSuite {
                                 .fee(ONE_HUNDRED_HBARS)
                                 .via("customFeesWithHooksTxn")),
                 "customFeesWithHooksTxn",
-                // $0.005 + (3 hooks × $1.00) + (2 × $3.00)
-                9.0052999992,
+                3.0053,
                 1.0,
-                9.0052999992,
+                3.0053,
                 1.0);
     }
 }

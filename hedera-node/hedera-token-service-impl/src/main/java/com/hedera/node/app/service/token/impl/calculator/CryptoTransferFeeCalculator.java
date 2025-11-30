@@ -18,6 +18,7 @@ import static org.hiero.hapi.support.fees.Extra.STANDARD_NON_FUNGIBLE_TOKENS;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
+import com.hedera.hapi.node.base.TokenTransferList;
 import com.hedera.hapi.node.base.TokenType;
 import com.hedera.hapi.node.base.TransferList;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
@@ -25,7 +26,7 @@ import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.ReadableTokenRelationStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
-import com.hedera.node.app.spi.fees.CalculatorState;
+import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -59,6 +60,9 @@ import org.hiero.hapi.support.fees.ServiceFeeDefinition;
  */
 public class CryptoTransferFeeCalculator implements ServiceFeeCalculator {
 
+    /** Value indicating unlimited auto-associations for an account. */
+    private static final int UNLIMITED_AUTO_ASSOCIATIONS = -1;
+
     @Override
     public TransactionBody.DataOneOfType getTransactionType() {
         return TransactionBody.DataOneOfType.CRYPTO_TRANSFER;
@@ -67,24 +71,23 @@ public class CryptoTransferFeeCalculator implements ServiceFeeCalculator {
     @Override
     public void accumulateServiceFee(
             @NonNull final TransactionBody txnBody,
-            @Nullable final CalculatorState calculatorState,
+            @Nullable final FeeContext feeContext,
             @NonNull final FeeResult feeResult,
             @NonNull final FeeSchedule feeSchedule) {
 
-        final ReadableTokenStore tokenStore = calculatorState.readableStore(ReadableTokenStore.class);
-        final ReadableAccountStore accountStore = calculatorState.readableStore(ReadableAccountStore.class);
-        final ReadableTokenRelationStore tokenRelStore =
-                calculatorState.readableStore(ReadableTokenRelationStore.class);
+        final ReadableTokenStore tokenStore = feeContext.readableStore(ReadableTokenStore.class);
+        final ReadableAccountStore accountStore = feeContext.readableStore(ReadableAccountStore.class);
+        final ReadableTokenRelationStore tokenRelStore = feeContext.readableStore(ReadableTokenRelationStore.class);
         final var op = txnBody.cryptoTransferOrThrow();
         final long numAccounts = countUniqueAccounts(op);
         final long numHooks = countHooks(op);
-        TokenCounts tokenCounts = analyzeTokenTransfers(op, tokenStore);
+        final TokenCounts tokenCounts = analyzeTokenTransfers(op, tokenStore);
         final long numCreatedAutoAssociations = predictAutoAssociations(op, tokenStore, accountStore, tokenRelStore);
-        final long numCreatedAccounts = predictHollowAccounts(op, accountStore);
+        final long numCreatedAccounts = predictAutoAccountCreations(op, accountStore);
 
         final ServiceFeeDefinition serviceDef = lookupServiceFee(feeSchedule, HederaFunctionality.CRYPTO_TRANSFER);
 
-        final Extra transferType = determineTransferType(op, tokenCounts, numHooks);
+        final Extra transferType = determineTransferType(tokenCounts, numHooks);
         if (transferType != null) {
             feeResult.addServiceFee(1, serviceDef.baseFee());
             addExtraFeeWithIncludedCount(feeResult, transferType, feeSchedule, serviceDef, 1);
@@ -105,18 +108,9 @@ public class CryptoTransferFeeCalculator implements ServiceFeeCalculator {
         addExtraFeeWithIncludedCount(feeResult, CREATED_ACCOUNTS, feeSchedule, serviceDef, numCreatedAccounts);
     }
 
-    /**
-     * Determines which CRYPTO_TRANSFER_* extra should be charged as the transaction's base fee.
-     *
-     * @param op the CryptoTransfer operation
-     * @param tokenCounts analyzed token counts
-     * @return the Extra to use for base fee, or null for HBAR-only transfers
-     */
+    /** Returns the CRYPTO_TRANSFER_* extra for base fee, or null for HBAR-only transfers. */
     @Nullable
-    private Extra determineTransferType(
-            @NonNull final CryptoTransferTransactionBody op,
-            @NonNull final TokenCounts tokenCounts,
-            final long numHooks) {
+    private Extra determineTransferType(@NonNull final TokenCounts tokenCounts, final long numHooks) {
         if (numHooks > 0) {
             return CRYPTO_TRANSFER_WITH_HOOKS;
         }
@@ -151,41 +145,10 @@ public class CryptoTransferFeeCalculator implements ServiceFeeCalculator {
         return accounts.size();
     }
 
-    /**
-     * Counts unique fungible tokens involved in the transfer.
-     * Each unique token ID with at least one transfer counts as 1.
-     */
-    private int countUniqueFungibleTokens(@NonNull final CryptoTransferTransactionBody op) {
-        return (int) op.tokenTransfers().stream()
-                .filter(ttl -> !ttl.transfers().isEmpty())
-                .count();
-    }
-
-    /**
-     * Counts NFT transfers (used when we can't access state).
-     */
-    private int countNftTransfers(@NonNull final CryptoTransferTransactionBody op) {
-        return op.tokenTransfers().stream()
-                .mapToInt(ttl -> ttl.nftTransfers().size())
-                .sum();
-    }
-
-    /**
-     * Analyzes token transfers to distinguish between standard and custom fee tokens.
-     * Counts each unique token involved, not individual AccountAmount entries.
-     * For fungible tokens: Each unique token ID counts as 1 transfer
-     * For NFTs: Each NFT serial counts as 1 transfer
-     *
-     * @param op the CryptoTransfer operation
-     * @param tokenStore the token store, or null if unavailable
-     * @return counts of each token transfer type
-     */
+    /** Counts token transfers by type (standard vs custom fee, fungible vs NFT). */
     private TokenCounts analyzeTokenTransfers(
-            @NonNull final CryptoTransferTransactionBody op, @Nullable final ReadableTokenStore tokenStore) {
-        if (tokenStore == null) {
-            return new TokenCounts(countUniqueFungibleTokens(op), countNftTransfers(op), 0, 0);
-        }
-
+            @NonNull final CryptoTransferTransactionBody op,
+            @NonNull final ReadableTokenStore tokenStore) {
         int standardFungible = 0;
         int standardNft = 0;
         int customFeeFungible = 0;
@@ -194,15 +157,6 @@ public class CryptoTransferFeeCalculator implements ServiceFeeCalculator {
         for (final var ttl : op.tokenTransfers()) {
             final var tokenId = ttl.tokenOrThrow();
             final var token = tokenStore.get(tokenId);
-
-            if (token == null) {
-                if (!ttl.transfers().isEmpty()) {
-                    standardFungible += 1;
-                }
-                standardNft += ttl.nftTransfers().size();
-                continue;
-            }
-
             final boolean hasCustomFees = !token.customFees().isEmpty();
             final boolean isFungible = token.tokenType() == TokenType.FUNGIBLE_COMMON;
             if (isFungible) {
@@ -225,9 +179,7 @@ public class CryptoTransferFeeCalculator implements ServiceFeeCalculator {
         return new TokenCounts(standardFungible, standardNft, customFeeFungible, customFeeNft);
     }
 
-    /**
-     * Adds an extra fee with proper includedCount handling and total cost calculation.
-     */
+    /** Adds extra fee for items exceeding the included count. */
     private void addExtraFeeWithIncludedCount(
             @NonNull final FeeResult result,
             @NonNull final Extra extra,
@@ -245,44 +197,26 @@ public class CryptoTransferFeeCalculator implements ServiceFeeCalculator {
         }
         final long overage = actualCount - includedCount;
         final long unitFee = FeeScheduleUtils.lookupExtraFee(feeSchedule, extra).fee();
-        final long totalCost = overage * unitFee;
-        result.addServiceFee(overage, totalCost);
+        result.addServiceFee(overage, unitFee);
     }
 
-    /**
-     * Predicts how many auto-associations will be created during transfer execution.
-     * Analyzes each token transfer recipient to determine if they already have the token associated.
-     *
-     * @param op the CryptoTransfer operation
-     * @param tokenStore the token store, or null if unavailable
-     * @param accountStore the account store, or null if unavailable
-     * @param tokenRelStore the token relation store, or null if unavailable
-     * @return predicted number of auto-associations that will be created
-     */
+    /** Predicts auto-associations for recipients lacking existing token relations. */
     private long predictAutoAssociations(
             @NonNull final CryptoTransferTransactionBody op,
-            @Nullable final ReadableTokenStore tokenStore,
-            @Nullable final ReadableAccountStore accountStore,
-            @Nullable final ReadableTokenRelationStore tokenRelStore) {
-        if (tokenStore == null || accountStore == null || tokenRelStore == null) {
-            return 0;
-        }
-
+            @NonNull final ReadableTokenStore tokenStore,
+            @NonNull final ReadableAccountStore accountStore,
+            @NonNull final ReadableTokenRelationStore tokenRelStore) {
         long predictedAutoAssociations = 0;
 
         for (final var ttl : op.tokenTransfers()) {
             final var tokenId = ttl.tokenOrThrow();
             final var token = tokenStore.get(tokenId);
 
-            if (token == null || token.hasKycKey() || token.hasFreezeKey()) {
+            if (token.hasKycKey() || token.hasFreezeKey()) {
                 continue;
             }
 
-            final Set<AccountID> recipients = new HashSet<>();
-            ttl.transfers().forEach(aa -> recipients.add(aa.accountIDOrThrow()));
-            ttl.nftTransfers().forEach(nft -> recipients.add(nft.receiverAccountIDOrThrow()));
-
-            for (final var recipientId : recipients) {
+            for (final var recipientId : collectRecipients(ttl)) {
                 final var account = accountStore.getAliasedAccountById(recipientId);
                 if (account == null) {
                     continue;
@@ -296,7 +230,7 @@ public class CryptoTransferFeeCalculator implements ServiceFeeCalculator {
                 final int maxAutoAssociations = account.maxAutoAssociations();
                 final int usedAutoAssociations = account.usedAutoAssociations();
 
-                if (maxAutoAssociations > 0 && usedAutoAssociations < maxAutoAssociations) {
+                if (canAutoAssociate(maxAutoAssociations, usedAutoAssociations)) {
                     predictedAutoAssociations++;
                 }
             }
@@ -305,70 +239,35 @@ public class CryptoTransferFeeCalculator implements ServiceFeeCalculator {
         return predictedAutoAssociations;
     }
 
-    /**
-     * Predicts how many hollow accounts will be created during transfer execution.
-     * Checks if transfers are being sent to aliases that don't correspond to existing accounts.
-     *
-     * @param op the CryptoTransfer operation
-     * @param accountStore the account store, or null if unavailable
-     * @return predicted number of hollow accounts that will be created
-     */
-    private long predictHollowAccounts(
-            @NonNull final CryptoTransferTransactionBody op, @Nullable final ReadableAccountStore accountStore) {
-        if (accountStore == null) {
-            return 0;
-        }
+    /** Predicts auto-creations for alias-based transfers to non-existent accounts. */
+    private long predictAutoAccountCreations(
+            @NonNull final CryptoTransferTransactionBody op, @NonNull final ReadableAccountStore accountStore) {
+        long count = 0;
+        final Set<AccountID> checked = new HashSet<>();
 
-        long predictedHollowAccounts = 0;
-        final Set<AccountID> checkedAccounts = new HashSet<>();
-
-        for (final var accountAmount : op.transfersOrElse(TransferList.DEFAULT).accountAmounts()) {
-            final var accountId = accountAmount.accountIDOrThrow();
-            if (!accountId.hasAlias() || checkedAccounts.contains(accountId)) {
-                continue;
-            }
-            checkedAccounts.add(accountId);
-            final var account = accountStore.getAliasedAccountById(accountId);
-            if (account == null) {
-                predictedHollowAccounts++;
+        for (final var aa : op.transfersOrElse(TransferList.DEFAULT).accountAmounts()) {
+            if (isNewAutoAccountCreation(aa.accountIDOrThrow(), checked, accountStore)) {
+                count++;
             }
         }
 
         for (final var ttl : op.tokenTransfers()) {
-            for (final var accountAmount : ttl.transfers()) {
-                final var accountId = accountAmount.accountIDOrThrow();
-                if (!accountId.hasAlias() || checkedAccounts.contains(accountId)) {
-                    continue;
-                }
-                checkedAccounts.add(accountId);
-                final var account = accountStore.getAliasedAccountById(accountId);
-                if (account == null) {
-                    predictedHollowAccounts++;
+            for (final var aa : ttl.transfers()) {
+                if (isNewAutoAccountCreation(aa.accountIDOrThrow(), checked, accountStore)) {
+                    count++;
                 }
             }
-
             for (final var nft : ttl.nftTransfers()) {
-                final var accountId = nft.receiverAccountIDOrThrow();
-                if (!accountId.hasAlias() || checkedAccounts.contains(accountId)) {
-                    continue;
-                }
-                checkedAccounts.add(accountId);
-                final var account = accountStore.getAliasedAccountById(accountId);
-                if (account == null) {
-                    predictedHollowAccounts++;
+                if (isNewAutoAccountCreation(nft.receiverAccountIDOrThrow(), checked, accountStore)) {
+                    count++;
                 }
             }
         }
 
-        return predictedHollowAccounts;
+        return count;
     }
 
-    /**
-     * Counts the number of hooks in a CryptoTransfer transaction.
-     *
-     * @param op the CryptoTransfer operation
-     * @return the total number of hooks in the transfer
-     */
+    /** Counts hooks across all transfers in the operation. */
     private long countHooks(@NonNull final CryptoTransferTransactionBody op) {
         long hookCount = 0;
         if (op.hasTransfers()) {
@@ -397,6 +296,32 @@ public class CryptoTransferFeeCalculator implements ServiceFeeCalculator {
             }
         }
         return hookCount;
+    }
+
+    /** Returns true if the account has remaining auto-association slots (or unlimited). */
+    private boolean canAutoAssociate(final int maxAutoAssociations, final int usedAutoAssociations) {
+        return maxAutoAssociations == UNLIMITED_AUTO_ASSOCIATIONS
+                || (maxAutoAssociations > 0 && usedAutoAssociations < maxAutoAssociations);
+    }
+
+    /** Collects all recipient account IDs from fungible and NFT transfers. */
+    private Set<AccountID> collectRecipients(@NonNull final TokenTransferList ttl) {
+        final Set<AccountID> recipients = new HashSet<>();
+        ttl.transfers().forEach(aa -> recipients.add(aa.accountIDOrThrow()));
+        ttl.nftTransfers().forEach(nft -> recipients.add(nft.receiverAccountIDOrThrow()));
+        return recipients;
+    }
+
+    /** Returns true if this alias will trigger auto-creation; updates checkedAccounts. */
+    private boolean isNewAutoAccountCreation(
+            @NonNull final AccountID accountId,
+            @NonNull final Set<AccountID> checkedAccounts,
+            @NonNull final ReadableAccountStore accountStore) {
+        if (!accountId.hasAlias() || checkedAccounts.contains(accountId)) {
+            return false;
+        }
+        checkedAccounts.add(accountId);
+        return accountStore.getAliasedAccountById(accountId) == null;
     }
 
     /**
