@@ -143,6 +143,7 @@ public class TransactionDispatcher {
                     CRYPTO_DELETE,
                     CRYPTO_CREATE_ACCOUNT,
                     CRYPTO_UPDATE_ACCOUNT,
+                    CRYPTO_TRANSFER,
                     SCHEDULE_CREATE,
                     SCHEDULE_SIGN,
                     SCHEDULE_DELETE,
