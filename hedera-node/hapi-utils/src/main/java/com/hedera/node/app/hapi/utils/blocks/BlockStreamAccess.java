@@ -4,6 +4,7 @@ package com.hedera.node.app.hapi.utils.blocks;
 import static com.hedera.node.app.hapi.utils.exports.recordstreaming.RecordStreamingUtils.SIDECAR_ONLY_TOKEN;
 import static java.util.Comparator.comparing;
 
+import com.github.luben.zstd.ZstdInputStream;
 import com.hedera.hapi.block.stream.Block;
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.output.MapChangeKey;
@@ -151,17 +152,25 @@ public enum BlockStreamAccess {
 
     /**
      * Reads a single block from the given path.
+     * Supports both GZIP (.gz) and ZSTD (.zst) compressed formats, as well as uncompressed files.
      * @param path the path to read the block from
      * @return the block
      */
     public static Block blockFrom(@NonNull final Path path) {
         final var fileName = path.getFileName().toString();
         try {
-            if (fileName.endsWith(".gz")) {
+            if (fileName.endsWith(".zst")) {
+                // ZSTD compressed (V3 format)
+                try (final ZstdInputStream in = new ZstdInputStream(Files.newInputStream(path))) {
+                    return Block.PROTOBUF.parse(Bytes.wrap(in.readAllBytes()));
+                }
+            } else if (fileName.endsWith(".gz")) {
+                // GZIP compressed (original format)
                 try (final GZIPInputStream in = new GZIPInputStream(Files.newInputStream(path))) {
                     return Block.PROTOBUF.parse(Bytes.wrap(in.readAllBytes()));
                 }
             } else {
+                // Uncompressed
                 return Block.PROTOBUF.parse(Bytes.wrap(Files.readAllBytes(path)));
             }
         } catch (IOException | ParseException e) {
@@ -187,6 +196,7 @@ public enum BlockStreamAccess {
 
     /**
      * Checks if the given path is a block file.
+     * Supports both GZIP (.blk.gz) and ZSTD (.blk.zst) formats.
      * @param path the path to check
      * @return true if the path is a block file, false otherwise
      */
@@ -202,12 +212,17 @@ public enum BlockStreamAccess {
             return Files.exists(path.resolveSibling(name + ".json"));
         } else if (name.endsWith(".pnd.gz")) {
             return Files.exists(path.resolveSibling(name.replace(".gz", ".json")));
+        } else if (name.endsWith(".pnd.zst")) {
+            return Files.exists(path.resolveSibling(name.replace(".zst", ".json")));
         }
 
-        // Check for marker file
-        return !checkForMarkerFiles
-                || Files.exists(
-                        path.resolveSibling(name.replace(".blk.gz", ".mf").replace(".blk", ".mf")));
+        // Check for marker file (supports both .blk.gz and .blk.zst)
+        if (!checkForMarkerFiles) {
+            return true;
+        }
+        final var markerName =
+                name.replace(".blk.zst", ".mf").replace(".blk.gz", ".mf").replace(".blk", ".mf");
+        return Files.exists(path.resolveSibling(markerName));
     }
 
     /**
@@ -232,6 +247,7 @@ public enum BlockStreamAccess {
 
     /**
      * Extracts the block number from the given file name.
+     * Supports both .blk.gz, .blk.zst, .blk, .pnd.gz, .pnd.zst, and .pnd formats.
      *
      * @param fileName the file name
      * @return the block number, or -1 if it cannot be extracted
@@ -241,6 +257,9 @@ public enum BlockStreamAccess {
             int i = fileName.indexOf(".blk");
             if (i == -1) {
                 i = fileName.indexOf(".pnd");
+            }
+            if (i == -1) {
+                return -1;
             }
             return Long.parseLong(fileName.substring(0, i));
         } catch (Exception ignore) {

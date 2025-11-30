@@ -55,6 +55,7 @@ module com.hedera.node.app {
     requires com.swirlds.state.impl;
     requires org.hiero.base.concurrent;
     requires com.github.benmanes.caffeine;
+    requires com.github.luben.zstd_jni;
     requires com.google.common;
     requires io.grpc.netty;
     requires io.helidon.common.tls;

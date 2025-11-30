@@ -6,6 +6,7 @@ import static com.swirlds.common.io.utility.FileUtils.getAbsolutePath;
 import static java.util.Objects.requireNonNull;
 
 import com.github.luben.zstd.ZstdInputStream;
+import com.github.luben.zstd.ZstdOutputStream;
 import com.hedera.hapi.block.stream.Block;
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.BlockProof;
@@ -41,16 +42,21 @@ import java.util.List;
 import java.util.function.ToLongFunction;
 import java.util.function.UnaryOperator;
 import java.util.zip.GZIPInputStream;
-import java.util.zip.GZIPOutputStream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 /**
- * Writes serialized block items to files, one per block number.
+ * Writes serialized block items to files using ZSTD compression, one file per block number.
+ *
+ * <p>This implementation uses the same triple-buffered streaming approach as the original
+ * FileBlockItemWriter, but replaces GZIP compression with ZSTD compression for significantly
+ * better performance (typically 8-16x faster compression with similar or better compression ratios).
+ *
+ * <p>Files are written with .blk.zst extension instead of .blk.gz to distinguish the format.
  */
-public class FileBlockItemWriter implements BlockItemWriter {
+public class FileBlockItemWriterV3 implements BlockItemWriter {
 
-    private static final Logger logger = LogManager.getLogger(FileBlockItemWriter.class);
+    private static final Logger logger = LogManager.getLogger(FileBlockItemWriterV3.class);
 
     private static final ToLongFunction<File> PROOF_JSON_BLOCK_NUMBER_FN =
             f -> Long.parseLong(f.getName().substring(0, f.getName().length() - ".pnd.json".length()));
@@ -60,8 +66,11 @@ public class FileBlockItemWriter implements BlockItemWriter {
     /** The file extension for complete block files. */
     private static final String COMPLETE_BLOCK_EXTENSION = ".blk";
 
-    /** The suffix added to RECORD_EXTENSION when they are compressed. */
-    private static final String COMPRESSION_ALGORITHM_EXTENSION = ".gz";
+    /** The suffix added when files are compressed with ZSTD. */
+    private static final String COMPRESSION_ALGORITHM_EXTENSION = ".zst";
+
+    /** ZSTD compression level (1 = fastest, 3 = balanced) */
+    private static final int ZSTD_COMPRESSION_LEVEL = 1;
 
     /** The node-specific path to the directory where block files are written */
     private final Path nodeScopedBlockDir;
@@ -95,13 +104,13 @@ public class FileBlockItemWriter implements BlockItemWriter {
     }
 
     /**
-     * Construct a new FileBlockItemWriter.
+     * Construct a new FileBlockItemWriterV3.
      *
      * @param configProvider configuration provider
      * @param nodeInfo information about the current node
      * @param fileSystem the file system to use for writing block files
      */
-    public FileBlockItemWriter(
+    public FileBlockItemWriterV3(
             @NonNull final ConfigProvider configProvider,
             @NonNull final NodeInfo nodeInfo,
             @NonNull final FileSystem fileSystem) {
@@ -309,7 +318,7 @@ public class FileBlockItemWriter implements BlockItemWriter {
 
     @Override
     public void openBlock(final long blockNumber) {
-        if (state == State.OPEN) throw new IllegalStateException("Cannot initialize a FileBlockItemWriter twice");
+        if (state == State.OPEN) throw new IllegalStateException("Cannot initialize a FileBlockItemWriterV3 twice");
         if (blockNumber < 0) throw new IllegalArgumentException("Block number must be non-negative");
 
         this.blockNumber = blockNumber;
@@ -321,12 +330,9 @@ public class FileBlockItemWriter implements BlockItemWriter {
             }
             out = Files.newOutputStream(blockFilePath);
             out = new BufferedOutputStream(out, 1024 * 1024); // 1 MB
-            out = new GZIPOutputStream(out, 1024 * 256); // 256 KB
-            // By wrapping the GZIPOutputStream in a BufferedOutputStream, the code reduces the number of write
-            // operations to the GZIPOutputStream, and therefore the number of synchronized calls. Instead of
-            // writing each small piece of data immediately to the GZIPOutputStream, it writes the data to the
-            // buffer, and only when the buffer is full, it writes all the data to the GZIPOutputStream in one go.
-            // This can significantly improve the performance when writing many small amounts of data.
+            // ZSTD compression with level 1 (fastest) - significantly faster than GZIP
+            out = new ZstdOutputStream(out, ZSTD_COMPRESSION_LEVEL);
+            // Additional buffering layer to reduce write system calls
             out = new BufferedOutputStream(out, 1024 * 1024 * 4); // 4 MB
 
             this.writableStreamingData = new WritableStreamingData(out);
@@ -336,7 +342,7 @@ public class FileBlockItemWriter implements BlockItemWriter {
                 try {
                     out.close();
                 } catch (IOException ex) {
-                    logger.error("Error closing the FileBlockItemWriter output stream", ex);
+                    logger.error("Error closing the FileBlockItemWriterV3 output stream", ex);
                 }
             }
             // We must be able to produce blocks.
@@ -346,7 +352,7 @@ public class FileBlockItemWriter implements BlockItemWriter {
 
         state = State.OPEN;
         if (logger.isDebugEnabled()) {
-            logger.debug("Started new block in FileBlockItemWriter {}", blockNumber);
+            logger.debug("Started new block in FileBlockItemWriterV3 {}", blockNumber);
         }
     }
 
@@ -359,7 +365,7 @@ public class FileBlockItemWriter implements BlockItemWriter {
         requireNonNull(bytes);
         if (state != State.OPEN) {
             throw new IllegalStateException(
-                    "Cannot write to a FileBlockItemWriter that is not open for block: " + this.blockNumber);
+                    "Cannot write to a FileBlockItemWriterV3 that is not open for block: " + this.blockNumber);
         }
 
         // Write the ITEMS tag.
@@ -391,9 +397,9 @@ public class FileBlockItemWriter implements BlockItemWriter {
     @Override
     public void closeCompleteBlock() {
         if (state.ordinal() < State.OPEN.ordinal()) {
-            throw new IllegalStateException("Cannot close a FileBlockItemWriter that is not open");
+            throw new IllegalStateException("Cannot close a FileBlockItemWriterV3 that is not open");
         } else if (state.ordinal() == State.CLOSED.ordinal()) {
-            throw new IllegalStateException("Cannot close a FileBlockItemWriter that is already closed");
+            throw new IllegalStateException("Cannot close a FileBlockItemWriterV3 that is already closed");
         }
 
         // Close the writableStreamingData.
@@ -401,7 +407,7 @@ public class FileBlockItemWriter implements BlockItemWriter {
             writableStreamingData.close();
             state = State.CLOSED;
             if (logger.isDebugEnabled()) {
-                logger.debug("Closed block in FileBlockItemWriter {}", blockNumber);
+                logger.debug("Closed block in FileBlockItemWriterV3 {}", blockNumber);
             }
 
             // Write a .mf file to indicate that the block file is complete.
@@ -412,7 +418,7 @@ public class FileBlockItemWriter implements BlockItemWriter {
                 Files.createFile(markerFile);
             }
         } catch (final IOException e) {
-            logger.error("Error closing the FileBlockItemWriter output stream", e);
+            logger.error("Error closing the FileBlockItemWriterV3 output stream", e);
             throw new UncheckedIOException(e);
         }
     }

@@ -25,6 +25,7 @@ import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.BufferedOutputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
 import java.io.OutputStream;
@@ -46,11 +47,14 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 /**
- * Writes serialized block items to files, one per block number.
+ * Writes serialized block items to files with in-memory buffering, one file per block number.
+ *
+ * <p>This implementation uses an in-memory ByteArrayOutputStream buffer to collect block data
+ * before compression, eliminating the triple-buffered streaming overhead of the original implementation.
  */
-public class FileBlockItemWriter implements BlockItemWriter {
+public class FileBlockItemWriterV2 implements BlockItemWriter {
 
-    private static final Logger logger = LogManager.getLogger(FileBlockItemWriter.class);
+    private static final Logger logger = LogManager.getLogger(FileBlockItemWriterV2.class);
 
     private static final ToLongFunction<File> PROOF_JSON_BLOCK_NUMBER_FN =
             f -> Long.parseLong(f.getName().substring(0, f.getName().length() - ".pnd.json".length()));
@@ -76,8 +80,11 @@ public class FileBlockItemWriter implements BlockItemWriter {
      */
     private final UnaryOperator<String> pendingFileName;
 
-    /** The file output stream we are writing to, which writes to the configured block file path */
+    /** Writable streaming data for writing block items to the in-memory buffer */
     private WritableStreamingData writableStreamingData;
+
+    /** In-memory buffer for collecting block data before compression */
+    private ByteArrayOutputStream uncompressedBuffer;
 
     /** The state of this writer */
     private State state;
@@ -95,13 +102,13 @@ public class FileBlockItemWriter implements BlockItemWriter {
     }
 
     /**
-     * Construct a new FileBlockItemWriter.
+     * Construct a new FileBlockItemWriterV2.
      *
      * @param configProvider configuration provider
      * @param nodeInfo information about the current node
      * @param fileSystem the file system to use for writing block files
      */
-    public FileBlockItemWriter(
+    public FileBlockItemWriterV2(
             @NonNull final ConfigProvider configProvider,
             @NonNull final NodeInfo nodeInfo,
             @NonNull final FileSystem fileSystem) {
@@ -309,44 +316,30 @@ public class FileBlockItemWriter implements BlockItemWriter {
 
     @Override
     public void openBlock(final long blockNumber) {
-        if (state == State.OPEN) throw new IllegalStateException("Cannot initialize a FileBlockItemWriter twice");
+        if (state == State.OPEN) throw new IllegalStateException("Cannot initialize a FileBlockItemWriterV2 twice");
         if (blockNumber < 0) throw new IllegalArgumentException("Block number must be non-negative");
 
         this.blockNumber = blockNumber;
-        final var blockFilePath = pathOf(blockNumber, completeFileName);
-        OutputStream out = null;
+
         try {
             if (!Files.exists(nodeScopedBlockDir)) {
                 Files.createDirectories(nodeScopedBlockDir);
             }
-            out = Files.newOutputStream(blockFilePath);
-            out = new BufferedOutputStream(out, 1024 * 1024); // 1 MB
-            out = new GZIPOutputStream(out, 1024 * 256); // 256 KB
-            // By wrapping the GZIPOutputStream in a BufferedOutputStream, the code reduces the number of write
-            // operations to the GZIPOutputStream, and therefore the number of synchronized calls. Instead of
-            // writing each small piece of data immediately to the GZIPOutputStream, it writes the data to the
-            // buffer, and only when the buffer is full, it writes all the data to the GZIPOutputStream in one go.
-            // This can significantly improve the performance when writing many small amounts of data.
-            out = new BufferedOutputStream(out, 1024 * 1024 * 4); // 4 MB
 
-            this.writableStreamingData = new WritableStreamingData(out);
+            // Write to in-memory buffer - no compression yet
+            // Pre-allocate 10 MB initial capacity for typical block size
+            // This avoids multiple reallocations and array copies during block writing
+            this.uncompressedBuffer = new ByteArrayOutputStream(10 * 1024 * 1024);
+            this.writableStreamingData = new WritableStreamingData(uncompressedBuffer);
+
         } catch (final IOException e) {
-            // If an exception was thrown, we should close the stream if it was opened to prevent a resource leak.
-            if (out != null) {
-                try {
-                    out.close();
-                } catch (IOException ex) {
-                    logger.error("Error closing the FileBlockItemWriter output stream", ex);
-                }
-            }
-            // We must be able to produce blocks.
-            logger.fatal("Could not create block file {}", blockFilePath, e);
+            logger.fatal("Could not create block directory {}", nodeScopedBlockDir, e);
             throw new UncheckedIOException(e);
         }
 
         state = State.OPEN;
         if (logger.isDebugEnabled()) {
-            logger.debug("Started new block in FileBlockItemWriter {}", blockNumber);
+            logger.debug("Started new block in FileBlockItemWriterV2 {}", blockNumber);
         }
     }
 
@@ -359,7 +352,7 @@ public class FileBlockItemWriter implements BlockItemWriter {
         requireNonNull(bytes);
         if (state != State.OPEN) {
             throw new IllegalStateException(
-                    "Cannot write to a FileBlockItemWriter that is not open for block: " + this.blockNumber);
+                    "Cannot write to a FileBlockItemWriterV2 that is not open for block: " + this.blockNumber);
         }
 
         // Write the ITEMS tag.
@@ -391,28 +384,81 @@ public class FileBlockItemWriter implements BlockItemWriter {
     @Override
     public void closeCompleteBlock() {
         if (state.ordinal() < State.OPEN.ordinal()) {
-            throw new IllegalStateException("Cannot close a FileBlockItemWriter that is not open");
+            throw new IllegalStateException("Cannot close a FileBlockItemWriterV2 that is not open");
         } else if (state.ordinal() == State.CLOSED.ordinal()) {
-            throw new IllegalStateException("Cannot close a FileBlockItemWriter that is already closed");
+            throw new IllegalStateException("Cannot close a FileBlockItemWriterV2 that is already closed");
         }
 
-        // Close the writableStreamingData.
+        // Close the writableStreamingData to finish writing to the buffer
         try {
             writableStreamingData.close();
-            state = State.CLOSED;
-            if (logger.isDebugEnabled()) {
-                logger.debug("Closed block in FileBlockItemWriter {}", blockNumber);
-            }
+        } catch (final IOException e) {
+            logger.error("Error closing the FileBlockItemWriterV2 buffer", e);
+            throw new UncheckedIOException(e);
+        }
 
-            // Write a .mf file to indicate that the block file is complete.
-            final Path markerFile = pathOf(blockNumber, name -> name + ".mf");
+        // Get the uncompressed data from the buffer
+        final byte[] uncompressedData = uncompressedBuffer.toByteArray();
+        final Path blockFilePath = pathOf(blockNumber, completeFileName);
+        final Path markerFile = pathOf(blockNumber, name -> name + ".mf");
+
+        OutputStream out = null;
+        try {
+            out = Files.newOutputStream(blockFilePath);
+
+            // Buffer configuration explanation:
+            // - BufferedOutputStream (2 MB): Batches compressed output before writing to disk,
+            //   reducing system calls. Larger than default since we're writing 4+ MB blocks.
+            // - GZIPOutputStream (1 MB): Internal buffer for the Deflater. Larger buffer allows
+            //   Deflater to find better compression opportunities by analyzing more data at once.
+            //
+            // Total memory overhead: 3 MB per concurrent block write (in addition to the
+            // 10 MB uncompressed buffer allocated in openBlock).
+            //
+            // Alternative: Since we already have all data in memory, we could use smaller buffers
+            // or even write directly without BufferedOutputStream. However, these sizes match
+            // production workloads and the memory overhead is acceptable.
+            out = new BufferedOutputStream(out, 2 * 1024 * 1024);
+            out = new GZIPOutputStream(out, 1024 * 1024);
+
+            // Write uncompressed data through the compression stream
+            out.write(uncompressedData);
+            out.close();
+            out = null; // Mark as closed
+
+            // Write marker file to indicate block is complete and valid
             if (Files.exists(markerFile)) {
                 logger.info("Skipping block marker file for {} as it already exists", markerFile);
             } else {
                 Files.createFile(markerFile);
             }
+
+            state = State.CLOSED;
+            if (logger.isDebugEnabled()) {
+                logger.debug("Closed block in FileBlockItemWriterV2 {}", blockNumber);
+            }
+
         } catch (final IOException e) {
-            logger.error("Error closing the FileBlockItemWriter output stream", e);
+            logger.error("Error in compression/write for block #{}", blockNumber, e);
+
+            // Clean up partial files to prevent corruption
+            try {
+                Files.deleteIfExists(blockFilePath);
+                Files.deleteIfExists(markerFile);
+                logger.info("Cleaned up partial files for failed block #{}", blockNumber);
+            } catch (IOException cleanupEx) {
+                logger.error("Failed to clean up partial files for block #{}", blockNumber, cleanupEx);
+            }
+
+            // Close stream if still open
+            if (out != null) {
+                try {
+                    out.close();
+                } catch (IOException ex) {
+                    logger.error("Error closing output stream for block #{}", blockNumber, ex);
+                }
+            }
+
             throw new UncheckedIOException(e);
         }
     }
@@ -422,26 +468,35 @@ public class FileBlockItemWriter implements BlockItemWriter {
         requireNonNull(pendingProof);
         if (state == State.OPEN) {
             try {
+                // Close the in-memory buffer
                 writableStreamingData.close();
-                writableStreamingData.flush();
-                Files.move(pathOf(blockNumber, completeFileName), pathOf(blockNumber, pendingFileName));
+                final byte[] uncompressedData = uncompressedBuffer.toByteArray();
+
+                // Write directly to .pnd.gz file (SYNCHRONOUSLY - this is called during shutdown/freeze)
+                final Path pendingFilePath = pathOf(blockNumber, pendingFileName);
+                try (OutputStream out = Files.newOutputStream(pendingFilePath);
+                        BufferedOutputStream buffered = new BufferedOutputStream(out, 2 * 1024 * 1024);
+                        GZIPOutputStream gzip = new GZIPOutputStream(buffered, 1024 * 1024)) {
+                    gzip.write(uncompressedData);
+                }
+
+                // Write proof JSON metadata
+                final var json = PendingProof.JSON.toJSON(pendingProof);
+                Files.writeString(pathOf(blockNumber, name -> name + ".pnd.json"), json);
+
+                logger.info(
+                        "Flushed pending block #{} ({}, {})",
+                        blockNumber,
+                        pendingFilePath,
+                        pathOf(blockNumber, name -> name + ".pnd.json"));
+
             } catch (IOException e) {
                 logger.error("Error flushing pending block #{}", blockNumber, e);
-                return;
+                // Note: We don't rethrow here as this is a best-effort flush during shutdown/freeze
+                // State will be set to CLOSED in finally block regardless
             } finally {
                 state = State.CLOSED;
             }
-            final var json = PendingProof.JSON.toJSON(pendingProof);
-            try {
-                Files.writeString(pathOf(blockNumber, name -> name + ".pnd.json"), json);
-            } catch (IOException e) {
-                logger.error("Error flushing pending proof metadata #{}", blockNumber, e);
-            }
-            logger.info(
-                    "Flushed pending block #{} ({}, {})",
-                    blockNumber,
-                    pathOf(blockNumber, pendingFileName),
-                    pathOf(blockNumber, name -> name + ".pnd.json"));
         } else {
             logger.warn("Block #{} flushed in non-OPEN state '{}'", blockNumber, state, new IllegalStateException());
         }

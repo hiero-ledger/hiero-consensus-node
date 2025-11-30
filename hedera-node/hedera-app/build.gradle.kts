@@ -7,6 +7,8 @@ plugins {
 
 description = "Hedera Application - Implementation"
 
+dependencies { implementation("com.github.luben:zstd-jni") }
+
 mainModuleInfo {
     annotationProcessor("dagger.compiler")
     annotationProcessor("com.google.auto.service.processor")
@@ -19,6 +21,7 @@ mainModuleInfo {
     runtimeOnly("io.helidon.webclient.grpc")
     runtimeOnly("com.hedera.pbj.grpc.client.helidon")
     runtimeOnly("com.hedera.pbj.grpc.helidon")
+    runtimeOnly("com.github.luben:zstd-jni")
 }
 
 testModuleInfo {
@@ -55,10 +58,14 @@ testModuleInfo {
 jmhModuleInfo {
     requires("com.hedera.node.app")
     requires("com.hedera.node.app.hapi.utils")
+    requires("com.hedera.node.app.spi")
     requires("com.hedera.node.app.spi.test.fixtures")
     requires("com.hedera.node.app.test.fixtures")
+    requires("com.hedera.node.config")
+    requires("com.hedera.node.config.test.fixtures")
     requires("com.hedera.node.hapi")
     requires("com.hedera.pbj.runtime")
+    requires("com.swirlds.config.api")
     requires("jmh.core")
     requires("org.hiero.base.crypto")
 }
