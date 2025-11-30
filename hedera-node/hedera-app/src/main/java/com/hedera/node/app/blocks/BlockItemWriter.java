@@ -3,7 +3,6 @@ package com.hedera.node.app.blocks;
 
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.node.internal.network.PendingProof;
-import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 
 /**
@@ -16,14 +15,6 @@ public interface BlockItemWriter {
      * @param blockNumber the number of the block to open
      */
     void openBlock(final long blockNumber);
-
-    /**
-     * Writes an item and/or its serialized bytes to the destination stream.
-     *
-     * @param item the item to write
-     * @param bytes the serialized item to write
-     */
-    void writePbjItemAndBytes(@NonNull final BlockItem item, @NonNull final Bytes bytes);
 
     /**
      * Writes a PBJ item to the destination stream.
@@ -41,11 +32,4 @@ public interface BlockItemWriter {
      * @param pendingProof the proof pending a signature
      */
     void flushPendingBlock(@NonNull PendingProof pendingProof);
-
-    /**
-     * Jumps to a specific block number after a freeze event.
-     *
-     * @param blockNumber the block number to jump to after freeze
-     */
-    void jumpToBlockAfterFreeze(final long blockNumber);
 }
