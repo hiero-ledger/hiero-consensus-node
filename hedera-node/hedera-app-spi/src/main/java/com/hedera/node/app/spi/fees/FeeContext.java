@@ -88,15 +88,15 @@ public interface FeeContext {
     ExchangeRate activeRate();
 
     /**
-     * Returns the gas price in tiny cents.
-     * @return the gas price in tiny cents
+     * Returns the gas price in tinycents.
+     * @return the gas price in tinycents
      */
-    long getGasPriceInTinyCents();
+    long getGasPriceInTinycents();
 
     /**
-     * Gets the number of tinybars equivalent to the given number of tiny cents.
+     * Gets the number of tinybars equivalent to the given number of tinycents.
      *
-     * @param amount the amount in tiny cents
+     * @param amount the amount in tinycents
      * @return the amount in tinybars
      */
     default long tinybarsFromTinycents(final long amount) {

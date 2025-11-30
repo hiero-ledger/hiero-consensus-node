@@ -188,11 +188,11 @@ public final class CommonUtils {
         }
     }
 
-    public static long clampedMultiply(final long addendA, final long addendB) {
+    public static long clampedMultiply(final long a, final long b) {
         try {
-            return Math.multiplyExact(addendA, addendB);
-        } catch (final ArithmeticException ae) {
-            return addendA > 0 ? Long.MAX_VALUE : Long.MIN_VALUE;
+            return Math.multiplyExact(a, b);
+        } catch (ArithmeticException ignore) {
+            return Long.signum(a) == Long.signum(b) ? Long.MAX_VALUE : Long.MIN_VALUE;
         }
     }
 

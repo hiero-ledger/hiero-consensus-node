@@ -16,6 +16,7 @@ import static com.hedera.node.app.service.token.impl.handlers.transfer.TransferE
 import static com.hedera.node.app.service.token.impl.util.CryptoTransferValidationHelper.checkReceiver;
 import static com.hedera.node.app.service.token.impl.util.CryptoTransferValidationHelper.checkSender;
 import static com.hedera.node.app.spi.validation.Validations.validateAccountID;
+import static java.util.Objects.requireNonNull;
 
 import com.esaulpaugh.headlong.abi.Function;
 import com.hedera.hapi.node.base.AccountAmount;
@@ -53,7 +54,6 @@ import com.hedera.node.config.data.HooksConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicInteger;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 
@@ -69,6 +69,18 @@ public class TransferExecutor extends BaseTokenHandler {
     private final HookCallsFactory hookCallsFactory;
     private final EntityIdFactory entityIdFactory;
 
+    private static class Counter {
+        private int n;
+
+        public void increment() {
+            n++;
+        }
+
+        public int get() {
+            return n;
+        }
+    }
+
     /**
      * Default constructor for injection.
      */
@@ -77,10 +89,9 @@ public class TransferExecutor extends BaseTokenHandler {
             @NonNull final CryptoTransferValidator validator,
             @NonNull final HookCallsFactory hookCallsFactory,
             @NonNull final EntityIdFactory entityIdFactory) {
-        // For Dagger injection
-        this.validator = validator;
-        this.hookCallsFactory = hookCallsFactory;
-        this.entityIdFactory = entityIdFactory;
+        this.validator = requireNonNull(validator);
+        this.hookCallsFactory = requireNonNull(hookCallsFactory);
+        this.entityIdFactory = requireNonNull(entityIdFactory);
     }
 
     /**
@@ -169,12 +180,12 @@ public class TransferExecutor extends BaseTokenHandler {
         if (!skipCustomFee) {
             txns = new CustomFeeAssessmentStep(replacedOp).assessCustomFees(transferContext);
         }
-        final var hasHooks = HookUtils.hasHookExecutions(replacedOp);
-        final HookCalls hookCalls = hasHooks
+        final boolean hasHooks = HookUtils.hasHookExecutions(replacedOp);
+        final var hookCalls = hasHooks
                 ? hookCallsFactory.from(
                         transferContext.getHandleContext(), replacedOp, transferContext.getItemizedAssessedFees())
                 : null;
-        final AtomicInteger numAttemptedHookCalls = new AtomicInteger(0);
+        final var numAttemptedHookCalls = new Counter();
         if (hasHooks) {
             try {
                 dispatchHookCalls(
@@ -190,11 +201,11 @@ public class TransferExecutor extends BaseTokenHandler {
                         HooksABI.FN_ALLOW_PRE,
                         numAttemptedHookCalls);
             } catch (HandleException e) {
-                // if hook execution failed, we still want to throw an exception but refund the charged fees
-                // for other hook calls that didn't execute
-                throw new HandleException(e.getStatus(), ctx -> {
-                    refundHookFee(context, ctx, hookCalls, numAttemptedHookCalls, hooksConfig, topLevelPayer);
-                });
+                // Customize the thrown exception by refunding the charged fees for other hook calls that didn't execute
+                throw new HandleException(
+                        e.getStatus(),
+                        ctx -> refundHookFee(
+                                context, ctx, hookCalls, numAttemptedHookCalls.get(), hooksConfig, topLevelPayer));
             }
         }
 
@@ -216,9 +227,10 @@ public class TransferExecutor extends BaseTokenHandler {
             } catch (HandleException e) {
                 // if hook execution failed, we still want to throw an exception but refund the charged fees
                 // for other hook calls that didn't execute
-                throw new HandleException(e.getStatus(), ctx -> {
-                    refundHookFee(context, ctx, hookCalls, numAttemptedHookCalls, hooksConfig, topLevelPayer);
-                });
+                throw new HandleException(
+                        e.getStatus(),
+                        ctx -> refundHookFee(
+                                context, ctx, hookCalls, numAttemptedHookCalls.get(), hooksConfig, topLevelPayer));
             }
         }
 
@@ -231,34 +243,19 @@ public class TransferExecutor extends BaseTokenHandler {
     }
 
     private void refundHookFee(
-            final HandleContext context,
-            final FeeCharging.Context ctx,
-            final HookCalls hookCalls,
-            final AtomicInteger numAttemptedHookCalls,
-            final HooksConfig hooksConfig,
-            final AccountID topLevelPayer) {
-        final var feeToRefund = getFeesToRefund(
+            @NonNull final HandleContext context,
+            @NonNull final FeeCharging.Context ctx,
+            @NonNull final HookCalls hookCalls,
+            final int numAttemptedHookCalls,
+            @NonNull final HooksConfig hooksConfig,
+            @NonNull final AccountID payerId) {
+        final long tinycentsToRefund = getFeesToRefund(
                 hookCalls,
-                numAttemptedHookCalls.get(),
+                numAttemptedHookCalls,
                 hooksConfig.hookInvocationCostTinyCents(),
-                context.getGasPriceInTinyCents());
-        final long refundInTinybars = ((FeeContext) context).tinybarsFromTinycents(feeToRefund);
-        ctx.refund(topLevelPayer, new Fees(0, 0, refundInTinybars));
-    }
-
-    private void refundHookFees(
-            final HandleContext context,
-            final HookCalls hookCalls,
-            final AtomicInteger numAttemptedHookCalls,
-            final HooksConfig hooksConfig,
-            final AccountID topLevelPayer) {
-        final var feeToRefund = getFeesToRefund(
-                hookCalls,
-                numAttemptedHookCalls.get(),
-                hooksConfig.hookInvocationCostTinyCents(),
-                context.getGasPriceInTinyCents());
-        final long refundInTinybars = ((FeeContext) context).tinybarsFromTinycents(feeToRefund);
-        context.refundServiceFee(topLevelPayer, refundInTinybars);
+                context.getGasPriceInTinycents());
+        final long refundInTinybars = ((FeeContext) context).tinybarsFromTinycents(tinycentsToRefund);
+        ctx.refund(payerId, new Fees(0, 0, refundInTinybars));
     }
 
     /**
@@ -316,8 +313,8 @@ public class TransferExecutor extends BaseTokenHandler {
             }
             invocationIndex++;
         }
-        final var feeToRefund = clampedMultiply(invocationsToRefund, hookInvocationCostTinyCents);
-        final var gasRefund = clampedMultiply(gasToRefund, gasPriceInTinyCents);
+        final long feeToRefund = clampedMultiply(invocationsToRefund, hookInvocationCostTinyCents);
+        final long gasRefund = clampedMultiply(gasToRefund, gasPriceInTinyCents);
         return clampedAdd(feeToRefund, gasRefund);
     }
 
@@ -442,7 +439,7 @@ public class TransferExecutor extends BaseTokenHandler {
             @NonNull final List<HookInvocation> hookInvocations,
             @NonNull final HandleContext handleContext,
             @NonNull final Function function,
-            final AtomicInteger numAttemptedHookCalls) {
+            @NonNull final Counter numAttemptedHookCalls) {
         final boolean isolated = hookInvocations.size() == 1;
         for (final var hookInvocation : hookInvocations) {
             byte[] calldata;
@@ -452,7 +449,7 @@ public class TransferExecutor extends BaseTokenHandler {
                 throw new HandleException(INVALID_HOOK_CALL);
             }
 
-            final HookExecution execution = HookExecution.newBuilder()
+            final var execution = HookExecution.newBuilder()
                     .hookEntityId(HookEntityId.newBuilder()
                             .accountId(hookInvocation.ownerId())
                             .build())
@@ -464,7 +461,7 @@ public class TransferExecutor extends BaseTokenHandler {
                             .hookId(hookInvocation.hookId())
                             .build())
                     .build();
-            numAttemptedHookCalls.incrementAndGet();
+            numAttemptedHookCalls.increment();
             dispatchExecution(handleContext, execution, function, entityIdFactory, isolated);
         }
     }

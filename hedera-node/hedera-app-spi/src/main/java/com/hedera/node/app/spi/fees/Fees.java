@@ -173,9 +173,11 @@ public record Fees(long nodeFee, long networkFee, long serviceFee) {
          * @param fees The fees to add, which must be non-negative
          * @return this builder instance
          */
-        public Builder addServiceFee(long fees) {
-            this.serviceFee += fees;
-            if (serviceFee < 0) throw new IllegalArgumentException("Service fees must be non-negative");
+        public Builder addServiceFee(final long fees) {
+            serviceFee += fees;
+            if (serviceFee < 0) {
+                throw new IllegalArgumentException("Service fees must be non-negative");
+            }
             return this;
         }
 

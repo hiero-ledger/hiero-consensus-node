@@ -510,5 +510,5 @@ public interface HandleContext {
      * Returns the gas price in tiny cents.
      * @return the gas price in tiny cents
      */
-    long getGasPriceInTinyCents();
+    long getGasPriceInTinycents();
 }

@@ -76,6 +76,13 @@ public class CryptoTransferHandler extends TransferExecutor implements Transacti
     private final boolean enforceMonoServiceRestrictionsOnAutoCreationCustomFeePayments;
 
     /**
+     * Summary of hook usage and total gas.
+     */
+    public record HookInfo(int numHookInvocations, long totalGasLimitOfHooks) {
+        public static final HookInfo NO_HOOKS = new HookInfo(0, 0L);
+    }
+
+    /**
      * Default constructor for injection.
      *
      * @param validator the validator to use to validate the transaction
@@ -299,7 +306,7 @@ public class CryptoTransferHandler extends TransferExecutor implements Transacti
                             config.getConfigData(ContractsConfig.class).maxGasPerSec(),
                             hookInfo.totalGasLimitOfHooks()));
 
-            final var gasFees = clampedMultiply(effectiveGasLimit, feeContext.getGasPriceInTinyCents());
+            final var gasFees = clampedMultiply(effectiveGasLimit, feeContext.getGasPriceInTinycents());
             final var hookFees =
                     clampedMultiply(hookInfo.numHookInvocations(), hooksConfig.hookInvocationCostTinyCents());
             final var tinyBarFees = feeContext.tinybarsFromTinycents(clampedAdd(gasFees, hookFees));
@@ -439,15 +446,14 @@ public class CryptoTransferHandler extends TransferExecutor implements Transacti
      * Utility to merge two partial HookInfo results.
      */
     private static HookInfo merge(final HookInfo a, final HookInfo b) {
-        return new HookInfo(
-                a.numHookInvocations() + b.numHookInvocations(),
-                clampedAdd(a.totalGasLimitOfHooks(), b.totalGasLimitOfHooks()));
-    }
-
-    /**
-     * Summary of hook usage and total gas.
-     */
-    public record HookInfo(int numHookInvocations, long totalGasLimitOfHooks) {
-        public static final HookInfo NO_HOOKS = new HookInfo(0, 0L);
+        if (a == HookInfo.NO_HOOKS) {
+            return b;
+        } else if (b == HookInfo.NO_HOOKS) {
+            return a;
+        } else {
+            return new HookInfo(
+                    a.numHookInvocations() + b.numHookInvocations(),
+                    clampedAdd(a.totalGasLimitOfHooks(), b.totalGasLimitOfHooks()));
+        }
     }
 }
