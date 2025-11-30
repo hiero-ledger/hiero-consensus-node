@@ -346,6 +346,7 @@ public class BlockBufferService {
         if (blockState == null || blockState.isClosed()) {
             return;
         }
+        blockStreamMetrics.recordBlockItemBytes(blockItem.protobufSize());
         blockState.addItem(blockItem);
     }
 
@@ -364,6 +365,8 @@ public class BlockBufferService {
             return;
         }
         blockStreamMetrics.recordBlockClosed();
+        blockStreamMetrics.recordBlockItemsPerBlock(blockState.itemCount());
+        blockStreamMetrics.recordBlockBytes(blockState.sizeBytes());
         blockState.closeBlock();
     }
 
@@ -494,9 +497,12 @@ public class BlockBufferService {
 
             final Timestamp closedTimestamp = bufferedBlock.closedTimestamp();
             final Instant closedInstant = Instant.ofEpochSecond(closedTimestamp.seconds(), closedTimestamp.nanos());
+            final Timestamp openedTimestamp = bufferedBlock.openedTimestamp();
+            final Instant openedInstant = Instant.ofEpochSecond(openedTimestamp.seconds(), openedTimestamp.nanos());
             logger.debug(
                     "Reconstructed block {} from disk and closed at {}", bufferedBlock.blockNumber(), closedInstant);
             block.closeBlock(closedInstant);
+            block.setOpenedTimestamp(openedInstant);
 
             if (bufferedBlock.isAcknowledged()) {
                 setLatestAcknowledgedBlock(bufferedBlock.blockNumber());
