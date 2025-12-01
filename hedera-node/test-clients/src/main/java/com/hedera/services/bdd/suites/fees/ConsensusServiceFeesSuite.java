@@ -33,7 +33,7 @@ public class ConsensusServiceFeesSuite {
     private static final double TOPIC_CREATE_WITH_FIVE_CUSTOM_FEES = 2.10;
     private static final double BASE_FEE_TOPIC_UPDATE = 0.00022;
     private static final double BASE_FEE_TOPIC_DELETE = 0.005;
-    private static final double BASE_FEE_TOPIC_SUBMIT_MESSAGE = 0.0001;
+    private static final double BASE_FEE_TOPIC_SUBMIT_MESSAGE = 0.0008;
     private static final double BASE_FEE_TOPIC_GET_INFO = 0.0001;
 
     private static final String PAYER = "payer";
@@ -97,22 +97,41 @@ public class ConsensusServiceFeesSuite {
     }
 
     @HapiTest
-    @DisplayName("Topic submit message base USD fee as expected")
+    @DisplayName("Topic submit message base USD fee as expected and the fee scales as message bytes increase")
     @Tag(MATS)
-    final Stream<DynamicTest> topicSubmitMessageBaseUSDFee() {
-        final byte[] messageBytes = new byte[100]; // 4k
-        Arrays.fill(messageBytes, (byte) 0b1);
+    final Stream<DynamicTest> topicSubmitMessageFeeScales() {
+        final byte[] messageBytes100 = new byte[100];
+        final byte[] messageBytes500 = new byte[500];
+        final byte[] messageBytes1024 = new byte[1024];
+
+        Arrays.fill(messageBytes100, (byte) 0b1);
+        Arrays.fill(messageBytes500, (byte) 0b1);
+        Arrays.fill(messageBytes1024, (byte) 0b1);
         return hapiTest(
                 cryptoCreate(PAYER).hasRetryPrecheckFrom(BUSY),
                 createTopic(TOPIC_NAME).submitKeyName(PAYER).hasRetryPrecheckFrom(BUSY),
                 submitMessageTo(TOPIC_NAME)
                         .blankMemo()
                         .payingWith(PAYER)
-                        .message(new String(messageBytes))
+                        .message(new String(messageBytes100))
                         .hasRetryPrecheckFrom(BUSY)
                         .via("submitMessage"),
+                submitMessageTo(TOPIC_NAME)
+                        .blankMemo()
+                        .payingWith(PAYER)
+                        .message(new String(messageBytes500))
+                        .hasRetryPrecheckFrom(BUSY)
+                        .via("submitMessage500"),
+                submitMessageTo(TOPIC_NAME)
+                        .blankMemo()
+                        .payingWith(PAYER)
+                        .message(new String(messageBytes1024))
+                        .hasRetryPrecheckFrom(BUSY)
+                        .via("submitMessage1024"),
                 sleepFor(1000),
-                validateChargedUsd("submitMessage", BASE_FEE_TOPIC_SUBMIT_MESSAGE));
+                validateChargedUsd("submitMessage", BASE_FEE_TOPIC_SUBMIT_MESSAGE),
+                validateChargedUsd("submitMessage500", 0.00088),
+                validateChargedUsd("submitMessage1024", 0.00098));
     }
 
     @HapiTest

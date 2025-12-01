@@ -39,6 +39,7 @@ import com.hedera.node.config.data.EntitiesConfig;
 import com.hedera.node.config.data.ExpiryConfig;
 import com.hedera.node.config.data.FeesConfig;
 import com.hedera.node.config.data.FilesConfig;
+import com.hedera.node.config.data.GovernanceTransactionsConfig;
 import com.hedera.node.config.data.GrpcConfig;
 import com.hedera.node.config.data.GrpcUsageTrackerConfig;
 import com.hedera.node.config.data.HederaConfig;
@@ -120,6 +121,7 @@ public class ServicesConfigExtension implements ConfigurationExtension {
                 TssConfig.class,
                 QuiescenceConfig.class,
                 JumboTransactionsConfig.class,
+                GovernanceTransactionsConfig.class,
                 GrpcUsageTrackerConfig.class,
                 OpsDurationConfig.class);
     }
