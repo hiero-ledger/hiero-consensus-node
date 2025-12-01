@@ -147,8 +147,7 @@ public class CryptoTransferFeeCalculator implements ServiceFeeCalculator {
 
     /** Counts token transfers by type (standard vs custom fee, fungible vs NFT). */
     private TokenCounts analyzeTokenTransfers(
-            @NonNull final CryptoTransferTransactionBody op,
-            @NonNull final ReadableTokenStore tokenStore) {
+            @NonNull final CryptoTransferTransactionBody op, @NonNull final ReadableTokenStore tokenStore) {
         int standardFungible = 0;
         int standardNft = 0;
         int customFeeFungible = 0;

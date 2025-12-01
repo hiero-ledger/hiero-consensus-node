@@ -106,7 +106,6 @@ class CryptoTransferFeeCalculatorTest {
             assertThat(result.network).isEqualTo(900000L);
             assertThat(result.service).isEqualTo(0L);
         }
-
     }
 
     @Nested
@@ -119,7 +118,9 @@ class CryptoTransferFeeCalculatorTest {
             lenient().when(feeContext.numTxnSignatures()).thenReturn(1);
             lenient().when(feeContext.readableStore(ReadableTokenStore.class)).thenReturn(tokenStore);
             lenient().when(feeContext.readableStore(ReadableAccountStore.class)).thenReturn(accountStore);
-            lenient().when(feeContext.readableStore(ReadableTokenRelationStore.class)).thenReturn(tokenRelStore);
+            lenient()
+                    .when(feeContext.readableStore(ReadableTokenRelationStore.class))
+                    .thenReturn(tokenRelStore);
 
             final var tokenId = TokenID.newBuilder().tokenNum(2001L).build();
             final var token = Token.newBuilder()
@@ -166,7 +167,9 @@ class CryptoTransferFeeCalculatorTest {
             lenient().when(feeContext.numTxnSignatures()).thenReturn(1);
             lenient().when(feeContext.readableStore(ReadableTokenStore.class)).thenReturn(tokenStore);
             lenient().when(feeContext.readableStore(ReadableAccountStore.class)).thenReturn(accountStore);
-            lenient().when(feeContext.readableStore(ReadableTokenRelationStore.class)).thenReturn(tokenRelStore);
+            lenient()
+                    .when(feeContext.readableStore(ReadableTokenRelationStore.class))
+                    .thenReturn(tokenRelStore);
 
             final var token1 = TokenID.newBuilder().tokenNum(2001L).build();
             final var token2 = TokenID.newBuilder().tokenNum(2002L).build();
@@ -243,7 +246,9 @@ class CryptoTransferFeeCalculatorTest {
             lenient().when(feeContext.numTxnSignatures()).thenReturn(1);
             lenient().when(feeContext.readableStore(ReadableTokenStore.class)).thenReturn(tokenStore);
             lenient().when(feeContext.readableStore(ReadableAccountStore.class)).thenReturn(accountStore);
-            lenient().when(feeContext.readableStore(ReadableTokenRelationStore.class)).thenReturn(tokenRelStore);
+            lenient()
+                    .when(feeContext.readableStore(ReadableTokenRelationStore.class))
+                    .thenReturn(tokenRelStore);
 
             final var tokenId = TokenID.newBuilder().tokenNum(3001L).build();
             final var token = Token.newBuilder()
@@ -284,7 +289,9 @@ class CryptoTransferFeeCalculatorTest {
             lenient().when(feeContext.numTxnSignatures()).thenReturn(1);
             lenient().when(feeContext.readableStore(ReadableTokenStore.class)).thenReturn(tokenStore);
             lenient().when(feeContext.readableStore(ReadableAccountStore.class)).thenReturn(accountStore);
-            lenient().when(feeContext.readableStore(ReadableTokenRelationStore.class)).thenReturn(tokenRelStore);
+            lenient()
+                    .when(feeContext.readableStore(ReadableTokenRelationStore.class))
+                    .thenReturn(tokenRelStore);
 
             final var tokenId = TokenID.newBuilder().tokenNum(3001L).build();
             final var token = Token.newBuilder()
@@ -339,7 +346,9 @@ class CryptoTransferFeeCalculatorTest {
             lenient().when(feeContext.numTxnSignatures()).thenReturn(1);
             lenient().when(feeContext.readableStore(ReadableTokenStore.class)).thenReturn(tokenStore);
             lenient().when(feeContext.readableStore(ReadableAccountStore.class)).thenReturn(accountStore);
-            lenient().when(feeContext.readableStore(ReadableTokenRelationStore.class)).thenReturn(tokenRelStore);
+            lenient()
+                    .when(feeContext.readableStore(ReadableTokenRelationStore.class))
+                    .thenReturn(tokenRelStore);
 
             final var hbarTransfers = TransferList.newBuilder()
                     .accountAmounts(
@@ -447,7 +456,9 @@ class CryptoTransferFeeCalculatorTest {
             lenient().when(feeContext.numTxnSignatures()).thenReturn(1);
             lenient().when(feeContext.readableStore(ReadableTokenStore.class)).thenReturn(tokenStore);
             lenient().when(feeContext.readableStore(ReadableAccountStore.class)).thenReturn(accountStore);
-            lenient().when(feeContext.readableStore(ReadableTokenRelationStore.class)).thenReturn(tokenRelStore);
+            lenient()
+                    .when(feeContext.readableStore(ReadableTokenRelationStore.class))
+                    .thenReturn(tokenRelStore);
 
             final var tokenId = TokenID.newBuilder().tokenNum(2001L).build();
             final var token = Token.newBuilder()
@@ -495,7 +506,9 @@ class CryptoTransferFeeCalculatorTest {
             lenient().when(feeContext.numTxnSignatures()).thenReturn(1);
             lenient().when(feeContext.readableStore(ReadableTokenStore.class)).thenReturn(tokenStore);
             lenient().when(feeContext.readableStore(ReadableAccountStore.class)).thenReturn(accountStore);
-            lenient().when(feeContext.readableStore(ReadableTokenRelationStore.class)).thenReturn(tokenRelStore);
+            lenient()
+                    .when(feeContext.readableStore(ReadableTokenRelationStore.class))
+                    .thenReturn(tokenRelStore);
 
             final var tokenId = TokenID.newBuilder().tokenNum(3001L).build();
             final var token = Token.newBuilder()
@@ -537,7 +550,9 @@ class CryptoTransferFeeCalculatorTest {
             lenient().when(feeContext.numTxnSignatures()).thenReturn(1);
             lenient().when(feeContext.readableStore(ReadableTokenStore.class)).thenReturn(tokenStore);
             lenient().when(feeContext.readableStore(ReadableAccountStore.class)).thenReturn(accountStore);
-            lenient().when(feeContext.readableStore(ReadableTokenRelationStore.class)).thenReturn(tokenRelStore);
+            lenient()
+                    .when(feeContext.readableStore(ReadableTokenRelationStore.class))
+                    .thenReturn(tokenRelStore);
 
             final var standardTokenId = TokenID.newBuilder().tokenNum(2001L).build();
             final var customFeeTokenId = TokenID.newBuilder().tokenNum(2002L).build();
@@ -595,12 +610,8 @@ class CryptoTransferFeeCalculatorTest {
         void predictsAutoAssociationWithAvailableSlots() {
             // Given: All stores available, token without KYC/Freeze, recipient with auto-association slots
             lenient().when(feeContext.numTxnSignatures()).thenReturn(1);
-            lenient()
-                    .when(feeContext.readableStore(ReadableTokenStore.class))
-                    .thenReturn(tokenStore);
-            lenient()
-                    .when(feeContext.readableStore(ReadableAccountStore.class))
-                    .thenReturn(accountStore);
+            lenient().when(feeContext.readableStore(ReadableTokenStore.class)).thenReturn(tokenStore);
+            lenient().when(feeContext.readableStore(ReadableAccountStore.class)).thenReturn(accountStore);
             lenient()
                     .when(feeContext.readableStore(ReadableTokenRelationStore.class))
                     .thenReturn(tokenRelStore);
@@ -650,12 +661,8 @@ class CryptoTransferFeeCalculatorTest {
         void noAutoAssociationWhenTokenHasKycKey() {
             // Given: Token with KYC key
             lenient().when(feeContext.numTxnSignatures()).thenReturn(1);
-            lenient()
-                    .when(feeContext.readableStore(ReadableTokenStore.class))
-                    .thenReturn(tokenStore);
-            lenient()
-                    .when(feeContext.readableStore(ReadableAccountStore.class))
-                    .thenReturn(accountStore);
+            lenient().when(feeContext.readableStore(ReadableTokenStore.class)).thenReturn(tokenStore);
+            lenient().when(feeContext.readableStore(ReadableAccountStore.class)).thenReturn(accountStore);
             lenient()
                     .when(feeContext.readableStore(ReadableTokenRelationStore.class))
                     .thenReturn(tokenRelStore);
@@ -699,12 +706,8 @@ class CryptoTransferFeeCalculatorTest {
         void noAutoAssociationWhenRelationExists() {
             // Given: Token relation already exists
             lenient().when(feeContext.numTxnSignatures()).thenReturn(1);
-            lenient()
-                    .when(feeContext.readableStore(ReadableTokenStore.class))
-                    .thenReturn(tokenStore);
-            lenient()
-                    .when(feeContext.readableStore(ReadableAccountStore.class))
-                    .thenReturn(accountStore);
+            lenient().when(feeContext.readableStore(ReadableTokenStore.class)).thenReturn(tokenStore);
+            lenient().when(feeContext.readableStore(ReadableAccountStore.class)).thenReturn(accountStore);
             lenient()
                     .when(feeContext.readableStore(ReadableTokenRelationStore.class))
                     .thenReturn(tokenRelStore);
@@ -758,12 +761,8 @@ class CryptoTransferFeeCalculatorTest {
         void noAutoAssociationWhenNoSlots() {
             // Given: Account with no available auto-association slots
             lenient().when(feeContext.numTxnSignatures()).thenReturn(1);
-            lenient()
-                    .when(feeContext.readableStore(ReadableTokenStore.class))
-                    .thenReturn(tokenStore);
-            lenient()
-                    .when(feeContext.readableStore(ReadableAccountStore.class))
-                    .thenReturn(accountStore);
+            lenient().when(feeContext.readableStore(ReadableTokenStore.class)).thenReturn(tokenStore);
+            lenient().when(feeContext.readableStore(ReadableAccountStore.class)).thenReturn(accountStore);
             lenient()
                     .when(feeContext.readableStore(ReadableTokenRelationStore.class))
                     .thenReturn(tokenRelStore);
@@ -816,9 +815,7 @@ class CryptoTransferFeeCalculatorTest {
         void predictsHollowAccountForHbarTransferToAlias() {
             // Given: HBAR transfer to alias that doesn't exist
             lenient().when(feeContext.numTxnSignatures()).thenReturn(1);
-            lenient()
-                    .when(feeContext.readableStore(ReadableAccountStore.class))
-                    .thenReturn(accountStore);
+            lenient().when(feeContext.readableStore(ReadableAccountStore.class)).thenReturn(accountStore);
 
             final var aliasBytes = Bytes.wrap(new byte[20]); // Some alias
             final var aliasAccountId = AccountID.newBuilder().alias(aliasBytes).build();
@@ -851,7 +848,9 @@ class CryptoTransferFeeCalculatorTest {
             lenient().when(feeContext.numTxnSignatures()).thenReturn(1);
             lenient().when(feeContext.readableStore(ReadableAccountStore.class)).thenReturn(accountStore);
             lenient().when(feeContext.readableStore(ReadableTokenStore.class)).thenReturn(tokenStore);
-            lenient().when(feeContext.readableStore(ReadableTokenRelationStore.class)).thenReturn(tokenRelStore);
+            lenient()
+                    .when(feeContext.readableStore(ReadableTokenRelationStore.class))
+                    .thenReturn(tokenRelStore);
 
             final var tokenId = TokenID.newBuilder().tokenNum(2001L).build();
             final var aliasBytes = Bytes.wrap(new byte[20]);
@@ -892,7 +891,9 @@ class CryptoTransferFeeCalculatorTest {
             lenient().when(feeContext.numTxnSignatures()).thenReturn(1);
             lenient().when(feeContext.readableStore(ReadableAccountStore.class)).thenReturn(accountStore);
             lenient().when(feeContext.readableStore(ReadableTokenStore.class)).thenReturn(tokenStore);
-            lenient().when(feeContext.readableStore(ReadableTokenRelationStore.class)).thenReturn(tokenRelStore);
+            lenient()
+                    .when(feeContext.readableStore(ReadableTokenRelationStore.class))
+                    .thenReturn(tokenRelStore);
 
             final var tokenId = TokenID.newBuilder().tokenNum(3001L).build();
             final var senderAccountId = AccountID.newBuilder().accountNum(1001L).build();
@@ -983,7 +984,9 @@ class CryptoTransferFeeCalculatorTest {
             lenient().when(feeContext.numTxnSignatures()).thenReturn(1);
             lenient().when(feeContext.readableStore(ReadableTokenStore.class)).thenReturn(tokenStore);
             lenient().when(feeContext.readableStore(ReadableAccountStore.class)).thenReturn(accountStore);
-            lenient().when(feeContext.readableStore(ReadableTokenRelationStore.class)).thenReturn(tokenRelStore);
+            lenient()
+                    .when(feeContext.readableStore(ReadableTokenRelationStore.class))
+                    .thenReturn(tokenRelStore);
 
             final var sender = AccountID.newBuilder().accountNum(1001L).build();
             final var receiver = AccountID.newBuilder().accountNum(1002L).build();
