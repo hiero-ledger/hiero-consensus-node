@@ -152,8 +152,8 @@ public class GovernanceTransactionsTests implements LifecycleTest {
     @HapiTest
     @Order(5)
     @DisplayName(
-            "Governance account cannot submit more than 6KB batch transactions when both the batch and the inner transactions are paid")
-    public Stream<DynamicTest> governanceAccountCannotSubmitWhenBothArePaidIfEnabled() {
+            "Governance account can submit more than 6KB batch transactions when both the batch and the inner transactions are paid")
+    public Stream<DynamicTest> governanceAccountCanSubmitWhenBothArePaidIfEnabled() {
         final HapiTopicCreate innerTxn = createTopic(TOPIC)
                 .submitKeyName(SUBMIT_KEY)
                 .payingWith(GENESIS)
@@ -162,7 +162,7 @@ public class GovernanceTransactionsTests implements LifecycleTest {
 
         return hapiTest(
                 newKeyNamed(SUBMIT_KEY),
-                atomicBatch(innerTxn).payingWith(GENESIS).hasPrecheck(TRANSACTION_OVERSIZE));
+                atomicBatch(innerTxn).payingWith(GENESIS).hasKnownStatus(SUCCESS));
     }
 
     @HapiTest
