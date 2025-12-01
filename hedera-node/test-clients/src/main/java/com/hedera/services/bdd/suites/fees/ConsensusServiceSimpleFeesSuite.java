@@ -25,7 +25,6 @@ import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 
-@Disabled // Test is flaky and produces different results when run locally and in CI
 @Tag(SIMPLE_FEES)
 @Tag(MATS)
 @HapiTestLifecycle
