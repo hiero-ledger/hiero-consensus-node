@@ -31,13 +31,11 @@ public class ConsensusSubmitMessageFeeCalculator implements ServiceFeeCalculator
 
         final var msgSize = op.message().length();
         addExtraFee(feeResult, serviceDef, Extra.BYTES, feeSchedule, msgSize);
-        final var topic =
-                feeContext.readableStore(ReadableTopicStore.class).getTopic(op.topicIDOrThrow());
+        final var topic = feeContext.readableStore(ReadableTopicStore.class).getTopic(op.topicIDOrThrow());
         final var hasCustomFees = (topic != null && !topic.customFees().isEmpty());
         if (hasCustomFees) {
             addExtraFee(feeResult, serviceDef, Extra.CONSENSUS_SUBMIT_MESSAGE_WITH_CUSTOM_FEE, feeSchedule, 1);
         }
-
     }
 
     @Override
