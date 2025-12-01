@@ -231,7 +231,8 @@ public class SpecToken extends AbstractSpecEntity<HapiTokenCreate, Token> implem
                 .treasury(requireNonNull(treasuryAccount).name())
                 .maxSupply(model.maxSupply())
                 .supplyType(model.maxSupply() == 0 ? TokenSupplyType.INFINITE : TokenSupplyType.FINITE)
-                .initialSupply(model.totalSupply());
+                .initialSupply(model.totalSupply())
+                .decimals(model.decimals());
         if (autoRenewAccount != null) {
             op.autoRenewAccount(autoRenewAccount.name());
         }

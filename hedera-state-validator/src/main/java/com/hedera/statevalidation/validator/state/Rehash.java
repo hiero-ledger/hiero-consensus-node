@@ -2,6 +2,7 @@
 package com.hedera.statevalidation.validator.state;
 
 import static com.hedera.statevalidation.util.ParallelProcessingUtils.VALIDATOR_FORK_JOIN_POOL;
+import static com.swirlds.platform.state.service.PlatformStateUtils.getInfoString;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.hedera.pbj.runtime.hashing.WritableMessageDigest;
@@ -10,7 +11,6 @@ import com.hedera.statevalidation.util.junit.HashInfo;
 import com.hedera.statevalidation.util.junit.HashInfoResolver;
 import com.hedera.statevalidation.util.junit.StateResolver;
 import com.swirlds.common.merkle.hash.FutureMerkleHash;
-import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.snapshot.DeserializedSignedState;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
@@ -67,8 +67,7 @@ public class Rehash {
     @Test
     void validateMerkleTree(DeserializedSignedState deserializedSignedState, HashInfo hashInfo) {
 
-        var platformStateFacade = PlatformStateFacade.DEFAULT_PLATFORM_STATE_FACADE;
-        var infoStringFromState = platformStateFacade.getInfoString(
+        var infoStringFromState = getInfoString(
                 deserializedSignedState.reservedSignedState().get().getState(), HASH_DEPTH);
 
         final var originalLines = Arrays.asList(hashInfo.content().split("\n")).getFirst();

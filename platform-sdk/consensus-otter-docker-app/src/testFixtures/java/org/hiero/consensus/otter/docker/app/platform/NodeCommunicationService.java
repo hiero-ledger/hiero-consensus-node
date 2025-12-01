@@ -27,8 +27,6 @@ import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.consensus.otter.docker.app.EventMessageFactory;
 import org.hiero.consensus.otter.docker.app.OutboundDispatcher;
-import org.hiero.otter.fixtures.KeysAndCertsConverter;
-import org.hiero.otter.fixtures.ProtobufConverter;
 import org.hiero.otter.fixtures.container.proto.EventMessage;
 import org.hiero.otter.fixtures.container.proto.NodeCommunicationServiceGrpc.NodeCommunicationServiceImplBase;
 import org.hiero.otter.fixtures.container.proto.QuiescenceRequest;
@@ -36,6 +34,8 @@ import org.hiero.otter.fixtures.container.proto.StartRequest;
 import org.hiero.otter.fixtures.container.proto.SyntheticBottleneckRequest;
 import org.hiero.otter.fixtures.container.proto.TransactionRequest;
 import org.hiero.otter.fixtures.container.proto.TransactionRequestAnswer;
+import org.hiero.otter.fixtures.internal.KeysAndCertsConverter;
+import org.hiero.otter.fixtures.internal.ProtobufConverter;
 import org.hiero.otter.fixtures.logging.internal.InMemorySubscriptionManager;
 import org.hiero.otter.fixtures.result.SubscriberAction;
 

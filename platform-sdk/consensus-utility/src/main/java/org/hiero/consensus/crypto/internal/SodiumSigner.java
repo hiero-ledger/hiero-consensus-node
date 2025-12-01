@@ -19,11 +19,6 @@ public class SodiumSigner implements BytesSigner {
      * @param keyPair the Ed25519 KeyPair to use for signing
      */
     public SodiumSigner(@NonNull final KeyPair keyPair) {
-        if (!keyPair.getPrivate().getAlgorithm().equals("EdDSA")) {
-            throw new IllegalArgumentException("SodiumSigner only supports EdDSA keys, the supplied key is of type: "
-                    + keyPair.getPrivate().getAlgorithm());
-        }
-
         // libsodium expects 64-byte secret key: [32-byte seed || 32-byte public key]
         sodiumSecretKey = new byte[64];
         // Extract 32-byte seed from PKCS#8 encoded private key

@@ -2,6 +2,7 @@
 package com.hedera.node.app.spi.fees;
 
 import static org.hiero.hapi.fees.FeeScheduleUtils.lookupExtraFee;
+import static org.hiero.hapi.support.fees.Extra.SIGNATURES;
 
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.transaction.Query;
@@ -39,38 +40,18 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
      * Avoids Map allocation for hot path performance.
      *
      * @param result the fee result to accumulate fees into
-     * @param feeType "Node" or "Service" - determines which add method to call
      * @param extras the list of extra fee references from the fee schedule
      * @param signatures the number of signatures
-     * @param bytes the transaction size in bytes
-     * @param keys the number of keys
      */
-    private void addExtraFees(
-            @NonNull final FeeResult result,
-            @NonNull final String feeType,
-            @NonNull final Iterable<ExtraFeeReference> extras,
-            final long signatures,
-            final long bytes,
-            final long keys) {
+    private void addNodeExtras(
+            @NonNull final FeeResult result, @NonNull final Iterable<ExtraFeeReference> extras, final long signatures) {
         for (final ExtraFeeReference ref : extras) {
-            final long used =
-                    switch (ref.name()) {
-                        case SIGNATURES -> signatures;
-                        case BYTES -> bytes;
-                        case KEYS -> keys;
-                        default -> 0; // Ignore extras not applicable to this transaction
-                    };
-
+            final long used = ref.name() == SIGNATURES ? signatures : 0;
             if (used > ref.includedCount()) {
                 final long overage = used - ref.includedCount();
                 final long unitFee = lookupExtraFee(feeSchedule, ref.name()).fee();
-                final long cost = overage * unitFee;
 
-                if ("Node".equals(feeType)) {
-                    result.addNodeFee(overage, cost);
-                } else {
-                    result.addServiceFee(overage, cost);
-                }
+                result.addNodeFee(overage, unitFee);
             }
         }
     }
@@ -80,30 +61,26 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
      * CryptoDelete uses only SIGNATURES extra for the service fee.
      *
      * @param txnBody the transaction body
-     * @param calculatorState the calculator state containing signature count
+     * @param feeContext the fee context containing signature count
      * @return the calculated fee result
      */
     @NonNull
     @Override
-    public FeeResult calculateTxFee(
-            @NonNull final TransactionBody txnBody, @Nullable final CalculatorState calculatorState) {
+    public FeeResult calculateTxFee(@NonNull final TransactionBody txnBody, @Nullable final FeeContext feeContext) {
         // Extract primitive counts (no allocations)
-        final long signatures = calculatorState != null ? calculatorState.numTxnSignatures() : 0;
-        final long bytes = TransactionBody.PROTOBUF.toBytes(txnBody).length();
-
+        final long signatures = feeContext != null ? feeContext.numTxnSignatures() : 0;
         final var result = new FeeResult();
 
-        // Add node base + extras
+        // Add node base and extras
         result.addNodeFee(1, feeSchedule.node().baseFee());
-        addExtraFees(result, "Node", feeSchedule.node().extras(), signatures, bytes, 0);
-
+        addNodeExtras(result, feeSchedule.node().extras(), signatures);
         // Add network fee
         final int multiplier = feeSchedule.network().multiplier();
         result.addNetworkFee(result.node * multiplier);
 
         final var serviceFeeCalculator =
                 serviceFeeCalculators.get(txnBody.data().kind());
-        serviceFeeCalculator.accumulateServiceFee(txnBody, calculatorState, result, feeSchedule);
+        serviceFeeCalculator.accumulateServiceFee(txnBody, feeContext, result, feeSchedule);
         return result;
     }
 
@@ -133,13 +110,13 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
      * Default implementation for query fee calculation.
      *
      * @param query The query to calculate fees for
-     * @param calculatorState calculator state
+     * @param feeContext fee context
      * @return Never returns normally
      * @throws UnsupportedOperationException always
      */
     @Override
     @NonNull
-    public FeeResult calculateQueryFee(@NonNull final Query query, @Nullable final CalculatorState calculatorState) {
+    public FeeResult calculateQueryFee(@NonNull final Query query, @Nullable final FeeContext feeContext) {
         throw new UnsupportedOperationException(
                 "Query fee calculation not supported for " + getClass().getSimpleName());
     }
