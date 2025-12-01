@@ -251,13 +251,6 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
                                 queryFees = handler.computeFees(context).totalFee();
                             }
 
-                            // The payment offered in the query header
-                            //                            final var paymentOffered = -1
-                            //                                    *
-                            // txBody.cryptoTransferOrThrow().transfersOrThrow().accountAmounts().stream()
-                            //                                            .filter(aa -> aa.amount() < 0)
-                            //                                            .mapToLong(AccountAmount::amount)
-                            //                                            .findFirst().orElseThrow();
                             // The fee for the crypto transfer that pays the fee
                             final var cryptoTransferTxnFee = queryChecker.estimateTxFees(
                                     storeFactory,

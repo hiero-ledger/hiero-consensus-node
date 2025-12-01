@@ -150,7 +150,7 @@ public class QueryChecker {
                 }
 
                 // The balance only needs to be checked for sent amounts (= negative values)
-                if (amount < 0 && (account.tinybarBalance()) < -amount) {
+                if (amount < 0 && (account.tinybarBalance()) < -amount + transferTxnFee) {
                     // FUTURE: Expiry should probably be checked earlier
                     expiryValidation.checkAccountExpiry(account);
                     throw new InsufficientBalanceException(INSUFFICIENT_PAYER_BALANCE, transferTxnFee);
