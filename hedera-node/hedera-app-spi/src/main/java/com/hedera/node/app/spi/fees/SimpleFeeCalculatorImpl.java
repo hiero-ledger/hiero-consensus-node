@@ -28,11 +28,18 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
 
     protected final FeeSchedule feeSchedule;
     private final Map<TransactionBody.DataOneOfType, ServiceFeeCalculator> serviceFeeCalculators;
+    private final Map<Query.QueryOneOfType, ServiceFeeCalculator> queryFeeCalculators;
 
-    public SimpleFeeCalculatorImpl(FeeSchedule feeSchedule, Set<ServiceFeeCalculator> serviceFeeCalculators) {
+    public SimpleFeeCalculatorImpl(FeeSchedule feeSchedule, Set<ServiceFeeCalculator> allCalculators) {
         this.feeSchedule = feeSchedule;
-        this.serviceFeeCalculators = serviceFeeCalculators.stream()
+        // Separate transaction calculators (those with non-null getTransactionType())
+        this.serviceFeeCalculators = allCalculators.stream()
+                .filter(calc -> calc.getTransactionType() != null)
                 .collect(Collectors.toMap(ServiceFeeCalculator::getTransactionType, Function.identity()));
+        // Separate query calculators (those with non-null getQueryType())
+        this.queryFeeCalculators = allCalculators.stream()
+                .filter(calc -> calc.getQueryType() != null)
+                .collect(Collectors.toMap(ServiceFeeCalculator::getQueryType, Function.identity()));
     }
 
     /**
@@ -107,17 +114,33 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
     }
 
     /**
-     * Default implementation for query fee calculation.
+     * Calculates fees for queries per HIP-1261.
+     * Uses the registered query fee calculators to compute service fees.
      *
      * @param query The query to calculate fees for
-     * @param feeContext fee context
-     * @return Never returns normally
-     * @throws UnsupportedOperationException always
+     * @param feeContext fee context (may be null for approximate calculations)
+     * @return the calculated fee result
      */
     @Override
     @NonNull
     public FeeResult calculateQueryFee(@NonNull final Query query, @Nullable final FeeContext feeContext) {
-        throw new UnsupportedOperationException(
-                "Query fee calculation not supported for " + getClass().getSimpleName());
+        final long signatures = feeContext != null ? feeContext.numTxnSignatures() : 0;
+        final var result = new FeeResult();
+
+        // Add node base fee and extras
+        result.addNodeFee(1, feeSchedule.node().baseFee());
+        addNodeExtras(result, feeSchedule.node().extras(), signatures);
+
+        // Add network fee (multiplier of node fee)
+        final int multiplier = feeSchedule.network().multiplier();
+        result.addNetworkFee(result.node * multiplier);
+
+        // Add service fee via query calculator
+        final var queryFeeCalculator = queryFeeCalculators.get(query.query().kind());
+        if (queryFeeCalculator != null) {
+            queryFeeCalculator.accumulateQueryFee(query, feeContext, result, feeSchedule);
+        }
+
+        return result;
     }
 }

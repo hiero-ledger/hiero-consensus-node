@@ -7,6 +7,8 @@ import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.token.TokenService;
 import com.hedera.node.app.service.token.impl.calculator.CryptoCreateFeeCalculator;
 import com.hedera.node.app.service.token.impl.calculator.CryptoDeleteFeeCalculator;
+import com.hedera.node.app.service.token.impl.calculator.CryptoGetAccountRecordsFeeCalculator;
+import com.hedera.node.app.service.token.impl.calculator.CryptoGetInfoFeeCalculator;
 import com.hedera.node.app.service.token.impl.calculator.CryptoUpdateFeeCalculator;
 import com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema;
 import com.hedera.node.app.service.token.impl.schemas.V0530TokenSchema;
@@ -43,6 +45,12 @@ public class TokenServiceImpl implements TokenService {
     @Override
     public Set<ServiceFeeCalculator> serviceFeeCalculators() {
         return Set.of(
-                new CryptoCreateFeeCalculator(), new CryptoDeleteFeeCalculator(), new CryptoUpdateFeeCalculator());
+                // Transaction fee calculators
+                new CryptoCreateFeeCalculator(),
+                new CryptoDeleteFeeCalculator(),
+                new CryptoUpdateFeeCalculator(),
+                // Query fee calculators
+                new CryptoGetInfoFeeCalculator(),
+                new CryptoGetAccountRecordsFeeCalculator());
     }
 }
