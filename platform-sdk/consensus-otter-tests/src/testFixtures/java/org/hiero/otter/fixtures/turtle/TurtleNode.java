@@ -9,6 +9,7 @@ import static java.util.Objects.requireNonNull;
 import static org.assertj.core.api.Assertions.fail;
 import static org.hiero.otter.fixtures.app.OtterStateUtils.createGenesisState;
 import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.DESTROYED;
+import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.INIT;
 import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.RUNNING;
 import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.SHUTDOWN;
 import static org.hiero.otter.fixtures.logging.context.NodeLoggingContext.logToConsole;
@@ -169,12 +170,16 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
 
             logToConsole(() -> log.info("Starting node {}...", selfId));
 
-            InMemorySubscriptionManager.INSTANCE.subscribe(logEntry -> {
-                if (Objects.equals(logEntry.nodeId(), selfId)) {
-                    resultsCollector.addLogEntry(logEntry);
-                }
-                return lifeCycle == DESTROYED ? UNSUBSCRIBE : CONTINUE;
-            });
+            // Only subscribe to log entries if the node is in the INIT stage to avoid double subscriptions after
+            // restart
+            if (lifeCycle == INIT) {
+                InMemorySubscriptionManager.INSTANCE.subscribe(logEntry -> {
+                    if (Objects.equals(logEntry.nodeId(), selfId)) {
+                        resultsCollector.addLogEntry(logEntry);
+                    }
+                    return lifeCycle == DESTROYED ? UNSUBSCRIBE : CONTINUE;
+                });
+            }
 
             // Log the startup message using the same STARTUP marker and message as production nodes
             // Uses a platform logger to ensure it routes through per-node appenders
