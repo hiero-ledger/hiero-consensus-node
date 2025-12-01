@@ -147,10 +147,6 @@ public class WritableStoreFactory {
     @NonNull
     public <C> C getStore(@NonNull final Class<C> storeInterface) throws IllegalArgumentException {
         requireNonNull(storeInterface, "The supplied argument 'storeInterface' cannot be null!");
-        // Special-case: EntityIdService is global; always provide the writableEntityIdStore regardless of service scope
-        if (storeInterface == WritableEntityIdStore.class) {
-            return storeInterface.cast(writableEntityIdStore);
-        }
         final var entry = STORE_FACTORY.get(storeInterface);
         if (entry != null && serviceName.equals(entry.name())) {
             final var store = entry.factory().create(states, writableEntityIdStore);
