@@ -51,6 +51,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Nested;
@@ -610,8 +611,7 @@ public class SimpleFeesSuite {
 
         // DISABLED: Requires code changes to charge minimal fees for pre-handle validation failures instead of full
         // transaction fees.
-        //        @Disabled("Pre-handle validation failures charge full transaction fee instead of minimal unreadable
-        // fee")
+        @Disabled("Pre-handle validation failures charge full transaction fee instead of minimal unreadable fee")
         @Nested
         class SimpleFeesEnabledOnlyCreateTopicFailsOnPreHandle {
             @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
