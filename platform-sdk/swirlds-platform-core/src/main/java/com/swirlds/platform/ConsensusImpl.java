@@ -1156,8 +1156,14 @@ public class ConsensusImpl implements Consensus {
         final long rop = round(otherParent);
 
         //
-        // if parents have unequal rounds and the later parent does not have a supermajority of weight,
-        // then copy the round of the later parent.
+        // If parents have unequal rounds, we can assign the higher parent round to this event
+        // because if the higher parent round couldn't strongly see a supermajority of witnesses,
+        // then this event also cannot.
+        //
+        // There is an edge case where a single node has a super majority of weight. In this case,
+        // we do want to advance if the parent with the higher round has a super majority, so we
+        // continue to the super majority check below. This edge case only occurs in testing, so
+        // we do not optimize for it here.
         //
         if (rsp > rop && !hasSuperMajority(selfParent)) {
             x.setRoundCreated(rsp);
