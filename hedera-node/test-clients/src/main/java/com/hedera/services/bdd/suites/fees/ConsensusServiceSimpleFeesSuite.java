@@ -221,9 +221,14 @@ public class ConsensusServiceSimpleFeesSuite {
                                     .fee(ONE_HBAR)
                                     .via("submit-message-txn")),
                     "submit-message-txn",
-                    0.000110,
+                    // base == 0
+                    // network + node = 1000000
+                    // extra bytes = 1023-100= 923
+                    // byte cost = 110000
+                    // total = 102530000
+                    0.01025,
                     1,
-                    0.000110,
+                    0.000985,
                     1);
         }
 
