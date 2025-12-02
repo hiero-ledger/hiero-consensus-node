@@ -668,7 +668,12 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
         try {
             return removedValueBytes == null
                     ? null
-                    : valueCodec.parse(removedValueBytes.toReadableSequentialData(), false, false, Integer.MAX_VALUE, MAX_PBJ_RECORD_SIZE);
+                    : valueCodec.parse(
+                            removedValueBytes.toReadableSequentialData(),
+                            false,
+                            false,
+                            Integer.MAX_VALUE,
+                            MAX_PBJ_RECORD_SIZE);
         } catch (final ParseException e) {
             throw new RuntimeException("Failed to deserialize a value from bytes", e);
         }

@@ -10,6 +10,7 @@ import static com.hedera.node.app.history.HistoryLibrary.EMPTY_PUBLIC_KEY;
 import static com.hedera.node.app.history.impl.ProofControllers.isWrapsExtensible;
 import static com.hedera.node.app.service.roster.impl.RosterTransitionWeights.moreThanHalfOfTotal;
 import static java.util.Collections.emptySortedMap;
+import static java.util.Collections.list;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.cryptography.wraps.Proof;
@@ -18,6 +19,7 @@ import com.hedera.hapi.block.stream.ChainOfTrustProof;
 import com.hedera.hapi.node.state.history.History;
 import com.hedera.hapi.node.state.history.HistoryProof;
 import com.hedera.hapi.node.state.history.HistoryProofConstruction;
+import com.hedera.hapi.node.state.history.HistoryProofVote;
 import com.hedera.hapi.node.state.history.WrapsPhase;
 import com.hedera.hapi.node.state.history.WrapsSigningState;
 import com.hedera.node.app.history.HistoryLibrary;
@@ -121,7 +123,10 @@ public class WrapsHistoryProver implements HistoryProver {
      */
     private WrapsPhase wrapsPhase = R1;
 
-    private sealed interface WrapsPhaseOutput permits MessagePhaseOutput, ProofPhaseOutput, AggregatePhaseOutput {}
+    private sealed interface WrapsPhaseOutput
+            permits NoopOutput, MessagePhaseOutput, ProofPhaseOutput, AggregatePhaseOutput {}
+
+    private record NoopOutput(String reason) implements WrapsPhaseOutput {}
 
     private record MessagePhaseOutput(byte[] message) implements WrapsPhaseOutput {}
 
@@ -204,6 +209,11 @@ public class WrapsHistoryProver implements HistoryProver {
     @Override
     public void replayWrapsSigningMessage(long constructionId, @NonNull WrapsMessagePublication publication) {
         receiveWrapsSigningMessage(constructionId, publication, null, null);
+    }
+
+    @Override
+    public void observeProofVote(final long nodeId, @NonNull final HistoryProofVote vote) {
+        // TODO - update some kind of internal state to optimize our choice of explicit or congruent voting
     }
 
     @Override
@@ -344,7 +354,7 @@ public class WrapsHistoryProver implements HistoryProver {
                                                                 .get(R1)
                                                                 .keySet()));
                                                 submissions
-                                                        .submitProofVote(
+                                                        .submitExplicitProofVote(
                                                                 constructionId,
                                                                 HistoryProof.newBuilder()
                                                                         .targetProofKeys(proofKeyList)
@@ -362,7 +372,7 @@ public class WrapsHistoryProver implements HistoryProver {
                                                 final var recursiveProof = Bytes.wrap(proofOutput.compressed());
                                                 final var uncompressedProof = Bytes.wrap(proofOutput.uncompressed());
                                                 submissions
-                                                        .submitProofVote(
+                                                        .submitExplicitProofVote(
                                                                 constructionId,
                                                                 HistoryProof.newBuilder()
                                                                         .targetProofKeys(proofKeyList)
@@ -375,6 +385,11 @@ public class WrapsHistoryProver implements HistoryProver {
                                                                         .build())
                                                         .join();
                                             }
+                                            case NoopOutput noopOutput ->
+                                                log.info(
+                                                        "Skipping publication of {} output: {}",
+                                                        phase,
+                                                        noopOutput.reason());
                                         }
                                     },
                                     executor)
@@ -446,39 +461,35 @@ public class WrapsHistoryProver implements HistoryProver {
                                         signature,
                                         phaseMessages.get(R1).keySet().stream().toList());
                             } else {
-                                Proof proof;
-                                if (true) {
-                                    proof = new Proof(new byte[30331352], new byte[704]);
-                                } else {
-                                    if (!isWrapsExtensible(sourceProof)) {
-                                        proof = historyLibrary.constructGenesisWrapsProof(
-                                                requireNonNull(ledgerId).toByteArray(),
-                                                signature,
-                                                phaseMessages.get(R1).keySet(),
-                                                targetBook);
-                                    } else {
-                                        proof = new Proof(
-                                                sourceProof
-                                                        .uncompressedWrapsProof()
-                                                        .toByteArray(),
-                                                sourceProof
-                                                        .chainOfTrustProofOrThrow()
-                                                        .wrapsProofOrThrow()
-                                                        .toByteArray());
-                                    }
-                                    final var sourceBook =
-                                            AddressBook.from(weights.sourceNodeWeights(), nodeId -> proofKeys
-                                                    .getOrDefault(nodeId, EMPTY_PUBLIC_KEY)
-                                                    .toByteArray());
-                                    proof = historyLibrary.constructIncrementalWrapsProof(
-                                            requireNonNull(ledgerId).toByteArray(),
-                                            proof.uncompressed(),
-                                            sourceBook,
-                                            targetBook,
-                                            targetMetadata.toByteArray(),
-                                            signature,
-                                            phaseMessages.get(R1).keySet());
+                                if (!historyLibrary.wrapsProverReady()) {
+                                    yield new NoopOutput("WRAPS library is not ready");
                                 }
+                                Proof proof;
+                                if (!isWrapsExtensible(sourceProof)) {
+                                    proof = historyLibrary.constructGenesisWrapsProof(
+                                            requireNonNull(ledgerId).toByteArray(),
+                                            signature,
+                                            phaseMessages.get(R1).keySet(),
+                                            targetBook);
+                                } else {
+                                    proof = new Proof(
+                                            sourceProof.uncompressedWrapsProof().toByteArray(),
+                                            sourceProof
+                                                    .chainOfTrustProofOrThrow()
+                                                    .wrapsProofOrThrow()
+                                                    .toByteArray());
+                                }
+                                final var sourceBook = AddressBook.from(weights.sourceNodeWeights(), nodeId -> proofKeys
+                                        .getOrDefault(nodeId, EMPTY_PUBLIC_KEY)
+                                        .toByteArray());
+                                proof = historyLibrary.constructIncrementalWrapsProof(
+                                        requireNonNull(ledgerId).toByteArray(),
+                                        proof.uncompressed(),
+                                        sourceBook,
+                                        targetBook,
+                                        targetMetadata.toByteArray(),
+                                        signature,
+                                        phaseMessages.get(R1).keySet());
                                 yield new ProofPhaseOutput(proof.compressed(), proof.uncompressed());
                             }
                         }

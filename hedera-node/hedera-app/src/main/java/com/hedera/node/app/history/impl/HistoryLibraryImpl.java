@@ -169,4 +169,9 @@ public class HistoryLibraryImpl implements HistoryLibrary {
         requireNonNull(compressedProof);
         return WRAPS.verifyCompressedProof(compressedProof);
     }
+
+    @Override
+    public boolean wrapsProverReady() {
+        return WRAPSLibraryBridge.isProofSupported();
+    }
 }

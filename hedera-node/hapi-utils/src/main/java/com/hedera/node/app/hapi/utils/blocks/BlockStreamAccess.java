@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.hapi.utils.blocks;
 
+import static com.hedera.node.app.hapi.utils.CommonPbjConverters.MAX_PBJ_RECORD_SIZE;
 import static com.hedera.node.app.hapi.utils.exports.recordstreaming.RecordStreamingUtils.SIDECAR_ONLY_TOKEN;
 import static java.util.Comparator.comparing;
 
@@ -159,10 +160,20 @@ public enum BlockStreamAccess {
         try {
             if (fileName.endsWith(".gz")) {
                 try (final GZIPInputStream in = new GZIPInputStream(Files.newInputStream(path))) {
-                    return Block.PROTOBUF.parse(Bytes.wrap(in.readAllBytes()));
+                    return Block.PROTOBUF.parse(
+                            Bytes.wrap(in.readAllBytes()).toReadableSequentialData(),
+                            false,
+                            false,
+                            Integer.MAX_VALUE,
+                            MAX_PBJ_RECORD_SIZE);
                 }
             } else {
-                return Block.PROTOBUF.parse(Bytes.wrap(Files.readAllBytes(path)));
+                return Block.PROTOBUF.parse(
+                        Bytes.wrap(Files.readAllBytes(path)).toReadableSequentialData(),
+                        false,
+                        false,
+                        Integer.MAX_VALUE,
+                        MAX_PBJ_RECORD_SIZE);
             }
         } catch (IOException | ParseException e) {
             throw new RuntimeException("Failed reading block @ " + path, e);

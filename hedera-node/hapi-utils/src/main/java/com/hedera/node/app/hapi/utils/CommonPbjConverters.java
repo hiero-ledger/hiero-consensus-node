@@ -47,6 +47,8 @@ import java.lang.reflect.InvocationTargetException;
 import java.util.List;
 
 public class CommonPbjConverters {
+    public static final int MAX_PBJ_RECORD_SIZE = 33554432;
+
     public static @NonNull com.hederahashgraph.api.proto.java.Query fromPbj(@NonNull Query query) {
         requireNonNull(query);
         try {
@@ -427,7 +429,8 @@ public class CommonPbjConverters {
         requireNonNull(txBody);
         try {
             final var bytes = txBody.toByteArray();
-            return TransactionBody.PROTOBUF.parse(BufferedData.wrap(bytes));
+            return TransactionBody.PROTOBUF.parse(
+                    BufferedData.wrap(bytes), false, false, Integer.MAX_VALUE, MAX_PBJ_RECORD_SIZE);
         } catch (ParseException e) {
             throw new RuntimeException(e);
         }

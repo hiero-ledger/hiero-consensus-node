@@ -291,7 +291,7 @@ class WrapsHistoryProverTest {
         given(historyLibrary.computeWrapsMessage(any(), any())).willReturn("MSG".getBytes(UTF_8));
         given(historyLibrary.runAggregationPhase(any(), any(), any(), any(), any()))
                 .willReturn(AGG_SIG.toByteArray());
-        given(submissions.submitProofVote(eq(CONSTRUCTION_ID), any()))
+        given(submissions.submitExplicitProofVote(eq(CONSTRUCTION_ID), any()))
                 .willReturn(CompletableFuture.completedFuture(null));
 
         setField("entropy", new byte[32]);
@@ -313,7 +313,7 @@ class WrapsHistoryProverTest {
 
         assertSame(HistoryProver.Outcome.InProgress.INSTANCE, outcome);
         final var captor = ArgumentCaptor.forClass(HistoryProof.class);
-        verify(submissions).submitProofVote(eq(CONSTRUCTION_ID), captor.capture());
+        verify(submissions).submitExplicitProofVote(eq(CONSTRUCTION_ID), captor.capture());
         final var proof = captor.getValue();
         final var chainOfTrust = proof.chainOfTrustProofOrThrow();
         assertTrue(chainOfTrust.hasAggregatedNodeSignatures());
@@ -341,7 +341,7 @@ class WrapsHistoryProverTest {
         given(historyLibrary.runAggregationPhase(any(), any(), any(), any(), any()))
                 .willReturn(AGG_SIG.toByteArray());
         given(tssConfig.wrapsEnabled()).willReturn(true);
-        given(submissions.submitProofVote(eq(CONSTRUCTION_ID), any()))
+        given(submissions.submitExplicitProofVote(eq(CONSTRUCTION_ID), any()))
                 .willReturn(CompletableFuture.completedFuture(null));
 
         final var incremental =
@@ -389,7 +389,7 @@ class WrapsHistoryProverTest {
 
         assertSame(HistoryProver.Outcome.InProgress.INSTANCE, outcome);
         final var captor = ArgumentCaptor.forClass(HistoryProof.class);
-        verify(submissions).submitProofVote(eq(CONSTRUCTION_ID), captor.capture());
+        verify(submissions).submitExplicitProofVote(eq(CONSTRUCTION_ID), captor.capture());
         final var proof = captor.getValue();
         assertEquals(UNCOMPRESSED, proof.uncompressedWrapsProof());
         final var chainOfTrust = proof.chainOfTrustProofOrThrow();
@@ -417,7 +417,7 @@ class WrapsHistoryProverTest {
         given(historyLibrary.runAggregationPhase(any(), any(), any(), any(), any()))
                 .willReturn(AGG_SIG.toByteArray());
         given(tssConfig.wrapsEnabled()).willReturn(true);
-        given(submissions.submitProofVote(eq(CONSTRUCTION_ID), any()))
+        given(submissions.submitExplicitProofVote(eq(CONSTRUCTION_ID), any()))
                 .willReturn(CompletableFuture.completedFuture(null));
 
         final var genesis =
@@ -467,7 +467,7 @@ class WrapsHistoryProverTest {
 
         assertSame(HistoryProver.Outcome.InProgress.INSTANCE, outcome);
         final var captor = ArgumentCaptor.forClass(HistoryProof.class);
-        verify(submissions).submitProofVote(eq(CONSTRUCTION_ID), captor.capture());
+        verify(submissions).submitExplicitProofVote(eq(CONSTRUCTION_ID), captor.capture());
         final var proof = captor.getValue();
         assertEquals(UNCOMPRESSED, proof.uncompressedWrapsProof());
         final var chainOfTrust = proof.chainOfTrustProofOrThrow();
