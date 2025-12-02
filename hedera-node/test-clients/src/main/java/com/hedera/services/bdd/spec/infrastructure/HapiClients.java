@@ -376,6 +376,13 @@ public class HapiClients {
                 .withDeadlineAfter(DEADLINE_SECS, TimeUnit.SECONDS);
     }
 
+    public org.hiero.hapi.interledger.clpr.protoc.ClprServiceGrpc.ClprServiceBlockingStub getClprSvcStub(
+            AccountID nodeId, boolean useTls, boolean asNodeOperator) {
+        return nextStubsFromPool(stubId(nodeId, useTls, asNodeOperator))
+                .clprSvcStubs()
+                .withDeadlineAfter(DEADLINE_SECS, TimeUnit.SECONDS);
+    }
+
     private String stubId(AccountID nodeId, boolean useTls, boolean asNodeOperator) {
         if (useTls) {
             return tlsStubIds.get(nodeId);

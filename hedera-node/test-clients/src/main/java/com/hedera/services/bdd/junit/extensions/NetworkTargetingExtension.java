@@ -3,11 +3,12 @@ package com.hedera.services.bdd.junit.extensions;
 
 import static com.hedera.services.bdd.junit.ContextRequirement.FEE_SCHEDULE_OVERRIDES;
 import static com.hedera.services.bdd.junit.ContextRequirement.THROTTLE_OVERRIDES;
-import static com.hedera.services.bdd.junit.SharedNetworkLauncherSessionListener.SharedNetworkExecutionListener.sharedSubProcessNetwork;
 import static com.hedera.services.bdd.junit.extensions.ExtensionUtils.hapiTestMethodOf;
 import static com.hedera.services.bdd.junit.hedera.embedded.EmbeddedMode.CONCURRENT;
 import static com.hedera.services.bdd.junit.hedera.embedded.EmbeddedMode.REPEATABLE;
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.workingDirVersion;
+import static com.hedera.services.bdd.spec.HapiPropertySource.getConfigRealm;
+import static com.hedera.services.bdd.spec.HapiPropertySource.getConfigShard;
 import static com.hedera.services.bdd.spec.HapiSpec.doTargetSpec;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateAllLogsAfter;
@@ -112,8 +113,8 @@ public class NetworkTargetingExtension implements BeforeEachCallback, AfterEachC
             } else if (isAnnotated(method, HapiBlockNode.class)) {
                 logger.info("HapiBlockNode annotation found on method: " + method.getName());
                 final var annotation = method.getAnnotation(HapiBlockNode.class);
-                final SubProcessNetwork targetNetwork =
-                        (SubProcessNetwork) sharedSubProcessNetwork(method.getName(), annotation.networkSize());
+                final SubProcessNetwork targetNetwork = SubProcessNetwork.newIsolatedNetwork(
+                        method.getName(), annotation.networkSize(), getConfigShard(), getConfigRealm());
 
                 final BlockNodeNetwork targetBlockNodeNetwork = new BlockNodeNetwork();
                 targetNetwork

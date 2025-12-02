@@ -7,6 +7,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 
 import com.hedera.services.bdd.junit.MultiNetworkHapiTest;
+import com.hedera.services.bdd.junit.TestTags;
 import com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork;
 import com.hedera.services.bdd.spec.queries.QueryVerbs;
 import com.hedera.services.bdd.spec.transactions.TxnVerbs;
@@ -16,11 +17,18 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Tag;
 
 /**
  * Exercises node delete/create against multiple networks to validate isolation and post-churn stability.
  */
-public class MultiNetworkNodeLifecycleSuite {
+@Tag(TestTags.MULTINETWORK)
+public class MultiNetworkNodeLifecycleSuite extends AbstractMultiNetworkSuite {
+    @org.junit.jupiter.api.BeforeEach
+    void initDefaults() {
+        setConfigDefaults();
+    }
+
     @MultiNetworkHapiTest(
             networks = {
                 @MultiNetworkHapiTest.Network(name = "NET_A", size = 4),

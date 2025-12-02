@@ -39,7 +39,7 @@ public class ClprGetLedgerConfigurationHandlerTest extends ClprHandlerTestBase {
     @Mock(strictness = Mock.Strictness.LENIENT)
     private QueryContext context;
 
-    @Mock
+    @Mock(strictness = Mock.Strictness.LENIENT)
     private ClprStateProofManager stateProofManager;
 
     private ClprGetLedgerConfigurationHandler subject;
@@ -51,6 +51,7 @@ public class ClprGetLedgerConfigurationHandlerTest extends ClprHandlerTestBase {
 
         given(context.createStore(ReadableClprLedgerConfigurationStore.class)).willReturn(readableLedgerConfigStore);
         given(context.createStore(ReadableHistoryStore.class)).willReturn(readableHistoryStore);
+        given(stateProofManager.clprEnabled()).willReturn(true);
     }
 
     @Test

@@ -6,6 +6,7 @@ import static com.hedera.services.bdd.spec.HapiSpec.multiNetworkHapiTest;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 
 import com.hedera.services.bdd.junit.MultiNetworkHapiTest;
+import com.hedera.services.bdd.junit.TestTags;
 import com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork;
 import com.hedera.services.bdd.spec.queries.QueryVerbs;
 import com.hedera.services.bdd.spec.transactions.TxnVerbs;
@@ -14,6 +15,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Tag;
 
 /**
  * Test suite for multi-network isolation testing.
@@ -23,12 +25,23 @@ import org.junit.jupiter.api.DynamicTest;
  * of other networks. Includes tests for account creation, balance queries,
  * and independent ledger counters across distinct networks.
  */
-public class MultiNetworkIsolationSuite {
+@Tag(TestTags.MULTINETWORK)
+public class MultiNetworkIsolationSuite extends AbstractMultiNetworkSuite {
+    @org.junit.jupiter.api.BeforeEach
+    void initDefaults() {
+        setConfigDefaults();
+    }
+
+    static {
+        // Use a distinct shard/realm for NET_C to prove isolation is insensitive to shard/realm overlap
+        System.setProperty("hapi.spec.multinet.NET_C.shard", "21");
+        System.setProperty("hapi.spec.multinet.NET_C.realm", "22");
+    }
 
     @MultiNetworkHapiTest(
             networks = {
-                @MultiNetworkHapiTest.Network(name = "NET_A", size = 3),
-                @MultiNetworkHapiTest.Network(name = "NET_B", size = 2),
+                @MultiNetworkHapiTest.Network(name = "NET_A", size = 1),
+                @MultiNetworkHapiTest.Network(name = "NET_B", size = 1),
                 @MultiNetworkHapiTest.Network(name = "NET_C", size = 1)
             })
     @DisplayName("Three network isolation")
@@ -37,52 +50,51 @@ public class MultiNetworkIsolationSuite {
         final var acctA = new AtomicReference<String>();
         final var acctB = new AtomicReference<String>();
         final var acctC = new AtomicReference<String>();
+        final long balA = ONE_HBAR;
+        final long balB = 2 * ONE_HBAR;
+        final long balC = 3 * ONE_HBAR;
 
         final var builder = multiNetworkHapiTest(netA, netB, netC)
-                // Create on A, unseen on B/C
                 .onNetwork(
                         "NET_A",
                         TxnVerbs.cryptoCreate("acctA")
-                                .balance(ONE_HBAR)
+                                .balance(balA)
                                 .exposingCreatedIdTo(id -> acctA.set(asAccountString(id))),
-                        QueryVerbs.getAccountBalance(acctA::get).hasTinyBars(ONE_HBAR))
-                .onNetwork(
-                        "NET_B",
-                        QueryVerbs.getAccountBalance(acctA::get)
-                                .hasAnswerOnlyPrecheck(ResponseCodeEnum.INVALID_ACCOUNT_ID))
-                .onNetwork(
-                        "NET_C",
-                        QueryVerbs.getAccountBalance(acctA::get)
-                                .hasAnswerOnlyPrecheck(ResponseCodeEnum.INVALID_ACCOUNT_ID))
-                // Create on B, unseen on A/C
+                        QueryVerbs.getAccountBalance(acctA::get).hasTinyBars(balA))
                 .onNetwork(
                         "NET_B",
                         TxnVerbs.cryptoCreate("acctB")
-                                .balance(ONE_HBAR)
+                                .balance(balB)
                                 .exposingCreatedIdTo(id -> acctB.set(asAccountString(id))),
-                        QueryVerbs.getAccountBalance(acctB::get).hasTinyBars(ONE_HBAR))
-                .onNetwork(
-                        "NET_A",
-                        QueryVerbs.getAccountBalance(acctB::get)
-                                .hasAnswerOnlyPrecheck(ResponseCodeEnum.INVALID_ACCOUNT_ID))
-                .onNetwork(
-                        "NET_C",
-                        QueryVerbs.getAccountBalance(acctB::get)
-                                .hasAnswerOnlyPrecheck(ResponseCodeEnum.INVALID_ACCOUNT_ID))
-                // Create on C, unseen on A/B
+                        QueryVerbs.getAccountBalance(acctB::get).hasTinyBars(balB))
                 .onNetwork(
                         "NET_C",
                         TxnVerbs.cryptoCreate("acctC")
-                                .balance(ONE_HBAR)
+                                .balance(balC)
                                 .exposingCreatedIdTo(id -> acctC.set(asAccountString(id))),
-                        QueryVerbs.getAccountBalance(acctC::get).hasTinyBars(ONE_HBAR))
+                        QueryVerbs.getAccountBalance(acctC::get).hasTinyBars(balC))
+                // Even with the same shard/realm and colliding account numbers, each network
+                // should return its own balance for the "foreign" account id.
                 .onNetwork(
                         "NET_A",
+                        // NET_A and NET_B share shard/realm; querying acctB resolves to NET_A's local account id
+                        QueryVerbs.getAccountBalance(acctB::get).hasTinyBars(balA),
+                        // NET_C uses different shard/realm, so its id should be invalid here
                         QueryVerbs.getAccountBalance(acctC::get)
                                 .hasAnswerOnlyPrecheck(ResponseCodeEnum.INVALID_ACCOUNT_ID))
                 .onNetwork(
                         "NET_B",
+                        // NET_A id collides with NET_B's local first account
+                        QueryVerbs.getAccountBalance(acctA::get).hasTinyBars(balB),
+                        // NET_C shard/realm differs so expect invalid
                         QueryVerbs.getAccountBalance(acctC::get)
+                                .hasAnswerOnlyPrecheck(ResponseCodeEnum.INVALID_ACCOUNT_ID))
+                .onNetwork(
+                        "NET_C",
+                        // NET_C shard/realm differs from NET_A/NET_B; cross-network ids must be invalid
+                        QueryVerbs.getAccountBalance(acctA::get)
+                                .hasAnswerOnlyPrecheck(ResponseCodeEnum.INVALID_ACCOUNT_ID),
+                        QueryVerbs.getAccountBalance(acctB::get)
                                 .hasAnswerOnlyPrecheck(ResponseCodeEnum.INVALID_ACCOUNT_ID));
 
         return builder.asDynamicTests();
@@ -90,9 +102,9 @@ public class MultiNetworkIsolationSuite {
 
     @MultiNetworkHapiTest(
             networks = {
-                @MultiNetworkHapiTest.Network(name = "NET_ALPHA", size = 2),
-                @MultiNetworkHapiTest.Network(name = "NET_BETA", size = 2),
-                @MultiNetworkHapiTest.Network(name = "NET_GAMMA", size = 2)
+                @MultiNetworkHapiTest.Network(name = "NET_ALPHA", size = 1),
+                @MultiNetworkHapiTest.Network(name = "NET_BETA", size = 1),
+                @MultiNetworkHapiTest.Network(name = "NET_GAMMA", size = 1)
             })
     @DisplayName("Independent ledger counters")
     Stream<DynamicTest> independentLedgerCounters(

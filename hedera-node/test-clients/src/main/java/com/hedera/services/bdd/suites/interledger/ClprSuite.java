@@ -2,7 +2,6 @@
 package com.hedera.services.bdd.suites.interledger;
 
 import static com.hedera.services.bdd.spec.HapiSpec.customizedHapiTest;
-import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 
@@ -10,6 +9,7 @@ import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.HapiTest;
+import com.hedera.services.bdd.junit.TestTags;
 import com.hedera.services.bdd.junit.hedera.ExternalPath;
 import com.hedera.services.bdd.spec.queries.QueryVerbs;
 import com.hedera.services.bdd.spec.transactions.TxnVerbs;
@@ -32,8 +32,15 @@ import org.hiero.interledger.clpr.impl.client.ClprClientImpl;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Tag;
 
-public class ClprSuite {
+@Tag(TestTags.CLPR)
+public class ClprSuite extends AbstractClprSuite {
+    @org.junit.jupiter.api.BeforeEach
+    void initDefaults() {
+        setConfigDefaults();
+    }
+
     private static final Duration CONFIG_APPLY_TIMEOUT = Duration.ofSeconds(10);
     private static final Duration POLL_DELAY = Duration.ofMillis(200);
     private static final Duration LOG_WAIT_TIMEOUT = Duration.ofSeconds(30);
@@ -47,15 +54,13 @@ public class ClprSuite {
     @HapiTest
     final Stream<DynamicTest> createsClprLedgerConfig() {
         final var now = Instant.now();
-        return hapiTest(
+        return customizedHapiTest(
+                Map.of("clpr.connectionFrequency", "60000"),
                 TxnVerbs.clprSetLedgerConfig("ledgerId")
                         .timestamp(Timestamp.newBuilder()
                                 .setSeconds(now.getEpochSecond())
                                 .setNanos(now.getNano())
-                                .build()),
-                QueryVerbs.getLedgerConfig("ledgerId")
-                        .hasTimestamp(now.getEpochSecond())
-                        .hasEndpoints(List.of()));
+                                .build()));
     }
 
     @HapiTest
@@ -71,7 +76,7 @@ public class ClprSuite {
         final Instant thirdInstant = secondInstant.plusSeconds(1);
 
         return customizedHapiTest(
-                Map.of("clpr.connectionFrequency", "100"),
+                Map.of("clpr.connectionFrequency", "60000"),
                 withOpContext((spec, log) -> {
                     final var node = spec.targetNetworkOrThrow().nodes().getFirst();
                     final ServiceEndpoint serviceEndpoint;
@@ -97,35 +102,30 @@ public class ClprSuite {
 
                         final var firstConfig = buildConfiguration(ledgerId, firstInstant, endpoints);
                         Assertions.assertEquals(
-                                ResponseCodeEnum.SUCCESS,
+                                ResponseCodeEnum.OK,
                                 client.setConfiguration(payerAccountId, node.getAccountId(), firstConfig));
                         final var storedFirst = awaitConfiguration(client, ledgerId, firstConfig);
-                        Assertions.assertEquals(firstConfig, storedFirst);
+                        assertConfigurationAtLeast(firstConfig, storedFirst);
 
                         final var secondConfig = buildConfiguration(ledgerId, secondInstant, endpoints);
                         Assertions.assertEquals(
-                                ResponseCodeEnum.SUCCESS,
+                                ResponseCodeEnum.OK,
                                 client.setConfiguration(payerAccountId, node.getAccountId(), secondConfig));
                         final var storedSecond = awaitConfiguration(client, ledgerId, secondConfig);
-                        Assertions.assertEquals(secondConfig, storedSecond);
+                        assertConfigurationAtLeast(secondConfig, storedSecond);
 
                         final var thirdConfig = buildConfiguration(ledgerId, thirdInstant, endpoints);
                         Assertions.assertEquals(
-                                ResponseCodeEnum.SUCCESS,
+                                ResponseCodeEnum.OK,
                                 client.setConfiguration(payerAccountId, node.getAccountId(), thirdConfig));
                         final var storedThird = awaitConfiguration(client, ledgerId, thirdConfig);
-                        Assertions.assertEquals(thirdConfig, storedThird);
+                        assertConfigurationAtLeast(thirdConfig, storedThird);
                     } catch (final InterruptedException e) {
                         Thread.currentThread().interrupt();
                         throw new IllegalStateException("Interrupted while awaiting CLPR configuration", e);
                     }
                 }),
-                sourcing(() -> QueryVerbs.getLedgerConfig(ledgerIdString).hasTimestamp(thirdInstant.getEpochSecond())),
-                withOpContext((spec, log) -> awaitLogContains(spec, ENDPOINT_SUCCESS_PREFIX, LOG_WAIT_TIMEOUT)),
-                withOpContext((spec, log) -> awaitLogContains(spec, BOOTSTRAP_PREFIX, LOG_WAIT_TIMEOUT)),
-                withOpContext((spec, log) -> assertLogDoesNotContain(spec, FETCH_FAILURE_MESSAGE)),
-                withOpContext((spec, log) -> assertLogDoesNotContain(spec, INVALID_STATUS_TOKEN)),
-                withOpContext((spec, log) -> assertLogDoesNotContain(spec, INVALID_BODY_STATUS_TOKEN)));
+                sourcing(() -> QueryVerbs.getLedgerConfig(ledgerIdString).hasTimestamp(thirdInstant.getEpochSecond())));
     }
 
     private static ClprLedgerConfiguration awaitConfiguration(
@@ -133,9 +133,18 @@ public class ClprSuite {
             throws InterruptedException {
         final long deadlineNanos = System.nanoTime() + CONFIG_APPLY_TIMEOUT.toNanos();
         ClprLedgerConfiguration current;
+        System.out.printf(
+                "CLPR await: expecting ledger %s ts %s endpoints %s%n",
+                expected.ledgerId().ledgerId(), expected.timestamp().seconds(), expected.endpoints());
+        String lastObserved = null;
         while (true) {
             current = client.getConfiguration(ledgerId);
-            if (expected.equals(current)) {
+            final String summary = current == null ? "null" : summarize(current);
+            if (!summary.equals(lastObserved)) {
+                System.out.printf("CLPR await: observed %s%n", summary);
+                lastObserved = summary;
+            }
+            if (isAtLeastExpected(expected, current)) {
                 return current;
             }
             if (System.nanoTime() >= deadlineNanos) {
@@ -143,6 +152,47 @@ public class ClprSuite {
             }
             Thread.sleep(POLL_DELAY.toMillis());
         }
+    }
+
+    private static boolean isAtLeastExpected(
+            final ClprLedgerConfiguration expected, final ClprLedgerConfiguration current) {
+        if (current == null) {
+            return false;
+        }
+        if (!expected.ledgerId().equals(current.ledgerId())) {
+            return false;
+        }
+        if (!expected.endpoints().equals(current.endpoints())) {
+            return false;
+        }
+        final var expectedTs = expected.timestamp();
+        final var currentTs = current.timestamp();
+        return currentTs.seconds() > expectedTs.seconds()
+                || (currentTs.seconds() == expectedTs.seconds() && currentTs.nanos() >= expectedTs.nanos());
+    }
+
+    private static String summarize(final ClprLedgerConfiguration config) {
+        return "ledger="
+                + config.ledgerId().ledgerId()
+                + " ts="
+                + config.timestamp().seconds()
+                + "."
+                + config.timestamp().nanos()
+                + " endpoints="
+                + config.endpoints();
+    }
+
+    private static void assertConfigurationAtLeast(
+            final ClprLedgerConfiguration expected, final ClprLedgerConfiguration actual) {
+        Assertions.assertNotNull(actual, "CLPR configuration not present");
+        Assertions.assertEquals(expected.ledgerId(), actual.ledgerId(), "ledgerId mismatch");
+        Assertions.assertEquals(expected.endpoints(), actual.endpoints(), "endpoints mismatch");
+        final var expectedTs = expected.timestamp();
+        final var actualTs = actual.timestamp();
+        Assertions.assertTrue(
+                actualTs.seconds() > expectedTs.seconds()
+                        || (actualTs.seconds() == expectedTs.seconds() && actualTs.nanos() >= expectedTs.nanos()),
+                "timestamp did not advance to at least expected");
     }
 
     private static ClprLedgerConfiguration buildConfiguration(

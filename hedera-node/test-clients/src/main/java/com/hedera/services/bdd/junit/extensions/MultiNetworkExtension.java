@@ -36,11 +36,15 @@ public class MultiNetworkExtension implements BeforeEachCallback, AfterEachCallb
             ExtensionContext.Namespace.create(MultiNetworkExtension.class);
     private static final String RESOURCES_KEY = "multiNetworks";
     private static final String PARAM_INDEXES_KEY = "networkParameterIndexes";
+    private static final String PRIOR_CLPR_ENABLE_KEY = "priorClprEnable";
     private static final Duration STARTUP_TIMEOUT = Duration.ofMinutes(5);
 
     @Override
     public void beforeEach(@NonNull final ExtensionContext extensionContext) {
         findAnnotation(extensionContext).ifPresent(annotation -> {
+            // Multi-network suites should not start the CLPR service; disable it for the duration of the test.
+            store(extensionContext).put(PRIOR_CLPR_ENABLE_KEY, System.getProperty("clpr.clprEnabled"));
+            System.setProperty("clpr.clprEnabled", "false");
             final var networks = startNetworks(annotation.networks());
             store(extensionContext).put(RESOURCES_KEY, networks);
             store(extensionContext)
@@ -62,6 +66,12 @@ public class MultiNetworkExtension implements BeforeEachCallback, AfterEachCallb
             }
         }
         store(extensionContext).remove(PARAM_INDEXES_KEY);
+        final var priorClprEnable = (String) store(extensionContext).remove(PRIOR_CLPR_ENABLE_KEY);
+        if (priorClprEnable == null) {
+            System.clearProperty("clpr.clprEnabled");
+        } else {
+            System.setProperty("clpr.clprEnabled", priorClprEnable);
+        }
     }
 
     @Override
@@ -106,10 +116,14 @@ public class MultiNetworkExtension implements BeforeEachCallback, AfterEachCallb
         });
 
         final List<SubProcessNetwork> networks = new ArrayList<>();
-        final long shard = getConfigShard();
-        final long realm = getConfigRealm();
         for (final var config : networkConfigs) {
+            final var shard = perNetworkShard(config.name());
+            final var realm = perNetworkRealm(config.name());
             final var network = SubProcessNetwork.newIsolatedNetwork(config.name(), config.size(), shard, realm);
+            // Disable CLPR in multi-network subprocesses to avoid competing CLPR endpoints/ports
+            for (long nodeId = 0; nodeId < config.size(); nodeId++) {
+                network.getApplicationPropertyOverrides().put(nodeId, List.of("clpr.clprEnabled", "false"));
+            }
             networks.add(network);
         }
         try {
@@ -154,6 +168,16 @@ public class MultiNetworkExtension implements BeforeEachCallback, AfterEachCallb
                     "Expected " + expectedNetworks + " HederaNetwork parameters, found " + indexes.size());
         }
         return indexes;
+    }
+
+    private long perNetworkShard(@NonNull final String networkName) {
+        final var override = System.getProperty("hapi.spec.multinet." + networkName + ".shard");
+        return override != null ? Long.parseLong(override) : getConfigShard();
+    }
+
+    private long perNetworkRealm(@NonNull final String networkName) {
+        final var override = System.getProperty("hapi.spec.multinet." + networkName + ".realm");
+        return override != null ? Long.parseLong(override) : getConfigRealm();
     }
 
     private Optional<MultiNetworkHapiTest> findAnnotation(@NonNull final ExtensionContext extensionContext) {

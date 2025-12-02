@@ -945,15 +945,31 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
     private void buildRemoteNetwork() {
         try {
             targetNetwork = RemoteNetworkFactory.newWithTargetFrom(hapiSetup.remoteNodesYmlLoc());
-            hapiSetup.addOverrides(Map.of(
-                    "default.shard", "" + targetNetwork.shard(),
-                    "default.realm", "" + targetNetwork.realm()));
+            applyShardRealmOverrides(targetNetwork.shard(), targetNetwork.realm());
         } catch (Exception ignore) {
             final long shard = HapiPropertySource.getConfigShard();
             final long realm = HapiPropertySource.getConfigRealm();
             targetNetwork = RemoteNetwork.newRemoteNetwork(
                     hapiSetup.nodes(shard, realm), clientsFor(hapiSetup, shard, realm), shard, realm);
+            applyShardRealmOverrides(shard, realm);
         }
+    }
+
+    /**
+     * Aligns the default shard/realm used to construct account IDs with the
+     * shard/realm of the target network, so default node/payer IDs map to an
+     * existing node and corresponding stubs.
+     */
+    private void applyShardRealmOverrides(final long shard, final long realm) {
+        final var shardStr = Long.toString(shard);
+        final var realmStr = Long.toString(realm);
+        hapiSetup.addOverrides(Map.of(
+                "default.shard", shardStr,
+                "default.realm", realmStr,
+                "hapi.spec.default.shard", shardStr,
+                "hapi.spec.default.realm", realmStr));
+        System.setProperty("hapi.spec.default.shard", shardStr);
+        System.setProperty("hapi.spec.default.realm", realmStr);
     }
 
     private void tearDown() {
