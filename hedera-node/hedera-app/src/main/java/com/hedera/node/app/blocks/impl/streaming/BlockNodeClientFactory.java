@@ -3,6 +3,7 @@ package com.hedera.node.app.blocks.impl.streaming;
 
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeConfiguration;
 import com.hedera.pbj.grpc.client.helidon.PbjGrpcClient;
 import com.hedera.pbj.grpc.client.helidon.PbjGrpcClientConfig;
 import com.hedera.pbj.runtime.grpc.ServiceInterface;
@@ -10,7 +11,7 @@ import com.hedera.pbj.runtime.grpc.ServiceInterface.RequestOptions;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import io.helidon.common.tls.Tls;
 import io.helidon.webclient.api.WebClient;
-import io.helidon.webclient.grpc.GrpcClientProtocolConfig;
+import io.helidon.webclient.spi.ProtocolConfig;
 import java.time.Duration;
 import java.util.Optional;
 import org.hiero.block.api.BlockStreamPublishServiceInterface.BlockStreamPublishServiceClient;
@@ -49,14 +50,14 @@ public class BlockNodeClientFactory {
         final Tls tls = Tls.builder().enabled(false).build();
         final PbjGrpcClientConfig pbjConfig =
                 new PbjGrpcClientConfig(timeout, tls, Optional.of(""), "application/grpc");
-        final GrpcClientProtocolConfig grpcClientConfig = GrpcClientProtocolConfig.builder()
-                .abortPollTimeExpired(false)
-                .pollWaitTime(timeout)
-                .build();
+        final ProtocolConfig httpConfig = config.clientHttpConfig().toHttp2ClientProtocolConfig();
+        final ProtocolConfig grpcConfig = config.clientGrpcConfig().toGrpcClientProtocolConfig();
+
         final WebClient webClient = WebClient.builder()
                 .baseUri("http://" + config.address() + ":" + config.port())
                 .tls(tls)
-                .addProtocolConfig(grpcClientConfig)
+                .addProtocolConfig(httpConfig)
+                .addProtocolConfig(grpcConfig)
                 .connectTimeout(timeout)
                 .build();
 
