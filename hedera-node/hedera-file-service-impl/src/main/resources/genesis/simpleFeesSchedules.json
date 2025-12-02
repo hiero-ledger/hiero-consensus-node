@@ -102,7 +102,7 @@
         },
         {
           "name": "ConsensusGetTopicInfo",
-          "baseFee": 0,
+          "baseFee": 1000000,
           "extras": []
         }
       ]

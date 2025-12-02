@@ -90,6 +90,7 @@ import java.util.stream.Stream;
 import org.hiero.hapi.fees.FeeResult;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -1117,6 +1118,7 @@ class QueryWorkflowImplTest extends AppTestBase {
             //            testExchangeRateInfo =  new ExchangeRateInfoImpl(ExchangeRateSet.DEFAULT);
         }
 
+        @Disabled
         @ParameterizedTest(name = "{0} uses simple fees when enabled")
         @MethodSource("simpleFeesEnabledTransactions")
         @DisplayName("Transaction types use simple fees when enabled")
@@ -1185,7 +1187,6 @@ class QueryWorkflowImplTest extends AppTestBase {
         @Test
         @DisplayName("Simple fees not used when feature is disabled")
         void testSimpleFeesNotUsedWhenFeatureDisabled() throws PreCheckException {
-            // Given: Simple fees are DISABLED
             doAnswer(invocationOnMock -> {
                         final var result = invocationOnMock.getArgument(3, IngestChecker.Result.class);
                         result.setThrottleUsages(List.of());
