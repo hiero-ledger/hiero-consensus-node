@@ -31,8 +31,8 @@ import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.token.CryptoAllowance;
 import com.hedera.hapi.node.token.TokenAllowance;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
-import com.hedera.node.app.service.entityid.ReadableEntityCounters;
-import com.hedera.node.app.service.entityid.WritableEntityCounters;
+import com.hedera.node.app.service.entityid.ReadableEntityIdStore;
+import com.hedera.node.app.service.entityid.WritableEntityIdStore;
 import com.hedera.node.app.service.entityid.impl.ReadableEntityIdStoreImpl;
 import com.hedera.node.app.service.entityid.impl.WritableEntityIdStoreImpl;
 import com.hedera.node.app.service.token.ReadableAccountStore;
@@ -197,8 +197,8 @@ public class CryptoHandlerTestBase {
     @Mock(strictness = LENIENT)
     protected WritableStates writableStates;
 
-    protected ReadableEntityCounters readableEntityCounters;
-    protected WritableEntityCounters writableEntityCounters;
+    protected ReadableEntityIdStore readableEntityCounters;
+    protected WritableEntityIdStore writableEntityCounters;
 
     /**
      * Set up the test environment.

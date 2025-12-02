@@ -65,9 +65,9 @@ public class ReadableNodeStoreImpl implements ReadableNodeStore {
     }
 
     /**
-     * Returns the number of topics in the state.
+     * Returns the number of nodes in the state.
      *
-     * @return the number of topics in the state
+     * @return the number of nodes in the state
      */
     public long sizeOfState() {
         return entityIdStore.getCounterFor(EntityType.NODE);
