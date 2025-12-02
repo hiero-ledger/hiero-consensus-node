@@ -29,8 +29,6 @@ import com.hedera.node.app.service.contract.impl.state.StorageAccess;
 import com.hedera.node.app.service.contract.impl.state.StorageAccesses;
 import com.hedera.node.app.service.contract.impl.state.StorageSizeChange;
 import com.hedera.node.app.service.contract.impl.state.WritableEvmHookStore;
-import com.hedera.node.app.service.entityid.EntityIdFactory;
-import com.hedera.node.app.spi.fixtures.ids.FakeEntityIdFactoryImpl;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.util.List;
 import java.util.Set;
@@ -70,14 +68,11 @@ class IterableStorageManagerTest {
     @Mock
     private Account account;
 
-    private final EntityIdFactory entityIdFactory = new FakeEntityIdFactoryImpl(0, 0);
-
     private final IterableStorageManager subject = new IterableStorageManager();
 
     @BeforeEach
     void setUp() {
-        given(enhancement.nativeOperations()).willReturn(hederaNativeOperations);
-        given(hederaNativeOperations.entityIdFactory()).willReturn(entityIdFactory);
+        lenient().when(enhancement.nativeOperations()).thenReturn(hederaNativeOperations);
         lenient().when(hederaNativeOperations.writableEvmHookStore()).thenReturn(writableEvmHookStore);
     }
 
@@ -143,7 +138,6 @@ class IterableStorageManagerTest {
                 .build();
         final var slotKey = new LambdaSlotKey(hookEntity, BYTES_1);
 
-        given(enhancement.nativeOperations()).willReturn(hederaNativeOperations);
         given(enhancement.operations()).willReturn(hederaOperations);
         // Deleting the last slot contract storage for CONTRACT_2
         given(writableEvmHookStore.getSlotValue(slotKey))

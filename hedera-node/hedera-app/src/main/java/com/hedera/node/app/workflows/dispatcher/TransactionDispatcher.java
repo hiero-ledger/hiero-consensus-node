@@ -136,9 +136,22 @@ public class TransactionDispatcher {
         }
 
         return switch (feeContext.body().data().kind()) {
-            case CONSENSUS_CREATE_TOPIC, CONSENSUS_DELETE_TOPIC, CONSENSUS_SUBMIT_MESSAGE, CONSENSUS_UPDATE_TOPIC ->
-                true;
-            case CRYPTO_DELETE, CRYPTO_CREATE_ACCOUNT, SCHEDULE_CREATE, SCHEDULE_SIGN, SCHEDULE_DELETE -> true;
+            case CONSENSUS_CREATE_TOPIC,
+                    CONSENSUS_DELETE_TOPIC,
+                    CONSENSUS_SUBMIT_MESSAGE,
+                    CONSENSUS_UPDATE_TOPIC,
+                    CRYPTO_APPROVE_ALLOWANCE,
+                    CRYPTO_CREATE_ACCOUNT,
+                    CRYPTO_DELETE,
+                    CRYPTO_DELETE_ALLOWANCE,
+                    CRYPTO_UPDATE_ACCOUNT,
+                    SCHEDULE_CREATE,
+                    SCHEDULE_SIGN,
+                    SCHEDULE_DELETE,
+                    FILE_CREATE,
+                    FILE_APPEND,
+                    FILE_UPDATE,
+                    FILE_DELETE -> true;
             default -> false;
         };
     }

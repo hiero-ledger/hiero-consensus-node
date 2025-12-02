@@ -93,6 +93,7 @@ enum Extra {
     GAS=13;
     ALLOWANCES=14;
     AIRDROPS=15;
+    HOOKS=16;
 }
 
 /**
