@@ -36,7 +36,6 @@ public class ConsensusServiceSimpleFeesSuite {
     private static final String PAYER = "payer";
     private static final String ADMIN = "admin";
 
-    @Disabled
     @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
     @DisplayName("compare create topic")
     final Stream<DynamicTest> createTopicPlainComparison() {
@@ -55,7 +54,6 @@ public class ConsensusServiceSimpleFeesSuite {
                 1);
     }
 
-    @Disabled
     @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
     @DisplayName("compare create topic with admin key")
     final Stream<DynamicTest> createTopicWithAdminComparison() {
@@ -76,7 +74,6 @@ public class ConsensusServiceSimpleFeesSuite {
                 1);
     }
 
-    @Disabled
     @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
     @DisplayName("compare create topic with payer as admin key")
     final Stream<DynamicTest> createTopicWithPayerAdminComparison() {
@@ -97,7 +94,6 @@ public class ConsensusServiceSimpleFeesSuite {
                 1);
     }
 
-    @Disabled
     @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
     @DisplayName("compare update topic with admin key")
     final Stream<DynamicTest> updateTopicComparisonWithPayerAdmin() {
@@ -118,7 +114,6 @@ public class ConsensusServiceSimpleFeesSuite {
                 1);
     }
 
-    @Disabled
     @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
     @DisplayName("compare update topic with admin key")
     final Stream<DynamicTest> updateTopicComparisonWithAdmin() {
@@ -149,7 +144,6 @@ public class ConsensusServiceSimpleFeesSuite {
                 1);
     }
 
-    @Disabled
     @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
     @DisplayName("compare submit message with included bytes")
     final Stream<DynamicTest> submitMessageFeeWithIncludedBytesComparison() {
@@ -223,7 +217,6 @@ public class ConsensusServiceSimpleFeesSuite {
                 validateChargedUsdForQueries("getInfo", GET_TOPIC_INFO_BASE_FEE + EXPECTED_CRYPTO_TRANSFER_FEE, 1));
     }
 
-    @Disabled
     @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
     @DisplayName("compare delete topic with admin key")
     final Stream<DynamicTest> deleteTopicPlainComparison() {
