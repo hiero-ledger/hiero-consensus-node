@@ -152,7 +152,7 @@ public class QueryChecker {
                 if (amount < 0 && (account.tinybarBalance()) < -amount) {
                     // FUTURE: Expiry should probably be checked earlier
                     expiryValidation.checkAccountExpiry(account);
-                    throw new InsufficientBalanceException(INSUFFICIENT_PAYER_BALANCE, amount);
+                    throw new InsufficientBalanceException(INSUFFICIENT_PAYER_BALANCE, -amount);
                 }
 
                 // Make sure the node receives enough

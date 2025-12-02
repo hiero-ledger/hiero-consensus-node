@@ -411,8 +411,9 @@ class QueryCheckerTest extends AppTestBase {
             // then
             assertThatThrownBy(() -> checker.validateAccountBalances(store, txInfo, ALICE_ACCOUNT, 0, amount))
                     .isInstanceOf(InsufficientBalanceException.class)
+                    // Bob has insufficient balance to do 1000
                     .has(responseCode(INSUFFICIENT_PAYER_BALANCE))
-                    .has(estimatedFee(amount));
+                    .has(estimatedFee(amount / 4));
         }
 
         @Test

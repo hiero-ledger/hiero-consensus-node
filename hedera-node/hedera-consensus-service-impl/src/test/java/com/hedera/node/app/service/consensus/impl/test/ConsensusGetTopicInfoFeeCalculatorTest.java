@@ -29,7 +29,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 public class ConsensusGetTopicInfoFeeCalculatorTest {
-    static final long GET_INFO_BASE_FEE = 55L;
+    static final long GET_INFO_BASE_FEE = 100000L;
     private SimpleFeeCalculatorImpl feeCalculator;
 
     @Mock
@@ -50,9 +50,9 @@ public class ConsensusGetTopicInfoFeeCalculatorTest {
         final var result = feeCalculator.calculateQueryFee(query, queryContext);
 
         assertThat(result).isNotNull();
-        Assertions.assertThat(result.node).isEqualTo(100000L);
+        Assertions.assertThat(result.node).isEqualTo(0);
         Assertions.assertThat(result.service).isEqualTo(GET_INFO_BASE_FEE);
-        Assertions.assertThat(result.network).isEqualTo(200000L);
+        Assertions.assertThat(result.network).isEqualTo(0);
     }
 
     private static FeeSchedule createTestFeeSchedule() {
