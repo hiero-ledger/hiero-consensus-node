@@ -1,6 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.blocks.impl;
 
+import static com.hedera.node.app.blocks.impl.BlockStateProofGenerator.BLOCK_CONTENTS_PATH_INDEX;
+import static com.hedera.node.app.blocks.impl.BlockStateProofGenerator.EXPECTED_MERKLE_PATH_COUNT;
+import static com.hedera.node.app.blocks.impl.BlockStateProofGenerator.FINAL_MERKLE_PATH_INDEX;
+import static com.hedera.node.app.blocks.impl.BlockStateProofGenerator.FINAL_NEXT_PATH_INDEX;
+import static com.hedera.node.app.blocks.impl.BlockStateProofGenerator.UNSIGNED_BLOCK_SIBLING_COUNT;
 import static com.hedera.node.app.hapi.utils.CommonUtils.noThrowSha384HashOf;
 
 import com.hedera.hapi.block.stream.BlockItem;
@@ -10,6 +15,7 @@ import com.hedera.hapi.block.stream.MerkleSiblingHash;
 import com.hedera.hapi.block.stream.StateProof;
 import com.hedera.hapi.block.stream.TssSignedBlockProof;
 import com.hedera.hapi.node.base.Timestamp;
+import com.hedera.hapi.node.state.blockstream.MerkleLeaf;
 import com.hedera.node.app.blocks.BlockItemWriter;
 import com.hedera.node.internal.network.PendingProof;
 import com.hedera.pbj.runtime.ParseException;
@@ -36,8 +42,8 @@ class BlockStateProofGeneratorTest {
 
     @Test
     void verifyBlockStateProofs() {
-        // Load and verify the pending proofs from resources
-        final var pendingBlocks = loadPendingProofs().stream()
+        // Load and verify the pending proofs from resources (precondition)
+        final var pendingBlockInputs = loadPendingProofs().stream()
                 .map(pp -> new PendingBlock(
                         pp.block(),
                         null,
@@ -48,133 +54,34 @@ class BlockStateProofGeneratorTest {
                         pp.blockTimestamp(),
                         pp.siblingHashesFromPrevBlockRoot().toArray(new MerkleSiblingHash[0])))
                 .toList();
-        verifyLoadedBlocks(pendingBlocks);
-        verifyLoadedProofs(loadExpectedStateProofs());
+        verifyLoadedBlocks(pendingBlockInputs);
+        // Load and verify the expected state proofs from resources (precondition)
+        final var expectedProofs = loadExpectedStateProofs();
+        verifyLoadedProofs(expectedProofs);
 
-        // Generate and verify the proofs
+        // Generate proofs from the test subject and verify they match the expected proofs
         final var pendingBlocksByBlockNum =
-                pendingBlocks.stream().collect(Collectors.toMap(PendingBlock::number, pb -> pb));
+                pendingBlockInputs.stream().collect(Collectors.toMap(PendingBlock::number, pb -> pb));
+
+        final var minBlockNum = pendingBlocksByBlockNum.keySet().stream()
+                .min(Comparator.naturalOrder())
+                .orElseThrow();
         final var latestSignedBlockNum = MAX_BLOCK_NUM;
-        var outerCurrentBlockNum = MIN_INDIRECT_BLOCK_NUM;
-        while (outerCurrentBlockNum < latestSignedBlockNum) {
-            final var currentBlock = pendingBlocksByBlockNum.remove(outerCurrentBlockNum);
+        final var latestSignedBlockTimestamp =
+                pendingBlocksByBlockNum.get(latestSignedBlockNum).blockTimestamp();
 
-            // Generate the state proof
+        for (long blockNum = minBlockNum; blockNum < latestSignedBlockNum; blockNum++) {
+            final var currentBlock = pendingBlocksByBlockNum.remove(blockNum);
+
+            // Generate the actual state proof
             final StateProof result = testSubject.generateStateProof(
-                    currentBlock, latestSignedBlockNum, FINAL_SIGNATURE, pendingBlocksByBlockNum.values().stream());
-
-            // Verify the state proof:
-            // 1. The expected TSS proof should be the 'inner' proof for all produced state proofs
-            Assertions.assertThat(result.signedBlockProof()).isEqualTo(EXPECTED_TSS_PROOF);
-
-            // 2. Verify the Merkle Paths
-            final var paths = result.paths();
-            Assertions.assertThat(paths.size()).isEqualTo(3 * (latestSignedBlockNum - outerCurrentBlockNum));
-            // This timestamp divider is an index into the array of merkle paths that separates the timestamp
-            // paths–listed first–from the other two path types, listed in pairs afterward
-            final var timestampDivider = (int) (latestSignedBlockNum - outerCurrentBlockNum);
-
-            // The depth-first ordering of merkle paths isn't very convenient for computing hashes up the levels of the
-            // tree, so we'll maintain a rearranged ordering conducive to hash computations
-            final var reorderedPaths = new MerklePath[paths.size()];
-            // Calculate the first merkle path (the block timestamp) for all blocks. Since a depth-first order is
-            // required these paths must be listed in reverse-numerical order (i.e. depth 6, 5, 4, etc.)
-            var currentParentPath = paths.size() - 1;
-            var currentBlockNum = latestSignedBlockNum - 1;
-            for (int i = 0; i < timestampDivider; i++) {
-                final var mp1ForBlockX = paths.get(i);
-
-                // 2a. Verify merkle path 1
-                Assertions.assertThat(mp1ForBlockX.hasLeaf()).isTrue();
-                Assertions.assertThat(mp1ForBlockX.leafOrThrow().hasBlockConsensusTimestamp())
-                        .isTrue();
-                Assertions.assertThat(mp1ForBlockX.siblings()).isEmpty();
-                final var expectedTsMp1 = EXPECTED_BLOCK_TIMESTAMPS.get(currentBlockNum);
-                final var expectedMp1Bytes = Timestamp.PROTOBUF.toBytes(expectedTsMp1);
-                final var actualMp1Bytes = mp1ForBlockX.leafOrThrow().blockConsensusTimestampOrThrow();
-                Assertions.assertThat(actualMp1Bytes).isEqualTo(expectedMp1Bytes);
-                final var actualPathIndexMp1 = mp1ForBlockX.nextPathIndex();
-                final var expectedPathIndexMp1 = currentParentPath;
-                Assertions.assertThat(actualPathIndexMp1).isEqualTo(expectedPathIndexMp1);
-
-                // Put merkle path 1 in the re-ordered array
-                final var orderedArrayMp1Index = (int) (3 * (currentBlockNum - outerCurrentBlockNum));
-                reorderedPaths[orderedArrayMp1Index] = mp1ForBlockX;
-
-                currentBlockNum--;
-                currentParentPath -= 2;
-            }
-
-            // Verify merkle paths 2 and 3 for each block
-            var currentInnerBlock = outerCurrentBlockNum;
-            var currentMp2ParentPath = timestampDivider + 1;
-            for (int mp2Index = timestampDivider; mp2Index < paths.size(); mp2Index += 2) {
-                // 2b. Verify the second merkle path (the path to the previous block root's hash)
-                final var currentMp2 = paths.get(mp2Index);
-                Assertions.assertThat(currentMp2.hasLeaf()).isFalse();
-                Assertions.assertThat(currentMp2.hasHash()).isTrue();
-                Assertions.assertThat(currentMp2.siblings()).hasSize(4);
-                final var actualPathIndexMp2 = currentMp2.nextPathIndex();
-                final var expectedPathIndexMp2 = currentMp2ParentPath;
-                Assertions.assertThat(actualPathIndexMp2).isEqualTo(expectedPathIndexMp2);
-
-                // Put merkle path 2 in the re-ordered array
-                final var orderedArrayMp1Index = (int) (3 * (currentInnerBlock - outerCurrentBlockNum));
-                reorderedPaths[orderedArrayMp1Index + 1] = currentMp2;
-
-                // 2c. Verify the third merkle path (the parent of paths 1 and 2, also the block root hash)
-                // mp3's index for block X should be mp1,mp2's next path index
-                final var currentMp3 = paths.get(actualPathIndexMp2);
-
-                // Verify mp3
-                Assertions.assertThat(currentMp3.hasLeaf()).isFalse();
-                Assertions.assertThat(currentMp3.hasHash()).isFalse();
-                Assertions.assertThat(currentMp3.siblings()).isEmpty();
-                // We'll verify the merkle paths further down; just a sanity check here
-                Assertions.assertThat(currentMp3.nextPathIndex()).isGreaterThan(-2);
-
-                // Put merkle path 3 in the re-ordered array
-                reorderedPaths[orderedArrayMp1Index + 2] = currentMp3;
-
-                currentInnerBlock++;
-                currentMp2ParentPath += 2;
-            }
-
-            // Combine the paths to produce the signed block's previous block hash, from the bottom of the block merkle
-            // tree upwards
-            var finalHash = EXPECTED_PREVIOUS_BLOCK_HASHES.get(outerCurrentBlockNum);
-            for (int mp1Index = 0; mp1Index < reorderedPaths.length; mp1Index += 3) {
-                // Each set of three merkle paths represents the paths for a single block
-                final var currentInnerBlockNum = (mp1Index / 3) + outerCurrentBlockNum;
-
-                final var mp1 = reorderedPaths[mp1Index];
-                final var mp2 = reorderedPaths[mp1Index + 1];
-                Assertions.assertThat(mp2.hashOrThrow())
-                        .isEqualTo(EXPECTED_PREVIOUS_BLOCK_HASHES.get(currentInnerBlockNum));
-
-                // The mp2 combined hash should equal the computed hash
-                for (final var sibling : mp2.siblings()) {
-                    finalHash = BlockImplUtils.combine(finalHash, sibling.hash());
-                }
-                // Combine mp1's timestamp with mp2's combined hash
-                final var hashedTs = noThrowSha384HashOf(mp1.leafOrThrow().blockConsensusTimestampOrThrow());
-                finalHash = BlockImplUtils.combine(hashedTs, finalHash);
-
-                Assertions.assertThat(finalHash).isEqualTo(EXPECTED_BLOCK_HASHES.get(currentInnerBlockNum));
-
-                // Verify that the produced state proof matches the expected state proof for this block
-                Assertions.assertThat(result)
-                        .isEqualTo(loadExpectedStateProofs().get(outerCurrentBlockNum));
-            }
-            // 3. The final computed hash should equal the previous block hash for the latest signed block
-            Assertions.assertThat(finalHash).isEqualTo(EXPECTED_BLOCK_HASHES.get(latestSignedBlockNum - 1));
-            Assertions.assertThat(finalHash).isEqualTo(EXPECTED_PREVIOUS_BLOCK_HASHES.get(latestSignedBlockNum));
-
-            // Verify that the last path's index is -1 (signals the end of the proof)
-            Assertions.assertThat(reorderedPaths[reorderedPaths.length - 1].nextPathIndex())
-                    .isEqualTo(-1);
-
-            outerCurrentBlockNum++;
+                    currentBlock,
+                    latestSignedBlockNum,
+                    FINAL_SIGNATURE,
+                    latestSignedBlockTimestamp,
+                    pendingBlocksByBlockNum.values().stream());
+            // Verify the generated proof matches the expected proof
+            Assertions.assertThat(result).isEqualTo(expectedProofs.get(blockNum));
         }
     }
 
@@ -209,6 +116,65 @@ class BlockStateProofGeneratorTest {
         Assertions.assertThat(expectedIndirectProofs.size()).isEqualTo(EXPECTED_NUM_INDIRECT_PROOFS);
         expectedIndirectProofs.values().forEach(sp -> Assertions.assertThat(sp.signedBlockProof())
                 .isEqualTo(EXPECTED_TSS_PROOF));
+
+        // Verify the contents of each expected indirect proof
+        final var min = expectedIndirectProofs.keySet().stream()
+                .min(Comparator.naturalOrder())
+                .orElseThrow();
+        final var max = expectedIndirectProofs.keySet().stream()
+                .max(Comparator.naturalOrder())
+                .orElseThrow();
+        Assertions.assertThat(expectedIndirectProofs.size()).isEqualTo((int) (max - min) + 1);
+        final var expectedTimestamp = EXPECTED_BLOCK_TIMESTAMPS.get(MAX_BLOCK_NUM);
+
+        // Merkle paths 1 and 3 are constant for all proofs, so pre-build them
+        final var expectedTsBytes = Timestamp.PROTOBUF.toBytes(expectedTimestamp);
+        final var expectedMp1 = MerklePath.newBuilder()
+                .leaf(MerkleLeaf.newBuilder().blockConsensusTimestamp(expectedTsBytes))
+                .nextPathIndex(FINAL_MERKLE_PATH_INDEX)
+                .build();
+        final var expectedMp3 =
+                MerklePath.newBuilder().nextPathIndex(FINAL_NEXT_PATH_INDEX).build();
+
+        for (long outerCurrentBlockNum = min; outerCurrentBlockNum <= max; outerCurrentBlockNum++) {
+            System.out.println("Verifying proof for block num: " + outerCurrentBlockNum);
+            final var expectedStateProof = expectedIndirectProofs.get(outerCurrentBlockNum);
+            final var paths = expectedStateProof.paths();
+            Assertions.assertThat(paths.size()).isEqualTo(EXPECTED_MERKLE_PATH_COUNT);
+
+            // Verify mp1
+            Assertions.assertThat(paths.getFirst()).isEqualTo(expectedMp1);
+
+            // Verify all the sibling hashes in mp2
+            final var allMp2Hashes = paths.get(BLOCK_CONTENTS_PATH_INDEX).siblings();
+
+            var finalHash = EXPECTED_PREVIOUS_BLOCK_HASHES.get(outerCurrentBlockNum);
+            for (int i = 0; i < allMp2Hashes.size(); i++) {
+                if (i % UNSIGNED_BLOCK_SIBLING_COUNT == 0) {
+                    // Verify the hash so far against the expected previous block hash
+                    final var key = ((long) i / (long) UNSIGNED_BLOCK_SIBLING_COUNT) + outerCurrentBlockNum;
+                    final var expectedHash = EXPECTED_PREVIOUS_BLOCK_HASHES.get(key);
+                    Assertions.assertThat(finalHash).isEqualTo(expectedHash);
+                }
+
+                final var currentSibling = allMp2Hashes.get(i);
+                if (currentSibling.isLeft()) {
+                    finalHash = BlockImplUtils.combine(currentSibling.hash(), finalHash);
+                } else {
+                    finalHash = BlockImplUtils.combine(finalHash, currentSibling.hash());
+                }
+            }
+
+            // Combine the hash with the signed block's timestamp to verify the complete path to the signed block root
+            // hash
+            finalHash = BlockImplUtils.combine(noThrowSha384HashOf(expectedTsBytes), finalHash);
+            Assertions.assertThat(finalHash).isEqualTo(EXPECTED_BLOCK_HASHES.get(MAX_BLOCK_NUM));
+
+            // Verify mp3
+            Assertions.assertThat(paths.getLast()).isEqualTo(expectedMp3);
+
+            System.out.println("Finished verifying state proof for block " + outerCurrentBlockNum);
+        }
     }
 
     private List<PendingProof> loadPendingProofs() {
@@ -270,58 +236,98 @@ class BlockStateProofGeneratorTest {
 
     private static final int EXPECTED_NUM_INDIRECT_PROOFS = 5;
     private static final Bytes FINAL_SIGNATURE = Bytes.fromHex(
-            "ddc656d5bd85ca85ec3efd403421505352a2aa46f12f9dfd34abe4276529096f555492bdff46b4b703dced92db0c5a22");
-    private static final Bytes FIRST_EXPECTED_PREVIOUS_BLOCK_HASH = Bytes.fromHex(
-            "27130540fdaefd0f2ca260e14977feaa65e3f0a7d4fe8ef41b98fdb8270777059686935749cfcf772756e177fe3905c3");
+            "0bc4da96b97bc427f83cee9dd4e913b552c9b3ae13257112094551059d8f480ebfba086103f0d85e6a69827117d341981103"
+                    + "8c5ad9cfea3fad92b8a5f21809d2955044684c3293f3bf2b26b5a5c12d3c289e9f6abbff93b9a17ce37617a9b02903000"
+                    + "00000000000000000000000000000000000000000000000000000000000129ab62bfdc0a1c934a3d0db03e66398cec6973"
+                    + "07995e5246837ab52e6a563d7805d7362bdf2c118e6464c06d22989b50a612bbe7b3567e10025e52c9e4c2b17e6c477c74"
+                    + "663505bce399828f62456cd96922dc51ad9af417c4b52e6c8536cbb0d1d228ce8a355be6d151caae131cd8ee750b3209c0"
+                    + "63e0239d4c1e4f68962f32a6708a5fe697ec50d6b8c73ab18169e0c474220ec7b405f0ebd0dea8ad294bde9487eb5f38e7"
+                    + "289aa0ad7af5193367bd3a227b8b6052c56e6afe0f4b1ce147b1128af06a79e5e903702d162d94dced0f39107ad1484afa"
+                    + "54c995d7a8bd760cf7e423def7810264854df51ce6ebfd2700b87d1add8ab3c64babd5bf637e8b439a7d780da999c3c40d"
+                    + "42bda5cb1514315b4b909d0bece826dd61d210f73f76721008981a701b8b432c883bc7251f656849eb5d40ea0416846129"
+                    + "2913577000d2c7d1dd9c886d5293fa8583fffb7c0cabe04a59d3c360704ae9b32153562ebdeb455ef0c52c2ffdfa3faa4a"
+                    + "c5a68f80edcba14ef5e9c4b9dbfbb48d9dfe10a9cc21187741f5a66928702dadc848b40e2bb0ad77b597335301b13c41fa"
+                    + "f2c7469a5814a0307d077af99e32790a720038d3307edb7fba153b85ed1db9b92c20040bb388ce2d6d4359bf03b7050653"
+                    + "ee38b9901ae06d4aaa4d521e0112077e6e9b1770b373e2bcd67206564924bb33069943a271fafbedd6d1b02ec41ed889ba"
+                    + "5c61c9f0e1b691c9507cf192f714d69e039c3120b14e7d268dc2a353d6369904cae5b7c188d346a9105e4d5729b51a6596"
+                    + "6976f880bd15beb2061444510d136854e8c0612f87e01ea7d2dee2f09a6ebf378de787a9cbe554132187eaaec453ef882d"
+                    + "a99cfa783a3917d1e65d362f6953aaf0311657ad55cc7cec4d2c774f2c68bbb3f8fd66d7c1d794ab189f8fae5542bc2ea2"
+                    + "a609542753338d7726cc0496eba1aed0423f641bf99cd7cc3e8b18a26a415dd17fc2934b414004e72501cd92f083613e73"
+                    + "1e36ca2c54b32cf8dc60ba3855f0f0e3f227abe77cf896291e9389f866119ce1430193d745c7d9eebf4e809447be6a91a3"
+                    + "6de9118ef71e7acfc85b9639831142e670940eb6d7597935b4c7d3013cb73a529895ebab82a378fb3659c67c992dd81dce"
+                    + "b3a5156ff4f6c7bb0c08da31819f6ddfcd234e5aa9b789d8a7d4166bde12abe78a5d5ba7e72580fed3b0cc3c6afba516b5"
+                    + "d660b3cfa30f714f447479d14d464483990ddbc3335cb8657ab81b4a579a7114c6b7ab16e3de819bf90982976bc48b412c"
+                    + "d7950c4a2cf2b29960713185f8274cbb1a4f5a309b269d0f352a1186acd2d79f5b0302cbfc8327ee83da52c6c87e809cb9"
+                    + "ad429bd698378c0473516cf7ad6be057e13a280e3ee056011b50f670228661869df1da5029a521501620c12ee7c1a9472c"
+                    + "d2e05fdf22756bb690670bba190adc57142e1dcadac3074a1b81fa64dfdf6c0b8ee469450b1c7cc6171282c2613a3c2e58"
+                    + "398d35aa1bd8a690677226c69d32930a03e1cb57592e4fa16ed4346e006d6bf0dbc4bb16e489828507e6f4c441ec2d17fb"
+                    + "29364e7d5c56d028a05aa85e7ec00227f5657f6b00544f046a142690ddb56c4a2253c25f2f8a3c5ed38bde1f996cf63257"
+                    + "25ba755b37e0dee8ba55beb32c155dbd98457b4d1cbed58b36705857b3921f4654b840025804d1ef6f3cb30ce905531b0b"
+                    + "abc7d0f47023afbae873bc8073823e38c1408617851b0579bef2660d7ad6cc28bb8aa317e789ce7eaf1b9a702f14f87165"
+                    + "6d2a2aef73c0ae0b26a359c99fc77ce79fa0fbdaed923c650dc904ec0458c624e824a131cb379214b29def7c17c32139f7"
+                    + "79559482af72707a17477a3760898cf57bc36acf10560a9113009f7dc5674f9fd97822003567cca4a50fa87c4dd02ae863"
+                    + "028d07c1409c731f8bead0dd78053038812f37fd1f36fb1f96434d48ca148e21b55d24a913d5c46958a909ef7d6becccc1"
+                    + "4ad47376de5d6e47e9fc366c7acae855a8d98f9e08052e55687de5ef0421316d48d70d53ea34ce5080eb0cedf8e95975d2"
+                    + "eefb629a01a636206b797b8515764bbda54d5acb4daf54192e1c4e3165be31bc325f9ed2dc9d52342d8abfed0199e343d7"
+                    + "888f162394ace1955f1e8d77ed429");
 
-    private static final long MIN_INDIRECT_BLOCK_NUM = 2L;
-    private static final long MAX_BLOCK_NUM = 7L; // Includes the final signed block
+    private static final Bytes FIRST_EXPECTED_PREVIOUS_BLOCK_HASH = Bytes.fromHex(
+            "000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000");
+
+    private static final long MIN_INDIRECT_BLOCK_NUM = 0L;
+    private static final long MAX_BLOCK_NUM = 5L; // Includes the final pending (signed) block
 
     private static final Bytes[] EXPECTED_FIRST_SIBLING_HASHES = new Bytes[] {
         Bytes.fromHex(
-                "126ba71c5677f64add52bd1927f211b570c6ae7e8c83a448b5c6f146a54979246a7bf15d5d4bafcceb734b851234a0ec"),
+                "bbed42a5f3fb8e40e65aaf7759fe54b4021f70f09bbb80d6f8cb06aea4205b378942f934c1e503ce091d61166faefb75"),
         Bytes.fromHex(
-                "60766f786795ffe6520900453bae101b3b00d5d022c7ab87b1aac85604ed19139545932ea1aa6746a7cdf84597b68880"),
+                "6199a043880abc6ef9eeb902da022fe6abd030e2b5399946d2dc0f1422a0afa25bca7b1f18adf24267ba98c3e54dc09b"),
         Bytes.fromHex(
-                "8c6764676177659a408e4db46f89cdbd2c6512ca45ea28a6b1b30c5e52756652ca08bc4d3126ca53f4e2e22036472e7f"),
+                "120a49dde42e7fc28e9fe433ef7516c4df26fbe1ab2f53f689691914a9beec2a50efe2ec3fbf5331777e2b695f15e690"),
         Bytes.fromHex(
                 "94a6494ce6e4879af2a4ee4c7cd8185ce89c405cecdd4945483b3763fc7b184590db9a7bc6cbd9187fc277a1adb70cca")
     };
+
     private static final Map<Long, Timestamp> EXPECTED_BLOCK_TIMESTAMPS = Map.of(
+            0L,
+            Timestamp.newBuilder().seconds(1764666633).nanos(132318000).build(),
+            1L,
+            Timestamp.newBuilder().seconds(1764666645).nanos(540871000).build(),
             2L,
-            Timestamp.newBuilder().seconds(1719230752).nanos(487328000).build(),
+            Timestamp.newBuilder().seconds(1764666646).nanos(621441000).build(),
             3L,
-            Timestamp.newBuilder().seconds(1719230757).nanos(487328000).build(),
+            Timestamp.newBuilder().seconds(1764666647).nanos(830783000).build(),
             4L,
-            Timestamp.newBuilder().seconds(1719230765).nanos(487328000).build(),
+            Timestamp.newBuilder().seconds(1764666648).nanos(921637000).build(),
             5L,
-            Timestamp.newBuilder().seconds(1719230773).nanos(487328000).build(),
-            6L,
-            Timestamp.newBuilder().seconds(1719230781).nanos(487328000).build());
+            Timestamp.newBuilder().seconds(1764666650).nanos(3000000).build());
     private static final TssSignedBlockProof EXPECTED_TSS_PROOF =
             TssSignedBlockProof.newBuilder().blockSignature(FINAL_SIGNATURE).build();
     private static final Map<Long, Bytes> EXPECTED_BLOCK_HASHES = Map.of(
+            0L,
+            Bytes.fromHex(
+                    "a6bcb27fb5a674ccd24f0cbcba7a8797974c82cb5a327e8c1ae8062f1bf42da98597440601d0df8b07611a0a746a961f"),
+            1L,
+            Bytes.fromHex(
+                    "bfa29cd810527452446ee936486f2f22d3b8873fdf588e11d05817198e6ffebdaf76dc770ea05ea7d0af741f441b520d"),
             2L,
             Bytes.fromHex(
-                    "5419e2857101ec86ed9f3459d56c6f9b98f84d30d4dd4e75d1f301450699d29f844eb77790901eecfa1536794ec368d5"),
+                    "7339504fd6176f49170649c5e562869013639549601ffb8ced63ef44abc3869908172825dbf78f28b502449a8dde5866"),
             3L,
             Bytes.fromHex(
-                    "fe4eaaa95fb97fed8c85809ecd2b065ba34de2d20a630409589bbc60e9fe846963a3d16de14d4cc15e8cbe4d7445f54a"),
+                    "cfd9b383dde5fa601960de259fe2f1a9e2fc56e741296fda556363d59721d138d09bdaf3f00dff0b62fe522af8b05fff"),
             4L,
             Bytes.fromHex(
-                    "b43ffbc025d8239612d9f32cbabf22a6a5ccaaa238a5accb3f8e7822e3521912a52399d5c689eeab03d967aadc7ba900"),
+                    "772ee52d9a6de5cdad8292741a8d59433c546734584b5feec9a27ac88627e986cbe5491d1558bae3d814d6c9a9ecaef1"),
             5L,
             Bytes.fromHex(
-                    "fa95d7a087a338ea8573100bc269f152fcf05122fe1ffcd7fe265e74eb7356bc91296d029d68b0a65a54259a7a9ac96d"),
-            6L,
-            Bytes.fromHex(
-                    "b241ee40d60fcee871a257ef9cac7eadeeba4ddbe156006ee9e893dffdbba821241529263213757370c0a342369e32f7"));
+                    "64e3ed04312dc2d2bc68824e56529b121f768ef733b3c36b4caa5c34edf0b608a23cda0cbb7d2599204916af69d6ff5b"));
     private static final Map<Long, Bytes> EXPECTED_PREVIOUS_BLOCK_HASHES;
 
     static {
         final var previousBlockHashesByBlock = new HashMap<Long, Bytes>();
         EXPECTED_BLOCK_HASHES.keySet().forEach(k -> {
-            if (k == 2L) {
+            if (k == 0L) {
                 previousBlockHashesByBlock.put(k, FIRST_EXPECTED_PREVIOUS_BLOCK_HASH);
             } else {
                 previousBlockHashesByBlock.put(k, EXPECTED_BLOCK_HASHES.get(k - 1));

@@ -763,7 +763,7 @@ public class StateChangesValidator implements BlockStreamValidator {
 
             if (indirectProofsNeedVerification()) {
                 logger.info("Verifying contiguous indirect proofs prior to block {}", blockNumber);
-                indirectProofSeq.endOfSequence(proof);
+                indirectProofSeq.endOfSequence(blockTimestamp, proof);
                 indirectProofSeq.verify();
                 indirectProofSeq = null; // Clear out the indirect proof sequence after verification
             }

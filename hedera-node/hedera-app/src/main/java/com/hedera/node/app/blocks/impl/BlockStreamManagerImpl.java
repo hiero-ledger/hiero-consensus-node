@@ -762,17 +762,19 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             @Nullable final Bytes verificationKey,
             @Nullable final ChainOfTrustProof chainOfTrustProof) {
         // Find the block whose hash is the signed message
-        long blockNumber = Long.MIN_VALUE;
+        PendingBlock signedBlock = null;
         for (final var block : pendingBlocks) {
             if (block.blockHash().equals(blockHash)) {
-                blockNumber = block.number();
+                signedBlock = block;
                 break;
             }
         }
-        if (blockNumber == Long.MIN_VALUE) {
+        if (signedBlock == null) {
             log.debug("Ignoring signature on already proven block hash '{}'", blockHash);
             return;
         }
+        final long blockNumber = signedBlock.number();
+
         // Write proofs for all pending blocks up to and including the signed block number
         final var latestSignedBlockProof =
                 TssSignedBlockProof.newBuilder().blockSignature(blockSignature).build();
@@ -791,13 +793,13 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                         currentPendingBlock,
                         blockNumber,
                         blockSignature,
+                        signedBlock.blockTimestamp(),
                         // Pass the remaining pending blocks, but don't remove them from the queue
                         pendingBlocks.stream());
                 proof = currentPendingBlock.proofBuilder().blockStateProof(stateProof);
 
-                // The first mp2 instance from the state proof has this block's sibling hashes
-                final var firstMp2Index = stateProof.paths().size() / 3;
-                final var firstMp2Path = stateProof.paths().get(firstMp2Index);
+                // The mp2 instance from the state proof has this block's sibling hashes
+                final var firstMp2Path = stateProof.paths().get(BlockStateProofGenerator.BLOCK_CONTENTS_PATH_INDEX);
                 proof.siblingHashes(firstMp2Path.siblings().stream()
                         .map(sib -> MerkleSiblingHash.newBuilder()
                                 .siblingHash(sib.hash())

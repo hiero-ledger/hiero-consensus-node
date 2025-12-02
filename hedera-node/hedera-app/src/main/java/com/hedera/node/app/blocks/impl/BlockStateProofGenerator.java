@@ -7,7 +7,9 @@ import com.hedera.hapi.block.stream.StateProof;
 import com.hedera.hapi.block.stream.TssSignedBlockProof;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.blockstream.MerkleLeaf;
+import com.hedera.node.app.hapi.utils.CommonUtils;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.state.SiblingHash;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Arrays;
 import java.util.Map;
@@ -15,6 +17,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.commons.lang3.stream.Streams;
+import org.hiero.base.crypto.Hash;
 
 /**
  * Generator for state proofs used in indirect block proofs.
@@ -22,6 +25,24 @@ import org.apache.commons.lang3.stream.Streams;
  * blocks that precede the latest signed block.
  */
 public class BlockStateProofGenerator {
+
+    public static final int UNSIGNED_BLOCK_SIBLING_COUNT = 5;
+    public static final int SIGNED_BLOCK_SIBLING_COUNT = 4;
+
+    public static final int EXPECTED_MERKLE_PATH_COUNT = 3;
+
+    /**
+     *
+     */
+    public static final int BLOCK_CONTENTS_PATH_INDEX = 1;
+    /**
+     *
+     */
+    public static final int FINAL_MERKLE_PATH_INDEX = 2;
+    /**
+     *
+     */
+    public static final int FINAL_NEXT_PATH_INDEX = -1;
 
     /**
      * Constructs a state proof for a block that precedes the latest signed block. This involves creating merkle
@@ -39,81 +60,89 @@ public class BlockStateProofGenerator {
             @NonNull final PendingBlock currentPendingBlock,
             final long latestSignedBlockNumber,
             final Bytes latestSignedBlockSignature,
+            final Timestamp latestSignedBlockTimestamp,
             @NonNull final Stream<PendingBlock> remainingPendingBlocks) {
 
-        // Construct the necessary merkle paths for all blocks from [current, blockNumber - 1].
-        // This makes it necessary to read each pending block, but not dequeue them
-        // The current pending block was already POLLed off the pending blocks queue, so combine it in a stream
-        // with all the other pending blocks still in the queue. Note that the resulting structure does NOT include
-        // the next signed pending block
-        final Map<Long, PendingBlock> indirectProofBlocks =
-                // Join the current pending block with the remaining pending blocks
-                Streams.of(Stream.of(currentPendingBlock), remainingPendingBlocks)
-                        .flatMap(s -> s)
-                        .filter(pb -> pb.number() < latestSignedBlockNumber)
-                        .collect(Collectors.toMap(PendingBlock::number, Function.identity()));
+        // Construct the necessary merkle paths for all blocks from [current, blockNumber - 1]. This makes it necessary
+        // to read each pending block, but not dequeue them. The current pending block was already polled from the
+        // pending blocks queue, so combine it in a stream with all the other pending blocks still in the queue.
+        final Map<Long, PendingBlock> allPendingBlocks = Streams.of(
+                        Stream.of(currentPendingBlock), remainingPendingBlocks)
+                .flatMap(s -> s)
+                .collect(Collectors.toMap(PendingBlock::number, Function.identity()));
+
+        final Map<Long, PendingBlock> indirectProofBlocks = allPendingBlocks.entrySet().stream()
+                .filter(e -> e.getKey() < latestSignedBlockNumber)
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
         // Construct all merkle paths for each pending block between [currentPendingBlock.number(),
         // latestSignedBlockNumber - 1]
-        final MerklePath[] proofPaths =
-                new MerklePath[3 * ((int) (latestSignedBlockNumber - currentPendingBlock.number()))];
+
+        // Merkle Path 1: construct the block timestamp path
+        final var tsBytes = Timestamp.PROTOBUF.toBytes(latestSignedBlockTimestamp);
+        final var tsLeaf =
+                MerkleLeaf.newBuilder().blockConsensusTimestamp(tsBytes).build();
+        final var mp1 = MerklePath.newBuilder().leaf(tsLeaf).nextPathIndex(FINAL_MERKLE_PATH_INDEX);
+
+        // Merkle Path 2: enumerate all sibling hashes for all remaining blocks
+        MerklePath.Builder mp2 = MerklePath.newBuilder()
+                .hash(currentPendingBlock.previousBlockHash())
+                .nextPathIndex(FINAL_MERKLE_PATH_INDEX);
+
+        // Create a set of siblings for each indirect block, plus another set for the signed block
+        final var totalSiblings =
+                (indirectProofBlocks.size() * UNSIGNED_BLOCK_SIBLING_COUNT) + SIGNED_BLOCK_SIBLING_COUNT;
+        final SiblingNode[] allSiblingHashes = new SiblingNode[totalSiblings];
         final long minBlockNum = currentPendingBlock.number();
-        final int timestampDivider = (int) (latestSignedBlockNumber - minBlockNum);
-
-        // Merkle Path 1: the block timestamp paths
-        var currentParentPath = proofPaths.length - 1;
-        var currentBlockNum = latestSignedBlockNumber - 1;
-        for (int i = 0; i < timestampDivider; i++) {
-            final var innerBlock = indirectProofBlocks.get(currentBlockNum);
-            final var timestampBytes = Timestamp.PROTOBUF.toBytes(innerBlock.blockTimestamp());
-            final var mp1 = MerklePath.newBuilder()
-                    .leaf(MerkleLeaf.newBuilder()
-                            .blockConsensusTimestamp(timestampBytes)
-                            .build())
-                    .nextPathIndex(currentParentPath)
-                    .build();
-            proofPaths[i] = mp1;
-
-            currentBlockNum--;
-            currentParentPath -= 2;
-        }
-
-        // Construct all Merkle Path 2's and 3's
-        var currentInnerBlock = minBlockNum;
-        var currentParentPathMp2 = timestampDivider + 1;
-        for (int i = timestampDivider; i < proofPaths.length; i += 2) {
-            final var currentIndirectBlock = indirectProofBlocks.get(currentInnerBlock);
-            if (currentIndirectBlock == null) {
-                throw new IllegalStateException("Missing (contiguous) pending block for block " + currentInnerBlock);
+        var currentBlockNum = minBlockNum;
+        for (int i = 0; i < indirectProofBlocks.size(); i++) {
+            // Convert first four sibling hashes
+            final var blockSiblings = Arrays.stream(
+                            indirectProofBlocks.get(currentBlockNum).siblingHashes())
+                    .map(s -> new SiblingHash(!s.isFirst(), new Hash(s.siblingHash())))
+                    .toList();
+            // Copy into the sibling hashes array
+            final var firstSiblingIndex = i * UNSIGNED_BLOCK_SIBLING_COUNT;
+            for (int j = 0; j < blockSiblings.size(); j++) {
+                final var blockSibling = blockSiblings.get(j);
+                allSiblingHashes[firstSiblingIndex + j] = SiblingNode.newBuilder()
+                        .isLeft(!blockSibling.isRight())
+                        .hash(blockSibling.hash().getBytes())
+                        .build();
+                ;
             }
 
-            // Merkle Path 2:
-            final var mp2 = MerklePath.newBuilder()
-                    .hash(currentIndirectBlock.previousBlockHash())
-                    .siblings(Arrays.stream(currentIndirectBlock.siblingHashes())
-                            .map(s -> SiblingNode.newBuilder()
-                                    .isLeft(false)
-                                    .hash(s.siblingHash())
-                                    .build())
-                            .toList())
-                    // Point to the same parent as the timestamp path since that's the join point for both
-                    .nextPathIndex(currentParentPathMp2)
-                    .build();
-            proofPaths[i] = mp2;
+            // Convert this pending block's timestamp into a sibling hash
+            final var pbTsBytes = CommonUtils.noThrowSha384HashOf(Timestamp.PROTOBUF.toBytes(
+                    indirectProofBlocks.get(currentBlockNum).blockTimestamp()));
+            // Add to the sibling hashes array
+            final var pendingBlockTimestampSiblingIndex = firstSiblingIndex + UNSIGNED_BLOCK_SIBLING_COUNT - 1;
+            // Timestamp is always a left sibling
+            allSiblingHashes[pendingBlockTimestampSiblingIndex] =
+                    SiblingNode.newBuilder().isLeft(true).hash(pbTsBytes).build();
 
-            // Merkle Path 3: subroot of mp1 and mp2 that points to the next hashing path
-            final var nextPathIndex3 =
-                    (currentIndirectBlock.number() == latestSignedBlockNumber - 1) ? -1 : currentParentPathMp2 + 1;
-            final var mp3 =
-                    MerklePath.newBuilder().nextPathIndex(nextPathIndex3).build();
-            proofPaths[i + 1] = mp3;
-
-            currentInnerBlock++;
-            currentParentPathMp2 += 2;
+            currentBlockNum++;
         }
 
+        // Merkle Path 2 Continued: add sibling hashes for the signed block
+        // Note: the timestamp for this (signed) block was provided in Merkle Path 1 above
+        final var signedBlock = allPendingBlocks.get(latestSignedBlockNumber);
+        final var signedBlockSiblings = signedBlock.siblingHashes();
+        final var signedBlockFirstSiblingIndex = indirectProofBlocks.size() * UNSIGNED_BLOCK_SIBLING_COUNT;
+        for (int i = 0; i < signedBlockSiblings.length; i++) {
+            final var blockSibling = signedBlockSiblings[i];
+            allSiblingHashes[signedBlockFirstSiblingIndex + i] = SiblingNode.newBuilder()
+                    .isLeft(blockSibling.isFirst())
+                    .hash(blockSibling.siblingHash())
+                    .build();
+        }
+        mp2.siblings(Arrays.stream(allSiblingHashes).toList());
+
+        // Merkle Path 3: the parent/block root path
+        final var mp3 = MerklePath.newBuilder().nextPathIndex(FINAL_NEXT_PATH_INDEX);
+
         return StateProof.newBuilder()
-                .paths(proofPaths)
+                .paths(mp1.build(), mp2.build(), mp3.build())
                 .signedBlockProof(TssSignedBlockProof.newBuilder().blockSignature(latestSignedBlockSignature))
                 .build();
     }
