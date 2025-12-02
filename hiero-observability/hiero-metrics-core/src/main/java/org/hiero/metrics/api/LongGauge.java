@@ -92,8 +92,19 @@ public interface LongGauge extends StatefulMetric<LongSupplier, LongGaugeDataPoi
         }
 
         /**
-         * Set the aggregation operator to {@code max} and initial value to {@link Long#MIN_VALUE},
-         * which won't be exported if not observed at least once.
+         * Set the aggregation operator to {@code sum}.
+         * Default initial value for newly created datapoint is {@code 0L}.
+         * The gauge will be reset to its initial value after each export.
+         *
+         * @return this builder
+         */
+        public Builder withSumOperator() {
+            return withOperator(StatUtils.LONG_SUM, true).withInitValue(0L);
+        }
+
+        /**
+         * Set the aggregation operator to {@code max}.
+         * Default initial value for newly created datapoint is {@link Long#MIN_VALUE}.
          * The gauge will be reset to its initial value after each export.
          *
          * @return this builder
@@ -103,8 +114,8 @@ public interface LongGauge extends StatefulMetric<LongSupplier, LongGaugeDataPoi
         }
 
         /**
-         * Set the aggregation operator to {@code min} and initial value to {@link Long#MAX_VALUE},
-         * which won't be exported if not observed at least once.
+         * Set the aggregation operator to {@code min}.
+         * Default initial value for newly created datapoint is {@link Long#MAX_VALUE}.
          * The gauge will be reset to its initial value after each export.
          *
          * @return this builder

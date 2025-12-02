@@ -15,7 +15,7 @@ import org.hiero.metrics.api.export.MetricsExportException;
 import org.hiero.metrics.api.export.MetricsExporter;
 import org.hiero.metrics.api.export.PullingMetricsExporter;
 import org.hiero.metrics.api.export.PushingMetricsExporter;
-import org.hiero.metrics.api.export.snapshot.MetricsSnapshot;
+import org.hiero.metrics.api.export.snapshot.MetricsCollectionSnapshot;
 import org.hiero.metrics.api.utils.Unit;
 
 /**
@@ -39,7 +39,8 @@ public final class DefaultMetricsExportManager extends AbstractMetricsExportMana
     private final List<PullingMetricsExporter> pullingExporters;
     private final List<PushingMetricsExporter> pushingExporters;
 
-    private final AtomicReference<Optional<MetricsSnapshot>> snapshotHolder = new AtomicReference<>(Optional.empty());
+    private final AtomicReference<Optional<MetricsCollectionSnapshot>> snapshotHolder =
+            new AtomicReference<>(Optional.empty());
 
     private volatile ScheduledFuture<?> scheduledExportFuture;
 
@@ -140,14 +141,14 @@ public final class DefaultMetricsExportManager extends AbstractMetricsExportMana
 
         @Override
         public void run() {
-            final Optional<MetricsSnapshot> snapshotOptional = takeSnapshot();
+            final Optional<MetricsCollectionSnapshot> snapshotOptional = takeSnapshot();
             snapshotHolder.set(snapshotOptional);
 
             if (snapshotOptional.isEmpty() || pushingExporters.isEmpty()) {
                 return;
             }
 
-            final MetricsSnapshot snapshot = snapshotOptional.get();
+            final MetricsCollectionSnapshot snapshot = snapshotOptional.get();
             for (PushingMetricsExporter pushingExporter : pushingExporters) {
                 final long startTime = System.currentTimeMillis();
                 try {

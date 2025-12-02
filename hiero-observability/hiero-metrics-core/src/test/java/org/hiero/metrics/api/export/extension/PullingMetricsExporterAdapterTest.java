@@ -7,7 +7,7 @@ import static org.mockito.Mockito.mock;
 
 import java.io.IOException;
 import java.util.Optional;
-import org.hiero.metrics.api.export.snapshot.MetricsSnapshot;
+import org.hiero.metrics.api.export.snapshot.MetricsCollectionSnapshot;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -49,8 +49,8 @@ public class PullingMetricsExporterAdapterTest {
 
     @Test
     void testGetSnapshotAfterSetSnapshotProvider() {
-        MetricsSnapshot snapshot1 = mock(MetricsSnapshot.class);
-        MetricsSnapshot snapshot2 = mock(MetricsSnapshot.class);
+        MetricsCollectionSnapshot snapshot1 = mock(MetricsCollectionSnapshot.class);
+        MetricsCollectionSnapshot snapshot2 = mock(MetricsCollectionSnapshot.class);
 
         exporter.setSnapshotProvider(() -> Optional.of(snapshot1));
         assertThat(exporter.getSnapshot()).contains(snapshot1);
@@ -61,7 +61,7 @@ public class PullingMetricsExporterAdapterTest {
 
     @Test
     void testClose() throws IOException {
-        MetricsSnapshot snapshot = mock(MetricsSnapshot.class);
+        MetricsCollectionSnapshot snapshot = mock(MetricsCollectionSnapshot.class);
         exporter.setSnapshotProvider(() -> Optional.of(snapshot));
 
         assertThat(exporter.getSnapshot()).contains(snapshot);

@@ -8,7 +8,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.metrics.api.core.MetricRegistry;
 import org.hiero.metrics.api.export.MetricsExportManager;
-import org.hiero.metrics.api.export.snapshot.MetricsSnapshot;
+import org.hiero.metrics.api.export.snapshot.MetricsCollectionSnapshot;
 import org.hiero.metrics.internal.export.snapshot.UpdatableMetricRegistrySnapshot;
 
 /**
@@ -37,7 +37,7 @@ public abstract class AbstractMetricsExportManager implements MetricsExportManag
     }
 
     @NonNull
-    protected final synchronized Optional<MetricsSnapshot> takeSnapshot() {
+    protected final synchronized Optional<MetricsCollectionSnapshot> takeSnapshot() {
         return Optional.of(snapshot.update());
     }
 

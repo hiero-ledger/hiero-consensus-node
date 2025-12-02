@@ -13,7 +13,7 @@ import java.io.IOException;
 import java.io.OutputStream;
 import org.hiero.metrics.api.export.MetricsExportException;
 import org.hiero.metrics.api.export.extension.writer.MetricsSnapshotsWriter;
-import org.hiero.metrics.api.export.snapshot.MetricsSnapshot;
+import org.hiero.metrics.api.export.snapshot.MetricsCollectionSnapshot;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -45,7 +45,7 @@ public class PushingMetricsExporterWriterAdapterTest {
     @Test
     void testWriterThrowsIOException() throws IOException {
         IOException ioException = new IOException("test IO exception");
-        MetricsSnapshot snapshot = mock(MetricsSnapshot.class);
+        MetricsCollectionSnapshot snapshot = mock(MetricsCollectionSnapshot.class);
         MetricsSnapshotsWriter writer = mock(MetricsSnapshotsWriter.class);
         TestAdapter adapter = new TestAdapter("test", writer);
 
@@ -59,7 +59,7 @@ public class PushingMetricsExporterWriterAdapterTest {
 
     @Test
     void testWriter() throws MetricsExportException, IOException {
-        MetricsSnapshot snapshot = mock(MetricsSnapshot.class);
+        MetricsCollectionSnapshot snapshot = mock(MetricsCollectionSnapshot.class);
         MetricsSnapshotsWriter writer = mock(MetricsSnapshotsWriter.class);
         TestAdapter adapter = new TestAdapter("test", writer);
 

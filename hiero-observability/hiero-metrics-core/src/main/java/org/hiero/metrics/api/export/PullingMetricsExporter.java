@@ -4,7 +4,7 @@ package org.hiero.metrics.api.export;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Optional;
 import java.util.function.Supplier;
-import org.hiero.metrics.api.export.snapshot.MetricsSnapshot;
+import org.hiero.metrics.api.export.snapshot.MetricsCollectionSnapshot;
 
 /**
  * Type of {@link MetricsExporter} that pulls metrics snapshots from
@@ -17,11 +17,11 @@ import org.hiero.metrics.api.export.snapshot.MetricsSnapshot;
 public non-sealed interface PullingMetricsExporter extends MetricsExporter {
 
     /**
-     * Initialize the exporter with a supplier of {@link MetricsSnapshot}.
+     * Initialize the exporter with a supplier of {@link MetricsCollectionSnapshot}.
      * The supplier can be called by the exporter when it needs to pull metrics data.
      * Implementations should be able to handle multiple calls to this method.
      *
-     * @param snapshotSupplier the supplier of {@link MetricsSnapshot}
+     * @param snapshotSupplier the supplier of {@link MetricsCollectionSnapshot}
      */
-    void setSnapshotProvider(@NonNull Supplier<Optional<MetricsSnapshot>> snapshotSupplier);
+    void setSnapshotProvider(@NonNull Supplier<Optional<MetricsCollectionSnapshot>> snapshotSupplier);
 }

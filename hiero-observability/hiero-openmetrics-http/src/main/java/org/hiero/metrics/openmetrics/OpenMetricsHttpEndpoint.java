@@ -18,7 +18,7 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.metrics.api.export.extension.PullingMetricsExporterAdapter;
 import org.hiero.metrics.api.export.extension.writer.OpenMetricsSnapshotsWriter;
 import org.hiero.metrics.api.export.extension.writer.UnsynchronizedByteArrayOutputStream;
-import org.hiero.metrics.api.export.snapshot.MetricsSnapshot;
+import org.hiero.metrics.api.export.snapshot.MetricsCollectionSnapshot;
 import org.hiero.metrics.openmetrics.config.OpenMetricsHttpEndpointConfig;
 
 /**
@@ -69,7 +69,7 @@ public final class OpenMetricsHttpEndpoint extends PullingMetricsExporterAdapter
         }
 
         try {
-            Optional<MetricsSnapshot> optionalSnapshot = getSnapshot();
+            Optional<MetricsCollectionSnapshot> optionalSnapshot = getSnapshot();
             if (optionalSnapshot.isEmpty()) {
                 exchange.sendResponseHeaders(204, 0); // No Content
                 return;

@@ -17,7 +17,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import org.hiero.metrics.api.core.MetricMetadata;
 import org.hiero.metrics.api.export.snapshot.MetricSnapshot;
-import org.hiero.metrics.api.export.snapshot.MetricsSnapshot;
+import org.hiero.metrics.api.export.snapshot.MetricsCollectionSnapshot;
 import org.junit.jupiter.api.Test;
 
 public class AbstractMetricsSnapshotsWriterTest {
@@ -88,7 +88,7 @@ public class AbstractMetricsSnapshotsWriterTest {
     @Test
     void testWriterNoSnapshots() {
         TestAbstractMetricsSnapshotsWriter writer = builder().build();
-        MetricsSnapshot snapshots = mockSnapshots(Instant.now());
+        MetricsCollectionSnapshot snapshots = mockSnapshots(Instant.now());
 
         try (var output = new UnsynchronizedByteArrayOutputStream()) {
             writer.write(snapshots, output);
@@ -114,7 +114,7 @@ public class AbstractMetricsSnapshotsWriterTest {
         mockMetadata(metric1);
         MetricSnapshot metric2 = mockMetricSnapshot("metric2");
         mockMetadata(metric2);
-        MetricsSnapshot snapshots = mockSnapshots(timestamp, metric1, metric2);
+        MetricsCollectionSnapshot snapshots = mockSnapshots(timestamp, metric1, metric2);
 
         TestAbstractMetricsSnapshotsWriter writer = builder().build();
 
@@ -147,7 +147,7 @@ public class AbstractMetricsSnapshotsWriterTest {
         MetricMetadata metadata1 = mockMetadata(metric1);
         MetricSnapshot metric2 = mockMetricSnapshot("metric2");
         mockMetadata(metric2);
-        MetricsSnapshot snapshots = mockSnapshots(timestamp, metric1, metric2);
+        MetricsCollectionSnapshot snapshots = mockSnapshots(timestamp, metric1, metric2);
 
         TestAbstractMetricsSnapshotsWriter writer =
                 builder().withMetricFilter(metadata -> metadata != metadata1).build();
@@ -172,8 +172,8 @@ public class AbstractMetricsSnapshotsWriterTest {
         verify(metric2).metadata();
     }
 
-    private MetricsSnapshot mockSnapshots(Instant timestamp, MetricSnapshot... metrics) {
-        MetricsSnapshot snapshots = mock(MetricsSnapshot.class);
+    private MetricsCollectionSnapshot mockSnapshots(Instant timestamp, MetricSnapshot... metrics) {
+        MetricsCollectionSnapshot snapshots = mock(MetricsCollectionSnapshot.class);
         when(snapshots.toString()).thenReturn("snapshots");
         when(snapshots.createAt()).thenReturn(timestamp);
         when(snapshots.iterator()).thenReturn(java.util.List.of(metrics).iterator());
@@ -203,7 +203,7 @@ public class AbstractMetricsSnapshotsWriterTest {
         }
 
         @Override
-        protected void beforeSnapshotsWrite(@NonNull MetricsSnapshot snapshots, @NonNull OutputStream output)
+        protected void beforeSnapshotsWrite(@NonNull MetricsCollectionSnapshot snapshots, @NonNull OutputStream output)
                 throws IOException {
             super.beforeSnapshotsWrite(snapshots, output);
             output.write(("BEFORE SNAPSHOTS: " + snapshots + '\n').getBytes(StandardCharsets.UTF_8));
@@ -217,7 +217,7 @@ public class AbstractMetricsSnapshotsWriterTest {
         }
 
         @Override
-        protected void afterSnapshotsWrite(@NonNull MetricsSnapshot snapshots, @NonNull OutputStream output)
+        protected void afterSnapshotsWrite(@NonNull MetricsCollectionSnapshot snapshots, @NonNull OutputStream output)
                 throws IOException {
             output.write(("AFTER SNAPSHOTS: " + snapshots).getBytes(StandardCharsets.UTF_8));
             super.afterSnapshotsWrite(snapshots, output);

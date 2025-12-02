@@ -9,7 +9,7 @@ import org.hiero.metrics.api.export.AbstractMetricsExporter;
 import org.hiero.metrics.api.export.MetricsExportException;
 import org.hiero.metrics.api.export.PushingMetricsExporter;
 import org.hiero.metrics.api.export.extension.writer.MetricsSnapshotsWriter;
-import org.hiero.metrics.api.export.snapshot.MetricsSnapshot;
+import org.hiero.metrics.api.export.snapshot.MetricsCollectionSnapshot;
 
 /**
  * An abstract class for adapting {@link MetricsSnapshotsWriter} as a {@link PushingMetricsExporter}.
@@ -34,7 +34,7 @@ public abstract class PushingMetricsExporterWriterAdapter extends AbstractMetric
     }
 
     @Override
-    public void export(@NonNull MetricsSnapshot snapshot) throws MetricsExportException {
+    public void export(@NonNull MetricsCollectionSnapshot snapshot) throws MetricsExportException {
         try (OutputStream stream = openStream()) {
             writer.write(snapshot, stream);
         } catch (IOException e) {

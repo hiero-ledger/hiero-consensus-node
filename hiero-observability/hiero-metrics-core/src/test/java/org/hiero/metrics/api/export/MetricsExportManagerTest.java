@@ -27,7 +27,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 import org.hiero.metrics.api.LongCounter;
 import org.hiero.metrics.api.core.MetricRegistry;
-import org.hiero.metrics.api.export.snapshot.MetricsSnapshot;
+import org.hiero.metrics.api.export.snapshot.MetricsCollectionSnapshot;
 import org.hiero.metrics.api.utils.MetricUtils;
 import org.hiero.metrics.internal.export.NoOpMetricsExportManager;
 import org.junit.jupiter.api.Nested;
@@ -233,11 +233,11 @@ public class MetricsExportManagerTest {
             assertThat(exportManager.hasRunningExportThread()).isFalse();
             assertThat(exportManager.registry()).isSameAs(registry);
 
-            ArgumentCaptor<Supplier<Optional<MetricsSnapshot>>> snapshotSupplierCaptor =
+            ArgumentCaptor<Supplier<Optional<MetricsCollectionSnapshot>>> snapshotSupplierCaptor =
                     ArgumentCaptor.forClass(Supplier.class);
             verify(pullingExporter).setSnapshotProvider(snapshotSupplierCaptor.capture());
-            Supplier<Optional<MetricsSnapshot>> snapshotSupplier = snapshotSupplierCaptor.getValue();
-            Optional<MetricsSnapshot> optionalSnapshot = snapshotSupplier.get();
+            Supplier<Optional<MetricsCollectionSnapshot>> snapshotSupplier = snapshotSupplierCaptor.getValue();
+            Optional<MetricsCollectionSnapshot> optionalSnapshot = snapshotSupplier.get();
             assertThat(optionalSnapshot).isNotEmpty();
             verifySnapshotHasMetricsInOrder(optionalSnapshot.get(), "test_counter");
 
@@ -377,8 +377,9 @@ public class MetricsExportManagerTest {
             assertThat(exportRunnable).isNotNull();
             exportRunnable.run(); // should not fail with failing exporter
 
-            ArgumentCaptor<MetricsSnapshot> snapshotCaptor = ArgumentCaptor.forClass(MetricsSnapshot.class);
-            ArgumentCaptor<Supplier<Optional<MetricsSnapshot>>> snapshotSupplierCaptor =
+            ArgumentCaptor<MetricsCollectionSnapshot> snapshotCaptor =
+                    ArgumentCaptor.forClass(MetricsCollectionSnapshot.class);
+            ArgumentCaptor<Supplier<Optional<MetricsCollectionSnapshot>>> snapshotSupplierCaptor =
                     ArgumentCaptor.forClass(Supplier.class);
 
             verify(pullingExporter).setSnapshotProvider(snapshotSupplierCaptor.capture());
@@ -386,10 +387,10 @@ public class MetricsExportManagerTest {
             verify(pushingExporterFailingChecked).export(snapshotCaptor.capture());
             verify(pushingExporter).export(snapshotCaptor.capture());
 
-            Optional<MetricsSnapshot> optionalSnapshot =
+            Optional<MetricsCollectionSnapshot> optionalSnapshot =
                     snapshotSupplierCaptor.getValue().get();
             assertThat(optionalSnapshot).isNotEmpty();
-            MetricsSnapshot snapshot = optionalSnapshot.get();
+            MetricsCollectionSnapshot snapshot = optionalSnapshot.get();
             assertThat(snapshot).isSameAs(snapshotCaptor.getValue());
 
             assertThat(snapshotCaptor.getAllValues()).hasSize(3);

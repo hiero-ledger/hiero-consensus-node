@@ -13,8 +13,8 @@ import org.hiero.metrics.api.StateSet;
 import org.hiero.metrics.api.StatsGaugeAdapter;
 import org.hiero.metrics.api.core.Label;
 import org.hiero.metrics.api.export.MetricsExportException;
-import org.hiero.metrics.api.export.snapshot.MetricsSnapshot;
-import org.hiero.metrics.test.fixtures.MetricsSnapshotProvider;
+import org.hiero.metrics.api.export.snapshot.MetricsCollectionSnapshot;
+import org.hiero.metrics.test.fixtures.MetricCollectionSnapshotProvider;
 import org.hiero.metrics.test.fixtures.SateSetEnum;
 import org.hiero.metrics.test.fixtures.StatContainer;
 import org.junit.jupiter.api.BeforeAll;
@@ -56,7 +56,7 @@ public class CsvFileMetricsExporterTest {
     @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
     class RealMetrics {
 
-        static final MetricsSnapshotProvider snapshotProvider = new MetricsSnapshotProvider();
+        static final MetricCollectionSnapshotProvider snapshotProvider = new MetricCollectionSnapshotProvider();
 
         static Path filePath;
         static CsvFileMetricsExporter exporter;
@@ -93,7 +93,7 @@ public class CsvFileMetricsExporterTest {
         @Test
         @Order(1)
         void testNoMetricsUpdates() throws MetricsExportException {
-            MetricsSnapshot snapshot = snapshotProvider.get();
+            MetricsCollectionSnapshot snapshot = snapshotProvider.get();
             exporter.export(snapshot);
 
             assertThat(filePath).hasContent("timestamp,metric,unit,value,labels\n");
@@ -109,7 +109,7 @@ public class CsvFileMetricsExporterTest {
             statsGauge.getOrCreateLabeled("label", "val1").update(5);
             statsGauge.getOrCreateLabeled("label", "val1").update(4);
 
-            MetricsSnapshot snapshot = snapshotProvider.get();
+            MetricsCollectionSnapshot snapshot = snapshotProvider.get();
             timestamp1 = snapshot.createAt();
             exporter.export(snapshot);
 
@@ -142,7 +142,7 @@ public class CsvFileMetricsExporterTest {
             stateSet.getOrCreateNotLabeled().setTrue(SateSetEnum.STATE_ONE);
             statsGauge.getOrCreateLabeled("label", "val2").update(5);
 
-            MetricsSnapshot snapshot = snapshotProvider.get();
+            MetricsCollectionSnapshot snapshot = snapshotProvider.get();
             exporter.export(snapshot);
 
             assertThat(filePath)

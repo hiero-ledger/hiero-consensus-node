@@ -3,17 +3,17 @@ package org.hiero.metrics.api.export;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.Closeable;
-import org.hiero.metrics.api.export.snapshot.MetricsSnapshot;
+import org.hiero.metrics.api.export.snapshot.MetricsCollectionSnapshot;
 
 /**
  * Base interface for metrics exporters.
  * <p>
- * Metrics exporter able to handle {@link MetricsSnapshot} into specific destination.
+ * Metrics exporter able to handle {@link MetricsCollectionSnapshot} into specific destination.
  * It also extends {@link Closeable} to allow proper resource management.
  *
  * @see PullingMetricsExporter
  * @see PushingMetricsExporter
- * @see MetricsSnapshot
+ * @see MetricsCollectionSnapshot
  */
 public sealed interface MetricsExporter extends Closeable
         permits PullingMetricsExporter, PushingMetricsExporter, AbstractMetricsExporter {

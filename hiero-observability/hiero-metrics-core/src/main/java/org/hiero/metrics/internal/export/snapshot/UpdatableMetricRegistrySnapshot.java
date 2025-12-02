@@ -5,11 +5,11 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import org.hiero.metrics.api.export.snapshot.DataPointSnapshot;
 import org.hiero.metrics.api.export.snapshot.MetricSnapshot;
-import org.hiero.metrics.api.export.snapshot.MetricsSnapshot;
+import org.hiero.metrics.api.export.snapshot.MetricsCollectionSnapshot;
 import org.hiero.metrics.internal.core.AppendArray;
 import org.hiero.metrics.internal.export.SnapshotableMetric;
 
-public final class UpdatableMetricRegistrySnapshot implements MetricsSnapshot {
+public final class UpdatableMetricRegistrySnapshot implements MetricsCollectionSnapshot {
 
     private Instant createdAt = Instant.now();
 

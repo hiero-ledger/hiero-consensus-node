@@ -14,7 +14,7 @@ import java.util.ArrayList;
 import java.util.List;
 import org.hiero.metrics.api.export.snapshot.DataPointSnapshot;
 import org.hiero.metrics.api.export.snapshot.MetricSnapshot;
-import org.hiero.metrics.api.export.snapshot.MetricsSnapshot;
+import org.hiero.metrics.api.export.snapshot.MetricsCollectionSnapshot;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -27,7 +27,7 @@ public class AbstractCachingMetricsSnapshotsWriterTest {
         writer = createWriter();
     }
 
-    private void writeAndVerify(MetricsSnapshot snapshots, String expectedOutput) {
+    private void writeAndVerify(MetricsCollectionSnapshot snapshots, String expectedOutput) {
         try (var output = new UnsynchronizedByteArrayOutputStream()) {
             writer.write(snapshots, output);
             String result = output.toString();
@@ -40,7 +40,7 @@ public class AbstractCachingMetricsSnapshotsWriterTest {
 
     @Test
     void testMetricsAndDataPoints() {
-        MetricsSnapshot snapshots = mockSnapshots(Instant.now());
+        MetricsCollectionSnapshot snapshots = mockSnapshots(Instant.now());
 
         writeAndVerify(snapshots, "");
         assertThat(writer.getCreatedMetricsAfterLastCall()).isEmpty();
@@ -125,8 +125,8 @@ public class AbstractCachingMetricsSnapshotsWriterTest {
         assertThat(writer.getCreatedDatapointsAfterLastCall()).isEmpty();
     }
 
-    private MetricsSnapshot mockSnapshots(Instant timestamp, MetricSnapshot... metrics) {
-        MetricsSnapshot snapshots = mock(MetricsSnapshot.class);
+    private MetricsCollectionSnapshot mockSnapshots(Instant timestamp, MetricSnapshot... metrics) {
+        MetricsCollectionSnapshot snapshots = mock(MetricsCollectionSnapshot.class);
         when(snapshots.toString()).thenReturn("snapshots");
         when(snapshots.createAt()).thenReturn(timestamp);
         when(snapshots.iterator()).thenReturn(java.util.List.of(metrics).iterator());

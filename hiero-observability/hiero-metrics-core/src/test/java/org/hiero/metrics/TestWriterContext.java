@@ -9,16 +9,16 @@ import org.hiero.metrics.api.core.Label;
 import org.hiero.metrics.api.core.MetricRegistry;
 import org.hiero.metrics.api.export.extension.writer.MetricsSnapshotsWriter;
 import org.hiero.metrics.api.export.extension.writer.UnsynchronizedByteArrayOutputStream;
-import org.hiero.metrics.test.fixtures.MetricsSnapshotProvider;
+import org.hiero.metrics.test.fixtures.MetricCollectionSnapshotProvider;
 
 public class TestWriterContext {
 
     private final MetricsSnapshotsWriter snapshotsWriter;
-    private final MetricsSnapshotProvider snapshotProvider;
+    private final MetricCollectionSnapshotProvider snapshotProvider;
 
     public TestWriterContext(MetricsSnapshotsWriter snapshotsWriter, Label... globalLabels) {
         this.snapshotsWriter = snapshotsWriter;
-        snapshotProvider = new MetricsSnapshotProvider(globalLabels);
+        snapshotProvider = new MetricCollectionSnapshotProvider(globalLabels);
     }
 
     public MetricRegistry getRegistry() {
