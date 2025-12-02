@@ -57,9 +57,6 @@ public class TokenServiceImpl implements TokenService {
                 new CryptoCreateFeeCalculator(),
                 new CryptoDeleteAllowanceFeeCalculator(),
                 new CryptoDeleteFeeCalculator(),
-                new CryptoUpdateFeeCalculator());
-                new CryptoCreateFeeCalculator(),
-                new CryptoDeleteFeeCalculator(),
                 new CryptoUpdateFeeCalculator(),
                 new TokenCreateFeeCalculator(),
                 new TokenMintFeeCalculator(),
@@ -68,6 +65,7 @@ public class TokenServiceImpl implements TokenService {
                 new TokenFreezeAccountFeeCalculator(),
                 new TokenUnfreezeAccountFeeCalculator(),
                 new TokenBurnFeeCalculator(),
-                new TokenDeleteFeeCalculator());
+                new TokenDeleteFeeCalculator()
+        );
     }
 }
