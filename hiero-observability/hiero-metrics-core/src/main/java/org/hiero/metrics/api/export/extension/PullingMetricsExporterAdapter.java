@@ -8,7 +8,7 @@ import java.util.Optional;
 import java.util.function.Supplier;
 import org.hiero.metrics.api.export.AbstractMetricsExporter;
 import org.hiero.metrics.api.export.PullingMetricsExporter;
-import org.hiero.metrics.api.export.snapshot.MetricsSnapshot;
+import org.hiero.metrics.api.export.snapshot.MetricsCollectionSnapshot;
 
 /**
  * Base class for {@link PullingMetricsExporter} implementations.
@@ -16,23 +16,23 @@ import org.hiero.metrics.api.export.snapshot.MetricsSnapshot;
  */
 public class PullingMetricsExporterAdapter extends AbstractMetricsExporter implements PullingMetricsExporter {
 
-    private volatile Supplier<Optional<MetricsSnapshot>> snapshotSupplier = Optional::empty;
+    private volatile Supplier<Optional<MetricsCollectionSnapshot>> snapshotSupplier = Optional::empty;
 
     public PullingMetricsExporterAdapter(@NonNull String name) {
         super(name);
     }
 
     @Override
-    public final void setSnapshotProvider(@NonNull Supplier<Optional<MetricsSnapshot>> snapshotSupplier) {
+    public final void setSnapshotProvider(@NonNull Supplier<Optional<MetricsCollectionSnapshot>> snapshotSupplier) {
         this.snapshotSupplier = Objects.requireNonNull(snapshotSupplier);
     }
 
     /**
-     * @return an {@link Optional} containing the latest {@link MetricsSnapshot} if available,
+     * @return an {@link Optional} containing the latest {@link MetricsCollectionSnapshot} if available,
      *         or an empty {@link Optional} if no snapshot is available.
      */
     @NonNull
-    public final Optional<MetricsSnapshot> getSnapshot() {
+    public final Optional<MetricsCollectionSnapshot> getSnapshot() {
         return snapshotSupplier.get();
     }
 

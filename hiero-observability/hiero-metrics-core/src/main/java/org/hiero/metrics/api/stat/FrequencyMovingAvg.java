@@ -8,7 +8,15 @@ import org.hiero.metrics.api.core.MetricKey;
 import org.hiero.metrics.api.core.ToNumberFunction;
 import org.hiero.metrics.api.utils.Unit;
 
-// Similar to com.swirlds.common.metrics.statistics.StatsSpeedometer
+/**
+ * This class measures how many times per second the update() method is called. It is recalculated every
+ * period, where its period is 0.1 seconds by default. If instantiated with gamma=0.9, then half the
+ * weighting comes from the last 7 periods. If 0.99 it's 70 periods, 0.999 is 700, etc.
+ * <p>
+ * The timer starts at instantiation, and can be reset with the reset() method.
+ * <p>
+ * Similar to com.swirlds.common.metrics.statistics.StatsSpeedometer
+ */
 public final class FrequencyMovingAvg implements DoubleSupplier {
 
     private static final double LN_2 = Math.log(2);

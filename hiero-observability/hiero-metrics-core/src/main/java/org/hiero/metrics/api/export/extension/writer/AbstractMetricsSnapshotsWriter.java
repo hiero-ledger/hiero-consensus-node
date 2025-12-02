@@ -10,7 +10,7 @@ import java.util.Objects;
 import java.util.function.Predicate;
 import org.hiero.metrics.api.core.MetricMetadata;
 import org.hiero.metrics.api.export.snapshot.MetricSnapshot;
-import org.hiero.metrics.api.export.snapshot.MetricsSnapshot;
+import org.hiero.metrics.api.export.snapshot.MetricsCollectionSnapshot;
 
 /**
  * Abstract base class for {@link MetricsSnapshotsWriter} implementations.
@@ -41,7 +41,8 @@ public abstract class AbstractMetricsSnapshotsWriter implements MetricsSnapshots
             throws IOException;
 
     @Override
-    public final void write(@NonNull MetricsSnapshot snapshots, @NonNull OutputStream output) throws IOException {
+    public final void write(@NonNull MetricsCollectionSnapshot snapshots, @NonNull OutputStream output)
+            throws IOException {
         beforeSnapshotsWrite(snapshots, output);
 
         for (MetricSnapshot metricSnapshot : snapshots) {
@@ -59,7 +60,7 @@ public abstract class AbstractMetricsSnapshotsWriter implements MetricsSnapshots
      * @param snapshots the metrics snapshot to be written
      * @param output    the output stream
      */
-    protected void beforeSnapshotsWrite(@NonNull MetricsSnapshot snapshots, @NonNull OutputStream output)
+    protected void beforeSnapshotsWrite(@NonNull MetricsCollectionSnapshot snapshots, @NonNull OutputStream output)
             throws IOException {
         // nothing by default
     }
@@ -72,7 +73,7 @@ public abstract class AbstractMetricsSnapshotsWriter implements MetricsSnapshots
      * @param output    the output stream
      * @throws IOException if an I/O error occurs
      */
-    protected void afterSnapshotsWrite(@NonNull MetricsSnapshot snapshots, @NonNull OutputStream output)
+    protected void afterSnapshotsWrite(@NonNull MetricsCollectionSnapshot snapshots, @NonNull OutputStream output)
             throws IOException {
         output.flush();
     }

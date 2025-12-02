@@ -30,7 +30,7 @@ import org.hiero.metrics.api.LongCounter;
 import org.hiero.metrics.api.core.MetricKey;
 import org.hiero.metrics.api.core.MetricRegistry;
 import org.hiero.metrics.api.export.MetricsExportManager;
-import org.hiero.metrics.api.export.snapshot.MetricsSnapshot;
+import org.hiero.metrics.api.export.snapshot.MetricsCollectionSnapshot;
 import org.hiero.metrics.api.utils.Unit;
 import org.hiero.metrics.openmetrics.config.OpenMetricsHttpEndpointConfig;
 import org.junit.jupiter.api.AfterAll;
@@ -167,7 +167,7 @@ public class OpenMetricsHttpEndpointTest {
     class MockMetricsTest extends BaseTest {
 
         @Mock
-        private Supplier<Optional<MetricsSnapshot>> snapshotSupplier;
+        private Supplier<Optional<MetricsCollectionSnapshot>> snapshotSupplier;
 
         @BeforeAll
         static void setUpAll() throws IOException {

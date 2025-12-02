@@ -25,7 +25,7 @@ import org.hiero.metrics.api.core.NumberSupplier;
 import org.hiero.metrics.api.core.ToNumberFunction;
 import org.hiero.metrics.api.stat.container.AtomicDouble;
 import org.hiero.metrics.api.utils.Unit;
-import org.hiero.metrics.test.fixtures.MetricsSnapshotProvider;
+import org.hiero.metrics.test.fixtures.MetricCollectionSnapshotProvider;
 import org.hiero.metrics.test.fixtures.SateSetEnum;
 import org.hiero.metrics.test.fixtures.StatContainer;
 import org.junit.jupiter.api.MethodOrderer;
@@ -76,6 +76,42 @@ public class OpenMetricsSnapshotsWriterTest {
                 expectedRepresentation));
     }
 
+    @Test
+    void testGaugeMinMaxCreatedButNotObserved() throws IOException {
+        TestWriterContext context = new TestWriterContext(OpenMetricsSnapshotsWriter.DEFAULT);
+
+        LongGauge.builder("long_gauge_min")
+                .withTrackingMinSpike()
+                .register(context.getRegistry())
+                .getOrCreateNotLabeled();
+        LongGauge.builder("long_gauge_max")
+                .withTrackingMaxSpike()
+                .register(context.getRegistry())
+                .getOrCreateNotLabeled();
+
+        DoubleGauge.builder("double_gauge_min")
+                .withTrackingMinSpike()
+                .register(context.getRegistry())
+                .getOrCreateNotLabeled();
+        DoubleGauge.builder("double_gauge_max")
+                .withTrackingMaxSpike()
+                .register(context.getRegistry())
+                .getOrCreateNotLabeled();
+
+        context.exportAndVerify(
+                """
+                # TYPE long_gauge_min gauge
+                long_gauge_min 9223372036854775807
+                # TYPE long_gauge_max gauge
+                long_gauge_max -9223372036854775808
+                # TYPE double_gauge_min gauge
+                double_gauge_min +Inf
+                # TYPE double_gauge_max gauge
+                double_gauge_max -Inf
+                # EOF
+                """);
+    }
+
     private static Stream<Arguments> doubleFormattingArguments() {
         return Stream.of(
                 Arguments.of(Double.NaN, "NaN"),
@@ -88,7 +124,7 @@ public class OpenMetricsSnapshotsWriterTest {
     @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
     class RealMetricsFlow {
 
-        static final MetricsSnapshotProvider snapshotProvider = new MetricsSnapshotProvider();
+        static final MetricCollectionSnapshotProvider snapshotProvider = new MetricCollectionSnapshotProvider();
         static final OpenMetricsSnapshotsWriter writer = OpenMetricsSnapshotsWriter.DEFAULT;
 
         static BooleanGauge booleanGauge;

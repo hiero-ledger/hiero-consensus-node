@@ -8,7 +8,7 @@ import org.assertj.core.api.AbstractListAssert;
 import org.assertj.core.api.ObjectAssert;
 import org.hiero.metrics.api.core.MetricMetadata;
 import org.hiero.metrics.api.export.snapshot.MetricSnapshot;
-import org.hiero.metrics.api.export.snapshot.MetricsSnapshot;
+import org.hiero.metrics.api.export.snapshot.MetricsCollectionSnapshot;
 
 public final class TestUtils {
 
@@ -75,16 +75,16 @@ public final class TestUtils {
         };
     }
 
-    public static void verifySnapshotHasMetricsInOrder(MetricsSnapshot snapshot, String... metrics) {
+    public static void verifySnapshotHasMetricsInOrder(MetricsCollectionSnapshot snapshot, String... metrics) {
         snapshotHasMetricsAssertion(snapshot).containsExactly(metrics);
     }
 
-    public static void verifySnapshotHasMetricsAnyOrder(MetricsSnapshot snapshot, String... metrics) {
+    public static void verifySnapshotHasMetricsAnyOrder(MetricsCollectionSnapshot snapshot, String... metrics) {
         snapshotHasMetricsAssertion(snapshot).containsExactlyInAnyOrder(metrics);
     }
 
     private static AbstractListAssert<?, List<? extends String>, String, ObjectAssert<String>>
-            snapshotHasMetricsAssertion(MetricsSnapshot snapshot) {
+            snapshotHasMetricsAssertion(MetricsCollectionSnapshot snapshot) {
         return assertThat(snapshot).map(MetricSnapshot::metadata).map(MetricMetadata::name);
     }
 }

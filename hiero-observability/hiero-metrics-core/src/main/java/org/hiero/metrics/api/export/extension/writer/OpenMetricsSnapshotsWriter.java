@@ -16,7 +16,7 @@ import org.hiero.metrics.api.export.snapshot.DataPointSnapshot;
 import org.hiero.metrics.api.export.snapshot.DoubleValueDataPointSnapshot;
 import org.hiero.metrics.api.export.snapshot.LongValueDataPointSnapshot;
 import org.hiero.metrics.api.export.snapshot.MetricSnapshot;
-import org.hiero.metrics.api.export.snapshot.MetricsSnapshot;
+import org.hiero.metrics.api.export.snapshot.MetricsCollectionSnapshot;
 import org.hiero.metrics.api.export.snapshot.MultiValueDataPointSnapshot;
 import org.hiero.metrics.api.export.snapshot.SingleValueDataPointSnapshot;
 import org.hiero.metrics.api.export.snapshot.StateSetDataPointSnapshot;
@@ -151,7 +151,7 @@ public class OpenMetricsSnapshotsWriter
     }
 
     @Override
-    protected void afterSnapshotsWrite(@NonNull MetricsSnapshot snapshots, @NonNull OutputStream output)
+    protected void afterSnapshotsWrite(@NonNull MetricsCollectionSnapshot snapshots, @NonNull OutputStream output)
             throws IOException {
         output.write(END);
         super.afterSnapshotsWrite(snapshots, output);

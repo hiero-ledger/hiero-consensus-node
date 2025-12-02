@@ -110,8 +110,19 @@ public interface DoubleGauge extends StatefulMetric<DoubleSupplier, DoubleGaugeD
         }
 
         /**
+         * Set the aggregation operator to {@code sum}.
+         * Default initial value for newly created datapoint is {@code 0.0}.
+         * The gauge will be reset to its initial value after each export.
+         *
+         * @return this builder
+         */
+        public DoubleGauge.Builder withSumOperator() {
+            return withOperator(StatUtils.DOUBLE_SUM, true).withInitValue(StatUtils.ZERO);
+        }
+
+        /**
          * Set the aggregation operator to track {@code max} spikes of the values.
-         * Initial value is {@link Double#NEGATIVE_INFINITY}, which won't be exported if not observed at least once.
+         * Default initial value for newly created datapoint is {@link Double#NEGATIVE_INFINITY}.
          * The gauge will be reset to its initial value after each export.
          *
          * @return this builder
@@ -122,7 +133,7 @@ public interface DoubleGauge extends StatefulMetric<DoubleSupplier, DoubleGaugeD
 
         /**
          * Set the aggregation operator to track {@code min} spikes of the values.
-         * Initial value is {@link Double#POSITIVE_INFINITY}, which won't be exported if not observed at least once.
+         * Default initial value for newly created datapoint is {@link Double#POSITIVE_INFINITY}.
          * The gauge will be reset to its initial value after each export.
          *
          * @return this builder

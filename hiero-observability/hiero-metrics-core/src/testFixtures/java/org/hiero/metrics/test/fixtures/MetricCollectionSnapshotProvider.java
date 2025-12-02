@@ -6,12 +6,12 @@ import org.hiero.metrics.api.core.Label;
 import org.hiero.metrics.api.core.MetricRegistry;
 import org.hiero.metrics.api.export.MetricsExportManager;
 import org.hiero.metrics.api.export.extension.PullingMetricsExporterAdapter;
-import org.hiero.metrics.api.export.snapshot.MetricsSnapshot;
+import org.hiero.metrics.api.export.snapshot.MetricsCollectionSnapshot;
 
 /**
  * Hodls a {@link MetricRegistry} and allows to access snapshots for testing purposes.
  */
-public final class MetricsSnapshotProvider implements Supplier<MetricsSnapshot> {
+public final class MetricCollectionSnapshotProvider implements Supplier<MetricsCollectionSnapshot> {
 
     private final MetricRegistry registry;
     private final PullingMetricsExporterAdapter exporter = new PullingMetricsExporterAdapter("test");
@@ -19,7 +19,7 @@ public final class MetricsSnapshotProvider implements Supplier<MetricsSnapshot> 
     /**
      * Creates a new instance with an empty registry and no global label set.
      */
-    public MetricsSnapshotProvider() {
+    public MetricCollectionSnapshotProvider() {
         this(MetricRegistry.builder("registry").build());
     }
 
@@ -28,7 +28,7 @@ public final class MetricsSnapshotProvider implements Supplier<MetricsSnapshot> 
      *
      * @param globalLabels the global labels to set
      */
-    public MetricsSnapshotProvider(Label... globalLabels) {
+    public MetricCollectionSnapshotProvider(Label... globalLabels) {
         this(MetricRegistry.builder("registry").withGlobalLabels(globalLabels).build());
     }
 
@@ -37,7 +37,7 @@ public final class MetricsSnapshotProvider implements Supplier<MetricsSnapshot> 
      *
      * @param registry the metric registry
      */
-    public MetricsSnapshotProvider(MetricRegistry registry) {
+    public MetricCollectionSnapshotProvider(MetricRegistry registry) {
         this.registry = registry;
         MetricsExportManager.builder().withExporter(exporter).build(registry);
     }
@@ -57,7 +57,7 @@ public final class MetricsSnapshotProvider implements Supplier<MetricsSnapshot> 
      * @return the current metrics snapshot
      */
     @Override
-    public MetricsSnapshot get() {
+    public MetricsCollectionSnapshot get() {
         return exporter.getSnapshot().get();
     }
 }

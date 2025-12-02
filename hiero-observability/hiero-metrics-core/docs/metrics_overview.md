@@ -6,7 +6,7 @@ They help track trends, resource usage, and system health over time.
 
 ### Goals
 
-1. Compatibility with [OpenMetrics1.1](https://github.com/prometheus/OpenMetrics/blob/main/specification/OpenMetrics.md).
+1. Compatibility with [OpenMetrics](#openmetrics-compatibility).
 2. Minimum dependencies.
 3. High performance with low memory footprint.
 4. Support for multiple exporters (e.g., Prometheus, JMX, CSV, etc.).
@@ -16,7 +16,7 @@ They help track trends, resource usage, and system health over time.
 
 ### Architecture
 
-![metrics_architecture.jpeg](img/metrics_architecture.jpeg)
+![metrics_architecture.svg](img/metrics_architecture.jpeg)
 
 ### Key Concepts
 
@@ -52,7 +52,7 @@ Entry points for clients are:
 - [MetricsRegistry](../src/main/java/org/hiero/metrics/api/core/MetricRegistry.java) and its builder, to create registry for metrics.
 - [MetricsExportManager](../src/main/java/org/hiero/metrics/api/export/MetricsExportManager.java) and its builder, to create export manager, managing exports of a single metrics registry using one or more exporters.
 
-### Production example
+### Production Example
 
 ```java
 public class Application {
@@ -94,7 +94,6 @@ class MyModuleMetrics implements MetricsRegistrationProvider {
                 LongCounter.builder(REQUESTS_COUNTER_KEY)
                 .withDescription("Total number of requests")
                 .withDynamicLabelNames("method", "path")
-                .build()
         );
     }
 }
@@ -134,6 +133,18 @@ mainModuleInfo {
     runtimeOnly("org.hiero.metrics.openmetrics.http")
 }
 ```
+
+### OpenMetrics Compatibility
+
+Framework is compatible with [OpenMetrics1.1](https://github.com/prometheus/OpenMetrics/blob/main/specification/OpenMetrics.md).
+
+Some key points of compatibility:
+- Currently supported metric types: Counter, Gauge, StateSet.
+- Metric names follow OpenMetrics naming conventions and have to match `[a-zA-Z_:][a-zA-Z0-9_:]*`.
+- Labels are supported as key-value string pairs. Label names follow OpenMetrics naming conventions and have to match `[a-zA-Z_][a-zA-Z0-9_]*`.
+- Metric metadata (description, unit) is supported. Description is optional. Unit is optional and if set, has to match `[a-zA-Z0-9_:]*`.
+- Counter metrics get __total_ suffix automatically during export, so metric name in the API should not include it.
+- Units are suffixed to metric name during export, so metric name in the API should not include it.
 
 ### Key classes
 

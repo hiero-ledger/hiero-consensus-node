@@ -7,7 +7,13 @@ import org.hiero.metrics.api.GaugeAdapter;
 import org.hiero.metrics.api.core.MetricKey;
 import org.hiero.metrics.api.core.ToNumberFunction;
 
-// similar to com.swirlds.common.metrics.statistics.StatsRunningAverage
+/**
+ *  This class maintains a running average of some numeric value. It is exponentially weighted in time, with
+ *  a given half life. If it is always given the same value, then that value will be the average, regardless
+ *  of the timing.
+ *  <p>
+ *  Similar to com.swirlds.common.metrics.statistics.StatsRunningAverage
+ */
 public final class MovingAvg implements DoubleSupplier {
     /**
      * each recordValue(X) counts as X calls to values.cycle()
