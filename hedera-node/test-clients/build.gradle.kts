@@ -365,8 +365,8 @@ val prEmbeddedCheckTags =
 
         // Copy vals to the MATS variants
         val originalEntries = toMap() // Create a snapshot of current entries
-        originalEntries.forEach { (taskName: String, size: String) ->
-            put("$taskName$matsSuffix", size)
+        originalEntries.forEach { (taskName: String, tags: String) ->
+            put("$taskName$matsSuffix", "($tags)&MATS")
         }
     }
 
@@ -427,8 +427,8 @@ val prRepeatableCheckTags =
 
         // Copy vals to the MATS variants
         val originalEntries = toMap() // Create a snapshot of current entries
-        originalEntries.forEach { (taskName: String, size: String) ->
-            put("$taskName$matsSuffix", size)
+        originalEntries.forEach { (taskName: String, tags: String) ->
+            put("$taskName$matsSuffix", "($tags)&MATS")
         }
     }
 
