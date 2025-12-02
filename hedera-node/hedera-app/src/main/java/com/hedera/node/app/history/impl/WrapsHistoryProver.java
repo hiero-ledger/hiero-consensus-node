@@ -458,15 +458,18 @@ public class WrapsHistoryProver implements HistoryProver {
                                                 targetBook);
                                     } else {
                                         proof = new Proof(
-                                                sourceProof.uncompressedWrapsProof().toByteArray(),
+                                                sourceProof
+                                                        .uncompressedWrapsProof()
+                                                        .toByteArray(),
                                                 sourceProof
                                                         .chainOfTrustProofOrThrow()
                                                         .wrapsProofOrThrow()
                                                         .toByteArray());
                                     }
-                                    final var sourceBook = AddressBook.from(weights.sourceNodeWeights(), nodeId -> proofKeys
-                                            .getOrDefault(nodeId, EMPTY_PUBLIC_KEY)
-                                            .toByteArray());
+                                    final var sourceBook =
+                                            AddressBook.from(weights.sourceNodeWeights(), nodeId -> proofKeys
+                                                    .getOrDefault(nodeId, EMPTY_PUBLIC_KEY)
+                                                    .toByteArray());
                                     proof = historyLibrary.constructIncrementalWrapsProof(
                                             requireNonNull(ledgerId).toByteArray(),
                                             proof.uncompressed(),

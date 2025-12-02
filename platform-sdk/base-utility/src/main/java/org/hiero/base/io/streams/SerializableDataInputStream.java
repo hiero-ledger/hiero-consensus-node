@@ -38,6 +38,7 @@ import org.hiero.base.io.exceptions.InvalidVersionException;
  * for use with the SerializableDet interface, and its use is described there.
  */
 public class SerializableDataInputStream extends AugmentedDataInputStream {
+    private static final int MAX_PBJ_RECORD_SIZE = 33554432;
 
     private static final Set<Integer> SUPPORTED_PROTOCOL_VERSIONS = Set.of(SERIALIZATION_PROTOCOL_VERSION);
 
@@ -595,7 +596,7 @@ public class SerializableDataInputStream extends AugmentedDataInputStream {
         final int size = readInt();
         readableSequentialData.limit(readableSequentialData.position() + size);
         try {
-            final T parsed = codec.parse(readableSequentialData);
+            final T parsed = codec.parse(readableSequentialData, false, false, Integer.MAX_VALUE, MAX_PBJ_RECORD_SIZE);
             if (readableSequentialData.position() != readableSequentialData.limit()) {
                 throw new EOFException("PBJ record was not fully read");
             }

@@ -149,7 +149,6 @@ public class ProofControllerImpl implements ProofController {
             if (isActive) {
                 ensureProofKeyPublished();
             }
-            log.info("Construction #{} still waiting for hinTS verification key", construction.constructionId());
             return;
         }
         // Have the hinTS verification key, but not yet assembling the history or computing the WRAPS proof

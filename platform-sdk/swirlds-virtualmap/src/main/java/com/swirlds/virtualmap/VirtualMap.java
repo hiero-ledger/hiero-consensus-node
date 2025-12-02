@@ -162,6 +162,8 @@ import org.hiero.base.io.streams.SerializableDataOutputStream;
 public final class VirtualMap extends PartialBinaryMerkleInternal
         implements CustomReconnectRoot<Long, Long>, ExternalSelfSerializable, Labeled, MerkleInternal, VirtualRoot {
 
+    private static final int MAX_PBJ_RECORD_SIZE = 33554432;
+
     private static final String NO_NULL_KEYS_ALLOWED_MESSAGE = "Null keys are not allowed";
 
     /**
@@ -664,7 +666,9 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
         requireNonNull(valueCodec);
         Bytes removedValueBytes = remove(key);
         try {
-            return removedValueBytes == null ? null : valueCodec.parse(removedValueBytes);
+            return removedValueBytes == null
+                    ? null
+                    : valueCodec.parse(removedValueBytes.toReadableSequentialData(), false, false, Integer.MAX_VALUE, MAX_PBJ_RECORD_SIZE);
         } catch (final ParseException e) {
             throw new RuntimeException("Failed to deserialize a value from bytes", e);
         }
