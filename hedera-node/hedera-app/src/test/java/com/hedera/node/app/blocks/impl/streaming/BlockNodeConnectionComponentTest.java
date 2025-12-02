@@ -22,6 +22,9 @@ import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.node.app.blocks.impl.streaming.BlockNodeConnection.ConnectionState;
+import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeConfiguration;
+import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeHelidonGrpcConfiguration;
+import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeHelidonHttpConfiguration;
 import com.hedera.node.app.metrics.BlockStreamMetrics;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.pbj.grpc.client.helidon.PbjGrpcClientConfig;
@@ -224,6 +227,8 @@ class BlockNodeConnectionComponentTest extends BlockNodeCommunicationTestBase {
                 .priority(nodeConfig.priority())
                 .messageSizeSoftLimitBytes(softLimitBytes)
                 .messageSizeHardLimitBytes(hardLimitBytes)
+                .clientGrpcConfig(BlockNodeHelidonGrpcConfiguration.DEFAULT)
+                .clientHttpConfig(BlockNodeHelidonHttpConfiguration.DEFAULT)
                 .build();
 
         connection = new BlockNodeConnection(
@@ -374,6 +379,10 @@ class BlockNodeConnectionComponentTest extends BlockNodeCommunicationTestBase {
         verify(metrics, times(2)).recordBlockItemsSent(2);
         verify(metrics, times(2)).recordRequestSent(RequestOneOfType.BLOCK_ITEMS);
         verify(metrics).recordRequestSent(RequestOneOfType.END_OF_BLOCK);
+        verify(metrics, atLeastOnce()).recordRequestBlockItemCount(anyInt());
+        verify(metrics, atLeastOnce()).recordRequestBytes(anyLong());
+        verify(metrics, atLeastOnce()).recordStreamingBlockNumber(anyLong());
+        verify(metrics, atLeastOnce()).recordLatestBlockEndOfBlockSent(anyLong());
 
         verifyNoMoreInteractions(metrics);
         verifyNoMoreInteractions(requestPipeline);
@@ -457,6 +466,7 @@ class BlockNodeConnectionComponentTest extends BlockNodeCommunicationTestBase {
         verify(bufferService).getEarliestAvailableBlockNumber();
         verify(bufferService).getHighestAckedBlockNumber();
         verify(connectionManager).notifyConnectionClosed(connection);
+        verify(metrics, atLeastOnce()).recordStreamingBlockNumber(anyLong());
 
         verifyNoMoreInteractions(metrics);
         verifyNoMoreInteractions(requestPipeline);
@@ -561,7 +571,11 @@ class BlockNodeConnectionComponentTest extends BlockNodeCommunicationTestBase {
         verify(bufferService, atLeast(6)).getBlockState(anyLong());
         verify(connectionManager, times(5))
                 .recordBlockProofSent(any(BlockNodeConfiguration.class), anyLong(), any(Instant.class));
-
+        verify(metrics, atLeastOnce()).recordStreamingBlockNumber(anyLong());
+        verify(metrics, atLeastOnce()).recordRequestBlockItemCount(anyInt());
+        verify(metrics, atLeastOnce()).recordRequestBytes(anyLong());
+        verify(metrics, atLeastOnce()).recordLatestBlockEndOfBlockSent(anyLong());
+        verify(metrics, atLeastOnce()).recordHeaderSentToBlockEndSentLatency(anyLong());
         verifyNoMoreInteractions(metrics);
         verifyNoMoreInteractions(requestPipeline);
         verifyNoMoreInteractions(connectionManager);
@@ -781,9 +795,14 @@ class BlockNodeConnectionComponentTest extends BlockNodeCommunicationTestBase {
         }
 
         verify(requestPipeline).onComplete();
-        verify(bufferService).getBlockState(blockNumber);
+        verify(bufferService, atLeastOnce()).getBlockState(blockNumber);
         verify(bufferService).getEarliestAvailableBlockNumber();
         verify(bufferService).getHighestAckedBlockNumber();
+        verify(metrics, atLeastOnce()).recordRequestBlockItemCount(anyInt());
+        verify(metrics, atLeastOnce()).recordRequestBytes(anyLong());
+        verify(metrics, atLeastOnce()).recordLatestBlockEndOfBlockSent(anyLong());
+        verify(metrics, atLeastOnce()).recordHeaderSentToBlockEndSentLatency(anyLong());
+        verify(metrics, atLeastOnce()).recordStreamingBlockNumber(anyLong());
         verify(metrics).recordConnectionOpened();
         verify(metrics, atLeastOnce()).recordRequestLatency(anyLong());
         verify(metrics, atLeastOnce()).recordRequestSent(RequestOneOfType.BLOCK_ITEMS);
@@ -829,7 +848,7 @@ class BlockNodeConnectionComponentTest extends BlockNodeCommunicationTestBase {
         // Send request in a separate thread
         final Thread testThread = Thread.ofVirtual().start(() -> {
             try {
-                sendRequest(new BlockNodeConnection.BlockItemsStreamRequest(request, 1L, 1, 1, false));
+                sendRequest(new BlockNodeConnection.BlockItemsStreamRequest(request, 1L, 1, 1, false, false));
             } catch (RuntimeException e) {
                 exceptionRef.set(e);
             }
@@ -994,6 +1013,11 @@ class BlockNodeConnectionComponentTest extends BlockNodeCommunicationTestBase {
         verify(bufferService, atLeastOnce()).getBlockState(10);
         verify(bufferService, atLeastOnce()).getBlockState(11);
         verify(bufferService, atLeastOnce()).getEarliestAvailableBlockNumber();
+        verify(metrics, atLeastOnce()).recordStreamingBlockNumber(anyLong());
+        verify(metrics, atLeastOnce()).recordRequestBlockItemCount(anyInt());
+        verify(metrics, atLeastOnce()).recordRequestBytes(anyLong());
+        verify(metrics, atLeastOnce()).recordLatestBlockEndOfBlockSent(anyLong());
+        verify(metrics, atLeastOnce()).recordHeaderSentToBlockEndSentLatency(anyLong());
         verifyNoMoreInteractions(metrics);
         verifyNoMoreInteractions(bufferService);
         verifyNoMoreInteractions(connectionManager);

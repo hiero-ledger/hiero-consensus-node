@@ -15,6 +15,7 @@ import java.time.Duration;
 public record TssConfig(
         @ConfigProperty(defaultValue = "60s") @NetworkProperty Duration bootstrapHintsKeyGracePeriod,
         @ConfigProperty(defaultValue = "300s") @NetworkProperty Duration transitionHintsKeyGracePeriod,
+        @ConfigProperty(defaultValue = "10s") @NetworkProperty Duration wrapsMessageGracePeriod,
         @ConfigProperty(defaultValue = "60s") @NetworkProperty Duration bootstrapProofKeyGracePeriod,
         @ConfigProperty(defaultValue = "300s") @NetworkProperty Duration transitionProofKeyGracePeriod,
         @ConfigProperty(defaultValue = "10s") @NetworkProperty Duration crsUpdateContributionTime,
@@ -23,7 +24,7 @@ public record TssConfig(
         @ConfigProperty(defaultValue = "512") @NetworkProperty short initialCrsParties,
         @ConfigProperty(defaultValue = "false") @NetworkProperty boolean hintsEnabled,
         @ConfigProperty(defaultValue = "false") @NetworkProperty boolean historyEnabled,
-        // Whether to use recursive chain-of-trust proofs
+        // Whether to switch to the WrapsHistoryProver after the genesis block
         @ConfigProperty(defaultValue = "false") @NetworkProperty boolean wrapsEnabled,
         // Must be true if enabling TSS while also using an override network,
         // to give express consent for breaking the address book chain of trust
