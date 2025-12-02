@@ -165,11 +165,11 @@ public class TokenServiceSimpleFeesSuite {
                                 .hasKnownStatus(SUCCESS)
                                 .via("fungible-mint-txn")),
                 "fungible-mint-txn",
-                // base = 0,
-                // fungible = 9000000*10,
+                // base = 9000000,
+                // fungible = 0*10,
                 // node+network = 1000000
-                // total = 91000000 = .0091
-                0.0091,
+                // total = 10000000 = .001
+                0.001,
                 1,
                 0.0010,
                 1);
@@ -201,6 +201,45 @@ public class TokenServiceSimpleFeesSuite {
                                 .via("non-fungible-mint-txn")),
                 "non-fungible-mint-txn",
                 0.02,
+                1,
+                0.02,
+                1);
+    }
+
+    @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+    @DisplayName("compare mint a unique token")
+    final Stream<DynamicTest> compareMintMultipleUniqueToken() {
+        return compareSimpleToOld(
+                () -> Arrays.asList(
+                        newKeyNamed(SUPPLY_KEY),
+                        newKeyNamed(METADATA_KEY),
+                        cryptoCreate(ADMIN).balance(ONE_BILLION_HBARS),
+                        cryptoCreate(PAYER).balance(ONE_BILLION_HBARS).key(SUPPLY_KEY),
+                        tokenCreate(NFT_TOKEN)
+                                .tokenType(NON_FUNGIBLE_UNIQUE)
+                                .initialSupply(0L)
+                                .payingWith(PAYER)
+                                .supplyKey(SUPPLY_KEY)
+                                .fee(ONE_HUNDRED_HBARS)
+                                .hasKnownStatus(SUCCESS)
+                                .via("create-token-txn"),
+                        mintToken(NFT_TOKEN, List.of(
+                                ByteString.copyFromUtf8("Bart Simpson"),
+                                ByteString.copyFromUtf8("Lisa Simpson"),
+                                ByteString.copyFromUtf8("Homer Simpson")
+                        ))
+                                .payingWith(PAYER)
+                                .signedBy(SUPPLY_KEY)
+                                .blankMemo()
+                                .fee(ONE_HUNDRED_HBARS)
+                                .hasKnownStatus(SUCCESS)
+                                .via("non-fungible-mint-txn")),
+                "non-fungible-mint-txn",
+                // base = 9000000,
+                // tokens = 199000000*3,
+                // node+network = 1000000
+                // total = 607000000 = .00607
+                0.0607,
                 1,
                 0.02,
                 1);
