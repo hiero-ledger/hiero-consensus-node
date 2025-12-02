@@ -441,10 +441,10 @@ class CryptoTransferFeeCalculatorTest {
             final var result = feeCalculator.calculateTxFee(body, feeContext);
 
             // Then:
-            // - CRYPTO_TRANSFER_WITH_HOOKS base: 50,000,000 tinycents
-            // - HOOKS extra: 2 hooks × 10B = 20,000,000,000 tinycents
-            // - Total service fee: 20,050,000,000 tinycents
-            assertThat(result.service).isEqualTo(20_050_000_000L);
+            // - HOOK_EXECUTION: 2 hooks × 50M = 100,000,000 tinycents
+            // - HOOK_UPDATES: 2 hooks × 10B = 20,000,000,000 tinycents
+            // - Total service fee: 20,100,000,000 tinycents
+            assertThat(result.service).isEqualTo(20_100_000_000L);
         }
 
         @Test
@@ -505,10 +505,11 @@ class CryptoTransferFeeCalculatorTest {
             final var result = feeCalculator.calculateTxFee(body, feeContext);
 
             // Then:
-            // - HOOK_EXECUTION base: 50,000,000 tinycents
+            // - CRYPTO_TRANSFER_BASE_FUNGIBLE: 10,000,000 tinycents
+            // - HOOK_EXECUTION: 4 hooks × 50M = 200,000,000 tinycents
             // - HOOK_UPDATES: 4 hooks × 10B = 40,000,000,000 tinycents
-            // - Total service fee: 40,050,000,000 tinycents
-            assertThat(result.service).isEqualTo(40_050_000_000L);
+            // - Total service fee: 40,210,000,000 tinycents
+            assertThat(result.service).isEqualTo(40_210_000_000L);
         }
 
         @Test

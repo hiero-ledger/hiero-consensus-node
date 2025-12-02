@@ -34,16 +34,16 @@ import org.hiero.hapi.support.fees.ServiceFeeDefinition;
 /**
  * Calculates CryptoTransfer fees per HIP-1261.
  *
- * Uses transaction-type-specific base fees via CRYPTO_TRANSFER_BASE_* extras:
- * - CRYPTO_TRANSFER_BASE_FUNGIBLE: Base fee for fungible token transfers
- * - CRYPTO_TRANSFER_BASE_NFT: Base fee for NFT transfers
- * - CRYPTO_TRANSFER_BASE_FUNGIBLE_CUSTOM_FEES: Base fee for custom fee fungible tokens
- * - CRYPTO_TRANSFER_BASE_NFT_CUSTOM_FEES: Base fee for custom fee NFTs
- * - HOOK_EXECUTION: Base fee for transfers with hooks (highest tier)
+ * Uses transaction-type-specific extras to determine the transfer tier:
+ * - CRYPTO_TRANSFER_BASE_FUNGIBLE: For fungible token transfers
+ * - CRYPTO_TRANSFER_BASE_NFT: For NFT transfers
+ * - CRYPTO_TRANSFER_BASE_FUNGIBLE_CUSTOM_FEES: For fungible tokens with custom fees
+ * - CRYPTO_TRANSFER_BASE_NFT_CUSTOM_FEES: For NFTs with custom fees
  * - No extra charged for HBAR-only transfers (uses baseFee=0)
  *
  * Additional extras for items beyond included counts:
- * - HOOK_UPDATES: Per-hook execution fee
+ * - HOOK_EXECUTION: Per-hook invocation fee (charged for each hook in the transfer)
+ * - HOOK_UPDATES: Per-hook update fee
  * - ACCOUNTS: Number of unique accounts involved
  * - FUNGIBLE_TOKENS: Additional fungible token transfers
  * - NON_FUNGIBLE_TOKENS: Additional NFT transfers
@@ -70,28 +70,24 @@ public class CryptoTransferFeeCalculator implements ServiceFeeCalculator {
 
         final ServiceFeeDefinition serviceDef = lookupServiceFee(feeSchedule, HederaFunctionality.CRYPTO_TRANSFER);
 
-        final Extra transferType = determineTransferType(tokenCounts, numHooks);
+        final Extra transferType = determineTransferType(tokenCounts);
         if (transferType != null) {
             feeResult.addServiceFee(1, serviceDef.baseFee());
             addExtraFeeWithIncludedCount(feeResult, transferType, feeSchedule, serviceDef, 1);
         }
 
+        addExtraFeeWithIncludedCount(feeResult, HOOK_EXECUTION, feeSchedule, serviceDef, numHooks);
         addExtraFeeWithIncludedCount(feeResult, HOOK_UPDATES, feeSchedule, serviceDef, numHooks);
         addExtraFeeWithIncludedCount(feeResult, ACCOUNTS, feeSchedule, serviceDef, numAccounts);
-        // Count all fungible tokens together (standard + custom fee)
         final long totalFungible = tokenCounts.standardFungible() + tokenCounts.customFeeFungible();
         addExtraFeeWithIncludedCount(feeResult, FUNGIBLE_TOKENS, feeSchedule, serviceDef, totalFungible);
-        // Count all NFTs together (standard + custom fee)
         final long totalNft = tokenCounts.standardNft() + tokenCounts.customFeeNft();
         addExtraFeeWithIncludedCount(feeResult, NON_FUNGIBLE_TOKENS, feeSchedule, serviceDef, totalNft);
     }
 
     /** Returns the CRYPTO_TRANSFER_BASE_* extra for base fee, or null for HBAR-only transfers. */
     @Nullable
-    private Extra determineTransferType(@NonNull final TokenCounts tokenCounts, final long numHooks) {
-        if (numHooks > 0) {
-            return HOOK_EXECUTION;
-        }
+    private Extra determineTransferType(@NonNull final TokenCounts tokenCounts) {
         if (tokenCounts.customFeeNft() > 0) {
             return CRYPTO_TRANSFER_BASE_NFT_CUSTOM_FEES;
         }
