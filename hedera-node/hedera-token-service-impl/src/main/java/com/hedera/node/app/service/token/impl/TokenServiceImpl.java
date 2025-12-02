@@ -65,7 +65,6 @@ public class TokenServiceImpl implements TokenService {
                 new TokenFreezeAccountFeeCalculator(),
                 new TokenUnfreezeAccountFeeCalculator(),
                 new TokenBurnFeeCalculator(),
-                new TokenDeleteFeeCalculator()
-        );
+                new TokenDeleteFeeCalculator());
     }
 }

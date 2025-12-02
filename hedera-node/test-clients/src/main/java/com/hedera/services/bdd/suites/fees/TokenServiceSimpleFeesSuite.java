@@ -227,11 +227,12 @@ public class TokenServiceSimpleFeesSuite {
                                 .fee(ONE_HUNDRED_HBARS)
                                 .hasKnownStatus(SUCCESS)
                                 .via("create-token-txn"),
-                        mintToken(NFT_TOKEN, List.of(
-                                ByteString.copyFromUtf8("Bart Simpson"),
-                                ByteString.copyFromUtf8("Lisa Simpson"),
-                                ByteString.copyFromUtf8("Homer Simpson")
-                        ))
+                        mintToken(
+                                        NFT_TOKEN,
+                                        List.of(
+                                                ByteString.copyFromUtf8("Bart Simpson"),
+                                                ByteString.copyFromUtf8("Lisa Simpson"),
+                                                ByteString.copyFromUtf8("Homer Simpson")))
                                 .payingWith(PAYER)
                                 .signedBy(SUPPLY_KEY)
                                 .blankMemo()

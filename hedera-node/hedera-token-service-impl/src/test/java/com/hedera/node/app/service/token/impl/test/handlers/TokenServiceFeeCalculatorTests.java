@@ -40,11 +40,9 @@ import com.hedera.node.app.service.token.impl.calculator.TokenUnfreezeAccountFee
 import com.hedera.node.app.service.token.impl.calculator.TokenUnpauseFeeCalculator;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.SimpleFeeCalculatorImpl;
-
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.util.List;
 import java.util.Set;
-
-import com.hedera.pbj.runtime.io.buffer.Bytes;
 import org.hiero.hapi.support.fees.Extra;
 import org.hiero.hapi.support.fees.FeeSchedule;
 import org.hiero.hapi.support.fees.NetworkFee;
@@ -114,9 +112,9 @@ public class TokenServiceFeeCalculatorTests {
     @Test
     void createUniqueToken() {
         lenient().when(calculatorState.numTxnSignatures()).thenReturn(1);
-        final var txBody2 = TransactionBody.newBuilder().tokenCreation(
-                TokenCreateTransactionBody.newBuilder().tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
-        ).build();
+        final var txBody2 = TransactionBody.newBuilder()
+                .tokenCreation(TokenCreateTransactionBody.newBuilder().tokenType(TokenType.NON_FUNGIBLE_UNIQUE))
+                .build();
         final var result = feeCalculator.calculateTxFee(txBody2, calculatorState);
 
         assertNotNull(result);
@@ -252,11 +250,12 @@ public class TokenServiceFeeCalculatorTests {
                 .network(NetworkFee.DEFAULT.copyBuilder().multiplier(2).build())
                 .services(makeService(
                         "Token",
-                        makeServiceFee(TOKEN_CREATE, TOKEN_CREATE_BASE_FEE,
+                        makeServiceFee(
+                                TOKEN_CREATE,
+                                TOKEN_CREATE_BASE_FEE,
                                 makeExtraIncluded(Extra.KEYS, 1),
-                                makeExtraIncluded(Extra.TOKEN_CREATE_FUNGIBLE,0),
-                                makeExtraIncluded(Extra.TOKEN_CREATE_NFT,0)
-                        ),
+                                makeExtraIncluded(Extra.TOKEN_CREATE_FUNGIBLE, 0),
+                                makeExtraIncluded(Extra.TOKEN_CREATE_NFT, 0)),
                         makeServiceFee(
                                 TOKEN_MINT,
                                 TOKEN_MINT_BASE_FEE,
