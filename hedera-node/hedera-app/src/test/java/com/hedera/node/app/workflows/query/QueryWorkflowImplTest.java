@@ -1120,15 +1120,25 @@ class QueryWorkflowImplTest extends AppTestBase {
         @ParameterizedTest(name = "{0} uses simple fees when enabled")
         @MethodSource("simpleFeesEnabledTransactions")
         @DisplayName("Transaction types use simple fees when enabled")
-        void testTransactionUsesSimpleFees(String queryName, Query query) {
+        void testTransactionUsesSimpleFees(String queryName, Query query) throws PreCheckException {
             // Given: Simple fees are enabled
-
-            given(queryContext.configuration()).willReturn(configuration);
-            given(configuration.getConfigData(FeesConfig.class)).willReturn(feesConfig);
             given(feesConfig.simpleFeesEnabled()).willReturn(true);
+            given(configuration.getConfigData(FeesConfig.class)).willReturn(feesConfig);
 
+            when(configProvider.getConfiguration())
+                    .thenReturn(new VersionedConfigImpl(configuration, DEFAULT_CONFIG_VERSION));
             given(queryContext.query()).willReturn(query);
+            given(queryContext.configuration()).willReturn(configuration);
             given(queryContext.exchangeRateInfo()).willReturn(testExchangeRateInfo);
+
+            doAnswer(invocationOnMock -> {
+                        final var result = invocationOnMock.getArgument(3, IngestChecker.Result.class);
+                        result.setThrottleUsages(List.of());
+                        result.setTxnInfo(transactionInfo);
+                        return null;
+                    })
+                    .when(ingestChecker)
+                    .runAllChecks(any(), any(), any(), any());
 
             final var feeResult = new FeeResult();
             feeResult.node = 100000L; // 100K tinycents
@@ -1176,11 +1186,6 @@ class QueryWorkflowImplTest extends AppTestBase {
         @DisplayName("Simple fees not used when feature is disabled")
         void testSimpleFeesNotUsedWhenFeatureDisabled() throws PreCheckException {
             // Given: Simple fees are DISABLED
-            given(testExchangeRateInfo.activeRate(any())).willReturn(testExchangeRate);
-            given(queryContext.configuration()).willReturn(configuration);
-            given(configuration.getConfigData(FeesConfig.class)).willReturn(feesConfig);
-            given(feesConfig.simpleFeesEnabled()).willReturn(false);
-
             doAnswer(invocationOnMock -> {
                         final var result = invocationOnMock.getArgument(3, IngestChecker.Result.class);
                         result.setThrottleUsages(List.of());
@@ -1207,14 +1212,7 @@ class QueryWorkflowImplTest extends AppTestBase {
                     instantSource,
                     opWorkflowMetrics,
                     shouldCharge);
-            //            given(handler.computeFees(any(QueryContext.class))).willReturn(new Fees(100L, 0L, 100L));
             given(handler.requiresNodePayment(any())).willReturn(true);
-            //            when(handler.findResponse(any(), any()))
-            //                    .thenReturn(Response.newBuilder()
-            //                            .fileGetInfo(FileGetInfoResponse.newBuilder()
-            //                                    .header(ResponseHeader.newBuilder().build())
-            //                                    .build())
-            //                            .build());
             final var responseBuffer = newEmptyBuffer();
             // when
             workflow.handleQuery(requestBuffer, responseBuffer);

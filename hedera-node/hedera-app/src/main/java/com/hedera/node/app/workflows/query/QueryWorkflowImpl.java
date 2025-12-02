@@ -11,7 +11,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.PAYER_ACCOUNT_NOT_FOUND
 import static com.hedera.hapi.node.base.ResponseType.ANSWER_STATE_PROOF;
 import static com.hedera.hapi.node.base.ResponseType.COST_ANSWER_STATE_PROOF;
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
-import static com.hedera.node.app.hapi.utils.CommonUtils.productWouldOverflow;
+import static com.hedera.node.app.spi.fees.util.FeeUtils.feeResultToFees;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
@@ -27,11 +27,9 @@ import com.hedera.hapi.util.HapiUtils;
 import com.hedera.hapi.util.UnknownHederaFunctionality;
 import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.fees.FeeManager;
-import com.hedera.node.app.hapi.utils.fee.FeeBuilder;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.spi.authorization.Authorizer;
 import com.hedera.node.app.spi.fees.ExchangeRateInfo;
-import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.records.RecordCache;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.InsufficientBalanceException;
@@ -53,7 +51,6 @@ import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.UnknownFieldException;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.hederahashgraph.api.proto.java.ExchangeRate;
 import com.swirlds.common.utility.AutoCloseableWrapper;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -67,7 +64,6 @@ import java.util.function.Function;
 import javax.inject.Inject;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.hapi.fees.FeeResult;
 
 /** Implementation of {@link QueryWorkflow} */
 public final class QueryWorkflowImpl implements QueryWorkflow {
@@ -246,7 +242,6 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
                                         queryFeeResult,
                                         fromPbj(context.exchangeRateInfo().activeRate(consensusTime)));
                                 queryFees = fees.totalFee();
-
                             } else {
                                 queryFees = handler.computeFees(context).totalFee();
                             }
@@ -355,21 +350,6 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
             case CONSENSUS_GET_TOPIC_INFO -> true;
             default -> false;
         };
-    }
-
-    private static long tinycentsToTinybars(final long amount, final ExchangeRate rate) {
-        final var hbarEquiv = rate.getHbarEquiv();
-        if (productWouldOverflow(amount, hbarEquiv)) {
-            return FeeBuilder.getTinybarsFromTinyCents(rate, amount);
-        }
-        return amount * hbarEquiv / rate.getCentEquiv();
-    }
-
-    static Fees feeResultToFees(FeeResult feeResult, ExchangeRate rate) {
-        return new Fees(
-                tinycentsToTinybars(feeResult.node, rate),
-                tinycentsToTinybars(feeResult.network, rate),
-                tinycentsToTinybars(feeResult.service, rate));
     }
 
     private Query parseQuery(Bytes requestBuffer) {

@@ -13,7 +13,7 @@ public interface QueryFeeCalculator {
      * Accumulated service fees as a side effect into the given fee result. This will be implemented by every
      * single handler's fee calculator.
      *
-     * @param query the transaction body
+     * @param query the query body
      * @param queryContext the query state
      * @param feeResult the fee result
      * @param feeSchedule the fee schedule
@@ -24,8 +24,8 @@ public interface QueryFeeCalculator {
             @NonNull FeeResult feeResult,
             @NonNull FeeSchedule feeSchedule);
     /**
-     * Returns the transaction type this calculator is for.
-     * @return the transaction type
+     * Returns the query type this calculator is for.
+     * @return the query type
      */
     Query.QueryOneOfType getQueryType();
 }

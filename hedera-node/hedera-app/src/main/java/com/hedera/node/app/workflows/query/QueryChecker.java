@@ -9,8 +9,8 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_AMOUNTS
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_RECEIVING_NODE_ACCOUNT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.NOT_SUPPORTED;
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
+import static com.hedera.node.app.spi.fees.util.FeeUtils.feeResultToFees;
 import static com.hedera.node.app.workflows.handle.dispatch.DispatchValidator.WorkflowCheck.NOT_INGEST;
-import static com.hedera.node.app.workflows.query.QueryWorkflowImpl.feeResultToFees;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
@@ -33,7 +33,6 @@ import com.hedera.node.app.workflows.TransactionChecker;
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
 import com.hedera.node.app.workflows.purechecks.PureChecksContextImpl;
-import com.hedera.node.config.data.FeesConfig;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
@@ -150,10 +149,10 @@ public class QueryChecker {
                 }
 
                 // The balance only needs to be checked for sent amounts (= negative values)
-                if (amount < 0 && (account.tinybarBalance()) < -amount + transferTxnFee) {
+                if (amount < 0 && (account.tinybarBalance()) < -amount) {
                     // FUTURE: Expiry should probably be checked earlier
                     expiryValidation.checkAccountExpiry(account);
-                    throw new InsufficientBalanceException(INSUFFICIENT_PAYER_BALANCE, transferTxnFee);
+                    throw new InsufficientBalanceException(INSUFFICIENT_PAYER_BALANCE, amount);
                 }
 
                 // Make sure the node receives enough
@@ -166,7 +165,7 @@ public class QueryChecker {
             }
             // this will happen just if it is a payer
             else if (amount < 0 && (payer.tinybarBalance() - transferTxnFee) < -amount) {
-                throw new InsufficientBalanceException(INSUFFICIENT_PAYER_BALANCE, transferTxnFee);
+                throw new InsufficientBalanceException(INSUFFICIENT_PAYER_BALANCE, -amount + transferTxnFee);
             }
         }
 
@@ -220,8 +219,8 @@ public class QueryChecker {
                 // Signatures aren't applicable to queries
                 -1,
                 dispatcher);
-        // enable this when crypto transfer fee calculator is enabled
-        if (configuration.getConfigData(FeesConfig.class).simpleFeesEnabled() && false) {
+        // TODO: enable this when crypto transfer fee calculator is enabled
+        if (false) {
             final var transferFeeResult = requireNonNull(feeManager.getSimpleFeeCalculator())
                     .calculateTxFee(transactionInfo.txBody(), feeContext);
             final var fees = feeResultToFees(transferFeeResult, fromPbj(feeContext.activeRate()));
