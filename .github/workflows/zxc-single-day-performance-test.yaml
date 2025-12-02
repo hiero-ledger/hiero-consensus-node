@@ -85,7 +85,7 @@ env:
   GRAFANA_SYSADM_CHI: https://grafana.lat.ope.eng.hashgraph.io/d/rYdddlPWk/node-exporter-single-node?orgId=1&timezone=utc&var-datasource=P631E2BA859A814B3&var-job=performance-chicago-node-exporter
 
   #Release version from jFrog
-  NLG_VERSION: 0.9.1
+  NLG_VERSION: 0.10.0
 
   #Thresholds for performance
   #benchmarks
@@ -391,6 +391,7 @@ jobs:
         run: cd "${{ github.workspace }}"
 
       - name: Build NLG test
+        if: false
         env:
           GITHUB_PAGES_URL: ${{ secrets.perf_ghp }}
         run: |
@@ -468,6 +469,7 @@ jobs:
           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" cp "${{ github.workspace }}"/version_run.txt ${nlgpod}:/app/
 
       - name: Update NLG test
+        if: false
         run: |
           set +x
           set +e
