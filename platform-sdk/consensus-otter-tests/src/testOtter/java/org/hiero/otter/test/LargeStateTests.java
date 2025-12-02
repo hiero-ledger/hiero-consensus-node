@@ -27,17 +27,28 @@ import org.hiero.otter.fixtures.result.MultipleNodeConsensusResults;
 import org.hiero.otter.fixtures.result.MultipleNodePlatformStatusResults;
 import org.hiero.otter.fixtures.result.SingleNodeConsensusResult;
 
+/**
+ * A collection of tests that use large (100K+ entities) states.
+ *
+ * <p>To create a state with many entities, an accounts service is used. Accounts are
+ * not related to real Hedera accounts in any way, they are used only to make sure
+ * the state contains a lot of elements. Particular accounts are not of any use,
+ * only the number of accounts matters.
+ */
 class LargeStateTests {
 
     private static final int LARGE_COUNT = 100_000;
 
-    // A basic test to make sure the service works in general
+    /**
+     * A basic test to make sure AccountsService works as expected: create/delete account
+     * transactions are processed and logged appropriately.
+     */
     @OtterTest
     void basicAccountsTest(@NonNull final TestEnvironment env) {
         final Network network = env.network();
         final TimeManager timeManager = env.timeManager();
 
-        network.withConfigValue("event.services", "org.hiero.otter.fixtures.app.services.accounts.AccountsService");
+        enableAccountsService(network);
         network.addNodes(4);
         network.start();
 
@@ -61,16 +72,20 @@ class LargeStateTests {
             assertTrue(checkAccountDeleted(2, logs), "Failed to wait till account 2 is deleted");
             assertTrue(checkAccountFailedToDelete(100, logs), "Failed to wait till account 100 failed to delete");
         }
-
-        network.shutdown();
     }
 
+    /**
+     * A test that creates LARGE_ACCOUNT accounts, then restarts the network, and checks that all
+     * accounts are loaded from the local snapshot. To check that an account exists, a transaction
+     * to delete the account is sent, and then node logs are inspected for the corresponding
+     * message from AccountService.
+     */
     @OtterTest
     void largeRestartTest(@NonNull final TestEnvironment env) throws Exception {
         final Network network = env.network();
         final TimeManager timeManager = env.timeManager();
 
-        network.withConfigValue("event.services", "org.hiero.otter.fixtures.app.services.accounts.AccountsService");
+        enableAccountsService(network);
         network.addNodes(1);
         assertContinuouslyThat(network.newLogResults()).haveNoErrorLevelMessages();
         network.start();
@@ -116,6 +131,7 @@ class LargeStateTests {
 
         // Delete all accounts to make sure they were loaded from the snapshot after restart
         deleteAccounts(LARGE_COUNT, network, timeManager);
+        // And send a transaction to delete an account that shouldn't exist
         deleteAccount(LARGE_COUNT + 1, network);
 
         // Make sure accounts are found and deleted
@@ -130,11 +146,14 @@ class LargeStateTests {
                     Duration.ofSeconds(60L),
                     "Failed waiting for accounts to delete");
         }
-
-        network.shutdown();
     }
 
     // Helper test methods
+
+    // This method should be called before the network is started
+    private void enableAccountsService(@NonNull final Network network) {
+        network.withConfigValue("event.services", "org.hiero.otter.fixtures.app.services.accounts.AccountsService");
+    }
 
     private static void createAccounts(
             final int count, @NonNull final Network network, @NonNull final TimeManager timeMananager) {

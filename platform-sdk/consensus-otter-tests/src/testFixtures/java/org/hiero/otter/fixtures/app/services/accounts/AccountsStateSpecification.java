@@ -21,6 +21,9 @@ public class AccountsStateSpecification implements OtterServiceStateSpecificatio
     private static final String ACCOUNTS_STATE_KEY = "ACCOUNTS_STATE";
     private static final long MAX_ACCOUNTS = 1 << 30;
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public @NotNull Set<StateDefinition<?, ?>> statesToCreate() {
         return Set.of(
@@ -30,6 +33,9 @@ public class AccountsStateSpecification implements OtterServiceStateSpecificatio
                         ACCOUNTS_STATE_ID, ACCOUNTS_STATE_KEY, AccountId.PROTOBUF, Account.PROTOBUF, MAX_ACCOUNTS));
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void setDefaultValues(@NotNull WritableStates states, @NotNull SemanticVersion version) {
         states.getSingleton(OtterStateId.ENTITYID_GENERATOR_STATE_ID.id()).put(new EntityIdGenerator(1));

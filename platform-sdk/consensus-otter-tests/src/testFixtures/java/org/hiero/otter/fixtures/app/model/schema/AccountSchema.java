@@ -44,7 +44,7 @@ public final class AccountSchema implements Schema {
      * @param f field def to check
      * @return true if it belongs to this schema
      */
-    public static boolean valid(FieldDefinition f) {
+    public static boolean valid(final FieldDefinition f) {
         return f != null && getField(f.number()) == f;
     }
 

@@ -13,7 +13,6 @@ import java.util.function.Consumer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.event.ConsensusEvent;
-import org.hiero.consensus.model.event.Event;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 import org.hiero.otter.fixtures.app.OtterService;
 import org.hiero.otter.fixtures.app.model.Account;
@@ -24,8 +23,13 @@ import org.hiero.otter.fixtures.app.state.OtterStateId;
 import org.hiero.otter.fixtures.network.transactions.CreateAccountTransaction;
 import org.hiero.otter.fixtures.network.transactions.DeleteAccountTransaction;
 import org.hiero.otter.fixtures.network.transactions.OtterTransaction;
-import org.jetbrains.annotations.NotNull;
 
+/**
+ * A simple service to manage accounts. The service has nothing to do with real
+ * account processing, accounts are only used to make sure network state contains
+ * lots of elements. Some issues are reproducible only when the state is large,
+ * not a few singletons or KVs. This service is a way to create such large states.
+ */
 public class AccountsService implements OtterService {
 
     private static final Logger log = LogManager.getLogger();
@@ -34,23 +38,32 @@ public class AccountsService implements OtterService {
 
     private static final AccountsStateSpecification STATE_SPECIFICATION = new AccountsStateSpecification();
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
-    public @NotNull String name() {
+    public @NonNull String name() {
         return NAME;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
-    public @NotNull OtterServiceStateSpecification stateSpecification() {
+    public @NonNull OtterServiceStateSpecification stateSpecification() {
         return STATE_SPECIFICATION;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void handleTransaction(
-            @NotNull final WritableStates writableStates,
-            @NotNull final ConsensusEvent event,
-            @NotNull final OtterTransaction transaction,
-            @NotNull final Instant transactionTimestamp,
-            @NotNull Consumer<ScopedSystemTransaction<StateSignatureTransaction>> callback) {
+            @NonNull final WritableStates writableStates,
+            @NonNull final ConsensusEvent event,
+            @NonNull final OtterTransaction transaction,
+            @NonNull final Instant transactionTimestamp,
+            @NonNull final Consumer<ScopedSystemTransaction<StateSignatureTransaction>> callback) {
         switch (transaction.getDataCase()) {
             case CREATEACCOUNTTRANSACTION ->
                 handleCreateAccount(writableStates, transaction.getCreateAccountTransaction());
@@ -58,12 +71,6 @@ public class AccountsService implements OtterService {
                 handleDeleteAccount(writableStates, transaction.getDeleteAccountTransaction());
         }
     }
-
-    @Override
-    public void preHandleTransaction(
-            @NotNull final Event event,
-            @NotNull final OtterTransaction transaction,
-            @NotNull final Consumer<ScopedSystemTransaction<StateSignatureTransaction>> callback) {}
 
     private void handleCreateAccount(
             @NonNull final WritableStates writableStates,
