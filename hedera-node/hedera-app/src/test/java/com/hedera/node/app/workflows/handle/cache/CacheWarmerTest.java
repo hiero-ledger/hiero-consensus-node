@@ -4,7 +4,6 @@ package com.hedera.node.app.workflows.handle.cache;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.when;
 
-import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.node.app.workflows.TransactionChecker;
 import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
 import com.hedera.node.config.ConfigProvider;
@@ -40,8 +39,7 @@ class CacheWarmerTest {
         when(configProvider.getConfiguration()).thenReturn(versionedConfiguration);
         when(versionedConfiguration.getConfigData(HederaConfig.class)).thenReturn(hederaConfig);
 
-        final var cacheWarmer =
-                new CacheWarmer(checker, dispatcher, Runnable::run, SemanticVersion.DEFAULT, configProvider);
+        final var cacheWarmer = new CacheWarmer(checker, dispatcher, Runnable::run, configProvider);
         assertThat(cacheWarmer).isInstanceOf(CacheWarmer.class);
     }
 }
