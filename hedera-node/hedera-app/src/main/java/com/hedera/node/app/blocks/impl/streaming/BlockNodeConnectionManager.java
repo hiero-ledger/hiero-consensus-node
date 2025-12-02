@@ -7,6 +7,7 @@ import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.collectingAndThen;
 import static java.util.stream.Collectors.toList;
 
+import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeConfiguration;
 import com.hedera.node.app.metrics.BlockStreamMetrics;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockNodeConnectionConfig;
@@ -66,16 +67,6 @@ public class BlockNodeConnectionManager {
 
     private static final Logger logger = LogManager.getLogger(BlockNodeConnectionManager.class);
 
-    /**
-     * Default message soft limit size - in bytes: 2 MB.
-     */
-    public static final long DEFAULT_MESSAGE_SOFT_LIMIT_BYTES = 2L * 1024 * 1024; // 2 MB
-    /**
-     * Default message hard limit size - in bytes: 6 MB + 1 KB. The 6 MB is to support the maximum block items, which
-     * themselves can be 6 MB, and the 1 KB is for additional overhead associated with the maximum block item. The
-     * overhead should be much lower, but the sake of a nice number it was set to 1 KB.
-     */
-    public static final long DEFAULT_MESSAGE_HARD_LIMIT_BYTES = (6L * 1024 * 1024) + 1024; // 6 MB + 1 KB
     /**
      * Initial retry delay for connection attempts.
      */
@@ -243,34 +234,34 @@ public class BlockNodeConnectionManager {
      */
     private List<BlockNodeConfiguration> extractBlockNodesConfigurations(@NonNull final String blockNodeConfigPath) {
         final Path configPath = Paths.get(blockNodeConfigPath, BLOCK_NODES_FILE_NAME);
+        final BlockNodeConnectionInfo connectionInfo;
         final List<BlockNodeConfiguration> nodes = new ArrayList<>();
+
         try {
             if (!Files.exists(configPath)) {
                 logger.info("Block node configuration file does not exist: {}", configPath);
-                return List.of();
+                return nodes;
             }
 
             final byte[] jsonConfig = Files.readAllBytes(configPath);
-            final BlockNodeConnectionInfo protoConfig = BlockNodeConnectionInfo.JSON.parse(Bytes.wrap(jsonConfig));
-            for (final BlockNodeConfig nodeConfig : protoConfig.nodes()) {
-                final BlockNodeConfiguration cfg = BlockNodeConfiguration.newBuilder()
-                        .address(nodeConfig.address())
-                        .priority(nodeConfig.priority())
-                        .port(nodeConfig.port())
-                        .messageSizeSoftLimitBytes(
-                                nodeConfig.messageSizeSoftLimitBytesOrElse(DEFAULT_MESSAGE_SOFT_LIMIT_BYTES))
-                        .messageSizeHardLimitBytes(
-                                nodeConfig.messageSizeHardLimitBytesOrElse(DEFAULT_MESSAGE_HARD_LIMIT_BYTES))
-                        .build();
-
-                nodes.add(cfg);
-            }
+            connectionInfo = BlockNodeConnectionInfo.JSON.parse(Bytes.wrap(jsonConfig));
         } catch (final IOException | ParseException e) {
-            logger.info(
+            logger.warn(
                     "Failed to read or parse block node configuration from {}. Continuing without block node connections.",
                     configPath,
                     e);
+            return nodes;
         }
+
+        for (final BlockNodeConfig nodeConfig : connectionInfo.nodes()) {
+            try {
+                final BlockNodeConfiguration cfg = BlockNodeConfiguration.from(nodeConfig);
+                nodes.add(cfg);
+            } catch (final RuntimeException e) {
+                logger.warn("Failed to parse block node configuration; skipping block node (config={})", nodeConfig, e);
+            }
+        }
+
         return nodes;
     }
 

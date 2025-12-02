@@ -9,6 +9,7 @@ import static org.hiero.block.api.PublishStreamRequest.EndStream.Code.TOO_FAR_BE
 
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.node.app.blocks.impl.streaming.BlockNodeStats.HighLatencyResult;
+import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeConfiguration;
 import com.hedera.node.app.metrics.BlockStreamMetrics;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockNodeConnectionConfig;
