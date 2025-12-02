@@ -16,6 +16,7 @@ import java.util.Set;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
+import javax.annotation.concurrent.GuardedBy;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
 
@@ -45,9 +46,14 @@ public class FallenBehindMonitor {
      */
     private final Set<NodeId> reportFallenBehind = new HashSet<>();
 
+    @GuardedBy("lock")
     private final double fallenBehindThreshold;
+
+    @GuardedBy("lock")
     private boolean isBehind;
-    private boolean pausedNotification;
+
+    @GuardedBy("lock")
+    private boolean pausedNotificationReceived;
 
     public FallenBehindMonitor(
             @NonNull final Roster roster, @NonNull final Configuration config, @NonNull final Metrics metrics) {
@@ -214,7 +220,7 @@ public class FallenBehindMonitor {
         lock.lock();
         try {
             gossipSyncPausedCondition.signal();
-            pausedNotification = true;
+            pausedNotificationReceived = true;
         } finally {
             lock.unlock();
         }
@@ -229,10 +235,10 @@ public class FallenBehindMonitor {
     public void awaitGossipPaused() throws InterruptedException {
         lock.lock();
         try {
-            while (!pausedNotification) {
+            while (!pausedNotificationReceived) {
                 gossipSyncPausedCondition.await();
             }
-            pausedNotification = false;
+            pausedNotificationReceived = false;
         } finally {
             lock.unlock();
         }
