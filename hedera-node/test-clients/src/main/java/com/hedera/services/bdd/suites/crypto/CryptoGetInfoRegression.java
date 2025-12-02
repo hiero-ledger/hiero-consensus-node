@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.crypto;
 
+import static com.hedera.services.bdd.junit.ContextRequirement.PROPERTY_OVERRIDES;
+import static com.hedera.services.bdd.junit.ContextRequirement.THROTTLE_OVERRIDES;
 import static com.hedera.services.bdd.junit.TestTags.CRYPTO;
 import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
@@ -25,6 +27,8 @@ import static com.hedera.services.bdd.suites.HapiSuite.TOKEN_TREASURY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.*;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BUSY;
 import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
+import static java.util.Objects.requireNonNull;
+import static org.hiero.base.utility.CommonUtils.unhex;
 
 import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.HapiTest;
@@ -40,7 +44,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.base.utility.CommonUtils;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
@@ -239,26 +242,27 @@ public class CryptoGetInfoRegression {
                 getAccountInfo("toBeDeleted").hasCostAnswerPrecheck(ACCOUNT_DELETED));
     }
 
-    @HapiTest
+    @LeakyHapiTest(
+            requirement = {PROPERTY_OVERRIDES, THROTTLE_OVERRIDES},
+            overrides = {"tokens.countingGetBalanceThrottleEnabled"},
+            throttles = "testSystemFiles/tiny-get-balance-throttle.json")
     public Stream<DynamicTest> cryptoGetAccountBalanceQueryAssociationThrottles() {
         final var evmHexRef = new AtomicReference<>("");
         final List<String> tokenNames = new ArrayList<>();
         for (int i = 0; i < NUM_ASSOCIATIONS; i++) {
             tokenNames.add("t" + i);
         }
-        final var props = Map.of("tokens.countingGetBalanceThrottleEnabled", "true");
         final var ops = new ArrayList<SpecOperation>();
         ops.add(overridingThrottles("testSystemFiles/tiny-get-balance-throttle.json"));
-        ops.add(overridingAllOf(props));
-        ops.add(com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate(TARGET_ACC)
-                .withMatchingEvmAddress());
+        ops.add(overridingAllOf(Map.of("tokens.countingGetBalanceThrottleEnabled", "true")));
+        ops.add(cryptoCreate(TARGET_ACC).withMatchingEvmAddress());
         tokenNames.forEach(t -> {
             ops.add(tokenCreate(t));
             ops.add(tokenAssociate(TARGET_ACC, t));
         });
         ops.add(getAccountInfo(TARGET_ACC).exposingContractAccountIdTo(evmHexRef::set));
         ops.add(getAccountBalance(TARGET_ACC).hasAnswerOnlyPrecheck(BUSY));
-        ops.add(sourcing(() -> getAliasedAccountBalance(ByteString.copyFrom(CommonUtils.unhex(evmHexRef.get())))
+        ops.add(sourcing(() -> getAliasedAccountBalance(ByteString.copyFrom(requireNonNull(unhex(evmHexRef.get()))))
                 .hasAnswerOnlyPrecheck(BUSY)));
 
         return hapiTest(ops.toArray(new SpecOperation[0]));
