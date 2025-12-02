@@ -200,7 +200,11 @@ public class TokenServiceSimpleFeesSuite {
                                 .hasKnownStatus(SUCCESS)
                                 .via("non-fungible-mint-txn")),
                 "non-fungible-mint-txn",
-                0.02,
+                // base = 9000000,
+                // nft =  1*199000000,
+                // node+network = 1000000
+                // total = 209000000 = .0209
+                0.0209,
                 1,
                 0.02,
                 1);
