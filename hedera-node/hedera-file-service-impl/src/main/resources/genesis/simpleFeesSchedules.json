@@ -29,6 +29,10 @@
     { "name":  "CREATED_ACCOUNTS",               "fee": 0 },
     { "name":  "CUSTOM_FEE",                     "fee": 0 },
     { "name":  "GAS",                            "fee": 1 },
+    { "name":  "TOKEN_CREATE_FUNGIBLE",          "fee": 9000000 },
+    { "name":  "TOKEN_CREATE_NFT",               "fee": 100000 },
+    { "name":  "TOKEN_MINT_FUNGIBLE",            "fee": 9000000 },
+    { "name":  "TOKEN_MINT_NFT",                 "fee": 100000 },
     { "name":  "ALLOWANCES",                     "fee": 2000 },
     { "name":  "AIRDROPS",                       "fee": 8800 },
     { "name":  "HOOKS",                          "fee": 10000000000 }

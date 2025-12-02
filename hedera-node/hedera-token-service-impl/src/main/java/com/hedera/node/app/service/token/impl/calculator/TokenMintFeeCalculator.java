@@ -27,14 +27,14 @@ public class TokenMintFeeCalculator implements ServiceFeeCalculator {
         feeResult.addServiceFee(1, serviceDef.baseFee());
         var op = txnBody.tokenMintOrThrow();
         if (op.amount() > 0) {
-            addExtraFee(feeResult, serviceDef, Extra.STANDARD_FUNGIBLE_TOKENS, feeSchedule, op.amount());
-            addExtraFee(feeResult, serviceDef, Extra.STANDARD_NON_FUNGIBLE_TOKENS, feeSchedule, 0);
+            addExtraFee(feeResult, serviceDef, Extra.TOKEN_MINT_FUNGIBLE, feeSchedule, op.amount());
+            addExtraFee(feeResult, serviceDef, Extra.TOKEN_MINT_NFT, feeSchedule, 0);
         } else {
-            addExtraFee(feeResult, serviceDef, Extra.STANDARD_FUNGIBLE_TOKENS, feeSchedule, 0);
+            addExtraFee(feeResult, serviceDef, Extra.TOKEN_MINT_FUNGIBLE, feeSchedule, 0);
             addExtraFee(
                     feeResult,
                     serviceDef,
-                    Extra.STANDARD_NON_FUNGIBLE_TOKENS,
+                    Extra.TOKEN_MINT_NFT,
                     feeSchedule,
                     op.metadata().size());
         }

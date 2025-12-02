@@ -56,10 +56,10 @@ public class TokenCreateFeeCalculator implements ServiceFeeCalculator {
         addExtraFee(feeResult, serviceDef, Extra.KEYS, feeSchedule, keys);
 
         if (op.tokenType() == TokenType.FUNGIBLE_COMMON) {
-            addExtraFee(feeResult, serviceDef, Extra.STANDARD_FUNGIBLE_TOKENS, feeSchedule, 1);
+            addExtraFee(feeResult, serviceDef, Extra.TOKEN_CREATE_FUNGIBLE, feeSchedule, 1);
         }
         if (op.tokenType() == TokenType.NON_FUNGIBLE_UNIQUE) {
-            addExtraFee(feeResult, serviceDef, Extra.STANDARD_NON_FUNGIBLE_TOKENS, feeSchedule, 1);
+            addExtraFee(feeResult, serviceDef, Extra.TOKEN_CREATE_NFT, feeSchedule, 1);
         }
     }
 
