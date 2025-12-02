@@ -335,9 +335,9 @@ public class CryptoTransferSimpleFeesSuite {
                                 .fee(10 * ONE_HBAR)
                                 .via("fungibleCustomFeeTxn")),
                 "fungibleCustomFeeTxn",
-                0.0022,
+                0.0021,
                 1.0,
-                0.0022,
+                0.0021,
                 1.0);
     }
 
@@ -364,9 +364,9 @@ public class CryptoTransferSimpleFeesSuite {
                                 .fee(10 * ONE_HBAR)
                                 .via("nftCustomFeeTxn")),
                 "nftCustomFeeTxn",
-                0.0022,
+                0.0021,
                 1.0,
-                0.0022,
+                0.0021,
                 1.0);
     }
 
@@ -433,9 +433,9 @@ public class CryptoTransferSimpleFeesSuite {
                                 .fee(10 * ONE_HBAR)
                                 .via("multipleCustomFeeTxn")),
                 "multipleCustomFeeTxn",
-                0.0023,
+                0.0022,
                 1.0,
-                0.0023,
+                0.0022,
                 1.0);
     }
 
@@ -470,9 +470,9 @@ public class CryptoTransferSimpleFeesSuite {
                                 .fee(10 * ONE_HBAR)
                                 .via("customFungibleNftTxn")),
                 "customFungibleNftTxn",
-                0.0023,
+                0.0021,
                 1.0,
-                0.0023,
+                0.0021,
                 1.0);
     }
 

@@ -11,24 +11,18 @@ import com.hedera.hapi.node.base.AccountAmount;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.HookCall;
-import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.NftTransfer;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TokenTransferList;
 import com.hedera.hapi.node.base.TokenType;
 import com.hedera.hapi.node.base.TransferList;
-import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.state.token.Token;
-import com.hedera.hapi.node.state.token.TokenRelation;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.hapi.node.transaction.CustomFee;
 import com.hedera.hapi.node.transaction.TransactionBody;
-import com.hedera.node.app.service.token.ReadableAccountStore;
-import com.hedera.node.app.service.token.ReadableTokenRelationStore;
 import com.hedera.node.app.service.token.ReadableTokenStore;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.SimpleFeeCalculatorImpl;
-import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.util.List;
 import java.util.Set;
 import org.hiero.hapi.support.fees.*;
@@ -52,12 +46,6 @@ class CryptoTransferFeeCalculatorTest {
 
     @Mock
     private ReadableTokenStore tokenStore;
-
-    @Mock
-    private ReadableAccountStore accountStore;
-
-    @Mock
-    private ReadableTokenRelationStore tokenRelStore;
 
     private SimpleFeeCalculatorImpl feeCalculator;
     private FeeSchedule testSchedule;
@@ -117,10 +105,6 @@ class CryptoTransferFeeCalculatorTest {
             // Given: 1 unique fungible token (with 2 account adjustments: sender + receiver)
             lenient().when(feeContext.numTxnSignatures()).thenReturn(1);
             lenient().when(feeContext.readableStore(ReadableTokenStore.class)).thenReturn(tokenStore);
-            lenient().when(feeContext.readableStore(ReadableAccountStore.class)).thenReturn(accountStore);
-            lenient()
-                    .when(feeContext.readableStore(ReadableTokenRelationStore.class))
-                    .thenReturn(tokenRelStore);
 
             final var tokenId = TokenID.newBuilder().tokenNum(2001L).build();
             final var token = Token.newBuilder()
@@ -166,10 +150,6 @@ class CryptoTransferFeeCalculatorTest {
             // Given: 2 unique fungible tokens (total 4 account adjustments across both)
             lenient().when(feeContext.numTxnSignatures()).thenReturn(1);
             lenient().when(feeContext.readableStore(ReadableTokenStore.class)).thenReturn(tokenStore);
-            lenient().when(feeContext.readableStore(ReadableAccountStore.class)).thenReturn(accountStore);
-            lenient()
-                    .when(feeContext.readableStore(ReadableTokenRelationStore.class))
-                    .thenReturn(tokenRelStore);
 
             final var token1 = TokenID.newBuilder().tokenNum(2001L).build();
             final var token2 = TokenID.newBuilder().tokenNum(2002L).build();
@@ -245,10 +225,6 @@ class CryptoTransferFeeCalculatorTest {
             // Given: 1 standard NFT transfer
             lenient().when(feeContext.numTxnSignatures()).thenReturn(1);
             lenient().when(feeContext.readableStore(ReadableTokenStore.class)).thenReturn(tokenStore);
-            lenient().when(feeContext.readableStore(ReadableAccountStore.class)).thenReturn(accountStore);
-            lenient()
-                    .when(feeContext.readableStore(ReadableTokenRelationStore.class))
-                    .thenReturn(tokenRelStore);
 
             final var tokenId = TokenID.newBuilder().tokenNum(3001L).build();
             final var token = Token.newBuilder()
@@ -288,10 +264,6 @@ class CryptoTransferFeeCalculatorTest {
             // Given: 3 standard NFT transfers from same collection
             lenient().when(feeContext.numTxnSignatures()).thenReturn(1);
             lenient().when(feeContext.readableStore(ReadableTokenStore.class)).thenReturn(tokenStore);
-            lenient().when(feeContext.readableStore(ReadableAccountStore.class)).thenReturn(accountStore);
-            lenient()
-                    .when(feeContext.readableStore(ReadableTokenRelationStore.class))
-                    .thenReturn(tokenRelStore);
 
             final var tokenId = TokenID.newBuilder().tokenNum(3001L).build();
             final var token = Token.newBuilder()
@@ -345,10 +317,6 @@ class CryptoTransferFeeCalculatorTest {
             // Given: HBAR + fungible + NFT
             lenient().when(feeContext.numTxnSignatures()).thenReturn(1);
             lenient().when(feeContext.readableStore(ReadableTokenStore.class)).thenReturn(tokenStore);
-            lenient().when(feeContext.readableStore(ReadableAccountStore.class)).thenReturn(accountStore);
-            lenient()
-                    .when(feeContext.readableStore(ReadableTokenRelationStore.class))
-                    .thenReturn(tokenRelStore);
 
             final var hbarTransfers = TransferList.newBuilder()
                     .accountAmounts(
@@ -455,10 +423,6 @@ class CryptoTransferFeeCalculatorTest {
             // Given: Token store returns token with custom fees
             lenient().when(feeContext.numTxnSignatures()).thenReturn(1);
             lenient().when(feeContext.readableStore(ReadableTokenStore.class)).thenReturn(tokenStore);
-            lenient().when(feeContext.readableStore(ReadableAccountStore.class)).thenReturn(accountStore);
-            lenient()
-                    .when(feeContext.readableStore(ReadableTokenRelationStore.class))
-                    .thenReturn(tokenRelStore);
 
             final var tokenId = TokenID.newBuilder().tokenNum(2001L).build();
             final var token = Token.newBuilder()
@@ -494,9 +458,9 @@ class CryptoTransferFeeCalculatorTest {
             // When
             final var result = feeCalculator.calculateTxFee(body, feeContext);
 
-            // Then: service=20000000 (CRYPTO_TRANSFER_TOKEN_FUNGIBLE_COMMON_WITH_CUSTOM_FEES base)
-            // + 1000000 (1 CUSTOM_FEE_FUNGIBLE_TOKEN, includedCount=0)
-            assertThat(result.service).isEqualTo(21000000L);
+            // Then: service=20000000 (CRYPTO_TRANSFER_BASE_FUNGIBLE_CUSTOM_FEES base)
+            // + 0 (1 FUNGIBLE_TOKEN, includedCount=1, so first token is free)
+            assertThat(result.service).isEqualTo(20000000L);
         }
 
         @Test
@@ -505,10 +469,6 @@ class CryptoTransferFeeCalculatorTest {
             // Given: Token store returns NFT token with custom fees
             lenient().when(feeContext.numTxnSignatures()).thenReturn(1);
             lenient().when(feeContext.readableStore(ReadableTokenStore.class)).thenReturn(tokenStore);
-            lenient().when(feeContext.readableStore(ReadableAccountStore.class)).thenReturn(accountStore);
-            lenient()
-                    .when(feeContext.readableStore(ReadableTokenRelationStore.class))
-                    .thenReturn(tokenRelStore);
 
             final var tokenId = TokenID.newBuilder().tokenNum(3001L).build();
             final var token = Token.newBuilder()
@@ -538,9 +498,9 @@ class CryptoTransferFeeCalculatorTest {
             // When
             final var result = feeCalculator.calculateTxFee(body, feeContext);
 
-            // Then: service=20000000 (CRYPTO_TRANSFER_TOKEN_NON_FUNGIBLE_UNIQUE_WITH_CUSTOM_FEES base)
-            // + 1000000 (1 CUSTOM_FEE_NON_FUNGIBLE_TOKEN, includedCount=0)
-            assertThat(result.service).isEqualTo(21000000L);
+            // Then: service=20000000 (CRYPTO_TRANSFER_BASE_NFT_CUSTOM_FEES base)
+            // + 0 (1 NON_FUNGIBLE_TOKEN, includedCount=1, so first NFT is free)
+            assertThat(result.service).isEqualTo(20000000L);
         }
 
         @Test
@@ -549,10 +509,6 @@ class CryptoTransferFeeCalculatorTest {
             // Given: Multiple tokens with different fee structures
             lenient().when(feeContext.numTxnSignatures()).thenReturn(1);
             lenient().when(feeContext.readableStore(ReadableTokenStore.class)).thenReturn(tokenStore);
-            lenient().when(feeContext.readableStore(ReadableAccountStore.class)).thenReturn(accountStore);
-            lenient()
-                    .when(feeContext.readableStore(ReadableTokenRelationStore.class))
-                    .thenReturn(tokenRelStore);
 
             final var standardTokenId = TokenID.newBuilder().tokenNum(2001L).build();
             final var customFeeTokenId = TokenID.newBuilder().tokenNum(2002L).build();
@@ -603,340 +559,6 @@ class CryptoTransferFeeCalculatorTest {
     }
 
     @Nested
-    @DisplayName("Auto-Association Prediction Tests")
-    class AutoAssociationPredictionTests {
-        @Test
-        @DisplayName("Predicts auto-association when recipient has slots available")
-        void predictsAutoAssociationWithAvailableSlots() {
-            // Given: All stores available, token without KYC/Freeze, recipient with auto-association slots
-            lenient().when(feeContext.numTxnSignatures()).thenReturn(1);
-            lenient().when(feeContext.readableStore(ReadableTokenStore.class)).thenReturn(tokenStore);
-            lenient().when(feeContext.readableStore(ReadableAccountStore.class)).thenReturn(accountStore);
-            lenient()
-                    .when(feeContext.readableStore(ReadableTokenRelationStore.class))
-                    .thenReturn(tokenRelStore);
-
-            final var tokenId = TokenID.newBuilder().tokenNum(2001L).build();
-            final var recipientId = AccountID.newBuilder().accountNum(1002L).build();
-
-            final var token = Token.newBuilder()
-                    .tokenId(tokenId)
-                    .tokenType(TokenType.FUNGIBLE_COMMON)
-                    .customFees(List.of())
-                    .build(); // No KYC or freeze keys
-
-            final var recipient = Account.newBuilder()
-                    .accountId(recipientId)
-                    .maxAutoAssociations(10)
-                    .usedAutoAssociations(5)
-                    .build();
-
-            when(tokenStore.get(tokenId)).thenReturn(token);
-            when(accountStore.getAliasedAccountById(recipientId)).thenReturn(recipient);
-            when(tokenRelStore.get(recipientId, tokenId)).thenReturn(null); // No existing relation
-
-            final var tokenTransfers = TokenTransferList.newBuilder()
-                    .token(tokenId)
-                    .transfers(AccountAmount.newBuilder()
-                            .accountID(recipientId)
-                            .amount(50L)
-                            .build())
-                    .build();
-
-            final var op = CryptoTransferTransactionBody.newBuilder()
-                    .tokenTransfers(tokenTransfers)
-                    .build();
-            final var body = TransactionBody.newBuilder().cryptoTransfer(op).build();
-
-            // When
-            final var result = feeCalculator.calculateTxFee(body, feeContext);
-
-            // Then: service=10000000 (CRYPTO_TRANSFER_TOKEN_FUNGIBLE_COMMON base)
-            // + 0 (standard token with includedCount=1) + 0 (auto-association fee is 0)
-            assertThat(result.service).isEqualTo(10000000L);
-        }
-
-        @Test
-        @DisplayName("No auto-association when token has KYC key")
-        void noAutoAssociationWhenTokenHasKycKey() {
-            // Given: Token with KYC key
-            lenient().when(feeContext.numTxnSignatures()).thenReturn(1);
-            lenient().when(feeContext.readableStore(ReadableTokenStore.class)).thenReturn(tokenStore);
-            lenient().when(feeContext.readableStore(ReadableAccountStore.class)).thenReturn(accountStore);
-            lenient()
-                    .when(feeContext.readableStore(ReadableTokenRelationStore.class))
-                    .thenReturn(tokenRelStore);
-
-            final var tokenId = TokenID.newBuilder().tokenNum(2001L).build();
-            final var recipientId = AccountID.newBuilder().accountNum(1002L).build();
-
-            final var kycKey =
-                    Key.newBuilder().ed25519(Bytes.wrap(new byte[32])).build();
-            final var token = Token.newBuilder()
-                    .tokenId(tokenId)
-                    .tokenType(TokenType.FUNGIBLE_COMMON)
-                    .kycKey(kycKey) // Has KYC key
-                    .customFees(List.of())
-                    .build();
-
-            when(tokenStore.get(tokenId)).thenReturn(token);
-
-            final var tokenTransfers = TokenTransferList.newBuilder()
-                    .token(tokenId)
-                    .transfers(AccountAmount.newBuilder()
-                            .accountID(recipientId)
-                            .amount(50L)
-                            .build())
-                    .build();
-
-            final var op = CryptoTransferTransactionBody.newBuilder()
-                    .tokenTransfers(tokenTransfers)
-                    .build();
-            final var body = TransactionBody.newBuilder().cryptoTransfer(op).build();
-
-            // When
-            final var result = feeCalculator.calculateTxFee(body, feeContext);
-
-            // Then:
-            assertThat(result.service).isEqualTo(10000000L);
-        }
-
-        @Test
-        @DisplayName("No auto-association when token relation exists")
-        void noAutoAssociationWhenRelationExists() {
-            // Given: Token relation already exists
-            lenient().when(feeContext.numTxnSignatures()).thenReturn(1);
-            lenient().when(feeContext.readableStore(ReadableTokenStore.class)).thenReturn(tokenStore);
-            lenient().when(feeContext.readableStore(ReadableAccountStore.class)).thenReturn(accountStore);
-            lenient()
-                    .when(feeContext.readableStore(ReadableTokenRelationStore.class))
-                    .thenReturn(tokenRelStore);
-
-            final var tokenId = TokenID.newBuilder().tokenNum(2001L).build();
-            final var recipientId = AccountID.newBuilder().accountNum(1002L).build();
-
-            final var token = Token.newBuilder()
-                    .tokenId(tokenId)
-                    .tokenType(TokenType.FUNGIBLE_COMMON)
-                    .customFees(List.of())
-                    .build();
-
-            final var recipient = Account.newBuilder()
-                    .accountId(recipientId)
-                    .maxAutoAssociations(10)
-                    .usedAutoAssociations(5)
-                    .build();
-
-            final var tokenRel = TokenRelation.newBuilder()
-                    .tokenId(tokenId)
-                    .accountId(recipientId)
-                    .build();
-
-            when(tokenStore.get(tokenId)).thenReturn(token);
-            when(accountStore.getAliasedAccountById(recipientId)).thenReturn(recipient);
-            when(tokenRelStore.get(recipientId, tokenId)).thenReturn(tokenRel); // Existing relation
-
-            final var tokenTransfers = TokenTransferList.newBuilder()
-                    .token(tokenId)
-                    .transfers(AccountAmount.newBuilder()
-                            .accountID(recipientId)
-                            .amount(50L)
-                            .build())
-                    .build();
-
-            final var op = CryptoTransferTransactionBody.newBuilder()
-                    .tokenTransfers(tokenTransfers)
-                    .build();
-            final var body = TransactionBody.newBuilder().cryptoTransfer(op).build();
-
-            // When
-            final var result = feeCalculator.calculateTxFee(body, feeContext);
-
-            // Then:
-            assertThat(result.service).isEqualTo(10000000L);
-        }
-
-        @Test
-        @DisplayName("No auto-association when account has no slots")
-        void noAutoAssociationWhenNoSlots() {
-            // Given: Account with no available auto-association slots
-            lenient().when(feeContext.numTxnSignatures()).thenReturn(1);
-            lenient().when(feeContext.readableStore(ReadableTokenStore.class)).thenReturn(tokenStore);
-            lenient().when(feeContext.readableStore(ReadableAccountStore.class)).thenReturn(accountStore);
-            lenient()
-                    .when(feeContext.readableStore(ReadableTokenRelationStore.class))
-                    .thenReturn(tokenRelStore);
-
-            final var tokenId = TokenID.newBuilder().tokenNum(2001L).build();
-            final var recipientId = AccountID.newBuilder().accountNum(1002L).build();
-
-            final var token = Token.newBuilder()
-                    .tokenId(tokenId)
-                    .tokenType(TokenType.FUNGIBLE_COMMON)
-                    .customFees(List.of())
-                    .build();
-
-            final var recipient = Account.newBuilder()
-                    .accountId(recipientId)
-                    .maxAutoAssociations(10)
-                    .usedAutoAssociations(10)
-                    .build();
-
-            when(tokenStore.get(tokenId)).thenReturn(token);
-            when(accountStore.getAliasedAccountById(recipientId)).thenReturn(recipient);
-            when(tokenRelStore.get(recipientId, tokenId)).thenReturn(null);
-
-            final var tokenTransfers = TokenTransferList.newBuilder()
-                    .token(tokenId)
-                    .transfers(AccountAmount.newBuilder()
-                            .accountID(recipientId)
-                            .amount(50L)
-                            .build())
-                    .build();
-
-            final var op = CryptoTransferTransactionBody.newBuilder()
-                    .tokenTransfers(tokenTransfers)
-                    .build();
-            final var body = TransactionBody.newBuilder().cryptoTransfer(op).build();
-
-            // When
-            final var result = feeCalculator.calculateTxFee(body, feeContext);
-
-            // Then
-            assertThat(result.service).isEqualTo(10000000L);
-        }
-    }
-
-    @Nested
-    @DisplayName("Hollow Account Prediction Tests")
-    class HollowAccountPredictionTests {
-        @Test
-        @DisplayName("Predicts hollow account creation for HBAR transfer to alias")
-        void predictsHollowAccountForHbarTransferToAlias() {
-            // Given: HBAR transfer to alias that doesn't exist
-            lenient().when(feeContext.numTxnSignatures()).thenReturn(1);
-            lenient().when(feeContext.readableStore(ReadableAccountStore.class)).thenReturn(accountStore);
-
-            final var aliasBytes = Bytes.wrap(new byte[20]); // Some alias
-            final var aliasAccountId = AccountID.newBuilder().alias(aliasBytes).build();
-
-            when(accountStore.getAliasedAccountById(aliasAccountId)).thenReturn(null); // No account exists
-
-            final var hbarTransfers = TransferList.newBuilder()
-                    .accountAmounts(AccountAmount.newBuilder()
-                            .accountID(aliasAccountId)
-                            .amount(100L)
-                            .build())
-                    .build();
-
-            final var op = CryptoTransferTransactionBody.newBuilder()
-                    .transfers(hbarTransfers)
-                    .build();
-            final var body = TransactionBody.newBuilder().cryptoTransfer(op).build();
-
-            // When
-            final var result = feeCalculator.calculateTxFee(body, feeContext);
-
-            // Then:
-            assertThat(result.service).isEqualTo(0L);
-        }
-
-        @Test
-        @DisplayName("Predicts hollow account for token transfer to alias")
-        void predictsHollowAccountForTokenTransferToAlias() {
-            // Given: Token transfer to alias that doesn't exist
-            lenient().when(feeContext.numTxnSignatures()).thenReturn(1);
-            lenient().when(feeContext.readableStore(ReadableAccountStore.class)).thenReturn(accountStore);
-            lenient().when(feeContext.readableStore(ReadableTokenStore.class)).thenReturn(tokenStore);
-            lenient()
-                    .when(feeContext.readableStore(ReadableTokenRelationStore.class))
-                    .thenReturn(tokenRelStore);
-
-            final var tokenId = TokenID.newBuilder().tokenNum(2001L).build();
-            final var aliasBytes = Bytes.wrap(new byte[20]);
-            final var aliasAccountId = AccountID.newBuilder().alias(aliasBytes).build();
-
-            final var token = Token.newBuilder()
-                    .tokenId(tokenId)
-                    .tokenType(TokenType.FUNGIBLE_COMMON)
-                    .customFees(List.of())
-                    .build();
-            when(tokenStore.get(tokenId)).thenReturn(token);
-            when(accountStore.getAliasedAccountById(aliasAccountId)).thenReturn(null);
-
-            final var tokenTransfers = TokenTransferList.newBuilder()
-                    .token(tokenId)
-                    .transfers(AccountAmount.newBuilder()
-                            .accountID(aliasAccountId)
-                            .amount(50L)
-                            .build())
-                    .build();
-
-            final var op = CryptoTransferTransactionBody.newBuilder()
-                    .tokenTransfers(tokenTransfers)
-                    .build();
-            final var body = TransactionBody.newBuilder().cryptoTransfer(op).build();
-
-            // When
-            final var result = feeCalculator.calculateTxFee(body, feeContext);
-
-            // Then:
-            assertThat(result.service).isEqualTo(10000000L);
-        }
-
-        @Test
-        @DisplayName("Predicts hollow account for NFT transfer receiver with alias")
-        void predictsHollowAccountForNftReceiver() {
-            // Given: NFT transfer to alias that doesn't exist
-            lenient().when(feeContext.numTxnSignatures()).thenReturn(1);
-            lenient().when(feeContext.readableStore(ReadableAccountStore.class)).thenReturn(accountStore);
-            lenient().when(feeContext.readableStore(ReadableTokenStore.class)).thenReturn(tokenStore);
-            lenient()
-                    .when(feeContext.readableStore(ReadableTokenRelationStore.class))
-                    .thenReturn(tokenRelStore);
-
-            final var tokenId = TokenID.newBuilder().tokenNum(3001L).build();
-            final var senderAccountId = AccountID.newBuilder().accountNum(1001L).build();
-            final var aliasBytes = Bytes.wrap(new byte[20]);
-            final var receiverAliasAccountId =
-                    AccountID.newBuilder().alias(aliasBytes).build();
-
-            final var token = Token.newBuilder()
-                    .tokenId(tokenId)
-                    .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
-                    .customFees(List.of())
-                    .build();
-            when(tokenStore.get(tokenId)).thenReturn(token);
-            lenient()
-                    .when(accountStore.getAliasedAccountById(senderAccountId))
-                    .thenReturn(Account.newBuilder().accountId(senderAccountId).build());
-            when(accountStore.getAliasedAccountById(receiverAliasAccountId)).thenReturn(null);
-
-            final var nftTransfer = NftTransfer.newBuilder()
-                    .senderAccountID(senderAccountId)
-                    .receiverAccountID(receiverAliasAccountId)
-                    .serialNumber(1L)
-                    .build();
-
-            final var tokenTransfers = TokenTransferList.newBuilder()
-                    .token(tokenId)
-                    .nftTransfers(nftTransfer)
-                    .build();
-
-            final var op = CryptoTransferTransactionBody.newBuilder()
-                    .tokenTransfers(tokenTransfers)
-                    .build();
-            final var body = TransactionBody.newBuilder().cryptoTransfer(op).build();
-
-            // When
-            final var result = feeCalculator.calculateTxFee(body, feeContext);
-
-            // Then:
-            assertThat(result.service).isEqualTo(10000000L);
-        }
-    }
-
-    @Nested
     @DisplayName("Hook Fee Tests")
     class HookFeeTests {
         @Test
@@ -983,10 +605,6 @@ class CryptoTransferFeeCalculatorTest {
             // Given: HBAR transfer with 2 hooks + NFT transfer with sender/receiver hooks
             lenient().when(feeContext.numTxnSignatures()).thenReturn(1);
             lenient().when(feeContext.readableStore(ReadableTokenStore.class)).thenReturn(tokenStore);
-            lenient().when(feeContext.readableStore(ReadableAccountStore.class)).thenReturn(accountStore);
-            lenient()
-                    .when(feeContext.readableStore(ReadableTokenRelationStore.class))
-                    .thenReturn(tokenRelStore);
 
             final var sender = AccountID.newBuilder().accountNum(1001L).build();
             final var receiver = AccountID.newBuilder().accountNum(1002L).build();
@@ -1092,36 +710,28 @@ class CryptoTransferFeeCalculatorTest {
                         makeExtraDef(Extra.KEYS, 100000000L),
                         makeExtraDef(Extra.BYTES, 110L),
                         makeExtraDef(Extra.ACCOUNTS, 0L),
-                        makeExtraDef(Extra.STANDARD_FUNGIBLE_TOKENS, 1000000L),
-                        makeExtraDef(Extra.STANDARD_NON_FUNGIBLE_TOKENS, 1000000L),
-                        makeExtraDef(Extra.CUSTOM_FEE_FUNGIBLE_TOKENS, 1000000L),
-                        makeExtraDef(Extra.CUSTOM_FEE_NON_FUNGIBLE_TOKENS, 1000000L),
-                        makeExtraDef(Extra.CREATED_AUTO_ASSOCIATIONS, 0L),
-                        makeExtraDef(Extra.CREATED_ACCOUNTS, 0L),
-                        makeExtraDef(Extra.HOOKS, 10000000000L),
-                        makeExtraDef(Extra.CRYPTO_TRANSFER_TOKEN_FUNGIBLE_COMMON, 10000000L),
-                        makeExtraDef(Extra.CRYPTO_TRANSFER_TOKEN_NON_FUNGIBLE_UNIQUE, 10000000L),
-                        makeExtraDef(Extra.CRYPTO_TRANSFER_TOKEN_FUNGIBLE_COMMON_WITH_CUSTOM_FEES, 20000000L),
-                        makeExtraDef(Extra.CRYPTO_TRANSFER_TOKEN_NON_FUNGIBLE_UNIQUE_WITH_CUSTOM_FEES, 20000000L),
-                        makeExtraDef(Extra.CRYPTO_TRANSFER_WITH_HOOKS, 50000000L))
+                        makeExtraDef(Extra.FUNGIBLE_TOKENS, 1000000L),
+                        makeExtraDef(Extra.NON_FUNGIBLE_TOKENS, 1000000L),
+                        makeExtraDef(Extra.HOOK_UPDATES, 10000000000L),
+                        makeExtraDef(Extra.CRYPTO_TRANSFER_BASE_FUNGIBLE, 10000000L),
+                        makeExtraDef(Extra.CRYPTO_TRANSFER_BASE_NFT, 10000000L),
+                        makeExtraDef(Extra.CRYPTO_TRANSFER_BASE_FUNGIBLE_CUSTOM_FEES, 20000000L),
+                        makeExtraDef(Extra.CRYPTO_TRANSFER_BASE_NFT_CUSTOM_FEES, 20000000L),
+                        makeExtraDef(Extra.HOOK_EXECUTION, 50000000L))
                 .services(makeService(
                         "CryptoTransfer",
                         makeServiceFee(
                                 HederaFunctionality.CRYPTO_TRANSFER,
                                 0L,
-                                makeExtraIncluded(Extra.CRYPTO_TRANSFER_TOKEN_FUNGIBLE_COMMON, 0),
-                                makeExtraIncluded(Extra.CRYPTO_TRANSFER_TOKEN_NON_FUNGIBLE_UNIQUE, 0),
-                                makeExtraIncluded(Extra.CRYPTO_TRANSFER_TOKEN_FUNGIBLE_COMMON_WITH_CUSTOM_FEES, 0),
-                                makeExtraIncluded(Extra.CRYPTO_TRANSFER_TOKEN_NON_FUNGIBLE_UNIQUE_WITH_CUSTOM_FEES, 0),
-                                makeExtraIncluded(Extra.CRYPTO_TRANSFER_WITH_HOOKS, 0),
-                                makeExtraIncluded(Extra.HOOKS, 0),
+                                makeExtraIncluded(Extra.CRYPTO_TRANSFER_BASE_FUNGIBLE, 0),
+                                makeExtraIncluded(Extra.CRYPTO_TRANSFER_BASE_NFT, 0),
+                                makeExtraIncluded(Extra.CRYPTO_TRANSFER_BASE_FUNGIBLE_CUSTOM_FEES, 0),
+                                makeExtraIncluded(Extra.CRYPTO_TRANSFER_BASE_NFT_CUSTOM_FEES, 0),
+                                makeExtraIncluded(Extra.HOOK_EXECUTION, 0),
+                                makeExtraIncluded(Extra.HOOK_UPDATES, 0),
                                 makeExtraIncluded(Extra.ACCOUNTS, 2),
-                                makeExtraIncluded(Extra.STANDARD_FUNGIBLE_TOKENS, 1),
-                                makeExtraIncluded(Extra.STANDARD_NON_FUNGIBLE_TOKENS, 1),
-                                makeExtraIncluded(Extra.CUSTOM_FEE_FUNGIBLE_TOKENS, 0),
-                                makeExtraIncluded(Extra.CUSTOM_FEE_NON_FUNGIBLE_TOKENS, 0),
-                                makeExtraIncluded(Extra.CREATED_AUTO_ASSOCIATIONS, 0),
-                                makeExtraIncluded(Extra.CREATED_ACCOUNTS, 0))))
+                                makeExtraIncluded(Extra.FUNGIBLE_TOKENS, 1),
+                                makeExtraIncluded(Extra.NON_FUNGIBLE_TOKENS, 1))))
                 .build();
     }
 }
