@@ -228,7 +228,7 @@ public class ConsensusServiceSimpleFeesSuite {
                     // total = 102530000
                     0.01025,
                     1,
-                    0.000985,
+                    0.01025,
                     1);
         }
 
