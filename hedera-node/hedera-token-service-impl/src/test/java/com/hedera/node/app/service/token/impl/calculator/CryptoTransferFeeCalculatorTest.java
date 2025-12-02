@@ -11,7 +11,6 @@ import com.hedera.hapi.node.base.AccountAmount;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.HookCall;
-import com.hedera.hapi.node.base.NftTransfer;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TokenTransferList;
 import com.hedera.hapi.node.base.TokenType;
@@ -220,9 +219,9 @@ class CryptoTransferFeeCalculatorTest {
     @DisplayName("Mixed Transfer Tests")
     class MixedTransferTests {
         @Test
-        @DisplayName("Mixed HBAR + fungible + NFT transfer")
-        void mixedAllTypes() {
-            // Given: HBAR + fungible + NFT
+        @DisplayName("Mixed HBAR + fungible token transfer")
+        void mixedHbarAndFungible() {
+            // Given: HBAR + fungible token
             lenient().when(feeContext.numTxnSignatures()).thenReturn(1);
             lenient().when(feeContext.readableStore(ReadableTokenStore.class)).thenReturn(tokenStore);
 
@@ -267,36 +266,17 @@ class CryptoTransferFeeCalculatorTest {
                                     .build())
                     .build();
 
-            final var nftToken = TokenID.newBuilder().tokenNum(3001L).build();
-            final var nftTokenObj = Token.newBuilder()
-                    .tokenId(nftToken)
-                    .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
-                    .customFees(List.of())
-                    .build();
-            when(tokenStore.get(nftToken)).thenReturn(nftTokenObj);
-
-            final var nftTransfer = NftTransfer.newBuilder()
-                    .senderAccountID(AccountID.newBuilder().accountNum(1005L).build())
-                    .receiverAccountID(AccountID.newBuilder().accountNum(1006L).build())
-                    .serialNumber(1L)
-                    .build();
-            final var nftTransfers = TokenTransferList.newBuilder()
-                    .token(nftToken)
-                    .nftTransfers(nftTransfer)
-                    .build();
-
             final var op = CryptoTransferTransactionBody.newBuilder()
                     .transfers(hbarTransfers)
-                    .tokenTransfers(fungibleTransfers, nftTransfers)
+                    .tokenTransfers(fungibleTransfers)
                     .build();
             final var body = TransactionBody.newBuilder().cryptoTransfer(op).build();
 
             // When
             final var result = feeCalculator.calculateTxFee(body, feeContext);
 
-            // Then: service=10000000 (CRYPTO_TRANSFER_TOKEN_NON_FUNGIBLE_UNIQUE base fee, NFT takes precedence)
-            // + 0*1 (1 unique fungible included in STANDARD_FUNGIBLE_TOKENS) + 0*1 (1 NFT included)
-            // New methodology: charges highest-tier base (NFT > fungible), then additional tokens
+            // Then: service=10000000 (CRYPTO_TRANSFER_BASE_FUNGIBLE base fee)
+            // + 0 (1 fungible token, includedCount=1)
             assertThat(result.service).isEqualTo(10000000L);
         }
     }
@@ -468,9 +448,9 @@ class CryptoTransferFeeCalculatorTest {
         }
 
         @Test
-        @DisplayName("Mixed transfer with 4 hooks (HBAR + NFT sender/receiver)")
+        @DisplayName("Mixed transfer with 4 hooks (HBAR + fungible token)")
         void mixedTransferWithMultipleHooks() {
-            // Given: HBAR transfer with 2 hooks + NFT transfer with sender/receiver hooks
+            // Given: HBAR transfer with 2 hooks + fungible token transfer with 2 hooks
             lenient().when(feeContext.numTxnSignatures()).thenReturn(1);
             lenient().when(feeContext.readableStore(ReadableTokenStore.class)).thenReturn(tokenStore);
 
@@ -479,7 +459,7 @@ class CryptoTransferFeeCalculatorTest {
             final var tokenId = TokenID.newBuilder().tokenNum(2001L).build();
             final var token = Token.newBuilder()
                     .tokenId(tokenId)
-                    .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
+                    .tokenType(TokenType.FUNGIBLE_COMMON)
                     .customFees(List.of())
                     .build();
             when(tokenStore.get(tokenId)).thenReturn(token);
@@ -499,21 +479,25 @@ class CryptoTransferFeeCalculatorTest {
                                     .build())
                     .build();
 
-            // NFT transfer with sender and receiver hooks
-            final var nftTransfers = TokenTransferList.newBuilder()
+            // Fungible token transfer with hooks on sender and receiver
+            final var tokenTransfers = TokenTransferList.newBuilder()
                     .token(tokenId)
-                    .nftTransfers(NftTransfer.newBuilder()
-                            .senderAccountID(sender)
-                            .receiverAccountID(receiver)
-                            .serialNumber(1L)
-                            .preTxSenderAllowanceHook(HookCall.DEFAULT)
-                            .preTxReceiverAllowanceHook(HookCall.DEFAULT)
-                            .build())
+                    .transfers(
+                            AccountAmount.newBuilder()
+                                    .accountID(sender)
+                                    .amount(-50L)
+                                    .preTxAllowanceHook(HookCall.DEFAULT)
+                                    .build(),
+                            AccountAmount.newBuilder()
+                                    .accountID(receiver)
+                                    .amount(50L)
+                                    .preTxAllowanceHook(HookCall.DEFAULT)
+                                    .build())
                     .build();
 
             final var op = CryptoTransferTransactionBody.newBuilder()
                     .transfers(hbarTransfers)
-                    .tokenTransfers(nftTransfers)
+                    .tokenTransfers(tokenTransfers)
                     .build();
             final var body = TransactionBody.newBuilder().cryptoTransfer(op).build();
 
@@ -521,8 +505,8 @@ class CryptoTransferFeeCalculatorTest {
             final var result = feeCalculator.calculateTxFee(body, feeContext);
 
             // Then:
-            // - CRYPTO_TRANSFER_WITH_HOOKS base: 50,000,000 tinycents
-            // - HOOKS: 4 hooks × 10B = 40,000,000,000 tinycents
+            // - HOOK_EXECUTION base: 50,000,000 tinycents
+            // - HOOK_UPDATES: 4 hooks × 10B = 40,000,000,000 tinycents
             // - Total service fee: 40,050,000,000 tinycents
             assertThat(result.service).isEqualTo(40_050_000_000L);
         }
