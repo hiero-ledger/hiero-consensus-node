@@ -302,6 +302,17 @@ public class FreezeHandler implements TransactionHandler {
             try {
                 final var fileBytes = upgradeStore.getFull(updateFileID);
                 final var fileHash = noThrowSha384HashOf(fileBytes);
+                log.info("Type {} Update file hash {} ,  prepared hash {} for file {} fileBytes size {}!",
+                        freezeTxn.freezeType(),
+                        fileHash, freezeTxn.fileHash(), updateFileID, fileBytes.length());
+                // print first 100 bytes of the file for easier debugging
+                log.info("Bytes size = {}, contents = {}",
+                        fileBytes.length(), fileBytes.slice(0, Math.min(100, fileBytes.length())));
+                // print call stack for easier debugging
+                final var stackTrace = Thread.currentThread().getStackTrace();
+                for (var element : stackTrace) {
+                    log.info("  at {}", element.toString());
+                }
                 if (!Objects.equals(fileHash, freezeTxn.fileHash())) {
                     throw new PreCheckException(ResponseCodeEnum.UPDATE_FILE_HASH_DOES_NOT_MATCH_PREPARED);
                 }
