@@ -71,7 +71,7 @@ public class ContainerTestEnvironment implements TestEnvironment {
     public ContainerTestEnvironment(final boolean useRandomNodeIds, @NonNull final Path rootOutputDirectory) {
         ContainerLogConfigBuilder.configure();
 
-        this.rootOutputDirectory = rootOutputDirectory; // store for later retrieval
+        this.rootOutputDirectory = rootOutputDirectory;
 
         try {
             if (Files.exists(rootOutputDirectory)) {

@@ -18,6 +18,7 @@ import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.RUNNING
 import static com.swirlds.platform.state.service.PlatformStateService.PLATFORM_STATE_SERVICE;
 import static com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema.UNINITIALIZED_PLATFORM_STATE;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 
 import com.google.common.jimfs.Configuration;
@@ -38,6 +39,7 @@ import com.hedera.node.app.records.impl.producers.BlockRecordWriterFactory;
 import com.hedera.node.app.records.impl.producers.StreamFileProducerConcurrent;
 import com.hedera.node.app.records.impl.producers.StreamFileProducerSingleThreaded;
 import com.hedera.node.app.records.impl.producers.formats.BlockRecordWriterFactoryImpl;
+import com.hedera.node.app.records.impl.producers.formats.SelfNodeAccountIdManagerImpl;
 import com.hedera.node.app.records.impl.producers.formats.v6.BlockRecordFormatV6;
 import com.hedera.node.config.data.BlockRecordStreamConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -105,6 +107,9 @@ final class BlockRecordManagerTest extends AppTestBase {
     @Mock
     private Platform platform;
 
+    @Mock
+    private SelfNodeAccountIdManagerImpl selfNodeAccountIdManager;
+
     @BeforeEach
     void setUpEach() throws Exception {
         // create in memory temp dir
@@ -138,8 +143,8 @@ final class BlockRecordManagerTest extends AppTestBase {
         app.stateMutator(PlatformStateService.NAME)
                 .withSingletonState(V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID, UNINITIALIZED_PLATFORM_STATE)
                 .commit();
-
-        blockRecordWriterFactory = new BlockRecordWriterFactoryImpl(app.configProvider(), NODE_INFO, SIGNER, fs);
+        blockRecordWriterFactory =
+                new BlockRecordWriterFactoryImpl(app.configProvider(), SIGNER, fs, selfNodeAccountIdManager);
     }
 
     @AfterEach
@@ -154,6 +159,7 @@ final class BlockRecordManagerTest extends AppTestBase {
     @ParameterizedTest
     @CsvSource({"GENESIS, false", "NON_GENESIS, false", "GENESIS, true", "NON_GENESIS, true"})
     void testRecordStreamProduction(final String startMode, final boolean concurrent) throws Exception {
+        given(selfNodeAccountIdManager.getSelfNodeAccountId()).willReturn(NODE_INFO.accountId());
         // setup initial block info
         final long STARTING_BLOCK;
         if (startMode.equals("GENESIS")) {
@@ -255,6 +261,7 @@ final class BlockRecordManagerTest extends AppTestBase {
     @Test
     void testBlockInfoMethods() throws Exception {
         // setup initial block info, pretend that previous block was 2 seconds before first test transaction
+        given(selfNodeAccountIdManager.getSelfNodeAccountId()).willReturn(NODE_INFO.accountId());
         app.stateMutator(NAME)
                 .withSingletonState(
                         BLOCKS_STATE_ID,

@@ -289,12 +289,10 @@ public class Hip1195EnabledTest {
                 cryptoTransfer(TokenMovement.movingHbar(10).between(OWNER, GENESIS))
                         .withPreHookFor(OWNER, 124L, 15000000000000L, "")
                         .payingWith(PAYER)
-                        .fee(THOUSAND_HBAR)
                         .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK)
                         .via("payerTxnGasLimitExceeded"),
                 cryptoTransfer(TokenMovement.movingHbar(10).between(OWNER, GENESIS))
                         .withPreHookFor(OWNER, 124L, 15000000000000L, "")
-                        .fee(THOUSAND_HBAR)
                         .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK)
                         .via("defaultPayerMaxGasLimitExceededTxn"),
                 getTxnRecord("payerTxnGasLimitExceeded")

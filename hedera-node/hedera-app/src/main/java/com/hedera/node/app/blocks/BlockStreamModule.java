@@ -10,7 +10,7 @@ import com.hedera.node.app.blocks.impl.streaming.FileBlockItemWriter;
 import com.hedera.node.app.blocks.impl.streaming.GrpcBlockItemWriter;
 import com.hedera.node.app.metrics.BlockStreamMetrics;
 import com.hedera.node.app.services.NodeRewardManager;
-import com.hedera.node.app.spi.info.NodeInfo;
+import com.hedera.node.app.spi.records.SelfNodeAccountIdManager;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.swirlds.metrics.api.Metrics;
@@ -61,18 +61,19 @@ public interface BlockStreamModule {
     @Singleton
     static Supplier<BlockItemWriter> bindBlockItemWriterSupplier(
             @NonNull final ConfigProvider configProvider,
-            @NonNull final NodeInfo selfNodeInfo,
+            @NonNull final SelfNodeAccountIdManager selfNodeAccountIdManager,
             @NonNull final FileSystem fileSystem,
             @NonNull final BlockBufferService blockBufferService) {
         final var config = configProvider.getConfiguration();
         final var blockStreamConfig = config.getConfigData(BlockStreamConfig.class);
+
         return switch (blockStreamConfig.writerMode()) {
-            case FILE -> () -> new FileBlockItemWriter(configProvider, selfNodeInfo, fileSystem);
+            case FILE -> () -> new FileBlockItemWriter(configProvider, selfNodeAccountIdManager, fileSystem);
             case GRPC -> () -> new GrpcBlockItemWriter(blockBufferService);
             case FILE_AND_GRPC ->
                 () -> {
                     final FileBlockItemWriter fileWriter =
-                            new FileBlockItemWriter(configProvider, selfNodeInfo, fileSystem);
+                            new FileBlockItemWriter(configProvider, selfNodeAccountIdManager, fileSystem);
                     final GrpcBlockItemWriter grpcWriter = new GrpcBlockItemWriter(blockBufferService);
                     return new FileAndGrpcBlockItemWriter(configProvider, fileWriter, grpcWriter);
                 };
