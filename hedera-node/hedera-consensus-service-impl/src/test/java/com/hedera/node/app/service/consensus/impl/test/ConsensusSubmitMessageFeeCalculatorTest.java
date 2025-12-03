@@ -11,7 +11,7 @@ import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.consensus.ConsensusSubmitMessageTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.consensus.impl.calculator.ConsensusSubmitMessageFeeCalculator;
-import com.hedera.node.app.spi.fees.CalculatorState;
+import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.SimpleFeeCalculatorImpl;
 import java.util.List;
 import java.util.Set;
@@ -34,7 +34,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 public class ConsensusSubmitMessageFeeCalculatorTest {
     @Mock
-    private CalculatorState calculatorState;
+    private FeeContext feeContext;
 
     private SimpleFeeCalculatorImpl feeCalculator;
     private FeeSchedule testSchedule;
@@ -54,7 +54,7 @@ public class ConsensusSubmitMessageFeeCalculatorTest {
             final var op = ConsensusSubmitMessageTransactionBody.newBuilder().build();
             final var body =
                     TransactionBody.newBuilder().consensusSubmitMessage(op).build();
-            final var result = feeCalculator.calculateTxFee(body, calculatorState);
+            final var result = feeCalculator.calculateTxFee(body, feeContext);
             assertThat(result).isNotNull();
             Assertions.assertThat(result.node).isEqualTo(100000L);
             Assertions.assertThat(result.service).isEqualTo(498500000L);
