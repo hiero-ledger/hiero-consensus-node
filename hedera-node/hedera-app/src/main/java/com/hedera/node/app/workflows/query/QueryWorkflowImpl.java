@@ -11,7 +11,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.PAYER_ACCOUNT_NOT_FOUND
 import static com.hedera.hapi.node.base.ResponseType.ANSWER_STATE_PROOF;
 import static com.hedera.hapi.node.base.ResponseType.COST_ANSWER_STATE_PROOF;
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
-import static com.hedera.node.app.spi.fees.util.FeeUtils.feeResultToFees;
+import static com.hedera.node.app.spi.fees.util.FeeUtils.tinycentsToTinybars;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
@@ -236,12 +236,11 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
                             // 3.iv Calculate costs
                             long queryFees = 0;
                             if (shouldUseSimpleFees(context)) {
-                                var queryFeeResult = requireNonNull(feeManager.getSimpleFeeCalculator())
+                                final var queryFeeTinyCents = requireNonNull(feeManager.getSimpleFeeCalculator())
                                         .calculateQueryFee(context.query(), context);
-                                var fees = feeResultToFees(
-                                        queryFeeResult,
+                                queryFees = tinycentsToTinybars(
+                                        queryFeeTinyCents,
                                         fromPbj(context.exchangeRateInfo().activeRate(consensusTime)));
-                                queryFees = fees.totalFee();
                             } else {
                                 queryFees = handler.computeFees(context).totalFee();
                             }
@@ -297,11 +296,11 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
                     // 6.i Estimate costs
                     long queryFees = 0;
                     if (shouldUseSimpleFees(context)) {
-                        var feeResult = requireNonNull(feeManager.getSimpleFeeCalculator())
+                        final var queryFeeTinyCents = requireNonNull(feeManager.getSimpleFeeCalculator())
                                 .calculateQueryFee(context.query(), context);
-                        var fees = feeResultToFees(
-                                feeResult, fromPbj(context.exchangeRateInfo().activeRate(consensusTime)));
-                        queryFees = fees.totalFee();
+                        queryFees = tinycentsToTinybars(
+                                queryFeeTinyCents,
+                                fromPbj(context.exchangeRateInfo().activeRate(consensusTime)));
                     } else {
                         queryFees = handler.computeFees(context).totalFee();
                     }

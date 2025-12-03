@@ -48,7 +48,7 @@ public class FeeUtils {
         return feeResult;
     }
 
-    private static long tinycentsToTinybars(final long amount, final ExchangeRate rate) {
+    public static long tinycentsToTinybars(final long amount, final ExchangeRate rate) {
         final var hbarEquiv = rate.getHbarEquiv();
         if (productWouldOverflow(amount, hbarEquiv)) {
             return FeeBuilder.getTinybarsFromTinyCents(rate, amount);

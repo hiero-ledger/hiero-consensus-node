@@ -29,6 +29,5 @@ public interface SimpleFeeCalculator {
     @NonNull
     FeeResult calculateTxFee(@NonNull TransactionBody txnBody, @NonNull FeeContext feeContext);
 
-    @NonNull
-    FeeResult calculateQueryFee(@NonNull Query query, @NonNull QueryContext queryContext);
+    long calculateQueryFee(@NonNull Query query, @NonNull QueryContext queryContext);
 }

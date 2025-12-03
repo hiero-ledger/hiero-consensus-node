@@ -126,11 +126,10 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
      * @throws UnsupportedOperationException always
      */
     @Override
-    @NonNull
-    public FeeResult calculateQueryFee(@NonNull final Query query, @NonNull final QueryContext queryContext) {
+    public long calculateQueryFee(@NonNull final Query query, @NonNull final QueryContext queryContext) {
         final var result = new FeeResult();
         final var queryFeeCalculator = queryFeeCalculators.get(query.query().kind());
         queryFeeCalculator.accumulateServiceFee(query, queryContext, result, feeSchedule);
-        return result;
+        return result.total();
     }
 }
