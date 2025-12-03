@@ -104,7 +104,6 @@ module com.swirlds.platform.core {
     exports com.swirlds.platform.state.service;
     exports com.swirlds.platform.builder.internal;
     exports com.swirlds.platform.config.internal;
-    exports com.swirlds.platform.freeze;
     exports com.swirlds.platform.network.protocol.rpc;
     exports com.swirlds.platform.state.iss to
             org.hiero.otter.test;

@@ -12,7 +12,7 @@ import com.swirlds.platform.consensus.ConsensusConfig;
 import com.swirlds.platform.consensus.EventWindowUtils;
 import com.swirlds.platform.event.linking.ConsensusLinker;
 import com.swirlds.platform.event.linking.DefaultLinkerLogsAndMetrics;
-import com.swirlds.platform.freeze.FreezeCheckHolder;
+import org.hiero.consensus.freeze.FreezeCheckHolder;
 import com.swirlds.platform.internal.EventImpl;
 import com.swirlds.platform.metrics.ConsensusEngineMetrics;
 import com.swirlds.platform.metrics.ConsensusMetrics;

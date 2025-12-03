@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.freeze;
+package org.hiero.consensus.freeze;
 
 import java.time.Instant;
 

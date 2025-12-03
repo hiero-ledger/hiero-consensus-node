@@ -9,7 +9,7 @@ import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.notification.NotificationEngine;
 import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.platform.event.preconsensus.PcesFileTracker;
-import com.swirlds.platform.freeze.FreezeCheckHolder;
+import org.hiero.consensus.freeze.FreezeCheckHolder;
 import com.swirlds.platform.gossip.IntakeEventCounter;
 import com.swirlds.platform.network.protocol.ReservedSignedStateResultPromise;
 import com.swirlds.platform.reconnect.FallenBehindMonitor;

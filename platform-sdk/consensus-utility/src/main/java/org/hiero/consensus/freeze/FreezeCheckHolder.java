@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.freeze;
+package org.hiero.consensus.freeze;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;

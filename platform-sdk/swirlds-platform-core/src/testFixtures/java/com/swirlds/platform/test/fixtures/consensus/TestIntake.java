@@ -24,7 +24,7 @@ import com.swirlds.platform.consensus.EventWindowUtils;
 import com.swirlds.platform.consensus.SyntheticSnapshot;
 import com.swirlds.platform.event.orphan.DefaultOrphanBuffer;
 import com.swirlds.platform.event.orphan.OrphanBuffer;
-import com.swirlds.platform.freeze.FreezeCheckHolder;
+import org.hiero.consensus.freeze.FreezeCheckHolder;
 import com.swirlds.platform.gossip.IntakeEventCounter;
 import com.swirlds.platform.gossip.NoOpIntakeEventCounter;
 import com.swirlds.platform.test.fixtures.consensus.framework.ConsensusOutput;
