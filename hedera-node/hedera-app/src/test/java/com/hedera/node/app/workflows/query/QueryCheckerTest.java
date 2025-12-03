@@ -502,6 +502,25 @@ class QueryCheckerTest extends AppTestBase {
                     .isInstanceOf(PreCheckException.class)
                     .has(responseCode(INVALID_ACCOUNT_AMOUNTS));
         }
+
+        @Test
+        void testPayerFailsWithInsufficientBalanceAfterFee() {
+            // given
+            final long amount = 1000L;
+            final long fee = 10L;
+            // Payer has just less than amount + fee
+            accountsState.put(
+                    BOB.accountID(),
+                    BOB.account().copyBuilder().tinybarBalance(amount + fee - 1).build());
+            final var txInfo = createPaymentInfo(
+                    BOB.accountID(), send(BOB.accountID(), amount), receive(nodeSelfAccountId, amount));
+
+            // then
+            assertThatThrownBy(() -> checker.validateAccountBalances(store, txInfo, BOB.account(), amount, fee))
+                    .isInstanceOf(InsufficientBalanceException.class)
+                    .has(responseCode(INSUFFICIENT_PAYER_BALANCE))
+                    .has(estimatedFee(amount + fee));
+        }
     }
 
     @Test
