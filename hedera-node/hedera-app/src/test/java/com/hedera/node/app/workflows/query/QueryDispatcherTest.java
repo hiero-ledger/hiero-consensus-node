@@ -54,7 +54,9 @@ import com.hedera.node.app.service.token.impl.handlers.TokenGetAccountNftInfosHa
 import com.hedera.node.app.service.token.impl.handlers.TokenGetInfoHandler;
 import com.hedera.node.app.service.token.impl.handlers.TokenGetNftInfoHandler;
 import com.hedera.node.app.service.token.impl.handlers.TokenGetNftInfosHandler;
+import com.hedera.node.app.fees.FeeManager;
 import com.hedera.node.app.spi.workflows.QueryHandler;
+import java.time.InstantSource;
 import java.util.function.Function;
 import java.util.stream.Stream;
 import org.assertj.core.api.Assertions;
@@ -144,6 +146,12 @@ class QueryDispatcherTest {
     @Mock
     private TokenGetNftInfosHandler tokenGetNftInfosHandler;
 
+    @Mock
+    private FeeManager feeManager;
+
+    @Mock
+    private InstantSource instantSource;
+
     private QueryHandlers handlers;
 
     private QueryDispatcher dispatcher;
@@ -177,13 +185,18 @@ class QueryDispatcherTest {
                 tokenGetNftInfoHandler,
                 tokenGetNftInfosHandler);
 
-        dispatcher = new QueryDispatcher(handlers);
+        dispatcher = new QueryDispatcher(handlers, feeManager, instantSource);
     }
 
     @SuppressWarnings("ConstantConditions")
     @Test
     void testConstructorWithIllegalParameters() {
-        assertThatThrownBy(() -> new QueryDispatcher(null)).isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> new QueryDispatcher(null, feeManager, instantSource))
+                .isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> new QueryDispatcher(handlers, null, instantSource))
+                .isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> new QueryDispatcher(handlers, feeManager, null))
+                .isInstanceOf(NullPointerException.class);
     }
 
     @SuppressWarnings("ConstantConditions")
