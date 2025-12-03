@@ -15,8 +15,6 @@ import com.hedera.node.app.workflows.TransactionChecker;
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
 import com.hedera.node.app.workflows.prehandle.PreHandleResult;
-import com.hedera.node.config.ConfigProvider;
-import com.hedera.node.config.Utils;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -40,18 +38,15 @@ public class CacheWarmer {
     private final TransactionChecker checker;
     private final TransactionDispatcher dispatcher;
     private final Executor executor;
-    private final ConfigProvider configProvider;
 
     @Inject
     public CacheWarmer(
             @NonNull final TransactionChecker checker,
             @NonNull final TransactionDispatcher dispatcher,
-            @NonNull @Named("CacheWarmer") final Executor executor,
-            @NonNull final ConfigProvider configProvider) {
+            @NonNull @Named("CacheWarmer") final Executor executor) {
         this.checker = requireNonNull(checker, "checker must not be null");
         this.dispatcher = requireNonNull(dispatcher, "dispatcher must not be null");
         this.executor = requireNonNull(executor, "executor must not be null");
-        this.configProvider = requireNonNull(configProvider, "configProvider must not be null");
     }
 
     /**
@@ -96,8 +91,7 @@ public class CacheWarmer {
             final Bytes buffer = platformTransaction.getApplicationTransaction();
             // There is no cache warming to do for oversize TSS transactions, so it's fine
             // to fail with TRANSACTION_OVERSIZE here in any case
-            return checker.parseSignedAndCheck(buffer, Utils.maxIngestParseSize(configProvider.getConfiguration()))
-                    .txBody();
+            return checker.parseSignedAndCheck(buffer).txBody();
         } catch (PreCheckException ex) {
             return null;
         }

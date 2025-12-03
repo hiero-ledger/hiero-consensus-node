@@ -508,7 +508,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
         historyService = historyServiceFactory.apply(appContext, bootstrapConfig);
         utilServiceImpl = new UtilServiceImpl(appContext, (txnBytes, config) -> daggerApp
                 .transactionChecker()
-                .parseSignedAndCheck(txnBytes, Utils.maxIngestParseSize(config))
+                .parseSignedAndCheck(txnBytes)
                 .txBody());
         tokenServiceImpl = new TokenServiceImpl(appContext);
         consensusServiceImpl = new ConsensusServiceImpl();
