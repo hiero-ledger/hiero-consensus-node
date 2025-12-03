@@ -15,7 +15,6 @@ import com.hedera.node.app.spi.fees.SimpleFeeCalculatorImpl;
 import com.hedera.node.app.spi.workflows.QueryContext;
 import java.util.List;
 import java.util.Set;
-import org.assertj.core.api.Assertions;
 import org.hiero.hapi.support.fees.Extra;
 import org.hiero.hapi.support.fees.FeeSchedule;
 import org.hiero.hapi.support.fees.NetworkFee;
@@ -49,10 +48,7 @@ public class ConsensusGetTopicInfoFeeCalculatorTest {
         final var query = Query.newBuilder().consensusGetTopicInfo(op).build();
         final var result = feeCalculator.calculateQueryFee(query, queryContext);
 
-        assertThat(result).isNotNull();
-        Assertions.assertThat(result.node).isEqualTo(0);
-        Assertions.assertThat(result.service).isEqualTo(GET_INFO_BASE_FEE);
-        Assertions.assertThat(result.network).isEqualTo(0);
+        assertThat(result).isEqualTo(GET_INFO_BASE_FEE);
     }
 
     private static FeeSchedule createTestFeeSchedule() {
