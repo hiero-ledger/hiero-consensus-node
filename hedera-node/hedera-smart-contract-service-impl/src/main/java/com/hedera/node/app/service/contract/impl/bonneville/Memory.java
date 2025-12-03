@@ -80,6 +80,10 @@ public class Memory {
         return Bytes.wrap(_mem,off,len);
     }
 
+    Bytes copyBytes(int off, int len) {
+        return Bytes.wrap(Arrays.copyOfRange(_mem,off,off+len),0,len);
+    }
+
     @Override public String toString() {
         SB sb = new SB().p("[[\n");
         for( int i=0; i<_len; i+=32 ) {

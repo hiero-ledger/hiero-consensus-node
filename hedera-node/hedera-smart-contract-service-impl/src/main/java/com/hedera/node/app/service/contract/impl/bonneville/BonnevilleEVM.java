@@ -1019,7 +1019,7 @@ class BEVM {
 
         var halt = useGas(_gasCalc.logOperationGasCost(_frame, adr, len, ntopics));
         if( halt!=null ) return halt;
-        Bytes data = Bytes.wrap(_mem._mem,adr,len);
+        Bytes data = _mem.copyBytes(adr,len); // Safe copy, since will be crushed by later bytecodes
 
         ImmutableList.Builder<LogTopic> builder = ImmutableList.builderWithExpectedSize(ntopics);
         for( int i = 0; i < ntopics; i++ )
