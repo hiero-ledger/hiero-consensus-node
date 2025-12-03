@@ -10,6 +10,7 @@ import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfe
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.TransactionGetReceipt;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BUSY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_TX_FEE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ALIAS_KEY;
@@ -416,7 +417,7 @@ public abstract class HapiTxnOp<T extends HapiTxnOp<T>> extends HapiSpecOperatio
     private void addIpbToPermissiblePrechecks() {
         if (permissiblePrechecks.isEmpty()) {
             permissiblePrechecks =
-                    Optional.of(EnumSet.copyOf(List.of(OK, INSUFFICIENT_PAYER_BALANCE, INSUFFICIENT_TX_FEE)));
+                    Optional.of(EnumSet.copyOf(List.of(BUSY, OK, INSUFFICIENT_PAYER_BALANCE, INSUFFICIENT_TX_FEE)));
         } else if (!permissiblePrechecks.get().contains(INSUFFICIENT_PAYER_BALANCE)
                 || !permissiblePrechecks.get().contains(INSUFFICIENT_TX_FEE)) {
             permissiblePrechecks = Optional.of(addIpbToleranceTo(permissiblePrechecks.get()));
