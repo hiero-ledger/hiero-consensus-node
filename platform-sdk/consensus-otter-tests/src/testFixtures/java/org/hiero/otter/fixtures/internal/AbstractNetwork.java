@@ -974,7 +974,7 @@ public abstract class AbstractNetwork implements Network {
     @Override
     public boolean nodesAreBehindByNodeCount(
             @NonNull final Node maybeBehindNode, @Nullable final Node... otherMaybeBehindNodes) {
-        final Set<Node> maybeBehindNodes = Utils.collect(maybeBehindNode, otherMaybeBehindNodes);
+        final Set<Node> maybeBehindNodes = Utils.toSet(maybeBehindNode, otherMaybeBehindNodes);
         final Set<Node> peerNodes =
                 nodes().stream().filter(n -> !maybeBehindNodes.contains(n)).collect(Collectors.toSet());
 

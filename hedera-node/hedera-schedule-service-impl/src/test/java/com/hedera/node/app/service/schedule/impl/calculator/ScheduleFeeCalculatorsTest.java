@@ -16,7 +16,7 @@ import com.hedera.hapi.node.scheduled.ScheduleCreateTransactionBody;
 import com.hedera.hapi.node.scheduled.ScheduleDeleteTransactionBody;
 import com.hedera.hapi.node.scheduled.ScheduleSignTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
-import com.hedera.node.app.spi.fees.CalculatorState;
+import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
 import com.hedera.node.app.spi.fees.SimpleFeeCalculatorImpl;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -40,7 +40,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 class ScheduleFeeCalculatorsTest {
 
     @Mock
-    private CalculatorState calculatorState;
+    private FeeContext feeContext;
 
     private SimpleFeeCalculatorImpl feeCalculator;
 
@@ -123,9 +123,9 @@ class ScheduleFeeCalculatorsTest {
                                         .build())
                                 .build(),
                         3,
-                        4100000L,
+                        2100000L,
                         109000000L,
-                        8200000L),
+                        4200000L),
                 // ScheduleSignFeeCalculator case
                 new TestCase(
                         new ScheduleSignFeeCalculator(),
@@ -154,9 +154,9 @@ class ScheduleFeeCalculatorsTest {
     @MethodSource("provideTestCases")
     @DisplayName("Fee calculation for all ScheduleFeeCalculators")
     void testFeeCalculators(TestCase testCase) {
-        lenient().when(calculatorState.numTxnSignatures()).thenReturn(testCase.numSignatures);
+        lenient().when(feeContext.numTxnSignatures()).thenReturn(testCase.numSignatures);
 
-        final var result = feeCalculator.calculateTxFee(testCase.body, calculatorState);
+        final var result = feeCalculator.calculateTxFee(testCase.body, feeContext);
 
         assertThat(result).isNotNull();
         assertThat(result.node).isEqualTo(testCase.expectedNodeFee);

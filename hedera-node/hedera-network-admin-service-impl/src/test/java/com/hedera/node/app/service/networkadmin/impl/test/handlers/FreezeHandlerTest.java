@@ -32,6 +32,7 @@ import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.file.File;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.node.app.records.impl.producers.formats.SelfNodeAccountIdManagerImpl;
 import com.hedera.node.app.service.addressbook.ReadableNodeStore;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.file.ReadableUpgradeFileStore;
@@ -39,6 +40,8 @@ import com.hedera.node.app.service.networkadmin.impl.WritableFreezeStore;
 import com.hedera.node.app.service.networkadmin.impl.handlers.FreezeHandler;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.ReadableStakingInfoStore;
+import com.hedera.node.app.spi.info.NetworkInfo;
+import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
@@ -94,6 +97,15 @@ class FreezeHandlerTest {
     @Mock
     private EntityIdFactory entityIdFactory;
 
+    @Mock
+    private SelfNodeAccountIdManagerImpl selfNodeAccountIdManager;
+
+    @Mock
+    private NetworkInfo networkInfo;
+
+    @Mock
+    private NodeInfo nodeInfo;
+
     private final FileID fileUpgradeFileId = FileID.newBuilder().fileNum(150L).build();
     private final FileID anotherFileUpgradeFileId =
             FileID.newBuilder().fileNum(157).build();
@@ -115,7 +127,8 @@ class FreezeHandlerTest {
                         ForkJoinPool.defaultForkJoinWorkerThreadFactory,
                         Thread.getDefaultUncaughtExceptionHandler(),
                         true),
-                entityIdFactory);
+                entityIdFactory,
+                selfNodeAccountIdManager);
 
         Configuration config = HederaTestConfigBuilder.createConfig();
         given(preHandleContext.configuration()).willReturn(config);
@@ -391,6 +404,7 @@ class FreezeHandlerTest {
             assertDoesNotThrow(() -> subject.preHandle(preHandleContext));
 
             given(handleContext.body()).willReturn(txn);
+            given(handleContext.networkInfo()).willReturn(networkInfo);
             assertDoesNotThrow(() -> subject.handle(handleContext));
         }
     }
@@ -422,6 +436,9 @@ class FreezeHandlerTest {
         assertDoesNotThrow(() -> subject.preHandle(preHandleContext));
 
         given(handleContext.body()).willReturn(txn);
+        given(handleContext.networkInfo()).willReturn(networkInfo);
+        given(networkInfo.selfNodeInfo()).willReturn(nodeInfo);
+
         assertDoesNotThrow(() -> subject.handle(handleContext));
     }
 
@@ -450,6 +467,9 @@ class FreezeHandlerTest {
                 .build();
         given(preHandleContext.body()).willReturn(txn);
         assertDoesNotThrow(() -> subject.preHandle(preHandleContext));
+
+        given(handleContext.networkInfo()).willReturn(networkInfo);
+        given(networkInfo.selfNodeInfo()).willReturn(nodeInfo);
 
         given(handleContext.body()).willReturn(txn);
         assertDoesNotThrow(() -> subject.handle(handleContext));

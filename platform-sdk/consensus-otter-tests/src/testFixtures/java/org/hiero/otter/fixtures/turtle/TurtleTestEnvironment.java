@@ -88,7 +88,7 @@ public class TurtleTestEnvironment implements TestEnvironment {
     public TurtleTestEnvironment(
             final long randomSeed, final boolean useRandomNodeIds, final Path rootOutputDirectory) {
 
-        this.rootOutputDirectory = rootOutputDirectory; // set for later retrieval
+        this.rootOutputDirectory = rootOutputDirectory;
 
         try {
             if (Files.exists(rootOutputDirectory)) {

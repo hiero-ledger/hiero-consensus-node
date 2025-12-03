@@ -35,13 +35,13 @@ public interface ServiceFeeCalculator {
      * single handler's fee calculator.
      *
      * @param txnBody the transaction body
-     * @param calculatorState the calculator state
+     * @param feeContext the fee context
      * @param feeResult the fee result
      * @param feeSchedule the fee schedule
      */
     void accumulateServiceFee(
             @NonNull TransactionBody txnBody,
-            @Nullable CalculatorState calculatorState,
+            @Nullable FeeContext feeContext,
             @NonNull FeeResult feeResult,
             @NonNull FeeSchedule feeSchedule);
     /**
