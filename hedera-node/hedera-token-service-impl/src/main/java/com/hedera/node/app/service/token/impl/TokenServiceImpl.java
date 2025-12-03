@@ -55,7 +55,6 @@ public class TokenServiceImpl implements TokenService {
                 new CryptoUpdateFeeCalculator(),
                 // Query fee calculators
                 new CryptoGetInfoFeeCalculator(),
-                new CryptoGetAccountRecordsFeeCalculator()
-                );
+                new CryptoGetAccountRecordsFeeCalculator());
     }
 }
