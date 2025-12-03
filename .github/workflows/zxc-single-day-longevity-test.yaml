@@ -44,10 +44,14 @@ on:
         default: true
         type: boolean
         description: "If true, automatically delete namespace when done"
+
     secrets:
       slack-report-webhook:
         required: true
         description: "Slack webhook for SDLT outputs notifications"
+      perf_ghp:
+        required: true
+        description: "Algorithmic analysis GHP"
     outputs:
       result:
         description: "Result of the SDLT Run"
@@ -85,13 +89,16 @@ jobs:
           egress-policy: audit
 
       - name: Checkout Code
+        if: false
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           ref: ${{ github.ref }}
 
       - name: Checkout target CN Code
+        env:
+          GITHUB_PAGES_URL: ${{ secrets.perf_ghp }}
         run: |
-          git clone https://github.com/hashgraph/private-hedera-services.git target_consensus_node
+          git clone https://"${GITHUB_PAGES_URL}"github.com/hashgraph/private-hedera-services.git target_consensus_node
           cd target_consensus_node
           git checkout ${{ inputs.ref }}
           cd "${{ github.workspace }}"
