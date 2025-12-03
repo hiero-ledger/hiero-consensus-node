@@ -87,11 +87,6 @@ class IndirectProofSequenceValidator {
      * @param proof             the actual block proof from the block (i.e. the test subject)
      * @param previousBlockHash the previous block's root hash
      * @param blockTimestamp    this block's consensus timestamp
-     * @param siblingHashes     the sibling hashes for this block's proof (if any). This list should be
-     *                          empty for a signed block; for an unsigned block, it should enumerate _all_
-     *                          siblings in [currentBlock, signedBlockNum] (inclusive). Note that the
-     *                          signed block's timestamp <b>must not</b> be included as a sibling hash;
-     *                          it's handled separately
      * @throws IllegalStateException if the end of the sequence has already been reached, or if
      * the blocks are not tracked in sequential order
      */
@@ -100,8 +95,7 @@ class IndirectProofSequenceValidator {
             final @NonNull BlockProof proof,
             final @NonNull Bytes blockRootHash,
             final @NonNull Bytes previousBlockHash,
-            final @NonNull Timestamp blockTimestamp,
-            final List<MerkleSiblingHash> siblingHashes) {
+            final @NonNull Timestamp blockTimestamp) {
         if (endOfSequenceReached) {
             throw new IllegalStateException(
                     "Cannot track indirect proof for block #%s: end of sequence previously reached"
@@ -141,6 +135,9 @@ class IndirectProofSequenceValidator {
             // Block's Merkle Path 2: block contents path
             // Technically we could roll the timestamp into the sibling hashes here, but for clarity we keep them
             // separate
+            final var siblingHashes = proof.blockStateProof().paths().get(BLOCK_CONTENTS_PATH_INDEX).siblings().stream()
+                    .map(s -> new MerkleSiblingHash(s.isLeft(), s.hash()))
+                    .toList();
             final var mp2 = new PartialMerklePath(null, previousBlockHash, siblingHashes);
 
             // Block's Merkle Path 3: parent (i.e. combined hash of left child and right child)

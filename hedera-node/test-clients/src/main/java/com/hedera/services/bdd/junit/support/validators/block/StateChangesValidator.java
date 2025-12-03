@@ -10,7 +10,6 @@ import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_ROSTE
 import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_ROSTER_STATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.HINTS_PARTIAL_SIGNATURE;
 import static com.hedera.hapi.util.HapiUtils.asInstant;
-import static com.hedera.node.app.blocks.impl.BlockImplUtils.combine;
 import static com.hedera.node.app.hapi.utils.CommonUtils.inputOrNullHash;
 import static com.hedera.node.app.hapi.utils.CommonUtils.noThrowSha384HashOf;
 import static com.hedera.node.app.hapi.utils.CommonUtils.sha384DigestOrThrow;
@@ -683,15 +682,6 @@ public class StateChangesValidator implements BlockStreamValidator {
                 footer.startOfBlockStateRootHash(),
                 startOfStateHash,
                 "Wrong start of state hash for block #" + blockNumber);
-        // First calculate the proven hash based on the proof's sibling hashes
-        var provenHash = blockHash;
-        final var siblingHashes = proof.siblingHashes();
-        if (!siblingHashes.isEmpty()) {
-            for (final var siblingHash : siblingHashes) {
-                // Our indirect proofs always provide right sibling hashes
-                provenHash = combine(provenHash, siblingHash.siblingHash());
-            }
-        }
 
         // Our proof method will be different depending on whether this is a direct or indirect proof.
         // Direct proofs have a signed block proof; indirect proofs do not.
@@ -708,19 +698,17 @@ public class StateChangesValidator implements BlockStreamValidator {
 
             // We can't verify the indirect proof until we have a signed block proof, so store the indirect proof for
             // later verification and short-circuit the remainder of the proof verification
-            indirectProofSeq.registerProof(
-                    blockNumber, proof, provenHash, previousBlockHash, blockTimestamp, siblingHashes);
+            indirectProofSeq.registerProof(blockNumber, proof, blockHash, previousBlockHash, blockTimestamp);
             return;
         } else if (indirectProofsNeedVerification()) {
-            indirectProofSeq.registerProof(
-                    blockNumber, proof, provenHash, previousBlockHash, blockTimestamp, siblingHashes);
+            indirectProofSeq.registerProof(blockNumber, proof, blockHash, previousBlockHash, blockTimestamp);
         }
 
         // If hints are enabled, verify the signature using the hints library
         if (hintsLibrary != null) {
             final var signature = proof.signedBlockProofOrThrow().blockSignature();
             final var vk = proof.verificationKey();
-            final boolean valid = hintsLibrary.verifyAggregate(signature, provenHash, vk, 1, hintsThresholdDenominator);
+            final boolean valid = hintsLibrary.verifyAggregate(signature, blockHash, vk, 1, hintsThresholdDenominator);
             if (!valid) {
                 Assertions.fail(() -> "Invalid signature in proof (start round #" + firstRound + ") - " + proof);
             } else {
@@ -763,7 +751,7 @@ public class StateChangesValidator implements BlockStreamValidator {
                 indirectProofSeq = null; // Clear out the indirect proof sequence after verification
             }
         } else {
-            final var expectedSignature = Bytes.wrap(noThrowSha384HashOf(provenHash.toByteArray()));
+            final var expectedSignature = Bytes.wrap(noThrowSha384HashOf(blockHash.toByteArray()));
             assertEquals(
                     expectedSignature,
                     proof.signedBlockProofOrThrow().blockSignature(),

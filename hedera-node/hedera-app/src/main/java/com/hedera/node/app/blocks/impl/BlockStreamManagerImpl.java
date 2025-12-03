@@ -83,7 +83,6 @@ import java.nio.file.Paths;
 import java.security.MessageDigest;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
@@ -784,8 +783,6 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             if (currentPendingBlock.number() == blockNumber) {
                 // Block signatures on the current block will always produce a TssSignedBlockProof
                 proof = currentPendingBlock.proofBuilder().signedBlockProof(latestSignedBlockProof);
-                // Explicitly set empty per the protobuf spec
-                proof.siblingHashes(Collections.emptyList());
             } else {
                 // This is a pending block whose block number precedes the signed block number, so we construct an
                 // indirect state proof
@@ -798,14 +795,6 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                         pendingBlocks.stream());
                 proof = currentPendingBlock.proofBuilder().blockStateProof(stateProof);
 
-                // The mp2 instance from the state proof has this block's sibling hashes
-                final var firstMp2Path = stateProof.paths().get(BlockStateProofGenerator.BLOCK_CONTENTS_PATH_INDEX);
-                proof.siblingHashes(firstMp2Path.siblings().stream()
-                        .map(sib -> MerkleSiblingHash.newBuilder()
-                                .siblingHash(sib.hash())
-                                .isFirst(sib.isLeft())
-                                .build())
-                        .toList());
                 if (log.isDebugEnabled()) {
                     logStateProof(blockSignature, currentPendingBlock, blockNumber, stateProof);
                 }
