@@ -208,7 +208,6 @@ public class ReconnectStateLearner {
 
         final MerkleNode receivedState = synchronizer.getRoot();
         final MerkleNodeState receivedStateCopy = stateLifecycleManager.initStateOnReconnect(receivedState);
-        receivedState.release();
         final SignedState newSignedState = new SignedState(
                 platformContext.getConfiguration(),
                 CryptoStatic::verifySignature,

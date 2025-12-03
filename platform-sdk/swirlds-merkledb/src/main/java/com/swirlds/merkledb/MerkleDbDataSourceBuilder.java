@@ -214,7 +214,7 @@ public class MerkleDbDataSourceBuilder implements VirtualDataSourceBuilder, Self
      */
     @Override
     public void serialize(final SerializableDataOutputStream out) throws IOException {
-        // No-op
+        throw new UnsupportedOperationException("Serialization is not supported");
     }
 
     /**

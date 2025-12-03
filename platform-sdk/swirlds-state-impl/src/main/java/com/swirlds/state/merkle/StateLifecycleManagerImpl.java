@@ -123,14 +123,12 @@ public class StateLifecycleManagerImpl implements StateLifecycleManager {
     @Override
     public MerkleNodeState initStateOnReconnect(@NonNull MerkleNode rootNode) {
         requireNonNull(rootNode);
+        // rootNode must have default reservation count
+        assert rootNode.getReservationCount() == 0;
         rootNode.throwIfDestroyed("rootNode must not be destroyed");
         rootNode.throwIfImmutable("rootNode must be mutable");
 
         copyAndUpdateStateRefs(stateSupplier.apply((VirtualMap) rootNode));
-
-        assert latestImmutableStateRef.get().getRoot().isDestroyed();
-
-        latestImmutableStateRef.set(null);
 
         return stateRef.get();
     }
@@ -199,7 +197,7 @@ public class StateLifecycleManagerImpl implements StateLifecycleManager {
         if (previousMutableState != null) {
             assert !previousMutableState.isDestroyed();
             if (previousMutableState.isDestroyed()) {
-                log.error(EXCEPTION.getMarker(), "previousImmutableState is in destroyed state");
+                log.error(EXCEPTION.getMarker(), "previousMutableState is in destroyed state", new Exception());
             } else {
                 previousMutableState.release();
             }

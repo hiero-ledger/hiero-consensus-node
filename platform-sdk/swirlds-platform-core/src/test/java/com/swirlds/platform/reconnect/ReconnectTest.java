@@ -110,13 +110,14 @@ final class ReconnectTest {
                 .build();
 
         MerkleNodeState stateCopy = null;
+        StateLifecycleManager stateLifecycleManager = null;
         try (final PairedStreams pairedStreams = new PairedStreams()) {
             final SignedState signedState = new RandomSignedStateGenerator()
                     .setRoster(roster)
                     .setSigningNodeIds(nodeIds)
                     .setState(createTestState())
                     .build();
-            final StateLifecycleManager stateLifecycleManager = new StateLifecycleManagerImpl(
+            stateLifecycleManager = new StateLifecycleManagerImpl(
                     new NoOpMetrics(), new FakeTime(), VirtualMapStateTestUtils::createTestStateWithVM, configuration);
 
             stateCopy = signedState.getState().copy();
@@ -150,6 +151,10 @@ final class ReconnectTest {
         } finally {
             if (stateCopy != null) {
                 stateCopy.release();
+            }
+            if (stateLifecycleManager != null) {
+                stateLifecycleManager.getLatestImmutableState().release();
+                stateLifecycleManager.getMutableState().release();
             }
         }
     }
