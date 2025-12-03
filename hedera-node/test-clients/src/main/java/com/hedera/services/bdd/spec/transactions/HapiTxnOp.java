@@ -323,7 +323,8 @@ public abstract class HapiTxnOp<T extends HapiTxnOp<T>> extends HapiSpecOperatio
                             actualPrecheck,
                             getExpectedPrecheck());
                     throw new HapiTxnPrecheckStateException(String.format(
-                            "Wrong precheck status! Expected %s, actual %s", getExpectedPrecheck(), actualPrecheck));
+                            "Wrong precheck status for %s in '%s'! Expected %s, actual %s",
+                            type().name(), spec.getName(), getExpectedPrecheck(), actualPrecheck));
                 }
             }
         }
@@ -382,8 +383,9 @@ public abstract class HapiTxnOp<T extends HapiTxnOp<T>> extends HapiSpecOperatio
                         this,
                         actualStatus,
                         getExpectedStatus());
-                throw new HapiTxnCheckStateException(
-                        String.format("Wrong status! Expected %s, was %s", getExpectedStatus(), actualStatus));
+                throw new HapiTxnCheckStateException(String.format(
+                        "Wrong status for %s in '%s'! Expected %s, was %s",
+                        type().name(), spec.getName(), getExpectedStatus(), actualStatus));
             }
         }
         if (actualStatus == SUCCESS && receiptValidator != null) {
