@@ -81,7 +81,11 @@ class StakeInfoHelperTest {
                         c -> {}),
                 NODE_ID_STATE_ID,
                 new FunctionWritableSingletonState<>(
-                        NODE_ID_STATE_ID, NODE_ID_STATE_LABEL, () -> NodeId.DEFAULT, c -> {}))));
+                        NODE_ID_STATE_ID,
+                        NODE_ID_STATE_LABEL,
+                        // Set highest node id to 8, because the new FakeNetworkInfo() has node Ids 2, 4, 8
+                        () -> NodeId.newBuilder().id(8).build(),
+                        c -> {}))));
     }
 
     @ParameterizedTest
@@ -128,10 +132,6 @@ class StakeInfoHelperTest {
         final var newStates = newStatesInstance(stakingInfosState);
         infoStore = new WritableStakingInfoStore(newStates, entityIdStore);
         entityIdStore.adjustEntityCount(EntityType.STAKING_INFO, 4L);
-        // since FakeNetworkInfo has node 8, set the highest node id to 8
-        for (int i = 0; i < 8; i++) {
-            entityIdStore.incrementHighestNodeIdAndGet();
-        }
         // Platform address book has node Ids 2, 4, 8
         final var networkInfo = new FakeNetworkInfo();
 

@@ -121,7 +121,10 @@ class ReadableStakingInfoStoreImplTest {
                         c -> {}),
                 NODE_ID_STATE_ID,
                 new FunctionWritableSingletonState<>(
-                        NODE_ID_STATE_ID, NODE_ID_STATE_LABEL, () -> NodeId.DEFAULT, c -> {}))));
+                        NODE_ID_STATE_ID,
+                        NODE_ID_STATE_LABEL,
+                        () -> NodeId.newBuilder().id(21).build(),
+                        c -> {}))));
 
         subject = new ReadableStakingInfoStoreImpl(states, entityCounters);
 
