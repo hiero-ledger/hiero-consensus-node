@@ -85,7 +85,7 @@ env:
   GRAFANA_SYSADM_CHI: https://grafana.lat.ope.eng.hashgraph.io/d/rYdddlPWk/node-exporter-single-node?orgId=1&timezone=utc&var-datasource=P631E2BA859A814B3&var-job=performance-chicago-node-exporter
 
   #Release version from jFrog
-  NLG_VERSION: 0.9.0
+  NLG_VERSION: 0.10.0
   BlockNode_version: 0.21.1
   NUM_OF_BLOCK_NODES: 7
 
@@ -307,9 +307,9 @@ jobs:
           if [ "${{ inputs.perf_analysis }}" == "true" ]
           then
             cd "${{ github.workspace }}"/pbj
-            git checkout v0.12.2
+            git checkout v0.12.8
             cd pbj-core
-            echo "0.12.2" >version.txt
+            echo "0.12.8" >version.txt
            ./gradlew --no-daemon clean publishToMavenLocal
             cd ../..
           fi
