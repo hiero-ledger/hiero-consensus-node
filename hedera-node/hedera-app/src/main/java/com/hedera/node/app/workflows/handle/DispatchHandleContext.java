@@ -213,7 +213,7 @@ public class DispatchHandleContext implements HandleContext, FeeContext, FeeChar
                                     accountId,
                                     this,
                                     ValidationResult.newSuccess(creatorInfo.accountId()),
-                                    new Fees(0, amount, 0))
+                                    new Fees(0, 0, amount))
                             .totalFee()
                     == amount;
         }
