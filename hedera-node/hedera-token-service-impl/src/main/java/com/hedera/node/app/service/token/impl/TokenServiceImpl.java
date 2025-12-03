@@ -9,6 +9,7 @@ import com.hedera.node.app.service.token.impl.calculator.CryptoApproveAllowanceF
 import com.hedera.node.app.service.token.impl.calculator.CryptoCreateFeeCalculator;
 import com.hedera.node.app.service.token.impl.calculator.CryptoDeleteAllowanceFeeCalculator;
 import com.hedera.node.app.service.token.impl.calculator.CryptoDeleteFeeCalculator;
+import com.hedera.node.app.service.token.impl.calculator.CryptoTransferFeeCalculator;
 import com.hedera.node.app.service.token.impl.calculator.CryptoUpdateFeeCalculator;
 import com.hedera.node.app.service.token.impl.calculator.TokenBurnFeeCalculator;
 import com.hedera.node.app.service.token.impl.calculator.TokenCreateFeeCalculator;
@@ -58,6 +59,7 @@ public class TokenServiceImpl implements TokenService {
                 new CryptoDeleteAllowanceFeeCalculator(),
                 new CryptoDeleteFeeCalculator(),
                 new CryptoUpdateFeeCalculator(),
+                new CryptoTransferFeeCalculator(),
                 new TokenCreateFeeCalculator(),
                 new TokenMintFeeCalculator(),
                 new TokenPauseFeeCalculator(),
@@ -66,5 +68,6 @@ public class TokenServiceImpl implements TokenService {
                 new TokenUnfreezeAccountFeeCalculator(),
                 new TokenBurnFeeCalculator(),
                 new TokenDeleteFeeCalculator());
+                
     }
 }

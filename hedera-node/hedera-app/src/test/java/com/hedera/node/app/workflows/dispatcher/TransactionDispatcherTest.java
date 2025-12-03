@@ -11,6 +11,7 @@ import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.token.CryptoCreateTransactionBody;
 import com.hedera.hapi.node.token.CryptoDeleteTransactionBody;
+import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.hapi.node.token.CryptoUpdateTransactionBody;
 import com.hedera.hapi.node.transaction.ExchangeRate;
 import com.hedera.hapi.node.transaction.TransactionBody;
@@ -130,6 +131,20 @@ class TransactionDispatcherTest {
                                             .accountIDToUpdate(AccountID.newBuilder()
                                                     .accountNum(1003)
                                                     .build())
+                                            .build())
+                                    .build()),
+                    Arguments.of(
+                            "CRYPTO_TRANSFER",
+                            TransactionBody.newBuilder()
+                                    .transactionID(TransactionID.newBuilder()
+                                            .accountID(AccountID.newBuilder()
+                                                    .accountNum(1001)
+                                                    .build())
+                                            .transactionValidStart(Timestamp.newBuilder()
+                                                    .seconds(1234567L)
+                                                    .build())
+                                            .build())
+                                    .cryptoTransfer(CryptoTransferTransactionBody.newBuilder()
                                             .build())
                                     .build()));
         }
