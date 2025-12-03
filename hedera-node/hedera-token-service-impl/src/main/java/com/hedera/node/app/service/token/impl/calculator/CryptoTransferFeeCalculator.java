@@ -9,7 +9,6 @@ import static org.hiero.hapi.support.fees.Extra.CRYPTO_TRANSFER_BASE_NFT;
 import static org.hiero.hapi.support.fees.Extra.CRYPTO_TRANSFER_BASE_NFT_CUSTOM_FEES;
 import static org.hiero.hapi.support.fees.Extra.FUNGIBLE_TOKENS;
 import static org.hiero.hapi.support.fees.Extra.HOOK_EXECUTION;
-import static org.hiero.hapi.support.fees.Extra.HOOK_UPDATES;
 import static org.hiero.hapi.support.fees.Extra.NON_FUNGIBLE_TOKENS;
 
 import com.hedera.hapi.node.base.AccountID;
@@ -42,8 +41,7 @@ import org.hiero.hapi.support.fees.ServiceFeeDefinition;
  * - No extra charged for HBAR-only transfers (uses baseFee=0)
  *
  * Additional extras for items beyond included counts:
- * - HOOK_EXECUTION: Per-hook invocation fee (charged for each hook in the transfer)
- * - HOOK_UPDATES: Per-hook update fee
+ * - HOOK_EXECUTION: Per-hook invocation fee (prePost hooks count as 2 executions)
  * - ACCOUNTS: Number of unique accounts involved
  * - FUNGIBLE_TOKENS: Additional fungible token transfers
  * - NON_FUNGIBLE_TOKENS: Additional NFT transfers
@@ -77,7 +75,7 @@ public class CryptoTransferFeeCalculator implements ServiceFeeCalculator {
         }
 
         addExtraFeeWithIncludedCount(feeResult, HOOK_EXECUTION, feeSchedule, serviceDef, numHooks);
-        addExtraFeeWithIncludedCount(feeResult, HOOK_UPDATES, feeSchedule, serviceDef, numHooks);
+        // Note: HOOK_UPDATES is only for CryptoCreate/Update and ContractCreate/Update, not transfers
         addExtraFeeWithIncludedCount(feeResult, ACCOUNTS, feeSchedule, serviceDef, numAccounts);
         final long totalFungible = tokenCounts.standardFungible() + tokenCounts.customFeeFungible();
         addExtraFeeWithIncludedCount(feeResult, FUNGIBLE_TOKENS, feeSchedule, serviceDef, totalFungible);
@@ -182,22 +180,31 @@ public class CryptoTransferFeeCalculator implements ServiceFeeCalculator {
                     hookCount++;
                 }
                 if (aa.hasPrePostTxAllowanceHook()) {
-                    hookCount++;
+                    hookCount += 2; // Pre + Post = 2 executions
                 }
             }
         }
         for (final var ttl : op.tokenTransfers()) {
             for (final var transfer : ttl.transfers()) {
-                if (transfer.hasPreTxAllowanceHook() || transfer.hasPrePostTxAllowanceHook()) {
+                if (transfer.hasPreTxAllowanceHook()) {
                     hookCount++;
+                }
+                if (transfer.hasPrePostTxAllowanceHook()) {
+                    hookCount += 2; // Pre + Post = 2 executions
                 }
             }
             for (final var nft : ttl.nftTransfers()) {
-                if (nft.hasPreTxSenderAllowanceHook() || nft.hasPrePostTxSenderAllowanceHook()) {
+                if (nft.hasPreTxSenderAllowanceHook()) {
                     hookCount++;
                 }
-                if (nft.hasPreTxReceiverAllowanceHook() || nft.hasPrePostTxReceiverAllowanceHook()) {
+                if (nft.hasPrePostTxSenderAllowanceHook()) {
+                    hookCount += 2; // Pre + Post = 2 executions
+                }
+                if (nft.hasPreTxReceiverAllowanceHook()) {
                     hookCount++;
+                }
+                if (nft.hasPrePostTxReceiverAllowanceHook()) {
+                    hookCount += 2; // Pre + Post = 2 executions
                 }
             }
         }

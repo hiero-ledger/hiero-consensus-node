@@ -442,9 +442,8 @@ class CryptoTransferFeeCalculatorTest {
 
             // Then:
             // - HOOK_EXECUTION: 2 hooks × 50M = 100,000,000 tinycents
-            // - HOOK_UPDATES: 2 hooks × 10B = 20,000,000,000 tinycents
-            // - Total service fee: 20,100,000,000 tinycents
-            assertThat(result.service).isEqualTo(20_100_000_000L);
+            // - Total service fee: 100,000,000 tinycents
+            assertThat(result.service).isEqualTo(100_000_000L);
         }
 
         @Test
@@ -507,9 +506,8 @@ class CryptoTransferFeeCalculatorTest {
             // Then:
             // - CRYPTO_TRANSFER_BASE_FUNGIBLE: 10,000,000 tinycents
             // - HOOK_EXECUTION: 4 hooks × 50M = 200,000,000 tinycents
-            // - HOOK_UPDATES: 4 hooks × 10B = 40,000,000,000 tinycents
-            // - Total service fee: 40,210,000,000 tinycents
-            assertThat(result.service).isEqualTo(40_210_000_000L);
+            // - Total service fee: 210,000,000 tinycents
+            assertThat(result.service).isEqualTo(210_000_000L);
         }
 
         @Test
@@ -543,10 +541,9 @@ class CryptoTransferFeeCalculatorTest {
             final var result = feeCalculator.calculateTxFee(body, feeContext);
 
             // Then:
-            // - CRYPTO_TRANSFER_WITH_HOOKS base: 50,000,000 tinycents
-            // - HOOKS extra: 1 hook × 10,000,000,000 = 10,000,000,000 tinycents
-            // - Total service fee: 10,050,000,000 tinycents (~$1.005)
-            assertThat(result.service).isEqualTo(10_050_000_000L);
+            // - HOOK_EXECUTION: 1 hook × 50M = 50,000,000 tinycents
+            // - Total service fee: 50,000,000 tinycents
+            assertThat(result.service).isEqualTo(50_000_000L);
         }
     }
 
@@ -565,7 +562,6 @@ class CryptoTransferFeeCalculatorTest {
                         makeExtraDef(Extra.ACCOUNTS, 0L),
                         makeExtraDef(Extra.FUNGIBLE_TOKENS, 1000000L),
                         makeExtraDef(Extra.NON_FUNGIBLE_TOKENS, 1000000L),
-                        makeExtraDef(Extra.HOOK_UPDATES, 10000000000L),
                         makeExtraDef(Extra.CRYPTO_TRANSFER_BASE_FUNGIBLE, 10000000L),
                         makeExtraDef(Extra.CRYPTO_TRANSFER_BASE_NFT, 10000000L),
                         makeExtraDef(Extra.CRYPTO_TRANSFER_BASE_FUNGIBLE_CUSTOM_FEES, 20000000L),
@@ -581,7 +577,6 @@ class CryptoTransferFeeCalculatorTest {
                                 makeExtraIncluded(Extra.CRYPTO_TRANSFER_BASE_FUNGIBLE_CUSTOM_FEES, 0),
                                 makeExtraIncluded(Extra.CRYPTO_TRANSFER_BASE_NFT_CUSTOM_FEES, 0),
                                 makeExtraIncluded(Extra.HOOK_EXECUTION, 0),
-                                makeExtraIncluded(Extra.HOOK_UPDATES, 0),
                                 makeExtraIncluded(Extra.ACCOUNTS, 2),
                                 makeExtraIncluded(Extra.FUNGIBLE_TOKENS, 1),
                                 makeExtraIncluded(Extra.NON_FUNGIBLE_TOKENS, 1))))
