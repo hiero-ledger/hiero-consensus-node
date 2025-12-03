@@ -137,10 +137,9 @@ class CryptoTransferFeeCalculatorTest {
             // When
             final var result = feeCalculator.calculateTxFee(body, feeContext);
 
-            // Then: service=10000000 (CRYPTO_TRANSFER_TOKEN_FUNGIBLE_COMMON base fee)
-            // + 0 for STANDARD_FUNGIBLE_TOKENS (1 token with includedCount=1)
-            // New methodology: charges type-specific base + additional tokens beyond included
-            assertThat(result.service).isEqualTo(10000000L);
+            // Then: service=9000000 (CRYPTO_TRANSFER_BASE_FUNGIBLE fee, reduced by 1M to account for node+network)
+            // + 0 for FUNGIBLE_TOKENS (1 token with includedCount=1)
+            assertThat(result.service).isEqualTo(9000000L);
         }
 
         @Test
@@ -208,10 +207,9 @@ class CryptoTransferFeeCalculatorTest {
             // When
             final var result = feeCalculator.calculateTxFee(body, feeContext);
 
-            // Then: service=10000000 (CRYPTO_TRANSFER_TOKEN_FUNGIBLE_COMMON base fee)
+            // Then: service=9000000 (CRYPTO_TRANSFER_BASE_FUNGIBLE fee)
             // + 1000000 * 1 (2 unique fungible tokens, first included in base, second charged)
-            // New methodology: type-specific base + additional tokens beyond included
-            assertThat(result.service).isEqualTo(11000000L);
+            assertThat(result.service).isEqualTo(10000000L);
         }
     }
 
@@ -275,9 +273,9 @@ class CryptoTransferFeeCalculatorTest {
             // When
             final var result = feeCalculator.calculateTxFee(body, feeContext);
 
-            // Then: service=10000000 (CRYPTO_TRANSFER_BASE_FUNGIBLE base fee)
+            // Then: service=9000000 (CRYPTO_TRANSFER_BASE_FUNGIBLE fee)
             // + 0 (1 fungible token, includedCount=1)
-            assertThat(result.service).isEqualTo(10000000L);
+            assertThat(result.service).isEqualTo(9000000L);
         }
     }
 
@@ -346,9 +344,9 @@ class CryptoTransferFeeCalculatorTest {
             // When
             final var result = feeCalculator.calculateTxFee(body, feeContext);
 
-            // Then: service=20000000 (CRYPTO_TRANSFER_BASE_FUNGIBLE_CUSTOM_FEES base)
+            // Then: service=19000000 (CRYPTO_TRANSFER_BASE_FUNGIBLE_CUSTOM_FEES fee)
             // + 0 (1 FUNGIBLE_TOKEN, includedCount=1, so first token is free)
-            assertThat(result.service).isEqualTo(20000000L);
+            assertThat(result.service).isEqualTo(19000000L);
         }
 
         @Test
@@ -400,9 +398,9 @@ class CryptoTransferFeeCalculatorTest {
             // When
             final var result = feeCalculator.calculateTxFee(body, feeContext);
 
-            // Then: 20000000 (CRYPTO_TRANSFER_TOKEN_FUNGIBLE_COMMON_WITH_CUSTOM_FEES base, custom fee takes precedence)
+            // Then: 19000000 (CRYPTO_TRANSFER_BASE_FUNGIBLE_CUSTOM_FEES, custom fee takes precedence)
             // + 0 (1 standard fungible, included) + 1000000 (1 custom fee token, includedCount=0)
-            assertThat(result.service).isEqualTo(21000000L);
+            assertThat(result.service).isEqualTo(20000000L);
         }
     }
 
@@ -504,10 +502,10 @@ class CryptoTransferFeeCalculatorTest {
             final var result = feeCalculator.calculateTxFee(body, feeContext);
 
             // Then:
-            // - CRYPTO_TRANSFER_BASE_FUNGIBLE: 10,000,000 tinycents
+            // - CRYPTO_TRANSFER_BASE_FUNGIBLE: 9,000,000 tinycents
             // - HOOK_EXECUTION: 4 hooks × 50M = 200,000,000 tinycents
-            // - Total service fee: 210,000,000 tinycents
-            assertThat(result.service).isEqualTo(210_000_000L);
+            // - Total service fee: 209,000,000 tinycents
+            assertThat(result.service).isEqualTo(209_000_000L);
         }
 
         @Test
@@ -562,10 +560,10 @@ class CryptoTransferFeeCalculatorTest {
                         makeExtraDef(Extra.ACCOUNTS, 0L),
                         makeExtraDef(Extra.FUNGIBLE_TOKENS, 1000000L),
                         makeExtraDef(Extra.NON_FUNGIBLE_TOKENS, 1000000L),
-                        makeExtraDef(Extra.CRYPTO_TRANSFER_BASE_FUNGIBLE, 10000000L),
-                        makeExtraDef(Extra.CRYPTO_TRANSFER_BASE_NFT, 10000000L),
-                        makeExtraDef(Extra.CRYPTO_TRANSFER_BASE_FUNGIBLE_CUSTOM_FEES, 20000000L),
-                        makeExtraDef(Extra.CRYPTO_TRANSFER_BASE_NFT_CUSTOM_FEES, 20000000L),
+                        makeExtraDef(Extra.CRYPTO_TRANSFER_BASE_FUNGIBLE, 9000000L),
+                        makeExtraDef(Extra.CRYPTO_TRANSFER_BASE_NFT, 9000000L),
+                        makeExtraDef(Extra.CRYPTO_TRANSFER_BASE_FUNGIBLE_CUSTOM_FEES, 19000000L),
+                        makeExtraDef(Extra.CRYPTO_TRANSFER_BASE_NFT_CUSTOM_FEES, 19000000L),
                         makeExtraDef(Extra.HOOK_EXECUTION, 50000000L))
                 .services(makeService(
                         "CryptoTransfer",
