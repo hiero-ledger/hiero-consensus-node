@@ -25,6 +25,7 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mock.Strictness.LENIENT;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -51,6 +52,7 @@ import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.fees.FeeManager;
 import com.hedera.node.app.fixtures.AppTestBase;
 import com.hedera.node.app.hapi.utils.CommonPbjConverters;
+import com.hedera.node.app.service.consensus.impl.handlers.ConsensusGetTopicInfoHandler;
 import com.hedera.node.app.service.file.impl.handlers.FileGetInfoHandler;
 import com.hedera.node.app.service.networkadmin.impl.handlers.NetworkGetExecutionTimeHandler;
 import com.hedera.node.app.spi.authorization.Authorizer;
@@ -1123,6 +1125,8 @@ class QueryWorkflowImplTest extends AppTestBase {
         @MethodSource("simpleFeesEnabledTransactions")
         @DisplayName("Transaction types use simple fees when enabled")
         void testTransactionUsesSimpleFees(String queryName, Query query) throws PreCheckException {
+            final var getTopicInfoHandler = mock(ConsensusGetTopicInfoHandler.class);
+            when(getTopicInfoHandler.requiresNodePayment(any())).thenReturn(true);
             // Given: Simple fees are enabled
             given(feesConfig.simpleFeesEnabled()).willReturn(true);
             given(configuration.getConfigData(FeesConfig.class)).willReturn(feesConfig);
@@ -1147,9 +1151,11 @@ class QueryWorkflowImplTest extends AppTestBase {
             feeResult.network = 200000L; // 200K tinycents
             feeResult.service = 498500000L; // 498.5M tinycents
             given(feeManager.getSimpleFeeCalculator()).willReturn(simpleFeeCalculator);
-            given(simpleFeeCalculator.calculateQueryFee(query, queryContext)).willReturn(feeResult);
+            given(simpleFeeCalculator.calculateQueryFee(query, queryContext)).willReturn(100000L);
 
             boolean shouldCharge = true;
+            when(dispatcher.getHandler(query)).thenReturn(getTopicInfoHandler);
+            requestBuffer = Query.PROTOBUF.toBytes(query);
             workflow = new QueryWorkflowImpl(
                     stateAccessor,
                     submissionManager,
@@ -1166,8 +1172,7 @@ class QueryWorkflowImplTest extends AppTestBase {
                     instantSource,
                     opWorkflowMetrics,
                     shouldCharge);
-            //            given(handler.computeFees(any(QueryContext.class))).willReturn(new Fees(100L, 0L, 100L));
-            given(handler.requiresNodePayment(any())).willReturn(true);
+            given(getTopicInfoHandler.requiresNodePayment(any())).willReturn(true);
 
             // When
             final var responseBuffer = newEmptyBuffer();
@@ -1176,12 +1181,10 @@ class QueryWorkflowImplTest extends AppTestBase {
             // Then: Should use simple fee calculator
             verify(simpleFeeCalculator).calculateQueryFee(query, queryContext);
 
-            // Verify fees are converted from tinycents to tinybars (divide by 12)
-            //            assertThat(result).isNotNull();
-            //            assertThat(result.nodeFee()).isEqualTo(8333L); // 100000/12
-            //            assertThat(result.networkFee()).isEqualTo(16666L); // 200000/12
-            //            assertThat(result.serviceFee()).isEqualTo(41541666L); // 498500000/12
-
+            // Optionally, verify the cost conversion if needed
+            // final var response = parseResponse(responseBuffer);
+            // final var header = response.fileGetInfoOrThrow().headerOrThrow();
+            // assertThat(header.cost()).isEqualTo(100000L); // or the expected converted value
         }
 
         @Test
