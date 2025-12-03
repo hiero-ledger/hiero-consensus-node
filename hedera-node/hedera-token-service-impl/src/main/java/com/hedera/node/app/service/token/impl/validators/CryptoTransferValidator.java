@@ -86,6 +86,15 @@ public class CryptoTransferValidator {
         validateTokenTransfers(op.tokenTransfers(), AllowanceStrategy.ALLOWANCES_ALLOWED);
     }
 
+    private void validateNoCreditsToFeeCollectionAccount(final CryptoTransferTransactionBody op) {
+        validateTrue(
+                op.transfersOrElse(TransferList.DEFAULT)
+                        .accountAmounts()
+                        .stream()
+                        .noneMatch(aa -> aa.accountID().equals()),
+                INVALID_TRANSFER_ACCOUNT_ID);
+    }
+
     /**
      * All validations needed for the crypto transfer operation, that include state or config.
      *
@@ -123,6 +132,9 @@ public class CryptoTransferValidator {
                             .anyMatch(aa -> nodeRewardAccountId.equals(aa.accountID())),
                     TRANSFER_LIST_SIZE_LIMIT_EXCEEDED);
         }
+        validateTrue(hbarTransfers.stream().noneMatch(aa -> aa.amount() > 0
+                        && aa.accountID().equals(entityIdFactory.newAccountId(accountsConfig.feeCollectionAccount()))),
+                INVALID_TRANSFER_ACCOUNT_ID);
 
         // Validate that allowances are enabled, or that no hbar transfers are an allowance transfer
 

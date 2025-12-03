@@ -635,6 +635,10 @@ public class HapiSpecSetup {
         return asAccount(shard(), realm(), 801L);
     }
 
+    public AccountID feeCollectionAccount() {
+        return asAccount(shard(), realm(), 802L);
+    }
+
     public AccountID stakingRewardAccount() {
         return asAccount(shard(), realm(), 800);
     }

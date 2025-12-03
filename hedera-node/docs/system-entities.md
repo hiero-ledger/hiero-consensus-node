@@ -14,17 +14,18 @@ See also [`privileged-transactions.md`](privileged-transactions.md) for the sema
 
 ## System accounts
 
-| Account   |Name|
-|:----------|:---|
-| `0.0.2`   |`accounts.treasury`|
-| `0.0.50`  |`accounts.systemAdmin`|
-| `0.0.55`  |`accounts.addressBookAdmin`|
-| `0.0.57`  |`accounts.exchangeRatesAdmin`|
-| `0.0.58`  |`accounts.freezeAdmin`|
-| `0.0.59`  |`accounts.systemDeleteAdmin`|
-| `0.0.60`  |`accounts.systemUndeleteAdmin`|
-| `0.0.800` |`accounts.stakingRewardAccount`|
-| `0.0.801` |`accounts.nodeRewardAccount`|
+| Account   | Name                            |
+|:----------|:--------------------------------|
+| `0.0.2`   | `accounts.treasury`             |
+| `0.0.50`  | `accounts.systemAdmin`          |
+| `0.0.55`  | `accounts.addressBookAdmin`     |
+| `0.0.57`  | `accounts.exchangeRatesAdmin`   |
+| `0.0.58`  | `accounts.freezeAdmin`          |
+| `0.0.59`  | `accounts.systemDeleteAdmin`    |
+| `0.0.60`  | `accounts.systemUndeleteAdmin`  |
+| `0.0.800` | `accounts.stakingRewardAccount` |
+| `0.0.801` | `accounts.nodeRewardAccount`    |
+| `0.0.802` | `accounts.feeCollectionAccount` |
 
 
 

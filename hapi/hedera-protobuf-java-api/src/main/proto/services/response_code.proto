@@ -1923,4 +1923,6 @@ enum ResponseCodeEnum {
      * resubmitted once the account has been funded.
      */
     NODE_ACCOUNT_HAS_ZERO_BALANCE = 526;
+
+    TRANSFER_TO_FEE_COLLECTION_ACCOUNT_NOT_ALLOWED = 527;
 }
