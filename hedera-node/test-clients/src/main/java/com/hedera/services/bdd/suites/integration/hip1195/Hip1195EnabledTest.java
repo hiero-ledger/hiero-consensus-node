@@ -132,23 +132,23 @@ public class Hip1195EnabledTest {
 
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
-        testLifecycle.overrideInClass(Map.of("hooks.hooksEnabled", "true"));
-        testLifecycle.doAdhoc(FALSE_ALLOWANCE_HOOK.getInfo());
-        testLifecycle.doAdhoc(TRUE_ALLOWANCE_HOOK.getInfo());
-        testLifecycle.doAdhoc(CREATE_OP_HOOK.getInfo());
-        testLifecycle.doAdhoc(CREATE2_OP_HOOK.getInfo());
-
-        testLifecycle.doAdhoc(TRUE_PRE_POST_ALLOWANCE_HOOK.getInfo());
-        testLifecycle.doAdhoc(FALSE_PRE_POST_ALLOWANCE_HOOK.getInfo());
-        testLifecycle.doAdhoc(TRANSFER_HOOK.getInfo());
-        testLifecycle.doAdhoc(AUTO_ASSOCIATE_HOOK.getInfo());
-        testLifecycle.doAdhoc(DELEGATE_CALL_HOOK.getInfo());
-        testLifecycle.doAdhoc(CALL_CODE_HOOK.getInfo());
-        testLifecycle.doAdhoc(STATIC_CALL_HOOK.getInfo());
-        testLifecycle.doAdhoc(TOKEN_REDIRECT_HOOK.getInfo());
-
-        testLifecycle.doAdhoc(withOpContext(
-                (spec, opLog) -> GLOBAL_WATCHER.set(new SidecarWatcher(spec.recordStreamsLoc(byNodeId(0))))));
+//        testLifecycle.overrideInClass(Map.of("hooks.hooksEnabled", "true"));
+//        testLifecycle.doAdhoc(FALSE_ALLOWANCE_HOOK.getInfo());
+//        testLifecycle.doAdhoc(TRUE_ALLOWANCE_HOOK.getInfo());
+//        testLifecycle.doAdhoc(CREATE_OP_HOOK.getInfo());
+//        testLifecycle.doAdhoc(CREATE2_OP_HOOK.getInfo());
+//
+//        testLifecycle.doAdhoc(TRUE_PRE_POST_ALLOWANCE_HOOK.getInfo());
+//        testLifecycle.doAdhoc(FALSE_PRE_POST_ALLOWANCE_HOOK.getInfo());
+//        testLifecycle.doAdhoc(TRANSFER_HOOK.getInfo());
+//        testLifecycle.doAdhoc(AUTO_ASSOCIATE_HOOK.getInfo());
+//        testLifecycle.doAdhoc(DELEGATE_CALL_HOOK.getInfo());
+//        testLifecycle.doAdhoc(CALL_CODE_HOOK.getInfo());
+//        testLifecycle.doAdhoc(STATIC_CALL_HOOK.getInfo());
+//        testLifecycle.doAdhoc(TOKEN_REDIRECT_HOOK.getInfo());
+//
+//        testLifecycle.doAdhoc(withOpContext(
+//                (spec, opLog) -> GLOBAL_WATCHER.set(new SidecarWatcher(spec.recordStreamsLoc(byNodeId(0))))));
     }
 
     @HapiTest
@@ -1092,12 +1092,30 @@ public class Hip1195EnabledTest {
     }
 
     @HapiTest
-    final Stream<DynamicTest> deleteHooks() {
-        final var OWNER = "acctHeadRun";
-        final long A = 1L;
-
+    final Stream<DynamicTest> updateHooks() {
         return hapiTest(
-                getAccountInfo(DEFAULT_PAYER).logged()
+                getAccountInfo(DEFAULT_PAYER).logged(),
+                cryptoUpdate(DEFAULT_PAYER)
+                        .withHooks(
+                                accountAllowanceHook(1, TRUE_ALLOWANCE_HOOK.name()),
+                                accountAllowanceHook(2, FALSE_ALLOWANCE_HOOK.name()),
+                                accountAllowanceHook(3, TRUE_PRE_POST_ALLOWANCE_HOOK.name()),
+                                accountAllowanceHook(4, FALSE_PRE_POST_ALLOWANCE_HOOK.name())),
+                cryptoTransfer(TokenMovement.movingHbar(1).between(DEFAULT_PAYER, GENESIS))
+                        .withPreHookFor(DEFAULT_PAYER, 1, 25_000L, "")
+                        .fee(ONE_HUNDRED_HBARS),
+                cryptoTransfer(TokenMovement.movingHbar(1).between(DEFAULT_PAYER, GENESIS))
+                        .withPreHookFor(DEFAULT_PAYER, 2, 25_000L, "")
+                        .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK)
+                        .fee(ONE_HUNDRED_HBARS),
+                cryptoTransfer(TokenMovement.movingHbar(1).between(DEFAULT_PAYER, GENESIS))
+                        .withPrePostHookFor(DEFAULT_PAYER, 3, 25_000L, "")
+                        .fee(ONE_HUNDRED_HBARS),
+                cryptoTransfer(TokenMovement.movingHbar(1).between(DEFAULT_PAYER, GENESIS))
+                        .withPrePostHookFor(DEFAULT_PAYER, 4, 25_000L, "")
+                        .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK)
+                        .fee(ONE_HUNDRED_HBARS)
+
         );
     }
 
