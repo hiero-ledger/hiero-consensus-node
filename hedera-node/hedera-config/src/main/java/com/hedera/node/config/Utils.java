@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.config;
 
+import com.hedera.node.config.data.GovernanceTransactionsConfig;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.JumboTransactionsConfig;
 import com.swirlds.config.api.Configuration;
@@ -60,12 +61,16 @@ public final class Utils {
     }
 
     public static int maxIngestParseSize(final Configuration configuration) {
-        final var jumboTxnEnabled =
+        final boolean jumboTxnEnabled =
                 configuration.getConfigData(JumboTransactionsConfig.class).isEnabled();
-        final var jumboMaxTxnSize =
+        final int jumboMaxTxnSize =
                 configuration.getConfigData(JumboTransactionsConfig.class).maxTxnSize();
-        final var transactionMaxBytes =
+        final int transactionMaxBytes =
                 configuration.getConfigData(HederaConfig.class).transactionMaxBytes();
-        return jumboTxnEnabled ? jumboMaxTxnSize : transactionMaxBytes;
+        final boolean governanceTxnEnabled =
+                configuration.getConfigData(GovernanceTransactionsConfig.class).isEnabled();
+        final int governanceTxnSize =
+                configuration.getConfigData(GovernanceTransactionsConfig.class).maxTxnSize();
+        return governanceTxnEnabled ? governanceTxnSize : jumboTxnEnabled ? jumboMaxTxnSize : transactionMaxBytes;
     }
 }
