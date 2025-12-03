@@ -379,6 +379,7 @@ public class AtomicBatchNegativeTest {
                     contractCreate(contract),
                     atomicBatch(contractCall(contract, function, payload).batchKey(batchOperator))
                             .signedByPayerAnd(batchOperator)
+                            .payingWith(batchOperator)
                             .hasPrecheck(TRANSACTION_OVERSIZE)
                             // the submitted transaction exceeds 6144 bytes and will have its
                             // gRPC request terminated immediately
