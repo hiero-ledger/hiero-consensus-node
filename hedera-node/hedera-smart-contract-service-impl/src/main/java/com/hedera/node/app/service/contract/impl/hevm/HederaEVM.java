@@ -1,10 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.hevm;
 
+import com.hedera.node.app.service.contract.impl.bonneville.SB;
+import com.hedera.node.app.service.contract.impl.bonneville.BonnevilleEVM;
+
 import com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils;
 import com.hedera.node.app.service.contract.impl.exec.utils.OpsDurationCounter;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Optional;
+import org.apache.tuweni.bytes.Bytes;
 import org.hyperledger.besu.evm.EVM;
 import org.hyperledger.besu.evm.EvmSpecVersion;
 import org.hyperledger.besu.evm.frame.ExceptionalHaltReason;
@@ -100,6 +104,7 @@ public class HederaEVM extends EVM {
         final OpsDurationSchedule opsDurationSchedule = opsDurationCounter.schedule();
         final long opsDurationMultiplier = opsDurationSchedule.opsGasBasedDurationMultiplier();
         final long opsDurationDenominator = opsDurationSchedule.multipliersDenominator();
+        final SB trace = new SB();
 
         while (frame.getState() == State.CODE_EXECUTING) {
             int pc = frame.getPC();
@@ -118,6 +123,8 @@ public class HederaEVM extends EVM {
             if (operationTracer != null) {
                 operationTracer.tracePreExecution(frame);
             }
+            if( trace !=null )
+                trace.p("0x").hex2(pc).p(" ").p(BonnevilleEVM.OPNAME(opcode)).p(" ").hex4((int)frame.getRemainingGas()).p(" ").hex2(frame.stackSize()).p(" -> ");
 
             Operation.OperationResult result;
             try {
@@ -219,6 +226,21 @@ public class HederaEVM extends EVM {
                 opsDurationCounter.recordOpsDurationUnitsConsumed(opsDurationUnitsCost);
             }
 
+            if( trace != null ) {
+                trace.hex2(frame.stackSize());
+                if( frame.stackSize() > 0 ) {
+                    trace.p(" 0x");
+                    Bytes bs = frame.getStackItem(0);
+                    int len = bs.size();
+                    for( int i=0; i<len; i++ )
+                        trace.hex1(bs.get(i));
+                }
+                if( haltReason!=null )
+                    trace.p(" ").p(haltReason.toString());
+                System.out.println(trace);
+                trace.clear();
+            }
+
             if (frame.getState() == State.CODE_EXECUTING) {
                 int currentPC = frame.getPC();
                 int opSize = result.getPcIncrement();
@@ -229,5 +251,8 @@ public class HederaEVM extends EVM {
                 operationTracer.tracePostExecution(frame, result);
             }
         }
+        if( trace != null )
+            System.out.println();
+        System.err.println("HEVM HALT ");
     }
 }
