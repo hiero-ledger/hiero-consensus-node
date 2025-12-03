@@ -5,7 +5,9 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.token.TokenService;
+import com.hedera.node.app.service.token.impl.calculator.CryptoApproveAllowanceFeeCalculator;
 import com.hedera.node.app.service.token.impl.calculator.CryptoCreateFeeCalculator;
+import com.hedera.node.app.service.token.impl.calculator.CryptoDeleteAllowanceFeeCalculator;
 import com.hedera.node.app.service.token.impl.calculator.CryptoDeleteFeeCalculator;
 import com.hedera.node.app.service.token.impl.calculator.CryptoGetAccountRecordsFeeCalculator;
 import com.hedera.node.app.service.token.impl.calculator.CryptoGetInfoFeeCalculator;
@@ -46,11 +48,14 @@ public class TokenServiceImpl implements TokenService {
     public Set<ServiceFeeCalculator> serviceFeeCalculators() {
         return Set.of(
                 // Transaction fee calculators
+                new CryptoApproveAllowanceFeeCalculator(),
                 new CryptoCreateFeeCalculator(),
+                new CryptoDeleteAllowanceFeeCalculator(),
                 new CryptoDeleteFeeCalculator(),
                 new CryptoUpdateFeeCalculator(),
                 // Query fee calculators
                 new CryptoGetInfoFeeCalculator(),
-                new CryptoGetAccountRecordsFeeCalculator());
+                new CryptoGetAccountRecordsFeeCalculator()
+                );
     }
 }
