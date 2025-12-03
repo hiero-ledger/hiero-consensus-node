@@ -707,10 +707,13 @@ public class StateChangesValidator implements BlockStreamValidator {
             }
 
             // We can't verify the indirect proof until we have a signed block proof, so store the indirect proof for
-            // later verification and short-circuit the hints, history proofs (which require a signature)
-            indirectProofSeq.registerStateProof(
+            // later verification and short-circuit the remainder of the proof verification
+            indirectProofSeq.registerProof(
                     blockNumber, proof, provenHash, previousBlockHash, blockTimestamp, siblingHashes);
             return;
+        } else if (indirectProofsNeedVerification()) {
+            indirectProofSeq.registerProof(
+                    blockNumber, proof, provenHash, previousBlockHash, blockTimestamp, siblingHashes);
         }
 
         // If hints are enabled, verify the signature using the hints library
@@ -756,7 +759,6 @@ public class StateChangesValidator implements BlockStreamValidator {
 
             if (indirectProofsNeedVerification()) {
                 logger.info("Verifying contiguous indirect proofs prior to block {}", blockNumber);
-                indirectProofSeq.endOfSequence(blockTimestamp, proof);
                 indirectProofSeq.verify();
                 indirectProofSeq = null; // Clear out the indirect proof sequence after verification
             }
