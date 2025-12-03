@@ -143,7 +143,7 @@ class FileBlockItemWriterTest {
 
         // Open a block
         fileBlockItemWriter.openBlock(1);
-        
+
         // Create a BlockItem (using RoundHeader as a simple example)
         final BlockItem item = BlockItem.newBuilder()
                 .roundHeader(RoundHeader.newBuilder().roundNumber(1L).build())
