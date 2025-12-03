@@ -206,7 +206,7 @@ public class TokenServiceSimpleFeesSuite {
                 // total = 209000000 = .0209
                 0.0209,
                 1,
-                0.02,
+                0.0209,
                 1);
     }
 
@@ -238,15 +238,15 @@ public class TokenServiceSimpleFeesSuite {
                                 .blankMemo()
                                 .fee(ONE_HUNDRED_HBARS)
                                 .hasKnownStatus(SUCCESS)
-                                .via("non-fungible-mint-txn")),
-                "non-fungible-mint-txn",
+                                .via("non-fungible-multiple-mint-txn")),
+                "non-fungible-multiple-mint-txn",
                 // base = 9000000,
                 // tokens = 199000000*3,
                 // node+network = 1000000
                 // total = 607000000 = .00607
                 0.0607,
                 1,
-                0.02,
+                0.06069,
                 1);
     }
 
