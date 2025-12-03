@@ -493,7 +493,9 @@ public class AtomicBatchNegativeTest {
     @Nested
     @DisplayName("Throttles - NEGATIVE")
     class ThrottlesNegative {
-        @LeakyHapiTest(requirement = {THROTTLE_OVERRIDES})
+        @LeakyHapiTest(
+                requirement = {THROTTLE_OVERRIDES},
+                throttles = "testSystemFiles/artificial-limits.json")
         @DisplayName("Bach contract call with more than the TPS limit")
         //  BATCH_47
         public Stream<DynamicTest> contractCallMoreThanTPSLimit() {
@@ -522,7 +524,9 @@ public class AtomicBatchNegativeTest {
                             .payingWith(payer));
         }
 
-        @LeakyHapiTest(requirement = {THROTTLE_OVERRIDES})
+        @LeakyHapiTest(
+                requirement = {THROTTLE_OVERRIDES},
+                throttles = "testSystemFiles/artificial-limits.json")
         @DisplayName("Verify inner transaction front end throttle leaks capacity")
         @Tag(MATS)
         public Stream<DynamicTest> frontEndThrottleLeaksCapacity() {
