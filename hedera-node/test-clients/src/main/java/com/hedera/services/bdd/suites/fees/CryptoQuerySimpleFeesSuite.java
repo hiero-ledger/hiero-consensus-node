@@ -27,7 +27,6 @@ import org.junit.jupiter.api.Tag;
 
 /**
  * Test suite for Crypto Query operations with simple fees (CryptoGetInfo, CryptoGetAccountRecords).
- * Per HIP-1261, queries use simple fee calculation when fees.simpleFeesEnabled is true.
  */
 @Tag(MATS)
 @Tag(SIMPLE_FEES)
@@ -36,7 +35,6 @@ public class CryptoQuerySimpleFeesSuite {
     private static final String PAYER = "payer";
     private static final String TEST_ACCOUNT = "testAccount";
 
-    // Expected query fees per canonical-prices.json and hedera.com/fees
     private static final double CRYPTO_GET_INFO_USD = 0.0001;
     private static final double CRYPTO_GET_ACCOUNT_RECORDS_USD = 0.0001;
 
@@ -62,7 +60,6 @@ public class CryptoQuerySimpleFeesSuite {
                 cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                 cryptoCreate(TEST_ACCOUNT).payingWith(PAYER),
                 getAccountInfo(TEST_ACCOUNT).payingWith(PAYER).via("getInfoWithTokensQuery"),
-                // Simple fees use fixed base fee regardless of token associations
                 validateChargedUsd("getInfoWithTokensQuery", CRYPTO_GET_INFO_USD));
     }
 
@@ -72,7 +69,6 @@ public class CryptoQuerySimpleFeesSuite {
         return hapiTest(
                 cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                 cryptoCreate(TEST_ACCOUNT).payingWith(PAYER),
-                // Create some transaction history
                 cryptoTransfer(tinyBarsFromTo(PAYER, TEST_ACCOUNT, 1000L)).payingWith(PAYER),
                 getAccountRecords(TEST_ACCOUNT).payingWith(PAYER).via("getRecordsQuery"),
                 validateChargedUsd("getRecordsQuery", CRYPTO_GET_ACCOUNT_RECORDS_USD));
@@ -84,7 +80,6 @@ public class CryptoQuerySimpleFeesSuite {
         return hapiTest(
                 cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                 cryptoCreate(TEST_ACCOUNT).payingWith(PAYER),
-                // CryptoGetAccountBalance is a free query - no fees
                 getAccountBalance(TEST_ACCOUNT).hasCostAnswerPrecheckFrom(OK).hasAnswerOnlyPrecheck(OK));
     }
 
@@ -95,7 +90,6 @@ public class CryptoQuerySimpleFeesSuite {
                 cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                 cryptoCreate(TEST_ACCOUNT).payingWith(PAYER),
                 cryptoCreate("account2").payingWith(PAYER),
-                // Multiple queries should each charge the same fee
                 getAccountInfo(TEST_ACCOUNT).payingWith(PAYER).via("getInfoQuery1"),
                 getAccountInfo("account2").payingWith(PAYER).via("getInfoQuery2"),
                 validateChargedUsd("getInfoQuery1", CRYPTO_GET_INFO_USD),
