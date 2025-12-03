@@ -90,10 +90,11 @@ jobs:
           ref: ${{ github.ref }}
 
       - name: Checkout target CN Code
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          path: target_consensus_node
-          ref: ${{ inputs.ref }}
+        run: |
+          git clone https://github.com/hashgraph/private-hedera-services.git target_consensus_node
+          cd target_consensus_node
+          git checkout ${{ inputs.ref }}
+          cd "${{ github.workspace }}"
 
       - name: Check Test Asset
         id: set-k8s-cluster
