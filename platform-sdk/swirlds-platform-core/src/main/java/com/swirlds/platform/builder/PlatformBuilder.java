@@ -146,8 +146,8 @@ public final class PlatformBuilder {
      * @param consensusStateEventHandler the state lifecycle events handler
      * @param selfId the ID of this node
      * @param consensusEventStreamName a part of the name of the directory where the consensus event stream is written
-     * @param rosterHistory the roster history provided by the application to use at startup*
-     * @param stateLifecycleManager a function to instantiate the state object from a Virtual Map
+     * @param rosterHistory the roster history provided by the application to use at startup
+     * @param stateLifecycleManager the state lifecycle manager, used to instantiate the state object from a {@link com.swirlds.virtualmap.VirtualMap} and manage the state lifecycle
      */
     @NonNull
     public static PlatformBuilder create(
@@ -183,7 +183,7 @@ public final class PlatformBuilder {
      * @param selfId the ID of this node
      * @param consensusEventStreamName a part of the name of the directory where the consensus event stream is written
      * @param rosterHistory the roster history provided by the application to use at startup
-     * @param stateLifecycleManager the state lifecycle manager
+     * @param stateLifecycleManager the state lifecycle manager, used to instantiate the state object from a {@link com.swirlds.virtualmap.VirtualMap} and manage the state lifecycle
      */
     private PlatformBuilder(
             @NonNull final String appName,

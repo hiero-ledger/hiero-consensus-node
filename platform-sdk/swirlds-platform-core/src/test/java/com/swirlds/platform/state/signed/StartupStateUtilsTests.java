@@ -129,7 +129,7 @@ public class StartupStateUtilsTests {
                 new RandomSignedStateGenerator(random).setRound(round).build();
 
         final StateLifecycleManager stateLifecycleManager = createLifecycleManager();
-        MerkleNodeState state = signedState.getState();
+        final MerkleNodeState state = signedState.getState();
         stateLifecycleManager.initState(state);
         stateLifecycleManager.getMutableState().release();
         // hash the state

@@ -418,11 +418,9 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
         this.virtualMapConfig = requireNonNull(configuration.getConfigData(VirtualMapConfig.class));
         this.flushCandidateThreshold.set(virtualMapConfig.copyFlushCandidateThreshold());
         this.dataSourceBuilder = requireNonNull(dataSourceBuilder);
-        this.metadata = new VirtualMapMetadata(label);
         this.cache = new VirtualNodeCache(virtualMapConfig, fastCopyVersion);
         this.dataSource = dataSourceBuilder.build(label, snapshotPath, true, false);
-        metadata.setLastLeafPath(dataSource.getLastLeafPath());
-        metadata.setFirstLeafPath(dataSource.getFirstLeafPath());
+        this.metadata = new VirtualMapMetadata(label, dataSource.getFirstLeafPath(), dataSource.getLastLeafPath());
 
         postInit();
     }

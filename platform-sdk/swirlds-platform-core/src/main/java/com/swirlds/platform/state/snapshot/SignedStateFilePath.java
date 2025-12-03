@@ -4,6 +4,7 @@ package com.swirlds.platform.state.snapshot;
 import static com.swirlds.common.io.utility.FileUtils.getAbsolutePath;
 import static com.swirlds.common.merkle.utility.MerkleTreeSnapshotReader.SIGNED_STATE_FILE_NAME;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
+import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static java.nio.file.Files.exists;
 import static java.nio.file.Files.isDirectory;
 
@@ -203,7 +204,7 @@ public class SignedStateFilePath {
                         final boolean oldFormat = VirtualMap.isOldFormat(subDir);
                         if (oldFormat) {
                             logger.warn(
-                                    EXCEPTION.getMarker(),
+                                    STARTUP.getMarker(),
                                     "Saved state file ({}) not found, but directory exists '{}'. Probably a snapshot of version prior to 0.70",
                                     vmMetadataPath.getFileName(),
                                     subDir.toAbsolutePath());

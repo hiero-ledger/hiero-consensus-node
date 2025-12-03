@@ -425,7 +425,7 @@ class StateFileManagerTests {
         signedState.getState().getRoot().getHash();
     }
 
-    void initLifecycleManagerAndMakeStateImmutable(SignedState state) {
+    void initLifecycleManagerAndMakeStateImmutable(final SignedState state) {
         stateLifecycleManager = new StateLifecycleManagerImpl(
                 context.getMetrics(),
                 context.getTime(),

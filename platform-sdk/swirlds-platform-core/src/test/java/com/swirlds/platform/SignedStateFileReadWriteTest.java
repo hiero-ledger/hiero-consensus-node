@@ -144,9 +144,9 @@ class SignedStateFileReadWriteTest {
                 readState(testDirectory, platformContext, stateLifecycleManager);
         hashState(deserializedSignedState.reservedSignedState().get());
 
-        VirtualMapMetadata originalMetadata =
+        final VirtualMapMetadata originalMetadata =
                 ((VirtualMap) signedState.getState().getRoot()).getMetadata();
-        VirtualMapMetadata loadedMetadata = ((VirtualMap) deserializedSignedState
+        final VirtualMapMetadata loadedMetadata = ((VirtualMap) deserializedSignedState
                         .reservedSignedState()
                         .get()
                         .getState()

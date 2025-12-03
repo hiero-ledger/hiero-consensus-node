@@ -125,7 +125,7 @@ public final class CompareStatesCommand extends AbstractCommand {
         final StateLifecycleManager stateLifecycleManager = new StateLifecycleManagerImpl(
                 platformContext.getMetrics(),
                 platformContext.getTime(),
-                virtualMap -> new VirtualMapState(virtualMap, platformContext.getMetrics()) {},
+                virtualMap -> new VirtualMapState(virtualMap, platformContext.getMetrics()),
                 platformContext.getConfiguration());
 
         final ReservedSignedState signedState = SignedStateFileReader.readState(
