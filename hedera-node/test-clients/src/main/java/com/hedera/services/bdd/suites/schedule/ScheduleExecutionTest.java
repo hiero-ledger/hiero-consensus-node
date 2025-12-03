@@ -229,12 +229,6 @@ public class ScheduleExecutionTest {
                 secondToken.treasury().transferUnitsTo(insolventPayer, 10, secondToken),
                 // Ensure the receiver entities exist before switching out object-oriented DSL
                 touchBalanceOf(firstReceiver, secondReceiver),
-                // TEMP
-                cryptoTransfer(moving(2, secondToken.name())
-                                .distributing(insolventPayer.name(), firstReceiver.name(), secondReceiver.name()))
-                        .fee(ONE_HBAR / 10)
-                        .payingWith(insolventPayer.name()),
-                // TEMP
                 // Immediate trigger a schedule dispatch that succeeds as payer can afford two auto-associations
                 scheduleCreate(
                                 "committedTxn",
