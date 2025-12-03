@@ -51,8 +51,8 @@ public abstract class VirtualMapReconnectTestBase {
         teacherBuilder = teacherDataSourceBuilder;
         final VirtualDataSourceBuilder learnerDataSourceBuilder = createBuilder();
         learnerBuilder = learnerDataSourceBuilder;
-        teacherMap = new VirtualMap("Test", teacherBuilder, CONFIGURATION);
-        learnerMap = new VirtualMap("Test", learnerBuilder, CONFIGURATION);
+        teacherMap = new VirtualMap(teacherBuilder, CONFIGURATION);
+        learnerMap = new VirtualMap(learnerBuilder, CONFIGURATION);
     }
 
     @BeforeAll

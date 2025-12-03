@@ -2,12 +2,10 @@
 package com.swirlds.virtualmap.internal.merkle;
 
 import static com.swirlds.virtualmap.datasource.VirtualDataSource.INVALID_PATH;
-import static java.util.Objects.requireNonNull;
 
 import com.swirlds.base.utility.ToStringBuilder;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.internal.Path;
-import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
 
 /**
@@ -15,8 +13,6 @@ import java.util.Objects;
  * is serialized, it's stored as one of the key-value pairs.
  */
 public class VirtualMapMetadata {
-
-    public static final int MAX_LABEL_CHARS = 512;
 
     /**
      * The path of the very first leaf in the tree. Can be -1 if there are no leaves.
@@ -29,35 +25,25 @@ public class VirtualMapMetadata {
     private long lastLeafPath;
 
     /**
-     * The label for the virtual tree.  Needed to differentiate between different VirtualMaps (for stats).
-     */
-    private String label;
-
-    /**
      * Create a new {@link VirtualMapMetadata}.
      */
-    public VirtualMapMetadata(@NonNull final String label) {
-        requireNonNull(label);
+    public VirtualMapMetadata() {
         firstLeafPath = INVALID_PATH;
         lastLeafPath = INVALID_PATH;
-        this.label = label;
     }
 
     /**
      * Create a new {@link VirtualMapMetadata}.
      */
-    public VirtualMapMetadata(@NonNull final String label, final long firstLeafPath, final long lastLeafPath) {
-        requireNonNull(label);
+    public VirtualMapMetadata(final long firstLeafPath, final long lastLeafPath) {
         this.firstLeafPath = firstLeafPath;
         this.lastLeafPath = lastLeafPath;
-        this.label = label;
     }
 
     /**
      * Create a new {@link VirtualMapMetadata}.
      */
-    public VirtualMapMetadata(@NonNull final String label, final long stateSize) {
-        requireNonNull(label);
+    public VirtualMapMetadata(final long stateSize) {
         if (stateSize == 0) {
             firstLeafPath = INVALID_PATH;
             lastLeafPath = INVALID_PATH;
@@ -69,7 +55,6 @@ public class VirtualMapMetadata {
             firstLeafPath = stateSize - 1;
             lastLeafPath = firstLeafPath + stateSize - 1;
         }
-        this.label = label;
     }
 
     /**
@@ -78,7 +63,6 @@ public class VirtualMapMetadata {
     private VirtualMapMetadata(final VirtualMapMetadata virtualMapMetadata) {
         firstLeafPath = virtualMapMetadata.getFirstLeafPath();
         lastLeafPath = virtualMapMetadata.getLastLeafPath();
-        label = virtualMapMetadata.getLabel();
     }
 
     /**
@@ -143,27 +127,6 @@ public class VirtualMapMetadata {
         return lastLeafPath - firstLeafPath + 1;
     }
 
-    /**
-     * Gets the label for the virtual tree.
-     *
-     * @return The label.
-     */
-    public String getLabel() {
-        return label;
-    }
-
-    /**
-     * Sets the label for the virtual tree.  Needed to differentiate between different VirtualMaps.
-     * @param label The new label. Cannot be null or empty. Cannot be longer than 512 characters.
-     */
-    public void setLabel(@NonNull final String label) {
-        requireNonNull(label);
-        if (label.length() > MAX_LABEL_CHARS) {
-            throw new IllegalArgumentException("Label cannot be greater than 512 characters");
-        }
-        this.label = label;
-    }
-
     public VirtualMapMetadata copy() {
         return new VirtualMapMetadata(this);
     }
@@ -177,7 +140,6 @@ public class VirtualMapMetadata {
                 .append("firstLeafPath", firstLeafPath)
                 .append("lastLeafPath", lastLeafPath)
                 .append("size", getSize())
-                .append("label", label)
                 .toString();
     }
 
@@ -188,9 +150,7 @@ public class VirtualMapMetadata {
     public boolean equals(Object o) {
         if (o == null || getClass() != o.getClass()) return false;
         VirtualMapMetadata that = (VirtualMapMetadata) o;
-        return firstLeafPath == that.firstLeafPath
-                && lastLeafPath == that.lastLeafPath
-                && Objects.equals(label, that.label);
+        return firstLeafPath == that.firstLeafPath && lastLeafPath == that.lastLeafPath;
     }
 
     /**
@@ -198,6 +158,6 @@ public class VirtualMapMetadata {
      */
     @Override
     public int hashCode() {
-        return Objects.hash(firstLeafPath, lastLeafPath, label);
+        return Objects.hash(firstLeafPath, lastLeafPath);
     }
 }

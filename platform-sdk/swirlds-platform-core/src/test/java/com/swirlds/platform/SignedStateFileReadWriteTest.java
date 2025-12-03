@@ -12,7 +12,6 @@ import static com.swirlds.platform.state.snapshot.SignedStateFileWriter.writeSig
 import static com.swirlds.platform.state.snapshot.SignedStateFileWriter.writeSignedStateToDisk;
 import static com.swirlds.platform.test.fixtures.config.ConfigUtils.CONFIGURATION;
 import static com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer.registerConstructablesForStorage;
-import static com.swirlds.virtualmap.VirtualMap.METADATA_FILE_NAME;
 import static java.nio.file.Files.exists;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -123,10 +122,8 @@ class SignedStateFileReadWriteTest {
     @DisplayName("Write Then Read State File Test")
     void writeThenReadStateFileTest() throws IOException {
         final SignedState signedState = new RandomSignedStateGenerator().build();
-        final Path stateFile = testDirectory.resolve(METADATA_FILE_NAME);
         final Path signatureSetFile = testDirectory.resolve(SIGNATURE_SET_FILE_NAME);
 
-        assertFalse(exists(stateFile), "signed state file should not yet exist");
         assertFalse(exists(signatureSetFile), "signature set file should not yet exist");
 
         MerkleNodeState state = signedState.getState();
@@ -135,7 +132,6 @@ class SignedStateFileReadWriteTest {
         stateLifecycleManager.createSnapshot(signedState.getState(), testDirectory);
         writeSignatureSetFile(testDirectory, signedState);
 
-        assertTrue(exists(stateFile), "signed state file should be present");
         assertTrue(exists(signatureSetFile), "signature set file should be present");
 
         final PlatformContext platformContext =
@@ -176,12 +172,11 @@ class SignedStateFileReadWriteTest {
         final Path directory = testDirectory.resolve("state");
         stateLifecycleManager.initState(signedState.getState());
 
-        final Path metadataFile = directory.resolve(METADATA_FILE_NAME);
         final Path hashInfoFile = directory.resolve(HASH_INFO_FILE_NAME);
         final Path settingsUsedFile = directory.resolve("settingsUsed.txt");
         final Path addressBookFile = directory.resolve(CURRENT_ROSTER_FILE_NAME);
 
-        throwIfFileExists(metadataFile, hashInfoFile, settingsUsedFile, directory);
+        throwIfFileExists(hashInfoFile, settingsUsedFile, directory);
         final String configDir = testDirectory.resolve("data/saved").toString();
         final Configuration configuration = changeConfigAndConfigHolder(configDir);
 
@@ -200,7 +195,6 @@ class SignedStateFileReadWriteTest {
                 signedState,
                 stateLifecycleManager);
 
-        assertTrue(exists(metadataFile), "meta data file should exist");
         assertTrue(exists(hashInfoFile), "hash info file should exist");
         assertTrue(exists(settingsUsedFile), "settings used file should exist");
         assertTrue(exists(addressBookFile), "address book file should exist");

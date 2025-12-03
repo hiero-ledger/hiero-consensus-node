@@ -154,7 +154,7 @@ class StateLifecycleManagerTests {
     private static MerkleNodeState newState() {
         final String virtualMapLabel =
                 StateLifecycleManagerTests.class.getSimpleName() + "-" + java.util.UUID.randomUUID();
-        final MerkleNodeState state = VirtualMapStateTestUtils.createTestStateWithLabel(virtualMapLabel);
+        final MerkleNodeState state = VirtualMapStateTestUtils.createTestState();
         TestingAppStateInitializer.initPlatformState(state);
 
         setCreationSoftwareVersionTo(

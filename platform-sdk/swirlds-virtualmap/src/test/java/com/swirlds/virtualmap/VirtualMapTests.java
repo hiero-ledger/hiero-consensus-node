@@ -7,7 +7,6 @@ import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyEq
 import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyTrue;
 import static com.swirlds.common.test.fixtures.io.ResourceLoader.loadLog4jContext;
 import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.CONFIGURATION;
-import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.VM_LABEL;
 import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.createMap;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
@@ -68,7 +67,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Random;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
@@ -864,7 +862,8 @@ class VirtualMapTests extends VirtualTestBase {
         VirtualMap map0 = createMap();
         map0.registerMetrics(metrics);
 
-        Metric metric = metrics.getMetric(VirtualMapStatistics.STAT_CATEGORY, "vmap_lifecycle_nodeCacheSizeB_Test");
+        // createMap() creates a map labelled "state"
+        Metric metric = metrics.getMetric(VirtualMapStatistics.STAT_CATEGORY, "vmap_lifecycle_nodeCacheSizeB_state");
         assertNotNull(metric);
         if (!(metric instanceof LongGauge)) {
             throw new AssertionError("nodeCacheSizeMb metric is not a gauge");
@@ -955,7 +954,7 @@ class VirtualMapTests extends VirtualTestBase {
         map1.release();
 
         // createMap() creates a map labelled "Test"
-        Metric metric = metrics.getMetric(VirtualMapStatistics.STAT_CATEGORY, "vmap_lifecycle_flushCount_Test");
+        Metric metric = metrics.getMetric(VirtualMapStatistics.STAT_CATEGORY, "vmap_lifecycle_flushCount_state");
         assertNotNull(metric);
         if (!(metric instanceof Counter counterMetric)) {
             throw new AssertionError("flushCount metric is not a counter");
@@ -977,9 +976,7 @@ class VirtualMapTests extends VirtualTestBase {
     @Tags({@Tag("VirtualMerkle")})
     @DisplayName("A copied map is serializable and then deserializable")
     void testExternalSerializationAndDeserialization() throws IOException {
-        String label = "serializationTest";
-        final VirtualMap map0 = createMap(label);
-        assertEquals(label, map0.getLabel());
+        final VirtualMap map0 = createMap();
         map0.put(A_KEY, APPLE, TestValueCodec.INSTANCE);
         map0.put(B_KEY, BANANA, TestValueCodec.INSTANCE);
         map0.put(C_KEY, CHERRY, TestValueCodec.INSTANCE);
@@ -989,7 +986,6 @@ class VirtualMapTests extends VirtualTestBase {
         map0.put(G_KEY, GRAPE, TestValueCodec.INSTANCE);
 
         final VirtualMap map1 = map0.copy(); // this should make map0 immutable
-        assertEquals(label, map1.getLabel());
         assertNotNull(map0.getHash(), "Hash should have been produced for map0");
         assertTrue(map0.isImmutable(), "Copied VirtualMap should have been immutable");
         assertVirtualMapsEqual(map0, map1);
@@ -997,8 +993,6 @@ class VirtualMapTests extends VirtualTestBase {
         map0.createSnapshot(testDirectory);
 
         final VirtualMap map2 = VirtualMap.loadFromDirectory(testDirectory, CONFIGURATION, InMemoryBuilder::new);
-
-        assertEquals(label, map2.getLabel());
         assertVirtualMapsEqual(map0, map2);
 
         // release the maps and clean up the temporary directory
@@ -1018,7 +1012,7 @@ class VirtualMapTests extends VirtualTestBase {
     void insertRemoveAndModifyOneMillion() throws InterruptedException {
         final int changesPerBatch = 15_432; // Some unexpected size just to be crazy
         final int max = 1_000_000;
-        VirtualMap map = createMap("insertRemoveAndModifyOneMillion");
+        VirtualMap map = createMap();
         try {
             for (int i = 0; i < max; i++) {
                 if (i > 0 && i % changesPerBatch == 0) {
@@ -1076,7 +1070,7 @@ class VirtualMapTests extends VirtualTestBase {
     @Tags({@Tag("VirtualMerkle")})
     @DisplayName("Delete a value that was moved to a different virtual path")
     void deletedObjectLeavesOnFlush() throws InterruptedException {
-        VirtualMap map = createMap("deletedObjectLeavesOnFlush");
+        VirtualMap map = createMap();
         for (int i = 0; i < 8; i++) {
             map.put(TestObjectKey.longToKey(i), new TestValue(i), TestValueCodec.INSTANCE);
         }
@@ -1120,7 +1114,7 @@ class VirtualMapTests extends VirtualTestBase {
     }
 
     @Test
-    void testEnableVirtualRootFlush() throws ExecutionException, InterruptedException {
+    void testEnableVirtualRootFlush() {
         VirtualMap fcm0 = createMap();
         fcm0.postInit();
         assertFalse(fcm0.shouldBeFlushed(), "map should not yet be flushed");
@@ -1150,7 +1144,7 @@ class VirtualMapTests extends VirtualTestBase {
         final InMemoryDataSource ds = new InMemoryDataSource("emptyDirtyLeavesResultInHashFromPreviousCopy");
         final VirtualDataSourceBuilder builder = new InMemoryBuilder();
 
-        final VirtualMap vm = new VirtualMap(VM_LABEL, builder, CONFIGURATION);
+        final VirtualMap vm = new VirtualMap(builder, CONFIGURATION);
         vm.enableFlush();
         vm.put(A_KEY, APPLE, TestValueCodec.INSTANCE);
 
@@ -1172,7 +1166,7 @@ class VirtualMapTests extends VirtualTestBase {
 
     @Test
     @DisplayName("Remove only element")
-    void removeOnlyElement() throws ExecutionException, InterruptedException {
+    void removeOnlyElement() throws InterruptedException {
 
         final VirtualMap fcm = createMap();
         fcm.enableFlush();
@@ -1297,8 +1291,8 @@ class VirtualMapTests extends VirtualTestBase {
 
     @Test
     @DisplayName("Snapshot Test")
-    void snapshotTest() throws IOException {
-        final VirtualMap original = new VirtualMap("test", new InMemoryBuilder(), CONFIGURATION);
+    void snapshotTest() {
+        final VirtualMap original = new VirtualMap(new InMemoryBuilder(), CONFIGURATION);
         final VirtualMap copy = original.copy();
 
         original.getHash(); // forces copy to become hashed
@@ -1315,7 +1309,7 @@ class VirtualMapTests extends VirtualTestBase {
     void snapshotAndRestore() throws IOException {
         final VirtualDataSourceBuilder dsBuilder = new InMemoryBuilder();
         final List<VirtualMap> copies = new LinkedList<>();
-        final VirtualMap copy0 = new VirtualMap("test", dsBuilder, CONFIGURATION);
+        final VirtualMap copy0 = new VirtualMap(dsBuilder, CONFIGURATION);
         copies.add(copy0);
         for (int i = 1; i <= 10; i++) {
             final VirtualMap prevCopy = copies.get(i - 1);
@@ -1356,7 +1350,7 @@ class VirtualMapTests extends VirtualTestBase {
     @Test
     @DisplayName("Detach Test")
     void detachTest() throws IOException {
-        final VirtualMap original = new VirtualMap("test", new InMemoryBuilder(), CONFIGURATION);
+        final VirtualMap original = new VirtualMap(new InMemoryBuilder(), CONFIGURATION);
         Bytes testKey = Bytes.wrap("testKey");
         original.put(testKey, new TestValue("testValue"), TestValueCodec.INSTANCE);
         final VirtualMap copy = original.copy();

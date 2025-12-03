@@ -50,8 +50,8 @@ public abstract class VirtualMapReconnectBenchBase {
     protected void setupEach() {
         teacherBuilder = createBuilder();
         learnerBuilder = createBuilder();
-        teacherMap = new VirtualMap("Teacher", teacherBuilder, CONFIGURATION);
-        learnerMap = new VirtualMap("Learner", learnerBuilder, CONFIGURATION);
+        teacherMap = new VirtualMap(teacherBuilder, CONFIGURATION);
+        learnerMap = new VirtualMap(learnerBuilder, CONFIGURATION);
     }
 
     protected static void startup() throws ConstructableRegistryException, FileNotFoundException {

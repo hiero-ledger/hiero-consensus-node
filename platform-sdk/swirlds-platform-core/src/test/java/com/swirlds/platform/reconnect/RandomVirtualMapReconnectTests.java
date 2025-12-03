@@ -332,7 +332,7 @@ class RandomVirtualMapReconnectTests extends VirtualMapReconnectTestBase {
                 metricsConfig);
         learnerMap.registerMetrics(metrics);
 
-        Metric sizeMetric = metrics.getMetric(VirtualMapStatistics.STAT_CATEGORY, "vmap_size_Test");
+        Metric sizeMetric = metrics.getMetric(VirtualMapStatistics.STAT_CATEGORY, "vmap_size_state");
         assertNotNull(sizeMetric);
         assertEquals(0L, sizeMetric.get(ValueType.VALUE));
 

@@ -60,7 +60,7 @@ public final class VirtualMerkleStateInitializer {
             logger.info(LOGM_DEMO_INFO, "total accounts = {}", totalAccounts);
             if (state.getVirtualMap() == null && totalAccounts > 0) {
                 logger.info(LOGM_DEMO_INFO, "Creating virtualmap for {} accounts.", totalAccounts);
-                final VirtualMap virtualMap = createAccountsVM();
+                final VirtualMap virtualMap = createVM();
                 logger.info(LOGM_DEMO_INFO, "accounts VM = {}, DS = {}", virtualMap, virtualMap.getDataSource());
                 virtualMap.registerMetrics(platform.getContext().getMetrics());
                 state.setVirtualMap(virtualMap);
@@ -73,7 +73,7 @@ public final class VirtualMerkleStateInitializer {
                         LOGM_DEMO_INFO,
                         "Creating virtualmap for max {} key value pairs.",
                         maximumNumberOfKeyValuePairs);
-                final VirtualMap virtualMap = createSmartContractsVM();
+                final VirtualMap virtualMap = createVM();
                 logger.info(LOGM_DEMO_INFO, "SC VM = {}, DS = {}", virtualMap, virtualMap.getDataSource());
                 virtualMap.registerMetrics(platform.getContext().getMetrics());
                 state.setVirtualMapForSmartContracts(virtualMap);
@@ -83,7 +83,7 @@ public final class VirtualMerkleStateInitializer {
             logger.info(LOGM_DEMO_INFO, "total SC = {}", totalSmartContracts);
             if (state.getVirtualMapForSmartContractsByteCode() == null && totalSmartContracts > 0) {
                 logger.info(LOGM_DEMO_INFO, "Creating virtualmap for {} bytecodes.", totalSmartContracts);
-                final VirtualMap virtualMap = createSmartContractByteCodeVM();
+                final VirtualMap virtualMap = createVM();
                 logger.info(LOGM_DEMO_INFO, "SCBC VM = {}, DS = {}", virtualMap, virtualMap.getDataSource());
                 virtualMap.registerMetrics(platform.getContext().getMetrics());
                 state.setVirtualMapForSmartContractsByteCode(virtualMap);
@@ -91,21 +91,9 @@ public final class VirtualMerkleStateInitializer {
         }
     }
 
-    private static VirtualMap createAccountsVM() {
+    private static VirtualMap createVM() {
         final VirtualDataSourceBuilder dsBuilder = new MerkleDbDataSourceBuilder(
                 CONFIGURATION, MAX_LIST_CAPACITY, MERKLE_DB_CONFIG.hashesRamToDiskThreshold());
-        return new VirtualMap("accounts", dsBuilder, CONFIGURATION);
-    }
-
-    private static VirtualMap createSmartContractsVM() {
-        final VirtualDataSourceBuilder dsBuilder = new MerkleDbDataSourceBuilder(
-                CONFIGURATION, MAX_LIST_CAPACITY, MERKLE_DB_CONFIG.hashesRamToDiskThreshold());
-        return new VirtualMap("smartContracts", dsBuilder, CONFIGURATION);
-    }
-
-    private static VirtualMap createSmartContractByteCodeVM() {
-        final VirtualDataSourceBuilder dsBuilder = new MerkleDbDataSourceBuilder(
-                CONFIGURATION, MAX_LIST_CAPACITY, MERKLE_DB_CONFIG.hashesRamToDiskThreshold());
-        return new VirtualMap("smartContractByteCode", dsBuilder, CONFIGURATION);
+        return new VirtualMap(dsBuilder, CONFIGURATION);
     }
 }

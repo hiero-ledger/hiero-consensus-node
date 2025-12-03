@@ -47,9 +47,7 @@ class WritablePlatformStateStoreTest {
     void setUp() {
         randotron = Randotron.create();
 
-        final String virtualMapLabel =
-                "vm-" + WritablePlatformStateStoreTest.class.getSimpleName() + java.util.UUID.randomUUID();
-        virtualMap = VirtualMapUtils.createVirtualMap(virtualMapLabel, 1);
+        virtualMap = VirtualMapUtils.createVirtualMap(1);
 
         final Bytes key = StateUtils.getStateKeyForSingleton(PLATFORM_STATE_STATE_ID);
         final StateValue<PlatformState> value = StateUtils.getStateValueForSingleton(

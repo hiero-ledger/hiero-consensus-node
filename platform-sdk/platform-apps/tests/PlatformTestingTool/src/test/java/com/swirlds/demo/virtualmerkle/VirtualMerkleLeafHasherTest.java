@@ -51,7 +51,7 @@ class VirtualMerkleLeafHasherTest {
 
     @Test
     void checkSimpleHashing2() throws IOException, InterruptedException {
-        VirtualMap virtualMap = new VirtualMap("test2", dataSourceBuilder, CONFIGURATION);
+        final VirtualMap virtualMap = new VirtualMap(dataSourceBuilder, CONFIGURATION);
 
         final VirtualMerkleLeafHasher hasher = new VirtualMerkleLeafHasher(virtualMap);
 
@@ -85,7 +85,7 @@ class VirtualMerkleLeafHasherTest {
 
     @Test
     void checkSimpleHashing3() throws IOException, InterruptedException {
-        VirtualMap virtualMap = new VirtualMap("test3", dataSourceBuilder, CONFIGURATION);
+        final VirtualMap virtualMap = new VirtualMap(dataSourceBuilder, CONFIGURATION);
 
         final VirtualMerkleLeafHasher hasher = new VirtualMerkleLeafHasher(virtualMap);
 
@@ -124,7 +124,7 @@ class VirtualMerkleLeafHasherTest {
 
     @Test
     void checkSimpleHashing4() throws IOException, InterruptedException {
-        VirtualMap virtualMap = new VirtualMap("test4", dataSourceBuilder, CONFIGURATION);
+        final VirtualMap virtualMap = new VirtualMap(dataSourceBuilder, CONFIGURATION);
 
         final VirtualMerkleLeafHasher hasher = new VirtualMerkleLeafHasher(virtualMap);
 

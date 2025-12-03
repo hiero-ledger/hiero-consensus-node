@@ -137,8 +137,8 @@ class VirtualMapSerializationTests {
      * Create a map and fill it with random key/value pairs.
      */
     @SuppressWarnings("SameParameterValue")
-    private VirtualMap generateRandomMap(final long seed, final int count, final String name) throws IOException {
-        final VirtualMap map = new VirtualMap(name, constructBuilder(), CONFIGURATION);
+    private VirtualMap generateRandomMap(final long seed, final int count) {
+        final VirtualMap map = new VirtualMap(constructBuilder(), CONFIGURATION);
         addRandomEntries(map, count, 0, seed);
         return map;
     }
@@ -148,10 +148,10 @@ class VirtualMapSerializationTests {
      */
     @Test
     @DisplayName("Map Comparison Test")
-    void mapComparisonTest() throws IOException, InterruptedException {
-        final VirtualMap map0 = generateRandomMap(0, 1_000, "test");
-        final VirtualMap map1 = generateRandomMap(0, 1_000, "test");
-        final VirtualMap map2 = generateRandomMap(1234, 1_000, "test");
+    void mapComparisonTest() throws InterruptedException {
+        final VirtualMap map0 = generateRandomMap(0, 1_000);
+        final VirtualMap map1 = generateRandomMap(0, 1_000);
+        final VirtualMap map2 = generateRandomMap(1234, 1_000);
 
         try {
             assertMapsAreEqual(map0, map0);
@@ -208,7 +208,7 @@ class VirtualMapSerializationTests {
         final long seed = new Random().nextLong();
         System.out.println("seed = " + seed);
 
-        final VirtualMap map = generateRandomMap(seed, count, "test");
+        final VirtualMap map = generateRandomMap(seed, count);
         final VirtualMap copy = map.copy();
 
         try {
@@ -228,7 +228,7 @@ class VirtualMapSerializationTests {
         final long seed = new Random().nextLong();
         System.out.println("seed = " + seed);
 
-        final VirtualMap map = generateRandomMap(seed, count, "test");
+        final VirtualMap map = generateRandomMap(seed, count);
         map.enableFlush();
 
         final VirtualMap serializedCopy = map.copy();
@@ -254,7 +254,7 @@ class VirtualMapSerializationTests {
         final long seed = new Random().nextLong();
         System.out.println("seed = " + seed);
 
-        final VirtualMap map = generateRandomMap(seed, count, "test");
+        final VirtualMap map = generateRandomMap(seed, count);
         map.enableFlush();
 
         final VirtualMap copy0 = map.copy();

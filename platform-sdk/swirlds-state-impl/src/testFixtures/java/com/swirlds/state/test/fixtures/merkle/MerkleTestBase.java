@@ -109,8 +109,7 @@ public class MerkleTestBase extends StateTestBase {
 
     /** Sets up the "Fruit" virtual map, label, and metadata. */
     protected void setupFruitVirtualMap() {
-        fruitVirtualLabel = computeLabel(FIRST_SERVICE, FRUIT_STATE_KEY);
-        fruitVirtualMap = createVirtualMap(fruitVirtualLabel);
+        fruitVirtualMap = createVirtualMap();
         fruitMetadata = new StateMetadata<>(
                 FIRST_SERVICE,
                 StateDefinition.onDisk(FRUIT_STATE_ID, FRUIT_STATE_KEY, ProtoBytes.PROTOBUF, ProtoBytes.PROTOBUF, 100));
@@ -172,10 +171,10 @@ public class MerkleTestBase extends StateTestBase {
         }
     }
 
-    /** Creates a new arbitrary virtual map with the given label, storageDir, and metadata */
-    protected VirtualMap createVirtualMap(String label) {
+    /** Creates a new arbitrary virtual map */
+    protected VirtualMap createVirtualMap() {
         final var builder = new MerkleDbDataSourceBuilder(CONFIGURATION, 100, 0);
-        return new VirtualMap(label, builder, CONFIGURATION);
+        return new VirtualMap(builder, CONFIGURATION);
     }
 
     private StateValueCodec<ProtoBytes> getStateValueCodec(final int stateId) {

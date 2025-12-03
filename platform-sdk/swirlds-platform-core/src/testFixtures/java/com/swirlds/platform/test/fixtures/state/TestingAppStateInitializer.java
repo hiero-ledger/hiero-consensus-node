@@ -173,9 +173,8 @@ public final class TestingAppStateInitializer {
                                         null));
                     } else if (def.onDisk()) {
                         initializeServiceState(state, md, () -> {
-                            final var label = StateMetadata.computeLabel(RosterStateId.SERVICE_NAME, def.stateKey());
                             final var dsBuilder = new MerkleDbDataSourceBuilder(configuration, def.maxKeysHint(), 16);
-                            final var virtualMap = new VirtualMap(label, dsBuilder, configuration);
+                            final var virtualMap = new VirtualMap(dsBuilder, configuration);
                             return virtualMap;
                         });
                     } else {

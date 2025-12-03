@@ -6,7 +6,6 @@ import static com.swirlds.platform.state.signed.StartupStateUtils.loadStateFile;
 import static com.swirlds.platform.state.snapshot.SignedStateFileWriter.writeSignedStateToDisk;
 import static com.swirlds.platform.test.fixtures.config.ConfigUtils.CONFIGURATION;
 import static com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer.registerConstructablesForStorage;
-import static com.swirlds.virtualmap.VirtualMap.METADATA_FILE_NAME;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -146,7 +145,7 @@ public class StartupStateUtilsTests {
                 stateLifecycleManager);
 
         if (corrupted) {
-            final Path metadataFilePath = savedStateDirectory.resolve(METADATA_FILE_NAME);
+            final Path metadataFilePath = savedStateDirectory.resolve("data/state/table_metadata.pbj");
             Files.delete(metadataFilePath);
             final BufferedWriter writer = Files.newBufferedWriter(metadataFilePath);
             writer.write("this is not a real state file");

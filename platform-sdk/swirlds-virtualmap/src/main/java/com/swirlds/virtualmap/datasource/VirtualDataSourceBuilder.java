@@ -23,8 +23,6 @@ public interface VirtualDataSourceBuilder {
      * method. If the directory is not provided, an empty data source is created. Regardless of
      * the source directory, the new data source will use its own directory to store data files.
      *
-     * @param label             The label. Cannot be null. Labels can be used in logs and stats, and also to build
-     *                          full disk paths to store data source files. This is builder implementation specific
      * @param sourceDir         The directory of the snapshot the data source should be created from. Can be null, in this case it creates an empty data source
      * @param compactionEnabled Indicates whether background compaction should be enabled in the data source copy
      * @param offlineUse        Indicates that the copied data source should use as little resources as possible. Data

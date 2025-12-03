@@ -35,14 +35,14 @@ public class VirtualMerkleTransactionHandlerTest {
         final MerkleDbDataSourceBuilder dataSourceBuilder =
                 new MerkleDbDataSourceBuilder(CONFIGURATION, maximumNumberOfKeyValuePairsCreation, 0);
 
-        smartContract = new VirtualMap("smartContracts", dataSourceBuilder, CONFIGURATION);
+        smartContract = new VirtualMap(dataSourceBuilder, CONFIGURATION);
 
         final long totalSmartContractCreations = 23;
 
         final MerkleDbDataSourceBuilder dataSourceBuilder2 =
                 new MerkleDbDataSourceBuilder(CONFIGURATION, totalSmartContractCreations, 0);
 
-        smartContractByteCodeVM = new VirtualMap("smartContractByteCode", dataSourceBuilder2, CONFIGURATION);
+        smartContractByteCodeVM = new VirtualMap(dataSourceBuilder2, CONFIGURATION);
     }
 
     private VirtualMerkleTransaction buildCreateSmartContractTransaction(

@@ -58,7 +58,7 @@ class ISSTestingToolStateTest {
         final MerkleDbConfig merkleDbConfig = CONFIGURATION.getConfigData(MerkleDbConfig.class);
         final VirtualDataSourceBuilder dsBuilder = new MerkleDbDataSourceBuilder(
                 CONFIGURATION, merkleDbConfig.initialCapacity(), merkleDbConfig.hashesRamToDiskThreshold());
-        final VirtualMap virtualMap = new VirtualMap("ISSTestingToolStateTest", dsBuilder, CONFIGURATION);
+        final VirtualMap virtualMap = new VirtualMap(dsBuilder, CONFIGURATION);
         state = new ISSTestingToolState(virtualMap, new NoOpMetrics());
         final var schema = new V0680ISSTestingToolSchema();
         schema.statesToCreate().stream()

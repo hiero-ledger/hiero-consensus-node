@@ -88,8 +88,8 @@ public abstract class VirtualMapReconnectTestBase {
         final VirtualDataSourceBuilder dataSourceBuilder = createBuilder();
         teacherBuilder = new BrokenBuilder(dataSourceBuilder);
         learnerBuilder = new BrokenBuilder(dataSourceBuilder);
-        teacherMap = new VirtualMap("Teacher", teacherBuilder, CONFIGURATION);
-        learnerMap = new VirtualMap("Learner", learnerBuilder, CONFIGURATION);
+        teacherMap = new VirtualMap(teacherBuilder, CONFIGURATION);
+        learnerMap = new VirtualMap(learnerBuilder, CONFIGURATION);
     }
 
     @BeforeAll

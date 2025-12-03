@@ -12,6 +12,7 @@ import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.streams.MerkleDataInputStream;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.crypto.CryptoStatic;
+import com.swirlds.platform.internal.SignedStateLoadingException;
 import com.swirlds.platform.state.service.PlatformStateService;
 import com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema;
 import com.swirlds.platform.state.service.schemas.V0540RosterBaseSchema;
@@ -60,7 +61,12 @@ public final class SignedStateFileReader {
         checkSignedStateFilePath(stateDir);
 
         final DeserializedSignedState returnState;
-        final MerkleNodeState merkleNodeState = stateLifecycleManager.loadSnapshot(stateDir);
+        final MerkleNodeState merkleNodeState;
+        try {
+            merkleNodeState = stateLifecycleManager.loadSnapshot(stateDir);
+        } catch (Exception e) {
+            throw new SignedStateLoadingException(e);
+        }
         final File sigSetFile = stateDir.resolve(SIGNATURE_SET_FILE_NAME).toFile();
         final SigSet sigSet = deserializeAndDebugOnFailure(
                 () -> new BufferedInputStream(new FileInputStream(sigSetFile)), (final MerkleDataInputStream in) -> {

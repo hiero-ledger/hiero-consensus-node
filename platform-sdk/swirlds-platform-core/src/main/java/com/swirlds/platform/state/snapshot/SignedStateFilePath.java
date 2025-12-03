@@ -199,24 +199,20 @@ public class SignedStateFilePath {
                 for (final Path subDir : dirs) {
                     try {
                         final long round = Long.parseLong(subDir.getFileName().toString());
-                        final Path vmMetadataPath = subDir.resolve(VirtualMap.METADATA_FILE_NAME);
+                        final Path vmMetadataPath = subDir.resolve(VirtualMap.OLD_METADATA_FILENAME);
                         final Path stateFile = subDir.resolve(SIGNED_STATE_FILE_NAME);
                         final boolean oldFormat = VirtualMap.isOldFormat(subDir);
                         if (oldFormat) {
-                            logger.warn(
-                                    STARTUP.getMarker(),
-                                    "Saved state file ({}) not found, but directory exists '{}'. Probably a snapshot of version prior to 0.70",
-                                    vmMetadataPath.getFileName(),
-                                    subDir.toAbsolutePath());
-                        }
+                            logger.warn(STARTUP.getMarker(), "Probably a snapshot of version prior to 0.70");
 
-                        if (oldFormat && !exists(stateFile)) {
-                            logger.warn(
-                                    EXCEPTION.getMarker(),
-                                    "Saved state file ({}) not found, but directory exists '{}'",
-                                    stateFile.getFileName(),
-                                    subDir.toAbsolutePath());
-                            continue;
+                            if (!exists(vmMetadataPath)) {
+                                logger.warn(
+                                        EXCEPTION.getMarker(),
+                                        "Saved state file ({}) not found, but directory exists '{}'",
+                                        stateFile.getFileName(),
+                                        subDir.toAbsolutePath());
+                                continue;
+                            }
                         }
 
                         final Path stateMetadataPath = subDir.resolve(SavedStateMetadata.FILE_NAME);

@@ -64,7 +64,7 @@ public class ConsistencyTestingToolStateTest {
         final MerkleDbConfig merkleDbConfig = CONFIGURATION.getConfigData(MerkleDbConfig.class);
         final VirtualDataSourceBuilder dsBuilder = new MerkleDbDataSourceBuilder(
                 CONFIGURATION, merkleDbConfig.initialCapacity(), merkleDbConfig.hashesRamToDiskThreshold());
-        final VirtualMap virtualMap = new VirtualMap("ConsistencyTestingToolStateTest", dsBuilder, CONFIGURATION);
+        final VirtualMap virtualMap = new VirtualMap(dsBuilder, CONFIGURATION);
         state = new ConsistencyTestingToolState(virtualMap, new NoOpMetrics());
         stateLifecycle = new ConsistencyTestingToolConsensusStateEventHandler();
         TestingAppStateInitializer.initConsensusModuleStates(state, CONFIGURATION);
