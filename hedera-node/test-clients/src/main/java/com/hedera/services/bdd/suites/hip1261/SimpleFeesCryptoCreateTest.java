@@ -48,6 +48,7 @@ import org.hiero.hapi.support.fees.Extra;
 import org.hiero.hapi.support.fees.FeeSchedule;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 
 @Tag(SIMPLE_FEES)
@@ -55,7 +56,6 @@ public class SimpleFeesCryptoCreateTest {
 
     private static final String PAYER = "payer";
     private static final String ADMIN_KEY = "adminKey";
-    private static final String SUBMIT_KEY = "submitKey";
     private static final String PAYER_KEY = "payerKey";
 
     private static final String ORIGINAL_SIMPLE_FEES_REGISTRY_KEY = "originalSimpleFees";
@@ -65,7 +65,7 @@ public class SimpleFeesCryptoCreateTest {
      * Expected charges for CryptoCreate with custom schedule without any extras
      * | Scenario                         | Sigs  | Keys | PayerCharged  | payerCharged USD |
      * |----------------------------------|-------|------|---------------|------------------|
-     * | PAYER only, one signature        |     1 |    0 |     500000000 |     0.0500000000 |
+     * | PAYER only, one signature        |     1 |    1 |     500000000 |     0.0500000000 |
      */
     @HapiTest
     @DisplayName("Crypto Create - full charging without extras")
@@ -91,82 +91,21 @@ public class SimpleFeesCryptoCreateTest {
                 assertFees(
                         "createAccountTxn",
                         CRYPTO_CREATE,
-                        SimpleFeesParams.create().signatures(1L),
+                        SimpleFeesParams.create().signatures(1L).keys(1L),
                         CUSTOM_SIMPLE_FEES_JSON_PATH,
                         SUCCESS_TXN_FULL_CHARGE),
                 restoreSimpleFees("originalSimpleFees"));
     }
 
-    //    @HapiTest
-    //    @DisplayName("Crypto Create - full charging with one extra signature")
-    //    Stream<DynamicTest> cryptoCreateWithCustomScheduleWithOneExtraSignature() {
-    //
-    //        return hapiTest(
-    //                // save the current active schedule to registry
-    //                snapshotSimpleFees(ORIGINAL_SIMPLE_FEES_REGISTRY_KEY),
-    //
-    //                // override the active schedule with custom schedule for this test
-    //                useCustomSimpleFeesFromJson(CUSTOM_SIMPLE_FEES_JSON_PATH),
-    //
-    //                // perform the transaction under test
-    //                cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
-    //                newKeyNamed(ADMIN_KEY),
-    //                cryptoCreate("testAccount")
-    //                        .payingWith(PAYER)
-    //                        .signedBy(PAYER, ADMIN_KEY)
-    //                        .fee(ONE_HBAR)
-    //                        .via("createAccountTxn"),
-    //
-    //                // validate charged fees
-    //                assertFees(
-    //                        "createAccountTxn",
-    //                        CRYPTO_CREATE,
-    //                        SimpleFeesParams.create().signatures(2L),
-    //                        CUSTOM_SIMPLE_FEES_JSON_PATH,
-    //                        SUCCESS_TXN_FULL_CHARGE),
-    //                restoreSimpleFees("originalSimpleFees"));
-    //    }
-    //
-    //    @HapiTest
-    //    @DisplayName("Crypto Create - full charging with two extra signatures")
-    //    Stream<DynamicTest> cryptoCreateWithCustomScheduleWithTwoExtraSignatures() {
-    //
-    //        return hapiTest(
-    //                // save the current active schedule to registry
-    //                snapshotSimpleFees(ORIGINAL_SIMPLE_FEES_REGISTRY_KEY),
-    //
-    //                // override the active schedule with custom schedule for this test
-    //                useCustomSimpleFeesFromJson(CUSTOM_SIMPLE_FEES_JSON_PATH),
-    //
-    //                // perform the transaction under test
-    //                cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
-    //                newKeyNamed(ADMIN_KEY),
-    //                newKeyNamed(SUBMIT_KEY),
-    //                cryptoCreate("testAccount")
-    //                        .payingWith(PAYER)
-    //                        .signedBy(PAYER, ADMIN_KEY, SUBMIT_KEY)
-    //                        .fee(ONE_HBAR)
-    //                        .via("createAccountTxn"),
-    //
-    //                // validate charged fees
-    //                assertFees(
-    //                        "createAccountTxn",
-    //                        CRYPTO_CREATE,
-    //                        SimpleFeesParams.create().signatures(3L),
-    //                        CUSTOM_SIMPLE_FEES_JSON_PATH,
-    //                        SUCCESS_TXN_FULL_CHARGE),
-    //                restoreSimpleFees("originalSimpleFees"));
-    //    }
-
     /**
-     * Expected charges for CryptoCreate with custom schedule with included key and extra signatures
+     * Expected charges for CryptoCreate with custom schedule with included key and additional not charged signatures
      * | Scenario                         | Sigs  | Keys | PayerCharged | payerCharged USD |
      * |----------------------------------|-------|------|--------------|------------------|
-     * | PAYER + 1 signature + 1 key      |     2 |    1 |    510000000 |     0.0510000000 |
+     * | PAYER + 1 signature + 1 key      |     1 |    1 |    500000000 |     0.0500000000 |
      */
     @HapiTest
-    @DisplayName("Crypto Create - full charging with included key and extra signatures")
-    Stream<DynamicTest> cryptoCreateWithCustomScheduleWithIncludedKeyAndExtraSignatures() {
+    @DisplayName("Crypto Create - full charging with included key and additional not charged extra signature")
+    Stream<DynamicTest> cryptoCreateWithCustomScheduleWithIncludedKeyAndAdditionalNotChargedExtraSignature() {
 
         return hapiTest(
                 // perform the transaction under test with the system default fees
@@ -189,7 +128,7 @@ public class SimpleFeesCryptoCreateTest {
                 assertFees(
                         "createAccountTxn",
                         CRYPTO_CREATE,
-                        SimpleFeesParams.create().signatures(2L).keys(1L),
+                        SimpleFeesParams.create().signatures(1L).keys(1L),
                         CUSTOM_SIMPLE_FEES_JSON_PATH,
                         SUCCESS_TXN_FULL_CHARGE),
                 restoreSimpleFees("originalSimpleFees"));
@@ -199,22 +138,25 @@ public class SimpleFeesCryptoCreateTest {
      * Expected charges for CryptoCreate with custom schedule with extra key and extra signatures
      * | Scenario                         | Sigs  | Keys | PayerCharged | payerCharged USD |
      * |----------------------------------|-------|------|--------------|------------------|
-     * | PAYER + 2 signatures + 2 keys    |     3 |    2 |    620000000 |     0.0620000000 |
+     * | PAYER + 1 signatures + 2 keys    |     2 |    2 |    610000000 |     0.0610000000 |
      */
     @HapiTest
-    @DisplayName("Crypto Create - full charging with extra key and extra signatures")
-    Stream<DynamicTest> cryptoCreateWithCustomScheduleWithExtraKeyAndExtraSignatures() {
+    @DisplayName("Crypto Create - threshold with extra signatures and keys - full charging with extras")
+    Stream<DynamicTest> cryptoCreateWithThresholdWithExtraSignaturesAndKeys() {
+        // Define a threshold submit key that requires two simple keys signatures
+        KeyShape keyShape = threshOf(2, SIMPLE, SIMPLE);
 
+        // Create a valid signature with both simple keys signing
+        SigControl validSig = keyShape.signedWith(sigs(ON, ON));
         return hapiTest(
                 // perform the transaction under test with the system default fees
-                cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
-                newKeyNamed(ADMIN_KEY),
-                newKeyNamed(SUBMIT_KEY),
+                newKeyNamed(PAYER_KEY).shape(keyShape),
+                cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
                 cryptoCreate("testAccount")
-                        .key(ADMIN_KEY)
-                        .key(SUBMIT_KEY)
+                        .key(PAYER_KEY)
                         .payingWith(PAYER)
-                        .signedBy(PAYER, ADMIN_KEY, SUBMIT_KEY)
+                        .sigControl(forKey(PAYER_KEY, validSig))
+                        .signedBy(PAYER)
                         .fee(ONE_HBAR)
                         .via("createAccountTxn"),
 
@@ -225,97 +167,6 @@ public class SimpleFeesCryptoCreateTest {
                 useCustomSimpleFeesFromJson(CUSTOM_SIMPLE_FEES_JSON_PATH),
 
                 // validate charged fees with the custom schedule
-                assertFees(
-                        "createAccountTxn",
-                        CRYPTO_CREATE,
-                        SimpleFeesParams.create().signatures(3L).keys(2L),
-                        CUSTOM_SIMPLE_FEES_JSON_PATH,
-                        SUCCESS_TXN_FULL_CHARGE),
-                restoreSimpleFees("originalSimpleFees"));
-    }
-
-    /**
-     * Expected charges for CryptoCreate with custom schedule with threshold key and extra signatures
-     * | Scenario                         | Sigs  | Keys | PayerCharged | payerCharged USD |
-     * |----------------------------------|-------|------|--------------|------------------|
-     * | PAYER + 3 extra sig + 4 keys     |     4 |    4 |    830000000 |     0.0830000000 |
-     */
-    @HapiTest
-    @DisplayName("Crypto Create - full charging with valid payer threshold key")
-    Stream<DynamicTest> cryptoCreateWithCustomScheduleWithPayerThresholdKey() {
-
-        // Define a threshold submit key that requires two simple keys signatures
-        KeyShape keyShape = threshOf(2, SIMPLE, SIMPLE, listOf(2));
-
-        // Create a valid signature with both simple keys signing
-        SigControl validSig = keyShape.signedWith(sigs(ON, OFF, sigs(ON, ON)));
-
-        return hapiTest(
-                // create threshold keys
-                newKeyNamed(PAYER_KEY).shape(keyShape),
-
-                // perform the transaction under test with the system default fees
-                cryptoCreate(PAYER)
-                        .key(PAYER_KEY)
-                        .sigControl(forKey(PAYER_KEY, validSig))
-                        .balance(ONE_HUNDRED_HBARS),
-                cryptoCreate("testAccount")
-                        .key(PAYER_KEY)
-                        .sigControl(forKey(PAYER_KEY, validSig))
-                        .payingWith(PAYER)
-                        .signedBy(PAYER_KEY)
-                        .fee(ONE_HBAR)
-                        .via("createAccountTxn"),
-
-                // save the current active schedule to registry
-                snapshotSimpleFees(ORIGINAL_SIMPLE_FEES_REGISTRY_KEY),
-
-                // override the active schedule with custom schedule for this test
-                useCustomSimpleFeesFromJson(CUSTOM_SIMPLE_FEES_JSON_PATH),
-
-                // validate charged fees with the custom schedule
-                assertFees(
-                        "createAccountTxn",
-                        CRYPTO_CREATE,
-                        SimpleFeesParams.create().signatures(4L).keys(4L),
-                        CUSTOM_SIMPLE_FEES_JSON_PATH,
-                        SUCCESS_TXN_FULL_CHARGE),
-                restoreSimpleFees("originalSimpleFees"));
-    }
-
-    /**
-     * Expected charges for CryptoCreate with custom schedule with threshold key and extra signatures
-     * | Scenario                         | Sigs  | Keys | PayerCharged | payerCharged USD |
-     * |----------------------------------|-------|------|--------------|------------------|
-     * | PAYER + 1 extra sig + 2 keys     |     2 |    2 |    610000000 |     0.0610000000 |
-     */
-    @HapiTest
-    @DisplayName("Crypto Create - full charging with valid payer key - full key list")
-    Stream<DynamicTest> cryptoCreateWithCustomScheduleWithPayerKeyList() {
-
-        return hapiTest(
-                // save the current active schedule to registry
-                snapshotSimpleFees(ORIGINAL_SIMPLE_FEES_REGISTRY_KEY),
-
-                // override the active schedule with custom schedule for this test
-                useCustomSimpleFeesFromJson(CUSTOM_SIMPLE_FEES_JSON_PATH),
-
-                // create keys list
-                newKeyNamed("firstKey").shape(SIMPLE),
-                newKeyNamed("secondKey").shape(SIMPLE),
-                newKeyListNamed(PAYER_KEY, List.of("firstKey", "secondKey")),
-
-                // perform the transaction under test
-                cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
-                cryptoCreate("testAccount")
-                        .key(PAYER_KEY)
-                        .payingWith(PAYER)
-                        .signedBy(PAYER_KEY)
-                        .fee(ONE_HBAR)
-                        .via("createAccountTxn")
-                        .logged(),
-
-                // validate charged fees
                 assertFees(
                         "createAccountTxn",
                         CRYPTO_CREATE,
@@ -329,11 +180,11 @@ public class SimpleFeesCryptoCreateTest {
      * Expected charges for CryptoCreate with custom schedule with threshold key and extra signatures
      * | Scenario                         | Sigs  | Keys | PayerCharged | payerCharged USD |
      * |----------------------------------|-------|------|--------------|------------------|
-     * | PAYER + 3 extra sig + 4 keys     |     4 |    4 |    830000000 |     0.0830000000 |
+     * | PAYER + 4 signatures + 4 keys    |     5 |    4 |    830000000 |     0.0830000000 |
      */
     @HapiTest
-    @DisplayName("Crypto Create - full charging with valid admin threshold key")
-    Stream<DynamicTest> cryptoCreateWithCustomScheduleWithAdminThresholdKey() {
+    @DisplayName("Crypto Create - threshold with two extra signatures and keys - full charging with extras")
+    Stream<DynamicTest> cryptoCreateWithThresholdWithTwoExtraSignaturesAndKeys() {
 
         // Define a threshold submit key that requires two simple keys signatures
         KeyShape keyShape = threshOf(2, SIMPLE, SIMPLE, listOf(2));
@@ -343,15 +194,15 @@ public class SimpleFeesCryptoCreateTest {
 
         return hapiTest(
                 // create threshold keys
-                newKeyNamed(ADMIN_KEY).shape(keyShape),
+                newKeyNamed(PAYER_KEY).shape(keyShape),
 
                 // perform the transaction under test with the system default fees
-                cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
+                cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
                 cryptoCreate("testAccount")
-                        .key(ADMIN_KEY)
-                        .sigControl(forKey(ADMIN_KEY, validSig))
+                        .key(PAYER_KEY)
+                        .sigControl(forKey(PAYER_KEY, validSig))
                         .payingWith(PAYER)
-                        .signedBy(PAYER, ADMIN_KEY)
+                        .signedBy(PAYER)
                         .fee(ONE_HBAR)
                         .via("createAccountTxn"),
 
@@ -365,7 +216,7 @@ public class SimpleFeesCryptoCreateTest {
                 assertFees(
                         "createAccountTxn",
                         CRYPTO_CREATE,
-                        SimpleFeesParams.create().signatures(4L).keys(4L),
+                        SimpleFeesParams.create().signatures(5L).keys(4L),
                         CUSTOM_SIMPLE_FEES_JSON_PATH,
                         SUCCESS_TXN_FULL_CHARGE),
                 restoreSimpleFees("originalSimpleFees"));
@@ -375,7 +226,7 @@ public class SimpleFeesCryptoCreateTest {
      * Expected charges for CryptoCreate with custom schedule with threshold key and extra signatures
      * | Scenario                         | Sigs  | Keys | PayerCharged | payerCharged USD |
      * |----------------------------------|-------|------|--------------|------------------|
-     * | PAYER + 2 extra sig + 2 keys     |     3 |    2 |    620000000 |     0.0620000000 |
+     * | PAYER + 2 extra sig + 2 keys     |     2 |    2 |    610000000 |     0.0610000000 |
      */
     @HapiTest
     @DisplayName("Crypto Create - full charging with valid admin key - full key list")
@@ -386,14 +237,14 @@ public class SimpleFeesCryptoCreateTest {
                 // create keys list
                 newKeyNamed("firstKey").shape(SIMPLE),
                 newKeyNamed("secondKey").shape(SIMPLE),
-                newKeyListNamed(ADMIN_KEY, List.of("firstKey", "secondKey")),
+                newKeyListNamed(PAYER_KEY, List.of("firstKey", "secondKey")),
 
                 // perform the transaction under test with the system default fees
-                cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
+                cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
                 cryptoCreate("testAccount")
-                        .key(ADMIN_KEY)
+                        .key(PAYER_KEY)
                         .payingWith(PAYER)
-                        .signedBy(PAYER, ADMIN_KEY)
+                        .signedBy(PAYER)
                         .fee(ONE_HBAR)
                         .via("createAccountTxn"),
 
@@ -407,168 +258,95 @@ public class SimpleFeesCryptoCreateTest {
                 assertFees(
                         "createAccountTxn",
                         CRYPTO_CREATE,
-                        SimpleFeesParams.create().signatures(3L).keys(2L),
+                        SimpleFeesParams.create().signatures(2L).keys(2L),
                         CUSTOM_SIMPLE_FEES_JSON_PATH,
                         SUCCESS_TXN_FULL_CHARGE),
                 restoreSimpleFees("originalSimpleFees"));
     }
 
-    // Negative tests
-    // why did we get charged here????
-    @HapiTest
-    @DisplayName("Crypto Create with partial payer key list results in failure and zero payer fees")
-    Stream<DynamicTest> cryptoCreateWithCustomScheduleWithPayerPartialKeyListFails() {
+    @Nested
+    @DisplayName("Crypto Create - negative tests")
+    class CryptoCreateNegativeTests {
+        @HapiTest
+        @DisplayName("Crypto Create with partial payer key list results in failure and zero payer fees")
+        Stream<DynamicTest> cryptoCreateWithCustomScheduleWithPayerPartialKeyListFails() {
 
-        return hapiTest(
-                // create keys list
-                newKeyNamed("firstKey").shape(SIMPLE),
-                newKeyNamed("secondKey").shape(SIMPLE),
-                newKeyListNamed(PAYER_KEY, List.of("firstKey", "secondKey")),
+            return hapiTest(
+                    // create keys list
+                    newKeyNamed("firstKey").shape(SIMPLE),
+                    newKeyNamed("secondKey").shape(SIMPLE),
+                    newKeyListNamed(PAYER_KEY, List.of("firstKey", "secondKey")),
 
-                // perform the transaction under test with the system default fees
-                cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
-                cryptoCreate("testAccount")
-                        .key(PAYER_KEY)
-                        .payingWith(PAYER)
-                        .signedBy("firstKey")
-                        .fee(ONE_HBAR)
-                        .via("createAccountTxn")
-                        .hasPrecheck(INVALID_SIGNATURE),
+                    // perform the transaction under test with the system default fees
+                    cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS),
+                    cryptoCreate("testAccount")
+                            .key(PAYER_KEY)
+                            .payingWith(PAYER)
+                            .signedBy("firstKey")
+                            .fee(ONE_HBAR)
+                            .via("createAccountTxn")
+                            .hasPrecheck(INVALID_SIGNATURE),
 
-                // save the current active schedule to registry
-                snapshotSimpleFees(ORIGINAL_SIMPLE_FEES_REGISTRY_KEY),
+                    // save the current active schedule to registry
+                    snapshotSimpleFees(ORIGINAL_SIMPLE_FEES_REGISTRY_KEY),
 
-                // override the active schedule with custom schedule for this test
-                useCustomSimpleFeesFromJson(CUSTOM_SIMPLE_FEES_JSON_PATH),
+                    // override the active schedule with custom schedule for this test
+                    useCustomSimpleFeesFromJson(CUSTOM_SIMPLE_FEES_JSON_PATH),
 
-                // validate charged fees with zero payer fees
-                assertZeroPayerFees(CRYPTO_CREATE, CUSTOM_SIMPLE_FEES_JSON_PATH, INVALID_TXN_AT_INGEST_ZERO_PAYER),
-                restoreSimpleFees("originalSimpleFees"));
+                    // validate charged fees with zero payer fees
+                    assertZeroPayerFees(CRYPTO_CREATE, CUSTOM_SIMPLE_FEES_JSON_PATH, INVALID_TXN_AT_INGEST_ZERO_PAYER),
+                    restoreSimpleFees("originalSimpleFees"));
+        }
+
+        @HapiTest
+        @DisplayName("Crypto Create with invalid payer threshold key results in failure and zero payer fees")
+        Stream<DynamicTest> cryptoCreateWithCustomScheduleWithInvalidThresholdKey() {
+            final AtomicLong initialBalance = new AtomicLong();
+            final AtomicLong afterBalance = new AtomicLong();
+            // Define a threshold submit key that requires two simple keys signatures
+            KeyShape keyShape = threshOf(2, SIMPLE, SIMPLE, listOf(2));
+            // Create an invalid signature with only one simple key signing
+            SigControl invalidSig = keyShape.signedWith(sigs(ON, OFF, sigs(OFF, OFF)));
+
+            return hapiTest(
+                    newKeyNamed(PAYER_KEY).shape(keyShape),
+                    cryptoCreate(PAYER)
+                            .key(PAYER_KEY)
+                            .sigControl(forKey(PAYER_KEY, invalidSig))
+                            .balance(ONE_HUNDRED_HBARS),
+
+                    // Save payer balance before
+                    getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
+
+                    // perform the transaction under test with the system default fees
+                    cryptoCreate("testAccount")
+                            .sigControl(forKey(PAYER_KEY, invalidSig))
+                            .payingWith(PAYER)
+                            .signedBy(PAYER)
+                            .fee(ONE_HBAR)
+                            .via("createAccountTxn")
+                            .hasPrecheck(INVALID_SIGNATURE),
+
+                    // assert no txn record is created
+                    getTxnRecord("createAccountTxn").logged().hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND),
+
+                    // Save balances and assert changes
+                    getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
+                    withOpContext((spec, log) -> {
+                        assertEquals(initialBalance.get(), afterBalance.get());
+                    }),
+
+                    // save the current active schedule to registry
+                    snapshotSimpleFees(ORIGINAL_SIMPLE_FEES_REGISTRY_KEY),
+
+                    // override the active schedule with custom schedule for this test
+                    useCustomSimpleFeesFromJson(CUSTOM_SIMPLE_FEES_JSON_PATH),
+
+                    // validate charged fees with zero payer fees
+                    assertZeroPayerFees(CRYPTO_CREATE, CUSTOM_SIMPLE_FEES_JSON_PATH, INVALID_TXN_AT_INGEST_ZERO_PAYER),
+                    restoreSimpleFees("originalSimpleFees"));
+        }
     }
-
-    //    @HapiTest
-    //    @DisplayName("Crypto Create - full charging with valid admin key - partial key list")
-    //    Stream<DynamicTest> cryptoCreateWithCustomScheduleWithAdminPartialKeyList() {
-    //
-    //        return hapiTest(
-    //                // save the current active schedule to registry
-    //                snapshotSimpleFees(ORIGINAL_SIMPLE_FEES_REGISTRY_KEY),
-    //
-    //                // override the active schedule with custom schedule for this test
-    //                useCustomSimpleFeesFromJson(CUSTOM_SIMPLE_FEES_JSON_PATH),
-    //
-    //                // create keys list
-    //                newKeyNamed("firstKey").shape(SIMPLE),
-    //                newKeyNamed("secondKey").shape(SIMPLE),
-    //                newKeyListNamed(ADMIN_KEY, List.of("firstKey", "secondKey")),
-    //
-    //                // perform the transaction under test
-    //                cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
-    //                cryptoCreate("testAccount")
-    //                        .payingWith(PAYER)
-    //                        .signedBy(PAYER, "secondKey")
-    //                        .fee(ONE_HBAR)
-    //                        .via("createAccountTxn"),
-    //
-    //                // validate charged fees
-    //                assertFees(
-    //                        "createAccountTxn",
-    //                        CRYPTO_CREATE,
-    //                        SimpleFeesParams.create().signatures(4L).keys(4L),
-    //                        CUSTOM_SIMPLE_FEES_JSON_PATH,
-    //                        SUCCESS_TXN_FULL_CHARGE),
-    //                restoreSimpleFees("originalSimpleFees"));
-    //    }
-
-    @HapiTest
-    @DisplayName("Crypto Create with invalid payer threshold key results in failure and zero payer fees")
-    Stream<DynamicTest> cryptoCreateWithCustomScheduleWithInvalidThresholdKey() {
-        final AtomicLong initialBalance = new AtomicLong();
-        final AtomicLong afterBalance = new AtomicLong();
-        // Define a threshold submit key that requires two simple keys signatures
-        KeyShape keyShape = threshOf(2, SIMPLE, SIMPLE, listOf(2));
-        // Create an invalid signature with only one simple key signing
-        SigControl invalidSig = keyShape.signedWith(sigs(ON, OFF, sigs(OFF, OFF)));
-
-        return hapiTest(
-                newKeyNamed(PAYER_KEY).shape(keyShape),
-                cryptoCreate(PAYER)
-                        .key(PAYER_KEY)
-                        .sigControl(forKey(PAYER_KEY, invalidSig))
-                        .balance(ONE_HUNDRED_HBARS),
-
-                // Save payer balance before
-                getAccountBalance(PAYER).exposingBalanceTo(initialBalance::set),
-
-                // perform the transaction under test with the system default fees
-                cryptoCreate("testAccount")
-                        .sigControl(forKey(PAYER_KEY, invalidSig))
-                        .payingWith(PAYER)
-                        .signedBy(PAYER)
-                        .fee(ONE_HBAR)
-                        .via("createAccountTxn")
-                        .hasPrecheck(INVALID_SIGNATURE),
-
-                // assert no txn record is created
-                getTxnRecord("createAccountTxn").logged().hasAnswerOnlyPrecheckFrom(RECORD_NOT_FOUND),
-
-                // Save balances and assert changes
-                getAccountBalance(PAYER).exposingBalanceTo(afterBalance::set),
-                withOpContext((spec, log) -> {
-                    assertEquals(initialBalance.get(), afterBalance.get());
-                }),
-
-                // save the current active schedule to registry
-                snapshotSimpleFees(ORIGINAL_SIMPLE_FEES_REGISTRY_KEY),
-
-                // override the active schedule with custom schedule for this test
-                useCustomSimpleFeesFromJson(CUSTOM_SIMPLE_FEES_JSON_PATH),
-
-                // validate charged fees with zero payer fees
-                assertZeroPayerFees(CRYPTO_CREATE, CUSTOM_SIMPLE_FEES_JSON_PATH, INVALID_TXN_AT_INGEST_ZERO_PAYER),
-                restoreSimpleFees("originalSimpleFees"));
-    }
-
-    //    @HapiTest
-    //    @DisplayName("Crypto Create - full charging with invalid payer key list")
-    //    Stream<DynamicTest> cryptoCreateWithCustomScheduleWithInvalidPayerKeyList() {
-    //
-    //        return hapiTest(
-    //                // save the current active schedule to registry
-    //                snapshotSimpleFees(ORIGINAL_SIMPLE_FEES_REGISTRY_KEY),
-    //
-    //                // override the active schedule with custom schedule for this test
-    //                useCustomSimpleFeesFromJson(CUSTOM_SIMPLE_FEES_JSON_PATH),
-    //
-    //                // create keys list
-    //                newKeyNamed("firstKey").shape(SIMPLE),
-    //                newKeyNamed("secondKey").shape(SIMPLE),
-    //                newKeyNamed("thirdKey").shape(SIMPLE),
-    //                newKeyListNamed(PAYER_KEY, List.of("firstKey", "secondKey")),
-    //
-    //                // perform the transaction under test
-    //                cryptoCreate(PAYER)
-    //                        .key(PAYER_KEY)
-    //                        .balance(ONE_HUNDRED_HBARS),
-    //                cryptoCreate("testAccount")
-    //                        .payingWith(PAYER)
-    //                        .signedBy("thirdKey")
-    //                        .fee(ONE_HBAR)
-    //                        .via("createAccountTxn")
-    //                        .hasPrecheck(INVALID_SIGNATURE),
-    //
-    //                // validate charged fees
-    //                assertZeroPayerFees(
-    //                        CRYPTO_CREATE,
-    //                        CUSTOM_SIMPLE_FEES_JSON_PATH,
-    //                        INVALID_TXN_AT_PRE_HANDLE_ZERO_PAYER),
-    //                restoreSimpleFees("originalSimpleFees"));
-    //    }
-
-    /** ToDo
-     *  Handle time failures - still fully charged
-     *  e.g. insufficient payer balance, invalid auto renew period, etc.
-     */
 
     // ------- Helpers -------
 
