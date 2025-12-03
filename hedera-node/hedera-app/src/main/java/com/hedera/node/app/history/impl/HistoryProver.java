@@ -136,10 +136,12 @@ public interface HistoryProver {
 
     /**
      * Observes a proof vote.
+     *
      * @param nodeId the node ID
      * @param vote the vote
+     * @param proofFinalized whether this vote finalized the proof
      */
-    void observeProofVote(long nodeId, @NonNull HistoryProofVote vote);
+    void observeProofVote(long nodeId, @NonNull HistoryProofVote vote, boolean proofFinalized);
 
     /**
      * Returns a list of proof keys from the given map.

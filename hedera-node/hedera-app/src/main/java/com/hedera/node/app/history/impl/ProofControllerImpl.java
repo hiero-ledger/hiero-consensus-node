@@ -230,7 +230,7 @@ public class ProofControllerImpl implements ProofController {
                 .findFirst();
         maybeWinningProof.ifPresent(proof -> finishProof(historyStore, proof));
         // Let our prover know about the vote to optimize its choice of explicit or congruent voting
-        requireNonNull(prover).observeProofVote(nodeId, vote);
+        requireNonNull(prover).observeProofVote(nodeId, vote, maybeWinningProof.isPresent());
     }
 
     @Override
