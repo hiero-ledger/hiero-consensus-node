@@ -15,11 +15,14 @@ import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.state.MutabilityException;
 import com.swirlds.common.Reservable;
 import com.swirlds.common.context.PlatformContext;
+import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.test.fixtures.Randotron;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
 import com.swirlds.platform.SwirldsPlatform;
+import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
+import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
 import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
 import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.StateLifecycleManager;
@@ -94,6 +97,49 @@ class StateLifecycleManagerTests {
     }
 
     @Test
+    @DisplayName("Load From Signed State - state reference counts")
+    void initStateRefCount() {
+        final SignedState ss1 = newSignedState();
+        final Reservable state1 = ss1.getState().getRoot();
+        stateLifecycleManager.initStateOnReconnect(ss1.getState());
+
+        assertEquals(
+                2,
+                state1.getReservationCount(),
+                "Loading from signed state should increment the reference count, because it is now referenced by the "
+                        + "signed state and the previous immutable state in StateLifecycleManagerImpl.");
+        final MerkleNodeState consensusState1 = stateLifecycleManager.getMutableState();
+        assertEquals(
+                1,
+                consensusState1.getRoot().getReservationCount(),
+                "The current consensus state should have a single reference count.");
+
+        final SignedState ss2 = newSignedState();
+        stateLifecycleManager.initStateOnReconnect(ss2.getState());
+        final MerkleNodeState consensusState2 = stateLifecycleManager.getMutableState();
+
+        Reservable state2 = ss2.getState().getRoot();
+        assertEquals(
+                2,
+                state2.getReservationCount(),
+                "Loading from signed state should increment the reference count, because it is now referenced by the "
+                        + "signed state and the previous immutable state in StateLifecycleManagerImpl.");
+        assertEquals(
+                1,
+                consensusState2.getRoot().getReservationCount(),
+                "The current consensus state should have a single reference count.");
+        assertEquals(
+                1,
+                state1.getReservationCount(),
+                "The previous immutable state was replaced, so the old state's reference count should have been "
+                        + "decremented.");
+        state1.release();
+        state2.release();
+        state2.release();
+        consensusState2.release();
+    }
+
+    @Test
     @DisplayName("copyMutableState() updates references and reservation counts")
     void copyMutableStateReferenceCounts() {
         final MerkleNodeState beforeMutable = stateLifecycleManager.getMutableState();
@@ -151,9 +197,30 @@ class StateLifecycleManagerTests {
         assertThrows(IllegalStateException.class, uninitialized::getLatestImmutableState);
     }
 
+    @Test
+    @DisplayName("createStateFrom() creates a state without changing reservation count and the state of the manager")
+    void createStateFrom() {
+        // Create an independent state and get its root (VirtualMap)
+        final MerkleNodeState state = VirtualMapStateTestUtils.createTestState();
+        final MerkleNodeState created = stateLifecycleManager.createStateFrom(state.getRoot());
+
+        // The created state should be non-null and reference the same root
+        assertSame(state.getRoot(), created.getRoot(), "createStateFrom should wrap the provided root");
+
+        // Reservation count should remain unchanged by createStateFrom
+        assertEquals(
+                0,
+                (created.getRoot()).getReservationCount(),
+                "createStateFrom must not alter the root reservation count");
+
+        // stateLifecycleManager remains unchanged
+        assertNotSame(state, stateLifecycleManager.getLatestImmutableState());
+        assertNotSame(state, stateLifecycleManager.getMutableState());
+
+        state.release();
+    }
+
     private static MerkleNodeState newState() {
-        final String virtualMapLabel =
-                StateLifecycleManagerTests.class.getSimpleName() + "-" + java.util.UUID.randomUUID();
         final MerkleNodeState state = VirtualMapStateTestUtils.createTestState();
         TestingAppStateInitializer.initPlatformState(state);
 
@@ -162,5 +229,13 @@ class StateLifecycleManagerTests {
 
         assertEquals(0, state.getRoot().getReservationCount(), "A brand new state should have no references.");
         return state;
+    }
+
+    private static SignedState newSignedState() {
+        final SignedState ss = new RandomSignedStateGenerator().build();
+        final Reservable state = ss.getState().getRoot();
+        assertEquals(
+                1, state.getReservationCount(), "Creating a signed state should increment the state reference count.");
+        return ss;
     }
 }
