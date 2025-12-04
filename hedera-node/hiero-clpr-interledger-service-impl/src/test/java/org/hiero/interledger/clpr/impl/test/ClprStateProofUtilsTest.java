@@ -58,10 +58,11 @@ class ClprStateProofUtilsTest extends ClprTestBase {
                         .build())
                 .build();
 
-        // Should throw due to signature mismatch
-        assertThrows(IllegalStateException.class, () -> {
-            ClprStateProofUtils.extractConfiguration(stateProof);
-        });
+        // Signature verification should fail
+        assertFalse(ClprStateProofUtils.validateStateProof(stateProof));
+        // Extraction is orthogonal and should still parse the payload
+        final var extracted = assertDoesNotThrow(() -> ClprStateProofUtils.extractConfiguration(stateProof));
+        assertEquals(config.ledgerId(), extracted.ledgerId());
     }
 
     @Test

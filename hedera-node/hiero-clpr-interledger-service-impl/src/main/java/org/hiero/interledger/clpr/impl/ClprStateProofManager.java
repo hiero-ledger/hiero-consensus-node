@@ -226,4 +226,8 @@ public class ClprStateProofManager {
             return false;
         }
     }
+
+    public boolean clprEnabled() {
+        return clprConfig.clprEnabled();
+    }
 }

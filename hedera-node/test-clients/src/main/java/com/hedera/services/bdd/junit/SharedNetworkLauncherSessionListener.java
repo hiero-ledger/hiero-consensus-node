@@ -6,6 +6,7 @@ import static com.hedera.services.bdd.junit.extensions.NetworkTargetingExtension
 import static com.hedera.services.bdd.junit.extensions.NetworkTargetingExtension.SHARED_NETWORK;
 import static com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork.SHARED_NETWORK_NAME;
 import static com.hedera.services.bdd.junit.support.TestPlanUtils.hasAnnotatedTestNode;
+import static com.hedera.services.bdd.junit.support.TestPlanUtils.hasTaggedTestNode;
 import static com.hedera.services.bdd.spec.HapiPropertySource.getConfigRealm;
 import static com.hedera.services.bdd.spec.HapiPropertySource.getConfigShard;
 import static com.hedera.services.bdd.spec.HapiSpecSetup.getDefaultInstance;
@@ -89,6 +90,7 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
         @Override
         public void testPlanExecutionStarted(@NonNull final TestPlan testPlan) {
             REPEATABLE_KEY_GENERATOR.set(new RepeatableKeyGenerator());
+            final boolean hasClprTests = hasTaggedTestNode(testPlan, Set.of(TestTags.CLPR));
 
             // Skip standard setup if any test in the plan uses HapiBlockNode
             if (hasAnnotatedTestNode(testPlan, Set.of(HapiBlockNode.class))) {
@@ -96,8 +98,8 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
                 embedding = Embedding.NA;
                 return;
             }
-            // Do nothing if the test plan has no HapiTests of any kind
-            if (!hasAnnotatedTestNode(
+            final boolean hasMultiNetworkTests = hasAnnotatedTestNode(testPlan, Set.of(MultiNetworkHapiTest.class));
+            final boolean hasStandardHapiTests = hasAnnotatedTestNode(
                     testPlan,
                     Set.of(
                             EmbeddedHapiTest.class,
@@ -106,7 +108,14 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
                             LeakyEmbeddedHapiTest.class,
                             LeakyHapiTest.class,
                             LeakyRepeatableHapiTest.class,
-                            RepeatableHapiTest.class))) {
+                            RepeatableHapiTest.class));
+            if (hasMultiNetworkTests && !hasStandardHapiTests) {
+                log.info("Test plan has only MultiNetworkHapiTest annotations; skipping shared network startup.");
+                embedding = Embedding.NA;
+                return;
+            }
+            // Do nothing if the test plan has no HapiTests of any kind
+            if (!hasStandardHapiTests) {
                 log.info("No HapiTests found in test plan, skipping shared network startup");
                 return;
             }
@@ -128,6 +137,25 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
                         case REPEATABLE -> EmbeddedNetwork.newSharedNetwork(EmbeddedMode.REPEATABLE);
                     };
             if (network != null) {
+                if (hasClprTests) {
+                    // Ensure CLPR is enabled before nodes start so CLPR suites see NOT_SUPPORTED only when expected
+                    System.setProperty("clpr.clprEnabled", "true");
+                    System.setProperty("clpr.devModeEnabled", "true");
+                    System.setProperty("clpr.publicizeClprEndpoints", "true");
+                    if (network instanceof SubProcessNetwork subProcessNetwork) {
+                        subProcessNetwork.nodes().forEach(node -> subProcessNetwork
+                                .getApplicationPropertyOverrides()
+                                .putIfAbsent(
+                                        node.getNodeId(),
+                                        List.of(
+                                                "clpr.clprEnabled",
+                                                "true",
+                                                "clpr.devModeEnabled",
+                                                "true",
+                                                "clpr.publicizeClprEndpoints",
+                                                "true")));
+                    }
+                }
                 checkPrOverridesForBlockNodeStreaming(network);
                 network.start();
                 SHARED_NETWORK.set(network);
@@ -187,7 +215,7 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
                             .map(Integer::parseInt)
                             .orElse(CLASSIC_HAPI_TEST_NETWORK_SIZE);
             final var initialPortProperty = System.getProperty("hapi.spec.initial.port");
-            if (!initialPortProperty.isBlank()) {
+            if (initialPortProperty != null && !initialPortProperty.isBlank()) {
                 final var initialPort = Integer.parseInt(initialPortProperty);
                 SubProcessNetwork.initializeNextPortsForNetwork(networkSize, initialPort);
             }

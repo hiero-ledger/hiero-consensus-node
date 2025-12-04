@@ -86,7 +86,7 @@ class ClprEndpointTest extends ClprTestBase {
                 .build();
 
         when(configProvider.getConfiguration()).thenReturn(configuration);
-        when(configuration.getConfigData(ClprConfig.class)).thenReturn(new ClprConfig(5000, true, true));
+        when(configuration.getConfigData(ClprConfig.class)).thenReturn(new ClprConfig(true, 5000, true, true));
         when(configuration.getConfigData(GrpcConfig.class))
                 .thenReturn(new GrpcConfig(50211, 50212, true, 50213, 60211, 60212, 4194304, 4194304, 4194304));
 
@@ -110,7 +110,7 @@ class ClprEndpointTest extends ClprTestBase {
 
     @Test
     void runOnceSkipsWhenDevModeDisabled() {
-        when(configuration.getConfigData(ClprConfig.class)).thenReturn(new ClprConfig(5000, true, false));
+        when(configuration.getConfigData(ClprConfig.class)).thenReturn(new ClprConfig(true, 5000, true, false));
 
         subject.runOnce();
 

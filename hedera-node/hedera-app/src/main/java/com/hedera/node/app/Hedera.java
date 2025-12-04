@@ -1409,14 +1409,5 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
             hintsService.handoff(store, previousRoster, adoptedRoster, adoptedRosterHash, tssConfig.forceHandoffs());
             ((CommittableWritableStates) writableHintsStates).commit();
         }
-
-        final var historyStore = new ReadableHistoryStoreImpl(initState.getReadableStates(HistoryService.NAME));
-        final var ledgerId = historyStore.getLedgerId();
-        if (ledgerId != null) {
-            final var consensusTime = freezeTimeOf(initState);
-            if (consensusTime != null) {
-                clprServiceImpl.dispatchLedgerConfigurationUpdate(initState, consensusTime);
-            }
-        }
     }
 }

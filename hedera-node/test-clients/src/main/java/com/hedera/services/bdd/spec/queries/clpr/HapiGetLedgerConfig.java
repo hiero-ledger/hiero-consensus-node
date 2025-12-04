@@ -9,6 +9,7 @@ import com.google.common.base.MoreObjects;
 import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.queries.HapiQueryOp;
+import com.hederahashgraph.api.proto.java.HederaFunctionality;
 import com.hederahashgraph.api.proto.java.Query;
 import com.hederahashgraph.api.proto.java.ResponseType;
 import com.hederahashgraph.api.proto.java.Transaction;
@@ -27,6 +28,7 @@ public class HapiGetLedgerConfig extends HapiQueryOp<HapiGetLedgerConfig> {
     private final String ledgerId;
     private Optional<Long> expectedTs = Optional.empty();
     private List<ClprEndpoint> expectedEndpoints = new ArrayList<>();
+    private boolean assertEndpoints = false;
 
     public HapiGetLedgerConfig(String ledgerId) {
         this.ledgerId = ledgerId;
@@ -39,6 +41,7 @@ public class HapiGetLedgerConfig extends HapiQueryOp<HapiGetLedgerConfig> {
 
     public HapiGetLedgerConfig hasEndpoints(@NonNull final List<ClprEndpoint> expectedEndpoints) {
         this.expectedEndpoints = expectedEndpoints;
+        this.assertEndpoints = true;
         return this;
     }
 
@@ -57,11 +60,13 @@ public class HapiGetLedgerConfig extends HapiQueryOp<HapiGetLedgerConfig> {
                     org.hiero.hapi.interledger.state.clpr.ClprLedgerConfiguration.PROTOBUF.toBytes(pbjConfig);
             final var info = org.hiero.hapi.interledger.state.clpr.protoc.ClprLedgerConfiguration.parseFrom(
                     configBytes.toByteArray());
-            assertEquals(expectedEndpoints.size(), info.getEndpointsCount(), "Wrong number of endpoints!");
-            for (int i = 0; i < expectedEndpoints.size(); i++) {
-                final var expected = expectedEndpoints.get(i);
-                final var actual = info.getEndpoints(i);
-                assertEquals(expected, actual);
+            if (assertEndpoints) {
+                assertEquals(expectedEndpoints.size(), info.getEndpointsCount(), "Wrong number of endpoints!");
+                for (int i = 0; i < expectedEndpoints.size(); i++) {
+                    final var expected = expectedEndpoints.get(i);
+                    final var actual = info.getEndpoints(i);
+                    assertEquals(expected, actual);
+                }
             }
             expectedTs.ifPresent(exp -> assertEquals(exp, info.getTimestamp().getSeconds(), "Bad timestamp!"));
         } catch (com.hedera.pbj.runtime.ParseException | com.google.protobuf.InvalidProtocolBufferException e) {
@@ -73,6 +78,11 @@ public class HapiGetLedgerConfig extends HapiQueryOp<HapiGetLedgerConfig> {
     protected boolean needsPayment() {
         // TODO
         return true;
+    }
+
+    @Override
+    public HederaFunctionality type() {
+        return HederaFunctionality.ClprGetLedgerConfig;
     }
 
     /**

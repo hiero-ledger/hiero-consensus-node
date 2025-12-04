@@ -7,8 +7,8 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static java.util.stream.Collectors.toList;
 
 import com.google.common.base.MoreObjects;
-import com.google.protobuf.ByteString;
 import com.hedera.node.app.hapi.utils.CommonUtils;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.transactions.HapiTxnOp;
 import com.hederahashgraph.api.proto.java.HederaFunctionality;
@@ -21,15 +21,16 @@ import java.util.function.Consumer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.hapi.interledger.clpr.protoc.ClprSetLedgerConfigurationTransactionBody;
-import org.hiero.hapi.interledger.state.clpr.protoc.ClprEndpoint;
-import org.hiero.hapi.interledger.state.clpr.protoc.ClprLedgerConfiguration;
-import org.hiero.hapi.interledger.state.clpr.protoc.ClprLedgerId;
+import org.hiero.hapi.interledger.state.clpr.ClprEndpoint;
+import org.hiero.hapi.interledger.state.clpr.ClprLedgerConfiguration;
+import org.hiero.hapi.interledger.state.clpr.ClprLedgerId;
+import org.hiero.interledger.clpr.impl.ClprStateProofUtils;
 
 public class HapiSetLedgerConfig extends HapiTxnOp<HapiSetLedgerConfig> {
     static final Logger log = LogManager.getLogger(HapiSetLedgerConfig.class);
 
     private final String ledgerId;
-    private Timestamp timestamp; // active timestamp
+    private Timestamp timestamp; // active timestamp (protoc)
     private List<ClprEndpoint> endpoints = new ArrayList<>();
 
     private boolean advertiseCreation = false;
@@ -65,38 +66,27 @@ public class HapiSetLedgerConfig extends HapiTxnOp<HapiSetLedgerConfig> {
 
     @Override
     protected Consumer<TransactionBody.Builder> opBodyDef(final HapiSpec spec) throws Throwable {
-        // Build the configuration
-        final var config = ClprLedgerConfiguration.newBuilder()
-                .setLedgerId(ClprLedgerId.newBuilder()
-                        .setLedgerId(ByteString.copyFromUtf8(ledgerId))
+        final var endpointsToUse = endpoints.isEmpty() ? List.of(defaultEndpoint(spec)) : endpoints;
+
+        // Build PBJ configuration
+        final var pbjTimestamp = com.hedera.hapi.node.base.Timestamp.newBuilder()
+                .seconds(timestamp.getSeconds())
+                .nanos(timestamp.getNanos())
+                .build();
+        final var pbjConfig = ClprLedgerConfiguration.newBuilder()
+                .ledgerId(ClprLedgerId.newBuilder()
+                        .ledgerId(Bytes.wrap(ledgerId.getBytes()))
                         .build())
-                .setTimestamp(timestamp)
-                .addAllEndpoints(endpoints)
+                .timestamp(pbjTimestamp)
+                .endpoints(endpointsToUse)
                 .build();
 
-        // Wrap it in a state proof
-        final var merkleLeaf = com.hedera.hapi.block.stream.protoc.MerkleLeaf.newBuilder()
-                .setStateItem(config.toByteString())
-                .build();
-        final var merklePath = com.hedera.hapi.block.stream.protoc.MerklePath.newBuilder()
-                .setLeaf(merkleLeaf)
-                .setNextPathIndex(-1)
-                .build();
-
-        // Create state proof builder and compute root hash for signature
-        final var pathBuilder = new com.hedera.node.app.hapi.utils.blocks.MerklePathBuilder();
-        final var pbjLeaf = com.hedera.hapi.node.state.blockstream.MerkleLeaf.newBuilder()
-                .stateItem(com.hedera.pbj.runtime.io.buffer.Bytes.wrap(config.toByteArray()))
-                .build();
-        pathBuilder.setLeaf(pbjLeaf);
-        final var rootHash = pathBuilder.getRootHash();
-
-        final var stateProof = com.hedera.hapi.block.stream.protoc.StateProof.newBuilder()
-                .addPaths(merklePath)
-                .setSignedBlockProof(com.hedera.hapi.block.stream.protoc.TssSignedBlockProof.newBuilder()
-                        .setBlockSignature(ByteString.copyFrom(rootHash))
-                        .build())
-                .build();
+        // Wrap it in a dev-mode state proof using shared helper, then convert to protoc for the txn
+        final var pbjProof = ClprStateProofUtils.buildStateProof(pbjConfig);
+        final var stateProof = com.hedera.hapi.block.stream.protoc.StateProof.parseFrom(
+                com.hedera.hapi.block.stream.StateProof.PROTOBUF
+                        .toBytes(pbjProof)
+                        .toByteArray());
 
         final ClprSetLedgerConfigurationTransactionBody opBody = spec.txns()
                 .<ClprSetLedgerConfigurationTransactionBody, ClprSetLedgerConfigurationTransactionBody.Builder>body(
@@ -138,5 +128,22 @@ public class HapiSetLedgerConfig extends HapiTxnOp<HapiSetLedgerConfig> {
         helper.add("timestamp", timestamp);
         helper.add("endpoints", endpoints.stream().map(ClprEndpoint::toString).collect(toList()));
         return helper;
+    }
+
+    private ClprEndpoint defaultEndpoint(final HapiSpec spec) {
+        final var node = spec.targetNetworkOrThrow().nodes().getFirst();
+        try {
+            final var addressBytes =
+                    java.net.InetAddress.getByName(node.getHost()).getAddress();
+            return ClprEndpoint.newBuilder()
+                    .endpoint(com.hedera.hapi.node.base.ServiceEndpoint.newBuilder()
+                            .ipAddressV4(Bytes.wrap(addressBytes))
+                            .port(node.getGrpcPort())
+                            .build())
+                    .signingCertificate(Bytes.wrap("test-cert".getBytes()))
+                    .build();
+        } catch (final java.net.UnknownHostException e) {
+            throw new IllegalStateException("Unable to resolve node host for CLPR endpoint", e);
+        }
     }
 }
