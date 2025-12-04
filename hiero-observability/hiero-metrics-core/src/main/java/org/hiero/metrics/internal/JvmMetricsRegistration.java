@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.metrics.internal;
 
+import com.google.auto.service.AutoService;
 import com.sun.management.UnixOperatingSystemMXBean;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -19,6 +20,7 @@ import org.hiero.metrics.api.core.MetricsRegistrationProvider;
  * A {@link MetricsRegistrationProvider} that registers standard JVM metrics such as memory usage,
  * CPU load, and open file descriptors.
  */
+@AutoService(MetricsRegistrationProvider.class)
 public final class JvmMetricsRegistration implements MetricsRegistrationProvider {
 
     @NonNull

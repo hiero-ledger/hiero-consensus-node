@@ -8,6 +8,11 @@ plugins {
 
 description = "Hiero Metrics Core"
 
+mainModuleInfo {
+    annotationProcessor("com.swirlds.config.processor")
+    annotationProcessor("com.google.auto.service.processor")
+}
+
 testModuleInfo {
     requires("org.assertj.core")
     requires("org.junit.jupiter.api")

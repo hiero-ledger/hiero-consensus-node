@@ -183,6 +183,7 @@ public interface MetricsExportManager extends AutoCloseable {
 
         private void loadExporters(String registryName, MetricsExportManagerConfig exportConfig) {
             List<MetricsExporterFactory> exporterFactories = load(MetricsExporterFactory.class);
+            logger.debug("Discovered export factories via SPI: {}", exporterFactories.size());
 
             MetricsExporter exporter;
             for (MetricsExporterFactory exporterFactory : exporterFactories) {
@@ -192,6 +193,7 @@ public interface MetricsExportManager extends AutoCloseable {
                 }
 
                 try {
+                    logger.info("Creating metrics exporter by factory {}", exporterFactory.name());
                     exporter = exporterFactory.createExporter(registryName, configuration);
                 } catch (RuntimeException e) {
                     logger.warn(
@@ -247,10 +249,10 @@ public interface MetricsExportManager extends AutoCloseable {
 
                 withExportIntervalSeconds(exportConfig.exportIntervalSeconds());
 
+                loadExporters(metricRegistry.name(), exportConfig);
+
                 pushingExporters.removeIf(exporter -> !exportConfig.isExporterEnabled(exporter.name()));
                 pullingExporters.removeIf(exporter -> !exportConfig.isExporterEnabled(exporter.name()));
-
-                loadExporters(metricRegistry.name(), exportConfig);
             }
 
             if (pushingExporters.isEmpty() && pullingExporters.isEmpty()) {
