@@ -6,7 +6,7 @@ import java.util.List;
 import org.hiero.consensus.model.event.PlatformEvent;
 
 /**
- * Output of the {@link ConsensusEngine}. For more details, see {@link ConsensusEngine#addEvent(PlatformEvent)}
+ * Output of the ConsensusEngine. For more details, see ConsensusEngine#addEvent(PlatformEvent)
  *
  * @param consensusRounds    the list of consensus rounds that came to consensus as a result of adding events
  * @param preConsensusEvents the list of pre-consensus events that are waiting to reach consensus
