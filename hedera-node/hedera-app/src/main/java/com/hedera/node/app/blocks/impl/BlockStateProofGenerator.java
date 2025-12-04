@@ -26,21 +26,35 @@ import org.hiero.base.crypto.Hash;
  */
 public class BlockStateProofGenerator {
 
+    /**
+     * The unsigned block sibling count includes the pending/unsigned block's timestamp
+     */
     public static final int UNSIGNED_BLOCK_SIBLING_COUNT = 5;
+    /**
+     * The signed block sibling count doesn't include the signed block's timestamp
+     */
     public static final int SIGNED_BLOCK_SIBLING_COUNT = 4;
 
+    /**
+     * Each block's state proof consists of exactly three Merkle paths: the timestamp of the signed block,
+     * previous block's hash + sibling hashes forming the path to the right sibling of the timestamp of the
+     * signed block, and a trivial final parent path for the signed block's root
+     */
     public static final int EXPECTED_MERKLE_PATH_COUNT = 3;
 
     /**
-     *
+     * Index to the Merkle path containing hashes from the previous block's root to the right sibling of the
+     * block's timestamp
      */
     public static final int BLOCK_CONTENTS_PATH_INDEX = 1;
+
     /**
-     *
+     * Index to the final Merkle path representing the root hash of the signed block
      */
     public static final int FINAL_MERKLE_PATH_INDEX = 2;
+
     /**
-     *
+     * Index indicating the end of the merkle path chain
      */
     public static final int FINAL_NEXT_PATH_INDEX = -1;
 
@@ -56,7 +70,7 @@ public class BlockStateProofGenerator {
      *                               passed for <b>read-only</b> purposes; don't dequeue from it.
      * @return the constructed state proof
      */
-    public StateProof generateStateProof(
+    public static StateProof generateStateProof(
             @NonNull final PendingBlock currentPendingBlock,
             final long latestSignedBlockNumber,
             final Bytes latestSignedBlockSignature,

@@ -143,7 +143,6 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     private final Platform platform;
     private final QuiescenceController quiescenceController;
     private final QuiescedHeartbeat quiescedHeartbeat;
-    private final BlockStateProofGenerator stateProofGenerator;
 
     // The status of pending work
     private PendingWork pendingWork = NONE;
@@ -240,7 +239,6 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         this.diskNetworkExportFile = networkAdminConfig.diskNetworkExportFile();
         this.blockHashManager = new BlockHashManager(config);
         this.runningHashManager = new RunningHashManager();
-        this.stateProofGenerator = new BlockStateProofGenerator();
         this.lastRoundOfPrevBlock = initialStateHash.roundNum();
         final var hashFuture = initialStateHash.hashFuture();
         endRoundStateHashes.put(lastRoundOfPrevBlock, hashFuture);
@@ -786,7 +784,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             } else {
                 // This is a pending block whose block number precedes the signed block number, so we construct an
                 // indirect state proof
-                final var stateProof = stateProofGenerator.generateStateProof(
+                final var stateProof = BlockStateProofGenerator.generateStateProof(
                         currentPendingBlock,
                         blockNumber,
                         blockSignature,

@@ -38,8 +38,6 @@ import org.junit.jupiter.api.Test;
 
 class BlockStateProofGeneratorTest {
 
-    private final BlockStateProofGenerator testSubject = new BlockStateProofGenerator();
-
     @Test
     void verifyBlockStateProofs() {
         // Load and verify the pending proofs from resources (precondition)
@@ -74,7 +72,7 @@ class BlockStateProofGeneratorTest {
             final var currentBlock = pendingBlocksByBlockNum.remove(blockNum);
 
             // Generate the actual state proof
-            final StateProof result = testSubject.generateStateProof(
+            final StateProof result = BlockStateProofGenerator.generateStateProof(
                     currentBlock,
                     latestSignedBlockNum,
                     FINAL_SIGNATURE,
