@@ -133,7 +133,7 @@ public class TokenServiceFeeCalculatorTests {
                 .build();
         final var result = feeCalculator.calculateTxFee(body, calculatorState);
         assertNotNull(result);
-        assertEquals(TOKEN_MINT_BASE_FEE + COMMON_TOKEN_FEE * 10, result.total());
+        assertEquals(TOKEN_MINT_BASE_FEE, result.total());
     }
 
     @Test
@@ -242,7 +242,6 @@ public class TokenServiceFeeCalculatorTests {
                         makeExtraDef(Extra.BYTES, 1),
                         makeExtraDef(Extra.KEYS, 2),
                         makeExtraDef(Extra.SIGNATURES, 3),
-                        makeExtraDef(Extra.TOKEN_MINT_FUNGIBLE, COMMON_TOKEN_FEE),
                         makeExtraDef(Extra.TOKEN_MINT_NFT, UNIQUE_TOKEN_FEE),
                         makeExtraDef(Extra.CUSTOM_FEE, 500))
                 .network(NetworkFee.DEFAULT.copyBuilder().multiplier(2).build())
@@ -253,7 +252,6 @@ public class TokenServiceFeeCalculatorTests {
                                 TOKEN_MINT,
                                 TOKEN_MINT_BASE_FEE,
                                 makeExtraIncluded(Extra.KEYS, 1),
-                                makeExtraIncluded(Extra.TOKEN_MINT_FUNGIBLE, 0),
                                 makeExtraIncluded(Extra.TOKEN_MINT_NFT, 0)),
                         makeServiceFee(TOKEN_BURN, TOKEN_BURN_BASE_FEE),
                         makeServiceFee(TOKEN_DELETE, TOKEN_DELETE_BASE_FEE),

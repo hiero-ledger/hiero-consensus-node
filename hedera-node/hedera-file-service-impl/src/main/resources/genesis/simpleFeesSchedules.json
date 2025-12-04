@@ -29,7 +29,6 @@
     { "name":  "GAS",                            "fee": 1 },
     { "name":  "ALLOWANCES",                     "fee": 500000000 },
     { "name":  "TOKEN_CREATE_WITH_CUSTOM_FEE",   "fee": 10000000000 },
-    { "name":  "TOKEN_MINT_FUNGIBLE",            "fee": 0 },
     { "name":  "TOKEN_MINT_NFT",                 "fee": 199000000 },
     { "name":  "AIRDROPS",                       "fee": 8800 },
     { "name":  "HOOK_UPDATES",                   "fee": 10000000000 },
@@ -190,7 +189,6 @@
           "name": "TokenMint",
           "baseFee": 9000000,
           "extras": [
-            {"name": "TOKEN_MINT_FUNGIBLE", "includedCount": 0 },
             {"name": "TOKEN_MINT_NFT", "includedCount": 0 }
           ]
         },
