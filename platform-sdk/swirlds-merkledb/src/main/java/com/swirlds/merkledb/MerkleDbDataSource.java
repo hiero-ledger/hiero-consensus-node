@@ -282,6 +282,16 @@ public final class MerkleDbDataSource implements VirtualDataSource {
             this.hashesRamToDiskThreshold = hashesRamToDiskThreshold;
             Files.createDirectories(storageDir);
         }
+
+        if (this.initialCapacity <= 0) {
+            throw new IllegalStateException("Initial capacity must be greater than 0, but was " + this.initialCapacity);
+        }
+
+        if (this.hashesRamToDiskThreshold < 0) {
+            throw new IllegalStateException("Hashes RAM/disk threshold must be greater than or equal to 0, but was "
+                    + this.hashesRamToDiskThreshold);
+        }
+
         saveMetadata(dbPaths);
 
         // Get the max number of keys is set in the MerkleDb config, then multiply it by

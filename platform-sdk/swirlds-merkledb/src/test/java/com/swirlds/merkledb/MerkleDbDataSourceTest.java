@@ -4,6 +4,7 @@ package com.swirlds.merkledb;
 import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyFalse;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.*;
 import static com.swirlds.virtualmap.datasource.VirtualDataSource.INVALID_PATH;
+import static org.hiero.base.utility.test.fixtures.RandomUtils.nextInt;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -145,6 +146,43 @@ class MerkleDbDataSourceTest {
                     Duration.ofSeconds(1),
                     "Database should have been deleted by close()");
         });
+    }
+
+    @Test
+    void throwsOnNonPositiveInitialCapacity() {
+        // 0 initial capacity
+        assertThrows(IllegalStateException.class, () -> TestType.variable_variable
+                .dataType()
+                .createDataSource(
+                        Path.of("badInitialCapacityZero" + nextInt()),
+                        "badInitialZero",
+                        0,
+                        Long.MAX_VALUE,
+                        false,
+                        false));
+        // negative initial capacity
+        assertThrows(IllegalStateException.class, () -> TestType.variable_variable
+                .dataType()
+                .createDataSource(
+                        Path.of("badInitialCapacityNegative" + nextInt()),
+                        "badInitialNeg",
+                        -1,
+                        Long.MAX_VALUE,
+                        false,
+                        false));
+    }
+
+    @Test
+    void throwsOnNegativeRamToDiskThreshold() {
+        assertThrows(IllegalStateException.class, () -> TestType.variable_variable
+                .dataType()
+                .createDataSource(
+                        Path.of("negativeRamToDiskThreshold" + nextInt()),
+                        "negativeRamToDiskThreshold",
+                        1000,
+                        -1,
+                        false,
+                        false));
     }
 
     private static Stream<Arguments> provideParameters() {
