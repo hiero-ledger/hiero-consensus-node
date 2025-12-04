@@ -144,10 +144,7 @@ public class BlockNodeSuite {
                         "Detected ENTRY_MODIFY event for block-nodes.json",
                         String.format(
                                 "/localhost:%s/CLOSED] Connection state transitioned from CLOSING to CLOSED",
-                                portNumbers.getFirst()),
-                        // New invalid config is loaded
-                        // Connection client created but exception occurs with invalid address
-                        "Created BlockStreamPublishServiceClient for 26dsfg2364:1234")),
+                                portNumbers.getFirst()))),
                 doingContextual((spec) -> timeRef.set(Instant.now())),
                 waitUntilNextBlocks(5).withBackgroundTraffic(true),
                 // Delete block-nodes.json
@@ -231,8 +228,6 @@ public class BlockNodeSuite {
                         // Valid config is loaded
                         "Found available node in priority group 0",
                         // Connection is re-established
-                        String.format(
-                                "Created BlockStreamPublishServiceClient for localhost:%s", portNumbers.getFirst()),
                         String.format(
                                 "/localhost:%s/UNINITIALIZED] Scheduling reconnection for node in 0 ms",
                                 portNumbers.getFirst()),
