@@ -4,6 +4,7 @@ package com.hedera.node.app.service.contract.impl;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.node.app.service.contract.ContractService;
+import com.hedera.node.app.service.contract.ContractServiceApi;
 import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
 import com.hedera.node.app.service.contract.impl.exec.scope.DefaultVerificationStrategies;
 import com.hedera.node.app.service.contract.impl.exec.scope.VerificationStrategies;
@@ -15,6 +16,7 @@ import com.hedera.node.app.service.contract.impl.nativelibverification.NativeLib
 import com.hedera.node.app.service.contract.impl.schemas.V0490ContractSchema;
 import com.hedera.node.app.service.contract.impl.schemas.V065ContractSchema;
 import com.hedera.node.app.spi.AppContext;
+import com.hedera.node.app.spi.api.ServiceApiProvider;
 import com.hedera.node.config.data.ContractsConfig;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.state.lifecycle.SchemaRegistry;
@@ -67,6 +69,7 @@ public class ContractServiceImpl implements ContractService {
         final var systemContractMethodRegistry = new SystemContractMethodRegistry();
         final var contractMetrics = new ContractMetrics(metrics, contractsConfigSupplier, systemContractMethodRegistry);
         final var nativeLibVerifier = new NativeLibVerifier(contractsConfigSupplier);
+        final var contractServiceApiProvider = new ContractServiceApiProvider();
 
         this.component = DaggerContractServiceComponent.factory()
                 .create(
@@ -80,7 +83,8 @@ public class ContractServiceImpl implements ContractService {
                         systemContractMethodRegistry,
                         customOps,
                         appContext.idFactory(),
-                        nativeLibVerifier);
+                        nativeLibVerifier,
+                        contractServiceApiProvider);
     }
 
     @Override
@@ -122,5 +126,10 @@ public class ContractServiceImpl implements ContractService {
         allCallTranslators.addAll(component.hssCallTranslators().get());
         allCallTranslators.addAll(component.htsCallTranslators().get());
         return allCallTranslators;
+    }
+
+    @Override
+    public ServiceApiProvider<ContractServiceApi> apiProvider() {
+        return component.contractServiceApiProvider();
     }
 }

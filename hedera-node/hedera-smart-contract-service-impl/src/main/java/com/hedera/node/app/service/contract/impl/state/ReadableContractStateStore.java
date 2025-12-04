@@ -52,6 +52,11 @@ public class ReadableContractStateStore implements ContractStateStore {
         throw new UnsupportedOperationException("Cannot put bytecode in a read-only store");
     }
 
+    @Override
+    public void removeBytecode(@NonNull ContractID contractID) {
+        throw new UnsupportedOperationException("Cannot remove bytecode in a read-only store");
+    }
+
     /**
      * Refuses to remove slots.
      *

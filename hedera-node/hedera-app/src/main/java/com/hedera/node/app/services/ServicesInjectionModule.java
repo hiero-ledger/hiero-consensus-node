@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.services;
 
+import com.hedera.node.app.service.contract.ContractService;
+import com.hedera.node.app.service.contract.impl.ContractServiceImpl;
 import com.hedera.node.app.service.file.impl.FileServiceInjectionModule;
 import com.hedera.node.app.service.schedule.ScheduleService;
 import com.hedera.node.app.service.schedule.impl.ScheduleServiceImpl;
@@ -19,4 +21,7 @@ import dagger.Module;
 public interface ServicesInjectionModule {
     @Binds
     ScheduleService bindScheduleService(ScheduleServiceImpl impl);
+
+    @Binds
+    ContractService bindContractService(ContractServiceImpl impl);
 }

@@ -6,6 +6,7 @@ import static org.hyperledger.besu.evm.account.Account.MAX_NONCE;
 import com.hedera.node.app.hapi.utils.ethereum.CodeDelegation;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxSigs;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmTransaction;
+import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
 import java.math.BigInteger;
 import java.util.Optional;
 import org.apache.tuweni.bytes.Bytes;
@@ -111,6 +112,7 @@ public record CodeDelegationProcessor(long chainId) {
             if (codeDelegation.nonce() != 0) {
                 return;
             }
+            ((ProxyWorldUpdater) worldUpdater).setupTopLevelLazyCreate(authorizerAddress);
             authority = worldUpdater.createAccount(authorizerAddress);
         } else {
             authority = maybeAuthorityAccount.get();
