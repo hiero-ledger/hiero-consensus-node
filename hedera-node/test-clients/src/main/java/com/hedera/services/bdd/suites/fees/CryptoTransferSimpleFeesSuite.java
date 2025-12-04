@@ -63,10 +63,6 @@ public class CryptoTransferSimpleFeesSuite {
     private static final String NFT_TOKEN_2 = "nftToken2";
     private static final String NFT_TOKEN_WITH_FEES = "nftTokenWithFees";
     private static final String HOOK_CONTRACT = "TruePreHook";
-    private static ByteString metadata(int n) {
-        return copyFromUtf8("metadata" + n);
-    }
-
     @HapiTest
     @DisplayName("DEFAULT: Simple 2-account HBAR transfer")
     final Stream<DynamicTest> defaultSimpleHbarTransfer() {
@@ -787,5 +783,9 @@ public class CryptoTransferSimpleFeesSuite {
                         .via("customFeesWithHooksTxn"),
                 validateChargedUsd(
                         "customFeesWithHooksTxn", 3 * SINGLE_HOOK_FEE + HBAR_TRANSFER_BASE_FEE + HOOK_OVERHEAD_FEE));
+    }
+
+    private static ByteString metadata(final int idNumber) {
+        return copyFromUtf8("metadata" + idNumber);
     }
 }
