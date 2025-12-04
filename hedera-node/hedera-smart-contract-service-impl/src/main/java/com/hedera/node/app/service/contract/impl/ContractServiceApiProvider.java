@@ -56,7 +56,7 @@ public class ContractServiceApiProvider implements ServiceApiProvider<ContractSe
                     .contractNum(accountID.accountNumOrThrow())
                     .build();
             if (bytecode.equals(Bytes.EMPTY)) {
-                // Remove the bytecode if the bytecode is empty
+                // Remove the delegation if the bytecode is empty
                 contractStateStore.removeBytecode(contractID);
             } else {
                 final var delegationIndicator = Bytes.merge(Bytes.wrap(CODE_DELEGATION_PREFIX.toArray()), bytecode);
