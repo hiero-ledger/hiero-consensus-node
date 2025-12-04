@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.hedera.services.bdd.suites.fees;
+package com.hedera.services.bdd.suites.hip1261;
 
 import static com.hedera.node.app.hapi.utils.CommonUtils.extractTransactionBody;
 import static com.hedera.services.bdd.junit.TestTags.MATS;
@@ -39,6 +39,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TRANSACTION_EX
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
@@ -51,7 +52,6 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Nested;
@@ -60,7 +60,7 @@ import org.junit.jupiter.api.Tag;
 @Tag(MATS)
 @Tag(SIMPLE_FEES)
 @HapiTestLifecycle
-public class SimpleFeesSuite {
+public class TopicCreateSimpleFeesTest {
     private static final String PAYER = "payer";
     private static final String ADMIN = "admin";
     private static final String NEW_ADMIN = "newAdmin";
@@ -87,153 +87,17 @@ public class SimpleFeesSuite {
         return value * 100000;
     }
 
-    /*
-    Disable custom fees for now.
     @Nested
-    class TopicCustomFees {
-        @HapiTest
-        @DisplayName("compare create topic with custom fee")
-        final Stream<DynamicTest> createTopicCustomFeeComparison() {
-            return runBeforeAfter(
-                    cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
-                    cryptoCreate("collector"),
-                    createTopic("testTopic")
-                            .blankMemo()
-                            .withConsensusCustomFee(fixedConsensusHbarFee(88, "collector"))
-                            .payingWith(PAYER)
-                            .fee(ONE_HUNDRED_HBARS)
-                            .via("create-topic-txn"),
-                    validateChargedUsd(
-                            "create-topic-txn",
-                            ucents_to_USD(
-                                    1000 // base fee for create topic
-                                            + 200_000 // custom fee
-                                            + 0 // node + network fee
-                                    )));
-        }
-
-        @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
-        @DisplayName("compare submit message with custom fee and included bytes")
-        final Stream<DynamicTest> submitCustomFeeMessageWithIncludedBytesComparison() {
-            // 100 is less than the free size, so there's no per byte charge
-            final var byte_size = 100;
-            final byte[] messageBytes = new byte[byte_size]; // up to 1k
-            Arrays.fill(messageBytes, (byte) 0b1);
-            return runBeforeAfter(
-                    cryptoCreate(PAYER).balance(ONE_MILLION_HBARS),
-                    cryptoCreate("collector"),
-                    createTopic("testTopic")
-                            .blankMemo()
-                            .withConsensusCustomFee(fixedConsensusHbarFee(88, "collector"))
-                            .payingWith(PAYER)
-                            .fee(ONE_HUNDRED_HBARS)
-                            .via("create-topic-txn"),
-                    validateChargedUsd(
-                            "create-topic-txn",
-                            ucents_to_USD(
-                                    1000 // base fee for create topic
-                                            + 200_000 // custom fee
-                                            + 1 * 3 // node + network fee
-                                    )),
-                    // submit message, provide up to 1 hbar to pay for it
-                    submitMessageTo("testTopic")
-                            .blankMemo()
-                            .payingWith(PAYER)
-                            .message(new String(messageBytes))
-                            .fee(ONE_HUNDRED_HBARS)
-                            .via("submit-message-txn"),
-                    validateChargedUsd(
-                            "submit-message-txn",
-                            ucents_to_USD(
-                                    7 // base fee
-                                            + 5000 // custom fee
-                                            + 1 * 3 // node + network fee
-                                    )));
-        }
-    }
-     */
-
-    @Nested
-    class TopicFees {
-        /*
-        Disable custom fees for now.
-        @HapiTest
-        @DisplayName("Simple fees for creating a topic with custom fees")
-        final Stream<DynamicTest> createTopicCustomFee() {
-            return hapiTest(
-                    cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
-                    cryptoCreate("collector"),
-                    createTopic("testTopic")
-                            .blankMemo()
-                            .withConsensusCustomFee(fixedConsensusHbarFee(88, "collector"))
-                            .payingWith(PAYER)
-                            .fee(ONE_HUNDRED_HBARS)
-                            .via("create-topic-txn"),
-                    validateChargedUsd(
-                            "create-topic-txn",
-                            ucents_to_USD(
-                                    1000 // base fee for create topic
-                                            + 200000 // custom fee
-                                            + 1 * 3 // node + network fee
-                                    )));
-        }
-        */
-        //        @LeakyHapiTest
-        //        @DisplayName("Simple fees for getting a topic transaction info")
-        //        final Stream<DynamicTest> getTopicInfoFee() {
-        //            var feeSchedule = FeeSchedule.DEFAULT
-        //                    .copyBuilder()
-        //                    .extras(
-        //                            makeExtraDef(Extra.BYTES, 1),
-        //                            makeExtraDef(Extra.KEYS, 2),
-        //                            makeExtraDef(Extra.SIGNATURES, 3),
-        //                            makeExtraDef(Extra.CUSTOM_FEE, 500))
-        //                    .node(NodeFee.DEFAULT
-        //                            .copyBuilder()
-        //                            .build())
-        //                    .network(NetworkFee.DEFAULT.copyBuilder().multiplier(2).build())
-        //                    .services(makeService(
-        //                            "Consensus",
-        //                            makeServiceFee(CONSENSUS_CREATE_TOPIC, ucents(15), makeExtraIncluded(Extra.KEYS,
-        // 1)),
-        //                            makeServiceFee(CONSENSUS_GET_TOPIC_INFO, ucents(10))))
-        //                    .build();
-        //            final var contents = FeeSchedule.PROTOBUF.toBytes(feeSchedule).toByteArray();
-        //            return hapiTest(
-        //                    fileUpdate(SIMPLE_FEE_SCHEDULE).payingWith(GENESIS).contents(contents),
-        //                    newKeyNamed(PAYER),
-        //                    cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
-        //                    // create topic. provide up to 1 hbar to pay for it
-        //                    createTopic("testTopic")
-        //                            .blankMemo()
-        //                            .payingWith(PAYER)
-        //                            .adminKeyName(PAYER)
-        //                            .fee(ONE_HBAR)
-        //                            .via("create-topic-txn"),
-        //                    // the extra 10 is for the admin key
-        //                    validateChargedUsd("create-topic-txn",ucents_to_USD(15)),
-        //                    // get topic info, provide up to 1 hbar to pay for it
-        //                    getTopicInfo("testTopic")
-        //                            .payingWith(PAYER)
-        //                            .fee(ONE_HBAR)
-        //                            .via("get-topic-txn")
-        //                            .logged(),
-        //                    validateChargedUsd("get-topic-txn", ucents_to_USD(10))
-        //            );
-        //        }
-    }
-
-    @Nested
-    class TopicFeesNegativeCases {
+    class CreateTopicSimpleFeesNegativeCases {
 
         @Nested
-        class TopicFeesComparisonCreateTopicFailsOnIngest {
-            @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+        class CreateTopicSimpleFeesFailuresOnIngest {
+            @HapiTest
             @DisplayName("create topic with insufficient txn fee fails on ingest and payer not charged")
             final Stream<DynamicTest> createTopicInsufficientFeeFailsOnIngest() {
                 final AtomicLong initialBalance = new AtomicLong();
                 final AtomicLong afterBalance = new AtomicLong();
-                return runBeforeAfter(
+                return hapiTest(
                         cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
 
                         // Save payer balance before
@@ -258,12 +122,12 @@ public class SimpleFeesSuite {
                         }));
             }
 
-            @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+            @HapiTest
             @DisplayName("create topic not signed by payer fails on ingest and payer not charged")
             final Stream<DynamicTest> createTopicNotSignedByPayerFailsOnIngest() {
                 final AtomicLong initialBalance = new AtomicLong();
                 final AtomicLong afterBalance = new AtomicLong();
-                return runBeforeAfter(
+                return hapiTest(
                         cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                         cryptoCreate(ADMIN).balance(ONE_HUNDRED_HBARS),
 
@@ -290,12 +154,12 @@ public class SimpleFeesSuite {
                         }));
             }
 
-            @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+            @HapiTest
             @DisplayName("create topic with insufficient payer balance fails on ingest and payer not charged")
             final Stream<DynamicTest> createTopicWithInsufficientPayerBalanceFailsOnIngest() {
                 final AtomicLong initialBalance = new AtomicLong();
                 final AtomicLong afterBalance = new AtomicLong();
-                return runBeforeAfter(
+                return hapiTest(
                         cryptoCreate(PAYER).balance(ONE_HBAR / 100000), // insufficient balance
                         newKeyNamed(ADMIN),
 
@@ -321,13 +185,13 @@ public class SimpleFeesSuite {
                         }));
             }
 
-            @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+            @HapiTest
             @DisplayName("create topic with too long memo fails on ingest and payer not charged")
             final Stream<DynamicTest> createTopicTooLongMemoFailsOnIngest() {
                 final var LONG_MEMO = "x".repeat(1025); // memo exceeds 1024 bytes limit
                 final AtomicLong initialBalance = new AtomicLong();
                 final AtomicLong afterBalance = new AtomicLong();
-                return runBeforeAfter(
+                return hapiTest(
                         cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
 
                         // Save payer balance before
@@ -352,14 +216,14 @@ public class SimpleFeesSuite {
                         }));
             }
 
-            @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+            @HapiTest
             @DisplayName("create topic expired transaction fails on ingest and payer not charged")
             final Stream<DynamicTest> createTopicExpiredFailsOnIngest() {
                 final var expiredTxnId = "expiredCreateTopic";
                 final var oneHourPast = -3_600L; // 1 hour before
                 final AtomicLong initialBalance = new AtomicLong();
                 final AtomicLong afterBalance = new AtomicLong();
-                return runBeforeAfter(
+                return hapiTest(
                         cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
 
                         // Save payer balance before
@@ -388,14 +252,14 @@ public class SimpleFeesSuite {
                         }));
             }
 
-            @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+            @HapiTest
             @DisplayName("create topic with too far start time fails on ingest and payer not charged")
             final Stream<DynamicTest> createTopicTooFarStartTimeFailsOnIngest() {
                 final var futureTxnId = "futureCreateTopic";
-                final var oneHourFuture = 3_600L; // 1 hour before
+                final var oneHourFuture = 3_600L; // 1 hour after
                 final AtomicLong initialBalance = new AtomicLong();
                 final AtomicLong afterBalance = new AtomicLong();
-                return runBeforeAfter(
+                return hapiTest(
                         cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
 
                         // Save payer balance before
@@ -424,12 +288,12 @@ public class SimpleFeesSuite {
                         }));
             }
 
-            @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+            @HapiTest
             @DisplayName("create topic with invalid duration time fails on ingest and payer not charged")
             final Stream<DynamicTest> createTopicInvalidDurationTimeFailsOnIngest() {
                 final AtomicLong initialBalance = new AtomicLong();
                 final AtomicLong afterBalance = new AtomicLong();
-                return runBeforeAfter(
+                return hapiTest(
                         cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
 
                         // Save payer balance before
@@ -455,12 +319,12 @@ public class SimpleFeesSuite {
                         }));
             }
 
-            @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+            @HapiTest
             @DisplayName("create topic duplicate txn fails on ingest and payer not charged")
             final Stream<DynamicTest> createTopicDuplicateTxnFailsOnIngest() {
                 final AtomicLong initialBalance = new AtomicLong();
                 final AtomicLong afterBalance = new AtomicLong();
-                return runBeforeAfter(
+                return hapiTest(
                         cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
 
                         // Save payer balance before
@@ -485,12 +349,12 @@ public class SimpleFeesSuite {
                         }));
             }
 
-            @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+            @HapiTest
             @DisplayName("update topic not signed by payer fails on ingest and payer not charged")
             final Stream<DynamicTest> updateTopicNotSignedByPayerFailsOnIngest() {
                 final AtomicLong initialBalance = new AtomicLong();
                 final AtomicLong afterBalance = new AtomicLong();
-                return runBeforeAfter(
+                return hapiTest(
                         cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                         cryptoCreate(ADMIN).balance(ONE_HUNDRED_HBARS),
                         cryptoCreate(NEW_ADMIN).balance(ONE_HUNDRED_HBARS),
@@ -527,12 +391,12 @@ public class SimpleFeesSuite {
                         }));
             }
 
-            @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+            @HapiTest
             @DisplayName("delete topic not signed by payer fails on ingest and payer not charged")
             final Stream<DynamicTest> deleteTopicNotSignedByPayerFailsOnIngest() {
                 final AtomicLong initialBalance = new AtomicLong();
                 final AtomicLong afterBalance = new AtomicLong();
-                return runBeforeAfter(
+                return hapiTest(
                         cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                         cryptoCreate(ADMIN).balance(ONE_HUNDRED_HBARS),
 
@@ -567,12 +431,12 @@ public class SimpleFeesSuite {
                         }));
             }
 
-            @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+            @HapiTest
             @DisplayName("submit message to topic not signed by payer fails on ingest and payer not charged")
             final Stream<DynamicTest> submitMessageToTopicNotSignedByPayerFailsOnIngest() {
                 final AtomicLong initialBalance = new AtomicLong();
                 final AtomicLong afterBalance = new AtomicLong();
-                return runBeforeAfter(
+                return hapiTest(
                         cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                         cryptoCreate(ADMIN).balance(ONE_HUNDRED_HBARS),
 
@@ -611,10 +475,12 @@ public class SimpleFeesSuite {
 
         // DISABLED: Requires code changes to charge minimal fees for pre-handle validation failures instead of full
         // transaction fees.
-        @Disabled("Pre-handle validation failures charge full transaction fee instead of minimal unreadable fee")
+        //        @Disabled("Pre-handle validation failures charge full transaction fee instead of minimal unreadable
+        // fee")
         @Nested
         class SimpleFeesEnabledOnlyCreateTopicFailsOnPreHandle {
-            @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+            //            @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+            @HapiTest
             @DisplayName("create topic with insufficient txn fee fails on pre-handle and payer is not charged")
             final Stream<DynamicTest> createTopicInsufficientFeeFailsOnPreHandle() {
                 final AtomicLong initialBalance = new AtomicLong();
