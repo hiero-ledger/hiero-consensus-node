@@ -361,7 +361,6 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
      * Refreshes the clients for the network, e.g. after reassigning metadata.
      */
     public void refreshClients() {
-        HapiClients.tearDown();
         this.clients = HapiClients.clientsFor(this);
     }
 

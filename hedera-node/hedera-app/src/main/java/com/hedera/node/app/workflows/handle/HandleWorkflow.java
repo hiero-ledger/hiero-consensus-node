@@ -951,12 +951,6 @@ public class HandleWorkflow {
                         final var ledgerId = proof.targetHistoryOrThrow().addressBookHash();
                         historyStore.setLedgerId(ledgerId);
                         logger.info("Set ledger id to '{}'", ledgerId);
-                        // Dispatch the local CLPR configuration update
-                        final var activeRoster = rosterStore.getActiveRoster();
-                        if (activeRoster != null) {
-                            final var consensusTime = blockStreamManager.lastUsedConsensusTime();
-                            clprService.dispatchLedgerConfigurationUpdate(state, consensusTime);
-                        }
                         return;
                     }
                     if (rosterStore.candidateIsWeightRotation()) {
