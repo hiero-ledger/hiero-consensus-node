@@ -38,6 +38,8 @@
     { "name":  "CRYPTO_TRANSFER_BASE_NFT",                  "fee": 9000000 },
     { "name":  "CRYPTO_TRANSFER_BASE_FUNGIBLE_CUSTOM_FEES", "fee": 19000000 },
     { "name":  "CRYPTO_TRANSFER_BASE_NFT_CUSTOM_FEES",      "fee": 19000000 },
+    { "name":  "CONSENSUS_CREATE_TOPIC_WITH_CUSTOM_FEE",    "fee": 19900000000 },
+    { "name":  "CONSENSUS_SUBMIT_MESSAGE_WITH_CUSTOM_FEE",  "fee": 499000000},
     { "name":  "HOOK_EXECUTION",                            "fee": 50000000 }
   ],
   "services": [
@@ -104,7 +106,8 @@
           "name": "ConsensusCreateTopic",
           "baseFee": 99000000,
           "extras": [
-            { "name": "KEYS", "includedCount": 0 }
+            { "name": "KEYS", "includedCount": 0 },
+            { "name": "CONSENSUS_CREATE_TOPIC_WITH_CUSTOM_FEE", "includedCount": 0 }
           ]
         },
         {
@@ -118,7 +121,8 @@
           "name": "ConsensusSubmitMessage",
           "baseFee": 0,
           "extras": [
-            { "name": "BYTES",      "includedCount": 100 }
+            { "name": "BYTES",      "includedCount": 100 },
+            { "name": "CONSENSUS_SUBMIT_MESSAGE_WITH_CUSTOM_FEE", "includedCount": 0 }
           ]
         },
         {
