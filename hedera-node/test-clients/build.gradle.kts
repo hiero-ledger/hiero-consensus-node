@@ -149,9 +149,9 @@ val prCheckPropOverrides =
         put("hapiTestSimpleFees", "fees.simpleFeesEnabled=true")
         put(
             "hapiTestClpr",
-            "clpr.enableClpr=true,clpr.devModeEnabled=true,clpr.connectionFrequency=100",
+            "clpr.clprEnabled=true,clpr.devModeEnabled=true,clpr.connectionFrequency=100",
         )
-        put("hapiTestMultiNetwork", "clpr.enableClpr=false")
+        put("hapiTestMultiNetwork", "clpr.clprEnabled=false")
 
         // Copy vals to the MATS variants
         val originalEntries = toMap() // Create a snapshot of current entries
