@@ -40,6 +40,7 @@ public class TokenServiceImpl implements TokenService {
         registry.register(new V0490TokenSchema());
         registry.register(new V0530TokenSchema());
         registry.register(new V0610TokenSchema());
+        registry.register(new V0610TokenSchema());
     }
 
     @Override

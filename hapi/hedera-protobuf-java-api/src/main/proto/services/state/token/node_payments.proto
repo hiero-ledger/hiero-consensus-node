@@ -21,20 +21,31 @@ package proto;
  * limitations under the License.
  * ‍
  */
-
 option java_package = "com.hederahashgraph.api.proto.java";
 // <<<pbj.java_package = "com.hedera.hapi.node.state.token">>> This comment is special code for setting PBJ Compiler java package
 option java_multiple_files = true;
 
-// A singleton state object that accumulates node fees for distribution.
+/**
+ * A singleton state object that accumulates node fees for distribution<br/>
+ * This is used to record the total amount of fees due to each node for distribution in current staking period
+ */
 message NodePayments {
-  // A map from account_number to NodePayment
+  /**
+   * A map of node account number to the total amount of fees due to each node
+   */
   map<uint64, NodePayment> payments = 1;
 }
 
+/**
+ * A record of the total amount of fees due to a node
+ */
 message NodePayment {
-  // The node account ID number. This is the last part of the shard.realm.num triplet.
+  /**
+   * The node account number
+   */
   uint64 account_number = 1;
-  // The total amount in fees due the node, in tinybars
+  /**
+   * The total amount of fees due to the node in tinybars
+   */
   uint64 fees = 2;
 }

@@ -617,6 +617,11 @@ message StateValue {
     com.hedera.hapi.node.state.history.WrapsMessageHistory HistoryService_I_WRAPS_MESSAGE_HISTORIES = 54;
 
     /**
+     * A state identifier for the node payments. Singleton state.
+     */
+    proto.NodeRewards TokenService_I_NODE_PAYMENTS = 55;
+
+    /**
      * Metadata of the round receipts queue.
      */
     proto.TransactionReceiptEntries RecordCache_I_TRANSACTION_RECEIPTS = 126;
@@ -794,6 +799,11 @@ enum SingletonType {
    * A state identifier for the node rewards. Singleton state.
    */
   TokenService_I_NODE_REWARDS = 50;
+
+  /**
+   * A state identifier for the node payments. Singleton state.
+   */
+  TokenService_I_NODE_PAYMENTS = 55;
 
   // Queue metadata
 
