@@ -4,12 +4,12 @@ package com.swirlds.platform.metrics.event;
 import static com.swirlds.metrics.api.Metrics.PLATFORM_CATEGORY;
 
 import com.swirlds.metrics.api.Metrics;
-import org.hiero.consensus.model.hashgraph.ConsensusEngineOutput;
 import com.swirlds.platform.stats.AverageAndMaxTimeStat;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import org.hiero.consensus.model.event.PlatformEvent;
+import org.hiero.consensus.model.hashgraph.ConsensusEngineOutput;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 
 /**

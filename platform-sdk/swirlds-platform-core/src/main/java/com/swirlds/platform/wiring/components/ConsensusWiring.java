@@ -7,12 +7,12 @@ import com.swirlds.component.framework.schedulers.builders.TaskSchedulerConfigur
 import com.swirlds.component.framework.wires.input.InputWire;
 import com.swirlds.component.framework.wires.output.OutputWire;
 import com.swirlds.platform.components.consensus.ConsensusEngine;
-import org.hiero.consensus.model.hashgraph.ConsensusEngineOutput;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
+import org.hiero.consensus.model.hashgraph.ConsensusEngineOutput;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 
 /**
