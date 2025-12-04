@@ -336,7 +336,7 @@ public class AtomicBatchTest {
                             .payingWith(payer));
         }
 
-        @LeakyHapiTest
+        @LeakyHapiTest(overrides = {"contracts.maxGasPerSec"})
         @DisplayName("Batch contract call with the gas limit")
         //  BATCH_03
         public Stream<DynamicTest> contractCallGasLimit() {
