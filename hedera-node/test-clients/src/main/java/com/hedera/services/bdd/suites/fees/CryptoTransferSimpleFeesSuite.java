@@ -336,7 +336,8 @@ public class CryptoTransferSimpleFeesSuite {
                         .fee(10 * ONE_HBAR)
                         .via("mixedStandardCustomTxn"),
                 validateChargedUsd(
-                        "mixedStandardCustomTxn", FUNGIBLE_TOKEN_BASE_FEE + CUSTOM_FEE_TOKEN_FEE + ADDITIONAL_TOKEN_FEE));
+                        "mixedStandardCustomTxn",
+                        FUNGIBLE_TOKEN_BASE_FEE + CUSTOM_FEE_TOKEN_FEE + ADDITIONAL_TOKEN_FEE));
     }
 
     @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
@@ -670,7 +671,8 @@ public class CryptoTransferSimpleFeesSuite {
                         .signedBy(PAYER)
                         .fee(50 * ONE_HBAR)
                         .via("fungibleWithHookTxn"),
-                validateChargedUsd("fungibleWithHookTxn", SINGLE_HOOK_FEE + HBAR_TRANSFER_BASE_FEE + HOOK_OVERHEAD_FEE));
+                validateChargedUsd(
+                        "fungibleWithHookTxn", SINGLE_HOOK_FEE + HBAR_TRANSFER_BASE_FEE + HOOK_OVERHEAD_FEE));
     }
 
     @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled", "hooks.hooksEnabled"})
@@ -696,7 +698,8 @@ public class CryptoTransferSimpleFeesSuite {
                         .signedBy(PAYER)
                         .fee(50 * ONE_HBAR)
                         .via("nftWithTwoHooksTxn"),
-                validateChargedUsd("nftWithTwoHooksTxn", 2 * SINGLE_HOOK_FEE + HBAR_TRANSFER_BASE_FEE + HOOK_OVERHEAD_FEE));
+                validateChargedUsd(
+                        "nftWithTwoHooksTxn", 2 * SINGLE_HOOK_FEE + HBAR_TRANSFER_BASE_FEE + HOOK_OVERHEAD_FEE));
     }
 
     @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled", "hooks.hooksEnabled"})
@@ -734,7 +737,8 @@ public class CryptoTransferSimpleFeesSuite {
                         .signedBy(PAYER)
                         .fee(THOUSAND_HBAR)
                         .via("mixedWithHooksTxn"),
-                validateChargedUsd("mixedWithHooksTxn", 6 * SINGLE_HOOK_FEE + HBAR_TRANSFER_BASE_FEE + HOOK_OVERHEAD_FEE));
+                validateChargedUsd(
+                        "mixedWithHooksTxn", 6 * SINGLE_HOOK_FEE + HBAR_TRANSFER_BASE_FEE + HOOK_OVERHEAD_FEE));
     }
 
     @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled", "hooks.hooksEnabled"})
@@ -760,7 +764,8 @@ public class CryptoTransferSimpleFeesSuite {
                         .treasury(PAYER)
                         .fee(ONE_HUNDRED_HBARS)
                         .payingWith(PAYER),
-                mintToken(NFT_TOKEN_WITH_FEES, List.of(copyFromUtf8("metadata1"))).fee(ONE_HUNDRED_HBARS),
+                mintToken(NFT_TOKEN_WITH_FEES, List.of(copyFromUtf8("metadata1")))
+                        .fee(ONE_HUNDRED_HBARS),
                 tokenAssociate(RECEIVER, FUNGIBLE_TOKEN_WITH_FEES, NFT_TOKEN_WITH_FEES)
                         .fee(ONE_HUNDRED_HBARS),
                 cryptoTransfer(
@@ -773,6 +778,7 @@ public class CryptoTransferSimpleFeesSuite {
                         .signedBy(PAYER)
                         .fee(ONE_HUNDRED_HBARS)
                         .via("customFeesWithHooksTxn"),
-                validateChargedUsd("customFeesWithHooksTxn", 3 * SINGLE_HOOK_FEE + HBAR_TRANSFER_BASE_FEE + HOOK_OVERHEAD_FEE));
+                validateChargedUsd(
+                        "customFeesWithHooksTxn", 3 * SINGLE_HOOK_FEE + HBAR_TRANSFER_BASE_FEE + HOOK_OVERHEAD_FEE));
     }
 }
