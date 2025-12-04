@@ -36,7 +36,7 @@ public class FeesChargingUtils {
      *         + HOOKS_FEE * max(0, hooks - includedHooksService)
      * total   = node + network + service
      */
-    public static double expectedFullFeeUsd(long sigs, long keys, long hooks) {
+    public static double expectedCryptoCreateFullFeeUsd(long sigs, long keys, long hooks) {
         // ----- node fees -----
         final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
         final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
@@ -57,11 +57,11 @@ public class FeesChargingUtils {
     /**
      * Overload when there are no hooks extras.
      */
-    public static double expectedFullFeeUsd(long sigs, long keys) {
-        return expectedFullFeeUsd(sigs, keys, 0L);
+    public static double expectedCryptoCreateFullFeeUsd(long sigs, long keys) {
+        return expectedCryptoCreateFullFeeUsd(sigs, keys, 0L);
     }
 
-    public static double expectedNetworkFeeOnlyUsd(long sigs) {
+    public static double expectedCryptoCreateNetworkFeeOnlyUsd(long sigs) {
         // ----- node fees -----
         final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
         final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;

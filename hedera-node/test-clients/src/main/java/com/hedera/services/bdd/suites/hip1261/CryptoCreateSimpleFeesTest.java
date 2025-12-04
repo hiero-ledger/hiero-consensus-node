@@ -30,8 +30,8 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
-import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedFullFeeUsd;
-import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedNetworkFeeOnlyUsd;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedCryptoCreateFullFeeUsd;
+import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.expectedCryptoCreateNetworkFeeOnlyUsd;
 import static com.hedera.services.bdd.suites.hip1261.utils.FeesChargingUtils.validateChargedFeeToUsd;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.DUPLICATE_TRANSACTION;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
@@ -106,7 +106,7 @@ public class CryptoCreateSimpleFeesTest {
                             .signedBy(PAYER)
                             .fee(ONE_HBAR)
                             .via("cryptoCreateTxn"),
-                    validateChargedUsdWithin("cryptoCreateTxn", expectedFullFeeUsd(1, 0), 0.0001));
+                    validateChargedUsdWithin("cryptoCreateTxn", expectedCryptoCreateFullFeeUsd(1, 0), 0.0001));
         }
 
         @HapiTest
@@ -121,7 +121,7 @@ public class CryptoCreateSimpleFeesTest {
                             .signedBy(PAYER)
                             .fee(ONE_HBAR)
                             .via("cryptoCreateTxn"),
-                    validateChargedUsdWithin("cryptoCreateTxn", expectedFullFeeUsd(1L, 1L), 0.0001));
+                    validateChargedUsdWithin("cryptoCreateTxn", expectedCryptoCreateFullFeeUsd(1L, 1L), 0.0001));
         }
 
         @HapiTest
@@ -142,7 +142,7 @@ public class CryptoCreateSimpleFeesTest {
                             .signedBy(PAYER)
                             .fee(ONE_HBAR)
                             .via("cryptoCreateTxn"),
-                    validateChargedUsdWithin("cryptoCreateTxn", expectedFullFeeUsd(2L, 2L), 0.0001));
+                    validateChargedUsdWithin("cryptoCreateTxn", expectedCryptoCreateFullFeeUsd(2L, 2L), 0.0001));
         }
 
         @HapiTest
@@ -167,7 +167,7 @@ public class CryptoCreateSimpleFeesTest {
                             .signedBy(PAYER)
                             .fee(ONE_HBAR)
                             .via("cryptoCreateTxn"),
-                    validateChargedUsdWithin("cryptoCreateTxn", expectedFullFeeUsd(3L, 4L), 0.0001));
+                    validateChargedUsdWithin("cryptoCreateTxn", expectedCryptoCreateFullFeeUsd(3L, 4L), 0.0001));
         }
 
         @HapiTest
@@ -184,7 +184,7 @@ public class CryptoCreateSimpleFeesTest {
                             .signedBy(PAYER)
                             .fee(ONE_HBAR)
                             .via("cryptoCreateTxn"),
-                    validateChargedUsdWithin("cryptoCreateTxn", expectedFullFeeUsd(2L, 2L), 0.0001));
+                    validateChargedUsdWithin("cryptoCreateTxn", expectedCryptoCreateFullFeeUsd(2L, 2L), 0.0001));
         }
 
         @HapiTest
@@ -200,7 +200,7 @@ public class CryptoCreateSimpleFeesTest {
                             .signedBy(PAYER)
                             .fee(ONE_HUNDRED_HBARS)
                             .via("cryptoCreateTxn"),
-                    validateChargedUsdWithin("cryptoCreateTxn", expectedFullFeeUsd(1L, 0L, 1L), 0.0001));
+                    validateChargedUsdWithin("cryptoCreateTxn", expectedCryptoCreateFullFeeUsd(1L, 0L, 1L), 0.0001));
         }
 
         @HapiTest
@@ -218,7 +218,7 @@ public class CryptoCreateSimpleFeesTest {
                             .signedBy(PAYER)
                             .fee(ONE_HUNDRED_HBARS)
                             .via("cryptoCreateTxn"),
-                    validateChargedUsdWithin("cryptoCreateTxn", expectedFullFeeUsd(1L, 1L, 1L), 0.0001));
+                    validateChargedUsdWithin("cryptoCreateTxn", expectedCryptoCreateFullFeeUsd(1L, 1L, 1L), 0.0001));
         }
 
         @HapiTest
@@ -246,7 +246,7 @@ public class CryptoCreateSimpleFeesTest {
                             .signedBy(PAYER_KEY)
                             .fee(ONE_HUNDRED_HBARS)
                             .via("cryptoCreateTxn"),
-                    validateChargedUsdWithin("cryptoCreateTxn", expectedFullFeeUsd(2L, 2L, 2L), 0.0001));
+                    validateChargedUsdWithin("cryptoCreateTxn", expectedCryptoCreateFullFeeUsd(2L, 2L, 2L), 0.0001));
         }
 
         @HapiTest
@@ -293,7 +293,7 @@ public class CryptoCreateSimpleFeesTest {
                                 .via("cryptoCreateTxn");
                         allRunFor(spec, txn);
                     }),
-                    validateChargedUsdWithin("cryptoCreateTxn", expectedFullFeeUsd(1L, 1L), 0.0001));
+                    validateChargedUsdWithin("cryptoCreateTxn", expectedCryptoCreateFullFeeUsd(1L, 1L), 0.0001));
         }
     }
 
@@ -829,12 +829,16 @@ public class CryptoCreateSimpleFeesTest {
                         withOpContext((spec, log) -> {
                             long nodeDelta = initialNodeBalance.get() - afterNodeBalance.get();
                             log.info("Node balance change: {}", nodeDelta);
-                            log.info("Recorded fee: {}", expectedNetworkFeeOnlyUsd(1));
+                            log.info("Recorded fee: {}", expectedCryptoCreateNetworkFeeOnlyUsd(1));
                             assertEquals(initialBalance.get(), afterBalance.get());
                             assertTrue(initialNodeBalance.get() > afterNodeBalance.get());
                         }),
                         validateChargedFeeToUsd(
-                                INNER_ID, initialNodeBalance, afterNodeBalance, expectedNetworkFeeOnlyUsd(1L), 0.01));
+                                INNER_ID,
+                                initialNodeBalance,
+                                afterNodeBalance,
+                                expectedCryptoCreateNetworkFeeOnlyUsd(1L),
+                                0.01));
             }
 
             @LeakyEmbeddedHapiTest(reason = MUST_SKIP_INGEST)
@@ -877,12 +881,16 @@ public class CryptoCreateSimpleFeesTest {
                         withOpContext((spec, log) -> {
                             long nodeDelta = initialNodeBalance.get() - afterNodeBalance.get();
                             log.info("Node balance change: {}", nodeDelta);
-                            log.info("Recorded fee: {}", expectedNetworkFeeOnlyUsd(2));
+                            log.info("Recorded fee: {}", expectedCryptoCreateNetworkFeeOnlyUsd(2));
                             assertEquals(initialBalance.get(), afterBalance.get());
                             assertTrue(initialNodeBalance.get() > afterNodeBalance.get());
                         }),
                         validateChargedFeeToUsd(
-                                INNER_ID, initialNodeBalance, afterNodeBalance, expectedNetworkFeeOnlyUsd(2L), 0.01));
+                                INNER_ID,
+                                initialNodeBalance,
+                                afterNodeBalance,
+                                expectedCryptoCreateNetworkFeeOnlyUsd(2L),
+                                0.01));
             }
 
             @LeakyEmbeddedHapiTest(reason = MUST_SKIP_INGEST)
@@ -925,12 +933,16 @@ public class CryptoCreateSimpleFeesTest {
                         withOpContext((spec, log) -> {
                             long nodeDelta = initialNodeBalance.get() - afterNodeBalance.get();
                             log.info("Node balance change: {}", nodeDelta);
-                            log.info("Recorded fee: {}", expectedNetworkFeeOnlyUsd(2));
+                            log.info("Recorded fee: {}", expectedCryptoCreateNetworkFeeOnlyUsd(2));
                             assertEquals(initialBalance.get(), afterBalance.get());
                             assertTrue(initialNodeBalance.get() > afterNodeBalance.get());
                         }),
                         validateChargedFeeToUsd(
-                                INNER_ID, initialNodeBalance, afterNodeBalance, expectedNetworkFeeOnlyUsd(2L), 0.01));
+                                INNER_ID,
+                                initialNodeBalance,
+                                afterNodeBalance,
+                                expectedCryptoCreateNetworkFeeOnlyUsd(2L),
+                                0.01));
             }
 
             @LeakyEmbeddedHapiTest(reason = MUST_SKIP_INGEST)
@@ -978,12 +990,16 @@ public class CryptoCreateSimpleFeesTest {
                         withOpContext((spec, log) -> {
                             long nodeDelta = initialNodeBalance.get() - afterNodeBalance.get();
                             log.info("Node balance change: {}", nodeDelta);
-                            log.info("Recorded fee: {}", expectedNetworkFeeOnlyUsd(1));
+                            log.info("Recorded fee: {}", expectedCryptoCreateNetworkFeeOnlyUsd(1));
                             assertEquals(initialBalance.get(), afterBalance.get());
                             assertTrue(initialNodeBalance.get() > afterNodeBalance.get());
                         }),
                         validateChargedFeeToUsd(
-                                INNER_ID, initialNodeBalance, afterNodeBalance, expectedNetworkFeeOnlyUsd(1L), 0.01));
+                                INNER_ID,
+                                initialNodeBalance,
+                                afterNodeBalance,
+                                expectedCryptoCreateNetworkFeeOnlyUsd(1L),
+                                0.01));
             }
 
             @LeakyEmbeddedHapiTest(reason = MUST_SKIP_INGEST)
@@ -1033,12 +1049,16 @@ public class CryptoCreateSimpleFeesTest {
                         withOpContext((spec, log) -> {
                             long nodeDelta = initialNodeBalance.get() - afterNodeBalance.get();
                             log.info("Node balance change: {}", nodeDelta);
-                            log.info("Recorded fee: {}", expectedNetworkFeeOnlyUsd(2));
+                            log.info("Recorded fee: {}", expectedCryptoCreateNetworkFeeOnlyUsd(2));
                             assertEquals(initialBalance.get(), afterBalance.get());
                             assertTrue(initialNodeBalance.get() > afterNodeBalance.get());
                         }),
                         validateChargedFeeToUsd(
-                                INNER_ID, initialNodeBalance, afterNodeBalance, expectedNetworkFeeOnlyUsd(2L), 0.01));
+                                INNER_ID,
+                                initialNodeBalance,
+                                afterNodeBalance,
+                                expectedCryptoCreateNetworkFeeOnlyUsd(2L),
+                                0.01));
             }
 
             @LeakyEmbeddedHapiTest(reason = MUST_SKIP_INGEST)
@@ -1086,12 +1106,16 @@ public class CryptoCreateSimpleFeesTest {
                         withOpContext((spec, log) -> {
                             long nodeDelta = initialNodeBalance.get() - afterNodeBalance.get();
                             log.info("Node balance change: {}", nodeDelta);
-                            log.info("Recorded fee: {}", expectedNetworkFeeOnlyUsd(2));
+                            log.info("Recorded fee: {}", expectedCryptoCreateNetworkFeeOnlyUsd(2));
                             assertEquals(initialBalance.get(), afterBalance.get());
                             assertTrue(initialNodeBalance.get() > afterNodeBalance.get());
                         }),
                         validateChargedFeeToUsd(
-                                INNER_ID, initialNodeBalance, afterNodeBalance, expectedNetworkFeeOnlyUsd(2L), 0.01));
+                                INNER_ID,
+                                initialNodeBalance,
+                                afterNodeBalance,
+                                expectedCryptoCreateNetworkFeeOnlyUsd(2L),
+                                0.01));
             }
 
             @LeakyEmbeddedHapiTest(reason = MUST_SKIP_INGEST)
@@ -1139,12 +1163,16 @@ public class CryptoCreateSimpleFeesTest {
                         withOpContext((spec, log) -> {
                             long nodeDelta = initialNodeBalance.get() - afterNodeBalance.get();
                             log.info("Node balance change: {}", nodeDelta);
-                            log.info("Recorded fee: {}", expectedNetworkFeeOnlyUsd(2));
+                            log.info("Recorded fee: {}", expectedCryptoCreateNetworkFeeOnlyUsd(2));
                             assertEquals(initialBalance.get(), afterBalance.get());
                             assertTrue(initialNodeBalance.get() > afterNodeBalance.get());
                         }),
                         validateChargedFeeToUsd(
-                                INNER_ID, initialNodeBalance, afterNodeBalance, expectedNetworkFeeOnlyUsd(2L), 0.01));
+                                INNER_ID,
+                                initialNodeBalance,
+                                afterNodeBalance,
+                                expectedCryptoCreateNetworkFeeOnlyUsd(2L),
+                                0.01));
             }
         }
 
@@ -1197,12 +1225,16 @@ public class CryptoCreateSimpleFeesTest {
                         withOpContext((spec, log) -> {
                             long payerDelta = initialBalance.get() - afterBalance.get();
                             log.info("Payer balance change: {}", payerDelta);
-                            log.info("Recorded fee: {}", expectedFullFeeUsd(1, 1));
+                            log.info("Recorded fee: {}", expectedCryptoCreateFullFeeUsd(1, 1));
                             assertEquals(initialNodeBalance.get(), afterNodeBalance.get());
                             assertTrue(initialBalance.get() > afterBalance.get());
                         }),
                         validateChargedFeeToUsd(
-                                "cryptoCreateTxn", initialBalance, afterBalance, expectedFullFeeUsd(1L, 1L), 0.01));
+                                "cryptoCreateTxn",
+                                initialBalance,
+                                afterBalance,
+                                expectedCryptoCreateFullFeeUsd(1L, 1L),
+                                0.01));
             }
         }
 
@@ -1222,7 +1254,7 @@ public class CryptoCreateSimpleFeesTest {
                                 .signedBy(PAYER, ADMIN_KEY)
                                 .fee(ONE_HBAR)
                                 .via("cryptoCreateTxn"),
-                        validateChargedUsdWithin("cryptoCreateTxn", expectedFullFeeUsd(1L, 1L), 0.0001));
+                        validateChargedUsdWithin("cryptoCreateTxn", expectedCryptoCreateFullFeeUsd(1L, 1L), 0.0001));
             }
 
             @HapiTest
@@ -1240,7 +1272,7 @@ public class CryptoCreateSimpleFeesTest {
                                 .signedBy(PAYER, ADMIN_KEY, "extraKey1", "extraKey2")
                                 .fee(ONE_HBAR)
                                 .via("cryptoCreateTxn"),
-                        validateChargedUsdWithin("cryptoCreateTxn", expectedFullFeeUsd(1L, 1L), 0.0001));
+                        validateChargedUsdWithin("cryptoCreateTxn", expectedCryptoCreateFullFeeUsd(1L, 1L), 0.0001));
             }
 
             @HapiTest
@@ -1267,7 +1299,7 @@ public class CryptoCreateSimpleFeesTest {
                                 .signedBy(PAYER_KEY, "extraKey1", "extraKey2")
                                 .fee(ONE_HBAR)
                                 .via("cryptoCreateTxn"),
-                        validateChargedUsdWithin("cryptoCreateTxn", expectedFullFeeUsd(2L, 2L), 0.0001));
+                        validateChargedUsdWithin("cryptoCreateTxn", expectedCryptoCreateFullFeeUsd(2L, 2L), 0.0001));
             }
         }
     }
