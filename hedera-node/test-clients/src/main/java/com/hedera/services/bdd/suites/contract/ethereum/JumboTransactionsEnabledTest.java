@@ -564,10 +564,14 @@ public class JumboTransactionsEnabledTest implements LifecycleTest {
         public Stream<DynamicTest> canNotPutJumboInsideOfBatch() {
             final var payloadSize = 127 * 1024;
             final var payload = new byte[payloadSize];
-            return hapiTest(atomicBatch(jumboEthCall(CONTRACT_CALLDATA_SIZE, FUNCTION, payload))
-                    .hasPrecheck(TRANSACTION_OVERSIZE)
-                    // If we use subprocess network, the transaction should fail at gRPC level
-                    .orUnavailableStatus());
+            return hapiTest(
+                    cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
+                    atomicBatch(jumboEthCall(CONTRACT_CALLDATA_SIZE, FUNCTION, payload)
+                                    .batchKey(PAYER))
+                            .payingWith(PAYER)
+                            .hasPrecheck(TRANSACTION_OVERSIZE)
+                            // If we use subprocess network, the transaction should fail at gRPC level
+                            .orUnavailableStatus());
         }
     }
 }
