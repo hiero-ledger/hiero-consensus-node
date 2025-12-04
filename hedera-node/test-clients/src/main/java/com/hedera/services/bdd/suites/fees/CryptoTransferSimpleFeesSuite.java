@@ -125,9 +125,9 @@ public class CryptoTransferSimpleFeesSuite {
                                 .fee(ONE_HBAR)
                                 .via("fungibleSingleTxn")),
                 "fungibleSingleTxn",
-                0.0011,
+                0.0010,
                 1.0,
-                0.0011,
+                0.0010,
                 1.0);
     }
 
@@ -157,9 +157,9 @@ public class CryptoTransferSimpleFeesSuite {
                                 .fee(ONE_HBAR)
                                 .via("fungibleMultiTxn")),
                 "fungibleMultiTxn",
-                0.0012,
+                0.0011,
                 1.0,
-                0.0012,
+                0.0011,
                 1.0);
     }
 
@@ -184,9 +184,9 @@ public class CryptoTransferSimpleFeesSuite {
                                 .fee(ONE_HBAR)
                                 .via("fungibleHbarTxn")),
                 "fungibleHbarTxn",
-                0.0011,
+                0.0010,
                 1.0,
-                0.0011,
+                0.0010,
                 1.0);
     }
 
@@ -211,9 +211,9 @@ public class CryptoTransferSimpleFeesSuite {
                                 .fee(ONE_HBAR)
                                 .via("nftSingleTxn")),
                 "nftSingleTxn",
-                0.0011,
+                0.0010,
                 1.0,
-                0.0011,
+                0.0010,
                 1.0);
     }
 
@@ -243,9 +243,9 @@ public class CryptoTransferSimpleFeesSuite {
                                 .fee(ONE_HBAR)
                                 .via("nftMultiSameTxn")),
                 "nftMultiSameTxn",
-                0.0013,
+                0.0012,
                 1.0,
-                0.0013,
+                0.0012,
                 1.0);
     }
 
@@ -279,9 +279,9 @@ public class CryptoTransferSimpleFeesSuite {
                                 .fee(ONE_HBAR)
                                 .via("nftDiffCollectionsTxn")),
                 "nftDiffCollectionsTxn",
-                0.0012,
+                0.0011,
                 1.0,
-                0.0012,
+                0.0011,
                 1.0);
     }
 
@@ -308,9 +308,9 @@ public class CryptoTransferSimpleFeesSuite {
                                 .fee(ONE_HBAR)
                                 .via("nftHbarTxn")),
                 "nftHbarTxn",
-                0.0011,
+                0.0010,
                 1.0,
-                0.0011,
+                0.0010,
                 1.0);
     }
 
@@ -335,9 +335,9 @@ public class CryptoTransferSimpleFeesSuite {
                                 .fee(10 * ONE_HBAR)
                                 .via("fungibleCustomFeeTxn")),
                 "fungibleCustomFeeTxn",
-                0.0021,
+                0.0020,
                 1.0,
-                0.0021,
+                0.0020,
                 1.0);
     }
 
@@ -364,9 +364,9 @@ public class CryptoTransferSimpleFeesSuite {
                                 .fee(10 * ONE_HBAR)
                                 .via("nftCustomFeeTxn")),
                 "nftCustomFeeTxn",
-                0.0021,
+                0.0020,
                 1.0,
-                0.0021,
+                0.0020,
                 1.0);
     }
 
@@ -398,9 +398,9 @@ public class CryptoTransferSimpleFeesSuite {
                                 .fee(10 * ONE_HBAR)
                                 .via("mixedStandardCustomTxn")),
                 "mixedStandardCustomTxn",
-                0.0022,
+                0.0021,
                 1.0,
-                0.0022,
+                0.0021,
                 1.0);
     }
 
@@ -433,9 +433,9 @@ public class CryptoTransferSimpleFeesSuite {
                                 .fee(10 * ONE_HBAR)
                                 .via("multipleCustomFeeTxn")),
                 "multipleCustomFeeTxn",
-                0.0022,
+                0.0021,
                 1.0,
-                0.0022,
+                0.0021,
                 1.0);
     }
 
@@ -470,9 +470,9 @@ public class CryptoTransferSimpleFeesSuite {
                                 .fee(10 * ONE_HBAR)
                                 .via("customFungibleNftTxn")),
                 "customFungibleNftTxn",
-                0.0021,
+                0.0020,
                 1.0,
-                0.0021,
+                0.0020,
                 1.0);
     }
 
@@ -542,9 +542,9 @@ public class CryptoTransferSimpleFeesSuite {
                                 .fee(ONE_HBAR)
                                 .via("fungibleMultiRecipientTxn")),
                 "fungibleMultiRecipientTxn",
-                0.0011,
+                0.0010,
                 1.0,
-                0.0011,
+                0.0010,
                 1.0);
     }
 
@@ -582,9 +582,9 @@ public class CryptoTransferSimpleFeesSuite {
                                 .fee(ONE_HBAR)
                                 .via("nftLargeBatchTxn")),
                 "nftLargeBatchTxn",
-                0.0020,
+                0.0019,
                 1.0,
-                0.0020,
+                0.0019,
                 1.0);
     }
 
@@ -617,9 +617,9 @@ public class CryptoTransferSimpleFeesSuite {
                                 .fee(ONE_HBAR)
                                 .via("complexAllTypesTxn")),
                 "complexAllTypesTxn",
-                0.0011,
+                0.0010,
                 1.0,
-                0.0011,
+                0.0010,
                 1.0);
     }
 
@@ -665,9 +665,9 @@ public class CryptoTransferSimpleFeesSuite {
                                 .fee(ONE_HBAR)
                                 .via("complexMultiTokensNftsTxn")),
                 "complexMultiTokensNftsTxn",
-                0.0013,
+                0.0012,
                 1.0,
-                0.0013,
+                0.0012,
                 1.0);
     }
 
@@ -733,9 +733,9 @@ public class CryptoTransferSimpleFeesSuite {
                                 .fee(10 * ONE_HBAR)
                                 .via("complexMaximumTxn")),
                 "complexMaximumTxn",
-                0.0025,
+                0.0024,
                 1.0,
-                0.0025,
+                0.0024,
                 1.0);
     }
 

@@ -34,7 +34,7 @@
     { "name":  "CRYPTO_TRANSFER_BASE_NFT",                  "fee": 9000000 },
     { "name":  "CRYPTO_TRANSFER_BASE_FUNGIBLE_CUSTOM_FEES", "fee": 19000000 },
     { "name":  "CRYPTO_TRANSFER_BASE_NFT_CUSTOM_FEES",      "fee": 19000000 },
-    { "name":  "HOOK_EXECUTION",                            "fee": 50000000 }
+    { "name":  "HOOK_EXECUTION",                            "fee": 10000000000 }
   ],
   "services": [
     {
