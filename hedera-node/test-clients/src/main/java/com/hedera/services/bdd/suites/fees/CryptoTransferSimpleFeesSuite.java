@@ -2,6 +2,8 @@
 package com.hedera.services.bdd.suites.fees;
 
 import static com.google.protobuf.ByteString.copyFromUtf8;
+
+import com.google.protobuf.ByteString;
 import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SIMPLE_FEES;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
@@ -61,6 +63,9 @@ public class CryptoTransferSimpleFeesSuite {
     private static final String NFT_TOKEN_2 = "nftToken2";
     private static final String NFT_TOKEN_WITH_FEES = "nftTokenWithFees";
     private static final String HOOK_CONTRACT = "TruePreHook";
+    private static ByteString metadata(int n) {
+        return copyFromUtf8("metadata" + n);
+    }
 
     @HapiTest
     @DisplayName("DEFAULT: Simple 2-account HBAR transfer")
@@ -176,7 +181,7 @@ public class CryptoTransferSimpleFeesSuite {
                         .supplyKey(PAYER)
                         .treasury(PAYER)
                         .payingWith(PAYER),
-                mintToken(NFT_TOKEN, List.of(copyFromUtf8("metadata1"))),
+                mintToken(NFT_TOKEN, List.of(metadata(1))),
                 tokenAssociate(RECEIVER, NFT_TOKEN),
                 cryptoTransfer(movingUnique(NFT_TOKEN, 1L).between(PAYER, RECEIVER))
                         .payingWith(PAYER)
@@ -200,7 +205,7 @@ public class CryptoTransferSimpleFeesSuite {
                         .payingWith(PAYER),
                 mintToken(
                         NFT_TOKEN,
-                        List.of(copyFromUtf8("metadata1"), copyFromUtf8("metadata2"), copyFromUtf8("metadata3"))),
+                        List.of(metadata(1), metadata(2), metadata(3))),
                 tokenAssociate(RECEIVER, NFT_TOKEN),
                 cryptoTransfer(movingUnique(NFT_TOKEN, 1L, 2L, 3L).between(PAYER, RECEIVER))
                         .payingWith(PAYER)
@@ -228,8 +233,8 @@ public class CryptoTransferSimpleFeesSuite {
                         .supplyKey(PAYER)
                         .treasury(PAYER)
                         .payingWith(PAYER),
-                mintToken(NFT_TOKEN, List.of(copyFromUtf8("metadata1"))),
-                mintToken(NFT_TOKEN_2, List.of(copyFromUtf8("metadata2"))),
+                mintToken(NFT_TOKEN, List.of(metadata(1))),
+                mintToken(NFT_TOKEN_2, List.of(metadata(2))),
                 tokenAssociate(RECEIVER, NFT_TOKEN, NFT_TOKEN_2),
                 cryptoTransfer(
                                 movingUnique(NFT_TOKEN, 1L).between(PAYER, RECEIVER),
@@ -253,7 +258,7 @@ public class CryptoTransferSimpleFeesSuite {
                         .supplyKey(PAYER)
                         .treasury(PAYER)
                         .payingWith(PAYER),
-                mintToken(NFT_TOKEN, List.of(copyFromUtf8("metadata1"))),
+                mintToken(NFT_TOKEN, List.of(metadata(1))),
                 tokenAssociate(RECEIVER, NFT_TOKEN),
                 cryptoTransfer(
                                 movingHbar(ONE_HBAR).between(PAYER, RECEIVER),
@@ -301,7 +306,7 @@ public class CryptoTransferSimpleFeesSuite {
                         .withCustom(royaltyFeeNoFallback(1, 10, FEE_COLLECTOR))
                         .treasury(PAYER)
                         .payingWith(PAYER),
-                mintToken(NFT_TOKEN_WITH_FEES, List.of(copyFromUtf8("metadata1"))),
+                mintToken(NFT_TOKEN_WITH_FEES, List.of(metadata(1))),
                 tokenAssociate(RECEIVER, NFT_TOKEN_WITH_FEES),
                 cryptoTransfer(movingUnique(NFT_TOKEN_WITH_FEES, 1L).between(PAYER, RECEIVER))
                         .payingWith(PAYER)
@@ -393,7 +398,7 @@ public class CryptoTransferSimpleFeesSuite {
                         .withCustom(royaltyFeeNoFallback(1, 10, FEE_COLLECTOR))
                         .treasury(PAYER)
                         .payingWith(PAYER),
-                mintToken(NFT_TOKEN_WITH_FEES, List.of(copyFromUtf8("metadata1"))),
+                mintToken(NFT_TOKEN_WITH_FEES, List.of(metadata(1))),
                 tokenAssociate(RECEIVER, FUNGIBLE_TOKEN_WITH_FEES, NFT_TOKEN_WITH_FEES),
                 cryptoTransfer(
                                 moving(100, FUNGIBLE_TOKEN_WITH_FEES).between(PAYER, RECEIVER),
@@ -477,16 +482,16 @@ public class CryptoTransferSimpleFeesSuite {
                 mintToken(
                         NFT_TOKEN,
                         List.of(
-                                copyFromUtf8("metadata1"),
-                                copyFromUtf8("metadata2"),
-                                copyFromUtf8("metadata3"),
-                                copyFromUtf8("metadata4"),
-                                copyFromUtf8("metadata5"),
-                                copyFromUtf8("metadata6"),
-                                copyFromUtf8("metadata7"),
-                                copyFromUtf8("metadata8"),
-                                copyFromUtf8("metadata9"),
-                                copyFromUtf8("metadata10"))),
+                                metadata(1),
+                                metadata(2),
+                                metadata(3),
+                                metadata(4),
+                                metadata(5),
+                                metadata(6),
+                                metadata(7),
+                                metadata(8),
+                                metadata(9),
+                                metadata(10))),
                 tokenAssociate(RECEIVER, NFT_TOKEN),
                 cryptoTransfer(movingUnique(NFT_TOKEN, 1L, 2L, 3L, 4L, 5L, 6L, 7L, 8L, 9L, 10L)
                                 .between(PAYER, RECEIVER))
@@ -514,7 +519,7 @@ public class CryptoTransferSimpleFeesSuite {
                         .supplyKey(PAYER)
                         .treasury(PAYER)
                         .payingWith(PAYER),
-                mintToken(NFT_TOKEN, List.of(copyFromUtf8("metadata1"))),
+                mintToken(NFT_TOKEN, List.of(metadata(1))),
                 tokenAssociate(RECEIVER, FUNGIBLE_TOKEN, NFT_TOKEN),
                 cryptoTransfer(
                                 movingHbar(ONE_HBAR).between(PAYER, RECEIVER),
@@ -555,8 +560,8 @@ public class CryptoTransferSimpleFeesSuite {
                         .supplyKey(PAYER)
                         .treasury(PAYER)
                         .payingWith(PAYER),
-                mintToken(NFT_TOKEN, List.of(copyFromUtf8("metadata1"))),
-                mintToken(NFT_TOKEN_2, List.of(copyFromUtf8("metadata2"))),
+                mintToken(NFT_TOKEN, List.of(metadata(1))),
+                mintToken(NFT_TOKEN_2, List.of(metadata(2))),
                 tokenAssociate(RECEIVER, FUNGIBLE_TOKEN, FUNGIBLE_TOKEN_2, NFT_TOKEN, NFT_TOKEN_2),
                 cryptoTransfer(
                                 moving(100, FUNGIBLE_TOKEN).between(PAYER, RECEIVER),
@@ -608,8 +613,8 @@ public class CryptoTransferSimpleFeesSuite {
                         .withCustom(royaltyFeeNoFallback(1, 10, FEE_COLLECTOR))
                         .treasury(PAYER)
                         .payingWith(PAYER),
-                mintToken(NFT_TOKEN, List.of(copyFromUtf8("metadata1"), copyFromUtf8("metadata2"))),
-                mintToken(NFT_TOKEN_WITH_FEES, List.of(copyFromUtf8("metadata3"))),
+                mintToken(NFT_TOKEN, List.of(metadata(1), metadata(2))),
+                mintToken(NFT_TOKEN_WITH_FEES, List.of(metadata(3))),
                 tokenAssociate(
                         RECEIVER,
                         FUNGIBLE_TOKEN,
@@ -691,7 +696,7 @@ public class CryptoTransferSimpleFeesSuite {
                         .supplyKey(PAYER)
                         .treasury(PAYER)
                         .payingWith(PAYER),
-                mintToken(NFT_TOKEN, List.of(copyFromUtf8("metadata1"))),
+                mintToken(NFT_TOKEN, List.of(metadata(1))),
                 tokenAssociate(RECEIVER, NFT_TOKEN),
                 cryptoTransfer(movingUnique(NFT_TOKEN, 1L).between(PAYER, RECEIVER))
                         .withNftSenderPreHookFor(PAYER, 1L, 5_000_000L, "")
@@ -725,7 +730,7 @@ public class CryptoTransferSimpleFeesSuite {
                         .treasury(PAYER)
                         .fee(ONE_HUNDRED_HBARS)
                         .payingWith(PAYER),
-                mintToken(NFT_TOKEN, List.of(copyFromUtf8("metadata1"))),
+                mintToken(NFT_TOKEN, List.of(metadata(1))),
                 tokenAssociate(RECEIVER, FUNGIBLE_TOKEN, NFT_TOKEN),
                 cryptoTransfer(
                                 movingHbar(ONE_HBAR).between(PAYER, RECEIVER),
@@ -766,7 +771,7 @@ public class CryptoTransferSimpleFeesSuite {
                         .treasury(PAYER)
                         .fee(ONE_HUNDRED_HBARS)
                         .payingWith(PAYER),
-                mintToken(NFT_TOKEN_WITH_FEES, List.of(copyFromUtf8("metadata1")))
+                mintToken(NFT_TOKEN_WITH_FEES, List.of(metadata(1)))
                         .fee(ONE_HUNDRED_HBARS),
                 tokenAssociate(RECEIVER, FUNGIBLE_TOKEN_WITH_FEES, NFT_TOKEN_WITH_FEES)
                         .fee(ONE_HUNDRED_HBARS),
