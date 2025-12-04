@@ -24,16 +24,16 @@ public class BlockNodeServiceConnection extends AbstractBlockNodeConnection {
     private static final Logger logger = LogManager.getLogger(BlockNodeServiceConnection.class);
 
     private final AtomicReference<BlockNodeServiceClient> clientRef = new AtomicReference<>();
-    private final ExecutorService pipelineExecutor;
+    private final ExecutorService executorService;
     private final BlockNodeClientFactory clientFactory;
     private final BlockNodeConnectionConfig bncConfig;
 
     public BlockNodeServiceConnection(@NonNull final ConfigProvider configProvider,
             @NonNull final BlockNodeConfiguration nodeConfig,
-            @NonNull final ExecutorService pipelineExecutor,
+            @NonNull final ExecutorService executorService,
             @NonNull final BlockNodeClientFactory clientFactory) {
         super(ConnectionType.SERVER_STATUS, nodeConfig, configProvider);
-        this.pipelineExecutor = requireNonNull(pipelineExecutor, "pipeline executor is required");
+        this.executorService = requireNonNull(executorService, "pipeline executor is required");
         this.clientFactory = requireNonNull(clientFactory, "client factory is required");
 
         bncConfig = configProvider()
@@ -43,8 +43,8 @@ public class BlockNodeServiceConnection extends AbstractBlockNodeConnection {
 
     @Override
     void initialize() {
-        if (clientRef.get() != null) {
-            logger.debug("{} Client already initialized", this);
+        if (currentState() != ConnectionState.UNINITIALIZED) {
+            logger.debug("{} Connection is already in a non-uninitialized state", this);
             return;
         }
 
@@ -53,13 +53,13 @@ public class BlockNodeServiceConnection extends AbstractBlockNodeConnection {
                 .getConfigData(BlockNodeConnectionConfig.class)
                 .grpcOverallTimeout();
 
-        final Future<?> future = pipelineExecutor.submit(() -> {
+        final Future<?> future = executorService.submit(() -> {
             final BlockNodeServiceClient client = clientFactory.createServiceClient(configuration(), timeoutDuration);
             if (clientRef.compareAndSet(null, client)) {
+                updateConnectionState(ConnectionState.UNINITIALIZED, ConnectionState.ACTIVE); // jump to active
                 logger.debug("{} Client initialized", this);
-                updateConnectionState(ConnectionState.READY);
             } else {
-                client.close();
+                close();
             }
         });
 
@@ -95,7 +95,7 @@ public class BlockNodeServiceConnection extends AbstractBlockNodeConnection {
             logger.debug("{} Another thread has closed the connection", this);
         }
 
-        final Future<?> future = pipelineExecutor.submit(client::close);
+        final Future<?> future = executorService.submit(client::close);
 
         try {
             future.get(bncConfig.pipelineOperationTimeout().toMillis(), TimeUnit.MILLISECONDS);
@@ -122,7 +122,7 @@ public class BlockNodeServiceConnection extends AbstractBlockNodeConnection {
         }
 
         final long startMillis = System.currentTimeMillis();
-        final Future<ServerStatusResponse> future = pipelineExecutor.submit(() -> client.serverStatus(new ServerStatusRequest()));
+        final Future<ServerStatusResponse> future = executorService.submit(() -> client.serverStatus(new ServerStatusRequest()));
         final ServerStatusResponse response;
         final long durationMillis;
 
