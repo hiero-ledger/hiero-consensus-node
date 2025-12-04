@@ -242,18 +242,13 @@ public class TokenServiceFeeCalculatorTests {
                         makeExtraDef(Extra.BYTES, 1),
                         makeExtraDef(Extra.KEYS, 2),
                         makeExtraDef(Extra.SIGNATURES, 3),
-
                         makeExtraDef(Extra.TOKEN_MINT_FUNGIBLE, COMMON_TOKEN_FEE),
                         makeExtraDef(Extra.TOKEN_MINT_NFT, UNIQUE_TOKEN_FEE),
                         makeExtraDef(Extra.CUSTOM_FEE, 500))
                 .network(NetworkFee.DEFAULT.copyBuilder().multiplier(2).build())
                 .services(makeService(
                         "Token",
-                        makeServiceFee(
-                                TOKEN_CREATE,
-                                TOKEN_CREATE_BASE_FEE,
-                                makeExtraIncluded(Extra.KEYS, 1)
-                        ),
+                        makeServiceFee(TOKEN_CREATE, TOKEN_CREATE_BASE_FEE, makeExtraIncluded(Extra.KEYS, 1)),
                         makeServiceFee(
                                 TOKEN_MINT,
                                 TOKEN_MINT_BASE_FEE,
