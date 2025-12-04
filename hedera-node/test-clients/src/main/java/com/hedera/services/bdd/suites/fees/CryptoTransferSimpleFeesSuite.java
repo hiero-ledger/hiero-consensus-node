@@ -25,6 +25,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.THOUSAND_HBAR;
 import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
 import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
 
+import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
 import java.util.List;
 import java.util.stream.Stream;
@@ -45,6 +46,7 @@ public class CryptoTransferSimpleFeesSuite {
     private static final double CUSTOM_FEE_TOKEN_FEE = 0.001;
     private static final double SINGLE_HOOK_FEE = 1.0;
     private static final double HOOK_OVERHEAD_FEE = 0.0050;
+    private static final double ADDITIONAL_ACCOUNT_FEE = 0.0001;
     private static final double ADDITIONAL_TOKEN_FEE = 0.0001;
     private static final double ADDITIONAL_NFT_SERIAL_FEE = 0.0001;
     private static final String PAYER = "payer";
@@ -60,7 +62,7 @@ public class CryptoTransferSimpleFeesSuite {
     private static final String NFT_TOKEN_WITH_FEES = "nftTokenWithFees";
     private static final String HOOK_CONTRACT = "TruePreHook";
 
-    @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+    @HapiTest
     @DisplayName("DEFAULT: Simple 2-account HBAR transfer")
     final Stream<DynamicTest> defaultSimpleHbarTransfer() {
         return hapiTest(
@@ -74,7 +76,7 @@ public class CryptoTransferSimpleFeesSuite {
                 validateChargedUsd("simpleHbarTxn", HBAR_TRANSFER_BASE_FEE));
     }
 
-    @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+    @HapiTest
     @DisplayName("DEFAULT: Multi-account HBAR transfer (3 receivers)")
     final Stream<DynamicTest> defaultMultiAccountHbarTransfer() {
         return hapiTest(
@@ -90,10 +92,10 @@ public class CryptoTransferSimpleFeesSuite {
                         .signedBy(PAYER)
                         .fee(ONE_HBAR)
                         .via("multiHbarTxn"),
-                validateChargedUsd("multiHbarTxn", HBAR_TRANSFER_BASE_FEE));
+                validateChargedUsd("multiHbarTxn", HBAR_TRANSFER_BASE_FEE + 2 * ADDITIONAL_ACCOUNT_FEE));
     }
 
-    @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+    @HapiTest
     @DisplayName("TOKEN_FUNGIBLE_COMMON: Single fungible token transfer")
     final Stream<DynamicTest> fungibleCommonSingleToken() {
         return hapiTest(
@@ -113,7 +115,7 @@ public class CryptoTransferSimpleFeesSuite {
                 validateChargedUsd("fungibleSingleTxn", FUNGIBLE_TOKEN_BASE_FEE));
     }
 
-    @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+    @HapiTest
     @DisplayName("TOKEN_FUNGIBLE_COMMON: Multiple fungible tokens")
     final Stream<DynamicTest> fungibleCommonMultipleTokens() {
         return hapiTest(
@@ -140,7 +142,7 @@ public class CryptoTransferSimpleFeesSuite {
                 validateChargedUsd("fungibleMultiTxn", FUNGIBLE_TOKEN_BASE_FEE + ADDITIONAL_TOKEN_FEE));
     }
 
-    @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+    @HapiTest
     @DisplayName("TOKEN_FUNGIBLE_COMMON: Fungible + HBAR mixed transfer")
     final Stream<DynamicTest> fungibleCommonWithHbar() {
         return hapiTest(
@@ -162,7 +164,7 @@ public class CryptoTransferSimpleFeesSuite {
                 validateChargedUsd("fungibleHbarTxn", FUNGIBLE_TOKEN_BASE_FEE));
     }
 
-    @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+    @HapiTest
     @DisplayName("TOKEN_NON_FUNGIBLE_UNIQUE: Single NFT transfer")
     final Stream<DynamicTest> nftUniqueSingleNft() {
         return hapiTest(
@@ -184,7 +186,7 @@ public class CryptoTransferSimpleFeesSuite {
                 validateChargedUsd("nftSingleTxn", NFT_BASE_FEE));
     }
 
-    @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+    @HapiTest
     @DisplayName("TOKEN_NON_FUNGIBLE_UNIQUE: Multiple NFTs same collection")
     final Stream<DynamicTest> nftUniqueMultipleSameCollection() {
         return hapiTest(
@@ -208,7 +210,7 @@ public class CryptoTransferSimpleFeesSuite {
                 validateChargedUsd("nftMultiSameTxn", NFT_BASE_FEE + 2 * ADDITIONAL_NFT_SERIAL_FEE));
     }
 
-    @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+    @HapiTest
     @DisplayName("TOKEN_NON_FUNGIBLE_UNIQUE: NFTs from different collections")
     final Stream<DynamicTest> nftUniqueDifferentCollections() {
         return hapiTest(
@@ -239,7 +241,7 @@ public class CryptoTransferSimpleFeesSuite {
                 validateChargedUsd("nftDiffCollectionsTxn", NFT_BASE_FEE + ADDITIONAL_NFT_SERIAL_FEE));
     }
 
-    @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+    @HapiTest
     @DisplayName("TOKEN_NON_FUNGIBLE_UNIQUE: NFT + HBAR mixed transfer")
     final Stream<DynamicTest> nftUniqueWithHbar() {
         return hapiTest(
@@ -263,7 +265,7 @@ public class CryptoTransferSimpleFeesSuite {
                 validateChargedUsd("nftHbarTxn", NFT_BASE_FEE));
     }
 
-    @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+    @HapiTest
     @DisplayName("TOKEN_FUNGIBLE_COMMON_WITH_CUSTOM_FEES: Fungible with fixed HBAR fee")
     final Stream<DynamicTest> fungibleWithCustomFeesFixedHbar() {
         return hapiTest(
@@ -285,7 +287,7 @@ public class CryptoTransferSimpleFeesSuite {
                 validateChargedUsd("fungibleCustomFeeTxn", FUNGIBLE_TOKEN_BASE_FEE + CUSTOM_FEE_TOKEN_FEE));
     }
 
-    @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+    @HapiTest
     @DisplayName("TOKEN_NON_FUNGIBLE_UNIQUE_WITH_CUSTOM_FEES: NFT with royalty fee")
     final Stream<DynamicTest> nftWithCustomFeesRoyalty() {
         return hapiTest(
@@ -309,7 +311,7 @@ public class CryptoTransferSimpleFeesSuite {
                 validateChargedUsd("nftCustomFeeTxn", NFT_BASE_FEE + CUSTOM_FEE_TOKEN_FEE));
     }
 
-    @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+    @HapiTest
     @DisplayName("CUSTOM: Mixed standard + custom fee tokens")
     final Stream<DynamicTest> customFeeMixedStandardAndCustom() {
         return hapiTest(
@@ -340,7 +342,7 @@ public class CryptoTransferSimpleFeesSuite {
                         FUNGIBLE_TOKEN_BASE_FEE + CUSTOM_FEE_TOKEN_FEE + ADDITIONAL_TOKEN_FEE));
     }
 
-    @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+    @HapiTest
     @DisplayName("CUSTOM: Multiple custom fee tokens")
     final Stream<DynamicTest> customFeeMultipleCustomFeeTokens() {
         return hapiTest(
@@ -371,7 +373,7 @@ public class CryptoTransferSimpleFeesSuite {
                         "multipleCustomFeeTxn", FUNGIBLE_TOKEN_BASE_FEE + CUSTOM_FEE_TOKEN_FEE + ADDITIONAL_TOKEN_FEE));
     }
 
-    @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+    @HapiTest
     @DisplayName("CUSTOM: Custom fee fungible + custom fee NFT")
     final Stream<DynamicTest> customFeeMultipleFungibleAndNft() {
         return hapiTest(
@@ -403,7 +405,7 @@ public class CryptoTransferSimpleFeesSuite {
                 validateChargedUsd("customFungibleNftTxn", FUNGIBLE_TOKEN_BASE_FEE + CUSTOM_FEE_TOKEN_FEE));
     }
 
-    @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+    @HapiTest
     @DisplayName("BOUNDARY: Self-transfer (1 account)")
     final Stream<DynamicTest> accountBoundarySelfTransfer() {
         return hapiTest(
@@ -416,7 +418,7 @@ public class CryptoTransferSimpleFeesSuite {
                 validateChargedUsd("selfTransferTxn", HBAR_TRANSFER_BASE_FEE));
     }
 
-    @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+    @HapiTest
     @DisplayName("BOUNDARY: Three accounts (1 over threshold)")
     final Stream<DynamicTest> accountBoundaryThreeAccounts() {
         return hapiTest(
@@ -430,10 +432,10 @@ public class CryptoTransferSimpleFeesSuite {
                         .signedBy(PAYER)
                         .fee(ONE_HBAR)
                         .via("threeAccountsTxn"),
-                validateChargedUsd("threeAccountsTxn", HBAR_TRANSFER_BASE_FEE));
+                validateChargedUsd("threeAccountsTxn", HBAR_TRANSFER_BASE_FEE + ADDITIONAL_ACCOUNT_FEE));
     }
 
-    @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+    @HapiTest
     @DisplayName("COUNTING: Fungible token with multiple recipients counts as 1")
     final Stream<DynamicTest> fungibleCountingMultipleRecipients() {
         return hapiTest(
@@ -457,10 +459,10 @@ public class CryptoTransferSimpleFeesSuite {
                         .signedBy(PAYER)
                         .fee(ONE_HBAR)
                         .via("fungibleMultiRecipientTxn"),
-                validateChargedUsd("fungibleMultiRecipientTxn", FUNGIBLE_TOKEN_BASE_FEE));
+                validateChargedUsd("fungibleMultiRecipientTxn", FUNGIBLE_TOKEN_BASE_FEE + 2 * ADDITIONAL_ACCOUNT_FEE));
     }
 
-    @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+    @HapiTest
     @DisplayName("COUNTING: Large NFT batch (10 serials)")
     final Stream<DynamicTest> nftCountingLargeCollection() {
         return hapiTest(
@@ -495,7 +497,7 @@ public class CryptoTransferSimpleFeesSuite {
                 validateChargedUsd("nftLargeBatchTxn", NFT_BASE_FEE + 9 * ADDITIONAL_NFT_SERIAL_FEE));
     }
 
-    @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+    @HapiTest
     @DisplayName("COMPLEX: HBAR + fungible + NFT in one transaction")
     final Stream<DynamicTest> complexMixedAllTypes() {
         return hapiTest(
@@ -525,7 +527,7 @@ public class CryptoTransferSimpleFeesSuite {
                 validateChargedUsd("complexAllTypesTxn", FUNGIBLE_TOKEN_BASE_FEE));
     }
 
-    @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+    @HapiTest
     @DisplayName("COMPLEX: Multiple fungible + multiple NFT")
     final Stream<DynamicTest> complexMultipleTokensAndNfts() {
         return hapiTest(
@@ -570,7 +572,7 @@ public class CryptoTransferSimpleFeesSuite {
                         FUNGIBLE_TOKEN_BASE_FEE + ADDITIONAL_TOKEN_FEE + ADDITIONAL_NFT_SERIAL_FEE));
     }
 
-    @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+    @HapiTest
     @DisplayName("COMPLEX: Maximum complexity - all token types")
     final Stream<DynamicTest> complexMaximumComplexity() {
         return hapiTest(
