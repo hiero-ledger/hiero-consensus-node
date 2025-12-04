@@ -23,6 +23,7 @@ module org.hiero.metrics.core {
     requires jdk.management;
     requires org.apache.logging.log4j;
     requires static transitive com.github.spotbugs.annotations;
+    requires static transitive com.google.auto.service;
 
     provides org.hiero.metrics.api.core.MetricsRegistrationProvider with
             org.hiero.metrics.internal.JvmMetricsRegistration;

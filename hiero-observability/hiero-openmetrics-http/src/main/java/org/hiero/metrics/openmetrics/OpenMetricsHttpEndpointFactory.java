@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.metrics.openmetrics;
 
+import com.google.auto.service.AutoService;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -14,6 +15,7 @@ import org.hiero.metrics.openmetrics.config.OpenMetricsHttpEndpointConfig;
  * Implementation of {@link MetricsExporterFactory} for creating OpenMetrics HTTP endpoint exporters.
  * Uses {@link OpenMetricsHttpEndpointConfig} for configuration.
  */
+@AutoService(MetricsExporterFactory.class)
 public final class OpenMetricsHttpEndpointFactory implements MetricsExporterFactory {
 
     @NonNull
@@ -34,5 +36,10 @@ public final class OpenMetricsHttpEndpointFactory implements MetricsExporterFact
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
+    }
+
+    @Override
+    public String toString() {
+        return name();
     }
 }

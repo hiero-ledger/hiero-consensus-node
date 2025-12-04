@@ -9,6 +9,7 @@ module org.hiero.metrics.openmetrics.http {
     requires jdk.httpserver;
     requires org.apache.logging.log4j;
     requires static transitive com.github.spotbugs.annotations;
+    requires static transitive com.google.auto.service;
 
     provides org.hiero.metrics.api.export.MetricsExporterFactory with
             org.hiero.metrics.openmetrics.OpenMetricsHttpEndpointFactory;
