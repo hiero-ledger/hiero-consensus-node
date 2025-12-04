@@ -154,6 +154,7 @@ public class ReconnectController implements Runnable {
                 platformCoordinator.submitStatusAction(new FallenBehindAction());
                 logger.info(RECONNECT.getMarker(), "Preparing for reconnect, stopping gossip");
                 platformCoordinator.pauseGossip();
+                fallenBehindMonitor.awaitGossipPaused();
                 logger.info(RECONNECT.getMarker(), "Preparing for reconnect, start clearing queues");
                 platformCoordinator.clear();
                 logger.info(RECONNECT.getMarker(), "Queues have been cleared");

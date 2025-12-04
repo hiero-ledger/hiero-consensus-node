@@ -522,4 +522,44 @@ class FallenBehindMonitorTest {
         monitor.clear();
         assertEquals(0, monitor.reportedSize(), "Reset should clear all reports");
     }
+
+    @Test
+    void testGossipPausedNotificationNormalOrder() throws InterruptedException {
+        final CountDownLatch allStarted = new CountDownLatch(1);
+        final CountDownLatch allCompleted = new CountDownLatch(1);
+
+        new Thread(() -> {
+                    try {
+                        allStarted.countDown();
+                        monitor.awaitGossipPaused();
+                        allCompleted.countDown();
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                    }
+                })
+                .start();
+        allStarted.await();
+        Thread.sleep(100);
+        monitor.notifySyncProtocolPaused();
+        assertTrue(allCompleted.await(2, TimeUnit.SECONDS), "The waiting thread should be notified and complete");
+    }
+
+    @Test
+    void testGossipPausedNotificationReverseOrder() throws InterruptedException {
+        final CountDownLatch allCompleted = new CountDownLatch(1);
+
+        monitor.notifySyncProtocolPaused();
+
+        new Thread(() -> {
+                    try {
+                        monitor.awaitGossipPaused();
+                        allCompleted.countDown();
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                    }
+                })
+                .start();
+
+        assertTrue(allCompleted.await(2, TimeUnit.SECONDS), "The waiting thread should be notified and complete");
+    }
 }
