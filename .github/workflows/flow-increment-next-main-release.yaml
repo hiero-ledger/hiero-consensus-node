@@ -88,7 +88,10 @@ jobs:
 
           # Increment the minor version
           new_version="$(semver bump minor "${base_version}")"
-
+          
+          # Add the -SNAPSHOT suffix back
+          new_version="${new_version}-SNAPSHOT"
+          
           echo "New version: ${new_version}"
           echo "new-version=${new_version}" >> ${GITHUB_OUTPUT}
           printf "New Version: ${new_version}" >> ${GITHUB_STEP_SUMMARY}
