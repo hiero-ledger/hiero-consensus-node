@@ -17,7 +17,7 @@ import com.swirlds.component.framework.wires.output.OutputWire;
 import com.swirlds.platform.components.DefaultEventWindowManager;
 import com.swirlds.platform.components.EventWindowManager;
 import com.swirlds.platform.components.consensus.ConsensusEngine;
-import com.swirlds.platform.components.consensus.ConsensusEngineOutput;
+import org.hiero.consensus.model.hashgraph.ConsensusEngineOutput;
 import com.swirlds.platform.components.consensus.DefaultConsensusEngine;
 import com.swirlds.platform.consensus.ConsensusConfig;
 import com.swirlds.platform.consensus.EventWindowUtils;

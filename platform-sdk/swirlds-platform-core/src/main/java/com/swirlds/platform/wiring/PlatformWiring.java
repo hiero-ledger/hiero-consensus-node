@@ -17,7 +17,7 @@ import com.swirlds.platform.components.EventWindowManager;
 import com.swirlds.platform.components.SavedStateController;
 import com.swirlds.platform.components.appcomm.LatestCompleteStateNotifier;
 import com.swirlds.platform.components.consensus.ConsensusEngine;
-import com.swirlds.platform.components.consensus.ConsensusEngineOutput;
+import org.hiero.consensus.model.hashgraph.ConsensusEngineOutput;
 import com.swirlds.platform.event.branching.BranchDetector;
 import com.swirlds.platform.event.branching.BranchReporter;
 import com.swirlds.platform.event.deduplication.EventDeduplicator;

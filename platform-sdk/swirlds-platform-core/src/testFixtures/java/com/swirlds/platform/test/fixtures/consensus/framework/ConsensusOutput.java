@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures.consensus.framework;
 
-import com.swirlds.platform.components.consensus.ConsensusEngineOutput;
+import org.hiero.consensus.model.hashgraph.ConsensusEngineOutput;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.Comparator;
