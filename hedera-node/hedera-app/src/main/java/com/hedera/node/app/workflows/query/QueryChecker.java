@@ -33,6 +33,7 @@ import com.hedera.node.app.workflows.TransactionChecker;
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
 import com.hedera.node.app.workflows.purechecks.PureChecksContextImpl;
+import com.hedera.node.config.data.FeesConfig;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
@@ -219,8 +220,7 @@ public class QueryChecker {
                 // Signatures aren't applicable to queries
                 -1,
                 dispatcher);
-        // TODO: enable this when crypto transfer fee calculator is enabled
-        if (false) {
+        if (configuration.getConfigData(FeesConfig.class).simpleFeesEnabled()) {
             final var transferFeeResult = requireNonNull(feeManager.getSimpleFeeCalculator())
                     .calculateTxFee(transactionInfo.txBody(), feeContext);
             final var fees = feeResultToFees(transferFeeResult, fromPbj(feeContext.activeRate()));
