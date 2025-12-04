@@ -109,7 +109,6 @@ public class TokenServiceSimpleFeesSuite {
                 1);
     }
 
-
     @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
     @DisplayName("compare create fungible token with custom fees")
     final Stream<DynamicTest> compareCreateFungibleTokenWithCustomFees() {
@@ -139,6 +138,7 @@ public class TokenServiceSimpleFeesSuite {
                 2,
                 1);
     }
+
     @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
     @DisplayName("compare mint common token")
     final Stream<DynamicTest> compareMintCommonToken() {
