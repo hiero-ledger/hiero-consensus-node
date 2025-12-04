@@ -32,6 +32,8 @@ import java.time.Duration;
  * @param maxAllowedSyncLag                   if we are lagging more than this amount of rounds behind rest of the
  *                                            network on average, stop creating events; very large number disables the
  *                                            rule effectively
+ * @param maxOtherParents                     maximum allowed number of other parents; setting of 1 gives old behaviour
+ *                                            of having one self parent and one other parent
  */
 @ConfigData("event.creation")
 public record EventCreationConfig(
@@ -41,4 +43,5 @@ public record EventCreationConfig(
         @ConfigProperty(defaultValue = "10") int tipsetSnapshotHistorySize,
         @ConfigProperty(defaultValue = "1024") int eventIntakeThrottle,
         @ConfigProperty(defaultValue = "1s") Duration maximumPermissibleUnhealthyDuration,
-        @ConfigProperty(defaultValue = "15") int maxAllowedSyncLag) {}
+        @ConfigProperty(defaultValue = "15") int maxAllowedSyncLag,
+        @ConfigProperty(defaultValue = "1") int maxOtherParents) {}

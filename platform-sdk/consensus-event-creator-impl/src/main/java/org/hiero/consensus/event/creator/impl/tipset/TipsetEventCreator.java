@@ -2,10 +2,10 @@
 package org.hiero.consensus.event.creator.impl.tipset;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
-import static org.hiero.consensus.event.creator.impl.tipset.TipsetAdvancementWeight.ZERO_ADVANCEMENT_WEIGHT;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.time.Time;
+import com.swirlds.base.utility.Pair;
 import com.swirlds.common.utility.throttle.RateLimitedLogger;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.logging.legacy.LogMarker;
@@ -16,8 +16,10 @@ import java.security.SecureRandom;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Function;
@@ -53,6 +55,7 @@ public class TipsetEventCreator implements EventCreator {
     private final TipsetWeightCalculator tipsetWeightCalculator;
     private final ChildlessEventTracker childlessOtherEventTracker;
     private final EventTransactionSupplier transactionSupplier;
+    private final int maxOtherParents;
     private EventWindow eventWindow;
     /** The wall-clock time when the event window was last updated */
     private Instant lastReceivedEventWindow;
@@ -147,6 +150,7 @@ public class TipsetEventCreator implements EventCreator {
         eventWindow = EventWindow.getGenesisEventWindow();
         lastReceivedEventWindow = time.now();
         eventHasher = new PbjStreamHasher();
+        maxOtherParents = eventCreationConfig.maxOtherParents();
     }
 
     /**
@@ -229,12 +233,13 @@ public class TipsetEventCreator implements EventCreator {
     }
 
     /**
-     * For simplicity, we will always create an event based only on single self parent; this is a special rare case
-     * and it will unblock the network
+     * For simplicity, we will always create an event based only on single self parent; this is a special rare case and
+     * it will unblock the network
+     *
      * @return new event based only on self parent
      */
     private UnsignedEvent createQuiescenceBreakEvent() {
-        return buildAndProcessEvent(null);
+        return buildAndProcessEvent();
     }
 
     @Nullable
@@ -243,7 +248,7 @@ public class TipsetEventCreator implements EventCreator {
             // Special case: network of size 1.
             // We can always create a new event, no need to run the tipset algorithm.
             // In a network of size one, we create events without other parents.
-            return buildAndProcessEvent(null);
+            return buildAndProcessEvent();
         }
 
         final long selfishness = tipsetWeightCalculator.getMaxSelfishnessScore();
@@ -275,24 +280,28 @@ public class TipsetEventCreator implements EventCreator {
                 new ArrayList<>(childlessOtherEventTracker.getChildlessEvents());
         Collections.shuffle(possibleOtherParents, random);
 
-        PlatformEvent bestOtherParent = null;
-        TipsetAdvancementWeight bestAdvancementWeight = ZERO_ADVANCEMENT_WEIGHT;
-        for (final PlatformEvent otherParent : possibleOtherParents) {
-            final List<EventDescriptorWrapper> parents = new ArrayList<>(2);
-            parents.add(otherParent.getDescriptor());
-            if (lastSelfEvent != null) {
-                parents.add(lastSelfEvent.getDescriptor());
-            }
+        final List<PlatformEvent> bestParents = possibleOtherParents.stream()
+                .map(op -> {
+                    final List<EventDescriptorWrapper> parents = new ArrayList<>(2);
+                    parents.add(op.getDescriptor());
+                    if (lastSelfEvent != null) {
+                        parents.add(lastSelfEvent.getDescriptor());
+                    }
+                    return new Pair<>(op, tipsetWeightCalculator.getTheoreticalAdvancementWeight(parents));
+                })
+                .filter(p -> p.right().isNonZero())
+                .sorted(Comparator.comparing(Pair::right))
+                .map(Pair::left)
+                .toList();
 
-            final TipsetAdvancementWeight advancementWeight =
-                    tipsetWeightCalculator.getTheoreticalAdvancementWeight(parents);
-            if (advancementWeight.isGreaterThan(bestAdvancementWeight)) {
-                bestOtherParent = otherParent;
-                bestAdvancementWeight = advancementWeight;
-            }
+        final List<PlatformEvent> chosenBestParents;
+        if (bestParents.size() > maxOtherParents) {
+            chosenBestParents = bestParents.subList(bestParents.size() - maxOtherParents, bestParents.size());
+        } else {
+            chosenBestParents = bestParents;
         }
 
-        if (bestOtherParent == null) {
+        if (chosenBestParents.isEmpty()) {
             // If there are no available other parents, it is only legal to create a new event if we are
             // creating a genesis event. In order to create a genesis event, we must have never created
             // an event before and the current event window must have never been advanced.
@@ -302,11 +311,14 @@ public class TipsetEventCreator implements EventCreator {
             }
 
             // we are creating a genesis event, so we can use a null other parent
-            return buildAndProcessEvent(null);
+            return buildAndProcessEvent();
         }
 
-        tipsetMetrics.getTipsetParentMetric(bestOtherParent.getCreatorId()).cycle();
-        return buildAndProcessEvent(bestOtherParent);
+        for (final PlatformEvent chosenBestParent : chosenBestParents) {
+            tipsetMetrics.getTipsetParentMetric(chosenBestParent.getCreatorId()).cycle();
+        }
+
+        return buildAndProcessEvent(chosenBestParents.toArray(new PlatformEvent[chosenBestParents.size()]));
     }
 
     /**
@@ -367,31 +379,56 @@ public class TipsetEventCreator implements EventCreator {
             return null;
         }
 
-        // Choose a random ignored node.
-        final int choice = random.nextInt(selfishnessSum);
-        int runningSum = 0;
-        for (int i = 0; i < ignoredNodes.size(); i++) {
-            runningSum += selfishnessScores.get(i);
-            if (choice < runningSum) {
-                final PlatformEvent ignoredNode = ignoredNodes.get(i);
-                tipsetMetrics.getPityParentMetric(ignoredNode.getCreatorId()).cycle();
-                return buildAndProcessEvent(ignoredNode);
+        final List<PlatformEvent> selectedEvents = new ArrayList<>(maxOtherParents);
+
+        // select random parents with weights based on selfishness until we have run out of candidates
+        // or maxOtherParents parents were chosen
+        while (!ignoredNodes.isEmpty() && selectedEvents.size() < maxOtherParents) {
+            // Choose a random ignored node.
+            final int choice = random.nextInt(selfishnessSum);
+            int runningSum = 0;
+            for (int i = 0; i < ignoredNodes.size(); i++) {
+                runningSum += selfishnessScores.get(i);
+                if (choice < runningSum) {
+                    final PlatformEvent ignoredNode = ignoredNodes.get(i);
+                    tipsetMetrics
+                            .getPityParentMetric(ignoredNode.getCreatorId())
+                            .cycle();
+                    selectedEvents.add(ignoredNode);
+
+                    // remove node from list of candidates, so we won't select it again
+                    selfishnessSum -= selfishnessScores.get(i);
+                    ignoredNodes.remove(i);
+                    selfishnessScores.remove(i);
+                    break;
+                }
             }
         }
+        if (selectedEvents.isEmpty()) {
+            // This should be impossible.
+            throw new IllegalStateException("Failed to find an other parent");
+        }
 
-        // This should be impossible.
-        throw new IllegalStateException("Failed to find an other parent");
+        return buildAndProcessEvent(selectedEvents.toArray(new PlatformEvent[selectedEvents.size()]));
     }
 
     /**
-     * Given an other parent, build the next self event and process it.
+     * Given the list of other parents, build the next self event and process it.
      *
-     * @param otherParent the other parent, or null if there is no other parent
+     * @param otherParents the other parents, or zero length arglist if there is no other parents
      * @return the new event
      */
-    private UnsignedEvent buildAndProcessEvent(@Nullable final PlatformEvent otherParent) {
-        final EventDescriptorWrapper otherParentDescriptor = otherParent == null ? null : otherParent.getDescriptor();
-        final UnsignedEvent event = assembleEventObject(otherParent);
+    private UnsignedEvent buildAndProcessEvent(@NonNull final PlatformEvent... otherParents) {
+        final List<EventDescriptorWrapper> otherParentDescriptors;
+
+        if (otherParents.length == 0) {
+            otherParentDescriptors = List.of();
+        } else {
+            otherParentDescriptors = Arrays.stream(otherParents)
+                    .map(PlatformEvent::getDescriptor)
+                    .toList();
+        }
+        final UnsignedEvent event = assembleEventObject(otherParents);
 
         tipsetTracker.addSelfEvent(event.getDescriptor(), event.getMetadata().getAllParents());
         final TipsetAdvancementWeight advancementWeight =
@@ -400,9 +437,7 @@ public class TipsetEventCreator implements EventCreator {
                 / (double) tipsetWeightCalculator.getMaximumPossibleAdvancementWeight();
         tipsetMetrics.getTipsetAdvancementMetric().update(weightRatio);
 
-        if (otherParent != null) {
-            childlessOtherEventTracker.registerSelfEventParents(List.of(otherParentDescriptor));
-        }
+        childlessOtherEventTracker.registerSelfEventParents(otherParentDescriptors);
 
         return event;
     }
@@ -410,21 +445,23 @@ public class TipsetEventCreator implements EventCreator {
     /**
      * Given the parents, assemble the event object.
      *
-     * @param otherParent the other parent
+     * @param otherParents list of the other parents
      * @return the event
      */
     @NonNull
-    private UnsignedEvent assembleEventObject(@Nullable final PlatformEvent otherParent) {
+    private UnsignedEvent assembleEventObject(@Nullable final PlatformEvent... otherParents) {
         final List<TimestampedTransaction> transactions = transactionSupplier.getTransactionsForEvent();
-        final List<EventDescriptorWrapper> allParents = Stream.of(lastSelfEvent, otherParent)
+        final List<PlatformEvent> allParents = Stream.concat(
+                        Stream.of(lastSelfEvent), Stream.of(otherParents != null ? otherParents : new PlatformEvent[0]))
                 .filter(Objects::nonNull)
-                .map(PlatformEvent::getDescriptor)
                 .toList();
+        final List<EventDescriptorWrapper> allParentDescriptors =
+                allParents.stream().map(PlatformEvent::getDescriptor).toList();
         final UnsignedEvent event = new UnsignedEvent(
                 selfId,
-                allParents,
+                allParentDescriptors,
                 eventWindow.newEventBirthRound(),
-                calculateNewEventCreationTime(lastSelfEvent, otherParent, transactions),
+                calculateNewEventCreationTime(lastSelfEvent, allParents, transactions),
                 transactions.stream().map(TimestampedTransaction::transaction).toList(),
                 random.nextLong(0, roster.rosterEntries().size() + 1));
         eventHasher.hashUnsignedEvent(event);
@@ -482,19 +519,17 @@ public class TipsetEventCreator implements EventCreator {
      * parent to child.
      *
      * @param selfParent   the self parent
-     * @param otherParent  the other parent
+     * @param allParents   list of all the parents, including self parent in the first position
      * @param transactions the transactions to be included in the new event
      * @return the creation time for the new event
      */
     @NonNull
     private Instant calculateNewEventCreationTime(
             @Nullable final PlatformEvent selfParent,
-            @Nullable final PlatformEvent otherParent,
+            @NonNull final List<PlatformEvent> allParents,
             @NonNull final List<TimestampedTransaction> transactions) {
         final Instant maxReceivedTime = Stream.of(
-                        Stream.of(selfParent, otherParent)
-                                .filter(Objects::nonNull)
-                                .map(PlatformEvent::getTimeReceived),
+                        allParents.stream().map(PlatformEvent::getTimeReceived),
                         transactions.stream().map(TimestampedTransaction::receivedTime),
                         Stream.of(lastReceivedEventWindow))
                 // flatten the stream of streams
