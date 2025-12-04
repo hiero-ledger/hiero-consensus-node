@@ -106,7 +106,7 @@ public class TokenServiceFeeCalculatorTests {
                 .build();
         final var result = feeCalculator.calculateTxFee(body, calculatorState);
         assertNotNull(result);
-        assertEquals(TOKEN_CREATE_BASE_FEE + COMMON_TOKEN_FEE, result.total());
+        assertEquals(TOKEN_CREATE_BASE_FEE, result.total());
     }
 
     @Test
@@ -118,7 +118,7 @@ public class TokenServiceFeeCalculatorTests {
         final var result = feeCalculator.calculateTxFee(txBody2, calculatorState);
 
         assertNotNull(result);
-        assertEquals(TOKEN_CREATE_BASE_FEE + UNIQUE_TOKEN_FEE, result.total());
+        assertEquals(TOKEN_CREATE_BASE_FEE, result.total());
     }
 
     @Test
@@ -242,8 +242,7 @@ public class TokenServiceFeeCalculatorTests {
                         makeExtraDef(Extra.BYTES, 1),
                         makeExtraDef(Extra.KEYS, 2),
                         makeExtraDef(Extra.SIGNATURES, 3),
-                        makeExtraDef(Extra.TOKEN_CREATE_FUNGIBLE, COMMON_TOKEN_FEE),
-                        makeExtraDef(Extra.TOKEN_CREATE_NFT, UNIQUE_TOKEN_FEE),
+
                         makeExtraDef(Extra.TOKEN_MINT_FUNGIBLE, COMMON_TOKEN_FEE),
                         makeExtraDef(Extra.TOKEN_MINT_NFT, UNIQUE_TOKEN_FEE),
                         makeExtraDef(Extra.CUSTOM_FEE, 500))
@@ -253,9 +252,8 @@ public class TokenServiceFeeCalculatorTests {
                         makeServiceFee(
                                 TOKEN_CREATE,
                                 TOKEN_CREATE_BASE_FEE,
-                                makeExtraIncluded(Extra.KEYS, 1),
-                                makeExtraIncluded(Extra.TOKEN_CREATE_FUNGIBLE, 0),
-                                makeExtraIncluded(Extra.TOKEN_CREATE_NFT, 0)),
+                                makeExtraIncluded(Extra.KEYS, 1)
+                        ),
                         makeServiceFee(
                                 TOKEN_MINT,
                                 TOKEN_MINT_BASE_FEE,
