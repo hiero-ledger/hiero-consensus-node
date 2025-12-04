@@ -26,12 +26,14 @@ import com.hedera.services.bdd.spec.SpecOperation;
 import com.hedera.services.bdd.spec.assertions.ContractFnResultAsserts;
 import com.hedera.services.bdd.spec.dsl.annotations.Contract;
 import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
+import com.hedera.services.bdd.spec.utilops.UtilVerbs;
 import java.math.BigInteger;
 import java.time.Instant;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Order;
@@ -57,6 +59,13 @@ public class RepeatableHip1215Tests {
                 "true",
                 "contracts.maxGasPerSecBackend",
                 "" + SCHEDULABLE_GAS_LIMIT));
+    }
+
+    @AfterAll
+    public static void shutdown(final TestLifecycle lifecycle) {
+        lifecycle.doAdhoc(
+                UtilVerbs.restoreDefault("contracts.systemContract.scheduleService.scheduleCall.enabled"),
+                UtilVerbs.restoreDefault("contracts.maxGasPerSecBackend"));
     }
 
     @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
