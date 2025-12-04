@@ -13,6 +13,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenFreeze;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenPause;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenUnfreeze;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenUnpause;
+import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fixedHbarFee;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.compareSimpleToOld;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_BILLION_HBARS;
@@ -45,6 +46,7 @@ public class TokenServiceSimpleFeesSuite {
     private static final String PAYER = "payer";
     private static final String ADMIN = "admin";
     private static final String OTHER = "other";
+    private static final String HBAR_COLLECTOR = "hbarCollector";
 
     @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
     @DisplayName("compare create fungible token")
@@ -101,12 +103,42 @@ public class TokenServiceSimpleFeesSuite {
                 // fungible = 19999000000,
                 // node+network = 1000000
                 // total = 20000000000 = 2.0
+                1,
+                1,
+                1,
+                1);
+    }
+
+
+    @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+    @DisplayName("compare create fungible token with custom fees")
+    final Stream<DynamicTest> compareCreateFungibleTokenWithCustomFees() {
+        return compareSimpleToOld(
+                () -> Arrays.asList(
+                        newKeyNamed(SUPPLY_KEY),
+                        cryptoCreate(ADMIN).balance(ONE_BILLION_HBARS),
+                        cryptoCreate(PAYER).balance(ONE_BILLION_HBARS),
+                        cryptoCreate(HBAR_COLLECTOR).balance(0L),
+                        tokenCreate("commonCustomFees")
+                                .blankMemo()
+                                .payingWith(PAYER)
+                                .fee(ONE_HUNDRED_HBARS)
+                                .treasury(ADMIN)
+                                .tokenType(NON_FUNGIBLE_UNIQUE)
+                                .initialSupply(0L)
+                                .supplyKey(SUPPLY_KEY)
+                                .autoRenewAccount(ADMIN)
+                                .autoRenewPeriod(THREE_MONTHS_IN_SECONDS)
+                                .withCustom(fixedHbarFee(1L, HBAR_COLLECTOR))
+                                .logged()
+                                .hasKnownStatus(SUCCESS)
+                                .via("create-token-txn")),
+                "create-token-txn",
                 2,
                 1,
                 2,
                 1);
     }
-
     @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
     @DisplayName("compare mint common token")
     final Stream<DynamicTest> compareMintCommonToken() {
