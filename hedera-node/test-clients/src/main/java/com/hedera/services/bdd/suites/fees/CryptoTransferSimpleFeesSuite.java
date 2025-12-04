@@ -108,6 +108,7 @@ public class CryptoTransferSimpleFeesSuite {
                         .tokenType(FUNGIBLE_COMMON)
                         .initialSupply(1000L)
                         .treasury(PAYER)
+                        .fee(ONE_HUNDRED_HBARS)
                         .payingWith(PAYER),
                 tokenAssociate(RECEIVER, FUNGIBLE_TOKEN),
                 cryptoTransfer(moving(100, FUNGIBLE_TOKEN).between(PAYER, RECEIVER))
@@ -128,11 +129,13 @@ public class CryptoTransferSimpleFeesSuite {
                         .tokenType(FUNGIBLE_COMMON)
                         .initialSupply(1000L)
                         .treasury(PAYER)
+                        .fee(ONE_HUNDRED_HBARS)
                         .payingWith(PAYER),
                 tokenCreate(FUNGIBLE_TOKEN_2)
                         .tokenType(FUNGIBLE_COMMON)
                         .initialSupply(1000L)
                         .treasury(PAYER)
+                        .fee(ONE_HUNDRED_HBARS)
                         .payingWith(PAYER),
                 tokenAssociate(RECEIVER, FUNGIBLE_TOKEN, FUNGIBLE_TOKEN_2),
                 cryptoTransfer(
@@ -155,6 +158,7 @@ public class CryptoTransferSimpleFeesSuite {
                         .tokenType(FUNGIBLE_COMMON)
                         .initialSupply(1000L)
                         .treasury(PAYER)
+                        .fee(ONE_HUNDRED_HBARS)
                         .payingWith(PAYER),
                 tokenAssociate(RECEIVER, FUNGIBLE_TOKEN),
                 cryptoTransfer(
@@ -178,6 +182,7 @@ public class CryptoTransferSimpleFeesSuite {
                         .initialSupply(0L)
                         .supplyKey(PAYER)
                         .treasury(PAYER)
+                        .fee(ONE_HUNDRED_HBARS)
                         .payingWith(PAYER),
                 mintToken(NFT_TOKEN, List.of(metadata(1))),
                 tokenAssociate(RECEIVER, NFT_TOKEN),
@@ -200,6 +205,7 @@ public class CryptoTransferSimpleFeesSuite {
                         .initialSupply(0L)
                         .supplyKey(PAYER)
                         .treasury(PAYER)
+                        .fee(ONE_HUNDRED_HBARS)
                         .payingWith(PAYER),
                 mintToken(
                         NFT_TOKEN,
@@ -224,12 +230,14 @@ public class CryptoTransferSimpleFeesSuite {
                         .initialSupply(0L)
                         .supplyKey(PAYER)
                         .treasury(PAYER)
+                        .fee(ONE_HUNDRED_HBARS)
                         .payingWith(PAYER),
                 tokenCreate(NFT_TOKEN_2)
                         .tokenType(NON_FUNGIBLE_UNIQUE)
                         .initialSupply(0L)
                         .supplyKey(PAYER)
                         .treasury(PAYER)
+                        .fee(ONE_HUNDRED_HBARS)
                         .payingWith(PAYER),
                 mintToken(NFT_TOKEN, List.of(metadata(1))),
                 mintToken(NFT_TOKEN_2, List.of(metadata(2))),
@@ -255,6 +263,7 @@ public class CryptoTransferSimpleFeesSuite {
                         .initialSupply(0L)
                         .supplyKey(PAYER)
                         .treasury(PAYER)
+                        .fee(ONE_HUNDRED_HBARS)
                         .payingWith(PAYER),
                 mintToken(NFT_TOKEN, List.of(metadata(1))),
                 tokenAssociate(RECEIVER, NFT_TOKEN),
@@ -280,6 +289,7 @@ public class CryptoTransferSimpleFeesSuite {
                         .initialSupply(1000L)
                         .withCustom(fixedHbarFee(ONE_HBAR, FEE_COLLECTOR))
                         .treasury(PAYER)
+                        .fee(ONE_HUNDRED_HBARS)
                         .payingWith(PAYER),
                 tokenAssociate(RECEIVER, FUNGIBLE_TOKEN_WITH_FEES),
                 cryptoTransfer(moving(100, FUNGIBLE_TOKEN_WITH_FEES).between(PAYER, RECEIVER))
@@ -303,6 +313,7 @@ public class CryptoTransferSimpleFeesSuite {
                         .supplyKey(PAYER)
                         .withCustom(royaltyFeeNoFallback(1, 10, FEE_COLLECTOR))
                         .treasury(PAYER)
+                        .fee(ONE_HUNDRED_HBARS)
                         .payingWith(PAYER),
                 mintToken(NFT_TOKEN_WITH_FEES, List.of(metadata(1))),
                 tokenAssociate(RECEIVER, NFT_TOKEN_WITH_FEES),
@@ -325,12 +336,14 @@ public class CryptoTransferSimpleFeesSuite {
                         .tokenType(FUNGIBLE_COMMON)
                         .initialSupply(1000L)
                         .treasury(PAYER)
+                        .fee(ONE_HUNDRED_HBARS)
                         .payingWith(PAYER),
                 tokenCreate(FUNGIBLE_TOKEN_WITH_FEES)
                         .tokenType(FUNGIBLE_COMMON)
                         .initialSupply(1000L)
                         .withCustom(fixedHbarFee(ONE_HBAR, FEE_COLLECTOR))
                         .treasury(PAYER)
+                        .fee(ONE_HUNDRED_HBARS)
                         .payingWith(PAYER),
                 tokenAssociate(RECEIVER, FUNGIBLE_TOKEN, FUNGIBLE_TOKEN_WITH_FEES),
                 cryptoTransfer(
@@ -357,12 +370,14 @@ public class CryptoTransferSimpleFeesSuite {
                         .initialSupply(1000L)
                         .withCustom(fixedHbarFee(ONE_HBAR, FEE_COLLECTOR))
                         .treasury(PAYER)
+                        .fee(ONE_HUNDRED_HBARS)
                         .payingWith(PAYER),
                 tokenCreate(FUNGIBLE_TOKEN_2)
                         .tokenType(FUNGIBLE_COMMON)
                         .initialSupply(1000L)
                         .withCustom(fixedHbarFee(ONE_HBAR / 2, FEE_COLLECTOR))
                         .treasury(PAYER)
+                        .fee(ONE_HUNDRED_HBARS)
                         .payingWith(PAYER),
                 tokenAssociate(RECEIVER, FUNGIBLE_TOKEN_WITH_FEES, FUNGIBLE_TOKEN_2),
                 cryptoTransfer(
@@ -388,6 +403,7 @@ public class CryptoTransferSimpleFeesSuite {
                         .initialSupply(1000L)
                         .withCustom(fixedHbarFee(ONE_HBAR, FEE_COLLECTOR))
                         .treasury(PAYER)
+                        .fee(ONE_HUNDRED_HBARS)
                         .payingWith(PAYER),
                 tokenCreate(NFT_TOKEN_WITH_FEES)
                         .tokenType(NON_FUNGIBLE_UNIQUE)
@@ -395,6 +411,7 @@ public class CryptoTransferSimpleFeesSuite {
                         .supplyKey(PAYER)
                         .withCustom(royaltyFeeNoFallback(1, 10, FEE_COLLECTOR))
                         .treasury(PAYER)
+                        .fee(ONE_HUNDRED_HBARS)
                         .payingWith(PAYER),
                 mintToken(NFT_TOKEN_WITH_FEES, List.of(metadata(1))),
                 tokenAssociate(RECEIVER, FUNGIBLE_TOKEN_WITH_FEES, NFT_TOKEN_WITH_FEES),
@@ -450,6 +467,7 @@ public class CryptoTransferSimpleFeesSuite {
                         .tokenType(FUNGIBLE_COMMON)
                         .initialSupply(1000L)
                         .treasury(PAYER)
+                        .fee(ONE_HUNDRED_HBARS)
                         .payingWith(PAYER),
                 tokenAssociate(RECEIVER, FUNGIBLE_TOKEN),
                 tokenAssociate(RECEIVER2, FUNGIBLE_TOKEN),
@@ -476,6 +494,7 @@ public class CryptoTransferSimpleFeesSuite {
                         .initialSupply(0L)
                         .supplyKey(PAYER)
                         .treasury(PAYER)
+                        .fee(ONE_HUNDRED_HBARS)
                         .payingWith(PAYER),
                 mintToken(
                         NFT_TOKEN,
@@ -510,12 +529,14 @@ public class CryptoTransferSimpleFeesSuite {
                         .tokenType(FUNGIBLE_COMMON)
                         .initialSupply(1000L)
                         .treasury(PAYER)
+                        .fee(ONE_HUNDRED_HBARS)
                         .payingWith(PAYER),
                 tokenCreate(NFT_TOKEN)
                         .tokenType(NON_FUNGIBLE_UNIQUE)
                         .initialSupply(0L)
                         .supplyKey(PAYER)
                         .treasury(PAYER)
+                        .fee(ONE_HUNDRED_HBARS)
                         .payingWith(PAYER),
                 mintToken(NFT_TOKEN, List.of(metadata(1))),
                 tokenAssociate(RECEIVER, FUNGIBLE_TOKEN, NFT_TOKEN),
@@ -540,23 +561,27 @@ public class CryptoTransferSimpleFeesSuite {
                         .tokenType(FUNGIBLE_COMMON)
                         .initialSupply(1000L)
                         .treasury(PAYER)
+                        .fee(ONE_HUNDRED_HBARS)
                         .payingWith(PAYER),
                 tokenCreate(FUNGIBLE_TOKEN_2)
                         .tokenType(FUNGIBLE_COMMON)
                         .initialSupply(1000L)
                         .treasury(PAYER)
+                        .fee(ONE_HUNDRED_HBARS)
                         .payingWith(PAYER),
                 tokenCreate(NFT_TOKEN)
                         .tokenType(NON_FUNGIBLE_UNIQUE)
                         .initialSupply(0L)
                         .supplyKey(PAYER)
                         .treasury(PAYER)
+                        .fee(ONE_HUNDRED_HBARS)
                         .payingWith(PAYER),
                 tokenCreate(NFT_TOKEN_2)
                         .tokenType(NON_FUNGIBLE_UNIQUE)
                         .initialSupply(0L)
                         .supplyKey(PAYER)
                         .treasury(PAYER)
+                        .fee(ONE_HUNDRED_HBARS)
                         .payingWith(PAYER),
                 mintToken(NFT_TOKEN, List.of(metadata(1))),
                 mintToken(NFT_TOKEN_2, List.of(metadata(2))),
@@ -586,23 +611,27 @@ public class CryptoTransferSimpleFeesSuite {
                         .tokenType(FUNGIBLE_COMMON)
                         .initialSupply(1000L)
                         .treasury(PAYER)
+                        .fee(ONE_HUNDRED_HBARS)
                         .payingWith(PAYER),
                 tokenCreate(FUNGIBLE_TOKEN_2)
                         .tokenType(FUNGIBLE_COMMON)
                         .initialSupply(1000L)
                         .treasury(PAYER)
+                        .fee(ONE_HUNDRED_HBARS)
                         .payingWith(PAYER),
                 tokenCreate(FUNGIBLE_TOKEN_WITH_FEES)
                         .tokenType(FUNGIBLE_COMMON)
                         .initialSupply(1000L)
                         .withCustom(fixedHbarFee(ONE_HBAR, FEE_COLLECTOR))
                         .treasury(PAYER)
+                        .fee(ONE_HUNDRED_HBARS)
                         .payingWith(PAYER),
                 tokenCreate(NFT_TOKEN)
                         .tokenType(NON_FUNGIBLE_UNIQUE)
                         .initialSupply(0L)
                         .supplyKey(PAYER)
                         .treasury(PAYER)
+                        .fee(ONE_HUNDRED_HBARS)
                         .payingWith(PAYER),
                 tokenCreate(NFT_TOKEN_WITH_FEES)
                         .tokenType(NON_FUNGIBLE_UNIQUE)
@@ -610,6 +639,7 @@ public class CryptoTransferSimpleFeesSuite {
                         .supplyKey(PAYER)
                         .withCustom(royaltyFeeNoFallback(1, 10, FEE_COLLECTOR))
                         .treasury(PAYER)
+                        .fee(ONE_HUNDRED_HBARS)
                         .payingWith(PAYER),
                 mintToken(NFT_TOKEN, List.of(metadata(1), metadata(2))),
                 mintToken(NFT_TOKEN_WITH_FEES, List.of(metadata(3))),
@@ -668,6 +698,7 @@ public class CryptoTransferSimpleFeesSuite {
                         .tokenType(FUNGIBLE_COMMON)
                         .initialSupply(1000L)
                         .treasury(PAYER)
+                        .fee(ONE_HUNDRED_HBARS)
                         .payingWith(PAYER),
                 tokenAssociate(RECEIVER, FUNGIBLE_TOKEN),
                 cryptoTransfer(moving(100, FUNGIBLE_TOKEN).between(PAYER, RECEIVER))
@@ -693,6 +724,7 @@ public class CryptoTransferSimpleFeesSuite {
                         .initialSupply(0L)
                         .supplyKey(PAYER)
                         .treasury(PAYER)
+                        .fee(ONE_HUNDRED_HBARS)
                         .payingWith(PAYER),
                 mintToken(NFT_TOKEN, List.of(metadata(1))),
                 tokenAssociate(RECEIVER, NFT_TOKEN),
@@ -760,6 +792,7 @@ public class CryptoTransferSimpleFeesSuite {
                         .initialSupply(1000L)
                         .withCustom(fixedHbarFee(ONE_HBAR, FEE_COLLECTOR))
                         .treasury(PAYER)
+                        .fee(ONE_HUNDRED_HBARS)
                         .payingWith(PAYER),
                 tokenCreate(NFT_TOKEN_WITH_FEES)
                         .tokenType(NON_FUNGIBLE_UNIQUE)
