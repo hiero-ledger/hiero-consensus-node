@@ -2,8 +2,6 @@
 package com.hedera.services.bdd.suites.fees;
 
 import static com.google.protobuf.ByteString.copyFromUtf8;
-
-import com.google.protobuf.ByteString;
 import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SIMPLE_FEES;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
@@ -27,6 +25,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.THOUSAND_HBAR;
 import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
 import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
 
+import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
@@ -65,6 +64,7 @@ public class CryptoTransferSimpleFeesSuite {
     private static final String NFT_TOKEN_2 = "nftToken2";
     private static final String NFT_TOKEN_WITH_FEES = "nftTokenWithFees";
     private static final String HOOK_CONTRACT = "TruePreHook";
+
     @HapiTest
     @DisplayName("DEFAULT: Simple 2-account HBAR transfer")
     final Stream<DynamicTest> defaultSimpleHbarTransfer() {
@@ -207,9 +207,7 @@ public class CryptoTransferSimpleFeesSuite {
                         .treasury(PAYER)
                         .fee(ONE_HUNDRED_HBARS)
                         .payingWith(PAYER),
-                mintToken(
-                        NFT_TOKEN,
-                        List.of(metadata(1), metadata(2), metadata(3))),
+                mintToken(NFT_TOKEN, List.of(metadata(1), metadata(2), metadata(3))),
                 tokenAssociate(RECEIVER, NFT_TOKEN),
                 cryptoTransfer(movingUnique(NFT_TOKEN, 1L, 2L, 3L).between(PAYER, RECEIVER))
                         .payingWith(PAYER)
@@ -802,8 +800,7 @@ public class CryptoTransferSimpleFeesSuite {
                         .treasury(PAYER)
                         .fee(ONE_HUNDRED_HBARS)
                         .payingWith(PAYER),
-                mintToken(NFT_TOKEN_WITH_FEES, List.of(metadata(1)))
-                        .fee(ONE_HUNDRED_HBARS),
+                mintToken(NFT_TOKEN_WITH_FEES, List.of(metadata(1))).fee(ONE_HUNDRED_HBARS),
                 tokenAssociate(RECEIVER, FUNGIBLE_TOKEN_WITH_FEES, NFT_TOKEN_WITH_FEES)
                         .fee(ONE_HUNDRED_HBARS),
                 cryptoTransfer(
