@@ -3,7 +3,9 @@ package com.hedera.node.app.service.contract.impl.bonneville;
 
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.streams.SidecarType;
+import com.hedera.node.app.service.contract.impl.exec.AddressChecks;
 import com.hedera.node.app.service.contract.impl.exec.FeatureFlags;
+import com.hedera.node.app.service.contract.impl.exec.operations.CustomExtCodeSizeOperation;
 import com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils;
 import com.hedera.node.app.service.contract.impl.infra.StorageAccessTracker;
 import com.hedera.node.app.service.contract.impl.utils.ConversionUtils;
@@ -36,6 +38,7 @@ import org.jetbrains.annotations.NotNull;
 
 public class BonnevilleEVM extends EVM {
     private final FeatureFlags _flags;
+    private final AddressChecks _adrChk;
     public BonnevilleEVM(
             @NonNull final OperationRegistry operations,
             @NonNull final GasCalculator gasCalc,
@@ -44,21 +47,29 @@ public class BonnevilleEVM extends EVM {
             @NonNull final FeatureFlags featureFlags) {
         super(operations, gasCalc, evmConfiguration, evmSpecVersion );
         _flags = featureFlags;
+        CustomExtCodeSizeOperation cust = (CustomExtCodeSizeOperation)operations.get((byte)0x3B);
+        //if( cust.enableEIP3540 )
+        //    throw new TODO();   // Assumed never in customExtCodeSize
+        _adrChk = cust.addressChecks;
     }
 
     @Override
     public void runToHalt(MessageFrame frame, OperationTracer tracing) {
-        new BEVM(getGasCalculator(), frame, _flags).run();
+        new BEVM(getGasCalculator(), frame, _flags, _adrChk).run();
     }
 
 
     // ---------------------
     public static String OPNAME(int op) {
-        if( op < 0x60 ) return OPNAMES[op];
-        if( op < 0x80 ) return "psh"+(op-0x60+1);
-        if( op < 0x90 ) return "dup"+(op-0x80+1);
-        if( op < 0xA0 ) return "swp"+(op-0x90+1);
+        if( op <  0x60 ) return OPNAMES[op];
+        if( op <  0x80 ) return "psh"+(op-0x60+1);
+        if( op <  0x90 ) return "dup"+(op-0x80+1);
+        if( op <  0xA0 ) return "swp"+(op-0x90+1);
+        if( op == 0xA0 ) return "log0";
+        if( op == 0xA1 ) return "log1";
+        if( op == 0xA2 ) return "log2";
         if( op == 0xA3 ) return "log3";
+        if( op == 0xA4 ) return "log4";
         if( op == 0xF3 ) return "ret ";
         if( op == 0xFD ) return "revert ";
         return String.format("%x",op);
@@ -67,7 +78,7 @@ public class BonnevilleEVM extends EVM {
         /* 00 */ "stop", "add ", "mul ", "sub ", "div ", "05  ", "06  ", "07  ", "08  ", "09  ", "exp ", "0B  ", "0C  ", "0D  ", "0E  ", "0F  ",
         /* 10 */ "ult ", "ugt ", "slt ", "sgt ", "eq  ", "eq0 ", "and ", "or  ", "18  ", "not ", "1A  ", "shl ", "shr ", "1D  ", "1E  ", "1F  ",
         /* 20 */ "kecc", "21  ", "22  ", "23  ", "24  ", "25  ", "26  ", "27  ", "28  ", "29  ", "2A  ", "2B  ", "2C  ", "2D  ", "2E  ", "2F  ",
-        /* 30 */ "30  ", "31  ", "32  ", "calr", "cVal", "Load", "Size", "37  ", "cdSz", "Copy", "3A  ", "3B  ", "3C  ", "3D  ", "3E  ", "3F  ",
+        /* 30 */ "30  ", "31  ", "32  ", "calr", "cVal", "Load", "Size", "Data", "cdSz", "Copy", "3A  ", "cExt", "3C  ", "3D  ", "3E  ", "3F  ",
         /* 40 */ "40  ", "41  ", "42  ", "43  ", "44  ", "45  ", "46  ", "47  ", "48  ", "49  ", "4A  ", "4B  ", "4C  ", "4D  ", "4E  ", "4F  ",
         /* 50 */ "pop ", "mld ", "mst ", "53  ", "Csld", "Csst", "jmp ", "jmpi", "58  ", "59  ", "5A  ", "noop", "5C  ", "5D  ", "5E  ", "psh0",
         };
@@ -107,6 +118,10 @@ class BEVM {
     //
     final ContractID _contractId;
 
+    // Custom ExtCodeSize needs this
+    final FeatureFlags _flags;
+    final AddressChecks _adrChk;
+
     // Wrap a UInt256 in a Supplier for short-term usage, without allocating
     // per-bytecode.
     final UI256.Wrap _wrap0 = new UI256.Wrap(), _wrap1 = new UI256.Wrap();
@@ -117,7 +132,7 @@ class BEVM {
     // Input data
     byte[] _callData;
 
-    BEVM( @NotNull GasCalculator gasCalc, @NotNull MessageFrame frame, FeatureFlags flags ) {
+    BEVM( @NotNull GasCalculator gasCalc, @NotNull MessageFrame frame, FeatureFlags flags, AddressChecks adrChk ) {
         SB trace = new SB(); // = null;
         _gasCalc = gasCalc;
         if( _gasCalc.getVeryLowTierGasCost() > 10 )
@@ -142,6 +157,9 @@ class BEVM {
         _isSidecarEnabled = flags.isSidecarEnabled(frame, SidecarType.CONTRACT_STATE_CHANGE);
         // Hedera optional tracking first SLOAD
         _tracker = FrameUtils.accessTrackerFor(frame);
+
+        _flags = flags;         // Feature Flags
+        _adrChk = adrChk;       // Address check
 
         // Preload input data
         _callData = _frame.getInputData().toArrayUnsafe();
@@ -267,6 +285,17 @@ class BEVM {
         return Bytes.wrap(bs);
     }
 
+    // Expensive
+    private Address popAddress() {
+        assert _sp > 0;         // Caller already checked for stack underflow
+        long x0 = STK0[--_sp], x1 = STK1[_sp], x2 = STK2[_sp], x3 = STK3[_sp];
+        byte[] bs = new byte[20];
+        Memory.write8(bs,12,     x0);
+        Memory.write8(bs, 4,     x1);
+        Memory.write4(bs, 0,(int)x2);
+        return Address.wrap(Bytes.wrap(bs));
+    }
+
     // -----------------------------------------------------------
     // Execute bytecodes until done
     ExceptionalHaltReason _run() {
@@ -309,8 +338,10 @@ class BEVM {
             case 0x34 -> callValue();
             case 0x35 -> callDataLoad();
             case 0x36 -> callDataSize();
+            case 0x37 -> callDataCopy();
             case 0x38 -> codeSize();
             case 0x39 -> codeCopy();
+            case 0x3B -> customExtCodeSize();
 
             case 0x50 -> pop();
 
@@ -347,7 +378,7 @@ class BEVM {
                  // Swap nth word
                  -> swap(op-0x90+1);
 
-            case 0xA3 -> customLog(3);
+            case 0xA0, 0xA1, 0xA2, 0xA3, 0xA4 -> customLog(op-0xA0);
             case 0xF3 -> ret();
             case 0xFD -> revert();
 
@@ -410,11 +441,15 @@ class BEVM {
         if( _sp < 2 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
         long lhs0 = STK0[--_sp], lhs1 = STK1[_sp], lhs2 = STK2[_sp], lhs3 = STK3[_sp];
         long rhs0 = STK0[--_sp], rhs1 = STK1[_sp], rhs2 = STK2[_sp], rhs3 = STK3[_sp];
-        // Multiply by 1 shortcut
-        if( lhs0==1 && (lhs1 | lhs2 | lhs3)==0 )
-            return push(rhs0,rhs1,rhs2,rhs3);
-        if( rhs0==1 && (rhs1 | rhs2 | rhs3)==0 )
-            return push(lhs0,lhs1,lhs2,lhs3);
+        // Multiply by 0,1 shortcuts
+        if( (lhs1 | lhs2 | lhs3)==0 ) {
+            if( lhs0==0 ) return push0();
+            if( lhs0==1 ) return push(rhs0,rhs1,rhs2,rhs3);
+        }
+        if( (rhs1 | rhs2 | rhs3)==0 ) {
+            if( rhs0==0 ) return push0();
+            if( rhs0==1 ) return push(lhs0,lhs1,lhs2,lhs3);
+        }
 
         throw new TODO();
     }
@@ -683,6 +718,17 @@ class BEVM {
         return push( _callData.length );
     }
 
+    // Push call data
+    private ExceptionalHaltReason callDataCopy() {
+        int dst = popInt();
+        int src = popInt();
+        int len = popInt();
+        var halt = useGas(_gasCalc.dataCopyOperationGasCost(_frame,dst,len));
+        if( halt!=null ) return halt;
+        _mem.write(dst, _frame.getInputData(), src, len );
+        return null;
+    }
+
     // Push size of code
     private ExceptionalHaltReason codeSize() {
         var halt = useGas(_gasCalc.getVeryLowTierGasCost());
@@ -707,6 +753,42 @@ class BEVM {
         return null;
     }
 
+    private ExceptionalHaltReason customExtCodeSize() {
+        // Fail early, if we do not have cold-account gas
+        var gas = _gasCalc.getExtCodeSizeOperationGasCost() + _gasCalc.getColdAccountAccessCost();
+        if( _gas < gas ) return ExceptionalHaltReason.INSUFFICIENT_GAS;
+        if( _sp < 1 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
+        var address = popAddress();
+        // Special behavior for long-zero addresses below 0.0.1001
+        if( _adrChk.isNonUserAccount(address) )
+            return push0();
+        if( FrameUtils.contractRequired(_frame, address, _flags) && !_adrChk.isPresent(address, _frame) ) {
+        //    //FrameUtils.invalidAddressContext(_frame).set(address, InvalidAddressContext.InvalidAddressType.NonCallTarget);
+        //    //return ExceptionalHaltReason.INVALID_SOLIDITY_ADDRESS;
+            throw new TODO();
+        }
+        return extCodeSize(address);
+    }
+
+    private ExceptionalHaltReason extCodeSize(Address address) {
+        // Warmup address; true if already warm.  This is a per-transaction
+        // tracking and is only for gas costs.  The actual warming happens if
+        // we get past the gas test.
+        boolean isWarm = _frame.warmUpAddress(address) || _gasCalc.isPrecompile(address);
+        long gas = _gasCalc.getExtCodeSizeOperationGasCost() +
+            (isWarm ? _gasCalc.getWarmStorageReadCost() : _gasCalc.getColdAccountAccessCost());
+        var halt = useGas(gas);
+        if( halt!=null ) return halt;
+
+        Account acct = _frame.getWorldUpdater().get(address);
+        if( acct == null ) return push0(); // No account, zero code size
+        Bytes code = acct.getCode();
+        int codeSize = code.size();
+        //if( enableEIP3540 && codeSize >= 2 && code.get(0) == EOFLayout.EOF_PREFIX_BYTE && code.get(1) == 0 )
+        //    codeSize = 2;
+        return push(codeSize);
+    }
+
     // ---------------------
     // Control flow
 
@@ -725,7 +807,7 @@ class BEVM {
 
         var halt = useGas(memoryExpansionGasCost(off, len));
         if( halt!=null ) return halt;
-        if( (off | len) < 0 || (off | len) > Integer.MAX_VALUE )
+        if( (off | len) < 0 || off == Integer.MAX_VALUE || len == Integer.MAX_VALUE )
             return ExceptionalHaltReason.INVALID_OPERATION;
 
         _frame.setOutputData(_mem.asBytes(off, len)); // Thin wrapper over the underlying byte[], no copy

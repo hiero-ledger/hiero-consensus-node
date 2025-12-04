@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.bonneville;
 
-import org.apache.tuweni.bytes.Bytes;
+import com.hedera.node.app.service.contract.impl.utils.TODO;
 
 import java.util.Arrays;
+
+import org.apache.tuweni.bytes.Bytes;
 
 // Bonneville memory.
 
@@ -47,6 +49,14 @@ public class Memory {
         return x;
     }
 
+    // Big-endian write int to any array, any offset
+    static void write4( byte[] dst, int off, int x ) {
+        for( int i=0; i<4; i++ ) {
+            dst[off + 3-i] = (byte)x;
+            x >>= 8;
+        }
+    }
+
     // Big-endian write long to any array, any offset
     static void write8( byte[] dst, int off, long x ) {
         for( int i=0; i<8; i++ ) {
@@ -74,6 +84,14 @@ public class Memory {
         System.arraycopy(src,soff,_mem,doff,copyLen);
         if( copyLen < len ) Arrays.fill(_mem,doff+copyLen,len-copyLen,(byte)0);
     }
+
+    void write( int doff, Bytes src, int soff, int len ) {
+        growMem(doff+len);
+        int slen = src.size();
+        for( int i=0; i<Math.min(slen-soff,len); i++ )
+            _mem[doff+i] = src.get(soff+i);
+    }
+
 
     // Just wrap as a Bytes array
     Bytes asBytes(int off, int len) {
