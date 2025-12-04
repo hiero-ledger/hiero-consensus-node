@@ -1213,6 +1213,11 @@ public class BlockNodeConnection extends AbstractBlockNodeConnection implements 
          * @return true if request was successfully sent, else false
          */
         private boolean trySendPendingRequest() {
+            if (pendingRequestItems.isEmpty()) {
+                // there are no items to send, consider this invocation successful and exit early
+                return true;
+            }
+
             final BlockItemSet itemSet = BlockItemSet.newBuilder()
                     .blockItems(List.copyOf(pendingRequestItems))
                     .build();
