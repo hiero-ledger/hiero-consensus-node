@@ -16,7 +16,8 @@ import edu.umd.cs.findbugs.annotations.NonNull;
  *                                   each zero weight node that advances. Does not contribute to meeting the threshold
  *                                   required to advance the current snapshot.
  */
-public record TipsetAdvancementWeight(long advancementWeight, long zeroWeightAdvancementCount) {
+public record TipsetAdvancementWeight(long advancementWeight, long zeroWeightAdvancementCount)
+        implements Comparable<TipsetAdvancementWeight> {
 
     /**
      * Zero advancement weight. For convenience.
@@ -78,5 +79,14 @@ public record TipsetAdvancementWeight(long advancementWeight, long zeroWeightAdv
      */
     public boolean isNonZero() {
         return advancementWeight != 0 || zeroWeightAdvancementCount != 0;
+    }
+
+    @Override
+    public int compareTo(final TipsetAdvancementWeight o) {
+        if (advancementWeight == o.advancementWeight) {
+            return Double.compare(zeroWeightAdvancementCount, o.zeroWeightAdvancementCount);
+        } else {
+            return Double.compare(advancementWeight, o.advancementWeight);
+        }
     }
 }
