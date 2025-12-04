@@ -28,8 +28,6 @@ import org.junit.jupiter.api.Tag;
 @Tag(SIMPLE_FEES)
 @HapiTestLifecycle
 public class ConsensusServiceSimpleFeesSuite {
-    private static final long OFFERED_QUERY_FEE = 83333;
-    private static final double GET_TOPIC_INFO_BASE_FEE = 0.0001;
     private static final double EXPECTED_CRYPTO_TRANSFER_FEE = 0.0001;
     private static final double TOPIC_CREATE_BASE_FEE = 0.01;
     private static final double TOPIC_UPDATE_BASE_FEE = 0.00022;
@@ -163,8 +161,9 @@ public class ConsensusServiceSimpleFeesSuite {
         return hapiTest(
                 cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                 createTopic("testTopic"),
-                getTopicInfo("testTopic").payingWith(PAYER).via("getInfo").nodePayment(OFFERED_QUERY_FEE),
-                validateChargedUsdForQueries("getInfo", GET_TOPIC_INFO_BASE_FEE + EXPECTED_CRYPTO_TRANSFER_FEE, 1));
+                getTopicInfo("testTopic").payingWith(PAYER).via("getInfo"),
+                // we are paying with the crypto transfer fee
+                validateChargedUsdForQueries("getInfo", EXPECTED_CRYPTO_TRANSFER_FEE, 1));
     }
 
     @HapiTest
