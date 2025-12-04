@@ -7,7 +7,6 @@ import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.streams.MerkleDataInputStream;
 import com.swirlds.common.io.streams.MerkleDataOutputStream;
-import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.synchronization.LearningSynchronizer;
 import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
 import com.swirlds.common.threading.manager.ThreadManager;
@@ -206,12 +205,11 @@ public class ReconnectStateLearner {
                 platformContext.getMetrics());
         synchronizer.synchronize();
 
-        final MerkleNode receivedState = synchronizer.getRoot();
-        final MerkleNodeState receivedStateCopy = stateLifecycleManager.initStateOnReconnect(receivedState);
+        final MerkleNodeState receivedState = stateLifecycleManager.createStateFrom(synchronizer.getRoot());
         final SignedState newSignedState = new SignedState(
                 platformContext.getConfiguration(),
                 CryptoStatic::verifySignature,
-                receivedStateCopy,
+                receivedState,
                 "ReconnectLearner.reconnect()",
                 false,
                 false,

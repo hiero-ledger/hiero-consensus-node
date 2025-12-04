@@ -104,6 +104,14 @@ public class StateLifecycleManagerImpl implements StateLifecycleManager {
     /**
      * {@inheritDoc}
      */
+    @Override
+    public MerkleNodeState createStateFrom(@NonNull MerkleNode rootNode) {
+        return stateSupplier.apply((VirtualMap) rootNode);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
     public void initState(@NonNull final MerkleNodeState state) {
         requireNonNull(state);
 
@@ -121,16 +129,12 @@ public class StateLifecycleManagerImpl implements StateLifecycleManager {
      * {@inheritDoc}
      */
     @Override
-    public MerkleNodeState initStateOnReconnect(@NonNull MerkleNode rootNode) {
-        requireNonNull(rootNode);
-        // rootNode must have default reservation count
-        assert rootNode.getReservationCount() == 0;
-        rootNode.throwIfDestroyed("rootNode must not be destroyed");
-        rootNode.throwIfImmutable("rootNode must be mutable");
+    public void initStateOnReconnect(@NonNull MerkleNodeState state) {
+        requireNonNull(state);
+        state.throwIfDestroyed("rootNode must not be destroyed");
+        state.throwIfImmutable("rootNode must be mutable");
 
-        copyAndUpdateStateRefs(stateSupplier.apply((VirtualMap) rootNode));
-
-        return stateRef.get();
+        copyAndUpdateStateRefs(state);
     }
 
     /**

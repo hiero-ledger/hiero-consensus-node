@@ -19,6 +19,13 @@ import java.nio.file.Path;
 public interface StateLifecycleManager {
 
     /**
+     * Create a state from a root node. This method doesn't update the current mutable or immutable state.
+     * @param rootNode the root node of a Merkle tree to create a state from
+     * @return a state created from the root node
+     */
+    MerkleNodeState createStateFrom(@NonNull MerkleNode rootNode);
+
+    /**
      * Set the initial State. This method should only be on a startup
      *
      * @param state the initial state
@@ -27,11 +34,10 @@ public interface StateLifecycleManager {
     void initState(@NonNull MerkleNodeState state);
 
     /**
-     * Initialize the state on reconnect. This method should only be called on a reconnect.
-     * @param rootNode the root node of the state
-     * @return the initialized state
+     * Initialize with the state on reconnect. This method should only be called on a reconnect.
+     * @param state the state to initialize with
      */
-    MerkleNodeState initStateOnReconnect(@NonNull MerkleNode rootNode);
+    void initStateOnReconnect(@NonNull MerkleNodeState state);
 
     /**
      * Get the mutable state. Consecutive calls to this method may return different instances,
