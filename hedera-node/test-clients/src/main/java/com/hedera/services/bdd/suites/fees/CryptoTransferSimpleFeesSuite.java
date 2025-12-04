@@ -28,6 +28,7 @@ import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
 import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
 
 import com.hedera.services.bdd.junit.HapiTest;
+import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
 import java.util.List;
 import java.util.stream.Stream;
@@ -41,6 +42,7 @@ import org.junit.jupiter.api.Tag;
  */
 @Tag(MATS)
 @Tag(SIMPLE_FEES)
+@HapiTestLifecycle
 public class CryptoTransferSimpleFeesSuite {
     private static final double HBAR_TRANSFER_BASE_FEE = 0.0001;
     private static final double FUNGIBLE_TOKEN_BASE_FEE = 0.001;
