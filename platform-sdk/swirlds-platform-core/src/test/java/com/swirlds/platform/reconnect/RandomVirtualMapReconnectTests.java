@@ -227,6 +227,7 @@ class RandomVirtualMapReconnectTests extends VirtualMapReconnectTestBase {
 
             if (operation > 0 && operation % config.operationsPerCopy() == 0) {
                 copiesQueue.add(teacherMap);
+                teacherMap.enableFlush();
                 teacherMap = teacherMap.copy();
                 if (copiesQueue.size() > config.maxCopiesInMemory()) {
                     final VirtualMap oldestCopy = copiesQueue.remove();

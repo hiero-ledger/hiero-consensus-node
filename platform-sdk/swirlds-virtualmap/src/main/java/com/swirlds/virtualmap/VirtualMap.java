@@ -382,6 +382,7 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
         this.virtualMapConfig = requireNonNull(configuration.getConfigData(VirtualMapConfig.class));
         this.flushCandidateThreshold.set(virtualMapConfig.copyFlushCandidateThreshold());
         this.dataSourceBuilder = requireNonNull(dataSourceBuilder);
+        dataSource = dataSourceBuilder.build(LABEL, null, true, false);
         this.metadata = new VirtualMapMetadata();
         postInit();
     }
@@ -403,7 +404,6 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
         this.cache = new VirtualNodeCache(virtualMapConfig, fastCopyVersion);
         this.dataSource = dataSourceBuilder.build(LABEL, snapshotPath, true, false);
         this.metadata = new VirtualMapMetadata(dataSource.getFirstLeafPath(), dataSource.getLastLeafPath());
-
         postInit();
     }
 
@@ -446,13 +446,10 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
      */
     void postInit() {
         requireNonNull(metadata);
-        requireNonNull(dataSourceBuilder);
+        requireNonNull(dataSource);
 
         if (cache == null) {
             cache = new VirtualNodeCache(virtualMapConfig);
-        }
-        if (dataSource == null) {
-            dataSource = dataSourceBuilder.build(LABEL, null, true, false);
         }
 
         this.records = new RecordAccessor(this.metadata, cache, dataSource);
@@ -1131,7 +1128,8 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
      */
     @Override
     public RecordAccessor detach() {
-        final VirtualDataSource dataSourceCopy = dataSourceBuilder.build(getLabel(), null, false, false);
+        final Path snapshotPath = dataSourceSnapshot();
+        final VirtualDataSource dataSourceCopy = dataSourceBuilder.build(getLabel(), snapshotPath, false, false);
         final VirtualNodeCache cacheSnapshot = cache.snapshot();
         return new RecordAccessor(metadata.copy(), cacheSnapshot, dataSourceCopy);
     }

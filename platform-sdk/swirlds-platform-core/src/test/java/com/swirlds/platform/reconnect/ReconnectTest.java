@@ -152,10 +152,6 @@ final class ReconnectTest {
             if (stateCopy != null) {
                 stateCopy.release();
             }
-            if (stateLifecycleManager != null) {
-                stateLifecycleManager.getLatestImmutableState().release();
-                stateLifecycleManager.getMutableState().release();
-            }
         }
     }
 
