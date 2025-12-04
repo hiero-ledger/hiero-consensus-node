@@ -41,6 +41,13 @@ public class BlockNodeServiceConnection extends AbstractBlockNodeConnection {
                 .getConfigData(BlockNodeConnectionConfig.class);
     }
 
+    private Duration timeout() {
+        return configProvider()
+                .getConfiguration()
+                .getConfigData(BlockNodeConnectionConfig.class)
+                .grpcOverallTimeout();
+    }
+
     @Override
     void initialize() {
         if (currentState() != ConnectionState.UNINITIALIZED) {
@@ -48,20 +55,7 @@ public class BlockNodeServiceConnection extends AbstractBlockNodeConnection {
             return;
         }
 
-        final Duration timeoutDuration = configProvider()
-                .getConfiguration()
-                .getConfigData(BlockNodeConnectionConfig.class)
-                .grpcOverallTimeout();
-
-        final Future<?> future = executorService.submit(() -> {
-            final BlockNodeServiceClient client = clientFactory.createServiceClient(configuration(), timeoutDuration);
-            if (clientRef.compareAndSet(null, client)) {
-                updateConnectionState(ConnectionState.UNINITIALIZED, ConnectionState.ACTIVE); // jump to active
-                logger.debug("{} Client initialized", this);
-            } else {
-                close();
-            }
-        });
+        final Future<?> future = executorService.submit(new CreateClientTask());
 
         try {
             future.get(bncConfig.pipelineOperationTimeout().toMillis(), TimeUnit.MILLISECONDS);
@@ -76,6 +70,19 @@ public class BlockNodeServiceConnection extends AbstractBlockNodeConnection {
         } catch (final ExecutionException e) {
             logger.warn("{} Error initializing client", this, e.getCause());
             throw new RuntimeException("Error initializing client", e);
+        }
+    }
+
+    class CreateClientTask implements Runnable {
+        @Override
+        public void run() {
+            final BlockNodeServiceClient client = clientFactory.createServiceClient(configuration(), timeout());
+            if (clientRef.compareAndSet(null, client)) {
+                updateConnectionState(ConnectionState.UNINITIALIZED, ConnectionState.ACTIVE); // jump to active
+                logger.debug("{} Client initialized successfully", BlockNodeServiceConnection.this);
+            } else {
+                close();
+            }
         }
     }
 
