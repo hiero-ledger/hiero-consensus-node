@@ -261,7 +261,7 @@ public final class StartupStateUtils {
         try {
             deserializedSignedState =
                     readState(savedStateInfo.stateDirectory(), platformContext, stateLifecycleManager);
-        } catch (final IOException e) {
+        } catch (final IOException | UncheckedIOException e) {
             logger.error(EXCEPTION.getMarker(), "unable to load state file {}", savedStateInfo.stateDirectory(), e);
 
             final StateConfig stateConfig = configuration.getConfigData(StateConfig.class);

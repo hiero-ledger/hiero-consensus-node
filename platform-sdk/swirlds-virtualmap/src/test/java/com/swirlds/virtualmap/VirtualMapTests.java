@@ -953,7 +953,7 @@ class VirtualMapTests extends VirtualTestBase {
         map0.waitUntilFlushed();
         map1.release();
 
-        // createMap() creates a map labelled "Test"
+        // createMap() creates a map labelled "state"
         Metric metric = metrics.getMetric(VirtualMapStatistics.STAT_CATEGORY, "vmap_lifecycle_flushCount_state");
         assertNotNull(metric);
         if (!(metric instanceof Counter counterMetric)) {

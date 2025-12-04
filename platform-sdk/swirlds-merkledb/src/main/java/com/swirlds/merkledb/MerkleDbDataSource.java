@@ -1000,7 +1000,7 @@ public final class MerkleDbDataSource implements VirtualDataSource {
                     } else if (fieldNum == FIELD_DSMETADATA_HASHESRAMTODISKTHRESHOLD.number()) {
                         hashesRamToDiskThreshold = in.readVarLong(false);
                     } else {
-                        throw new IllegalArgumentException("Unknown data source metadata field: " + fieldNum);
+                        throw new IOException("Unknown data source metadata field: " + fieldNum);
                     }
                 }
                 validLeafPathRange = new KeyRange(minValidKey, maxValidKey);
