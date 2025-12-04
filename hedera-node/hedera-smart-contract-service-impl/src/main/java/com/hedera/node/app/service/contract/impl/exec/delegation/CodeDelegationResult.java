@@ -17,10 +17,14 @@ public class CodeDelegationResult {
     }
 
     public void incrementAlreadyExistingDelegators() {
-        alreadyExistingDelegators += 1;
+        this.alreadyExistingDelegators += 1;
     }
 
     public Set<Address> accessedDelegatorAddresses() {
         return accessedDelegatorAddresses;
+    }
+
+    public long alreadyExistingDelegators() {
+        return alreadyExistingDelegators;
     }
 }

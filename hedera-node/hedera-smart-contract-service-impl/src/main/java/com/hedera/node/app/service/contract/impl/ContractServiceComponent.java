@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl;
 
+import com.hedera.node.app.service.contract.ContractServiceApi;
 import com.hedera.node.app.service.contract.impl.annotations.CustomOps;
 import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
 import com.hedera.node.app.service.contract.impl.exec.scope.VerificationStrategies;
@@ -12,6 +13,7 @@ import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethod
 import com.hedera.node.app.service.contract.impl.handlers.ContractHandlers;
 import com.hedera.node.app.service.contract.impl.nativelibverification.NativeLibVerifier;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
+import com.hedera.node.app.spi.api.ServiceApiProvider;
 import com.hedera.node.app.spi.signatures.SignatureVerifier;
 import dagger.BindsInstance;
 import dagger.Component;
@@ -46,6 +48,7 @@ public interface ContractServiceComponent {
          * @param systemContractMethodRegistry registry of all system contract methods
          * @param customOps any additional custom operations to use when constructing the EVM
          * @param entityIdFactory a factory for creating entity IDs
+         * @param nativeLibVerifier the native library verifier
          * @return the contract service component
          */
         ContractServiceComponent create(
@@ -57,7 +60,8 @@ public interface ContractServiceComponent {
                 @BindsInstance SystemContractMethodRegistry systemContractMethodRegistry,
                 @BindsInstance @CustomOps Set<Operation> customOps,
                 @BindsInstance EntityIdFactory entityIdFactory,
-                @BindsInstance NativeLibVerifier nativeLibVerifier);
+                @BindsInstance NativeLibVerifier nativeLibVerifier,
+                @BindsInstance ServiceApiProvider<ContractServiceApi> contractServiceApiProvider);
     }
 
     /**
@@ -79,6 +83,11 @@ public interface ContractServiceComponent {
      * @return method registry for system contracts
      */
     SystemContractMethodRegistry systemContractMethodRegistry();
+
+    /**
+     * Provides the {@link ContractServiceApi} provider.
+     */
+    ServiceApiProvider<ContractServiceApi> contractServiceApiProvider();
 
     @Named("HasTranslators")
     Provider<List<CallTranslator<HasCallAttempt>>> hasCallTranslators();

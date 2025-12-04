@@ -8,6 +8,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.FAIL_INVALID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ALIAS_KEY;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_CONTRACT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_INITIAL_BALANCE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_MAX_AUTO_ASSOCIATIONS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_PAYER_ACCOUNT_ID;
@@ -58,6 +59,7 @@ import com.hedera.hapi.node.token.CryptoCreateTransactionBody;
 import com.hedera.hapi.node.token.CryptoUpdateTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.hapi.utils.CommonPbjConverters;
+import com.hedera.node.app.service.contract.ContractServiceApi;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.impl.WritableAccountStore;
@@ -170,6 +172,10 @@ public class CryptoCreateHandler extends BaseCryptoHandler implements Transactio
         validateTruePreCheck(key != null, KEY_NOT_PROVIDED);
         // since pure evm hooks are being removed, just added validations for lambda evm hooks for now
         validateHookDuplicates(op.hookCreationDetails());
+        // If a delegation address is set, it must be of EVM address size
+        validateTruePreCheck(
+                op.delegationAddress().length() == 0 || isOfEvmAddressSize(op.delegationAddress()),
+                INVALID_CONTRACT_ID);
     }
 
     @Override
@@ -310,6 +316,12 @@ public class CryptoCreateHandler extends BaseCryptoHandler implements Transactio
                 }
                 accountStore.putAndIncrementCountAlias(alias, createdAccountID);
             }
+        }
+
+        // If delegation address is set, update state in ContractServiceApi to reflect the delegation
+        if (op.delegationAddress().length() > 0) {
+            final var contractServiceApi = context.storeFactory().serviceApi(ContractServiceApi.class);
+            contractServiceApi.setAccountDelegationTarget(createdAccountID, op.delegationAddress());
         }
     }
 

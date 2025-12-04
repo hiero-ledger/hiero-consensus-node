@@ -115,8 +115,10 @@ public class EthereumTransactionHandler extends AbstractContractTransactionHandl
             final byte[] callData = ethTxData.hasCallData() ? ethTxData.callData() : new byte[0];
             final var isContractCreate = !ethTxData.hasToAddress();
             // TODO: Revisit baselineGas with Pectra support epic
+            final var authorizationListSize =
+                    ethTxData.authorizationList() == null ? 0L : ethTxData.authorizationList().length;
             final var gasRequirements = gasCalculator.transactionGasRequirements(
-                    org.apache.tuweni.bytes.Bytes.wrap(callData), isContractCreate, 0L);
+                    org.apache.tuweni.bytes.Bytes.wrap(callData), isContractCreate, 0L, authorizationListSize);
             validateTruePreCheck(ethTxData.gasLimit() >= gasRequirements.minimumGasUsed(), INSUFFICIENT_GAS);
         } catch (@NonNull final Exception e) {
             bumpExceptionMetrics(ETHEREUM_TRANSACTION, e);

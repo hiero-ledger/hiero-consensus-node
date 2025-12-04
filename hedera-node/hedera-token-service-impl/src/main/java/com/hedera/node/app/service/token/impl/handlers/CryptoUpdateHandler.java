@@ -8,6 +8,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.EXISTING_AUTOMATIC_ASSO
 import static com.hedera.hapi.node.base.ResponseCodeEnum.HOOK_ID_REPEATED_IN_CREATION_DETAILS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ADMIN_KEY;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_CONTRACT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_MAX_AUTO_ASSOCIATIONS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.PROXY_ACCOUNT_ID_FIELD_IS_DEPRECATED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.REQUESTED_NUM_AUTOMATIC_ASSOCIATIONS_EXCEEDS_ASSOCIATION_LIMIT;
@@ -20,6 +21,7 @@ import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.BASIC_ENTITY_ID_SIZE
 import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.INT_SIZE;
 import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.LONG_SIZE;
 import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.getAccountKeyStorageSize;
+import static com.hedera.node.app.service.token.AliasUtils.isOfEvmAddressSize;
 import static com.hedera.node.app.service.token.HookDispatchUtils.dispatchHookCreations;
 import static com.hedera.node.app.service.token.HookDispatchUtils.dispatchHookDeletions;
 import static com.hedera.node.app.service.token.HookDispatchUtils.validateHookDuplicates;
@@ -43,6 +45,7 @@ import com.hedera.hapi.node.token.CryptoUpdateTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.hapi.utils.CommonPbjConverters;
 import com.hedera.node.app.hapi.utils.EntityType;
+import com.hedera.node.app.service.contract.ContractServiceApi;
 import com.hedera.node.app.service.token.CryptoSignatureWaivers;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.impl.WritableAccountStore;
@@ -101,6 +104,10 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
             final var distinctHookIds = op.hookIdsToDelete().stream().distinct().count();
             validateTruePreCheck(distinctHookIds == op.hookIdsToDelete().size(), HOOK_ID_REPEATED_IN_CREATION_DETAILS);
         }
+        // If a delegation address is set, it must be of EVM address size
+        validateTruePreCheck(
+                op.delegationAddress().length() == 0 || isOfEvmAddressSize(op.delegationAddress()),
+                INVALID_CONTRACT_ID);
     }
 
     @Override
@@ -170,6 +177,12 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
         context.savepointStack()
                 .getBaseBuilder(CryptoUpdateStreamBuilder.class)
                 .accountID(targetAccount.accountIdOrThrow());
+
+        // If delegation address is set, update state in ContractServiceApi to reflect the delegation
+        if (op.delegationAddress().length() > 0) {
+            final var contractServiceApi = context.storeFactory().serviceApi(ContractServiceApi.class);
+            contractServiceApi.setAccountDelegationTarget(target, op.delegationAddress());
+        }
     }
 
     /**

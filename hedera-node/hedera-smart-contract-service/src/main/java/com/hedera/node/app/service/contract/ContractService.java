@@ -2,6 +2,7 @@
 package com.hedera.node.app.service.contract;
 
 import com.hedera.node.app.spi.RpcService;
+import com.hedera.node.app.spi.api.ServiceApiProvider;
 import com.hedera.pbj.runtime.RpcServiceDefinition;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Set;
@@ -40,4 +41,9 @@ public interface ContractService extends RpcService {
     default Set<RpcServiceDefinition> rpcDefinitions() {
         return Set.of(SmartContractServiceDefinition.INSTANCE);
     }
+
+    /**
+     * Returns the API provider for the contract service.
+     */
+    ServiceApiProvider<ContractServiceApi> apiProvider();
 }

@@ -16,5 +16,5 @@ public interface ContractServiceApi {
      * @param accountID id of the account to set the bytecode for
      * @param bytecode  the runtime bytecode to set for the account
      */
-    void setAccountBytecode(@NonNull AccountID accountID, @NonNull Bytes bytecode);
+    void setAccountDelegationTarget(@NonNull AccountID accountID, @NonNull Bytes bytecode);
 }

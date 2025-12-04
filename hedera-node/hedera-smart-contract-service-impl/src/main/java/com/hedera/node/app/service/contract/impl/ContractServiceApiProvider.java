@@ -2,6 +2,7 @@
 package com.hedera.node.app.service.contract.impl;
 
 import static java.util.Objects.requireNonNull;
+import static org.hyperledger.besu.evm.worldstate.CodeDelegationHelper.CODE_DELEGATION_PREFIX;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
@@ -15,7 +16,6 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import javax.inject.Singleton;
-import org.jetbrains.annotations.NotNull;
 
 @Singleton
 public class ContractServiceApiProvider implements ServiceApiProvider<ContractServiceApi> {
@@ -47,14 +47,22 @@ public class ContractServiceApiProvider implements ServiceApiProvider<ContractSe
         }
 
         @Override
-        public void setAccountBytecode(@NotNull AccountID accountID, @NotNull Bytes bytecode) {
+        public void setAccountDelegationTarget(@NonNull final AccountID accountID, @NonNull final Bytes bytecode) {
+            requireNonNull(accountID);
+            requireNonNull(bytecode);
             final var contractID = ContractID.newBuilder()
                     .shardNum(accountID.shardNum())
                     .realmNum(accountID.realmNum())
                     .contractNum(accountID.accountNumOrThrow())
                     .build();
-            contractStateStore.putBytecode(
-                    contractID, new com.hedera.hapi.node.state.contract.Bytecode(requireNonNull(bytecode)));
+            if (bytecode.equals(Bytes.EMPTY)) {
+                // Remove the bytecode if the bytecode is empty
+                contractStateStore.removeBytecode(contractID);
+            } else {
+                final var delegationIndicator = Bytes.merge(Bytes.wrap(CODE_DELEGATION_PREFIX.toArray()), bytecode);
+                contractStateStore.putBytecode(
+                        contractID, new com.hedera.hapi.node.state.contract.Bytecode(delegationIndicator));
+            }
         }
     }
 }
