@@ -1,0 +1,108 @@
+// SPDX-License-Identifier: Apache-2.0
+package com.hedera.services.bdd.suites.hip1261.utils;
+
+/**
+ * Class with constants mirroring the Simple Fees JSON schedule used in tests.
+ * All values here are in tinycents.
+ */
+public class SimpleFeesScheduleConstantsInUsd {
+
+    /* ---------- Global node / network / unreadable ---------- */
+
+    public static final double NODE_BASE_FEE_USD = 0.00001;
+    public static final long NODE_INCLUDED_SIGNATURES = 1L;
+
+    public static final int NETWORK_MULTIPLIER = 9;
+
+    public static final double UNREADABLE_FEE_USD = 0.00000001;
+
+    /* ---------- Global extras price table ("extras") ---------- */
+
+    public static final double SIGNATURE_FEE_USD = 0.0001;
+    public static final double BYTES_FEE_USD = 0.000000011;
+    public static final double KEYS_FEE_USD = 0.01;
+    public static final double TOKEN_TYPES_FEE_USD = 0.0;
+    public static final double NFT_SERIALS_FEE_USD = 0.00089;
+    public static final double ACCOUNTS_FEE_USD = 0.0;
+    public static final double STANDARD_FT_FEE_USD = 0.0009;
+    public static final double STANDARD_NFT_FEE_USD = 0.00001;
+    public static final double CUSTOM_FEE_FT_FEE_USD = 0.0019;
+    public static final double CUSTOM_FEE_NFT_FEE_USD = 0.00101;
+    public static final double CREATED_AUTO_ASSOCIATIONS_FEE_USD = 0.0;
+    public static final double CREATED_ACCOUNTS_FEE_USD = 0.0;
+    public static final double CUSTOM_FEE_FEE_USD = 0.0;
+    public static final double GAS_FEE_USD = 0.0000000001;
+    public static final double ALLOWANCES_FEE_USD = 0.0000002;
+    public static final double AIRDROPS_FEE_USD = 0.00000088;
+    public static final double HOOKS_FEE_USD = 1.0;
+
+    /* ---------- Crypto service ---------- */
+
+    public static final double CRYPTO_CREATE_BASE_FEE_USD = 0.0499;
+    public static final long CRYPTO_CREATE_INCLUDED_KEYS = 1L;
+    public static final long CRYPTO_CREATE_INCLUDED_HOOKS = 0L;
+
+    public static final double CRYPTO_UPDATE_BASE_FEE_USD = 0.00012;
+    public static final long CRYPTO_UPDATE_INCLUDED_KEYS = 1L;
+    public static final long CRYPTO_UPDATE_INCLUDED_HOOKS = 0L;
+
+    public static final double CRYPTO_DELETE_BASE_FEE_USD = 0.0049;
+
+    public static final double CRYPTO_TRANSFER_BASE_FEE_USD = 0.0000000018;
+    public static final long CRYPTO_TRANSFER_INCLUDED_KEYS = 1L;
+    public static final long CRYPTO_TRANSFER_INCLUDED_ACCOUNTS = 1L;
+    public static final long CRYPTO_TRANSFER_INCLUDED_STD_FT = 1L;
+
+    /* ---------- Consensus service ---------- */
+
+    public static final double CONS_CREATE_TOPIC_BASE_FEE_USD = 0.0099;
+    public static final long CONS_CREATE_TOPIC_INCLUDED_KEYS = 0L;
+
+    public static final double CONS_UPDATE_TOPIC_BASE_FEE_USD = 0.00012;
+    public static final long CONS_UPDATE_TOPIC_INCLUDED_KEYS = 1L;
+
+    public static final double CONS_SUBMIT_MESSAGE_BASE_FEE_USD = 0.0;
+    public static final long CONS_SUBMIT_MESSAGE_INCLUDED_BYTES = 100L;
+
+    public static final double CONS_DELETE_TOPIC_BASE_FEE_USD = 0.0049;
+
+    public static final double CONS_GET_TOPIC_INFO_BASE_FEE_USD = 0.0005;
+
+    /* ---------- File service ---------- */
+
+    public static final double FILE_CREATE_BASE_FEE_USD = 0.000000005;
+    public static final long FILE_CREATE_INCLUDED_KEYS = 1L;
+    public static final long FILE_CREATE_INCLUDED_BYTES = 1000L;
+
+    public static final double FILE_UPDATE_BASE_FEE_USD = 0.000000005;
+    public static final long FILE_UPDATE_INCLUDED_KEYS = 1L;
+    public static final long FILE_UPDATE_INCLUDED_BYTES = 1000L;
+
+    public static final double FILE_APPEND_BASE_FEE_USD = 0.000000005;
+    public static final long FILE_APPEND_INCLUDED_KEYS = 1L;
+    public static final long FILE_APPEND_INCLUDED_BYTES = 1000L;
+
+    public static final double FILE_DELETE_BASE_FEE_USD = 0.0000000007;
+    public static final long FILE_DELETE_INCLUDED_KEYS = 1L;
+
+    public static final double FILE_GET_CONTENTS_BASE_FEE_USD = 0.000000001;
+    public static final long FILE_GET_CONTENTS_INCLUDED_KEYS = 1L;
+    public static final long FILE_GET_CONTENTS_INCLUDED_BYTES = 1000L;
+
+    /* ---------- Token service ---------- */
+
+    public static final double TOKEN_CREATE_BASE_FEE_USD = 0.0000000025;
+
+    public static final double TOKEN_MINT_BASE_FEE_USD = 0.0000000033;
+    public static final long TOKEN_MINT_INCLUDED_STD_FT = 1L;
+    public static final long TOKEN_MINT_INCLUDED_STD_NFT = 1L;
+
+    /* ---------- Schedule service ---------- */
+
+    public static final double SCHEDULE_CREATE_BASE_FEE_USD = 0.0099;
+    public static final long SCHEDULE_CREATE_INCLUDED_KEYS = 1L;
+
+    public static final double SCHEDULE_SIGN_BASE_FEE_USD = 0.0009;
+
+    public static final double SCHEDULE_DELETE_BASE_FEE_USD = 0.0009;
+}
