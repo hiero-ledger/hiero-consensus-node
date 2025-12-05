@@ -166,6 +166,13 @@ public class RepeatableEmbeddedHedera extends AbstractEmbeddedHedera implements 
         this.roundDuration = requireNonNull(roundDuration);
     }
 
+    /**
+     * Resets the round duration to the default value.
+     */
+    public void resetRoundDuration() {
+        this.roundDuration = DEFAULT_ROUND_DURATION;
+    }
+
     @Override
     protected void handleRoundWith(@NonNull final byte[] serializedSignedTx) {
         final var round = platform.roundWith(serializedSignedTx);
