@@ -6,13 +6,19 @@ import static org.hiero.hapi.fees.FeeScheduleUtils.makeExtraDef;
 import static org.hiero.hapi.fees.FeeScheduleUtils.makeExtraIncluded;
 import static org.hiero.hapi.fees.FeeScheduleUtils.makeService;
 import static org.hiero.hapi.fees.FeeScheduleUtils.makeServiceFee;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.mock;
 
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.consensus.ConsensusSubmitMessageTransactionBody;
+import com.hedera.hapi.node.state.consensus.Topic;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.node.app.service.consensus.ReadableTopicStore;
 import com.hedera.node.app.service.consensus.impl.calculator.ConsensusSubmitMessageFeeCalculator;
+import com.hedera.node.app.service.consensus.impl.test.handlers.ConsensusTestBase;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.SimpleFeeCalculatorImpl;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.util.List;
 import java.util.Set;
 import org.assertj.core.api.Assertions;
@@ -32,7 +38,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
  * Unit tests for {@link ConsensusSubmitMessageFeeCalculator}.
  */
 @ExtendWith(MockitoExtension.class)
-public class ConsensusSubmitMessageFeeCalculatorTest {
+public class ConsensusSubmitMessageFeeCalculatorTest extends ConsensusTestBase {
     @Mock
     private FeeContext feeContext;
 
@@ -46,18 +52,61 @@ public class ConsensusSubmitMessageFeeCalculatorTest {
     }
 
     @Nested
-    @DisplayName("update topic")
-    class UpdateTopicTests {
+    @DisplayName("submit message")
+    class SubmitMessageTests {
         @Test
-        @DisplayName("update topic")
-        void updateTopic() {
-            final var op = ConsensusSubmitMessageTransactionBody.newBuilder().build();
+        @DisplayName("submit message to normal topic")
+        void submitMessage() {
+            givenValidTopic();
+
+            // submit message to topic
+            final var op = ConsensusSubmitMessageTransactionBody.newBuilder()
+                    .topicID(topicId)
+                    .message(Bytes.wrap("foo"))
+                    .build();
             final var body =
                     TransactionBody.newBuilder().consensusSubmitMessage(op).build();
-            final var result = feeCalculator.calculateTxFee(body, feeContext);
+
+            final var feeCtx = mock(FeeContext.class);
+            ReadableTopicStore readableStore = mock(ReadableTopicStore.class);
+            given(storeFactory.readableStore(ReadableTopicStore.class)).willReturn(readableStore);
+            given(feeCtx.readableStore(ReadableTopicStore.class)).willReturn(readableStore);
+            given(readableStore.getTopic(topicId))
+                    .willReturn(Topic.newBuilder()
+                            .runningHash(Bytes.wrap(new byte[48]))
+                            .sequenceNumber(1L)
+                            .build());
+
+            final var result = feeCalculator.calculateTxFee(body, feeCtx);
             assertThat(result).isNotNull();
             Assertions.assertThat(result.node).isEqualTo(100000L);
             Assertions.assertThat(result.service).isEqualTo(498500000L);
+            Assertions.assertThat(result.network).isEqualTo(200000L);
+        }
+
+        @Test
+        @DisplayName("submit message to custom fees topic")
+        void submitMessageWithCustomFees() {
+            givenValidTopic();
+
+            final var op = ConsensusSubmitMessageTransactionBody.newBuilder()
+                    .topicID(topic.topicId())
+                    .message(Bytes.wrap("foo"))
+                    .build();
+            final var body =
+                    TransactionBody.newBuilder().consensusSubmitMessage(op).build();
+
+            final var feeCtx = mock(FeeContext.class);
+            ReadableTopicStore readableStore = mock(ReadableTopicStore.class);
+            given(storeFactory.readableStore(ReadableTopicStore.class)).willReturn(readableStore);
+            given(feeCtx.readableStore(ReadableTopicStore.class)).willReturn(readableStore);
+            // the 'topic' variable already has custom fees
+            given(readableStore.getTopic(topic.topicId())).willReturn(topic);
+
+            final var result = feeCalculator.calculateTxFee(body, feeCtx);
+            assertThat(result).isNotNull();
+            Assertions.assertThat(result.node).isEqualTo(100000L);
+            Assertions.assertThat(result.service).isEqualTo(498500000L + 500000000L);
             Assertions.assertThat(result.network).isEqualTo(200000L);
         }
     }
@@ -74,13 +123,15 @@ public class ConsensusSubmitMessageFeeCalculatorTest {
                 .extras(
                         makeExtraDef(Extra.SIGNATURES, 1000000L),
                         makeExtraDef(Extra.KEYS, 100000000L),
-                        makeExtraDef(Extra.BYTES, 110L))
+                        makeExtraDef(Extra.BYTES, 110L),
+                        makeExtraDef(Extra.CONSENSUS_SUBMIT_MESSAGE_WITH_CUSTOM_FEE, 500000000))
                 .services(makeService(
                         "Consensus",
                         makeServiceFee(
                                 HederaFunctionality.CONSENSUS_SUBMIT_MESSAGE,
                                 498500000L,
-                                makeExtraIncluded(Extra.SIGNATURES, 1))))
+                                makeExtraIncluded(Extra.SIGNATURES, 1),
+                                makeExtraIncluded(Extra.CONSENSUS_SUBMIT_MESSAGE_WITH_CUSTOM_FEE, 0))))
                 .build();
     }
 }

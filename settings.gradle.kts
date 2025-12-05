@@ -57,7 +57,4 @@ javaModules {
 
     // Platform demo applications
     directory("platform-sdk/platform-apps/demos") { group = "com.hedera.hashgraph" }
-
-    // Platform test applications
-    directory("platform-sdk/platform-apps/tests") { group = "com.hedera.hashgraph" }
 }

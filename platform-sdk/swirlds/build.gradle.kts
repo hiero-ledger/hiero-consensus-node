@@ -33,13 +33,7 @@ tasks.jar {
 // Copy this app () and the demo apps into 'sdk' folder
 val demoApp = configurations.dependencyScope("demoApp")
 
-dependencies {
-    demoApp(project(":ConsistencyTestingTool"))
-    demoApp(project(":ISSTestingTool"))
-    demoApp(project(":MigrationTestingTool"))
-    demoApp(project(":PlatformTestingTool"))
-    demoApp(project(":StatsDemo"))
-}
+dependencies { demoApp(project(":StatsDemo")) }
 
 val demoAppsRuntimeClasspath =
     configurations.resolvable("demoAppsRuntimeClasspath") {

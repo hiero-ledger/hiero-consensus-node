@@ -68,7 +68,6 @@ import com.hedera.node.app.workflows.TransactionChecker.RequireMinValidLifetimeB
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
 import com.hedera.node.app.workflows.purechecks.PureChecksContextImpl;
-import com.hedera.node.config.Utils;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.HooksConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -261,12 +260,11 @@ public final class IngestChecker {
         final var consensusTime = instantSource.instant();
 
         // 1. Check the syntax
-        final var maxBytes = Utils.maxIngestParseSize(configuration);
         TransactionInfo txInfo;
         if (innerTransaction == YES) {
-            txInfo = transactionChecker.parseSignedAndCheck(serializedTransaction, maxBytes);
+            txInfo = transactionChecker.parseSignedAndCheck(serializedTransaction);
         } else {
-            txInfo = transactionChecker.parseAndCheck(serializedTransaction, maxBytes);
+            txInfo = transactionChecker.parseAndCheck(serializedTransaction);
             result.setTxnInfo(txInfo);
         }
 

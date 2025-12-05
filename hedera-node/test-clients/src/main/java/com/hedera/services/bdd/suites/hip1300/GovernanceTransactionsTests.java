@@ -21,7 +21,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TRANSACTION_OV
 
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
-import com.hedera.services.bdd.junit.OrderedInIsolation;
+import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.keys.KeyShape;
 import com.hedera.services.bdd.spec.transactions.consensus.HapiTopicCreate;
@@ -33,7 +33,6 @@ import org.apache.commons.lang3.StringUtils;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
-import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Tag;
 
 /**
@@ -42,7 +41,6 @@ import org.junit.jupiter.api.Tag;
 @Tag(MATS)
 @Tag(ONLY_SUBPROCESS)
 @HapiTestLifecycle
-@OrderedInIsolation
 @DisplayName("Governance Transactions Tests")
 public class GovernanceTransactionsTests implements LifecycleTest {
     private static final String PAYER = "payer";
@@ -69,7 +67,6 @@ public class GovernanceTransactionsTests implements LifecycleTest {
     // --- Tests to examine the behavior when the feature flag is on ---
 
     @HapiTest
-    @Order(0)
     @DisplayName("Normal account cannot submit more than 6KB transactions, signed by a larger key")
     public Stream<DynamicTest> nonGovernanceAccountCannotSubmitLargerSizeWithLargeKeyIfEnabled() {
         return hapiTest(
@@ -86,7 +83,6 @@ public class GovernanceTransactionsTests implements LifecycleTest {
     }
 
     @HapiTest
-    @Order(1)
     @DisplayName("Governance account can submit more than 6KB transactions, signed by a larger key")
     public Stream<DynamicTest> governanceAccountCanSubmitLargerSizeWithLargeKeyIfEnabled() {
         return hapiTest(
@@ -103,7 +99,6 @@ public class GovernanceTransactionsTests implements LifecycleTest {
     }
 
     @HapiTest
-    @Order(2)
     @DisplayName("Normal account still cannot submit more than 6KB transactions when the feature is enabled")
     public Stream<DynamicTest> nonGovernanceAccountCannotSubmitLargeSizeTransactionsIfEnabled() {
         return hapiTest(
@@ -117,7 +112,6 @@ public class GovernanceTransactionsTests implements LifecycleTest {
     }
 
     @HapiTest
-    @Order(3)
     @DisplayName("Governance account cannot submit more than 6KB batch transactions when only the atomic batch is paid")
     public Stream<DynamicTest> governanceAccountCannotSubmitWhenPaidOnlyBatchIfEnabled() {
         final HapiTopicCreate innerTxn = createTopic(TOPIC)
@@ -133,7 +127,6 @@ public class GovernanceTransactionsTests implements LifecycleTest {
     }
 
     @HapiTest
-    @Order(4)
     @DisplayName(
             "Governance account cannot submit more than 6KB batch transactions when only the inner transaction is paid")
     public Stream<DynamicTest> governanceAccountCannotSubmitWhenPaidOnlyInnerIfEnabled() {
@@ -150,7 +143,6 @@ public class GovernanceTransactionsTests implements LifecycleTest {
     }
 
     @HapiTest
-    @Order(5)
     @DisplayName(
             "Governance account can submit more than 6KB batch transactions when both the batch and the inner transactions are paid")
     public Stream<DynamicTest> governanceAccountCanSubmitWhenBothArePaidIfEnabled() {
@@ -166,7 +158,6 @@ public class GovernanceTransactionsTests implements LifecycleTest {
     }
 
     @HapiTest
-    @Order(6)
     @DisplayName("Treasury and system admin accounts can submit more than 6KB transactions when the feature is enabled")
     public Stream<DynamicTest> governanceAccountCanSubmitLargeSizeTransactions() {
         return hapiTest(
@@ -185,7 +176,6 @@ public class GovernanceTransactionsTests implements LifecycleTest {
     }
 
     @HapiTest
-    @Order(7)
     @DisplayName("Non-governance account cannot submit transfers larger than 6KB even when the feature is enabled")
     public Stream<DynamicTest> nonGovernanceAccountTransactionLargerThan6kb() {
         return hapiTest(
@@ -199,8 +189,7 @@ public class GovernanceTransactionsTests implements LifecycleTest {
 
     // --- Test the behavior if the feature is disabled and verify nothing has changed ---
 
-    @HapiTest
-    @Order(8)
+    @LeakyHapiTest(overrides = {"governanceTransactions.isEnabled"})
     @DisplayName(
             "Treasury and system admin accounts cannot submit more than 6KB transactions when the feature is disabled at runtime")
     public Stream<DynamicTest> governanceAccountCannotSubmitLargeSizeTransactionsWhenDisabledDynamically() {
@@ -220,8 +209,7 @@ public class GovernanceTransactionsTests implements LifecycleTest {
                         .hasPrecheck(TRANSACTION_OVERSIZE));
     }
 
-    @HapiTest
-    @Order(9)
+    @LeakyHapiTest(overrides = {"governanceTransactions.isEnabled"})
     @DisplayName("Governance account cannot submit more than 6KB transactions, signed by a larger key, if disabled")
     public Stream<DynamicTest> governanceAccountCannotSubmitLargerSizeWithLargeKeyIfDisabled() {
         return hapiTest(
@@ -238,8 +226,7 @@ public class GovernanceTransactionsTests implements LifecycleTest {
                         .hasPrecheck(TRANSACTION_OVERSIZE));
     }
 
-    @HapiTest
-    @Order(10)
+    @LeakyHapiTest(overrides = {"governanceTransactions.isEnabled"})
     @DisplayName("Normal account cannot submit more than 6KB transactions when the feature is disabled")
     public Stream<DynamicTest> nonGovernanceAccountCannotSubmitLargeSizeTransactions() {
         return hapiTest(
@@ -253,8 +240,7 @@ public class GovernanceTransactionsTests implements LifecycleTest {
                         .hasPrecheck(TRANSACTION_OVERSIZE));
     }
 
-    @HapiTest
-    @Order(11)
+    @LeakyHapiTest(overrides = {"governanceTransactions.isEnabled"})
     @DisplayName(
             "Governance account cannot submit more than 6KB batch transactions when only the batch transaction is paid and feature disabled")
     public Stream<DynamicTest> governanceAccountCannotSubmitWhenPaidOnlyBatchIfDisabled() {
@@ -271,8 +257,7 @@ public class GovernanceTransactionsTests implements LifecycleTest {
                 atomicBatch(innerTxn).payingWith(GENESIS).hasPrecheck(TRANSACTION_OVERSIZE));
     }
 
-    @HapiTest
-    @Order(12)
+    @LeakyHapiTest(overrides = {"governanceTransactions.isEnabled"})
     @DisplayName(
             "Governance account cannot submit more than 6KB batch transactions when only the inner transaction is paid and feature disabled")
     public Stream<DynamicTest> governanceAccountCannotSubmitWhenPaidOnlyInnerIfDisabled() {
@@ -289,8 +274,7 @@ public class GovernanceTransactionsTests implements LifecycleTest {
                 atomicBatch(innerTxn).payingWith(PAYER).hasPrecheck(TRANSACTION_OVERSIZE));
     }
 
-    @HapiTest
-    @Order(13)
+    @LeakyHapiTest(overrides = {"governanceTransactions.isEnabled"})
     @DisplayName(
             "Governance account cannot submit more than 6KB batch transactions when both the batch and the inner transactions are paid")
     public Stream<DynamicTest> governanceAccountCannotSubmitWhenBothArePaidIfDisabled() {
@@ -306,8 +290,7 @@ public class GovernanceTransactionsTests implements LifecycleTest {
                 atomicBatch(innerTxn).payingWith(SYSTEM_ADMIN).hasPrecheck(TRANSACTION_OVERSIZE));
     }
 
-    @HapiTest
-    @Order(14)
+    @LeakyHapiTest(overrides = {"governanceTransactions.isEnabled"})
     @DisplayName(
             "Treasury and system admin accounts cannot submit more than 6KB transactions when the feature is disabled")
     public Stream<DynamicTest> governanceAccountsCannotSubmitLargeSizeTransactions() {

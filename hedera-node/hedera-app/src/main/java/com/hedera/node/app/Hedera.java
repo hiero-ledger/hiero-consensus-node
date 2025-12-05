@@ -102,7 +102,6 @@ import com.hedera.node.app.workflows.query.QueryWorkflow;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.Utils;
 import com.hedera.node.config.data.BlockStreamConfig;
-import com.hedera.node.config.data.GovernanceTransactionsConfig;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.NetworkAdminConfig;
 import com.hedera.node.config.data.QuiescenceConfig;
@@ -507,14 +506,9 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
         boundaryStateChangeListener = new BoundaryStateChangeListener(storeMetricsService, configSupplier);
         hintsService = hintsServiceFactory.apply(appContext, bootstrapConfig);
         historyService = historyServiceFactory.apply(appContext, bootstrapConfig);
-        final GovernanceTransactionsConfig governanceConfig =
-                bootstrapConfig.getConfigData(GovernanceTransactionsConfig.class);
-        final int maxTransactionBytes = governanceConfig.isEnabled()
-                ? governanceConfig.maxTxnSize()
-                : bootstrapConfig.getConfigData(HederaConfig.class).transactionMaxBytes();
         utilServiceImpl = new UtilServiceImpl(appContext, (txnBytes, config) -> daggerApp
                 .transactionChecker()
-                .parseSignedAndCheck(txnBytes, maxTransactionBytes)
+                .parseSignedAndCheck(txnBytes)
                 .txBody());
         tokenServiceImpl = new TokenServiceImpl(appContext);
         consensusServiceImpl = new ConsensusServiceImpl();

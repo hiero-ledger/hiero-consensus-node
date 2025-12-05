@@ -83,9 +83,6 @@ final class TransactionCheckerTest extends AppTestBase {
     private static final Duration ONE_MINUTE = Duration.newBuilder().seconds(60).build();
 
     private ConfigProvider props;
-
-    private final int maxBytes = MAX_TX_SIZE;
-
     private Transaction tx;
     private SignatureMap signatureMap;
     private SignedTransaction signedTx;
@@ -204,13 +201,67 @@ final class TransactionCheckerTest extends AppTestBase {
         @Test
         @DisplayName("`parseAndCheck` bytes must have no more than the configured transactionMaxBytes bytes")
         void parseAndCheckWithTooManyBytes() {
-            assertThatThrownBy(() -> checker.parseAndCheck(randomBytes(MAX_TX_SIZE + 1), maxBytes))
+            // Disable governance transactions and jumbo transactions so that we have 6KB as the max transaction size
+            props = () -> new VersionedConfigImpl(
+                    HederaTestConfigBuilder.create()
+                            .withValue("governanceTransactions.isEnabled", false)
+                            .withValue("jumboTransactions.isEnabled", false)
+                            .getOrCreateConfig(),
+                    1);
+
+            checker = new TransactionChecker(props, metrics);
+
+            assertThatThrownBy(() -> checker.parseAndCheck(randomBytes(MAX_TX_SIZE + 1)))
                     .isInstanceOf(PreCheckException.class)
                     .has(responseCode(TRANSACTION_OVERSIZE));
 
             // NOTE: I'm going to also try a number of bytes that JUST FITS. But these are not real transaction
             //       bytes, so they will fail to parse. But that is OK, as long as it is not TRANSACTION_OVERSIZE.
-            assertThatThrownBy(() -> checker.parseAndCheck(randomBytes(MAX_TX_SIZE), maxBytes))
+            assertThatThrownBy(() -> checker.parseAndCheck(randomBytes(MAX_TX_SIZE)))
+                    .isInstanceOf(PreCheckException.class)
+                    .doesNotHave(responseCode(TRANSACTION_OVERSIZE));
+        }
+
+        @Test
+        @DisplayName("`parseAndCheck` bytes must have no more than the configured governance max transaction bytes")
+        void parseAndCheckWithTooManyBytesGovernanceEnabled() {
+            // Enable only governance transactions so that we have 130KB as the max transaction size
+            props = () -> new VersionedConfigImpl(
+                    HederaTestConfigBuilder.create()
+                            .withValue("governanceTransactions.isEnabled", true)
+                            .withValue("jumboTransactions.isEnabled", false)
+                            .getOrCreateConfig(),
+                    1);
+
+            checker = new TransactionChecker(props, metrics);
+
+            assertThatThrownBy(() -> checker.parseAndCheck(randomBytes(MAX_LARGE_TX_SIZE + 1)))
+                    .isInstanceOf(PreCheckException.class)
+                    .has(responseCode(TRANSACTION_OVERSIZE));
+
+            assertThatThrownBy(() -> checker.parseAndCheck(randomBytes(MAX_LARGE_TX_SIZE)))
+                    .isInstanceOf(PreCheckException.class)
+                    .doesNotHave(responseCode(TRANSACTION_OVERSIZE));
+        }
+
+        @Test
+        @DisplayName("`parseAndCheck` bytes must have no more than the configured jumbo max transaction bytes")
+        void parseAndCheckWithTooManyBytesJumboEnabled() {
+            // Enable only jumbo transactions so that we have 130KB as the max transaction size
+            props = () -> new VersionedConfigImpl(
+                    HederaTestConfigBuilder.create()
+                            .withValue("governanceTransactions.isEnabled", false)
+                            .withValue("jumboTransactions.isEnabled", true)
+                            .getOrCreateConfig(),
+                    1);
+
+            checker = new TransactionChecker(props, metrics);
+
+            assertThatThrownBy(() -> checker.parseAndCheck(randomBytes(MAX_LARGE_TX_SIZE + 1)))
+                    .isInstanceOf(PreCheckException.class)
+                    .has(responseCode(TRANSACTION_OVERSIZE));
+
+            assertThatThrownBy(() -> checker.parseAndCheck(randomBytes(MAX_LARGE_TX_SIZE)))
                     .isInstanceOf(PreCheckException.class)
                     .doesNotHave(responseCode(TRANSACTION_OVERSIZE));
         }
@@ -350,7 +401,7 @@ final class TransactionCheckerTest extends AppTestBase {
                     .maxTxnSize();
 
             // assert that passing more than maxJumboTxnSize will fail
-            assertThatThrownBy(() -> checker.parseAndCheck(randomBytes(maxJumboTxnSize + 1), maxBytes))
+            assertThatThrownBy(() -> checker.parseAndCheck(randomBytes(maxJumboTxnSize + 1)))
                     .isInstanceOf(PreCheckException.class)
                     .is(responseCode(TRANSACTION_OVERSIZE));
         }
@@ -372,12 +423,12 @@ final class TransactionCheckerTest extends AppTestBase {
 
             // assert that even if we are sending a transaction with more than 6KB,
             // it will not fail with TRANSACTION_OVERSIZE
-            assertThatThrownBy(() -> checker.parseAndCheck(randomBytes(MAX_TX_SIZE + 1), MAX_LARGE_TX_SIZE))
+            assertThatThrownBy(() -> checker.parseAndCheck(randomBytes(MAX_TX_SIZE + 1)))
                     .isInstanceOf(PreCheckException.class)
                     .isNot(responseCode(TRANSACTION_OVERSIZE));
             // assert that even if we are sending a transaction with up to the limit of 130KB,
             // it will not fail with TRANSACTION_OVERSIZE
-            assertThatThrownBy(() -> checker.parseAndCheck(randomBytes(maxJumboTxnSize), MAX_LARGE_TX_SIZE))
+            assertThatThrownBy(() -> checker.parseAndCheck(randomBytes(maxJumboTxnSize)))
                     .isInstanceOf(PreCheckException.class)
                     .isNot(responseCode(TRANSACTION_OVERSIZE));
         }
@@ -398,7 +449,7 @@ final class TransactionCheckerTest extends AppTestBase {
                     .maxTxnSize();
 
             // assert that passing more than maxGovernanceTxnSize will fail
-            assertThatThrownBy(() -> checker.parseAndCheck(randomBytes(maxGovernanceTxnSize + 1), maxBytes))
+            assertThatThrownBy(() -> checker.parseAndCheck(randomBytes(maxGovernanceTxnSize + 1)))
                     .isInstanceOf(PreCheckException.class)
                     .is(responseCode(TRANSACTION_OVERSIZE));
         }
@@ -419,17 +470,17 @@ final class TransactionCheckerTest extends AppTestBase {
                     .maxTxnSize();
 
             // less than 6KB, does not fail with TRANSACTION_OVERSIZE
-            assertThatThrownBy(() -> checker.parseAndCheck(randomBytes(MAX_TX_SIZE - 1), MAX_LARGE_TX_SIZE))
+            assertThatThrownBy(() -> checker.parseAndCheck(randomBytes(MAX_TX_SIZE - 1)))
                     .isInstanceOf(PreCheckException.class)
                     .isNot(responseCode(TRANSACTION_OVERSIZE));
             // assert that even if we are sending a transaction with more than 6KB,
             // it will not fail with TRANSACTION_OVERSIZE
-            assertThatThrownBy(() -> checker.parseAndCheck(randomBytes(MAX_TX_SIZE + 1), MAX_LARGE_TX_SIZE))
+            assertThatThrownBy(() -> checker.parseAndCheck(randomBytes(MAX_TX_SIZE + 1)))
                     .isInstanceOf(PreCheckException.class)
                     .isNot(responseCode(TRANSACTION_OVERSIZE));
             // assert that even if we are sending a transaction with up to the limit of 130KB,
             // it will not fail with TRANSACTION_OVERSIZE
-            assertThatThrownBy(() -> checker.parseAndCheck(randomBytes(maxGovernanceTxnSize), MAX_LARGE_TX_SIZE))
+            assertThatThrownBy(() -> checker.parseAndCheck(randomBytes(maxGovernanceTxnSize)))
                     .isInstanceOf(PreCheckException.class)
                     .isNot(responseCode(TRANSACTION_OVERSIZE));
         }
@@ -450,17 +501,17 @@ final class TransactionCheckerTest extends AppTestBase {
                     .maxTxnSize();
 
             // less than 6KB, does not fail with TRANSACTION_OVERSIZE
-            assertThatThrownBy(() -> checker.parseAndCheck(randomBytes(MAX_TX_SIZE - 1), MAX_LARGE_TX_SIZE))
+            assertThatThrownBy(() -> checker.parseAndCheck(randomBytes(MAX_TX_SIZE - 1)))
                     .isInstanceOf(PreCheckException.class)
                     .isNot(responseCode(TRANSACTION_OVERSIZE));
             // assert that even if we are sending a transaction with more than 6KB,
             // it will not fail with TRANSACTION_OVERSIZE
-            assertThatThrownBy(() -> checker.parseAndCheck(randomBytes(MAX_TX_SIZE + 1), MAX_LARGE_TX_SIZE))
+            assertThatThrownBy(() -> checker.parseAndCheck(randomBytes(MAX_TX_SIZE + 1)))
                     .isInstanceOf(PreCheckException.class)
                     .isNot(responseCode(TRANSACTION_OVERSIZE));
             // assert that even if we are sending a transaction with up to the limit of 130KB,
             // it will not fail with TRANSACTION_OVERSIZE
-            assertThatThrownBy(() -> checker.parseAndCheck(randomBytes(maxGovernanceTxnSize), MAX_LARGE_TX_SIZE))
+            assertThatThrownBy(() -> checker.parseAndCheck(randomBytes(maxGovernanceTxnSize)))
                     .isInstanceOf(PreCheckException.class)
                     .isNot(responseCode(TRANSACTION_OVERSIZE));
         }

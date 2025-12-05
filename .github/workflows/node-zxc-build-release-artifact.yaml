@@ -143,6 +143,12 @@ jobs:
           semver --version
           echo "::endgroup::"
 
+      - name: Checkout Code
+        if: ${{ github.event.repository.private == true }}
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ inputs.ref || '' }}
+
       - name: Verify Workflow Parameters
         id: parameters
         env:
