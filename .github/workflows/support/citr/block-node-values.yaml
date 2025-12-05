@@ -4,10 +4,10 @@ resources:
   requests:
   limits:
     cpu: 8
-    memory: 20Gi
+    memory: 128Gi
   requests:
     cpu: 6
-    memory: 18Gi
+    memory: 120Gi
 
 nodeSelector:
   #solo.hashgraph.io/role: "auxiliary-services"consensus-node
