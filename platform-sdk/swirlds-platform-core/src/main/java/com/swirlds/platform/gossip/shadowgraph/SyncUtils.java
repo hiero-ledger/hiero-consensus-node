@@ -388,17 +388,20 @@ public final class SyncUtils {
      * <li>Don't send non-ancestors of self events unless we've known about that event for a long time.</li>
      * </ul>
      *
-     * @param selfId               the id of this node
-     * @param nonAncestorThreshold for each event that is not a self event and is not an ancestor of a self event, the
-     *                             amount of time the event must be known about before it is eligible to be sent
-     * @param now                  the current time
-     * @param eventsTheyNeed       the list of events we think they need, expected to be in topological order
+     * @param selfId                         the id of this node
+     * @param nonAncestorThreshold           for each event that is not a self event and is not an ancestor of a self
+     *                                       event, the amount of time the event must be known about before it is
+     *                                       eligible to be sent
+     * @param ancestorAndSelfFilterThreshold
+     * @param now                            the current time
+     * @param eventsTheyNeed                 the list of events we think they need, expected to be in topological order
      * @return the events that should be actually sent, will be a subset of the eventsTheyNeed list
      */
     @NonNull
     public static List<PlatformEvent> filterLikelyDuplicates(
             @NonNull final NodeId selfId,
             @NonNull final Duration nonAncestorThreshold,
+            @NonNull final Duration ancestorAndSelfFilterThreshold,
             @NonNull final Instant now,
             @NonNull final List<PlatformEvent> eventsTheyNeed) {
 
@@ -413,15 +416,16 @@ public final class SyncUtils {
         for (int index = eventsTheyNeed.size() - 1; index >= 0; index--) {
             final PlatformEvent event = eventsTheyNeed.get(index);
 
-            final boolean sendEvent =
-                    // Always send self events
-                    event.getCreatorId().equals(selfId)
-                            ||
-                            // Always send parents of other events we plan to send
-                            parentHashesOfEventsToSend.contains(event.getHash())
-                            ||
-                            // Send all other events if we've known about it for long enough
-                            haveWeKnownAboutEventForALongTime(event, nonAncestorThreshold, now);
+            // if it is related to self event or its parent, use shorter time limit
+            // in particular, if broadcast is disabled, that limit will be zero, so all self events and parents will be
+            // sent immediately
+            final boolean selfOrParentOfSelf =
+                    event.getCreatorId().equals(selfId) || parentHashesOfEventsToSend.contains(event.getHash());
+
+            final Duration needsToBeAtLeastThatOld =
+                    selfOrParentOfSelf ? ancestorAndSelfFilterThreshold : nonAncestorThreshold;
+
+            final boolean sendEvent = haveWeKnownAboutEventForALongTime(event, needsToBeAtLeastThatOld, now);
 
             if (sendEvent) {
                 // If we've decided to send an event, we also want to send its parents if those parents are needed

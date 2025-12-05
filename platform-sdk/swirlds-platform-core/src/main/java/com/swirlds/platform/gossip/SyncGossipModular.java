@@ -158,7 +158,8 @@ public class SyncGossipModular implements Gossip {
                     threadManager,
                     rosterSize,
                     this.network.getNetworkMetrics(),
-                    syncMetrics);
+                    syncMetrics,
+                    selfId);
 
         } else {
             final Shadowgraph shadowgraph = new Shadowgraph(platformContext, rosterSize, intakeEventCounter);
@@ -281,7 +282,11 @@ public class SyncGossipModular implements Gossip {
         });
 
         clearInput.bindConsumer(ignored -> syncProtocol.clear());
-        eventInput.bindConsumer(synchronizer::addEvent);
+        eventInput.bindConsumer(event -> {
+            synchronizer.addEvent(event);
+            syncProtocol.addEvent(event);
+        });
+
         eventWindowInput.bindConsumer(synchronizer::updateEventWindow);
 
         systemHealthInput.bindConsumer(syncProtocol::reportUnhealthyDuration);
