@@ -61,7 +61,7 @@ public interface HashgraphModule {
     OutputWire<List<ConsensusRound>> consensusRoundsOutputWire();
 
     /**
-     * An output wire that forwards pre-consensus events that are still waiting to reach consensus.
+     * An output wire that forwards pre-consensus events that are still waiting to reach consensus when consensus has advanced.
      *
      * @return the pre-consensus events output wire
      */
@@ -75,7 +75,7 @@ public interface HashgraphModule {
     OutputWire<List<PlatformEvent>> staleEventsOutputWire();
 
     /**
-     * Informs the module about platform statu updates.
+     * Informs the module about platform status updates.
      *
      * @return the platform status input wire
      */
