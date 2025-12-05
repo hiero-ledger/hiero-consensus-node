@@ -12,7 +12,7 @@ import com.hedera.node.app.service.addressbook.AddressBookService;
 import com.hedera.node.app.service.addressbook.impl.WritableNodeStore;
 import com.hedera.node.app.service.consensus.ConsensusService;
 import com.hedera.node.app.service.consensus.impl.WritableTopicStore;
-import com.hedera.node.app.service.entityid.WritableEntityCounters;
+import com.hedera.node.app.service.entityid.WritableEntityIdStore;
 import com.hedera.node.app.service.file.FileService;
 import com.hedera.node.app.service.file.impl.WritableFileStore;
 import com.hedera.node.app.service.networkadmin.FreezeService;
@@ -73,7 +73,7 @@ class WritableStoreFactoryImplTest {
         given(stack.getWritableStates(serviceName)).willReturn(writableStates);
         final var configuration = HederaTestConfigBuilder.createConfig();
         final WritableStoreFactory subject =
-                new WritableStoreFactory(stack, serviceName, mock(WritableEntityCounters.class));
+                new WritableStoreFactory(stack, serviceName, mock(WritableEntityIdStore.class));
 
         // given
         final var store = subject.getStore(storeClass);
