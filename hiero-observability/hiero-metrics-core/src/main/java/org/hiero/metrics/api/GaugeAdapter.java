@@ -33,7 +33,7 @@ public interface GaugeAdapter<D> extends StatefulMetric<Supplier<D>, D> {
 
     /**
      * Create a metric key for a {@link GaugeAdapter} with the given name.<br>
-     * See {@link org.hiero.metrics.api.utils.MetricUtils#validateNameCharacters(String)} for name requirements.
+     * See {@link org.hiero.metrics.api.utils.MetricUtils#validateMetricNameCharacters(String)} for name requirements.
      *
      * @param name the name of the metric
      * @param <D>  the type of the data point
@@ -65,7 +65,7 @@ public interface GaugeAdapter<D> extends StatefulMetric<Supplier<D>, D> {
     /**
      * Create a builder for a {@link GaugeAdapter} with the given metric name.
      * The data point will be created using the given factory.<br>
-     * See {@link org.hiero.metrics.api.utils.MetricUtils#validateNameCharacters(String)} for name requirements.
+     * See {@link org.hiero.metrics.api.utils.MetricUtils#validateMetricNameCharacters(String)} for name requirements.
      *
      * @param name             the metric name
      * @param dataPointFactory the factory function to create the data point

@@ -40,7 +40,7 @@ public interface StatsGaugeAdapter<D> extends StatefulMetric<Supplier<D>, D> {
 
     /**
      * Create a metric key for a {@link StatsGaugeAdapter} with the given name. <br>
-     * See {@link MetricUtils#validateNameCharacters(String)} for name requirements.
+     * See {@link MetricUtils#validateMetricNameCharacters(String)} for name requirements.
      *
      * @param name the name of the metric
      * @param <D>  the type of the data point
@@ -134,7 +134,7 @@ public interface StatsGaugeAdapter<D> extends StatefulMetric<Supplier<D>, D> {
         /**
          * Set the label name used to identify the stat type in the exported snapshots. <br>
          * Stat label name must not be blank and must only contain valid characters
-         * - see {@link MetricUtils#validateNameCharacters(String)}. <br>
+         * - see {@link MetricUtils#validateLabelNameCharacters(String)}. <br>
          * Default is {@value StatUtils#DEFAULT_STAT_LABEL}.
          *
          * @param statLabel the label name
@@ -143,7 +143,7 @@ public interface StatsGaugeAdapter<D> extends StatefulMetric<Supplier<D>, D> {
          */
         @NonNull
         public Builder<D> withStatLabel(@NonNull String statLabel) {
-            this.statLabel = MetricUtils.validateNameCharacters(statLabel);
+            this.statLabel = MetricUtils.validateLabelNameCharacters(statLabel);
             return this;
         }
 

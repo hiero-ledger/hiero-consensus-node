@@ -28,7 +28,7 @@ public interface GenericGauge<T> extends StatefulMetric<Supplier<T>, GaugeDataPo
 
     /**
      * Create a metric key for a {@link GenericGauge} with the given name.<br>
-     * See {@link org.hiero.metrics.api.utils.MetricUtils#validateNameCharacters(String)} for name requirements.
+     * See {@link org.hiero.metrics.api.utils.MetricUtils#validateMetricNameCharacters(String)} for name requirements.
      *
      * @param name the name of the metric
      * @param <T>  the type of value used to observe/update the gauge
@@ -55,7 +55,7 @@ public interface GenericGauge<T> extends StatefulMetric<Supplier<T>, GaugeDataPo
 
     /**
      * Create a builder for a {@link GenericGauge} with the given name and {@code double} value converter. <br>
-     * See {@link org.hiero.metrics.api.utils.MetricUtils#validateNameCharacters(String)} for name requirements.
+     * See {@link org.hiero.metrics.api.utils.MetricUtils#validateMetricNameCharacters(String)} for name requirements.
      *
      * @param name           the name of the metric
      * @param valueConverter the function to convert the value to {@code double} or {@code long}  for export

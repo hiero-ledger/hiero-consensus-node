@@ -11,7 +11,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 public class LabelTest {
 
     @ParameterizedTest
-    @MethodSource("org.hiero.metrics.TestUtils#validNames")
+    @MethodSource("org.hiero.metrics.TestUtils#validLabelNames")
     void testValidLabel(String validName) {
         Label label = new Label(validName, "GET");
 
@@ -55,7 +55,7 @@ public class LabelTest {
     }
 
     @ParameterizedTest
-    @MethodSource("org.hiero.metrics.TestUtils#invalidNames")
+    @MethodSource("org.hiero.metrics.TestUtils#invalidLabelNames")
     void testInvalidNameCharactersThrows(String invalidName) {
         assertThatThrownBy(() -> new Label(invalidName, "value")).isInstanceOf(IllegalArgumentException.class);
     }

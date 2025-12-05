@@ -7,26 +7,65 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
-import org.junit.jupiter.params.provider.ValueSource;
 
 class MetricUtilsTest {
 
     @ParameterizedTest
-    @ValueSource(strings = {"valid_name", "ValidName", "name123", "Name_123"})
-    void testValidateNameCharactersWithValidNames(String name) {
-        String result = MetricUtils.validateNameCharacters(name);
+    @MethodSource("org.hiero.metrics.TestUtils#validMetricNames")
+    void testValidateMetricNameWithValidCharacters(String name) {
+        String result = MetricUtils.validateMetricNameCharacters(name);
         assertThat(result).isEqualTo(name);
     }
 
     @ParameterizedTest
-    @MethodSource("org.hiero.metrics.TestUtils#invalidNames")
-    void testValidateNameCharactersWithInvalidNames(String invalidName) {
-        assertThatThrownBy(() -> MetricUtils.validateNameCharacters(invalidName))
+    @MethodSource("org.hiero.metrics.TestUtils#validUnitNames")
+    void testValidateUnitNameWithValidCharacters(String name) {
+        String result = MetricUtils.validateUnitNameCharacters(name);
+        assertThat(result).isEqualTo(name);
+    }
+
+    @ParameterizedTest
+    @MethodSource("org.hiero.metrics.TestUtils#validLabelNames")
+    void testValidateLabelNameWithValidCharacters(String name) {
+        String result = MetricUtils.validateLabelNameCharacters(name);
+        assertThat(result).isEqualTo(name);
+    }
+
+    @ParameterizedTest
+    @MethodSource("org.hiero.metrics.TestUtils#invalidMetricNames")
+    void testValidateMetricNameInvalidCharactersThrows(String invalidName) {
+        assertThatThrownBy(() -> MetricUtils.validateMetricNameCharacters(invalidName))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @ParameterizedTest
+    @MethodSource("org.hiero.metrics.TestUtils#invalidUnitNames")
+    void testValidateUnitNameInvalidCharactersThrows(String invalidName) {
+        assertThatThrownBy(() -> MetricUtils.validateUnitNameCharacters(invalidName))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @ParameterizedTest
+    @MethodSource("org.hiero.metrics.TestUtils#invalidLabelNames")
+    void testValidateLabelNameInvalidCharactersThrows(String invalidName) {
+        assertThatThrownBy(() -> MetricUtils.validateLabelNameCharacters(invalidName))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test
-    void testValidateNameCharactersWithNullName() {
-        assertThatThrownBy(() -> MetricUtils.validateNameCharacters(null)).isInstanceOf(NullPointerException.class);
+    void testValidateNullMetricNameThrows() {
+        assertThatThrownBy(() -> MetricUtils.validateMetricNameCharacters(null))
+                .isInstanceOf(NullPointerException.class);
+    }
+
+    @Test
+    void testValidateNullUnitNameThrows() {
+        assertThatThrownBy(() -> MetricUtils.validateUnitNameCharacters(null)).isInstanceOf(NullPointerException.class);
+    }
+
+    @Test
+    void testValidateNullLabelNameThrows() {
+        assertThatThrownBy(() -> MetricUtils.validateLabelNameCharacters(null))
+                .isInstanceOf(NullPointerException.class);
     }
 }

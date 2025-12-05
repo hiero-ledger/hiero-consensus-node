@@ -154,7 +154,7 @@ public interface Metric {
         /**
          * Sets the metric unit. <br>
          * Unit, if not null or empty, must only contain valid characters
-         * - see {@link MetricUtils#validateNameCharacters(String)}.
+         * - see {@link MetricUtils#validateUnitNameCharacters(String)}.
          *
          * @param unit the metric unit, may be {@code null}
          * @return the builder instance
@@ -162,7 +162,7 @@ public interface Metric {
         @NonNull
         public final B withUnit(@Nullable String unit) {
             if (unit != null && !unit.isBlank()) {
-                this.unit = MetricUtils.validateNameCharacters(unit);
+                this.unit = MetricUtils.validateUnitNameCharacters(unit);
             } else {
                 this.unit = null;
             }
@@ -192,7 +192,7 @@ public interface Metric {
          * Adds dynamic label names to the metric. Dynamic label names must be unique and must not conflict with
          * static label names. Exception will be thrown at metric build time if there are conflicts. <br>
          * Label name must not be blank and must only contain valid characters
-         *  - see {@link MetricUtils#validateNameCharacters(String)}.
+         *  - see {@link MetricUtils#validateLabelNameCharacters(String)}.
          *
          * @param labelNames the dynamic label names to add, must not be {@code null}
          * @return the builder instance
@@ -201,7 +201,7 @@ public interface Metric {
         public final B withDynamicLabelNames(@NonNull String... labelNames) {
             Objects.requireNonNull(labelNames, "label names must not be null");
             for (String labelName : labelNames) {
-                MetricUtils.validateNameCharacters(labelName);
+                MetricUtils.validateLabelNameCharacters(labelName);
                 validateLabelNameNoEqualMetricName(labelName);
             }
             dynamicLabelNames.addAll(Arrays.asList(labelNames));

@@ -49,7 +49,7 @@ public class StateSetTest
     class MetricTests extends AbstractMetricBaseTest.MetricTests {
 
         @ParameterizedTest
-        @MethodSource("org.hiero.metrics.TestUtils#validNames")
+        @MethodSource("org.hiero.metrics.TestUtils#validUnitNames")
         @Override
         void testWithValidStringUnit(String validUnit) {
             StateSet<TestEnum> metric = emptyMetricBuilder().withUnit(validUnit).build();

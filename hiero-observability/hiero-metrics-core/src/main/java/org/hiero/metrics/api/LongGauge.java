@@ -24,7 +24,7 @@ public interface LongGauge extends StatefulMetric<LongSupplier, LongGaugeDataPoi
 
     /**
      * Create a metric key for a {@link LongGauge} with the given name. <br>
-     * See {@link org.hiero.metrics.api.utils.MetricUtils#validateNameCharacters(String)} for name requirements.
+     * See {@link org.hiero.metrics.api.utils.MetricUtils#validateMetricNameCharacters(String)} for name requirements.
      *
      * @param name the name of the metric
      * @return the metric key
@@ -47,7 +47,7 @@ public interface LongGauge extends StatefulMetric<LongSupplier, LongGaugeDataPoi
 
     /**
      * Create a builder for a {@link LongGauge} with the given metric name. <br>
-     * See {@link org.hiero.metrics.api.utils.MetricUtils#validateNameCharacters(String)} for name requirements.
+     * See {@link org.hiero.metrics.api.utils.MetricUtils#validateMetricNameCharacters(String)} for name requirements.
      *
      * @param name the metric name
      * @return the builder

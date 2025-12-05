@@ -19,7 +19,7 @@ public interface LongCounter extends StatefulMetric<LongSupplier, LongCounterDat
 
     /**
      * Create a metric key for a {@link LongCounter} with the given name. <br>
-     * See {@link org.hiero.metrics.api.utils.MetricUtils#validateNameCharacters(String)} for name requirements.
+     * See {@link org.hiero.metrics.api.utils.MetricUtils#validateMetricNameCharacters(String)} for name requirements.
      *
      * @param name the name of the metric
      * @return the metric key
@@ -42,7 +42,7 @@ public interface LongCounter extends StatefulMetric<LongSupplier, LongCounterDat
 
     /**
      * Create a builder for a {@link LongCounter} with the given metric name. <br>
-     * See {@link org.hiero.metrics.api.utils.MetricUtils#validateNameCharacters(String)} for name requirements.
+     * See {@link org.hiero.metrics.api.utils.MetricUtils#validateMetricNameCharacters(String)} for name requirements.
      *
      * @param name the name of the metric
      * @return the builder

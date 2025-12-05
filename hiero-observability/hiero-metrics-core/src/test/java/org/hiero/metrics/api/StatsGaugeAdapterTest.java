@@ -137,7 +137,7 @@ public class StatsGaugeAdapterTest
     }
 
     @ParameterizedTest
-    @MethodSource("org.hiero.metrics.TestUtils#invalidNames")
+    @MethodSource("org.hiero.metrics.TestUtils#invalidLabelNames")
     void testWithInvalidStatLabelThrows(String statLabel) {
         StatsGaugeAdapter.Builder<StatContainer> builder = emptyMetricBuilder();
 
@@ -145,7 +145,7 @@ public class StatsGaugeAdapterTest
     }
 
     @ParameterizedTest
-    @MethodSource("org.hiero.metrics.TestUtils#validNames")
+    @MethodSource("org.hiero.metrics.TestUtils#validLabelNames")
     void testWithValidStatLabel(String statLabel) {
         StatsGaugeAdapter.Builder<StatContainer> builder = emptyMetricBuilder().withStatLabel(statLabel);
 

@@ -134,7 +134,7 @@ public interface StatefulMetric<I, D> extends Metric {
          * @return this builder
          */
         @NonNull
-        protected B withContainerFactory(Function<I, D> dataPointFactory) {
+        protected B withContainerFactory(@NonNull Function<I, D> dataPointFactory) {
             this.dataPointFactory = Objects.requireNonNull(dataPointFactory, "Data point factory must not be null");
             return self();
         }

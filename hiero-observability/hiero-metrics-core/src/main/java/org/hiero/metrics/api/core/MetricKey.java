@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.metrics.api.core;
 
+import com.swirlds.base.ArgumentUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
 import org.hiero.metrics.api.utils.MetricUtils;
@@ -11,33 +12,25 @@ import org.hiero.metrics.api.utils.MetricUtils;
  * <p>
  * Callers may additionally categorize the metric by calling {@link #withCategory(String)}.
  */
-public final class MetricKey<M extends Metric> {
-
-    private final String name;
-
-    private final Class<M> type;
-
-    private final int hashCode;
+public record MetricKey<M extends Metric>(@NonNull String name, @NonNull Class<M> type) {
 
     /**
-     * Constructs a new metric key instance with the specified name and type. <br>
+     * Creates a new metric key instance with the specified name and type. <br>
      * Name must not be blank and must only contain valid characters
-     * - see {@link MetricUtils#validateNameCharacters(String)}.
+     * - see {@link MetricUtils#validateMetricNameCharacters(String)}.
      *
      * @param name the name of the metric, must not be blank
      * @param type the class type of the metric, must not be null
      */
-    private MetricKey(@NonNull String name, @NonNull Class<M> type) {
-        this.name = name;
-        this.type = Objects.requireNonNull(type, "metric type must not be null");
-
-        hashCode = Objects.hash(this.name, this.type);
+    public MetricKey {
+        MetricUtils.validateMetricNameCharacters(name);
+        Objects.requireNonNull(type, "metric type must not be null");
     }
 
     /**
      * Creates a new metric key instance with the specified name and type. <br>
      * Name must not be blank and must only contain valid characters
-     * - see {@link MetricUtils#validateNameCharacters(String)}.
+     * - see {@link MetricUtils#validateMetricNameCharacters(String)}.
      *
      * @param name the name of the metric, must not be blank
      * @param type the class type of the metric, must not be null
@@ -46,7 +39,6 @@ public final class MetricKey<M extends Metric> {
      */
     @SuppressWarnings("unchecked")
     public static <M extends Metric> MetricKey<M> of(@NonNull String name, @NonNull Class<? super M> type) {
-        MetricUtils.validateNameCharacters(name);
         return new MetricKey<>(name, (Class<M>) type);
     }
 
@@ -54,41 +46,13 @@ public final class MetricKey<M extends Metric> {
      * Returns a new metric key instance with the specified category prefixed to the metric name.
      * The category and name are separated by a colon (':'). <br>
      * Category must not be blank and must only contain valid characters
-     * - see {@link MetricUtils#validateNameCharacters(String)}.
+     * - see {@link MetricUtils#validateMetricNameCharacters(String)}.
      *
      * @param category the category to prefix to the metric name, must not be blank
      * @return a new metric key instance with the category prefixed to the name
      */
     public MetricKey<M> withCategory(@NonNull String category) {
-        MetricUtils.validateNameCharacters(category);
+        ArgumentUtils.throwArgBlank(category, "category");
         return new MetricKey<>(category + ':' + name, type);
-    }
-
-    @NonNull
-    public String name() {
-        return name;
-    }
-
-    @NonNull
-    public Class<M> type() {
-        return type;
-    }
-
-    @Override
-    public boolean equals(Object obj) {
-        if (obj == this) return true;
-        if (obj == null || obj.getClass() != this.getClass()) return false;
-        var that = (MetricKey<?>) obj;
-        return Objects.equals(this.name, that.name) && Objects.equals(this.type, that.type);
-    }
-
-    @Override
-    public int hashCode() {
-        return hashCode;
-    }
-
-    @Override
-    public String toString() {
-        return "MetricKey[" + "name=" + name + ", " + "type=" + type + ']';
     }
 }

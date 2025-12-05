@@ -73,7 +73,7 @@ abstract class AbstractMetricBaseTest<M extends Metric, B extends Metric.Builder
         }
 
         @ParameterizedTest
-        @MethodSource("org.hiero.metrics.TestUtils#invalidNames")
+        @MethodSource("org.hiero.metrics.TestUtils#invalidUnitNames")
         void testWithInvalidStringUnit(String invalidUnit) {
             if (invalidUnit == null || invalidUnit.isBlank()) {
                 // already tested in other tests
@@ -113,7 +113,7 @@ abstract class AbstractMetricBaseTest<M extends Metric, B extends Metric.Builder
         }
 
         @ParameterizedTest
-        @MethodSource("org.hiero.metrics.TestUtils#invalidNames")
+        @MethodSource("org.hiero.metrics.TestUtils#invalidLabelNames")
         void testInvalidDynamicLabelNamesThrows(String invalidDynamicLabelName) {
             B builder = emptyMetricBuilder();
 
@@ -229,8 +229,8 @@ abstract class AbstractMetricBaseTest<M extends Metric, B extends Metric.Builder
         }
 
         @ParameterizedTest
-        @MethodSource("org.hiero.metrics.TestUtils#invalidNames")
-        void testWithDescriptionAsInvalidName(String description) {
+        @MethodSource("org.hiero.metrics.TestUtils#invalidMetricNames")
+        void testWithDescriptionAsInvalidMetricName(String description) {
             M metric = emptyMetricBuilder().withDescription(description).build();
 
             assertThat(metric.metadata().description())
@@ -239,8 +239,8 @@ abstract class AbstractMetricBaseTest<M extends Metric, B extends Metric.Builder
         }
 
         @ParameterizedTest
-        @MethodSource("org.hiero.metrics.TestUtils#validNames")
-        void testWithDescriptionAsValidName(String description) {
+        @MethodSource("org.hiero.metrics.TestUtils#validDescriptions")
+        void testWithValidDescription(String description) {
             M metric = emptyMetricBuilder().withDescription(description).build();
 
             assertThat(metric.metadata().description())
@@ -276,7 +276,7 @@ abstract class AbstractMetricBaseTest<M extends Metric, B extends Metric.Builder
         }
 
         @ParameterizedTest
-        @MethodSource("org.hiero.metrics.TestUtils#validNames")
+        @MethodSource("org.hiero.metrics.TestUtils#validUnitNames")
         void testWithValidStringUnit(String validUnit) {
             M metric = emptyMetricBuilder().withUnit(validUnit).build();
 
@@ -328,7 +328,7 @@ abstract class AbstractMetricBaseTest<M extends Metric, B extends Metric.Builder
         }
 
         @ParameterizedTest
-        @MethodSource("org.hiero.metrics.TestUtils#validNames")
+        @MethodSource("org.hiero.metrics.TestUtils#validLabelNames")
         void testSingleValidDynamicLabelName(String validLabelName) {
             M metric =
                     emptyMetricBuilder().withDynamicLabelNames(validLabelName).build();
@@ -339,10 +339,10 @@ abstract class AbstractMetricBaseTest<M extends Metric, B extends Metric.Builder
         @Test
         void testMultipleValidDynamicLabelName() {
             M metric = emptyMetricBuilder()
-                    .withDynamicLabelNames(TestUtils.validNames())
+                    .withDynamicLabelNames(TestUtils.validLabelNames())
                     .build();
 
-            assertThat(metric.dynamicLabelNames()).containsExactlyInAnyOrder(TestUtils.validNames());
+            assertThat(metric.dynamicLabelNames()).containsExactlyInAnyOrder(TestUtils.validLabelNames());
         }
 
         @Test
@@ -403,7 +403,7 @@ abstract class AbstractMetricBaseTest<M extends Metric, B extends Metric.Builder
         }
 
         @ParameterizedTest
-        @MethodSource("org.hiero.metrics.TestUtils#validNames")
+        @MethodSource("org.hiero.metrics.TestUtils#validLabelNames")
         void testSingleValidStaticLabelName(String validLabelName) {
             Label label = new Label(validLabelName, "value");
             M metric = emptyMetricBuilder().withStaticLabel(label).build();
@@ -413,7 +413,7 @@ abstract class AbstractMetricBaseTest<M extends Metric, B extends Metric.Builder
 
         @Test
         void testMultipleValidStaticLabels() {
-            List<Label> labels = Stream.of(TestUtils.validNames())
+            List<Label> labels = Stream.of(TestUtils.validLabelNames())
                     .map(l -> new Label(l, "value"))
                     .toList();
 

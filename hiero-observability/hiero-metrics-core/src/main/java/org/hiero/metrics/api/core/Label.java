@@ -18,13 +18,13 @@ public record Label(@NonNull String name, @NonNull String value) implements Comp
     /**
      * Constructs a new label with the specified name and value. <br>
      * Label name must not be blank and must only contain valid characters
-     * - see {@link MetricUtils#validateNameCharacters(String)}.
+     * - see {@link MetricUtils#validateLabelNameCharacters(String)}.
      *
      * @param name  the name of the label, must not be blank
      * @param value the value of the label, must not be blank
      */
     public Label(@NonNull String name, @NonNull String value) {
-        this.name = MetricUtils.validateNameCharacters(name);
+        this.name = MetricUtils.validateLabelNameCharacters(name);
         this.value = ArgumentUtils.throwArgBlank(value, "labelValue");
     }
 
