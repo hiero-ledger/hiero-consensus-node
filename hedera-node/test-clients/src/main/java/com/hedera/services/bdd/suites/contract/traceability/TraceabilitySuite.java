@@ -84,7 +84,6 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.base.utility.CommonUtils.hex;
-import static org.hyperledger.besu.crypto.Hash.keccak256;
 
 import com.esaulpaugh.headlong.abi.Address;
 import com.esaulpaugh.headlong.abi.Function;
@@ -116,11 +115,9 @@ import com.hederahashgraph.api.proto.java.TransferList;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
-import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
-import org.apache.commons.lang3.ArrayUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.tuweni.bytes.Bytes;
@@ -4553,11 +4550,11 @@ public class TraceabilitySuite {
                                                                                                     somebodyElse))),
                                                                     serialNumberId))
                                                     .setGas(978120)
-                                                    .setGasUsed(948098)
+                                                    .setGasUsed(963025)
                                                     .setRevertReason(ByteString.EMPTY)
                                                     .build(),
                                             ContractAction.newBuilder()
-                                                    .setCallType(CALL)
+                                                    .setCallType(SYSTEM)
                                                     .setCallOperationType(CallOperationType.OP_DELEGATECALL)
                                                     .setCallingContract(
                                                             spec.registry().getContractId(APPROVE_BY_DELEGATE))
@@ -4567,8 +4564,8 @@ public class TraceabilitySuite {
                                                                             spec.registry()
                                                                                     .getTokenID(tokenInQuestion)
                                                                                     .getTokenNum()))
-                                                    .setGas(958481)
-                                                    .setGasUsed(943594)
+                                                    .setGas(955921)
+                                                    .setGasUsed(955921)
                                                     .setInput(
                                                             ByteStringUtils.wrapUnsafely(
                                                                     Function.parse("approve(address,uint256)")
@@ -4580,56 +4577,8 @@ public class TraceabilitySuite {
                                                                                                                     somebodyElse))),
                                                                                     serialNumberId)
                                                                             .array()))
-                                                    .setRevertReason(ByteString.EMPTY)
-                                                    .setCallDepth(1)
-                                                    .build(),
-                                            ContractAction.newBuilder()
-                                                    .setCallType(SYSTEM)
-                                                    .setCallOperationType(CallOperationType.OP_DELEGATECALL)
-                                                    .setCallingContract(
-                                                            spec.contractIdFactory()
-                                                                    .apply(
-                                                                            spec.registry()
-                                                                                    .getTokenID(tokenInQuestion)
-                                                                                    .getTokenNum()))
-                                                    .setRecipientContract(
-                                                            spec.contractIdFactory()
-                                                                    .apply(359L))
-                                                    .setGas(940841)
-                                                    .setGasUsed(940841)
-                                                    .setInput(
-                                                            ByteStringUtils.wrapUnsafely(
-                                                                    ArrayUtils.addAll(
-                                                                            ArrayUtils.addAll(
-                                                                                    Arrays.copyOfRange(
-                                                                                            keccak256(
-                                                                                                            Bytes.of(
-                                                                                                                    "redirectForToken(address,bytes)"
-                                                                                                                            .getBytes()))
-                                                                                                    .toArrayUnsafe(),
-                                                                                            0,
-                                                                                            4),
-                                                                                    Arrays.copyOfRange(
-                                                                                            encodeTuple(
-                                                                                                    "(address)",
-                                                                                                    hexedSolidityAddressToHeadlongAddress(
-                                                                                                            asHexedSolidityAddress(
-                                                                                                                    spec.registry()
-                                                                                                                            .getTokenID(
-                                                                                                                                    tokenInQuestion)))),
-                                                                                            12,
-                                                                                            32)),
-                                                                            Function.parse("approve(address,uint256)")
-                                                                                    .encodeCallWithArgs(
-                                                                                            hexedSolidityAddressToHeadlongAddress(
-                                                                                                    asHexedSolidityAddress(
-                                                                                                            spec.registry()
-                                                                                                                    .getAccountID(
-                                                                                                                            somebodyElse))),
-                                                                                            serialNumberId)
-                                                                                    .array())))
                                                     .setError(ByteString.copyFrom("PRECOMPILE_ERROR".getBytes()))
-                                                    .setCallDepth(2)
+                                                    .setCallDepth(1)
                                                     .build())));
                 }));
     }

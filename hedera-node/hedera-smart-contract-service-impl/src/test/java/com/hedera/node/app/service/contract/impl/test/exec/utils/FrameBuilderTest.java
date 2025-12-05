@@ -6,11 +6,11 @@ import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.co
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.selfDestructBeneficiariesFor;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.tinybarValuesFor;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.CALLED_CONTRACT_ID;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.CALL_DATA;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.CODE_FACTORY;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.CONTRACT_CODE;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEFAULT_COINBASE;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.EIP_1014_ADDRESS;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.GAS_CALCULATOR;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.GAS_LIMIT;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.INTRINSIC_GAS;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NETWORK_GAS_PRICE;
@@ -107,8 +107,7 @@ class FrameBuilderTest {
         givenContractExists();
         final var recordBuilder = mock(ContractOperationStreamBuilder.class);
         given(worldUpdater.getHederaAccount(CALLED_CONTRACT_ID)).willReturn(account);
-        given(account.getEvmCode(Bytes.wrap(CALL_DATA.toByteArray()), CODE_FACTORY))
-                .willReturn(CONTRACT_CODE);
+        given(account.getCode()).willReturn(CONTRACT_CODE.getBytes());
         given(worldUpdater.updater()).willReturn(stackedUpdater);
         given(blocks.blockValuesOf(GAS_LIMIT)).willReturn(blockValues);
         final var config = HederaTestConfigBuilder.create()
@@ -124,7 +123,8 @@ class FrameBuilderTest {
                 EIP_1014_ADDRESS,
                 NON_SYSTEM_LONG_ZERO_ADDRESS,
                 INTRINSIC_GAS,
-                CODE_FACTORY);
+                CODE_FACTORY,
+                GAS_CALCULATOR);
         given(blocks.blockHashOf(frame, SOME_BLOCK_NO)).willReturn(Hash.EMPTY);
 
         assertEquals(1024, frame.getMaxStackSize());
@@ -146,7 +146,7 @@ class FrameBuilderTest {
         assertEquals(NON_SYSTEM_LONG_ZERO_ADDRESS, frame.getRecipientAddress());
         assertEquals(NON_SYSTEM_LONG_ZERO_ADDRESS, frame.getContractAddress());
         assertEquals(transaction.evmPayload(), frame.getInputData());
-        assertSame(CONTRACT_CODE, frame.getCode());
+        assertSame(CONTRACT_CODE.getBytes(), frame.getCode().getBytes());
         assertNotNull(accessTrackerFor(frame));
         assertSame(tinybarValues, tinybarValuesFor(frame));
         assertSame(recordBuilder, selfDestructBeneficiariesFor(frame));
@@ -160,8 +160,7 @@ class FrameBuilderTest {
         given(worldUpdater.updater()).willReturn(stackedUpdater);
         given(blocks.blockValuesOf(GAS_LIMIT)).willReturn(blockValues);
         given(worldUpdater.getHederaAccount(CALLED_CONTRACT_ID)).willReturn(account);
-        given(account.getEvmCode(Bytes.wrap(CALL_DATA.toByteArray()), CODE_FACTORY))
-                .willReturn(CONTRACT_CODE);
+        given(account.getCode()).willReturn(CONTRACT_CODE.getBytes());
         final var config = HederaTestConfigBuilder.create()
                 .withValue("ledger.fundingAccount", DEFAULT_COINBASE)
                 .withValue("contracts.sidecars", "CONTRACT_BYTECODE,CONTRACT_ACTION")
@@ -177,7 +176,8 @@ class FrameBuilderTest {
                 EIP_1014_ADDRESS,
                 NON_SYSTEM_LONG_ZERO_ADDRESS,
                 INTRINSIC_GAS,
-                CODE_FACTORY);
+                CODE_FACTORY,
+                GAS_CALCULATOR);
         given(blocks.blockHashOf(frame, SOME_BLOCK_NO)).willReturn(Hash.EMPTY);
 
         assertEquals(1024, frame.getMaxStackSize());
@@ -199,7 +199,7 @@ class FrameBuilderTest {
         assertEquals(NON_SYSTEM_LONG_ZERO_ADDRESS, frame.getRecipientAddress());
         assertEquals(NON_SYSTEM_LONG_ZERO_ADDRESS, frame.getContractAddress());
         assertEquals(transaction.evmPayload(), frame.getInputData());
-        assertSame(CONTRACT_CODE, frame.getCode());
+        assertSame(CONTRACT_CODE.getBytes(), frame.getCode().getBytes());
         assertNull(accessTrackerFor(frame));
         assertSame(tinybarValues, tinybarValuesFor(frame));
     }
@@ -227,7 +227,8 @@ class FrameBuilderTest {
                         EIP_1014_ADDRESS,
                         NON_SYSTEM_LONG_ZERO_ADDRESS,
                         INTRINSIC_GAS,
-                        CODE_FACTORY));
+                        CODE_FACTORY,
+                        GAS_CALCULATOR));
     }
 
     @Test
@@ -237,8 +238,7 @@ class FrameBuilderTest {
         given(worldUpdater.updater()).willReturn(stackedUpdater);
         given(blocks.blockValuesOf(GAS_LIMIT)).willReturn(blockValues);
         given(worldUpdater.getHederaAccount(CALLED_CONTRACT_ID)).willReturn(account);
-        given(account.getEvmCode(Bytes.wrap(CALL_DATA.toByteArray()), CODE_FACTORY))
-                .willReturn(CONTRACT_CODE);
+        given(account.getCode()).willReturn(CONTRACT_CODE.getBytes());
         final var config = HederaTestConfigBuilder.create().getOrCreateConfig();
 
         final var frame = subject.buildInitialFrameWith(
@@ -251,7 +251,8 @@ class FrameBuilderTest {
                 EIP_1014_ADDRESS,
                 NON_SYSTEM_LONG_ZERO_ADDRESS,
                 INTRINSIC_GAS,
-                CODE_FACTORY);
+                CODE_FACTORY,
+                GAS_CALCULATOR);
 
         assertEquals(1024, frame.getMaxStackSize());
         assertSame(stackedUpdater, frame.getWorldUpdater());
@@ -270,7 +271,7 @@ class FrameBuilderTest {
         assertEquals(NON_SYSTEM_LONG_ZERO_ADDRESS, frame.getRecipientAddress());
         assertEquals(NON_SYSTEM_LONG_ZERO_ADDRESS, frame.getContractAddress());
         assertEquals(transaction.evmPayload(), frame.getInputData());
-        assertSame(CONTRACT_CODE, frame.getCode());
+        assertSame(CONTRACT_CODE.getBytes(), frame.getCode().getBytes());
         assertSame(tinybarValues, tinybarValuesFor(frame));
     }
 
@@ -293,7 +294,8 @@ class FrameBuilderTest {
                 EIP_1014_ADDRESS,
                 NON_SYSTEM_LONG_ZERO_ADDRESS,
                 INTRINSIC_GAS,
-                CODE_FACTORY);
+                CODE_FACTORY,
+                GAS_CALCULATOR);
 
         assertEquals(1024, frame.getMaxStackSize());
         assertSame(stackedUpdater, frame.getWorldUpdater());
@@ -337,7 +339,8 @@ class FrameBuilderTest {
                 EIP_1014_ADDRESS,
                 NON_SYSTEM_LONG_ZERO_ADDRESS,
                 INTRINSIC_GAS,
-                CODE_FACTORY);
+                CODE_FACTORY,
+                GAS_CALCULATOR);
         given(blocks.blockHashOf(frame, SOME_BLOCK_NO)).willReturn(Hash.EMPTY);
 
         assertTrue(FrameUtils.hasActionValidationEnabled(frame));
@@ -384,7 +387,8 @@ class FrameBuilderTest {
                 EIP_1014_ADDRESS,
                 NON_SYSTEM_LONG_ZERO_ADDRESS,
                 INTRINSIC_GAS,
-                CODE_FACTORY);
+                CODE_FACTORY,
+                GAS_CALCULATOR);
         given(blocks.blockHashOf(frame, SOME_BLOCK_NO)).willReturn(Hash.EMPTY);
 
         assertEquals(1024, frame.getMaxStackSize());

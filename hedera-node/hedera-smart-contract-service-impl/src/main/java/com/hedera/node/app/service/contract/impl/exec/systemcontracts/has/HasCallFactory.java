@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.exec.systemcontracts.has;
 
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.HasSystemContract.HAS_EVM_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.configOf;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.proxyUpdaterFor;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.systemContractGasCalculatorOf;
@@ -18,10 +19,12 @@ import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethod
 import com.hedera.node.app.spi.signatures.SignatureVerifier;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
+import java.util.Optional;
 import javax.inject.Inject;
 import javax.inject.Named;
 import javax.inject.Singleton;
 import org.apache.tuweni.bytes.Bytes;
+import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 
 /**
@@ -69,11 +72,19 @@ public class HasCallFactory implements CallFactory<HasCallAttempt> {
         requireNonNull(input);
         requireNonNull(frame);
         final var enhancement = proxyUpdaterFor(frame).enhancement();
+
+        // If we're executing a HAS call, but the recipient isn't the HAS address
+        // then it must be a redirect/delegate call.
+        final var isRedirect = !frame.getRecipientAddress().equals(Address.fromHexString(HAS_EVM_ADDRESS));
+        final Optional<Address> maybeRedirectAddress =
+                isRedirect ? Optional.of(frame.getRecipientAddress()) : Optional.empty();
+
         return new HasCallAttempt(
                 input,
                 new CallAttemptOptions<>(
                         contractID,
                         frame.getSenderAddress(),
+                        frame.getRecipientAddress(),
                         frame.getSenderAddress(),
                         addressChecks.hasParentDelegateCall(frame),
                         enhancement,

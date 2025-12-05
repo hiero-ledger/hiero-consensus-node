@@ -13,6 +13,7 @@ import com.hedera.node.app.service.contract.impl.exec.FeatureFlags;
 import com.hedera.node.app.service.contract.impl.exec.FrameRunner;
 import com.hedera.node.app.service.contract.impl.exec.TransactionProcessor;
 import com.hedera.node.app.service.contract.impl.exec.gas.CustomGasCharging;
+import com.hedera.node.app.service.contract.impl.exec.gas.HederaGasCalculator;
 import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
 import com.hedera.node.app.service.contract.impl.exec.operations.CustomBalanceOperation;
 import com.hedera.node.app.service.contract.impl.exec.operations.CustomCallCodeOperation;
@@ -88,7 +89,8 @@ public interface V070Module {
             @ServicesV070 @NonNull final ContractCreationProcessor contractCreationProcessor,
             @NonNull final CustomGasCharging gasCharging,
             @ServicesV070 @NonNull final FeatureFlags featureFlags,
-            @NonNull final CodeFactory codeFactory) {
+            @NonNull final CodeFactory codeFactory,
+            @NonNull final HederaGasCalculator gasCalculator) {
         return new TransactionProcessor(
                 frameBuilder,
                 frameRunner,
@@ -96,7 +98,8 @@ public interface V070Module {
                 messageCallProcessor,
                 contractCreationProcessor,
                 featureFlags,
-                codeFactory);
+                codeFactory,
+                gasCalculator);
     }
 
     @Provides
