@@ -100,7 +100,7 @@ public class MetricRegistryTest {
                     .build();
 
             assertThatThrownBy(() -> registry.register(
-                            LongCounter.builder("test_counter").withConstantLabel(new Label("env", "production"))))
+                            LongCounter.builder("test_counter").withStaticLabel(new Label("env", "production"))))
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessageContainingAll("Label", "conflicts with existing", "env");
         }
@@ -286,10 +286,10 @@ public class MetricRegistryTest {
         Label label = new Label("key", "value");
 
         LongCounter counter1 = registry.register(LongCounter.builder("counter1"));
-        LongCounter counter2 = registry.register(LongCounter.builder("counter2").withConstantLabel(label));
+        LongCounter counter2 = registry.register(LongCounter.builder("counter2").withStaticLabel(label));
 
-        assertThat(counter1.constantLabels()).isEmpty();
-        assertThat(counter2.constantLabels()).containsExactly(label);
+        assertThat(counter1.staticLabels()).isEmpty();
+        assertThat(counter2.staticLabels()).containsExactly(label);
     }
 
     @Test
@@ -301,10 +301,10 @@ public class MetricRegistryTest {
         MetricRegistry registry = testBuilder().withGlobalLabel(globsLabel).build();
 
         LongCounter counter1 = registry.register(LongCounter.builder("counter1"));
-        LongCounter counter2 = registry.register(LongCounter.builder("counter2").withConstantLabels(label1, label2));
+        LongCounter counter2 = registry.register(LongCounter.builder("counter2").withStaticLabels(label1, label2));
 
-        assertThat(counter1.constantLabels()).containsExactly(globsLabel);
-        assertThat(counter2.constantLabels()).containsExactly(label1, globsLabel, label2); // sorted alphabetically
+        assertThat(counter1.staticLabels()).containsExactly(globsLabel);
+        assertThat(counter2.staticLabels()).containsExactly(label1, globsLabel, label2); // sorted alphabetically
     }
 
     @Test

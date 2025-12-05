@@ -24,10 +24,10 @@ public interface MetricSnapshot extends ArrayAccessor<DataPointSnapshot> {
     MetricMetadata metadata();
 
     /**
-     * @return list of constant labels associated with metric, could be emtpy but never {@code null}
+     * @return list of static labels associated with metric, could be emtpy but never {@code null}
      */
     @NonNull
-    List<Label> constantLabels();
+    List<Label> staticLabels();
 
     /**
      * @return list of dynamic label names associated with metric, could be emtpy but never {@code null}

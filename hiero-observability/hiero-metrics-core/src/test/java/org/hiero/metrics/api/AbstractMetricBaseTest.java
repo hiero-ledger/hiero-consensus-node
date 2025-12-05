@@ -54,8 +54,8 @@ abstract class AbstractMetricBaseTest<M extends Metric, B extends Metric.Builder
             assertThat(builder.getUnit()).as("Unit is null by default").isNull();
 
             // labels are empty by default
-            assertThat(builder.getConstantLabels())
-                    .as("Constant labels are empty by default")
+            assertThat(builder.getStaticLabels())
+                    .as("Static labels are empty by default")
                     .isEmpty();
             assertThat(builder.getDynamicLabelNames())
                     .as("Dynamic label names are empty by default")
@@ -122,39 +122,39 @@ abstract class AbstractMetricBaseTest<M extends Metric, B extends Metric.Builder
         }
 
         @Test
-        void testNullConstantLabelsArrayThrows() {
+        void testNullStaticLabelsArrayThrows() {
             B builder = emptyMetricBuilder();
             Label[] nullArray = null;
 
-            assertThatThrownBy(() -> builder.withConstantLabels(nullArray))
+            assertThatThrownBy(() -> builder.withStaticLabels(nullArray))
                     .isInstanceOf(NullPointerException.class)
                     .hasMessageContaining("labels must not be null");
         }
 
         @Test
-        void testNullConstantLabelsCollectionThrows() {
+        void testNullStaticLabelsCollectionThrows() {
             B builder = emptyMetricBuilder();
             Collection<Label> nullCollection = null;
 
-            assertThatThrownBy(() -> builder.withConstantLabels(nullCollection))
+            assertThatThrownBy(() -> builder.withStaticLabels(nullCollection))
                     .isInstanceOf(NullPointerException.class)
                     .hasMessageContaining("labels must not be null");
         }
 
         @Test
-        void testConstantLabelSameAsMetricNameThrows() {
+        void testStaticLabelSameAsMetricNameThrows() {
             B builder = emptyMetricBuilder();
 
-            assertThatThrownBy(() -> builder.withConstantLabel(new Label("test_metric", "value")))
+            assertThatThrownBy(() -> builder.withStaticLabel(new Label("test_metric", "value")))
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessageContaining("Label name must not be the same as metric name");
         }
 
         @Test
-        void testDuplicateConstantLabelNamesThrows() {
-            B builder = emptyMetricBuilder().withConstantLabel(new Label("label1", "value1"));
+        void testDuplicateStaticLabelNamesThrows() {
+            B builder = emptyMetricBuilder().withStaticLabel(new Label("label1", "value1"));
 
-            assertThatThrownBy(() -> builder.withConstantLabel(new Label("label1", "value2")))
+            assertThatThrownBy(() -> builder.withStaticLabel(new Label("label1", "value2")))
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessageContaining("conflicts with existing");
         }
@@ -177,8 +177,8 @@ abstract class AbstractMetricBaseTest<M extends Metric, B extends Metric.Builder
             assertThat(metric.metadata().description()).isEmpty();
 
             // labels are empty by default
-            assertThat(metric.constantLabels())
-                    .as("Constant labels are empty by default")
+            assertThat(metric.staticLabels())
+                    .as("Static labels are empty by default")
                     .isEmpty();
             assertThat(metric.dynamicLabelNames())
                     .as("Dynamic label names are empty by default")
@@ -196,13 +196,13 @@ abstract class AbstractMetricBaseTest<M extends Metric, B extends Metric.Builder
         void testMetricImmutabilityAfterBuilderModification() {
             String description = "description";
             String unit = "unit";
-            String constantLabelName = "const_label";
+            String staticLabelName = "static_label";
             String dynamicLabelName = "dynamic_label";
 
             B builder = emptyMetricBuilder()
                     .withDescription(description)
                     .withUnit(unit)
-                    .withConstantLabel(new Label(constantLabelName, "value"))
+                    .withStaticLabel(new Label(staticLabelName, "value"))
                     .withDynamicLabelNames(dynamicLabelName);
 
             M metric = builder.build();
@@ -210,13 +210,13 @@ abstract class AbstractMetricBaseTest<M extends Metric, B extends Metric.Builder
             // Modify builder after building the metric
             builder.withDescription(description + "_")
                     .withUnit(unit + "_")
-                    .withConstantLabel(new Label(constantLabelName + "_", "value"))
+                    .withStaticLabel(new Label(staticLabelName + "_", "value"))
                     .withDynamicLabelNames(dynamicLabelName + "_");
 
             // Metric metadata should remain unchanged
             assertThat(metric.metadata().description()).isEqualTo(description);
             assertThat(metric.metadata().unit()).isEqualTo(unit);
-            assertThat(metric.constantLabels()).containsExactly(new Label(constantLabelName, "value"));
+            assertThat(metric.staticLabels()).containsExactly(new Label(staticLabelName, "value"));
             assertThat(metric.dynamicLabelNames()).containsExactly(dynamicLabelName);
         }
 
@@ -378,26 +378,25 @@ abstract class AbstractMetricBaseTest<M extends Metric, B extends Metric.Builder
         }
 
         @Test
-        void testEmptyConstantLabelsArray() {
-            M metric = emptyMetricBuilder().withConstantLabels().build();
+        void testEmptyStaticLabelsArray() {
+            M metric = emptyMetricBuilder().withStaticLabels().build();
 
-            assertThat(metric.constantLabels()).isNotNull();
-            assertThat(metric.constantLabels()).isEmpty();
+            assertThat(metric.staticLabels()).isNotNull();
+            assertThat(metric.staticLabels()).isEmpty();
         }
 
         @Test
-        void testEmptyConstantLabelsCollection() {
-            M metric =
-                    emptyMetricBuilder().withConstantLabels(new ArrayList<>()).build();
+        void testEmptyStaticLabelsCollection() {
+            M metric = emptyMetricBuilder().withStaticLabels(new ArrayList<>()).build();
 
-            assertThat(metric.constantLabels()).isNotNull();
-            assertThat(metric.constantLabels()).isEmpty();
+            assertThat(metric.staticLabels()).isNotNull();
+            assertThat(metric.staticLabels()).isEmpty();
         }
 
         @Test
-        void testConstantLabelsSameInstance() {
+        void testStaticLabelsSameInstance() {
             M metric = emptyMetricBuilder()
-                    .withConstantLabel(new Label("label1", "value"))
+                    .withStaticLabel(new Label("label1", "value"))
                     .build();
 
             assertThat(metric.dynamicLabelNames()).isSameAs(metric.dynamicLabelNames());
@@ -405,61 +404,61 @@ abstract class AbstractMetricBaseTest<M extends Metric, B extends Metric.Builder
 
         @ParameterizedTest
         @MethodSource("org.hiero.metrics.TestUtils#validNames")
-        void testSingleValidConstantLabelName(String validLabelName) {
+        void testSingleValidStaticLabelName(String validLabelName) {
             Label label = new Label(validLabelName, "value");
-            M metric = emptyMetricBuilder().withConstantLabel(label).build();
+            M metric = emptyMetricBuilder().withStaticLabel(label).build();
 
-            assertThat(metric.constantLabels()).containsExactly(label);
+            assertThat(metric.staticLabels()).containsExactly(label);
         }
 
         @Test
-        void testMultipleValidConstantLabels() {
+        void testMultipleValidStaticLabels() {
             List<Label> labels = Stream.of(TestUtils.validNames())
                     .map(l -> new Label(l, "value"))
                     .toList();
 
-            M metric = emptyMetricBuilder().withConstantLabels(labels).build();
+            M metric = emptyMetricBuilder().withStaticLabels(labels).build();
 
-            assertThat(metric.constantLabels()).containsExactlyInAnyOrderElementsOf(labels);
+            assertThat(metric.staticLabels()).containsExactlyInAnyOrderElementsOf(labels);
         }
 
         @Test
-        void testConstantLabelsImmutable() {
+        void testStaticLabelsImmutable() {
             M metric = emptyMetricBuilder()
-                    .withConstantLabel(new Label("label1", "value"))
+                    .withStaticLabel(new Label("label1", "value"))
                     .build();
 
-            List<Label> constantLabels = metric.constantLabels();
+            List<Label> staticLabels = metric.staticLabels();
 
-            assertThatThrownBy(() -> constantLabels.add(new Label("label2", "value")))
+            assertThatThrownBy(() -> staticLabels.add(new Label("label2", "value")))
                     .isInstanceOf(UnsupportedOperationException.class);
 
-            assertThatThrownBy(() -> constantLabels.remove(new Label("label1", "value")))
+            assertThatThrownBy(() -> staticLabels.remove(new Label("label1", "value")))
                     .isInstanceOf(UnsupportedOperationException.class);
         }
 
         @Test
-        void testConstantLabelsOrder() {
+        void testStaticLabelsOrder() {
             M metric = emptyMetricBuilder()
-                    .withConstantLabel(new Label("z_label", "value"))
-                    .withConstantLabel(new Label("a_label", "value"))
-                    .withConstantLabel(new Label("m_label", "value"))
+                    .withStaticLabel(new Label("z_label", "value"))
+                    .withStaticLabel(new Label("a_label", "value"))
+                    .withStaticLabel(new Label("m_label", "value"))
                     .build();
 
             List<String> actual =
-                    metric.constantLabels().stream().map(Label::name).toList();
+                    metric.staticLabels().stream().map(Label::name).toList();
             assertThat(actual).containsExactly("a_label", "m_label", "z_label");
         }
 
         @Test
-        void testDuplicateConstantLabelAndDynamicLabelThrowsOnBuild() {
+        void testDuplicateStaticLabelAndDynamicLabelThrowsOnBuild() {
             B builder = emptyMetricBuilder()
-                    .withConstantLabel(new Label("label1", "value1"))
+                    .withStaticLabel(new Label("label1", "value1"))
                     .withDynamicLabelNames("label1");
 
             assertThatThrownBy(builder::build)
                     .isInstanceOf(IllegalStateException.class)
-                    .hasMessageContaining("conflicts with a constant label");
+                    .hasMessageContaining("conflicts with a static label");
         }
     }
 }

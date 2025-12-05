@@ -197,9 +197,9 @@ public interface StatsGaugeAdapter<D> extends StatefulMetric<Supplier<D>, D> {
                 throw new IllegalStateException("Stat names must be unique");
             }
 
-            // verify conflicts with constant labels
-            if (constantLabels.containsKey(statLabel)) {
-                throw new IllegalStateException("Stat label '" + statLabel + "' conflicts with a constant label");
+            // verify conflicts with static labels
+            if (staticLabels.containsKey(statLabel)) {
+                throw new IllegalStateException("Stat label '" + statLabel + "' conflicts with a static label");
             }
 
             // verify conflicts with dynamic labels

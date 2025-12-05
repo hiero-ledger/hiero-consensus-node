@@ -65,7 +65,7 @@ public final class MetricRegistryImpl implements SnapshotableMetricsRegistry {
                         "Duplicate metric name: " + metricKey + ". Existing metric: " + existingMetric.metadata());
             }
 
-            M metric = builder.withConstantLabels(globalLabels).build();
+            M metric = builder.withStaticLabels(globalLabels).build();
             logger.info("Registered metric: {} with global labels: {}", metric.metadata(), globalLabels);
 
             if (metric instanceof SnapshotableMetric<? extends DataPointSnapshot> snapshotableMetric) {

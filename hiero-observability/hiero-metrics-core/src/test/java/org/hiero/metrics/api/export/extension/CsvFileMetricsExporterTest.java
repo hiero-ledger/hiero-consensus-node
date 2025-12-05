@@ -75,14 +75,14 @@ public class CsvFileMetricsExporterTest {
             longCounter = LongCounter.builder("long_counter")
                     .withDescription("A test counter")
                     .withUnit("counter_unit")
-                    .withConstantLabel(new Label("env", "test"))
+                    .withStaticLabel(new Label("env", "test"))
                     .withDynamicLabelNames("l1", "l2")
                     .register(snapshotProvider.getRegistry());
 
             doubleGauge = DoubleGauge.builder("double_gauge").register(snapshotProvider.getRegistry());
 
             stateSet = StateSet.builder("state_set", SateSetEnum.class)
-                    .withConstantLabel(new Label("env", "test"))
+                    .withStaticLabel(new Label("env", "test"))
                     .register(snapshotProvider.getRegistry());
 
             statsGauge = StatContainer.metricBuilder("stats_gauge")

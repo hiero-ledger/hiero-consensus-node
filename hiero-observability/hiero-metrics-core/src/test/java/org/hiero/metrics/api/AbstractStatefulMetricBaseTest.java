@@ -54,8 +54,8 @@ public abstract class AbstractStatefulMetricBaseTest<
         @Test
         void testSingleDynamicLabelDataPointsAccess() {
             M metric = emptyMetricBuilder()
-                    // just to ensure constant labels don't interfere
-                    .withConstantLabel(new Label("environment", "test"))
+                    // just to ensure static labels don't interfere
+                    .withStaticLabel(new Label("environment", "test"))
                     .withDynamicLabelNames("label")
                     .build();
 
@@ -74,8 +74,8 @@ public abstract class AbstractStatefulMetricBaseTest<
         @Test
         void testDataPointAccessSameLabelsDifferentOrder() {
             M metric = emptyMetricBuilder()
-                    // just to ensure constant labels don't interfere
-                    .withConstantLabel(new Label("environment", "test"))
+                    // just to ensure static labels don't interfere
+                    .withStaticLabel(new Label("environment", "test"))
                     .withDynamicLabelNames("l1", "l2", "l3")
                     .build();
 
@@ -92,8 +92,8 @@ public abstract class AbstractStatefulMetricBaseTest<
         @Test
         void testDataPointAccessDifferentLabels() {
             M metric = emptyMetricBuilder()
-                    // just to ensure constant labels don't interfere
-                    .withConstantLabel(new Label("environment", "test"))
+                    // just to ensure static labels don't interfere
+                    .withStaticLabel(new Label("environment", "test"))
                     .withDynamicLabelNames("l3", "l1", "l2")
                     .build();
 
@@ -133,8 +133,8 @@ public abstract class AbstractStatefulMetricBaseTest<
         @Test
         void testSingleDynamicLabelAccessDataPointsThrows() {
             M metric = emptyMetricBuilder()
-                    // just to ensure constant labels don't interfere
-                    .withConstantLabel(new Label("environment", "test"))
+                    // just to ensure static labels don't interfere
+                    .withStaticLabel(new Label("environment", "test"))
                     .withDynamicLabelNames("label")
                     .build();
 

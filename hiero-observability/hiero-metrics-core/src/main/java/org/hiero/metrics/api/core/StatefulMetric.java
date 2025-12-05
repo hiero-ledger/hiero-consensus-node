@@ -39,7 +39,7 @@ public interface StatefulMetric<I, D> extends Metric {
      * Get or create the data point with the specified labels, using the default initializer.
      * <p>
      * Provided label names must match the dynamic labels specified during metric creation.
-     * Constant labels should not be provided here, as they are already associated with the metric.
+     * Static labels should not be provided here, as they are already associated with the metric.
      * Order doesn't matter, but for efficiency, it is recommended to provide label names in alphabetical order.
      *
      * @param namesAndValues alternating label names and values, e.g. "label1", "value1", "label2", "value2"
@@ -54,7 +54,7 @@ public interface StatefulMetric<I, D> extends Metric {
      * Get or create the data point with the specified labels, using a custom initializer.
      * <p>
      * Provided label names must match the dynamic labels specified during metric creation.
-     * Constant labels should not be provided here, as they are already associated with the metric.
+     * Static labels should not be provided here, as they are already associated with the metric.
      * Order doesn't matter, but for efficiency, it is recommended to provide label names in alphabetical order.
      *
      * @param initializer the initializer to create new data points, must not be {@code null}

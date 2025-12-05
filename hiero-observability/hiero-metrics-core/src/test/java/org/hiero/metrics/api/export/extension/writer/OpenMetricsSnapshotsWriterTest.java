@@ -159,7 +159,7 @@ public class OpenMetricsSnapshotsWriterTest {
             longCounter = LongCounter.builder("long_counter")
                     .withDescription("A test counter")
                     .withUnit("requests")
-                    .withConstantLabel(new Label("env", "test"))
+                    .withStaticLabel(new Label("env", "test"))
                     .withDynamicLabelNames("l1", "l2")
                     .register(snapshotProvider.getRegistry());
 
@@ -178,7 +178,7 @@ public class OpenMetricsSnapshotsWriterTest {
                     .register(snapshotProvider.getRegistry());
 
             stateSet = StateSet.builder("state_set", SateSetEnum.class)
-                    .withConstantLabel(new Label("env", "test"))
+                    .withStaticLabel(new Label("env", "test"))
                     .register(snapshotProvider.getRegistry());
 
             gaugeAdapter = GaugeAdapter.builder(

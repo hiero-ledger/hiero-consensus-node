@@ -61,7 +61,7 @@ public interface StatelessMetric extends Metric {
      * Register a data point with the given value supplier and labels.
      * <p>
      * Provided label names must match the dynamic labels specified during metric creation.
-     * Constant labels should not be provided here, as they are already associated with the metric.
+     * Static labels should not be provided here, as they are already associated with the metric.
      * Order doesn't matter, but for efficiency, it is recommended to provide label names in alphabetical order.
      *
      * @param valueSupplier         the supplier to get the numerical value of the data point
@@ -98,7 +98,7 @@ public interface StatelessMetric extends Metric {
          * Register a data point with the given value supplier and labels.
          * <p>
          * Provided label names must match the dynamic labels specified during metric creation.
-         * Constant labels should not be provided here, as they are already associated with the metric.
+         * Static labels should not be provided here, as they are already associated with the metric.
          * Order doesn't matter, but for efficiency, it is recommended to provide label names in alphabetical order.
          * <p>
          * All requirements for labels above are validated during metric construction
@@ -118,7 +118,7 @@ public interface StatelessMetric extends Metric {
          * Register a data point with the given value supplier and labels.
          * <p>
          * Provided label names must match the dynamic labels specified during metric creation.
-         * Constant labels should not be provided here, as they are already associated with the metric.
+         * Static labels should not be provided here, as they are already associated with the metric.
          * Order doesn't matter, but for efficiency, it is recommended to provide label names in alphabetical order.
          * <p>
          * All requirements for labels above are validated during metric construction

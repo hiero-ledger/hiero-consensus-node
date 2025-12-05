@@ -18,10 +18,10 @@ module org.hiero.metrics.core {
             com.swirlds.config.extensions;
 
     requires transitive com.swirlds.base;
-    requires transitive com.swirlds.config.api;
     requires java.management;
     requires jdk.management;
     requires org.apache.logging.log4j;
+    requires static transitive com.swirlds.config.api;
     requires static transitive com.github.spotbugs.annotations;
     requires static transitive com.google.auto.service;
 

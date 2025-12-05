@@ -15,7 +15,7 @@ To be discovered by SPI mechanism implementations of this interface should be re
 
 [MetricsExportManager](../src/main/java/org/hiero/metrics/api/export/MetricsExportManager.java) is the interface to manage metrics registry and exporters.
 `MetricsExportManager.Builder` must be used to create instance of export manager.
-It's `withDiscoverExporters()` method can be used to discover all available `MetricsExporterFactory`s in module path and create required exporters.
+Its `withDiscoverExporters` method accepts `Configuration`, allows to discover all available `MetricsExporterFactory`s in module path and create required exporters.
 If there is only one pulling exporter, export manager won't start export thread and will allow pulling exporter to collect metric snapshots on demand.
 If there is at least one pushing exporter or more than one pulling exporter, export manager will start export thread that will take snapshots of metrics and
 provide them to all exporters at configured interval.

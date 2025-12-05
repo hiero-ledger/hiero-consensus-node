@@ -161,13 +161,13 @@ public class CsvMetricsSnapshotsWriter
         }
 
         private boolean appendLabels(DataPointSnapshot dataPointSnapshot, ByteArrayTemplate.Builder builder) {
-            boolean firstLabel = appendConstantLabels(builder);
+            boolean firstLabel = appendStaticLabels(builder);
             return appendDynamicLabels(dataPointSnapshot, builder, firstLabel);
         }
 
-        private boolean appendConstantLabels(ByteArrayTemplate.Builder builder) {
+        private boolean appendStaticLabels(ByteArrayTemplate.Builder builder) {
             boolean first = true;
-            for (Label label : metricSnapshot().constantLabels()) {
+            for (Label label : metricSnapshot().staticLabels()) {
                 if (!first) {
                     builder.append(COMMA);
                 }

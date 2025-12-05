@@ -81,26 +81,26 @@ public class StatsGaugeAdapterTest
     }
 
     @Test
-    void testStatLabelConflictingConstantLabelThrows() {
+    void testStatLabelConflictingStaticLabelThrows() {
         StatsGaugeAdapter.Builder<StatContainer> builder = emptyMetricBuilder()
-                .withConstantLabel(new Label("mystat", "value"))
+                .withStaticLabel(new Label("mystat", "value"))
                 .withStatLabel("mystat")
                 .withLongStat("counter", StatContainer::getCounter);
 
         assertThatThrownBy(builder::build)
                 .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("conflicts with a constant label");
+                .hasMessageContaining("conflicts with a static label");
     }
 
     @Test
-    void testDefaultStatLabelConflictingConstantLabelThrows() {
+    void testDefaultStatLabelConflictingStaticLabelThrows() {
         StatsGaugeAdapter.Builder<StatContainer> builder = emptyMetricBuilder()
-                .withConstantLabel(new Label(StatUtils.DEFAULT_STAT_LABEL, "value"))
+                .withStaticLabel(new Label(StatUtils.DEFAULT_STAT_LABEL, "value"))
                 .withLongStat("counter", StatContainer::getCounter);
 
         assertThatThrownBy(builder::build)
                 .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("conflicts with a constant label");
+                .hasMessageContaining("conflicts with a static label");
     }
 
     @Test

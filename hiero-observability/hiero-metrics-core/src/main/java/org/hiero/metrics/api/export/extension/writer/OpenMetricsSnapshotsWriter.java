@@ -271,7 +271,7 @@ public class OpenMetricsSnapshotsWriter
                 builder.append(COUNTER_SUFFIX);
             }
 
-            if (!metricSnapshot().constantLabels().isEmpty()
+            if (!metricSnapshot().staticLabels().isEmpty()
                     || !metricSnapshot().dynamicLabelNames().isEmpty()) {
                 builder.append(OPEN_BRACKET);
                 appendLabels(dataPointSnapshot, builder);
@@ -331,13 +331,13 @@ public class OpenMetricsSnapshotsWriter
         }
 
         private boolean appendLabels(DataPointSnapshot dataPointSnapshot, ByteArrayTemplate.Builder builder) {
-            boolean firstLabel = appendConstantLabels(builder);
+            boolean firstLabel = appendStaticLabels(builder);
             return appendDynamicLabels(dataPointSnapshot, builder, firstLabel);
         }
 
-        private boolean appendConstantLabels(ByteArrayTemplate.Builder builder) {
+        private boolean appendStaticLabels(ByteArrayTemplate.Builder builder) {
             boolean first = true;
-            for (Label label : metricSnapshot().constantLabels()) {
+            for (Label label : metricSnapshot().staticLabels()) {
                 if (!first) {
                     builder.append(COMMA);
                 }

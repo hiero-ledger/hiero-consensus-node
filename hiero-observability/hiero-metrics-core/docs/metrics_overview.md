@@ -47,6 +47,8 @@ The Metrics Core module is split into two root packages:
 - `org.hiero.metrics.api` - contains public API for recording and exporting metrics.
 - `org.hiero.metrics.internal` - contains internal implementation of the API.
 
+The Metrics Core module has dependency on `com.swirlds.base` and optional dependency on `com.swirlds.config.api` for configuration support while discovering SPI implementations.
+
 Entry points for clients are:
 - All metrics defined in `org.hiero.metrics.api` package, that can be used to create and update metrics.
 - [MetricsRegistry](../src/main/java/org/hiero/metrics/api/core/MetricRegistry.java) and its builder, to create registry for metrics.
@@ -88,7 +90,7 @@ class MyModuleMetrics implements MetricsRegistrationProvider {
     public static final MetricKey<LongCounter> REQUESTS_COUNTER_KEY = MetricKey.of("requests", LongCounter.class);
 
     @Override
-    public Collection<Metric.Builder<?, ?>> getMetricsToRegister(MetricRegistry registry) {
+    public Collection<Metric.Builder<?, ?>> getMetricsToRegister(Configuration configuration) {
         // provide metrics to register
         return List.of(
                 LongCounter.builder(REQUESTS_COUNTER_KEY)

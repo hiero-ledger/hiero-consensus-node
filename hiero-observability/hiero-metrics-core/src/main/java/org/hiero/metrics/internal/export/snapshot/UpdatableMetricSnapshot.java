@@ -36,8 +36,8 @@ public final class UpdatableMetricSnapshot<D, S extends DataPointSnapshot> imple
 
     @NonNull
     @Override
-    public List<Label> constantLabels() {
-        return metric.constantLabels();
+    public List<Label> staticLabels() {
+        return metric.staticLabels();
     }
 
     @NonNull

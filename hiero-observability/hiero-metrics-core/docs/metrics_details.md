@@ -11,7 +11,7 @@ that identifies metric with name and class of metric interface (see [Metric Regi
 
 Main metric interface is [Metric](../src/main/java/org/hiero/metrics/api/core/Metric.java)
 which provides methods to access metric metadata and information about labels of the metric, defined during metric creation.
-Metric may have zero or more _constant_ labels that already have a value and will be attached to all data points of the metric.
+Metric may have zero or more _static_ labels that already have a value and will be attached to all data points of the metric.
 Metric may also have zero or more _dynamic_ labels, names of which are defined during metric creation
 and values are defined when accessing a specific data point of the metric for observation/update.
 Metric names and labels must be of pattern `^[a-zA-Z_][a-zA-Z0-9_]*$`.
@@ -59,14 +59,14 @@ There are two ways to register metrics in the registry:
 - Programmatically - by using metric builders and calling `register` method of the registry.
 This way is usually used when metrics are created and used only in specific limited scope of the application.
 - Declaratively - by implementing [MetricsRegistrationProvider](../src/main/java/org/hiero/metrics/api/core/MetricsRegistrationProvider.java)
-interface (providing implementation via SPI) and calling `withDiscoveredMetricProviders` method of the registry builder.
+interface (providing implementation via SPI) and calling `withDiscoverMetricProviders` method of the registry builder.
 
 Metrics Registry cannot have two metrics with the same name.
 To identify a metric in the registry a [MetricKey](../src/main/java/org/hiero/metrics/api/core/MetricKey.java) should be used,
 which contains metric name and class of the metric interface, used to validate metric type and cast to required metric interface when retrieving by key.
 
 `MetricsRegistry.Builder` is used to create instances of Metric Registry.
-Its `withDiscoveredMetricProviders()` method allows to discover all available `MetricsRegistrationProvider`s via SPI and register provided metrics.
+Its `withDiscoverMetricProviders` method accepts `Configuration`, allows to discover all available `MetricsRegistrationProvider`s via SPI and register provided metrics.
 To be discovered by SPI mechanism implementations of this interface should be registered either in
 `META-INF/services/org.hiero.metrics.api.core.MetricsRegistrationProvider` or `module-info.java` file of the module.
 

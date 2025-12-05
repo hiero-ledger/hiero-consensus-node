@@ -15,9 +15,9 @@ import org.hiero.metrics.internal.export.snapshot.UpdatableMetricSnapshot;
 /**
  * Base class for all metric implementations requiring {@link Metric.Builder} for construction.
  * <p>
- * Implements common functionality like storing metadata, constant and dynamic labels, and managing
+ * Implements common functionality like storing metadata, static and dynamic labels, and managing
  * datapoint snapshots.<br>
- * Constant and dynamic labels are alphabetically sorted to ensure consistent ordering.
+ * Static and dynamic labels are alphabetically sorted to ensure consistent ordering.
  * <p>
  * Subclasses must implement methods to create and update datapoint snapshots.
  * Snapshot objects are reused during export to minimize object allocations.
@@ -28,7 +28,7 @@ import org.hiero.metrics.internal.export.snapshot.UpdatableMetricSnapshot;
 public abstract class AbstractMetric<D, S extends DataPointSnapshot> implements SnapshotableMetric<S> {
 
     private final MetricMetadata metadata;
-    private final List<Label> constantLabels;
+    private final List<Label> staticLabels;
     private final List<String> dynamicLabelNames;
 
     private final UpdatableMetricSnapshot<D, S> metricSnapshot;
@@ -37,7 +37,7 @@ public abstract class AbstractMetric<D, S extends DataPointSnapshot> implements 
         metadata =
                 new MetricMetadata(builder.type(), builder.key().name(), builder.getDescription(), builder.getUnit());
 
-        constantLabels = builder.getConstantLabels().stream().sorted().toList();
+        staticLabels = builder.getStaticLabels().stream().sorted().toList();
         dynamicLabelNames = builder.getDynamicLabelNames().stream().sorted().toList();
         metricSnapshot = new UpdatableMetricSnapshot<>(this, this::updateDatapointSnapshot);
     }
@@ -114,8 +114,8 @@ public abstract class AbstractMetric<D, S extends DataPointSnapshot> implements 
 
     @NonNull
     @Override
-    public final List<Label> constantLabels() {
-        return constantLabels;
+    public final List<Label> staticLabels() {
+        return staticLabels;
     }
 
     @NonNull

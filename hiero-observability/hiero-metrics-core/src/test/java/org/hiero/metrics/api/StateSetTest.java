@@ -82,13 +82,13 @@ public class StateSetTest
         void testMetricImmutabilityAfterBuilderModification() {
             String description = "description";
             String unit = "unit";
-            String constantLabelName = "const_label";
+            String staticLabelName = "static_label";
             String dynamicLabelName = "dynamic_label";
 
             StateSet.Builder<TestEnum> builder = emptyMetricBuilder()
                     .withDescription(description)
                     .withUnit(unit)
-                    .withConstantLabel(new Label(constantLabelName, "value"))
+                    .withStaticLabel(new Label(staticLabelName, "value"))
                     .withDynamicLabelNames(dynamicLabelName);
 
             StateSet<TestEnum> metric = builder.build();
@@ -96,13 +96,13 @@ public class StateSetTest
             // Modify builder after building the metric
             builder.withDescription(description + "_")
                     .withUnit(unit + "_")
-                    .withConstantLabel(new Label(constantLabelName + "_", "value"))
+                    .withStaticLabel(new Label(staticLabelName + "_", "value"))
                     .withDynamicLabelNames(dynamicLabelName + "_");
 
             // Metric metadata should remain unchanged
             assertThat(metric.metadata().description()).isEqualTo(description);
             assertThat(metric.metadata().unit()).isEmpty();
-            assertThat(metric.constantLabels()).containsExactly(new Label(constantLabelName, "value"));
+            assertThat(metric.staticLabels()).containsExactly(new Label(staticLabelName, "value"));
             assertThat(metric.dynamicLabelNames()).containsExactly(dynamicLabelName);
         }
     }
