@@ -203,7 +203,11 @@ public class SignedStateFilePath {
                         final Path stateFile = subDir.resolve(SIGNED_STATE_FILE_NAME);
                         final boolean oldFormat = VirtualMap.isOldFormat(subDir);
                         if (oldFormat) {
-                            logger.warn(STARTUP.getMarker(), "Probably a snapshot of version prior to 0.70");
+                            // FUTURE WORK: this should result in an exception afer 0.71 release
+                            // see https://github.com/hiero-ledger/hiero-consensus-node/issues/22448
+                            logger.warn(
+                                    STARTUP.getMarker(),
+                                    "State to load from disk is in the old format. This is expected when upgrading to 0.70.x");
 
                             if (!exists(vmMetadataPath)) {
                                 logger.warn(
