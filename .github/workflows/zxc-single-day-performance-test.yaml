@@ -1152,7 +1152,6 @@ jobs:
 
       - name: Publish logs
         if: false
-        if: ${{ !cancelled() }}
         run: |
           cd "${{ github.workspace }}"/
 
