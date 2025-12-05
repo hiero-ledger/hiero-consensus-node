@@ -125,14 +125,13 @@ public class TransactionChecker {
      * Parses and checks the transaction encoded as protobuf in the given buffer.
      *
      * @param buffer The buffer containing the protobuf bytes of the transaction
-     * @param maxBytes The maximum number of bytes that can exist in the transaction
      * @return The parsed {@link TransactionInfo}
      * @throws PreCheckException If parsing fails or any of the checks fail.
      */
     @NonNull
-    public TransactionInfo parseAndCheck(@NonNull final Bytes buffer, final int maxBytes) throws PreCheckException {
+    public TransactionInfo parseAndCheck(@NonNull final Bytes buffer) throws PreCheckException {
         // Fail fast if there are too many transaction bytes
-        if (buffer.length() > maxBytes) {
+        if (buffer.length() > maxIngestParseSize()) {
             throw new PreCheckException(TRANSACTION_OVERSIZE);
         }
         final var tx = parse(buffer);
@@ -143,6 +142,7 @@ public class TransactionChecker {
      * Parses and checks a signed transaction encoded as protobuf in the given buffer.
      *
      * @param buffer The buffer containing the protobuf bytes of the signed transaction
+     * @param maxBytes The maximum number of bytes that can exist in the transaction
      * @return The parsed {@link TransactionInfo}
      * @throws PreCheckException If parsing fails or any of the checks fail.
      */
@@ -155,6 +155,18 @@ public class TransactionChecker {
         }
         final var signedTx = parseSigned(buffer);
         return checkSigned(signedTx, buffer);
+    }
+
+    /**
+     * Parses and checks a signed transaction encoded as protobuf in the given buffer.
+     *
+     * @param buffer The buffer containing the protobuf bytes of the signed transaction
+     * @return The parsed {@link TransactionInfo}
+     * @throws PreCheckException If parsing fails or any of the checks fail.
+     */
+    @NonNull
+    public TransactionInfo parseSignedAndCheck(@NonNull final Bytes buffer) throws PreCheckException {
+        return parseSignedAndCheck(buffer, maxIngestParseSize());
     }
 
     /**
@@ -736,5 +748,14 @@ public class TransactionChecker {
      */
     private GovernanceTransactionsConfig governanceTransactionsConfig() {
         return configProvider.getConfiguration().getConfigData(GovernanceTransactionsConfig.class);
+    }
+
+    private int maxIngestParseSize() {
+        final boolean jumboTxnEnabled = jumboTransactionsConfig().isEnabled();
+        final int jumboMaxTxnSize = jumboTransactionsConfig().maxTxnSize();
+        final int transactionMaxBytes = hederaConfig().transactionMaxBytes();
+        final boolean governanceTxnEnabled = governanceTransactionsConfig().isEnabled();
+        final int governanceTxnSize = governanceTransactionsConfig().maxTxnSize();
+        return governanceTxnEnabled ? governanceTxnSize : jumboTxnEnabled ? jumboMaxTxnSize : transactionMaxBytes;
     }
 }
