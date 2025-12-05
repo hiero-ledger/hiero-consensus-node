@@ -16,14 +16,11 @@ import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.consensus.ReadableTopicStore;
 import com.hedera.node.app.service.consensus.impl.calculator.ConsensusSubmitMessageFeeCalculator;
 import com.hedera.node.app.service.consensus.impl.test.handlers.ConsensusTestBase;
-import com.hedera.node.app.service.entityid.ReadableEntityCounters;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.SimpleFeeCalculatorImpl;
-
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.util.List;
 import java.util.Set;
-
-import com.hedera.pbj.runtime.io.buffer.Bytes;
 import org.assertj.core.api.Assertions;
 import org.hiero.hapi.support.fees.Extra;
 import org.hiero.hapi.support.fees.FeeSchedule;
@@ -127,16 +124,14 @@ public class ConsensusSubmitMessageFeeCalculatorTest extends ConsensusTestBase {
                         makeExtraDef(Extra.SIGNATURES, 1000000L),
                         makeExtraDef(Extra.KEYS, 100000000L),
                         makeExtraDef(Extra.BYTES, 110L),
-                        makeExtraDef(Extra.CONSENSUS_SUBMIT_MESSAGE_WITH_CUSTOM_FEE,500000000)
-                        )
+                        makeExtraDef(Extra.CONSENSUS_SUBMIT_MESSAGE_WITH_CUSTOM_FEE, 500000000))
                 .services(makeService(
                         "Consensus",
                         makeServiceFee(
                                 HederaFunctionality.CONSENSUS_SUBMIT_MESSAGE,
                                 498500000L,
                                 makeExtraIncluded(Extra.SIGNATURES, 1),
-                                makeExtraIncluded(Extra.CONSENSUS_SUBMIT_MESSAGE_WITH_CUSTOM_FEE,0)
-                                )))
+                                makeExtraIncluded(Extra.CONSENSUS_SUBMIT_MESSAGE_WITH_CUSTOM_FEE, 0))))
                 .build();
     }
 }
