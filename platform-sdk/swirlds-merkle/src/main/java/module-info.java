@@ -9,6 +9,5 @@ open module com.swirlds.merkle {
 
     requires transitive com.swirlds.common;
     requires transitive org.hiero.base.utility;
-    requires org.hiero.base.crypto;
     requires static transitive com.github.spotbugs.annotations;
 }

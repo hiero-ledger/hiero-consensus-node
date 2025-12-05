@@ -12,7 +12,6 @@ open module com.swirlds.merkle.test.fixtures {
     requires transitive com.swirlds.common.test.fixtures;
     requires transitive com.swirlds.common;
     requires transitive com.swirlds.config.api;
-    requires transitive com.swirlds.fcqueue;
     requires transitive com.swirlds.merkle;
     requires transitive org.hiero.base.crypto;
     requires transitive org.hiero.base.utility;
