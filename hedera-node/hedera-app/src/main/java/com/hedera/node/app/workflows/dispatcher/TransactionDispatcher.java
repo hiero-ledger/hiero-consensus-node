@@ -136,19 +136,15 @@ public class TransactionDispatcher {
         }
 
         return switch (feeContext.body().data().kind()) {
-            case CONSENSUS_CREATE_TOPIC,
-                    CONSENSUS_DELETE_TOPIC,
-                    CONSENSUS_SUBMIT_MESSAGE,
-                    CONSENSUS_UPDATE_TOPIC,
-                    CRYPTO_APPROVE_ALLOWANCE,
+            case CONSENSUS_CREATE_TOPIC, CONSENSUS_DELETE_TOPIC, CONSENSUS_SUBMIT_MESSAGE, CONSENSUS_UPDATE_TOPIC ->
+                true;
+            case CRYPTO_APPROVE_ALLOWANCE,
                     CRYPTO_CREATE_ACCOUNT,
                     CRYPTO_DELETE,
                     CRYPTO_DELETE_ALLOWANCE,
                     CRYPTO_UPDATE_ACCOUNT,
-                    CRYPTO_TRANSFER,
-                    SCHEDULE_CREATE,
-                    SCHEDULE_SIGN,
-                    SCHEDULE_DELETE -> true;
+                    CRYPTO_TRANSFER -> true;
+            case SCHEDULE_CREATE, SCHEDULE_SIGN, SCHEDULE_DELETE -> true;
             case FILE_CREATE, FILE_APPEND, FILE_UPDATE, FILE_DELETE -> true;
             case TOKEN_CREATION,
                     TOKEN_MINT,
@@ -159,10 +155,10 @@ public class TransactionDispatcher {
                     TOKEN_UNPAUSE,
                     TOKEN_UNFREEZE -> true;
             case CONTRACT_CREATE_INSTANCE,
-                 CONTRACT_DELETE_INSTANCE,
-                 CONTRACT_CALL,
-                 CONTRACT_UPDATE_INSTANCE,
-                 ETHEREUM_TRANSACTION -> true;
+                    CONTRACT_DELETE_INSTANCE,
+                    CONTRACT_CALL,
+                    CONTRACT_UPDATE_INSTANCE,
+                    ETHEREUM_TRANSACTION -> true;
             default -> false;
         };
     }
