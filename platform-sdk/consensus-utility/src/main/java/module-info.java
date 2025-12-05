@@ -13,7 +13,7 @@ module org.hiero.consensus.utility {
     requires transitive com.swirlds.metrics.api;
     requires transitive com.swirlds.state.api;
     requires transitive org.hiero.base.crypto;
-    requires transitive org.hiero.consensus.freeze;
+    requires transitive org.hiero.consensus.model;
     requires com.swirlds.base;
     requires com.swirlds.common;
     requires org.hiero.base.utility;

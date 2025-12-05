@@ -6,11 +6,13 @@ import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.hedera.hapi.platform.state.NodeId;
 import com.swirlds.base.time.Time;
 import com.swirlds.component.framework.wires.input.InputWire;
+import com.swirlds.component.framework.wires.output.OutputWire;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import org.hiero.consensus.freeze.FreezeCheckHolder;
+import java.util.List;
 import org.hiero.consensus.model.event.PlatformEvent;
+import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.status.PlatformStatus;
 
 /**
@@ -41,10 +43,12 @@ public interface HashgraphModule {
     /**
      * The primary input wire of the Hashgraph module. This input wire accepts events to be added to the consensus
      * algorithm. Events must be provided in a valid topological order. When enough events are added via this input
-     * wire, one or more outputs will be generated on the {@link #consensusEngineOutputWire()}.
+     * wire, output will be generated on the {@link #consensusRoundsOutputWire()}.
      *
      * @return the event input wire
-     * @see #consensusEngineOutputWire()
+     * @see #consensusRoundsOutputWire()
+     * @see #preconsensusEventsOutputWire()
+     * @see #staleEventsOutputWire()
      */
     InputWire<PlatformEvent> eventInputWire();
 
@@ -54,7 +58,21 @@ public interface HashgraphModule {
      * @return the consensus engine output wire
      * @see #eventInputWire()
      */
-    OutputWire<ConsensusEngineOutput> consensusEngineOutputWire();
+    OutputWire<List<ConsensusRound>> consensusRoundsOutputWire();
+
+    /**
+     * An output wire that forwards pre-consensus events that are still waiting to reach consensus.
+     *
+     * @return the pre-consensus events output wire
+     */
+    OutputWire<List<PlatformEvent>> preconsensusEventsOutputWire();
+
+    /**
+     * An output wire that forwards events that became stale as a result of consensus advancing.
+     *
+     * @return the stale events output wire
+     */
+    OutputWire<List<PlatformEvent>> staleEventsOutputWire();
 
     /**
      * Informs the module about platform statu updates.
