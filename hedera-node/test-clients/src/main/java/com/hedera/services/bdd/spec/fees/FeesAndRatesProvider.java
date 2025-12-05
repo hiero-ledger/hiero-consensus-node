@@ -54,10 +54,10 @@ public class FeesAndRatesProvider {
     private static final BigDecimal USD_DIVISOR = BigDecimal.valueOf(100L);
     private static final BigDecimal HBAR_DIVISOR = BigDecimal.valueOf(100_000_000L);
 
-    private TxnFactory txns;
-    private KeyFactory keys;
-    private HapiSpecSetup setup;
-    private HapiSpecRegistry registry;
+    private final TxnFactory txns;
+    private final KeyFactory keys;
+    private final HapiSpecSetup setup;
+    private final HapiSpecRegistry registry;
 
     private static long gasPrice;
     private static FeeSchedule feeSchedule;
@@ -91,10 +91,6 @@ public class FeesAndRatesProvider {
 
     public long currentTinybarGasPrice() {
         return toTbWithActiveRates(gasPrice / FEE_DIVISOR_FACTOR);
-    }
-
-    public long currentTinycentGasPrice() {
-        return gasPrice / FEE_DIVISOR_FACTOR;
     }
 
     public ExchangeRate rates() {
@@ -296,6 +292,6 @@ public class FeesAndRatesProvider {
     }
 
     public long tinycentGasPrice() {
-        return gasPrice;
+        return gasPrice / FEE_DIVISOR_FACTOR;
     }
 }

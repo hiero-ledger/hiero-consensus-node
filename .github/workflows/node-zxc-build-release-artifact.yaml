@@ -108,6 +108,7 @@ env:
 permissions:
   id-token: write
   contents: write
+  actions: read
 
 jobs:
   validate:
@@ -141,6 +142,12 @@ jobs:
           echo "::group::Show SemVer Binary Version Info"
           semver --version
           echo "::endgroup::"
+
+      - name: Checkout Code
+        if: ${{ github.event.repository.private == true }}
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ inputs.ref || '' }}
 
       - name: Verify Workflow Parameters
         id: parameters
@@ -695,6 +702,8 @@ jobs:
   publish:
     name: Publish to ${{ inputs.version-policy == 'specified' && 'Maven Central' || 'GCP Registry' }}
     runs-on: hiero-network-node-linux-large
+    outputs:
+      create-release: ${{ steps.set-gh-release-flag.outputs.create-release }}
     needs:
       - validate
     if: ${{ inputs.release-profile != 'none' }}
@@ -708,7 +717,7 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           fetch-depth: "0"
-          ref: ${{ needs.validate.outputs.commit-id }}
+          ref: ${{ inputs.ref-name }}
 
       - name: Install GnuPG Tools
         if: ${{ inputs.dry-run-enabled != true }}
@@ -851,7 +860,7 @@ jobs:
           gsutil -m cp -r "${SDK_ARCHIVE_DIR}"/* gs://platform-sdk-ci-release-artifacts/${RELEASE_TAG}/
 
       - name: Set GH Create Release Flag
-        id: set-gh-release-flags
+        id: set-gh-release-flag
         if: ${{ inputs.version-policy == 'specified' && inputs.dry-run-enabled != true && inputs.release-profile != 'none' && !cancelled() && !failure() }}
         run: |
           CREATE_RELEASE="false"
@@ -862,15 +871,18 @@ jobs:
 
           echo "create-release=${CREATE_RELEASE}" >> "${GITHUB_OUTPUT}"
 
-      - name: Create github release
-        if: ${{ steps.set-gh-release-flags.outputs.create-release == 'true' }}
-        uses: step-security/release-action@03a57407052f15d1537fd5469a6fbbc536aba326 # v1.20.0
-        with:
-          tag: ${{ inputs.ref-name }}
-          prerelease: false
-          draft: false
-          generateReleaseNotes: true
-          skipIfReleaseExists: true
+  create-github-release:
+    name: Create GitHub Release
+    if: ${{ needs.publish.outputs.create-release == 'true' }}
+    uses: ./.github/workflows/zxc-create-github-release.yaml
+    needs:
+      - publish
+    with:
+      release-version: ${{ inputs.ref-name }}
+      create-release-notes: true
+      create-release: true
+    secrets:
+      gh-access-token: ${{ secrets.access-token }}
 
   send-notifications:
     name: Send Release Notifications

@@ -47,7 +47,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
@@ -691,9 +690,9 @@ public class HapiCryptoTransfer extends HapiBaseTransfer<HapiCryptoTransfer> {
                         txn,
                         numPayerKeys);
         final var hookInfo = CryptoTransferHandler.getHookInfo(
-                Objects.requireNonNull(toPbj(extractTransactionBody(txn)).cryptoTransfer()));
-        final var totalHookInvocations = hookInfo.numHookInvocations();
-        final var gasLimitOfHooks = hookInfo.totalGasLimitOfHooks();
+                toPbj(extractTransactionBody(txn)).cryptoTransferOrThrow());
+        final int totalHookInvocations = hookInfo.numHookInvocations();
+        final long gasLimitOfHooks = hookInfo.totalGasLimitOfHooks();
 
         if (totalHookInvocations > 0) {
             fees = clampedAdd(fees, clampedMultiply(totalHookInvocations, HOOK_INVOCATION_TINYCENTS));
