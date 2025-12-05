@@ -61,10 +61,14 @@ public class TipsetEventCreatorTestUtils {
             @NonNull final Time time,
             @NonNull final Roster roster,
             @NonNull final NodeId nodeId,
-            @NonNull final EventTransactionSupplier transactionSupplier) {
+            @NonNull final EventTransactionSupplier transactionSupplier,
+            final int maxParents) {
 
-        final Configuration configuration =
-                ConfigurationBuilder.create().autoDiscoverExtensions().build();
+        final Configuration configuration = ConfigurationBuilder.create()
+                .autoDiscoverExtensions()
+                .withValue("event.creation.maxOtherParents", Integer.toString(maxParents))
+                .build();
+
         final Metrics metrics = new NoOpMetrics();
 
         final BytesSigner signer = mock(BytesSigner.class);
@@ -102,7 +106,7 @@ public class TipsetEventCreatorTestUtils {
         for (final RosterEntry address : roster.rosterEntries()) {
 
             final NodeId selfId = NodeId.of(address.nodeId());
-            final EventCreator eventCreator = buildEventCreator(random, time, roster, selfId, transactionSupplier);
+            final EventCreator eventCreator = buildEventCreator(random, time, roster, selfId, transactionSupplier, 1);
 
             // Set a wide event window so that no events get stuck in the Future Event Buffer
             eventCreator.setEventWindow(EventWindow.getGenesisEventWindow());
@@ -316,5 +320,10 @@ public class TipsetEventCreatorTestUtils {
     @NonNull
     public static List<Boolean> booleanValues() {
         return Arrays.asList(Boolean.FALSE, Boolean.TRUE);
+    }
+
+    @NonNull
+    public static List<Integer> maxParentSizes() {
+        return Arrays.asList(1, 2, 3, 4, 5, 6, 7, 8, 9, 10);
     }
 }
