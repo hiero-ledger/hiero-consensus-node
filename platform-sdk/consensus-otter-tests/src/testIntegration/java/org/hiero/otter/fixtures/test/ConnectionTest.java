@@ -3,7 +3,6 @@ package org.hiero.otter.fixtures.test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hiero.consensus.model.status.PlatformStatus.ACTIVE;
-import static org.hiero.consensus.model.status.PlatformStatus.CHECKING;
 
 import com.swirlds.common.test.fixtures.WeightGenerators;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -125,10 +124,9 @@ class ConnectionTest {
 
                 // Wait for node0 to detect the disconnection and enter CHECKING status
                 timeManager.waitForCondition(
-                        () -> node0.platformStatus() == CHECKING,
+                        node0::isChecking,
                         Duration.ofSeconds(120L),
-                        "Node0 did not enter CHECKING status after disconnecting all connections (cycle " + cycle
-                                + ")");
+                        "Node0 did not enter CHECKING status after disconnecting (cycle " + cycle + ")");
 
                 // Verify other nodes remain ACTIVE (they can still communicate with each other)
                 timeManager.waitFor(Duration.ofSeconds(5));
@@ -260,7 +258,7 @@ class ConnectionTest {
 
                 // Wait for node0 to enter CHECKING status
                 timeManager.waitForCondition(
-                        () -> node0.platformStatus() == CHECKING,
+                        node0::isChecking,
                         Duration.ofSeconds(120L),
                         "Node0 did not enter CHECKING status after disconnecting all bidirectional connections (cycle "
                                 + cycle + ")");
@@ -387,7 +385,7 @@ class ConnectionTest {
 
             // Wait for node0 to enter CHECKING status
             timeManager.waitForCondition(
-                    () -> node0.platformStatus() == CHECKING,
+                    node0::isChecking,
                     Duration.ofSeconds(120L),
                     "Node0 did not enter CHECKING status after disconnecting all connections");
 
