@@ -564,4 +564,15 @@ public class DispatchingEvmFrameState implements EvmFrameState {
     protected UInt256 valueOrZero(@Nullable final SlotValue slotValue) {
         return (slotValue == null) ? UInt256.ZERO : pbjToTuweniUInt256(slotValue.value());
     }
+
+    private ContractID asContractId(@NonNull AccountID accountID) {
+        if (accountID.hasAccountNum()) {
+            return entityIdFactory().newContractId(accountID.accountNum());
+        } else if (accountID.hasAlias()) {
+            return entityIdFactory().newContractIdWithEvmAddress(accountID.alias());
+        } else {
+            // TODO(Pectra): consider erroring instead of returning null
+            return null;
+        }
+    }
 }
