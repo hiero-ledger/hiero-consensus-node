@@ -152,7 +152,7 @@ public class CryptoTransferValidator {
                     TOKEN_TRANSFER_LIST_SIZE_LIMIT_EXCEEDED);
             // Verify that the current total number of (counted) nft transfers does not exceed the limit
             validateTrue(totalNftTransfers <= ledgerConfig.nftTransfersMaxLen(), BATCH_SIZE_LIMIT_EXCEEDED);
-
+            //  Verify that no credits are going to the fee collection account
             validateNoCreditsToFeeCollectionAccount(tokenTransfer, feeCollectionAccount);
         }
     }

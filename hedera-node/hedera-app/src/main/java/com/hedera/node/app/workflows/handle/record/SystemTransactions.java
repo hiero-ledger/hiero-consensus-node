@@ -262,6 +262,15 @@ public class SystemTransactions {
                             .build(),
                     i);
         }
+        // Create fee collection account
+        systemContext.dispatchCreation(
+                b -> b.memo("Fee collection account creation record")
+                        .cryptoCreateAccount(CryptoCreateTransactionBody.newBuilder()
+                                .key(IMMUTABILITY_SENTINEL_KEY)
+                                .autoRenewPeriod(systemAutoRenewPeriod)
+                                .build())
+                        .build(),
+                accountsConfig.feeCollectionAccount());
         // Create the miscellaneous accounts
         final var hederaConfig = config.getConfigData(HederaConfig.class);
         for (long i : LongStream.range(FIRST_MISC_ACCOUNT_NUM, hederaConfig.firstUserEntity())
@@ -408,6 +417,10 @@ public class SystemTransactions {
                 adminConfig.upgradeNodeAdminKeysFile(),
                 SystemTransactions::parseNodeAdminKeys);
         autoNodeAdminKeyUpdates.tryIfPresent(adminConfig.upgradeSysFilesLoc(), systemContext);
+    }
+
+    public void distributeFeesForStakingPeriod(){
+
     }
 
     /**

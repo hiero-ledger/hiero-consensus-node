@@ -42,6 +42,7 @@ import com.hedera.node.app.service.token.impl.validators.CustomFeesValidator;
 import com.hedera.node.app.service.token.records.TokenBaseStreamBuilder;
 import com.hedera.node.app.spi.fees.FeeCalculator;
 import com.hedera.node.app.spi.fees.Fees;
+import com.hedera.node.app.spi.fixtures.ids.FakeEntityIdFactoryImpl;
 import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.validation.ExpiryValidator;
 import com.hedera.node.app.spi.workflows.HandleContext;
@@ -100,7 +101,7 @@ class TokenFeeScheduleUpdateHandlerTest extends CryptoTokenHandlerTestBase {
     void setup() {
         super.setUp();
         refreshWritableStores();
-        validator = new CustomFeesValidator();
+        validator = new CustomFeesValidator(new FakeEntityIdFactoryImpl(SHARD, REALM), HederaTestConfigBuilder.createConfigProvider());
         subject = new TokenFeeScheduleUpdateHandler(validator);
         givenTxn();
         final var config = HederaTestConfigBuilder.create()
