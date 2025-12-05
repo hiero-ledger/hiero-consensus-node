@@ -15,7 +15,7 @@ import org.hiero.hapi.support.fees.ServiceFeeDefinition;
 
 public class ConsensusGetTopicInfoFeeCalculator implements QueryFeeCalculator {
     @Override
-    public void accumulateServiceFee(
+    public void accumulateNodePayment(
             @NonNull Query query,
             @Nullable QueryContext queryContext,
             @NonNull FeeResult feeResult,

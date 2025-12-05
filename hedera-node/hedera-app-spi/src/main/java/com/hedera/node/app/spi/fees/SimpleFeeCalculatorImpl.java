@@ -129,7 +129,7 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
     public long calculateQueryFee(@NonNull final Query query, @NonNull final QueryContext queryContext) {
         final var result = new FeeResult();
         final var queryFeeCalculator = queryFeeCalculators.get(query.query().kind());
-        queryFeeCalculator.accumulateServiceFee(query, queryContext, result, feeSchedule);
+        queryFeeCalculator.accumulateNodePayment(query, queryContext, result, feeSchedule);
         return result.total();
     }
 }

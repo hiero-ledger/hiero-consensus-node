@@ -18,7 +18,7 @@ public interface QueryFeeCalculator {
      * @param feeResult the fee result
      * @param feeSchedule the fee schedule
      */
-    void accumulateServiceFee(
+    void accumulateNodePayment(
             @NonNull Query query,
             @Nullable QueryContext queryContext,
             @NonNull FeeResult feeResult,
