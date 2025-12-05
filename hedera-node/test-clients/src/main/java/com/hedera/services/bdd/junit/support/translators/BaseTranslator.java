@@ -666,8 +666,9 @@ public class BaseTranslator {
                                     // (FUTURE) - uncomment throw below once we have determined the right way to
                                     // unblock BlockItem -> TransactionSidecarRecord translation for the scenario in
                                     // ContractGetInfoSuite#userPaysTheGasUsed()
-//                                    throw new IllegalStateException("No written value found for write to " + slotKey
-//                                            + " in " + remainingStateChanges);
+                                    //                                    throw new IllegalStateException("No written
+                                    // value found for write to " + slotKey
+                                    //                                            + " in " + remainingStateChanges);
                                     valueFromState = Bytes.fromHex("02");
                                 }
                                 value = HookUtils.minimalRepresentationOf(valueFromState);
