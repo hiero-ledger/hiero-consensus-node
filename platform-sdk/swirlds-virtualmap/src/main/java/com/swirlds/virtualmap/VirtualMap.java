@@ -387,21 +387,24 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
         postInit();
     }
 
+    /**
+     * Create a virtual map from a snapshot
+     * @param dataSourceBuilder the data source builder. Must not be null.
+     * @param configuration platform configuration
+     * @param snapshotPath path to the snapshot directory. Must not be null.
+     */
     private VirtualMap(
             final @NonNull VirtualDataSourceBuilder dataSourceBuilder,
             final @NonNull Configuration configuration,
-            final long fastCopyVersion,
             final @NonNull Path snapshotPath) {
-        requireNonNull(dataSourceBuilder);
         requireNonNull(snapshotPath);
 
+        this.fastCopyVersion = 0L;
         this.configuration = requireNonNull(configuration);
-        this.fastCopyVersion = fastCopyVersion;
         this.hasher = new VirtualHasher();
         this.virtualMapConfig = requireNonNull(configuration.getConfigData(VirtualMapConfig.class));
         this.flushCandidateThreshold.set(virtualMapConfig.copyFlushCandidateThreshold());
         this.dataSourceBuilder = requireNonNull(dataSourceBuilder);
-        this.cache = new VirtualNodeCache(virtualMapConfig, fastCopyVersion);
         this.dataSource = dataSourceBuilder.build(LABEL, snapshotPath, true, false);
         this.metadata = new VirtualMapMetadata(dataSource.getFirstLeafPath(), dataSource.getLastLeafPath());
         postInit();
@@ -1588,7 +1591,7 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
             @NonNull final Path snapshotPath,
             @NonNull final Configuration configuration,
             @NonNull Supplier<VirtualDataSourceBuilder> dataSourceBuilderSupplier) {
-        return new VirtualMap(dataSourceBuilderSupplier.get(), configuration, 0L, snapshotPath);
+        return new VirtualMap(dataSourceBuilderSupplier.get(), configuration, snapshotPath);
     }
 
     /**
