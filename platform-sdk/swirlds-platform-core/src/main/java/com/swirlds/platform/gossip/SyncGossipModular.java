@@ -282,6 +282,7 @@ public class SyncGossipModular implements Gossip {
         });
         pauseGossip.bindConsumer(ignored -> {
             syncProtocol.pause();
+            fallenBehindMonitor.notifySyncProtocolPaused();
         });
         resumeGossip.bindConsumer(ignored -> {
             syncProtocol.resume();
