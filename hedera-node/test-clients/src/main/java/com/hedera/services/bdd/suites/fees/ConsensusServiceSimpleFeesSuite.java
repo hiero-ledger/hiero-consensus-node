@@ -93,25 +93,25 @@ public class ConsensusServiceSimpleFeesSuite {
                 1);
     }
 
-        @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
-        @DisplayName("compare create topic with custom fee")
-        final Stream<DynamicTest> createTopicCustomFeeComparison() {
-            return compareSimpleToOld(
-                    () -> Arrays.asList(
-                            cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
-                            cryptoCreate("collector"),
-                            createTopic("testTopic")
-                                    .blankMemo()
-                                    .withConsensusCustomFee(fixedConsensusHbarFee(88, "collector"))
-                                    .payingWith(PAYER)
-                                    .fee(ONE_HUNDRED_HBARS)
-                                    .via("create-topic-txn")),
-                    "create-topic-txn",
-                    2.0001,
-                    1,
-                    2,
-                    5);
-        }
+    @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+    @DisplayName("compare create topic with custom fee")
+    final Stream<DynamicTest> createTopicCustomFeeComparison() {
+        return compareSimpleToOld(
+                () -> Arrays.asList(
+                        cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
+                        cryptoCreate("collector"),
+                        createTopic("testTopic")
+                                .blankMemo()
+                                .withConsensusCustomFee(fixedConsensusHbarFee(88, "collector"))
+                                .payingWith(PAYER)
+                                .fee(ONE_HUNDRED_HBARS)
+                                .via("create-topic-txn")),
+                "create-topic-txn",
+                2.0001,
+                1,
+                2,
+                5);
+    }
 
     @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
     @DisplayName("compare update topic with admin key")
@@ -194,7 +194,6 @@ public class ConsensusServiceSimpleFeesSuite {
                 1);
     }
 
-        @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
     @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
     @DisplayName("compare submit message with extra bytes")
     final Stream<DynamicTest> submitBiggerMessageFeeComparison() {
@@ -231,9 +230,9 @@ public class ConsensusServiceSimpleFeesSuite {
                 1);
     }
 
-        @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
-        @DisplayName("compare submit message with custom fee and included bytes")
-        final Stream<DynamicTest> submitCustomFeeMessageWithIncludedBytesComparison() {
+    @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+    @DisplayName("compare submit message with custom fee and included bytes")
+    final Stream<DynamicTest> submitCustomFeeMessageWithIncludedBytesComparison() {
             // 100 is less than the free size, so there's no per byte charge
             final var byte_size = 100;
             final byte[] messageBytes = new byte[byte_size]; // up to 1k
@@ -261,6 +260,7 @@ public class ConsensusServiceSimpleFeesSuite {
                     0.05,
                     1);
         }
+
     @HapiTest
     @DisplayName("compare get topic info")
     final Stream<DynamicTest> getTopicInfoComparison() {
