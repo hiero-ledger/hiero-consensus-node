@@ -272,6 +272,8 @@ public class TokenServiceSimpleFeesSuite {
                                 .hasKnownStatus(SUCCESS)
                                 .via("non-fungible-multiple-mint-txn")),
                 "non-fungible-multiple-mint-txn",
+                // TODO: we need a better way to represent the cost of minting NFTs.
+                // with this current system the cost of node+network will be double counted
                 // base = 9000000,
                 // tokens = 199000000*3,
                 // node+network = 1000000
