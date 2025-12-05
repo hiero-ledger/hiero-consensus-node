@@ -9,7 +9,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.regression.factories.RegressionProviderFactory.factoryFrom;
 import static java.util.concurrent.TimeUnit.SECONDS;
 
-import com.hedera.services.bdd.junit.HapiTest;
+import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.spec.HapiPropertySource;
 import com.hedera.services.bdd.spec.HapiSpec;
 import java.util.Map;
@@ -32,7 +32,7 @@ public class UmbrellaRedux {
     private final AtomicReference<String> props = new AtomicReference<>(DEFAULT_PROPERTIES);
     private final AtomicReference<TimeUnit> unit = new AtomicReference<>(SECONDS);
 
-    @HapiTest
+    @LeakyHapiTest
     @Tag(NOT_REPEATABLE)
     final Stream<DynamicTest> umbrellaRedux() {
         return hapiTest(
