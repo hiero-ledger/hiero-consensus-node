@@ -45,7 +45,6 @@ import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.freezeOnly;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingAllOf;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingThrottles;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepForSeconds;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
@@ -107,7 +106,6 @@ import com.hederahashgraph.api.proto.java.TransactionRecord;
 import java.math.BigInteger;
 import java.time.Instant;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
@@ -346,7 +344,7 @@ public class AtomicBatchNegativeTest {
                             .signedByPayerAnd(batchOperator));
         }
 
-        @LeakyHapiTest(overrides = {"contracts.throttle.throttleByGas", "contracts.maxGasPerSec"})
+        @LeakyHapiTest(overrides = {"contracts.maxGasPerSec"})
         @DisplayName("Exceeds gas limit should fail")
         //  BATCH_48
         public Stream<DynamicTest> exceedsGasLimit() {
@@ -355,8 +353,7 @@ public class AtomicBatchNegativeTest {
             final var payload = new byte[100];
             final var batchOperator = "batchOperator";
             return hapiTest(
-                    overridingAllOf(
-                            Map.of("contracts.throttle.throttleByGas", "true", "contracts.maxGasPerSec", "2000000")),
+                    overriding("contracts.maxGasPerSec", "2000000"),
                     cryptoCreate(batchOperator),
                     uploadInitCode(contract),
                     contractCreate(contract).gas(1_000_000),
@@ -576,7 +573,7 @@ public class AtomicBatchNegativeTest {
                             .payingWith(batchOperator));
         }
 
-        @LeakyHapiTest(overrides = {"contracts.throttle.throttleByGas", "contracts.maxGasPerSec"})
+        @LeakyHapiTest(overrides = {"contracts.maxGasPerSec"})
         @DisplayName("Verify inner transaction gets gas throttled and refunds gas capacity")
         public Stream<DynamicTest> innerBatchGetsGasThrottledAndLeaksCapacity() {
             final var batchOperator = "batchOperator";
@@ -589,8 +586,7 @@ public class AtomicBatchNegativeTest {
                     cryptoCreate(payer).balance(ONE_HBAR),
                     uploadInitCode(contract),
                     contractCreate(contract),
-                    overridingAllOf(
-                            Map.of("contracts.throttle.throttleByGas", "true", "contracts.maxGasPerSec", "500000")),
+                    overriding("contracts.maxGasPerSec", "500000"),
                     // Should throttle as total gas is more than maxGasPerSec
                     atomicBatch(
                                     contractCall(contract, function, payload)
@@ -653,7 +649,7 @@ public class AtomicBatchNegativeTest {
                             .payingWith(batchOperator));
         }
 
-        @LeakyHapiTest(overrides = {"contracts.throttle.throttleByGas", "contracts.maxGasPerSec"})
+        @LeakyHapiTest(overrides = {"contracts.maxGasPerSec"})
         @DisplayName("Inner transactions are not throttle exempt when the batch operator is privileged")
         public Stream<DynamicTest> notThrottleExemptIfTheBatchOperatorIsPrivileged() {
             final var contract = "CalldataSize";
@@ -664,8 +660,7 @@ public class AtomicBatchNegativeTest {
                     cryptoCreate(payer),
                     uploadInitCode(contract),
                     contractCreate(contract),
-                    overridingAllOf(
-                            Map.of("contracts.throttle.throttleByGas", "true", "contracts.maxGasPerSec", "500000")),
+                    overriding("contracts.maxGasPerSec", "500000"),
                     // Should be throttled as the inner transactions are not signed by privileged accounts
                     atomicBatch(
                                     contractCall(contract, function, payload)

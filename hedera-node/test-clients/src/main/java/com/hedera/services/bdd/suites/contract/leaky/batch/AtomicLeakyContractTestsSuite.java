@@ -46,7 +46,6 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.childRecordsCheck;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.emptyChildRecordsCheck;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingAllOf;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingTwo;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.reduceFeeFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
@@ -432,14 +431,13 @@ class AtomicLeakyContractTestsSuite {
                         .payingWith(longLivedPayer)));
     }
 
-    @LeakyHapiTest(overrides = {"contracts.throttle.throttleByGas", "contracts.maxGasPerTransaction"})
+    @LeakyHapiTest(overrides = {"contracts.maxGasPerTransaction"})
     final Stream<DynamicTest> gasLimitOverMaxGasLimitFailsPrecheck() {
         return hapiTest(
                 uploadInitCode(SIMPLE_UPDATE_CONTRACT),
                 uploadInitCode(EMPTY_CONSTRUCTOR_CONTRACT),
                 contractCreate(SIMPLE_UPDATE_CONTRACT).gas(300_000L),
-                overridingAllOf(
-                        Map.of("contracts.throttle.throttleByGas", "true", "contracts.maxGasPerTransaction", "100")),
+                overriding("contracts.maxGasPerTransaction", "100"),
                 atomicBatch(contractCall(SIMPLE_UPDATE_CONTRACT, "set", BigInteger.valueOf(5), BigInteger.valueOf(42))
                                 .gas(23_000L)
                                 .hasKnownStatus(MAX_GAS_LIMIT_EXCEEDED)

@@ -309,12 +309,12 @@ public class FileUpdateSuite {
                         .has(resultWith().gasUsed(26_515)));
     }
 
-    @LeakyHapiTest(overrides = {"contracts.throttle.throttleByGas", "contracts.maxGasPerSec"})
+    @LeakyHapiTest(overrides = {"contracts.maxGasPerSec"})
     final Stream<DynamicTest> gasLimitOverMaxGasLimitFailsPrecheck() {
         return hapiTest(
                 uploadInitCode(CONTRACT),
                 contractCreate(CONTRACT).gas(1_000_000L),
-                overridingAllOf(Map.of("contracts.throttle.throttleByGas", "true", "contracts.maxGasPerSec", "100")),
+                overriding("contracts.maxGasPerSec", "100"),
                 contractCallLocal(CONTRACT, INDIRECT_GET_ABI)
                         .gas(101L)
                         // for some reason BUSY is returned in CI

@@ -23,7 +23,6 @@ import static com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil.
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromAccountToAlias;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
@@ -50,7 +49,6 @@ import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData.EthTransactionType;
 import com.hedera.services.bdd.junit.HapiTest;
-import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.spec.HapiPropertySource;
 import com.hederahashgraph.api.proto.java.AccountID;
 import java.math.BigInteger;
@@ -156,10 +154,9 @@ public class NonceSuite {
                 getAliasedAccountInfo(SECP_256K1_SOURCE_KEY).has(accountWith().nonce(0L)));
     }
 
-    @LeakyHapiTest(overrides = {"contracts.throttle.throttleByGas"})
+    @HapiTest
     final Stream<DynamicTest> nonceNotUpdatedWhenMaxGasPerSecPrecheckFailed() {
         return hapiTest(
-                overriding("contracts.throttle.throttleByGas", "true"),
                 newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
                 cryptoCreate(RELAYER).balance(ONE_HUNDRED_HBARS),
                 cryptoTransfer(tinyBarsFromAccountToAlias(GENESIS, SECP_256K1_SOURCE_KEY, ONE_HBAR)),
