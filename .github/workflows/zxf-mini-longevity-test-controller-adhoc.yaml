@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-name: "ZXF: [CITR] Adhoc - Single Day Longevity Test Controller"
+name: "ZXF: [CITR] Adhoc - Merge Queue Longevity Test Controller"
 on:
   workflow_dispatch:
     inputs:
@@ -36,6 +36,7 @@ on:
           - "9"
           - "21"
           - "30"
+          - "60"
           - "180"
           - "330"
           - "960"
@@ -52,6 +53,11 @@ on:
         default: ""
         type: string
         description: 'Add props to settings.txt, e.g. "state.saveStatePeriod, 300". Newline is "\n"'
+      run_NLGDparams:
+        required: false
+        default: "-Dbenchmark.stepDuration=5m -Dbenchmark.coolDown=2m"
+        type: string
+        description: 'Special miniLongevity settings. Newline is "\n"'
       disable-notifications:
         required: false
         default: true
@@ -97,6 +103,12 @@ jobs:
           PROMOTED_GREP_PATTERN: "build-(.{5})" # Pattern to match build tags (e.g., build-12345)
           CHECK_TAG: "${{ github.ref }}"
         run: |
+
+          echo "GH_ACCESS_TOKEN: ${{ secrets.GH_ACCESS_TOKEN }}"
+          echo "SLACK_CITR_BOT_TOKEN: ${{ secrets.SLACK_CITR_BOT_TOKEN }}"
+          echo "NLG_ACCESS_TOKEN: ${{ secrets.NLG_ACCESS_TOKEN }}"
+          echo "PERF_ANALYSIS_TOKEN: ${{ secrets.PERF_ANALYSIS_TOKEN }}"
+
           # Ensure the tag that we received is a build tag
           # if the tag is a build tag then we can parse out the build number (the last 5 characters)
           # return the build tag as an output
@@ -104,7 +116,7 @@ jobs:
           if [[ "${CHECK_TAG}" =~ ${PROMOTED_GREP_PATTERN} ]]; then
             echo "The tag is a valid build tag."
             BUILD_NUMBER="${BASH_REMATCH[1]}"
-            echo "build-number=${BUILD_NUMBER}" >> "${GITHUB_OUTPUT}"
+            echo "build-number=${BUILD_NUMBER}" >> $GITHUB_OUTPUT
 
             echo "### Running SDLT" >> "${GITHUB_STEP_SUMMARY}"
             echo "Build number: ${BUILD_NUMBER}" >> "${GITHUB_STEP_SUMMARY}"
@@ -115,29 +127,31 @@ jobs:
             echo "Ref: ${CHECK_TAG}" >> "${GITHUB_STEP_SUMMARY}"
           fi
 
-  run-single-day-longevity-test:
+  run-mini-longevity-test:
     name: Longevity Test
     needs:
       - verify-tag
-    uses: ./.github/workflows/zxc-single-day-longevity-test.yaml
+    uses: ./.github/workflows/zxc-mini-longevity-test.yaml
     if: ${{ needs.verify-tag.result == 'success' || inputs.disable-notifications == true }}
     with:
       test-asset: "${{ inputs.test-asset }}"
       ref: "${{ github.ref }}"
-      solo-version: "${{ vars.ADHOC_SOLO_VERSION }}"
+      solo-version: "${{ vars.CITR_SOLO_VERSION }}"
       nlg-accounts: "${{ inputs.nlg-accounts }}"
       nlg-time: "${{ inputs.nlg-time }}"
       add-app-props: "${{ inputs.add-app-props }}"
+      run_NLGDparams: "${{ inputs.run_NLGDparams }}"
       add-settings: "${{ inputs.add-settings }}"
       delete-namespace: ${{ inputs.delete-namespace }}
     secrets:
       slack-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
+      rootly-api-token: ${{ secrets.ROOTLY_API_TOKEN }}
 
   tag-sdlt-result:
     name: Tag SDLT Result
     runs-on: hiero-citr-linux-medium
     needs:
-      - run-single-day-longevity-test
+      - run-mini-longevity-test
       - verify-tag
     if: ${{ inputs.disable-notifications != true }}
     steps:
@@ -165,24 +179,24 @@ jobs:
 
       - name: Tag SDLT Result
         run: |
-          RESULT="${{ needs.run-single-day-longevity-test.outputs.result }}"
+          RESULT="${{ needs.run-mini-longevity-test.outputs.result }}"
           BUILD_NUM="${{ needs.verify-tag.outputs.build-number }}"
 
           # Skip tagging if no build number is found
-          if [ -z "${BUILD_NUM}" ]; then
+          if [[ -z "$BUILD_NUM" ]]; then
             echo "No build number found. Skipping tagging step." >> "${GITHUB_STEP_SUMMARY}"
             exit 0
           fi
 
           # Populate the SDLT tag name and message
-          if [ "${RESULT}" == "success" ]; then
+          if [[ "$RESULT" == "success" ]]; then
             TAG_NAME="sdlt-pass-${BUILD_NUM}"
-            MSG="Single Day Longevity Test passed for build-${BUILD_NUM}"
-          elif [ "${RESULT}" == "failure" ]; then
+            MSG="Mini Longevity Test passed for build-${BUILD_NUM}"
+          elif [[ "$RESULT" == "failure" ]]; then
             TAG_NAME="sdlt-fail-${BUILD_NUM}"
-            MSG="Single Day Longevity Test FAILED for build-${BUILD_NUM}"
+            MSG="Mini Longevity Test FAILED for build-${BUILD_NUM}"
           else
-            echo "No tag will be applied. Test result was: ${RESULT}" >> "${GITHUB_STEP_SUMMARY}"
+            echo "No tag will be applied. Test result was: $RESULT" >> "${GITHUB_STEP_SUMMARY}"
             exit 0
           fi
 
@@ -248,11 +262,11 @@ jobs:
     needs:
       - verify-tag
       - tag-sdlt-result
-      - run-single-day-longevity-test
+      - run-mini-longevity-test
       - get-commit-info
     if: ${{ (needs.verify-tag.result == 'success' &&
       needs.tag-sdlt-result.result == 'success' &&
-      needs.run-single-day-longevity-test.outputs.result == 'success' &&
+      needs.run-mini-longevity-test.outputs.result == 'success' &&
       needs.get-commit-info.result == 'success') &&
       inputs.disable-notifications != true && !cancelled() }}
     steps:
@@ -277,7 +291,7 @@ jobs:
                       "type": "header",
                       "text": {
                         "type": "plain_text",
-                        "text": ":tada: SDLT - Single Day Longevity Test (${{ github.ref }}) Passed",
+                        "text": ":tada: SDLT - Mini Longevity Test (${{ github.ref }}) Passed",
                         "emoji": true
                       }
                     },
@@ -301,11 +315,11 @@ jobs:
                         },
                         {
                           "type": "plain_text",
-                          "text": "Run Single Day Longevity Test"
+                          "text": "Run Mini Longevity Test"
                         },
                         {
                           "type": "plain_text",
-                          "text": "${{ needs.run-single-day-longevity-test.outputs.result  }}"
+                          "text": "${{ needs.run-mini-longevity-test.outputs.result  }}"
                         },
                         {
                           "type": "plain_text",
@@ -371,13 +385,13 @@ jobs:
     runs-on: hiero-citr-linux-medium
     needs:
       - verify-tag
-      - run-single-day-longevity-test
+      - run-mini-longevity-test
       - tag-sdlt-result
       - get-commit-info
       - report-success
     if: ${{ (needs.verify-tag.result != 'success' ||
       needs.tag-sdlt-result.result != 'success' ||
-      needs.run-single-day-longevity-test.outputs.result != 'success' ||
+      needs.run-mini-longevity-test.outputs.result != 'success' ||
       needs.get-commit-info.result != 'success' ||
       needs.report-success.result != 'success') &&
       inputs.disable-notifications != true && !cancelled() && always() }}
@@ -441,7 +455,7 @@ jobs:
             echo "------------------------------------"
             echo "Status of each job:"
             echo "- Verify Tag: ${{ needs.verify-tag.result }}"
-            echo "- Run Single Day Longevity Test: ${{ needs.run-single-day-longevity-test.outputs.result }}"
+            echo "- Run Mini Longevity Test: ${{ needs.run-mini-longevity-test.outputs.result }}"
             echo "- Tag SDLT Result: ${{ needs.tag-sdlt-result.result }}"
             echo "- Get Commit Info: ${{ needs.get-commit-info.result }}"
             echo "- Report Success: ${{ needs.report-success.result }}"
@@ -459,7 +473,8 @@ jobs:
           echo "${{ steps.rootly-summary.outputs.details }}" >> "${GITHUB_STEP_SUMMARY}"
 
       - name: Create Rootly Alert
-        if: ${{ steps.set-alert-flag.outputs.create == 'true' }}
+        if: false
+        ##if: ${{ steps.set-alert-flag.outputs.create == 'true' }}
         uses: pandaswhocode/rootly-alert-action@fdae1529e5aed62040016accf719a0ceb7dae57f # v1.0.0
         continue-on-error: true
         with:
@@ -468,7 +483,7 @@ jobs:
           details: ${{ steps.rootly-summary.outputs.details }}
           notification_target_type: "Service"
           notification_target: "CI/CD Workflows"
-          set_as_noise: "false"
+          set_as_noise: "true"
           alert_urgency: "Medium"
           environments: "CITR"
           external_id: ${{ github.run_id }}
@@ -487,7 +502,7 @@ jobs:
                     "type": "header",
                     "text": {
                       "type": "plain_text",
-                      "text": ":grey_exclamation: SDLT - Single Day Longevity Test (${{ github.ref }}) Failed",
+                      "text": ":grey_exclamation: SDLT - Mini Longevity Test (${{ github.ref }}) Failed",
                       "emoji": true
                     }
                   },
@@ -511,11 +526,11 @@ jobs:
                       },
                       {
                         "type": "plain_text",
-                        "text": "Run Single Day Longevity Test"
+                        "text": "Run Mini Longevity Test"
                       },
                       {
                         "type": "plain_text",
-                        "text": "${{ needs.run-single-day-longevity-test.outputs.result }}"
+                        "text": "${{ needs.run-mini-longevity-test.outputs.result }}"
                       },
                       {
                         "type": "plain_text",
