@@ -230,8 +230,9 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
                                 throw new PreCheckException(PAYER_ACCOUNT_NOT_FOUND);
                             }
 
-                            // 3.iv Calculate costs
-                            final var queryFees = handler.computeFees(context).totalFee();
+                            // 3.iv Calculate costs (routes to simple fees if enabled)
+                            final var queryFees =
+                                    dispatcher.dispatchComputeFees(context).totalFee();
                             final var txFees = queryChecker.estimateTxFees(
                                     storeFactory,
                                     consensusTime,
@@ -275,8 +276,9 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
                 }
 
                 if (handler.needsAnswerOnlyCost(responseType)) {
-                    // 6.i Estimate costs
-                    final var queryFees = handler.computeFees(context).totalFee();
+                    // 6.i Estimate costs (routes to simple fees if enabled)
+                    final var queryFees =
+                            dispatcher.dispatchComputeFees(context).totalFee();
 
                     final var header = createResponseHeader(responseType, OK, queryFees);
                     response = handler.createEmptyResponse(header);

@@ -1,13 +1,22 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.query;
 
+import static com.hedera.node.app.hapi.utils.CommonUtils.productWouldOverflow;
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.hapi.node.transaction.ExchangeRate;
 import com.hedera.hapi.node.transaction.Query;
+import com.hedera.node.app.fees.FeeManager;
+import com.hedera.node.app.hapi.utils.fee.FeeBuilder;
+import com.hedera.node.app.spi.fees.Fees;
+import com.hedera.node.app.spi.workflows.QueryContext;
 import com.hedera.node.app.spi.workflows.QueryHandler;
+import com.hedera.node.config.data.FeesConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.time.InstantSource;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import org.hiero.hapi.fees.FeeResult;
 
 /**
  * A {@code QueryDispatcher} provides functionality to forward validate, and reply-query requests to
@@ -19,16 +28,25 @@ public class QueryDispatcher {
     private static final String QUERY_NOT_SET = "Query not set";
 
     private final QueryHandlers handlers;
+    private final FeeManager feeManager;
+    private final InstantSource instantSource;
 
     /**
      * Constructor of {@code QueryDispatcher}
      *
      * @param handlers a {@link QueryHandlers} record with all available handlers
+     * @param feeManager the {@link FeeManager} for fee calculations
+     * @param instantSource the {@link InstantSource} to get the current time
      * @throws NullPointerException if one of the parameters is {@code null}
      */
     @Inject
-    public QueryDispatcher(@NonNull final QueryHandlers handlers) {
+    public QueryDispatcher(
+            @NonNull final QueryHandlers handlers,
+            @NonNull final FeeManager feeManager,
+            @NonNull final InstantSource instantSource) {
         this.handlers = requireNonNull(handlers);
+        this.feeManager = requireNonNull(feeManager);
+        this.instantSource = requireNonNull(instantSource);
     }
 
     /**
@@ -74,5 +92,78 @@ public class QueryDispatcher {
 
             case UNSET -> throw new UnsupportedOperationException(QUERY_NOT_SET);
         };
+    }
+
+    /**
+     * Dispatch a compute fees request for queries. Routes to simple fee calculation
+     * when enabled, otherwise falls back to legacy handler calculation.
+     *
+     * @param queryContext the query context containing all needed information
+     * @return the calculated fees
+     */
+    @NonNull
+    public Fees dispatchComputeFees(@NonNull final QueryContext queryContext) {
+        requireNonNull(queryContext, "queryContext must not be null!");
+
+        final var handler = getHandler(queryContext.query());
+
+        if (shouldUseSimpleFees(queryContext)) {
+            final var simpleFeeCalculator = feeManager.getSimpleFeeCalculator();
+            if (simpleFeeCalculator != null) {
+                final var feeResult = simpleFeeCalculator.calculateQueryFee(queryContext.query(), null);
+                return feeResultToFees(
+                        feeResult, queryContext.exchangeRateInfo().activeRate(instantSource.instant()));
+            }
+        }
+
+        // Fallback to legacy calculation
+        return handler.computeFees(queryContext);
+    }
+
+    /**
+     * Determines if simple fees should be used for this query based on config and query type.
+     *
+     * @param queryContext the query context
+     * @return true if simple fees should be used
+     */
+    private boolean shouldUseSimpleFees(@NonNull final QueryContext queryContext) {
+        if (!queryContext.configuration().getConfigData(FeesConfig.class).simpleFeesEnabled()) {
+            return false;
+        }
+
+        return switch (queryContext.query().query().kind()) {
+            case CRYPTO_GET_INFO, CRYPTO_GET_ACCOUNT_RECORDS -> true;
+            default -> false;
+        };
+    }
+
+    /**
+     * Converts tinycents to tinybars using the exchange rate.
+     *
+     * @param amount the amount in tinycents
+     * @param rate the exchange rate
+     * @return the amount in tinybars
+     */
+    private static long tinycentsToTinybars(final long amount, final ExchangeRate rate) {
+        final var hbarEquiv = rate.hbarEquiv();
+        if (productWouldOverflow(amount, hbarEquiv)) {
+            return FeeBuilder.getTinybarsFromTinyCents(
+                    com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj(rate), amount);
+        }
+        return amount * hbarEquiv / rate.centEquiv();
+    }
+
+    /**
+     * Converts a FeeResult (in tinycents) to Fees (in tinybars).
+     *
+     * @param feeResult the fee result in tinycents
+     * @param rate the exchange rate
+     * @return fees in tinybars
+     */
+    private static Fees feeResultToFees(@NonNull final FeeResult feeResult, @NonNull final ExchangeRate rate) {
+        return new Fees(
+                tinycentsToTinybars(feeResult.node, rate),
+                tinycentsToTinybars(feeResult.network, rate),
+                tinycentsToTinybars(feeResult.service, rate));
     }
 }
