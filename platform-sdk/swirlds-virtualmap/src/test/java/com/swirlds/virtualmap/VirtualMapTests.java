@@ -10,7 +10,6 @@ import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.CONFIGURA
 import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.VM_LABEL;
 import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.createMap;
 import static java.util.concurrent.TimeUnit.SECONDS;
-import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -1510,15 +1509,6 @@ class VirtualMapTests extends VirtualTestBase {
     @Test
     void getVersion() {
         assertEquals(4, createMap().getVersion());
-    }
-
-    @Test
-    void postInitNoOpIfLearnerTreeViewIsSet() {
-        VirtualMap root = createMap();
-        VirtualMap anotherRoot = createMap();
-        anotherRoot.computeHash();
-        root.setupWithOriginalNode(anotherRoot);
-        assertDoesNotThrow(() -> root.postInit());
     }
 
     // based heavily on VirtualMapGroup::validateCopy(), but modified to just compare two VirtualMaps, instead of

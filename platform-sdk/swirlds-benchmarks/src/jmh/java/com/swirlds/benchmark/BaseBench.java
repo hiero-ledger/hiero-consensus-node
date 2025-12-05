@@ -41,10 +41,10 @@ public abstract class BaseBench {
     protected static final String RUN_DELIMITER = "--------------------------------";
 
     @Param({"100"})
-    public int numFiles = 500;
+    public int numFiles = 100;
 
     @Param({"100000"})
-    public int numRecords = 10_000;
+    public int numRecords = 1_000;
 
     @Param({"1000000"})
     public int maxKey = 10_000_000;

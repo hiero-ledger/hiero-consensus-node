@@ -3,24 +3,18 @@ package com.swirlds.common.merkle.synchronization.task;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
-import static org.hiero.base.constructable.ClassIdFormatter.classIdString;
 
-import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.synchronization.stats.ReconnectMapStats;
 import com.swirlds.common.merkle.synchronization.streams.AsyncInputStream;
 import com.swirlds.common.merkle.synchronization.streams.AsyncOutputStream;
 import com.swirlds.common.merkle.synchronization.utility.MerkleSynchronizationException;
-import com.swirlds.common.merkle.synchronization.views.CustomReconnectRoot;
 import com.swirlds.common.merkle.synchronization.views.LearnerTreeView;
 import com.swirlds.common.threading.pool.StandardWorkGroup;
 import com.swirlds.common.utility.ThresholdLimitingHandler;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
-import java.util.Queue;
-import java.util.concurrent.atomic.AtomicReference;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.crypto.Hash;
 
 /**
@@ -38,13 +32,10 @@ public class LearnerPushTask<T> {
     private final StandardWorkGroup workGroup;
     private final AsyncInputStream<Lesson<T>> in;
     private final AsyncOutputStream<QueryResponse> out;
-    private final AtomicReference<T> root;
     private final LearnerTreeView<T> view;
     private final ReconnectNodeCount nodeCount;
 
     private final ReconnectMapStats mapStats;
-
-    private final Queue<MerkleNode> rootsToReceive;
 
     private final ThresholdLimitingHandler<Throwable> exceptionRateLimiter = new ThresholdLimitingHandler<>(1);
 
@@ -57,10 +48,6 @@ public class LearnerPushTask<T> {
      * 		the input stream, this object is responsible for closing the stream when finished
      * @param out
      * 		the output stream, this object is responsible for closing the stream when finished
-     * @param rootsToReceive
-     * 		a queue of subtree roots to synchronize
-     * @param root
-     * 		a reference which will eventually hold the root of this subtree
      * @param view
      * 		a view used to interface with the subtree
      * @param nodeCount
@@ -72,16 +59,12 @@ public class LearnerPushTask<T> {
             final StandardWorkGroup workGroup,
             final AsyncInputStream<Lesson<T>> in,
             final AsyncOutputStream<QueryResponse> out,
-            final Queue<MerkleNode> rootsToReceive,
-            final AtomicReference<T> root,
             final LearnerTreeView<T> view,
             final ReconnectNodeCount nodeCount,
             @NonNull final ReconnectMapStats mapStats) {
         this.workGroup = workGroup;
         this.in = in;
         this.out = out;
-        this.rootsToReceive = rootsToReceive;
-        this.root = root;
         this.view = view;
         this.nodeCount = nodeCount;
         this.mapStats = mapStats;
@@ -89,36 +72,6 @@ public class LearnerPushTask<T> {
 
     public void start() {
         workGroup.execute(NAME, this::run);
-    }
-
-    /**
-     * Handle a lesson for the root of a tree with a custom view. When such a node is encountered, instead of iterating
-     * over its children, the node is put into a queue for later handling. Eventually that node and the subtree
-     * below it are synchronized using the specified view.
-     */
-    private T handleCustomRootInitialLesson(
-            final LearnerTreeView<T> view, final ExpectedLesson<T> expectedLesson, final Lesson<T> lesson) {
-
-        // The original node is the node at the exact same position in the learner's original tree.
-        // If the hash matches the original can be used in the new tree.
-        // Sometimes the original node is null if the original tree does not have any node in this position.
-        final T originalNode = expectedLesson.getOriginalNode();
-
-        final CustomReconnectRoot<?, ?> customRoot =
-                ConstructableRegistry.getInstance().createObject(lesson.getCustomViewClassId());
-        if (customRoot == null) {
-            throw new MerkleSynchronizationException(
-                    "unable to construct object with class ID " + classIdString(lesson.getCustomViewClassId()));
-        }
-
-        if (originalNode != null && view.getClassId(originalNode) == lesson.getCustomViewClassId()) {
-            customRoot.setupWithOriginalNode(view.getMerkleRoot(originalNode));
-        } else {
-            customRoot.setupWithNoData();
-        }
-
-        rootsToReceive.add(customRoot);
-        return view.convertMerkleRootToViewType(customRoot);
     }
 
     /**
@@ -133,24 +86,16 @@ public class LearnerPushTask<T> {
         if (lesson.isCurrentNodeUpToDate()) {
             // We already have the correct node in our tree.
             return expectedLesson.getOriginalNode();
-        } else if (lesson.isCustomViewRoot()) {
-            // This node is the root of a subtree with a custom view,
-            // but we are not yet iterating over that subtree.
-            return handleCustomRootInitialLesson(view, expectedLesson, lesson);
         } else {
             final T node;
 
-            if (firstLesson && !view.isRootOfState()) {
+            if (firstLesson) {
                 // Special case: roots of subtrees with custom views will have been copied
                 // when synchronizing the parent tree.
                 node = expectedLesson.getOriginalNode();
             } else {
                 // The teacher sent us the node we should use
                 node = lesson.getNode();
-            }
-
-            if (lesson.isInternalLesson()) {
-                view.markForInitialization(node);
             }
 
             return node;
@@ -248,9 +193,7 @@ public class LearnerPushTask<T> {
 
                 firstLesson = false;
 
-                if (parent == null) {
-                    root.set(newChild);
-                } else {
+                if (parent != null) {
                     view.setChild(parent, expectedLesson.getPositionInParent(), newChild);
                 }
 

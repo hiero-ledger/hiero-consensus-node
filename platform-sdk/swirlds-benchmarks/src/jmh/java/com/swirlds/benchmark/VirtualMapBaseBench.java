@@ -226,9 +226,7 @@ public abstract class VirtualMapBaseBench extends BaseBench {
                     break;
                 }
             }
-            Files.createDirectories(savedDir);
-
-            final Path finalSavedDir = savedDir;
+            final Path savedDirF = savedDir;
 
             return virtualMaps.stream()
                     .map(virtualMap -> {
@@ -236,13 +234,21 @@ public abstract class VirtualMapBaseBench extends BaseBench {
                         final VirtualMapMetadata virtualMapMetadata = virtualMap.getMetadata();
                         final String label = virtualMapMetadata.getLabel();
                         final VirtualMap curMap = virtualMap.copy();
+                        final Path finalSavedDir = savedDirF.resolve(label);
+                        try {
+                            Files.createDirectories(finalSavedDir);
+                        } catch (final IOException e) {
+                            logger.error("Error creating dir " + finalSavedDir, e);
+                            throw new UncheckedIOException(e);
+                        }
 
                         virtualMap.getHash();
                         try (final SerializableDataOutputStream out = new SerializableDataOutputStream(
                                 Files.newOutputStream(finalSavedDir.resolve(label + SERDE_SUFFIX)))) {
                             virtualMap.serialize(out, finalSavedDir);
-                        } catch (IOException ex) {
-                            logger.error("Error saving VirtualMap " + label, ex);
+                        } catch (IOException e) {
+                            logger.error("Error saving VirtualMap " + label, e);
+                            throw new UncheckedIOException(e);
                         }
                         logger.info(
                                 "Saved map {} to {} in {} ms",
@@ -252,9 +258,6 @@ public abstract class VirtualMapBaseBench extends BaseBench {
                         return curMap;
                     })
                     .collect(Collectors.toList());
-        } catch (IOException ex) {
-            logger.error("Error saving VirtualMap", ex);
-            throw new UncheckedIOException(ex);
         } finally {
             virtualMaps.forEach(VirtualMap::release);
         }

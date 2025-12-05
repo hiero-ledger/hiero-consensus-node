@@ -10,6 +10,10 @@ import com.swirlds.common.io.streams.MerkleDataInputStream;
 import com.swirlds.common.io.streams.MerkleDataOutputStream;
 import com.swirlds.common.merkle.synchronization.LearningSynchronizer;
 import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
+import com.swirlds.common.merkle.synchronization.stats.ReconnectMapMetrics;
+import com.swirlds.common.merkle.synchronization.stats.ReconnectMapStats;
+import com.swirlds.common.merkle.synchronization.utility.MerkleSynchronizationException;
+import com.swirlds.common.merkle.synchronization.views.LearnerTreeView;
 import com.swirlds.common.threading.manager.ThreadManager;
 import com.swirlds.logging.legacy.payload.ReconnectDataUsagePayload;
 import com.swirlds.platform.crypto.CryptoStatic;
@@ -21,6 +25,7 @@ import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.state.signed.SignedStateInvalidException;
 import com.swirlds.platform.state.snapshot.SignedStateFileReader;
 import com.swirlds.state.MerkleNodeState;
+import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
@@ -186,6 +191,10 @@ public class ReconnectStateLearner {
      */
     @NonNull
     private ReservedSignedState reconnect() throws InterruptedException {
+        if (!(currentState instanceof VirtualMapState virtualMapState)) {
+            throw new UnsupportedOperationException("Reconnects are only supported for VirtualMap states");
+        }
+
         statistics.incrementReceiverStartTimes();
 
         final MerkleDataInputStream in = new MerkleDataInputStream(connection.getDis());
@@ -197,19 +206,34 @@ public class ReconnectStateLearner {
         final ReconnectConfig reconnectConfig =
                 platformContext.getConfiguration().getConfigData(ReconnectConfig.class);
 
+        final VirtualMap reconnectRoot = virtualMapState.getRoot().newReconnectRoot();
+        final ReconnectMapStats mapStats = new ReconnectMapMetrics(platformContext.getMetrics(), null, null);
+        // The learner view will be closed by LearningSynchronizer
+        final LearnerTreeView<?> learnerView = reconnectRoot.buildLearnerView(mapStats);
         final LearningSynchronizer synchronizer = new LearningSynchronizer(
                 threadManager,
                 in,
                 out,
-                currentState.getRoot(),
+                reconnectRoot,
+                learnerView,
                 connection::disconnect,
                 platformContext.getMerkleCryptography(),
-                reconnectConfig,
-                platformContext.getMetrics());
-        synchronizer.synchronize();
+                reconnectConfig);
+        try {
+            synchronizer.synchronize();
+            logger.info(RECONNECT.getMarker(), () -> mapStats.format());
+        } catch (final InterruptedException e) {
+            logger.warn(RECONNECT.getMarker(), "Synchronization interrupted");
+            Thread.currentThread().interrupt();
+            reconnectRoot.release();
+            throw e;
+        } catch (final Exception e) {
+            reconnectRoot.release();
+            throw new MerkleSynchronizationException(e);
+        }
 
-        final MerkleNodeState merkleNodeState = initializeMerkleNodeState(
-                createStateFromVirtualMap, synchronizer.getRoot(), platformContext.getMetrics());
+        final MerkleNodeState merkleNodeState =
+                initializeMerkleNodeState(createStateFromVirtualMap, reconnectRoot, platformContext.getMetrics());
 
         final SignedState newSignedState = new SignedState(
                 platformContext.getConfiguration(),

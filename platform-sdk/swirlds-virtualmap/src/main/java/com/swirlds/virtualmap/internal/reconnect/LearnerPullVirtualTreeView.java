@@ -5,7 +5,6 @@ import static com.swirlds.virtualmap.internal.Path.ROOT_PATH;
 
 import com.swirlds.common.io.streams.MerkleDataInputStream;
 import com.swirlds.common.io.streams.MerkleDataOutputStream;
-import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.synchronization.LearningSynchronizer;
 import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
 import com.swirlds.common.merkle.synchronization.stats.ReconnectMapStats;
@@ -23,11 +22,9 @@ import com.swirlds.virtualmap.internal.merkle.VirtualMapMetadata;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.util.Objects;
-import java.util.Queue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.atomic.AtomicReference;
 import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.io.streams.SerializableDataInputStream;
@@ -117,9 +114,7 @@ public final class LearnerPullVirtualTreeView extends VirtualTreeViewBase implem
             final LearningSynchronizer learningSynchronizer,
             final StandardWorkGroup workGroup,
             final MerkleDataInputStream inputStream,
-            final MerkleDataOutputStream outputStream,
-            final Queue<MerkleNode> rootsToReceive,
-            final AtomicReference<Long> reconstructedRoot) {
+            final MerkleDataOutputStream outputStream) {
         this.nodeCount = learningSynchronizer;
 
         final AsyncOutputStream<PullVirtualTreeRequest> out =
@@ -133,7 +128,6 @@ public final class LearnerPullVirtualTreeView extends VirtualTreeViewBase implem
         final LearnerPullVirtualTreeReceiveTask learnerReceiveTask = new LearnerPullVirtualTreeReceiveTask(
                 workGroup, inputStream, this, senderIsFinished, expectedResponses, rootResponseReceived);
         learnerReceiveTask.exec();
-        reconstructedRoot.set(0L);
         assert traversalOrder != null;
         final LearnerPullVirtualTreeSendTask learnerSendTask = new LearnerPullVirtualTreeSendTask(
                 reconnectConfig,
@@ -217,14 +211,6 @@ public final class LearnerPullVirtualTreeView extends VirtualTreeViewBase implem
      * {@inheritDoc}
      */
     @Override
-    public boolean isRootOfState() {
-        return false;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
     public Long getOriginalRoot() {
         return ROOT_PATH;
     }
@@ -297,25 +283,9 @@ public final class LearnerPullVirtualTreeView extends VirtualTreeViewBase implem
      * {@inheritDoc}
      */
     @Override
-    public void initialize() {
-        // no-op
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
     public void close() {
         nodeRemover.allNodesReceived();
         map.endLearnerReconnect();
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void markForInitialization(final Long node) {
-        // no-op
     }
 
     /**
@@ -332,14 +302,6 @@ public final class LearnerPullVirtualTreeView extends VirtualTreeViewBase implem
     @Override
     public void setChild(final Long parent, final int childIndex, final Long child) {
         // No-op
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public Long convertMerkleRootToViewType(final MerkleNode node) {
-        throw new UnsupportedOperationException("Nested virtual maps not supported");
     }
 
     /**
