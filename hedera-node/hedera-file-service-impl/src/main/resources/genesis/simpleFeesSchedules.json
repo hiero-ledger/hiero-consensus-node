@@ -20,7 +20,7 @@
     { "name":  "KEYS",                           "fee": 100000000 },
     { "name":  "TOKEN_TYPES",                    "fee": 0 },
     { "name":  "NFT_SERIALS",                    "fee": 8900000 },
-    { "name":  "ACCOUNTS",                       "fee": 0 },
+    { "name":  "ACCOUNTS",                       "fee": 1000000 },
     { "name":  "FUNGIBLE_TOKENS",                 "fee": 1000000 },
     { "name":  "NON_FUNGIBLE_TOKENS",            "fee": 1000000 },
     { "name":  "CREATED_AUTO_ASSOCIATIONS",      "fee": 0 },
@@ -40,7 +40,7 @@
     { "name":  "CRYPTO_TRANSFER_BASE_NFT_CUSTOM_FEES",      "fee": 19000000 },
     { "name":  "CONSENSUS_CREATE_TOPIC_WITH_CUSTOM_FEE",    "fee": 19900000000 },
     { "name":  "CONSENSUS_SUBMIT_MESSAGE_WITH_CUSTOM_FEE",  "fee": 499000000},
-    { "name":  "HOOK_EXECUTION",                            "fee": 50000000 }
+    { "name":  "HOOK_EXECUTION",                            "fee": 10000000000 }
   ],
   "services": [
     {
