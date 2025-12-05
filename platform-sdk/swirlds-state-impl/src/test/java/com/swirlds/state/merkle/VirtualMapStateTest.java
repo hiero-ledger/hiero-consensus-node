@@ -272,7 +272,7 @@ public class VirtualMapStateTest extends MerkleTestBase {
             setupSteamQueue();
 
             // adding k/v and singleton states directly to the virtual map
-            final var virtualMap = (VirtualMap) virtualMapState.getRoot();
+            final var virtualMap = virtualMapState.getRoot();
             addKvState(virtualMap, fruitMetadata, A_KEY, APPLE);
             addKvState(virtualMap, fruitMetadata, B_KEY, BANANA);
             addSingletonState(virtualMap, countryMetadata, GHANA);
@@ -441,7 +441,7 @@ public class VirtualMapStateTest extends MerkleTestBase {
             setupSteamQueue();
 
             // adding k/v and singleton states directly to the virtual map
-            final var virtualMap = (VirtualMap) virtualMapState.getRoot();
+            final var virtualMap = virtualMapState.getRoot();
             addKvState(virtualMap, fruitMetadata, A_KEY, APPLE);
             addKvState(virtualMap, fruitMetadata, B_KEY, BANANA);
             addSingletonState(virtualMap, countryMetadata, GHANA);
@@ -630,7 +630,7 @@ public class VirtualMapStateTest extends MerkleTestBase {
             setupSteamQueue();
 
             // adding k/v and singleton states directly to the virtual map
-            final var virtualMap = (VirtualMap) virtualMapState.getRoot();
+            final var virtualMap = virtualMapState.getRoot();
             addKvState(fruitVirtualMap, fruitMetadata, C_KEY, CHERRY);
             addSingletonState(virtualMap, countryMetadata, FRANCE);
 
@@ -694,7 +694,7 @@ public class VirtualMapStateTest extends MerkleTestBase {
             setupSteamQueue();
 
             // adding k/v and singleton states directly to the virtual map
-            final var virtualMap = (VirtualMap) virtualMapState.getRoot();
+            final var virtualMap = virtualMapState.getRoot();
             addKvState(fruitVirtualMap, fruitMetadata, A_KEY, APPLE);
             addKvState(fruitVirtualMap, fruitMetadata, B_KEY, BANANA);
             addSingletonState(virtualMap, countryMetadata, GHANA);
@@ -755,7 +755,7 @@ public class VirtualMapStateTest extends MerkleTestBase {
             setupFruitVirtualMap();
             setupSingletonCountry();
             setupSteamQueue();
-            virtualMap = (VirtualMap) virtualMapState.getRoot();
+            virtualMap = virtualMapState.getRoot();
             virtualMapState.initializeState(steamMetadata);
             virtualMapState.initializeState(countryMetadata);
             virtualMapState.initializeState(fruitMetadata);
@@ -776,7 +776,8 @@ public class VirtualMapStateTest extends MerkleTestBase {
         void singletonPath_found() {
 
             // Expected path using records.findPath on the singleton key
-            final long expected = ((VirtualMap) virtualMapState.getRoot())
+            final long expected = virtualMapState
+                    .getRoot()
                     .getRecords()
                     .findPath(StateUtils.getStateKeyForSingleton(COUNTRY_STATE_ID));
 
@@ -795,12 +796,13 @@ public class VirtualMapStateTest extends MerkleTestBase {
             virtualMapState = createTestState();
             setupFruitVirtualMap();
             setupSingletonCountry();
-            virtualMap = (VirtualMap) virtualMapState.getRoot();
+            virtualMap = virtualMapState.getRoot();
             virtualMapState.initializeState(steamMetadata);
 
             addSingletonState(virtualMap, countryMetadata, GHANA);
 
-            final long initialPath = ((VirtualMap) virtualMapState.getRoot())
+            final long initialPath = virtualMapState
+                    .getRoot()
                     .getRecords()
                     .findPath(StateUtils.getStateKeyForSingleton(COUNTRY_STATE_ID));
             assertThat(initialPath).isEqualTo(1);
@@ -825,8 +827,7 @@ public class VirtualMapStateTest extends MerkleTestBase {
         @DisplayName("kvPath returns path for existing kv key")
         void kvPath_found() {
             final var kvKey = StateUtils.getStateKeyForKv(FRUIT_STATE_ID, A_KEY, ProtoBytes.PROTOBUF);
-            final long expected =
-                    ((VirtualMap) virtualMapState.getRoot()).getRecords().findPath(kvKey);
+            final long expected = (virtualMapState.getRoot()).getRecords().findPath(kvKey);
 
             final long actualForBytes = virtualMapState.kvPath(FRUIT_STATE_ID, ProtoBytes.PROTOBUF.toBytes(A_KEY));
             final long actualForObj = virtualMapState.kvPath(FRUIT_STATE_ID, A_KEY, ProtoBytes.PROTOBUF);
@@ -933,7 +934,7 @@ public class VirtualMapStateTest extends MerkleTestBase {
             assertThat(path).isNotEqualTo(INVALID_PATH);
 
             // Build expected state item content from the actual leaf record
-            final VirtualMap vm = (VirtualMap) virtualMapState.getRoot();
+            final VirtualMap vm = virtualMapState.getRoot();
 
             final VirtualLeafBytes leaf = vm.getRecords()
                     .findLeafRecord(StateUtils.getStateKeyForKv(FRUIT_STATE_ID, A_KEY, ProtoBytes.PROTOBUF));
@@ -1009,7 +1010,7 @@ public class VirtualMapStateTest extends MerkleTestBase {
             assertThat(path).isNotEqualTo(INVALID_PATH);
 
             // Build expected state item content from the actual leaf record
-            final VirtualMap vm = (VirtualMap) virtualMapState.getRoot();
+            final VirtualMap vm = virtualMapState.getRoot();
             final VirtualLeafBytes leaf =
                     vm.getRecords().findLeafRecord(StateUtils.getStateKeyForSingleton(COUNTRY_STATE_ID));
             assertNotNull(leaf);
@@ -1064,7 +1065,7 @@ public class VirtualMapStateTest extends MerkleTestBase {
             assertThat(path).isNotEqualTo(INVALID_PATH);
 
             // Build expected state item content from the actual leaf record
-            final VirtualMap vm = (VirtualMap) virtualMapState.getRoot();
+            final VirtualMap vm = virtualMapState.getRoot();
             final VirtualLeafBytes leaf =
                     vm.getRecords().findLeafRecord(StateUtils.getStateKeyForQueue(STEAM_STATE_ID, 3));
             assertNotNull(leaf);
@@ -1119,7 +1120,7 @@ public class VirtualMapStateTest extends MerkleTestBase {
             virtualMapState = createTestState();
             setupFruitVirtualMap();
             setupSingletonCountry();
-            virtualMap = (VirtualMap) virtualMapState.getRoot();
+            virtualMap = virtualMapState.getRoot();
             virtualMapState.initializeState(steamMetadata);
 
             addSingletonState(virtualMap, countryMetadata, GHANA);
@@ -1161,7 +1162,7 @@ public class VirtualMapStateTest extends MerkleTestBase {
         setupSingletonCountry();
         setupSteamQueue();
         // adding k/v and singleton states directly to the virtual map
-        final var virtualMap = (VirtualMap) virtualMapState.getRoot();
+        final var virtualMap = virtualMapState.getRoot();
         addKvState(fruitVirtualMap, fruitMetadata, A_KEY, APPLE);
         addKvState(fruitVirtualMap, fruitMetadata, B_KEY, BANANA);
         addSingletonState(virtualMap, countryMetadata, GHANA);

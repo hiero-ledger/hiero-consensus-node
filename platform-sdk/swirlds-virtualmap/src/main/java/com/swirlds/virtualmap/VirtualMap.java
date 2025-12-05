@@ -34,7 +34,6 @@ import com.swirlds.common.merkle.route.MerkleRoute;
 import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
 import com.swirlds.common.merkle.synchronization.stats.ReconnectMapStats;
 import com.swirlds.common.merkle.synchronization.utility.MerkleSynchronizationException;
-import com.swirlds.common.merkle.synchronization.views.CustomReconnectRoot;
 import com.swirlds.common.merkle.synchronization.views.LearnerTreeView;
 import com.swirlds.common.merkle.synchronization.views.TeacherTreeView;
 import com.swirlds.common.merkle.utility.DebugIterationEndpoint;
@@ -160,7 +159,7 @@ import org.hiero.base.io.streams.SerializableDataOutputStream;
 @DebugIterationEndpoint
 @ConstructableClass(value = CLASS_ID, constructorType = VirtualMapConstructor.class)
 public final class VirtualMap extends PartialBinaryMerkleInternal
-        implements CustomReconnectRoot<Long, Long>, ExternalSelfSerializable, Labeled, MerkleInternal, VirtualRoot {
+        implements ExternalSelfSerializable, Labeled, MerkleInternal, VirtualRoot {
 
     private static final String NO_NULL_KEYS_ALLOWED_MESSAGE = "Null keys are not allowed";
 
@@ -1141,10 +1140,10 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
      **/
 
     /**
-     * {@inheritDoc}
+     * TODO
      */
-    @Override
-    public TeacherTreeView<Long> buildTeacherView(@NonNull final ReconnectConfig reconnectConfig) {
+    public TeacherTreeView<Long> buildTeacherView() {
+        final ReconnectConfig reconnectConfig = configuration.getConfigData(ReconnectConfig.class);
         return switch (virtualMapConfig.reconnectMode()) {
             case VirtualMapReconnectMode.PUSH ->
                 new TeacherPushVirtualTreeView(getStaticThreadManager(), reconnectConfig, this, metadata, pipeline);
@@ -1158,10 +1157,9 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
     }
 
     /**
-     * {@inheritDoc}
+     * TODO
      */
-    @Override
-    public void setupWithOriginalNode(@NonNull final MerkleNode originalNode) {
+    private void setupWithOriginalNode(@NonNull final MerkleNode originalNode) {
         assert originalNode instanceof VirtualMap : "The original node was not a VirtualMap!";
 
         // NOTE: If we're reconnecting, then the old tree is toast. We hold onto the originalMap to
@@ -1209,19 +1207,7 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
         statistics = originalMap.statistics;
     }
 
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void setupWithNoData() {
-        // No-op
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public CustomReconnectRoot<Long, Long> createNewRoot() {
+    public VirtualMap newReconnectRoot() {
         final VirtualMap newRoot = new VirtualMap(configuration);
         // Ensure the original map is hashed here. Once hashed, all its internal nodes are also hashed,
         // which is required for the reconnect process. A teacher needs these hashes to determine
@@ -1231,12 +1217,8 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
         return newRoot;
     }
 
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public LearnerTreeView<Long> buildLearnerView(
-            @NonNull final ReconnectConfig reconnectConfig, @NonNull final ReconnectMapStats mapStats) {
+    public LearnerTreeView<Long> buildLearnerView(@NonNull final ReconnectMapStats mapStats) {
+        final ReconnectConfig reconnectConfig = configuration.getConfigData(ReconnectConfig.class);
         assert originalMap != null;
         // During reconnect we want to look up state from the original records
         final VirtualMapMetadata originalState = originalMap.getMetadata();

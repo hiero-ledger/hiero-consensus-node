@@ -12,6 +12,7 @@ import com.swirlds.common.io.streams.MerkleDataInputStream;
 import com.swirlds.common.io.streams.MerkleDataOutputStream;
 import com.swirlds.common.merkle.synchronization.TeachingSynchronizer;
 import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
+import com.swirlds.common.merkle.synchronization.views.TeacherTreeView;
 import com.swirlds.common.threading.manager.ThreadManager;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.logging.legacy.payload.ReconnectFinishPayload;
@@ -20,6 +21,7 @@ import com.swirlds.platform.config.StateConfig;
 import com.swirlds.platform.metrics.ReconnectMetrics;
 import com.swirlds.platform.network.Connection;
 import com.swirlds.platform.state.signed.SignedState;
+import com.swirlds.state.merkle.VirtualMapState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.net.SocketException;
@@ -198,25 +200,35 @@ public class ReconnectStateTeacher {
      * @throws InterruptedException thrown if the current thread is interrupted
      */
     private void reconnect(final SignedState signedState) throws InterruptedException, IOException {
+        if (!(signedState.getState() instanceof VirtualMapState virtualMapState)) {
+            throw new UnsupportedOperationException("Reconnects are only supported for VirtualMap states");
+        }
+
         logger.info(RECONNECT.getMarker(), "Starting synchronization in the role of the sender.");
         statistics.incrementSenderStartTimes();
 
         connection.getDis().getSyncByteCounter().resetCount();
         connection.getDos().getSyncByteCounter().resetCount();
 
-        final ReconnectConfig reconnectConfig = configuration.getConfigData(ReconnectConfig.class);
-        final TeachingSynchronizer synchronizer = new TeachingSynchronizer(
-                platformContext.getConfiguration(),
-                time,
-                threadManager,
-                new MerkleDataInputStream(connection.getDis()),
-                new MerkleDataOutputStream(connection.getDos()),
-                signedState.getState().getRoot(),
-                connection::disconnect,
-                reconnectConfig);
-
-        synchronizer.synchronize();
-        connection.getDos().flush();
+        // final MerkleNode root = signedState.getState().getRoot();
+        try {
+            // root.reserve();
+            final ReconnectConfig reconnectConfig = configuration.getConfigData(ReconnectConfig.class);
+            // The teacher view will be closed by TeacherSynchronizer
+            final TeacherTreeView<?> teacherView = virtualMapState.getRoot().buildTeacherView();
+            final TeachingSynchronizer synchronizer = new TeachingSynchronizer(
+                    time,
+                    threadManager,
+                    new MerkleDataInputStream(connection.getDis()),
+                    new MerkleDataOutputStream(connection.getDos()),
+                    teacherView,
+                    connection::disconnect,
+                    reconnectConfig);
+            synchronizer.synchronize();
+            connection.getDos().flush();
+        } finally {
+            // root.release();
+        }
 
         statistics.incrementSenderEndTimes();
         logger.info(RECONNECT.getMarker(), "Finished synchronization in the role of the sender.");

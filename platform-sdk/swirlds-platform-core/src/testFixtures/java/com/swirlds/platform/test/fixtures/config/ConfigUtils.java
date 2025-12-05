@@ -4,6 +4,7 @@ package com.swirlds.platform.test.fixtures.config;
 import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.io.config.FileSystemManagerConfig;
 import com.swirlds.common.io.config.TemporaryFileConfig;
+import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.config.extensions.sources.SimpleConfigSource;
@@ -29,5 +30,6 @@ public final class ConfigUtils {
             .withConfigDataType(CryptoConfig.class)
             .withConfigDataType(StateConfig.class)
             .withConfigDataType(FileSystemManagerConfig.class)
+            .withConfigDataType(ReconnectConfig.class)
             .build();
 }

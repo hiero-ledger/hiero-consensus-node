@@ -73,8 +73,7 @@ public class ReconnectTest {
                 .doNotAttemptToReconnect();
         assertContinuouslyThat(nodeToReconnect.newReconnectResult())
                 .hasNoFailedReconnects()
-                .hasMaximumReconnectTime(Duration.ofSeconds(10))
-                .hasMaximumTreeInitializationTime(Duration.ofSeconds(1));
+                .hasMaximumReconnectTime(Duration.ofSeconds(10));
         assertContinuouslyThat(network.newConsensusResults()).haveEqualCommonRounds();
         assertContinuouslyThat(network.newConsensusResults().suppressingNode(nodeToReconnect))
                 .haveConsistentRounds();

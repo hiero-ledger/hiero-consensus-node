@@ -41,7 +41,7 @@ public class MigrationTestingToolTransaction implements SelfSerializable {
      */
     public void applyToState(final VirtualMapState state) {
         final Random random = new Random(seed);
-        final VirtualMap map = (VirtualMap) state.getRoot();
+        final VirtualMap map = state.getRoot();
 
         final AccountID key = new AccountID(0, 0, Math.abs(random.nextLong()));
         final Account value = new Account(

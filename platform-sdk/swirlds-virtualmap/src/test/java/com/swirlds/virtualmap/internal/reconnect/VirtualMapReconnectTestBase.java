@@ -8,7 +8,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.merkle.MerkleInternal;
 import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
 import com.swirlds.common.merkle.synchronization.config.ReconnectConfig_;
 import com.swirlds.common.merkle.synchronization.task.QueryResponse;
@@ -109,28 +108,21 @@ public abstract class VirtualMapReconnectTestBase {
         registry.registerConstructable(new ClassConstructorPair(VirtualRootNode.class, VirtualRootNode::new));
     }
 
-    protected MerkleInternal createTreeForMap(VirtualMap map) {
-        final var tree = MerkleTestUtils.buildLessSimpleTree();
-        tree.getChild(1).asInternal().setChild(3, map);
-        tree.reserve();
-        return tree;
-    }
-
     protected void reconnect() throws Exception {
         reconnectMultipleTimes(1);
     }
 
     protected void reconnectMultipleTimes(int attempts) {
-        final MerkleInternal teacherTree = createTreeForMap(teacherMap);
         final VirtualMap copy = teacherMap.copy();
-        final MerkleInternal learnerTree = createTreeForMap(learnerMap);
+        teacherMap.reserve();
+        learnerMap.reserve();
 
         withSuppressedErr(() -> {
             try {
                 for (int i = 0; i < attempts; i++) {
                     try {
                         final var node =
-                                MerkleTestUtils.hashAndTestSynchronization(learnerTree, teacherTree, reconnectConfig);
+                                MerkleTestUtils.hashAndTestSynchronization(learnerMap, teacherMap, reconnectConfig);
                         node.release();
                         assertEquals(attempts - 1, i, "We should only succeed on the last try");
                         assertTrue(learnerMap.isHashed(), "Learner map must be hashed");
@@ -144,8 +136,8 @@ public abstract class VirtualMapReconnectTestBase {
                     }
                 }
             } finally {
-                teacherTree.release();
-                learnerTree.release();
+                teacherMap.release();
+                learnerMap.release();
                 copy.release();
             }
         });

@@ -97,14 +97,14 @@ public abstract class VirtualMapReconnectTestBase {
     }
 
     protected void reconnectMultipleTimes(int attempts) {
-        final MerkleInternal teacherTree = createTreeForMap(teacherMap);
         final VirtualMap copy = teacherMap.copy();
-        final MerkleInternal learnerTree = createTreeForMap(learnerMap);
+        teacherMap.reserve();
+        learnerMap.reserve();
         try {
             for (int i = 0; i < attempts; i++) {
                 try {
                     final var node =
-                            MerkleTestUtils.hashAndTestSynchronization(learnerTree, teacherTree, reconnectConfig);
+                            MerkleTestUtils.hashAndTestSynchronization(learnerMap, teacherMap, reconnectConfig);
                     node.release();
                     assertEquals(attempts - 1, i, "We should only succeed on the last try");
                 } catch (Exception e) {
@@ -114,8 +114,8 @@ public abstract class VirtualMapReconnectTestBase {
                 }
             }
         } finally {
-            teacherTree.release();
-            learnerTree.release();
+            teacherMap.release();
+            learnerMap.release();
             copy.release();
         }
     }

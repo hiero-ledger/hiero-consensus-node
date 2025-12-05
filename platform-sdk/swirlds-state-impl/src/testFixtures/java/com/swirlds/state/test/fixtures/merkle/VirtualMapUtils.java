@@ -4,6 +4,7 @@ package com.swirlds.state.test.fixtures.merkle;
 import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.io.config.FileSystemManagerConfig;
 import com.swirlds.common.io.config.TemporaryFileConfig;
+import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.config.extensions.sources.SimpleConfigSource;
@@ -23,6 +24,7 @@ public final class VirtualMapUtils {
             .withConfigDataType(TemporaryFileConfig.class)
             .withConfigDataType(StateCommonConfig.class)
             .withConfigDataType(FileSystemManagerConfig.class)
+            .withConfigDataType(ReconnectConfig.class)
             .build();
 
     public static VirtualMap createVirtualMap(@NonNull final String label) {

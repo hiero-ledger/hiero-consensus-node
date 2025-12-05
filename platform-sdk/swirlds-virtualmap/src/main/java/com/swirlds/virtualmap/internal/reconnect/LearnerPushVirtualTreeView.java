@@ -10,7 +10,6 @@ import static java.util.Objects.requireNonNull;
 
 import com.swirlds.common.io.streams.MerkleDataInputStream;
 import com.swirlds.common.io.streams.MerkleDataOutputStream;
-import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.synchronization.LearningSynchronizer;
 import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
 import com.swirlds.common.merkle.synchronization.stats.ReconnectMapStats;
@@ -30,8 +29,6 @@ import com.swirlds.virtualmap.internal.RecordAccessor;
 import com.swirlds.virtualmap.internal.merkle.VirtualMapMetadata;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
-import java.util.Queue;
-import java.util.concurrent.atomic.AtomicReference;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Cryptography;
@@ -126,30 +123,20 @@ public final class LearnerPushVirtualTreeView extends VirtualTreeViewBase implem
             final LearningSynchronizer learningSynchronizer,
             final StandardWorkGroup workGroup,
             final MerkleDataInputStream inputStream,
-            final MerkleDataOutputStream outputStream,
-            final Queue<MerkleNode> rootsToReceive,
-            final AtomicReference<Long> reconstructedRoot) {
+            final MerkleDataOutputStream outputStream) {
         in = new AsyncInputStream<>(inputStream, workGroup, () -> new Lesson<>(this), reconnectConfig);
         in.start();
         final AsyncOutputStream<QueryResponse> out = learningSynchronizer.buildOutputStream(workGroup, outputStream);
         out.start();
 
-        final LearnerPushTask<Long> learnerThread = new LearnerPushTask<>(
-                workGroup, in, out, rootsToReceive, reconstructedRoot, this, learningSynchronizer, mapStats);
+        final LearnerPushTask<Long> learnerThread =
+                new LearnerPushTask<>(workGroup, in, out, this, learningSynchronizer, mapStats);
         learnerThread.start();
     }
 
     @Override
     public void abort() {
         in.abort();
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public boolean isRootOfState() {
-        return false;
     }
 
     /**
@@ -261,28 +248,12 @@ public final class LearnerPushVirtualTreeView extends VirtualTreeViewBase implem
      * {@inheritDoc}
      */
     @Override
-    public void initialize() {
-        // no-op
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
     public void close() {
         logger.info(RECONNECT.getMarker(), "call nodeRemover.allNodesReceived()");
         nodeRemover.allNodesReceived();
         logger.info(RECONNECT.getMarker(), "call root.endLearnerReconnect()");
         map.endLearnerReconnect();
         logger.info(RECONNECT.getMarker(), "close() complete");
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void markForInitialization(final Long node) {
-        // no-op
     }
 
     /**
@@ -299,14 +270,6 @@ public final class LearnerPushVirtualTreeView extends VirtualTreeViewBase implem
     @Override
     public void setChild(final Long parent, final int childIndex, final Long child) {
         // No-op
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public Long convertMerkleRootToViewType(final MerkleNode node) {
-        throw new UnsupportedOperationException("Nested virtual maps not supported");
     }
 
     private boolean isLeaf(final long path) {

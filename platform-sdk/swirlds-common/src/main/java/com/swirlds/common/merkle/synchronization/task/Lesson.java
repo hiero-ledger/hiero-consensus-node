@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.merkle.synchronization.task;
 
-import static com.swirlds.common.merkle.synchronization.task.LessonType.CUSTOM_VIEW_ROOT;
 import static com.swirlds.common.merkle.synchronization.task.LessonType.INTERNAL_NODE_DATA;
 import static com.swirlds.common.merkle.synchronization.task.LessonType.LEAF_NODE_DATA;
 import static com.swirlds.common.merkle.synchronization.task.LessonType.NODE_IS_UP_TO_DATE;
@@ -86,9 +85,6 @@ public class Lesson<T> implements Releasable, SelfSerializable {
             case INTERNAL_NODE_DATA:
                 subLesson = new InternalDataLesson<>(learnerView);
                 break;
-            case CUSTOM_VIEW_ROOT:
-                subLesson = new CustomViewRootLesson();
-                break;
             default:
                 throw new IllegalStateException("unsupported lesson type " + lessonType);
         }
@@ -139,8 +135,7 @@ public class Lesson<T> implements Releasable, SelfSerializable {
     }
 
     /**
-     * Get the leaf node. Will be unset and throw an exception if {@link #isCurrentNodeUpToDate()} is true or
-     * if {@link #isCustomViewRoot()} is true.
+     * Get the leaf node. Will be unset and throw an exception if {@link #isCurrentNodeUpToDate()} is true.
      *
      * @return the leaf node, or null if unset
      */
@@ -150,25 +145,6 @@ public class Lesson<T> implements Releasable, SelfSerializable {
             return ((LeafDataLesson<T>) subLesson).getLeaf();
         }
         return ((InternalDataLesson<T>) subLesson).getInternal();
-    }
-
-    /**
-     * Check if this is the initial lesson for a custom root.
-     *
-     * @return true if this is the initial lesson for the custom root
-     */
-    public boolean isCustomViewRoot() {
-        return lessonType == CUSTOM_VIEW_ROOT;
-    }
-
-    /**
-     * If {@link #isCustomViewRoot()} returns true, this method returns the class ID for the
-     * root of the subtree with the custom view.
-     *
-     * @return the class ID of the root of the subtree
-     */
-    public long getCustomViewClassId() {
-        return ((CustomViewRootLesson) subLesson).getRootClassId();
     }
 
     /**
