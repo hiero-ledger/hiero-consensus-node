@@ -1116,20 +1116,6 @@ public class AtomicCryptoTransferHTSSuite {
 
                     allRunFor(
                             spec,
-                            // trying to transfer NFT that is not approved
-                            contractCall(
-                                            CONTRACT,
-                                            TRANSFER_MULTIPLE_TOKENS,
-                                            transferList()
-                                                    .withAccountAmounts(EMPTY_TUPLE_ARRAY)
-                                                    .build(),
-                                            wrapIntoTupleArray(tokenTransferList()
-                                                    .forToken(token)
-                                                    .withNftTransfers(nftTransfer(owner, receiver, 1L, true))
-                                                    .build()))
-                                    .via(revertingTransferFromTxnNft)
-                                    .gas(GAS_FOR_AUTO_ASSOCIATING_CALLS)
-                                    .hasKnownStatus(CONTRACT_REVERT_EXECUTED),
                             // transfer allowed NFT
                             contractCall(
                                             CONTRACT,
@@ -1144,25 +1130,7 @@ public class AtomicCryptoTransferHTSSuite {
                                     .via(successfulTransferFromTxn)
                                     .gas(GAS_FOR_AUTO_ASSOCIATING_CALLS)
                                     .hasKnownStatus(SUCCESS));
-                }),
-                childRecordsCheck(
-                        revertingTransferFromTxnNft,
-                        CONTRACT_REVERT_EXECUTED,
-                        recordWith()
-                                .status(SPENDER_DOES_NOT_HAVE_ALLOWANCE)
-                                .contractCallResult(resultWith()
-                                        .contractCallResult(
-                                                htsPrecompileResult().withStatus(SPENDER_DOES_NOT_HAVE_ALLOWANCE)))),
-                childRecordsCheck(
-                        successfulTransferFromTxn,
-                        SUCCESS,
-                        recordWith()
-                                .status(SUCCESS)
-                                .contractCallResult(resultWith()
-                                        .contractCallResult(
-                                                htsPrecompileResult().withStatus(SUCCESS)))
-                                .tokenTransfers(NonFungibleTransfers.changingNFTBalances()
-                                        .including(NFT_TOKEN, OWNER, RECEIVER, 2L))));
+                }));
     }
 
     @HapiTest

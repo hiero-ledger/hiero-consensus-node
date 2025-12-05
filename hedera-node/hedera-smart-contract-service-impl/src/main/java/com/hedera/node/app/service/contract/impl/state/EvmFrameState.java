@@ -143,7 +143,7 @@ public interface EvmFrameState {
     MutableAccount getMutableAccount(Address address);
 
     /**
-     * Returns the storage value for the contract with the given contract id and key.
+     * Returns the storage value for the account with the given contract id and key.
      *
      * @param contractID the contract id
      * @param key the key
@@ -153,7 +153,7 @@ public interface EvmFrameState {
     UInt256 getStorageValue(ContractID contractID, @NonNull UInt256 key);
 
     /**
-     * Sets the storage value for the contract with the given contract id and key.
+     * Sets the storage value for the account with the given contract id and key.
      * @param contractID the contract id
      * @param key the key
      * @param value the value to set
@@ -161,7 +161,7 @@ public interface EvmFrameState {
     void setStorageValue(ContractID contractID, @NonNull UInt256 key, @NonNull UInt256 value);
 
     /**
-     * Returns the original storage value for the contract with the given contract id and key.
+     * Returns the original storage value for the account with the given contract id and key.
      *
      * @param contractID the contract id
      * @param key the key
@@ -180,7 +180,8 @@ public interface EvmFrameState {
     Bytes getCode(ContractID contractID);
 
     /**
-     * Sets the code for the contract with the given contract id. Only used during contract creation.
+     * Sets the code for the contract with the given contract id.
+     * Used during contract creation and when setting EIP-7702 delegation.
      *
      * @param contractID the contract id
      * @param code the new code
@@ -188,74 +189,11 @@ public interface EvmFrameState {
     void setCode(ContractID contractID, @NonNull Bytes code);
 
     /**
-     * Returns the redirect bytecode for the token with the given address, which must be a long-zero address.
-     *
-     * <p>Since a {@link TokenEvmAccount} never needs its Hedera entity number, we may as well use
-     * the long-zero address there, and here.
-     *
-     * @param address the token long-zero address
-     * @return the redirect code for the token
-     */
-    @NonNull
-    Bytes getTokenRedirectCode(@NonNull Address address);
-
-    /**
      * @param contractID the contract to extract its code hash
      * @return the code hash of the contract
      */
     @NonNull
     Hash getCodeHash(ContractID contractID, @NonNull final CodeFactory codeFactory);
-
-    /**
-     * Returns the hash of the redirect bytecode for the token with the given address, which must be a
-     * long-zero address.
-     *
-     * <p>Since a {@link TokenEvmAccount} never needs its Hedera entity number, we may as well use
-     * the long-zero address there, and here.
-     *
-     * @param address the token long-zero address
-     * @return the redirect code for the token
-     */
-    @NonNull
-    Hash getTokenRedirectCodeHash(@NonNull Address address);
-
-    /**
-     * Returns the redirect bytecode for the account with the given address.  This should only be called for regular accounts
-     * that are not contracts.
-     *
-     * @param address the account address
-     * @return the redirect code for the account
-     */
-    @NonNull
-    Bytes getAccountRedirectCode(@Nullable Address address);
-
-    /**
-     * Returns the hash of the redirect bytecode for the account with the given address.
-     *
-     * @param address the account address
-     * @return the redirect code for the account
-     */
-    @NonNull
-    Hash getAccountRedirectCodeHash(@Nullable Address address);
-
-    /**
-     * Returns the redirect bytecode for the schedule with the given address.  This should only be called for schedule
-     * transaction entities
-     *
-     * @param address the schedule address
-     * @return the redirect code for the schedule
-     */
-    @NonNull
-    Bytes getScheduleRedirectCode(@Nullable Address address);
-
-    /**
-     * Returns the hash of the redirect bytecode for the schedule with the given address.
-     *
-     * @param address the schedule address
-     * @return the redirect code for the schedule
-     */
-    @NonNull
-    Hash getScheduleRedirectCodeHash(@Nullable Address address);
 
     /**
      * Returns the native account with the given account id.

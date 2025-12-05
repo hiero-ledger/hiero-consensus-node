@@ -5,13 +5,11 @@ import com.hedera.hapi.node.base.AccountID;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.apache.tuweni.bytes.Bytes;
 import org.hyperledger.besu.datatypes.Hash;
-import org.hyperledger.besu.evm.Code;
 import org.hyperledger.besu.evm.code.CodeFactory;
 
 /**
  * A concrete subclass of {@link AbstractProxyEvmAccount} that represents a contract account.
- * <p>
- * Responsible for retrieving the contract byte code from the {@link EvmFrameState}
+ * Responsible for retrieving the contract byte code from the {@link EvmFrameState}.
  */
 public class ProxyEvmContract extends AbstractProxyEvmAccount {
 
@@ -21,11 +19,6 @@ public class ProxyEvmContract extends AbstractProxyEvmAccount {
             final AccountID accountID, @NonNull final EvmFrameState state, @NonNull final CodeFactory codeFactory) {
         super(accountID, state);
         this.codeFactory = codeFactory;
-    }
-
-    @Override
-    public @NonNull Code getEvmCode(@NonNull final Bytes functionSelector, @NonNull final CodeFactory codeFactory) {
-        return codeFactory.createCode(getCode(), false);
     }
 
     @Override
