@@ -7,6 +7,7 @@ import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockNodeConnectionConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
+import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
@@ -86,6 +87,19 @@ public class BlockNodeServiceConnection extends AbstractBlockNodeConnection {
         }
     }
 
+    class CloseTask implements Runnable {
+        private final BlockNodeServiceClient client;
+
+        CloseTask(@NonNull final BlockNodeServiceClient client) {
+            this.client = requireNonNull(client);
+        }
+
+        @Override
+        public void run() {
+            client.close();
+        }
+    }
+
     @Override
     void close() {
         final BlockNodeServiceClient client = clientRef.get();
@@ -102,7 +116,7 @@ public class BlockNodeServiceConnection extends AbstractBlockNodeConnection {
             logger.debug("{} Another thread has closed the connection", this);
         }
 
-        final Future<?> future = executorService.submit(client::close);
+        final Future<?> future = executorService.submit(new CloseTask(client));
 
         try {
             future.get(bncConfig.pipelineOperationTimeout().toMillis(), TimeUnit.MILLISECONDS);
@@ -129,7 +143,7 @@ public class BlockNodeServiceConnection extends AbstractBlockNodeConnection {
         }
 
         final long startMillis = System.currentTimeMillis();
-        final Future<ServerStatusResponse> future = executorService.submit(() -> client.serverStatus(new ServerStatusRequest()));
+        final Future<ServerStatusResponse> future = executorService.submit(new GetBlockNodeStatusTask(client));
         final ServerStatusResponse response;
         final long durationMillis;
 
@@ -153,5 +167,19 @@ public class BlockNodeServiceConnection extends AbstractBlockNodeConnection {
                 this, response.lastAvailableBlock(), durationMillis);
 
         return BlockNodeStatus.reachable(durationMillis, response.lastAvailableBlock());
+    }
+
+    class GetBlockNodeStatusTask implements Callable<ServerStatusResponse> {
+
+        private final BlockNodeServiceClient client;
+
+        private GetBlockNodeStatusTask(@NonNull final BlockNodeServiceClient client) {
+            this.client = requireNonNull(client);
+        }
+
+        @Override
+        public ServerStatusResponse call() throws Exception {
+            return client.serverStatus(new ServerStatusRequest());
+        }
     }
 }

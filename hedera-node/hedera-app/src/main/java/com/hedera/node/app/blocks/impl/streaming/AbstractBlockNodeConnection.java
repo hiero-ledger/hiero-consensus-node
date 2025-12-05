@@ -215,7 +215,7 @@ public abstract class AbstractBlockNodeConnection {
     }
 
     @Override
-    public boolean equals(final Object o) {
+    public final boolean equals(final Object o) {
         if (o == null || getClass() != o.getClass()) {
             return false;
         }
@@ -224,7 +224,7 @@ public abstract class AbstractBlockNodeConnection {
     }
 
     @Override
-    public int hashCode() {
+    public final int hashCode() {
         return Objects.hash(configuration, connectionId);
     }
 }
