@@ -3,6 +3,7 @@ package com.hedera.node.app.records.impl.producers.formats;
 
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.hapi.node.base.AccountID;
 import com.hedera.node.app.records.impl.producers.BlockRecordWriter;
 import com.hedera.node.app.records.impl.producers.BlockRecordWriterFactory;
 import com.hedera.node.app.records.impl.producers.formats.v6.BlockRecordWriterV6;
@@ -22,7 +23,7 @@ public class BlockRecordWriterFactoryImpl implements BlockRecordWriterFactory {
     private final ConfigProvider configProvider;
     private final Signer signer;
     private final FileSystem fileSystem;
-    private final SelfNodeAccountIdManagerImpl selfNodeAccountIdManager;
+    private final AccountID selfNodeAccountId;
 
     /**
      *
@@ -39,7 +40,7 @@ public class BlockRecordWriterFactoryImpl implements BlockRecordWriterFactory {
         this.configProvider = requireNonNull(configProvider);
         this.fileSystem = requireNonNull(fileSystem);
         this.signer = requireNonNull(signer);
-        this.selfNodeAccountIdManager = selfNodeAccountIdManager;
+        this.selfNodeAccountId = selfNodeAccountIdManager.getSelfNodeAccountId();
     }
 
     @Override
@@ -54,7 +55,7 @@ public class BlockRecordWriterFactoryImpl implements BlockRecordWriterFactory {
             case 6 ->
                 new BlockRecordWriterV6(
                         configProvider.getConfiguration().getConfigData(BlockRecordStreamConfig.class),
-                        selfNodeAccountIdManager.getSelfNodeAccountId(),
+                        selfNodeAccountId,
                         signer,
                         fileSystem);
             case 7 -> throw new IllegalArgumentException("Record file version 7 is not yet supported");

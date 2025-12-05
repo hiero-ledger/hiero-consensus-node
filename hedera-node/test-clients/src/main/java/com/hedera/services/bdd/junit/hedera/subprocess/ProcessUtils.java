@@ -49,6 +49,7 @@ public class ProcessUtils {
     public static final String SAVED_STATES_DIR = "saved";
     public static final String RECORD_STREAMS_DIR = "recordStreams";
     public static final String BLOCK_STREAMS_DIR = "blockStreams";
+    public static final String GENERATED_DIR = "generated";
     private static final long WAIT_SLEEP_MILLIS = 100L;
 
     public static final Executor EXECUTOR = Executors.newCachedThreadPool();

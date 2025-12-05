@@ -418,7 +418,7 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
                     // 2. validate the new record path is empty after update.
                     validatePathsDoesntExist(nodeToUpdate, accountId),
 
-                    // 3. generate/update the node_account_id.txt on prepare upgrade
+                    // 3. Update the node_account_id.txt on startup after the upgrade
                     prepareFakeUpgrade(),
                     upgradeToNextConfigVersion(),
                     // after the upgrade the node should start using the new paths
