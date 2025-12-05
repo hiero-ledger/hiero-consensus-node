@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.statevalidation.poc.util;
 
+/**
+ * Exception thrown when a validation check fails.
+ */
 public class ValidationException extends RuntimeException {
 
     private final String validatorTag;

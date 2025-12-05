@@ -19,21 +19,21 @@ import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Callable;
+import java.util.concurrent.CopyOnWriteArraySet;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-public class ProcessorTask implements Runnable {
+public class ProcessorTask implements Callable<Void> {
 
     private static final Logger log = LogManager.getLogger(ProcessorTask.class);
 
     private final List<ValidationListener> validationListeners;
 
-    private final Set<Validator> p2kvValidators;
-    private final Set<Validator> p2hValidators;
-    private final Set<Validator> k2pValidators;
+    private final CopyOnWriteArraySet<Validator> p2kvValidators;
+    private final CopyOnWriteArraySet<Validator> p2hValidators;
+    private final CopyOnWriteArraySet<Validator> k2pValidators;
 
     private final MerkleDbDataSource vds;
 
@@ -45,15 +45,12 @@ public class ProcessorTask implements Runnable {
 
     private final DataStats dataStats;
 
-    private final CountDownLatch processorsLatch;
-
     public ProcessorTask(
-            @NonNull final Map<Type, Set<Validator>> validators,
+            @NonNull final Map<Type, CopyOnWriteArraySet<Validator>> validators,
             @NonNull final List<ValidationListener> validationListeners,
             @NonNull final BlockingQueue<List<ItemData>> dataQueue,
             @NonNull final MerkleDbDataSource vds,
-            @NonNull final DataStats dataStats,
-            @NonNull final CountDownLatch processorsLatch) {
+            @NonNull final DataStats dataStats) {
         this.validationListeners = validationListeners;
 
         this.p2kvValidators = validators.get(Type.P2KV);
@@ -69,12 +66,10 @@ public class ProcessorTask implements Runnable {
         this.bucketIndexToBucketLocation = (LongList) vds.getKeyToPath().getBucketIndexToBucketLocation();
 
         this.dataStats = dataStats;
-
-        this.processorsLatch = processorsLatch;
     }
 
     @Override
-    public void run() {
+    public Void call() {
         try {
             while (true) {
                 final List<ItemData> batch = dataQueue.take();
@@ -93,12 +88,11 @@ public class ProcessorTask implements Runnable {
                     break;
                 }
             }
-        } catch (InterruptedException e) {
-            e.printStackTrace();
+        } catch (final InterruptedException e) {
             Thread.currentThread().interrupt();
-        } finally {
-            processorsLatch.countDown();
+            log.error("Processor task interrupted.");
         }
+        return null;
     }
 
     private void processChunk(@NonNull final ItemData data) {
@@ -116,20 +110,29 @@ public class ProcessorTask implements Runnable {
 
             final VirtualLeafBytes virtualLeafBytes =
                     VirtualLeafBytes.parseFrom(data.bytes().toReadableSequentialData());
-            long path = virtualLeafBytes.path();
+            final long path = virtualLeafBytes.path();
 
             if (data.location() == pathToDiskLocationLeafNodes.get(path)) {
                 // live object, perform ops on it...
-                try {
-                    // Explicitly cast here. This is safe, explicit, and has negligible performance cost.
-                    p2kvValidators.forEach(validator ->
-                            ((LeafBytesValidator) validator).processLeafBytes(data.location(), virtualLeafBytes));
-                } catch (ValidationException e) {
-                    // remove validator from the set, so it won't be used again
-                    p2kvValidators.removeIf(validator -> validator.getTag().equals(e.getValidatorTag()));
-                    // notify listeners about the error, so they can log, etc.
-                    validationListeners.forEach(listener -> listener.onValidationFailed(e));
+                if (p2kvValidators == null || p2kvValidators.isEmpty()) {
+                    return;
                 }
+                p2kvValidators.forEach(validator -> {
+                    try {
+                        ((LeafBytesValidator) validator).processLeafBytes(data.location(), virtualLeafBytes);
+                    } catch (final ValidationException e) {
+                        // Remove validator and notify listeners only once (removeIf returns true only for the thread
+                        // that removes)
+                        if (p2kvValidators.removeIf(v -> v.getTag().equals(validator.getTag()))) {
+                            validationListeners.forEach(listener -> listener.onValidationFailed(e));
+                        }
+                    } catch (final Exception e) {
+                        if (p2kvValidators.removeIf(v -> v.getTag().equals(validator.getTag()))) {
+                            validationListeners.forEach(listener -> listener.onValidationFailed(new ValidationException(
+                                    validator.getTag(), "Unexpected exception: " + e.getMessage(), e)));
+                        }
+                    }
+                });
             } else if (data.location() == -1) {
                 dataStats.getP2kv().incrementInvalidLocationCount();
                 LogUtils.printFileDataLocationErrorPoc(
@@ -142,7 +145,7 @@ public class ProcessorTask implements Runnable {
                 dataStats.getP2kv().addObsoleteSpaceSize(data.bytes().length());
                 dataStats.getP2kv().incrementObsoleteItemCount();
             }
-        } catch (Exception e) {
+        } catch (final Exception e) {
             dataStats.getP2kv().incrementParseErrorCount();
             LogUtils.printFileDataLocationErrorPoc(
                     log, e.getMessage(), vds.getPathToKeyValue().getFileCollection(), data);
@@ -160,16 +163,27 @@ public class ProcessorTask implements Runnable {
 
             if (data.location() == pathToDiskLocationInternalNodes.get(path)) {
                 // live object, perform ops on it...
-                try {
-                    // Explicitly cast here. This is safe, explicit, and has negligible performance cost.
-                    p2hValidators.forEach(
-                            validator -> ((HashRecordValidator) validator).processHashRecord(virtualHashRecord));
-                } catch (ValidationException e) {
-                    // remove validator from the set, so it won't be used again
-                    p2hValidators.removeIf(validator -> validator.getTag().equals(e.getValidatorTag()));
-                    // notify listeners about the error, so they can log, etc.
-                    validationListeners.forEach(listener -> listener.onValidationFailed(e));
+                if (p2hValidators == null || p2hValidators.isEmpty()) {
+                    return;
                 }
+                p2hValidators.forEach(validator -> {
+                    try {
+                        ((HashRecordValidator) validator).processHashRecord(virtualHashRecord);
+                    } catch (final ValidationException e) {
+                        // Remove validator and notify listeners only once (removeIf returns true only for the thread
+                        // that removes)
+                        if (p2hValidators.removeIf(v -> v.getTag().equals(validator.getTag()))) {
+                            validationListeners.forEach(listener -> listener.onValidationFailed(e));
+                        }
+                    } catch (final Exception e) {
+                        // Remove validator and notify listeners only once (removeIf returns true only for the thread
+                        // that removes)
+                        if (p2hValidators.removeIf(v -> v.getTag().equals(validator.getTag()))) {
+                            validationListeners.forEach(listener -> listener.onValidationFailed(new ValidationException(
+                                    validator.getTag(), "Unexpected exception: " + e.getMessage(), e)));
+                        }
+                    }
+                });
             } else if (data.location() == -1) {
                 dataStats.getP2h().incrementInvalidLocationCount();
                 LogUtils.printFileDataLocationErrorPoc(
@@ -182,7 +196,7 @@ public class ProcessorTask implements Runnable {
                 dataStats.getP2h().addObsoleteSpaceSize(data.bytes().length());
                 dataStats.getP2h().incrementObsoleteItemCount();
             }
-        } catch (Exception e) {
+        } catch (final Exception e) {
             dataStats.getP2h().incrementParseErrorCount();
             LogUtils.printFileDataLocationErrorPoc(
                     log, e.getMessage(), vds.getHashStoreDisk().getFileCollection(), data);
@@ -199,16 +213,27 @@ public class ProcessorTask implements Runnable {
 
             if (data.location() == bucketIndexToBucketLocation.get(bucket.getBucketIndex())) {
                 // live object, perform ops on it...
-                try {
-                    // Explicitly cast here. This is safe, explicit, and has negligible performance cost.
-                    k2pValidators.forEach(
-                            validator -> ((HdhmBucketValidator) validator).processBucket(data.location(), bucket));
-                } catch (ValidationException e) {
-                    // remove validator from the set, so it won't be used again
-                    k2pValidators.removeIf(validator -> validator.getTag().equals(e.getValidatorTag()));
-                    // notify listeners about the error, so they can log, etc.
-                    validationListeners.forEach(listener -> listener.onValidationFailed(e));
+                if (k2pValidators == null || k2pValidators.isEmpty()) {
+                    return;
                 }
+                k2pValidators.forEach(validator -> {
+                    try {
+                        ((HdhmBucketValidator) validator).processBucket(data.location(), bucket);
+                    } catch (final ValidationException e) {
+                        // Remove validator and notify listeners only once (removeIf returns true only for the thread
+                        // that removes)
+                        if (k2pValidators.removeIf(v -> v.getTag().equals(validator.getTag()))) {
+                            validationListeners.forEach(listener -> listener.onValidationFailed(e));
+                        }
+                    } catch (final Exception e) {
+                        // Remove validator and notify listeners only once (removeIf returns true only for the thread
+                        // that removes)
+                        if (k2pValidators.removeIf(v -> v.getTag().equals(validator.getTag()))) {
+                            validationListeners.forEach(listener -> listener.onValidationFailed(new ValidationException(
+                                    validator.getTag(), "Unexpected exception: " + e.getMessage(), e)));
+                        }
+                    }
+                });
             } else if (data.location() == -1) {
                 dataStats.getK2p().incrementInvalidLocationCount();
                 LogUtils.printFileDataLocationErrorPoc(
@@ -221,7 +246,7 @@ public class ProcessorTask implements Runnable {
                 dataStats.getK2p().addObsoleteSpaceSize(data.bytes().length());
                 dataStats.getK2p().incrementObsoleteItemCount();
             }
-        } catch (Exception e) {
+        } catch (final Exception e) {
             dataStats.getK2p().incrementParseErrorCount();
             LogUtils.printFileDataLocationErrorPoc(
                     log, e.getMessage(), vds.getKeyToPath().getFileCollection(), data);

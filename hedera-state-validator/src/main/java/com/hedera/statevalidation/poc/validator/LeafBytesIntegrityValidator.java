@@ -57,8 +57,8 @@ public class LeafBytesIntegrityValidator implements LeafBytesValidator {
             final long p2KvPath = leafBytes.path();
             long k2pPath = keyToPath.get(keyBytes, -1);
 
-            ValidationAssertions.requireEqual(p2KvPath, k2pPath, LEAF_TAG);
-            ValidationAssertions.requireEqual(valueBytes, virtualMap.getBytes(keyBytes), LEAF_TAG);
+            ValidationAssertions.requireEqual(p2KvPath, k2pPath, getTag());
+            ValidationAssertions.requireEqual(valueBytes, virtualMap.getBytes(keyBytes), getTag());
 
             successCount.incrementAndGet();
         } catch (IOException e) {
@@ -70,6 +70,6 @@ public class LeafBytesIntegrityValidator implements LeafBytesValidator {
     @Override
     public void validate() {
         log.debug("Successfully checked {} VirtualLeafBytes entries", successCount.get());
-        ValidationAssertions.requireEqual(0, exceptionCount.get(), LEAF_TAG, "Some read operations failed");
+        ValidationAssertions.requireEqual(0, exceptionCount.get(), getTag(), "Some read operations failed");
     }
 }

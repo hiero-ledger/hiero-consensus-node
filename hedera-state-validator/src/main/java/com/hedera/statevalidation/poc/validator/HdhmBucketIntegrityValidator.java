@@ -3,7 +3,6 @@ package com.hedera.statevalidation.poc.validator;
 
 import static com.hedera.statevalidation.util.ConfigUtils.COLLECTED_INFO_THRESHOLD;
 import static com.hedera.statevalidation.util.LogUtils.printFileDataLocationError;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 import com.hedera.hapi.platform.state.StateKey;
 import com.hedera.pbj.runtime.ParseException;
@@ -49,7 +48,7 @@ public class HdhmBucketIntegrityValidator implements HdhmBucketValidator {
     @Override
     public void initialize(@NonNull final MerkleNodeState state) {
         final VirtualMap virtualMap = (VirtualMap) state.getRoot();
-        assertNotNull(virtualMap);
+        Objects.requireNonNull(virtualMap);
         final MerkleDbDataSource vds = (MerkleDbDataSource) virtualMap.getDataSource();
 
         this.pathToKeyValueDfc = vds.getPathToKeyValue().getFileCollection();
@@ -67,13 +66,13 @@ public class HdhmBucketIntegrityValidator implements HdhmBucketValidator {
         final int bucketIndex = bucket.getBucketIndex();
 
         try {
-            var bucketIterator = new BucketIterator(bucket);
+            final BucketIterator bucketIterator = new BucketIterator(bucket);
             while (bucketIterator.hasNext()) {
                 final ParsedBucket.BucketEntry entry = bucketIterator.next();
                 final Bytes keyBytes = entry.getKeyBytes();
                 final long path = entry.getValue();
                 // get path -> dataLocation
-                var dataLocation = pathToDiskLocationLeafNodes.get(path);
+                final long dataLocation = pathToDiskLocationLeafNodes.get(path);
                 if (dataLocation == 0) {
                     printFileDataLocationError(log, "Stale path", keyToPathDfc, bucketLocation);
                     collectInfo(new StalePathInfo(path, parseKey(keyBytes)), stalePathsInfos);
@@ -153,7 +152,7 @@ public class HdhmBucketIntegrityValidator implements HdhmBucketValidator {
                         && unexpectedKeyInfos.isEmpty()
                         && pathMismatchInfos.isEmpty()
                         && hashCodeMismatchInfos.isEmpty(),
-                HDHM_TAG,
+                getTag(),
                 "One of the test condition hasn't been met. "
                         + "Conditions: "
                         + ("stalePathsInfos.isEmpty() = %s, "

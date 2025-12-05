@@ -28,6 +28,7 @@ import java.nio.file.StandardOpenOption;
 import java.util.concurrent.atomic.AtomicLong;
 
 public class ChunkedFileIterator implements AutoCloseable {
+    // move to cmd params?
     private static final int BUFFER_SIZE = 128 * 1024;
 
     private final FileChannel channel;
@@ -53,26 +54,37 @@ public class ChunkedFileIterator implements AutoCloseable {
             @NonNull final AtomicLong totalBoundarySearchMillis)
             throws IOException {
         this.channel = FileChannel.open(path, StandardOpenOption.READ);
-        this.metadata = metadata;
+        try {
+            this.metadata = metadata;
 
-        this.startByte = startByte;
-        this.endByte = endByte;
+            this.startByte = startByte;
+            this.endByte = endByte;
 
-        this.dataType = dataType;
+            this.dataType = dataType;
 
-        if (startByte > 0) {
-            // Find boundary, then position channel and open streams
-            final long startTime = System.currentTimeMillis();
-            this.startByte += findBoundaryOffset();
-            long boundaryOffsetSearchTime = System.currentTimeMillis() - startTime;
-            //            System.out.println("Found boundary offset in:" + boundaryOffsetSearchTime + " ms");
-            totalBoundarySearchMillis.addAndGet(boundaryOffsetSearchTime);
-            channel.position(this.startByte);
-            openStreams();
-        } else {
-            // At file start
-            channel.position(startByte);
-            openStreams();
+            if (startByte > 0) {
+                // Find boundary, then position channel and open streams
+                final long startTime = System.currentTimeMillis();
+                this.startByte += findBoundaryOffset();
+                // FIXME: update to nanos
+                final long boundaryOffsetSearchTime = System.currentTimeMillis() - startTime;
+                //            System.out.println("Found boundary offset in:" + boundaryOffsetSearchTime + " ms");
+                totalBoundarySearchMillis.addAndGet(boundaryOffsetSearchTime);
+                channel.position(this.startByte);
+                openStreams();
+            } else {
+                // At file start
+                channel.position(startByte);
+                openStreams();
+            }
+        } catch (final Exception e) {
+            // Ensure channel is closed if constructor fails after opening
+            try {
+                channel.close();
+            } catch (final IOException closeEx) {
+                e.addSuppressed(closeEx);
+            }
+            throw e;
         }
     }
 
@@ -143,44 +155,33 @@ public class ChunkedFileIterator implements AutoCloseable {
             }
 
             return switch (dataType) {
+                // Parsing without exception means valid data
                 case P2H -> validateVirtualHashRecord(buffer);
                 case P2KV -> validateVirtualLeafBytes(buffer);
                 case K2P -> validateBucket(buffer);
-                default -> throw new IllegalStateException("Unexpected data type: " + dataType);
+                default -> false;
             };
 
-        } catch (Exception e) {
+        } catch (final Exception e) {
             // Any parsing exception means invalid data
             return false;
         }
     }
 
     private boolean validateVirtualHashRecord(@NonNull final BufferedData buffer) {
-        try {
-            VirtualHashRecord.parseFrom(buffer);
-            return true;
-        } catch (Exception e) {
-            return false;
-        }
+        VirtualHashRecord.parseFrom(buffer);
+        return true;
     }
 
     private boolean validateVirtualLeafBytes(@NonNull final BufferedData buffer) {
-        try {
-            VirtualLeafBytes.parseFrom(buffer);
-            return true;
-        } catch (Exception e) {
-            return false;
-        }
+        VirtualLeafBytes.parseFrom(buffer);
+        return true;
     }
 
     private boolean validateBucket(@NonNull final BufferedData buffer) {
-        try {
-            final Bucket bucket = new ParsedBucket();
-            bucket.readFrom(buffer);
-            return true;
-        } catch (Exception e) {
-            return false;
-        }
+        final Bucket bucket = new ParsedBucket();
+        bucket.readFrom(buffer);
+        return true;
     }
 
     public boolean next() throws IOException {

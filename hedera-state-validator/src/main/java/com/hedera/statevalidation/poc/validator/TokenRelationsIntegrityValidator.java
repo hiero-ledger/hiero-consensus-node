@@ -2,8 +2,6 @@
 package com.hedera.statevalidation.poc.validator;
 
 import static com.swirlds.state.merkle.StateUtils.getStateKeyForKv;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.TokenID;
@@ -47,7 +45,7 @@ public class TokenRelationsIntegrityValidator implements LeafBytesValidator {
     }
 
     @Override
-    public void initialize(@NonNull MerkleNodeState state) {
+    public void initialize(@NonNull final MerkleNodeState state) {
         this.virtualMap = (VirtualMap) state.getRoot();
 
         final ReadableEntityIdStore entityCounters =
@@ -58,7 +56,7 @@ public class TokenRelationsIntegrityValidator implements LeafBytesValidator {
     }
 
     @Override
-    public void processLeafBytes(long dataLocation, @NonNull VirtualLeafBytes leafBytes) {
+    public void processLeafBytes(long dataLocation, @NonNull final VirtualLeafBytes leafBytes) {
         Objects.requireNonNull(virtualMap);
 
         final Bytes keyBytes = leafBytes.keyBytes();
@@ -81,13 +79,13 @@ public class TokenRelationsIntegrityValidator implements LeafBytesValidator {
                 final AccountID accountId2 = tokenRelation.accountId();
                 final TokenID tokenId2 = tokenRelation.tokenId();
 
-                assertNotNull(accountId1);
-                assertNotNull(tokenId1);
-                assertNotNull(accountId2);
-                assertNotNull(tokenId2);
+                ValidationAssertions.requireNonNull(accountId1, getTag());
+                ValidationAssertions.requireNonNull(tokenId1, getTag());
+                ValidationAssertions.requireNonNull(accountId2, getTag());
+                ValidationAssertions.requireNonNull(tokenId2, getTag());
 
-                assertEquals(accountId1, accountId2);
-                assertEquals(tokenId1, tokenId2);
+                ValidationAssertions.requireEqual(accountId1, accountId2, getTag());
+                ValidationAssertions.requireEqual(tokenId1, tokenId2, getTag());
 
                 if (!virtualMap.containsKey(
                         getStateKeyForKv(V0490TokenSchema.ACCOUNTS_STATE_ID, accountId1, AccountID.PROTOBUF))) {
@@ -107,8 +105,8 @@ public class TokenRelationsIntegrityValidator implements LeafBytesValidator {
 
     @Override
     public void validate() {
-        ValidationAssertions.requireEqual(objectsProcessed.get(), numTokenRelations, TOKEN_RELATIONS_TAG);
-        ValidationAssertions.requireEqual(0, accountFailCounter.get(), TOKEN_RELATIONS_TAG);
-        ValidationAssertions.requireEqual(0, tokenFailCounter.get(), TOKEN_RELATIONS_TAG);
+        ValidationAssertions.requireEqual(objectsProcessed.get(), numTokenRelations, getTag());
+        ValidationAssertions.requireEqual(0, accountFailCounter.get(), getTag());
+        ValidationAssertions.requireEqual(0, tokenFailCounter.get(), getTag());
     }
 }

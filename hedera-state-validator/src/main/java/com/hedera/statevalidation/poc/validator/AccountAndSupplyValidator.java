@@ -1,9 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.statevalidation.poc.validator;
 
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.node.app.service.entityid.EntityIdService;
@@ -22,6 +19,7 @@ import com.swirlds.state.spi.ReadableKVState;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicLong;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -48,17 +46,17 @@ public class AccountAndSupplyValidator implements LeafBytesValidator {
     }
 
     @Override
-    public void initialize(@NonNull MerkleNodeState state) {
+    public void initialize(@NonNull final MerkleNodeState state) {
         final VirtualMap virtualMap = (VirtualMap) state.getRoot();
-        assertNotNull(virtualMap);
+        Objects.requireNonNull(virtualMap);
 
         final ReadableEntityIdStore entityCounters =
                 new ReadableEntityIdStoreImpl(state.getReadableStates(EntityIdService.NAME));
         final ReadableKVState<AccountID, Account> accounts =
                 state.getReadableStates(TokenServiceImpl.NAME).get(V0490TokenSchema.ACCOUNTS_STATE_ID);
 
-        assertNotNull(accounts);
-        assertNotNull(entityCounters);
+        Objects.requireNonNull(accounts);
+        Objects.requireNonNull(entityCounters);
 
         this.numAccounts = entityCounters.numAccounts();
         log.debug("Number of accounts: {}", numAccounts);
@@ -77,7 +75,7 @@ public class AccountAndSupplyValidator implements LeafBytesValidator {
                         com.hedera.hapi.platform.state.StateValue.PROTOBUF.parse(valueBytes);
                 final Account account = stateValue.value().as();
                 final long tinybarBalance = account.tinybarBalance();
-                assertTrue(tinybarBalance >= 0);
+                ValidationAssertions.requireTrue(tinybarBalance >= 0, getTag());
                 totalBalance.addAndGet(tinybarBalance);
                 accountsCreated.incrementAndGet();
             } catch (final ParseException e) {
@@ -88,7 +86,7 @@ public class AccountAndSupplyValidator implements LeafBytesValidator {
 
     @Override
     public void validate() {
-        ValidationAssertions.requireEqual(TOTAL_tHBAR_SUPPLY, totalBalance.get(), ACCOUNT_TAG);
-        ValidationAssertions.requireEqual(accountsCreated.get(), numAccounts, ACCOUNT_TAG);
+        ValidationAssertions.requireEqual(TOTAL_tHBAR_SUPPLY, totalBalance.get(), getTag());
+        ValidationAssertions.requireEqual(accountsCreated.get(), numAccounts, getTag());
     }
 }

@@ -28,7 +28,7 @@ public class HashRecordIntegrityValidator implements HashRecordValidator {
 
     @Override
     public void processHashRecord(@NonNull final VirtualHashRecord hashRecord) {
-        ValidationAssertions.requireNonNull(hashRecord.hash(), INTERNAL_TAG);
+        ValidationAssertions.requireNonNull(hashRecord.hash(), getTag());
         totalEntriesProcessed.incrementAndGet();
     }
 

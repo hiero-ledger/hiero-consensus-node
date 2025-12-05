@@ -33,6 +33,7 @@ import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.spi.ReadableKVState;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -59,17 +60,23 @@ public class EntityIdUniquenessValidator implements LeafBytesValidator {
     }
 
     @Override
-    public void initialize(@NonNull MerkleNodeState state) {
-        this.tokensState = state.getReadableStates(TokenService.NAME).get(TOKENS_STATE_ID);
-        this.accountState = state.getReadableStates(TokenService.NAME).get(ACCOUNTS_STATE_ID);
-        this.smartContractState = state.getReadableStates(ContractService.NAME).get(BYTECODE_STATE_ID);
-        this.topicState = state.getReadableStates(ConsensusService.NAME).get(TOPICS_STATE_ID);
-        this.fileState = state.getReadableStates(FileService.NAME).get(FILES_STATE_ID);
-        this.scheduleState = state.getReadableStates(ScheduleService.NAME).get(SCHEDULES_BY_ID_STATE_ID);
+    public void initialize(@NonNull final MerkleNodeState state) {
+        this.tokensState = Objects.requireNonNull(
+                state.getReadableStates(TokenService.NAME).get(TOKENS_STATE_ID));
+        this.accountState = Objects.requireNonNull(
+                state.getReadableStates(TokenService.NAME).get(ACCOUNTS_STATE_ID));
+        this.smartContractState = Objects.requireNonNull(
+                state.getReadableStates(ContractService.NAME).get(BYTECODE_STATE_ID));
+        this.topicState = Objects.requireNonNull(
+                state.getReadableStates(ConsensusService.NAME).get(TOPICS_STATE_ID));
+        this.fileState =
+                Objects.requireNonNull(state.getReadableStates(FileService.NAME).get(FILES_STATE_ID));
+        this.scheduleState = Objects.requireNonNull(
+                state.getReadableStates(ScheduleService.NAME).get(SCHEDULES_BY_ID_STATE_ID));
     }
 
     @Override
-    public void processLeafBytes(long dataLocation, @NonNull VirtualLeafBytes leafBytes) {
+    public void processLeafBytes(long dataLocation, @NonNull final VirtualLeafBytes leafBytes) {
         long entityId = IMPERMISSIBLE_ENTITY_ID;
 
         try {
@@ -111,7 +118,7 @@ public class EntityIdUniquenessValidator implements LeafBytesValidator {
 
     @Override
     public void validate() {
-        ValidationAssertions.requireEqual(0, issuesFound.get(), ENTITY_ID_UNIQUENESS_TAG);
+        ValidationAssertions.requireEqual(0, issuesFound.get(), getTag());
     }
 
     private void checkEntityUniqueness(long entityId) {

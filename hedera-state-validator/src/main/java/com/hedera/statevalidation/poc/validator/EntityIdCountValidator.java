@@ -13,6 +13,7 @@ import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.spi.ReadableSingletonState;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicLong;
 
 public class EntityIdCountValidator implements LeafBytesValidator {
@@ -35,7 +36,7 @@ public class EntityIdCountValidator implements LeafBytesValidator {
     private final AtomicLong contractStorageCount = new AtomicLong(0);
     private final AtomicLong contractBytecodeCount = new AtomicLong(0);
     private final AtomicLong hookCount = new AtomicLong(0);
-    private final AtomicLong labmbdaStorageCount = new AtomicLong(0);
+    private final AtomicLong lambdaStorageCount = new AtomicLong(0);
 
     @Override
     public String getTag() {
@@ -43,16 +44,16 @@ public class EntityIdCountValidator implements LeafBytesValidator {
     }
 
     @Override
-    public void initialize(@NonNull MerkleNodeState state) {
+    public void initialize(@NonNull final MerkleNodeState state) {
         final ReadableSingletonState<EntityCounts> entityIdSingleton =
                 state.getReadableStates(EntityIdService.NAME).getSingleton(ENTITY_COUNTS_STATE_ID);
-        this.entityCounts = entityIdSingleton.get();
+        this.entityCounts = Objects.requireNonNull(entityIdSingleton.get());
     }
 
     @Override
-    public void processLeafBytes(long dataLocation, @NonNull VirtualLeafBytes leafBytes) {
+    public void processLeafBytes(long dataLocation, @NonNull final VirtualLeafBytes leafBytes) {
         try {
-            StateKey key = StateKey.PROTOBUF.parse(leafBytes.keyBytes());
+            final StateKey key = StateKey.PROTOBUF.parse(leafBytes.keyBytes());
             switch (key.key().kind()) {
                 case TOKENSERVICE_I_ACCOUNTS -> accountCount.incrementAndGet();
                 case TOKENSERVICE_I_ALIASES -> aliasesCount.incrementAndGet();
@@ -68,7 +69,7 @@ public class EntityIdCountValidator implements LeafBytesValidator {
                 case CONTRACTSERVICE_I_STORAGE -> contractStorageCount.incrementAndGet();
                 case CONTRACTSERVICE_I_BYTECODE -> contractBytecodeCount.incrementAndGet();
                 case CONTRACTSERVICE_I_EVM_HOOK_STATES -> hookCount.incrementAndGet();
-                case CONTRACTSERVICE_I_LAMBDA_STORAGE -> labmbdaStorageCount.incrementAndGet();
+                case CONTRACTSERVICE_I_LAMBDA_STORAGE -> lambdaStorageCount.incrementAndGet();
             }
         } catch (ParseException e) {
             throw new RuntimeException(e);
@@ -77,52 +78,46 @@ public class EntityIdCountValidator implements LeafBytesValidator {
 
     @Override
     public void validate() {
-        ValidationAssertions.requireNonNull(entityCounts, ENTITY_ID_COUNT_TAG);
+        ValidationAssertions.requireNonNull(entityCounts, getTag());
         ValidationAssertions.requireEqual(
-                entityCounts.numAccounts(), accountCount.get(), ENTITY_ID_COUNT_TAG, "Account count is unexpected");
+                entityCounts.numAccounts(), accountCount.get(), getTag(), "Account count is unexpected");
         ValidationAssertions.requireEqual(
-                entityCounts.numAliases(), aliasesCount.get(), ENTITY_ID_COUNT_TAG, "Alias count is unexpected");
+                entityCounts.numAliases(), aliasesCount.get(), getTag(), "Alias count is unexpected");
         ValidationAssertions.requireEqual(
-                entityCounts.numTokens(), tokenCount.get(), ENTITY_ID_COUNT_TAG, "Token count is unexpected");
+                entityCounts.numTokens(), tokenCount.get(), getTag(), "Token count is unexpected");
         ValidationAssertions.requireEqual(
-                entityCounts.numTokenRelations(),
-                tokenRelCount.get(),
-                ENTITY_ID_COUNT_TAG,
-                "Token relations count is unexpected");
+                entityCounts.numTokenRelations(), tokenRelCount.get(), getTag(), "Token relations count is unexpected");
         ValidationAssertions.requireEqual(
-                entityCounts.numNfts(), nftsCount.get(), ENTITY_ID_COUNT_TAG, "NFTs count is unexpected");
+                entityCounts.numNfts(), nftsCount.get(), getTag(), "NFTs count is unexpected");
         ValidationAssertions.requireEqual(
-                entityCounts.numAirdrops(), airdropsCount.get(), ENTITY_ID_COUNT_TAG, "Airdrops count is unexpected");
+                entityCounts.numAirdrops(), airdropsCount.get(), getTag(), "Airdrops count is unexpected");
         ValidationAssertions.requireEqual(
-                entityCounts.numStakingInfos(),
-                stakingInfoCount.get(),
-                ENTITY_ID_COUNT_TAG,
-                "Staking infos count is unexpected");
+                entityCounts.numStakingInfos(), stakingInfoCount.get(), getTag(), "Staking infos count is unexpected");
         ValidationAssertions.requireEqual(
-                entityCounts.numTopics(), topicCount.get(), ENTITY_ID_COUNT_TAG, "Topic count is unexpected");
+                entityCounts.numTopics(), topicCount.get(), getTag(), "Topic count is unexpected");
         ValidationAssertions.requireEqual(
-                entityCounts.numFiles(), fileCount.get(), ENTITY_ID_COUNT_TAG, "File count is unexpected");
+                entityCounts.numFiles(), fileCount.get(), getTag(), "File count is unexpected");
         ValidationAssertions.requireEqual(
-                entityCounts.numNodes(), nodesCount.get(), ENTITY_ID_COUNT_TAG, "Nodes count is unexpected");
+                entityCounts.numNodes(), nodesCount.get(), getTag(), "Nodes count is unexpected");
         //      To be investigated - https://github.com/hiero-ledger/hiero-consensus-node/issues/20993
-        //      ValidationAssertions.requireEqual(entityCounts.numSchedules(), scheduleCount.get(), ENTITY_ID_COUNT_TAG,
+        //      ValidationAssertions.requireEqual(entityCounts.numSchedules(), scheduleCount.get(), getTag(),
         // "Schedule count is unexpected");
         //      ValidationAssertions.requireEqual(
         //                entityCounts.numContractStorageSlots(),
         //                contractStorageCount.get(),
-        //                ENTITY_ID_COUNT_TAG,
+        //                getTag(),
         //                "Contract storage count is unexpected");
         ValidationAssertions.requireEqual(
                 entityCounts.numContractBytecodes(),
                 contractBytecodeCount.get(),
-                ENTITY_ID_COUNT_TAG,
+                getTag(),
                 "Contract count is unexpected");
         ValidationAssertions.requireEqual(
-                entityCounts.numHooks(), hookCount.get(), ENTITY_ID_COUNT_TAG, "Hook count is unexpected");
+                entityCounts.numHooks(), hookCount.get(), getTag(), "Hook count is unexpected");
         ValidationAssertions.requireEqual(
                 entityCounts.numLambdaStorageSlots(),
-                labmbdaStorageCount.get(),
-                ENTITY_ID_COUNT_TAG,
+                lambdaStorageCount.get(),
+                getTag(),
                 "Lambda slot count is unexpected");
     }
 }
