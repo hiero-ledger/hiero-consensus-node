@@ -58,7 +58,7 @@ jobs:
 
       - name: Install Github CLI
         env:
-          GITHUB_TOKEN: ${{ secrets.PLATFORM_access-token }}
+          GITHUB_TOKEN: ${{ secrets.PLATFORM_GH_ACCESS_TOKEN }}
         run: |
           curl -O -L -s https://github.com/cli/cli/releases/download/v2.12.1/gh_2.12.1_linux_amd64.deb
           sudo apt install -y ./gh_2.12.1_linux_amd64.deb
