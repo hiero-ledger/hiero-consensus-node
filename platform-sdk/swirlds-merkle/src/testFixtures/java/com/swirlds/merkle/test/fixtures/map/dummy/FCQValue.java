@@ -11,9 +11,9 @@ import com.swirlds.common.test.fixtures.dummy.Key;
 import com.swirlds.common.test.fixtures.dummy.MerkleKey;
 import com.swirlds.fcqueue.FCQueue;
 import com.swirlds.merkle.test.fixtures.map.pta.TransactionRecord;
-import com.swirlds.merkle.test.fixtures.map.util.MerkleMapTestUtil;
 import java.util.Iterator;
 import java.util.Objects;
+import java.util.Random;
 import org.hiero.base.crypto.SerializableHashable;
 
 /**
@@ -21,6 +21,8 @@ import org.hiero.base.crypto.SerializableHashable;
  */
 public class FCQValue<T extends FastCopyable & SerializableHashable> extends PartialNaryMerkleInternal
         implements Iterable<T>, Keyed<Key>, MerkleInternal {
+
+    public static final Random random = new Random();
 
     protected static final int FCQ_VALUE_TYPE = 5;
 
@@ -120,7 +122,7 @@ public class FCQValue<T extends FastCopyable & SerializableHashable> extends Par
 
     public static FCQValue<TransactionRecord> buildDefault() {
         final byte[] content = new byte[4_096];
-        MerkleMapTestUtil.random.nextBytes(content);
+        random.nextBytes(content);
         final int index = 0;
         final long balance = 100;
         return build(index, balance, content);
@@ -128,16 +130,16 @@ public class FCQValue<T extends FastCopyable & SerializableHashable> extends Par
 
     public static FCQValue<TransactionRecord> buildRandom() {
         final byte[] content = new byte[100];
-        MerkleMapTestUtil.random.nextBytes(content);
-        final int index = MerkleMapTestUtil.random.nextInt();
-        final long balance = MerkleMapTestUtil.random.nextLong();
+        random.nextBytes(content);
+        final int index = random.nextInt();
+        final long balance = random.nextLong();
         return build(index, balance, content);
     }
 
     public static FCQValue<TransactionRecord> buildRandomWithIndex(final int index) {
         final byte[] content = new byte[100];
-        MerkleMapTestUtil.random.nextBytes(content);
-        final long balance = MerkleMapTestUtil.random.nextLong();
+        random.nextBytes(content);
+        final long balance = random.nextLong();
         return build(index, balance, content);
     }
 
