@@ -174,7 +174,7 @@ jobs:
           token: gh-citr-performance-svcs-bot
 
       - name: Authorize Teleport K8S Access
-        uses: teleport-actions/auth-k8s@677da98eaa78a5e649d4c5b4012750af4c28af73 # v2.0.3
+        uses: teleport-actions/auth-k8s@171cc0ad4b6b7cebcb33c672defe3f6dc58967ba # v2.0.4
         with:
           proxy: hashgraph.teleport.sh:443
           token: gh-citr-performance-svcs-bot
