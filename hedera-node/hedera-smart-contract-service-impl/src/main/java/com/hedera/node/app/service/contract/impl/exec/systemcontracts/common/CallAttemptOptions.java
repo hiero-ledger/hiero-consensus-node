@@ -18,6 +18,7 @@ import org.hyperledger.besu.datatypes.Address;
 public record CallAttemptOptions<T extends AbstractCallAttempt<T>>(
         @NonNull ContractID contractID,
         @NonNull Address senderAddress,
+        @NonNull Address recipientAddress,
         @NonNull Address authorizingAddress,
         boolean onlyDelegatableContractKeysActive,
         @NonNull HederaWorldUpdater.Enhancement enhancement,
@@ -32,6 +33,7 @@ public record CallAttemptOptions<T extends AbstractCallAttempt<T>>(
     /**
      * @param contractID the target system contract ID
      * @param senderAddress the address of the sender of this call
+     * @param recipientAddress the recipient address of this call
      * @param authorizingAddress the contract whose keys are to be activated
      * @param onlyDelegatableContractKeysActive whether the strategy should require a delegatable contract id key
      * @param enhancement the enhancement to get the native operations to look up the contract's number
@@ -46,6 +48,7 @@ public record CallAttemptOptions<T extends AbstractCallAttempt<T>>(
     public CallAttemptOptions(
             @NonNull final ContractID contractID,
             @NonNull final Address senderAddress,
+            @NonNull final Address recipientAddress,
             @NonNull final Address authorizingAddress,
             final boolean onlyDelegatableContractKeysActive,
             @NonNull final Enhancement enhancement,
@@ -58,6 +61,7 @@ public record CallAttemptOptions<T extends AbstractCallAttempt<T>>(
             final boolean isStaticCall) {
         this.contractID = requireNonNull(contractID);
         this.senderAddress = requireNonNull(senderAddress);
+        this.recipientAddress = requireNonNull(recipientAddress);
         this.authorizingAddress = requireNonNull(authorizingAddress);
         this.onlyDelegatableContractKeysActive = onlyDelegatableContractKeysActive;
         this.enhancement = requireNonNull(enhancement);

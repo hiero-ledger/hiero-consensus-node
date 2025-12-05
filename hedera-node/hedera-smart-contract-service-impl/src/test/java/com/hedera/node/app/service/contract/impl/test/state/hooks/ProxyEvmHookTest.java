@@ -66,8 +66,7 @@ class ProxyEvmHookTest {
 
         final var subject = new ProxyEvmHook(state, hookState, CODE_FACTORY, entityIdFactory);
 
-        final var code = subject.getEvmCode(Bytes.wrap(new byte[] {1, 2, 3, 4}), CODE_FACTORY);
-        assertEquals(expectedCode, code);
+        assertEquals(expectedCode.getBytes(), subject.getCode());
         assertEquals(hookContractCode, subject.getCode());
         assertEquals(expectedHash, subject.getCodeHash());
         assertEquals(HTS_HOOKS_CONTRACT_ADDRESS, subject.getAddress());
@@ -82,32 +81,6 @@ class ProxyEvmHookTest {
                                 .contractNum(HTS_HOOKS_CONTRACT_NUM)
                                 .build(),
                         key);
-    }
-
-    @Test
-    void coversContractOwnedHookBranchToo() {
-        // --- Arrange: a hook whose owner is a CONTRACT (exercises asAccountId(..) branch) ---
-        final var ownerContractId = ContractID.newBuilder().contractNum(555L).build();
-        final var entityId =
-                HookEntityId.newBuilder().contractId(ownerContractId).build();
-        final var hookId = HookId.newBuilder().entityId(entityId).build();
-
-        final var hookContractId = ContractID.newBuilder().contractNum(888L).build();
-
-        final var hookState = EvmHookState.newBuilder()
-                .hookId(hookId)
-                .hookContractId(hookContractId)
-                .build();
-
-        final Bytes hookContractCode = Bytes.fromHexString("0x60FF");
-        final Code expectedCode = CODE_FACTORY.createCode(hookContractCode, false);
-        given(state.getCode(hookContractId)).willReturn(hookContractCode);
-        given(state.getCodeHash(hookContractId, CODE_FACTORY)).willReturn(expectedCode.getCodeHash());
-
-        final var subject = new ProxyEvmHook(state, hookState, CODE_FACTORY, entityIdFactory);
-
-        assertEquals(expectedCode, subject.getEvmCode(Bytes.EMPTY, CODE_FACTORY));
-        assertEquals(expectedCode.getCodeHash(), subject.getCodeHash());
     }
 
     @Test

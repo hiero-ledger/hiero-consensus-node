@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts;
 
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.HtsSystemContract.HTS_167_EVM_ADDRESS;
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.HtsSystemContract.HTS_16C_EVM_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.isLongZeroAddress;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.numberOfLongZero;
 import static java.util.Objects.requireNonNull;
@@ -14,10 +16,9 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.HtsSystemC
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.AbstractCallAttempt;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.Call;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.CallAttemptOptions;
-import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethod;
-import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethod.SystemContract;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.util.Set;
 import org.apache.tuweni.bytes.Bytes;
 import org.hyperledger.besu.datatypes.Address;
 
@@ -26,8 +27,10 @@ import org.hyperledger.besu.datatypes.Address;
  * attempt into an appropriate {@link Call} subclass, giving the {@link Call} everything it will need to execute.
  */
 public class HtsCallAttempt extends AbstractCallAttempt<HtsCallAttempt> {
-    /** Selector for redirectForToken(address,bytes) method. */
-    public static final Function REDIRECT_FOR_TOKEN = new Function("redirectForToken(address,bytes)");
+    private static final Set<Address> HTS_ADDRESSES =
+            Set.of(Address.fromHexString(HTS_167_EVM_ADDRESS), Address.fromHexString(HTS_16C_EVM_ADDRESS));
+
+    public static final Function LEGACY_REDIRECT_FOR_TOKEN = new Function("redirectForToken(address,bytes)");
 
     // The id address of the account authorizing the call, in the sense
     // that (1) a dispatch should omit the key of this account from the
@@ -42,20 +45,13 @@ public class HtsCallAttempt extends AbstractCallAttempt<HtsCallAttempt> {
     private final Token redirectToken;
 
     public HtsCallAttempt(@NonNull final Bytes input, @NonNull final CallAttemptOptions<HtsCallAttempt> options) {
-        super(input, options, REDIRECT_FOR_TOKEN);
-        if (isRedirect()) {
-            this.redirectToken = linkedToken(redirectAddress);
-        } else {
-            redirectToken = null;
-        }
+        super(input, options, HTS_ADDRESSES, LEGACY_REDIRECT_FOR_TOKEN);
+
+        this.redirectToken = this.maybeRedirectAddress.map(this::linkedToken).orElse(null);
+
         this.authorizingId = (options.authorizingAddress() != senderAddress())
                 ? addressIdConverter().convertSender(options.authorizingAddress())
                 : senderId;
-    }
-
-    @Override
-    protected SystemContract systemContractKind() {
-        return SystemContractMethod.SystemContract.HTS;
     }
 
     @Override
