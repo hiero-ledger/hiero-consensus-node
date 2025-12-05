@@ -35,7 +35,6 @@ import java.util.concurrent.locks.LockSupport;
 import java.util.stream.Stream;
 import org.hiero.block.api.PublishStreamResponse.EndOfStream.Code;
 import org.hiero.consensus.model.status.PlatformStatus;
-import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Order;
@@ -111,7 +110,7 @@ public class BlockNodeSuite {
                         Duration.ofSeconds(45),
                         "Detected ENTRY_CREATE event for block-nodes.json",
                         String.format(
-                                "/localhost:%s/ACTIVE] Connection state transitioned from PENDING to ACTIVE.",
+                                "/localhost:%s/ACTIVE] Connection state transitioned from READY to ACTIVE",
                                 portNumbers.getFirst()))),
                 doingContextual((spec) -> timeRef.set(Instant.now())),
                 waitUntilNextBlocks(5).withBackgroundTraffic(true),
@@ -235,10 +234,10 @@ public class BlockNodeSuite {
                         String.format(
                                 "/localhost:%s/UNINITIALIZED] Request pipeline initialized", portNumbers.getFirst()),
                         String.format(
-                                "/localhost:%s/PENDING] Connection state transitioned from UNINITIALIZED to PENDING.",
+                                "/localhost:%s/READY] Connection state transitioned from UNINITIALIZED to READY",
                                 portNumbers.getFirst()),
                         String.format(
-                                "/localhost:%s/ACTIVE] Connection state transitioned from PENDING to ACTIVE.",
+                                "/localhost:%s/ACTIVE] Connection state transitioned from READY to ACTIVE",
                                 portNumbers.getFirst()),
                         String.format(
                                 "Active block node connection updated to: localhost:%s", portNumbers.getFirst()))),
@@ -391,10 +390,10 @@ public class BlockNodeSuite {
                         Duration.ofSeconds(45),
                         String.format("Selected block node localhost:%s for connection attempt", portNumbers.get(1)),
                         String.format(
-                                "/localhost:%s/PENDING] Connection state transitioned from UNINITIALIZED to PENDING.",
+                                "/localhost:%s/READY] Connection state transitioned from UNINITIALIZED to READY",
                                 portNumbers.get(1)),
                         String.format(
-                                "/localhost:%s/ACTIVE] Connection state transitioned from PENDING to ACTIVE.",
+                                "/localhost:%s/ACTIVE] Connection state transitioned from READY to ACTIVE",
                                 portNumbers.get(1)))),
                 waitUntilNextBlocks(10).withBackgroundTraffic(true),
                 doingContextual(spec -> connectionDropTime.set(Instant.now())),
@@ -405,10 +404,10 @@ public class BlockNodeSuite {
                         Duration.ofMinutes(1),
                         Duration.ofSeconds(45),
                         String.format(
-                                "/localhost:%s/PENDING] Connection state transitioned from UNINITIALIZED to PENDING.",
+                                "/localhost:%s/READY] Connection state transitioned from UNINITIALIZED to READY",
                                 portNumbers.get(2)),
                         String.format(
-                                "/localhost:%s/ACTIVE] Connection state transitioned from PENDING to ACTIVE.",
+                                "/localhost:%s/ACTIVE] Connection state transitioned from READY to ACTIVE",
                                 portNumbers.get(2)))),
                 waitUntilNextBlocks(10).withBackgroundTraffic(true),
                 doingContextual(spec -> connectionDropTime.set(Instant.now())),
@@ -419,10 +418,10 @@ public class BlockNodeSuite {
                         Duration.ofMinutes(1),
                         Duration.ofSeconds(45),
                         String.format(
-                                "/localhost:%s/PENDING] Connection state transitioned from UNINITIALIZED to PENDING.",
+                                "/localhost:%s/READY] Connection state transitioned from UNINITIALIZED to READY",
                                 portNumbers.get(3)),
                         String.format(
-                                "/localhost:%s/ACTIVE] Connection state transitioned from PENDING to ACTIVE.",
+                                "/localhost:%s/ACTIVE] Connection state transitioned from READY to ACTIVE",
                                 portNumbers.get(3)))),
                 waitUntilNextBlocks(10).withBackgroundTraffic(true),
                 doingContextual(spec -> connectionDropTime.set(Instant.now())),
@@ -433,10 +432,10 @@ public class BlockNodeSuite {
                         Duration.ofMinutes(1),
                         Duration.ofSeconds(45),
                         String.format(
-                                "/localhost:%s/PENDING] Connection state transitioned from UNINITIALIZED to PENDING.",
+                                "/localhost:%s/READY] Connection state transitioned from UNINITIALIZED to READY",
                                 portNumbers.get(1)),
                         String.format(
-                                "/localhost:%s/ACTIVE] Connection state transitioned from PENDING to ACTIVE.",
+                                "/localhost:%s/ACTIVE] Connection state transitioned from READY to ACTIVE",
                                 portNumbers.get(1)),
                         String.format(
                                 "/localhost:%s/ACTIVE] Connection will be closed at the next block boundary",
@@ -446,10 +445,10 @@ public class BlockNodeSuite {
                                 portNumbers.get(3)),
                         String.format("/localhost:%s/CLOSING] Closing connection.", portNumbers.get(3)),
                         String.format(
-                                "/localhost:%s/CLOSING] Connection state transitioned from ACTIVE to CLOSING.",
+                                "/localhost:%s/CLOSING] Connection state transitioned from ACTIVE to CLOSING",
                                 portNumbers.get(3)),
                         String.format(
-                                "/localhost:%s/CLOSED] Connection state transitioned from CLOSING to CLOSED.",
+                                "/localhost:%s/CLOSED] Connection state transitioned from CLOSING to CLOSED",
                                 portNumbers.get(3)))),
                 doingContextual(spec -> connectionDropTime.set(Instant.now())),
                 waitUntilNextBlocks(5),
@@ -460,10 +459,10 @@ public class BlockNodeSuite {
                         Duration.ofMinutes(1),
                         Duration.ofSeconds(45),
                         String.format(
-                                "/localhost:%s/PENDING] Connection state transitioned from UNINITIALIZED to PENDING.",
+                                "/localhost:%s/READY] Connection state transitioned from UNINITIALIZED to READY",
                                 portNumbers.get(3)),
                         String.format(
-                                "/localhost:%s/ACTIVE] Connection state transitioned from PENDING to ACTIVE.",
+                                "/localhost:%s/ACTIVE] Connection state transitioned from READY to ACTIVE",
                                 portNumbers.get(3)))));
     }
 
@@ -544,7 +543,7 @@ public class BlockNodeSuite {
                         // look for the log that shows we are forcing a reconnect to a different block node
                         "Attempting to forcefully switch block node connections due to increasing block buffer saturation",
                         "/localhost:" + portNumbers.get(1)
-                                + "/ACTIVE] Connection state transitioned from PENDING to ACTIVE.")),
+                                + "/ACTIVE] Connection state transitioned from READY to ACTIVE")),
                 blockNode(0).updateSendingBlockAcknowledgements(true),
                 doingContextual(spec -> timeRef.set(Instant.now())),
                 sourcingContextual(spec -> assertBlockNodeCommsLogContainsTimeframe(
@@ -556,7 +555,7 @@ public class BlockNodeSuite {
                         // then we should see a switch back to higher priority node
                         "saturation=0.0%",
                         "/localhost:" + portNumbers.get(0)
-                                + "/ACTIVE] Connection state transitioned from PENDING to ACTIVE.")));
+                                + "/ACTIVE] Connection state transitioned from READY to ACTIVE")));
     }
 
     @Disabled
@@ -651,14 +650,14 @@ public class BlockNodeSuite {
                                 "/localhost:%s/ACTIVE] Performing scheduled stream reset.", portNumbers.getFirst()),
                         String.format("/localhost:%s/CLOSING] Closing connection.", portNumbers.getFirst()),
                         String.format(
-                                "/localhost:%s/CLOSING] Connection state transitioned from ACTIVE to CLOSING.",
+                                "/localhost:%s/CLOSING] Connection state transitioned from ACTIVE to CLOSING",
                                 portNumbers.getFirst()),
                         String.format("/localhost:%s/CLOSING] Connection successfully closed.", portNumbers.getFirst()),
                         // Select the next block node to connect to based on priorities
                         "Scheduling reconnection for node in 0 ms (force=false).",
                         "Running connection task.",
-                        "Connection state transitioned from UNINITIALIZED to PENDING.",
-                        "Connection state transitioned from PENDING to ACTIVE.")),
+                        "Connection state transitioned from UNINITIALIZED to READY",
+                        "Connection state transitioned from READY to ACTIVE")),
                 assertBlockNodeCommsLogDoesNotContainText(byNodeId(0), "ERROR", Duration.ofSeconds(5)));
     }
 
@@ -781,10 +780,10 @@ public class BlockNodeSuite {
                                 portNumbers.getFirst()),
                         String.format("Selected block node localhost:%s for connection attempt", portNumbers.getLast()),
                         String.format(
-                                "/localhost:%s/PENDING] Connection state transitioned from UNINITIALIZED to PENDING.",
+                                "/localhost:%s/READY] Connection state transitioned from UNINITIALIZED to READY",
                                 portNumbers.getLast()),
                         String.format(
-                                "/localhost:%s/ACTIVE] Connection state transitioned from PENDING to ACTIVE.",
+                                "/localhost:%s/ACTIVE] Connection state transitioned from READY to ACTIVE",
                                 portNumbers.getLast()))),
                 waitUntilNextBlocks(5).withBackgroundTraffic(true));
     }
@@ -938,7 +937,6 @@ public class BlockNodeSuite {
                                 portNumbers.getFirst()))));
     }
 
-    @NotNull
     private Stream<DynamicTest> validateHappyPath(final int blocksToWait) {
         return hapiTest(
                 waitUntilNextBlocks(blocksToWait).withBackgroundTraffic(true),
