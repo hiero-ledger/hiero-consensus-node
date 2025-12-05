@@ -70,6 +70,8 @@ jobs:
 
       - name: Install Helm
         uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4.3.1
+        with:
+          version: "3.19.2"
 
       - name: Setup NodeJS Environment
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
@@ -103,6 +105,22 @@ jobs:
           MIRROR_NODE_VERSION: ${{ inputs.mirror-node-version || '0.142.2' }}
         run: |
           set -ex
+          
+          # Create kind cluster
+          kind create cluster -n "${SOLO_CLUSTER_NAME}"
+          
+          # Detect the default storage class (is-default-class=true)
+          STORAGE_CLASS=$(kubectl get sc -o jsonpath='{range .items[*]}{.metadata.name}{" "}{.metadata.annotations.storageclass\.kubernetes\.io/is-default-class}{"\n"}{end}' \
+          | awk '$2=="true"{print $1}')
+        
+          # If no default exists, use the first available SC
+          if [[ -z "$STORAGE_CLASS" ]]; then
+            STORAGE_CLASS=$(kubectl get sc -o jsonpath='{.items[0].metadata.name}')
+          fi
+        
+          echo "::debug::Using storageClassName=$STORAGE_CLASS"
+          
+          # Create our config file
           cat <<EOF > mirror.yml
           test:
             annotations:
@@ -111,9 +129,19 @@ jobs:
               HIERO_MIRROR_TEST_ACCEPTANCE_NETWORK: OTHER
             cucumberTags: "@acceptance and not @estimateprecompile"
             enabled: true
+          
+          minio:
+            tenant:
+              pools:
+                - volumeClaimTemplate:
+                    spec:
+                      storageClassName: "$STORAGE_CLASS"
           EOF
-          kind create cluster -n "${SOLO_CLUSTER_NAME}"
-
+          
+          # echo out the solo-values file
+          echo "Values file:"
+          cat mirror.yml
+          
           # initialize solo
           solo init
 
