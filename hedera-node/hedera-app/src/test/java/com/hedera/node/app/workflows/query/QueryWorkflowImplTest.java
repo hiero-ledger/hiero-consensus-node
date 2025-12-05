@@ -1120,7 +1120,7 @@ class QueryWorkflowImplTest extends AppTestBase {
         }
 
         @Test
-        void testTransactionUsesSimpleFees() throws PreCheckException, ParseException {
+        void testQueryUsesSimpleFees() throws PreCheckException, ParseException {
             final var transactionID =
                     TransactionID.newBuilder().accountID(ALICE.accountID()).build();
             txBody = TransactionBody.newBuilder().transactionID(transactionID).build();
