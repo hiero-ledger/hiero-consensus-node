@@ -369,8 +369,6 @@ public final class StartupStateUtils {
             v.setRound(round);
             v.setLegacyRunningEventHash(null);
             v.setConsensusTimestamp(Instant.ofEpochSecond(0L));
-
-            final BasicConfig basicConfig = configuration.getConfigData(BasicConfig.class);
         });
 
         RosterUtils.setActiveRoster(state, RosterRetriever.buildRoster(addressBook), round);
