@@ -34,10 +34,6 @@ tasks.jar {
 val demoApp = configurations.dependencyScope("demoApp")
 
 dependencies {
-    demoApp(project(":ConsistencyTestingTool"))
-    demoApp(project(":ISSTestingTool"))
-    demoApp(project(":MigrationTestingTool"))
-    demoApp(project(":PlatformTestingTool"))
     demoApp(project(":StatsDemo"))
 }
 
