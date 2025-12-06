@@ -14,7 +14,6 @@ import static org.hiero.otter.fixtures.assertions.StatusProgressionStep.target;
 
 import com.swirlds.common.merkle.synchronization.config.ReconnectConfig_;
 import com.swirlds.logging.legacy.payload.ReconnectStartPayload;
-import com.swirlds.platform.consensus.ConsensusConfig_;
 import com.swirlds.platform.wiring.PlatformSchedulersConfig_;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
@@ -22,6 +21,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.IntStream;
+import org.hiero.consensus.hashgraph.ConsensusConfig_;
 import org.hiero.otter.fixtures.Capability;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.Node;

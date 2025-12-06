@@ -36,4 +36,5 @@ val cleanRun =
 
 tasks.clean { dependsOn(cleanRun) }
 
-tasks.checkModuleDirectivesScope { this.enabled = false }
+// Disable checkModuleDirectivesScope task if it exists
+afterEvaluate { tasks.findByName("checkModuleDirectivesScope")?.enabled = false }

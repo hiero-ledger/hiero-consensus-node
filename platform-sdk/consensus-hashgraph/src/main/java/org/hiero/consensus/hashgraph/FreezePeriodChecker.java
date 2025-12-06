@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.freeze;
+package org.hiero.consensus.hashgraph;
 
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 
 /**
@@ -16,5 +17,5 @@ public interface FreezePeriodChecker {
      * 		an Instant to check
      * @return true if it is in the freeze period, false otherwise
      */
-    boolean isInFreezePeriod(Instant timestamp);
+    boolean isInFreezePeriod(@NonNull Instant timestamp);
 }

@@ -9,6 +9,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.stream.LongStream;
 import org.hiero.base.utility.CommonUtils;
+import org.hiero.consensus.hashgraph.ConsensusConfig;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusConstants;
 
