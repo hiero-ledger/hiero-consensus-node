@@ -30,8 +30,6 @@ import com.swirlds.state.merkle.StateValue;
 import com.swirlds.state.merkle.StateValue.StateValueCodec;
 import com.swirlds.state.test.fixtures.StateTestBase;
 import com.swirlds.state.test.fixtures.TestArgumentUtils;
-import com.swirlds.state.test.fixtures.merkle.queue.QueueNode;
-import com.swirlds.state.test.fixtures.merkle.singleton.SingletonNode;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
 import java.util.Map;
@@ -95,11 +93,9 @@ public class MerkleTestBase extends StateTestBase {
 
     // The "STEAM" queue is part of FIRST_SERVICE
     protected String steamLabel;
-    protected QueueNode<ProtoBytes> steamQueue;
 
     // The "COUNTRY" singleton is part of FIRST_SERVICE
     protected String countryLabel;
-    protected SingletonNode<ProtoBytes> countrySingleton;
 
     private static final Map<Integer, StateValueCodec<ProtoBytes>> stateValueCodecs = new ConcurrentHashMap<>();
 
@@ -125,22 +121,12 @@ public class MerkleTestBase extends StateTestBase {
 
     protected void setupSingletonCountry() {
         countryLabel = computeLabel(FIRST_SERVICE, COUNTRY_STATE_KEY);
-        countrySingleton = new SingletonNode<>(
-                computeLabel(FIRST_SERVICE, COUNTRY_STATE_KEY),
-                computeClassId(FIRST_SERVICE, COUNTRY_STATE_KEY, TEST_VERSION, SINGLETON_CLASS_ID_SUFFIX),
-                ProtoBytes.PROTOBUF,
-                AUSTRALIA);
         countryMetadata = new StateMetadata<>(
                 FIRST_SERVICE, StateDefinition.singleton(COUNTRY_STATE_ID, COUNTRY_STATE_KEY, ProtoBytes.PROTOBUF));
     }
 
     protected void setupSteamQueue() {
         steamLabel = computeLabel(FIRST_SERVICE, STEAM_STATE_KEY);
-        steamQueue = new QueueNode<>(
-                computeLabel(FIRST_SERVICE, STEAM_STATE_KEY),
-                computeClassId(FIRST_SERVICE, STEAM_STATE_KEY, TEST_VERSION, QUEUE_NODE_CLASS_ID_SUFFIX),
-                computeClassId(FIRST_SERVICE, STEAM_STATE_KEY, TEST_VERSION, SINGLETON_CLASS_ID_SUFFIX),
-                ProtoBytes.PROTOBUF);
         steamMetadata = new StateMetadata<>(
                 FIRST_SERVICE, StateDefinition.queue(STEAM_STATE_ID, STEAM_STATE_KEY, ProtoBytes.PROTOBUF));
     }
