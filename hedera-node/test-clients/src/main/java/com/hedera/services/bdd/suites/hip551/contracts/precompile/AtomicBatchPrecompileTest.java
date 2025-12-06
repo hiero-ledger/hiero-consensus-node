@@ -71,6 +71,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
+import static com.hedera.services.bdd.suites.HapiSuite.THOUSAND_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.THREE_MONTHS_IN_SECONDS;
 import static com.hedera.services.bdd.suites.HapiSuite.flattened;
 import static com.hedera.services.bdd.suites.contract.Utils.asAddress;
@@ -795,7 +796,7 @@ class AtomicBatchPrecompileTest {
         final AtomicReference<Address> receiver2Address = new AtomicReference<>();
         return hapiTest(
                 newKeyNamed(SUPPLY_KEY),
-                cryptoCreate(OWNER).exposingEvmAddressTo(ownerAddress::set),
+                cryptoCreate(OWNER).exposingEvmAddressTo(ownerAddress::set).balance(10 * THOUSAND_HBAR),
                 cryptoCreate(TOKEN_TREASURY),
                 cryptoCreate(RECEIVER).exposingEvmAddressTo(receiver1Address::set),
                 cryptoCreate(RECEIVER_2).exposingEvmAddressTo(receiver2Address::set),
@@ -2278,7 +2279,7 @@ class AtomicBatchPrecompileTest {
                 cryptoCreate(CIVILIAN).balance(10L * ONE_HUNDRED_HBARS),
                 contractCreate(MINIMAL_CREATIONS_CONTRACT)
                         .exposingContractIdTo(contractId::set)
-                        .gas(5_000_000L)
+                        .gas(6_000_000L)
                         .refusingEthConversion(),
                 cryptoCreate(autoRenew)
                         .keyShape(origKey.signedWith(sigs(ON, MINIMAL_CREATIONS_CONTRACT)))

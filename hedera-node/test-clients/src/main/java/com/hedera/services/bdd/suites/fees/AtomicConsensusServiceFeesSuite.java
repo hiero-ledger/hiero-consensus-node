@@ -35,7 +35,7 @@ class AtomicConsensusServiceFeesSuite {
     private static final double TOPIC_CREATE_WITH_FIVE_CUSTOM_FEES = 2.10;
     private static final double BASE_FEE_TOPIC_UPDATE = 0.00022;
     private static final double BASE_FEE_TOPIC_DELETE = 0.005;
-    private static final double BASE_FEE_TOPIC_SUBMIT_MESSAGE = 0.0001;
+    private static final double BASE_FEE_TOPIC_SUBMIT_MESSAGE = 0.0008;
     private static final String BATCH_OPERATOR = "batchOperator";
     private static final String ATOMIC_BATCH = "atomicBatch";
 
