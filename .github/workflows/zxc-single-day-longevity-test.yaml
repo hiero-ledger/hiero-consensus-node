@@ -530,6 +530,7 @@ jobs:
             NETWORK_OWNER="adhoc-performance-test"
           fi
           sed -i -e "s@%NETWORK_OWNER%@${NETWORK_OWNER}@g" blocknode-values.yaml
+          sed -i -e 's/32Gi/54Gi/g' blocknode-values.yaml
           sed -i -e 's/cpu: 20/cpu: 8/g' -e 's/auxiliary-services/consensus-node/g' blocknode-values.yaml
           sed -e 's/cpu: 8/cpu: 6/g' blocknode-values.yaml > blocknode-values-p2.yaml
           for i in `seq 1 1 ${{ env.NUM_OF_BLOCK_NODES }}`
@@ -583,7 +584,7 @@ jobs:
               else
                 sleep 1
                 #sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec $i -- bash -c \
-                #  "cd /opt/hiero/block-node/; export JAVA_OPTS=\"-Xms64G -Xmx118G\"; bash ./block-node-app-*/bin/block-node-app > ./logs/block-node.log 2>&1 &"
+                #  "cd /opt/hiero/block-node/; export JAVA_OPTS=\"-Xms48G -Xmx52G\"; bash ./block-node-app-*/bin/block-node-app > ./logs/block-node.log 2>&1 &"
               fi
           done
           sleep 30
@@ -957,7 +958,7 @@ jobs:
                 sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec $i -- bash -c \
                   "cd /opt/hiero/block-node/; . block_node.env; export BACKFILL_FETCH_BATCH_SIZE=10; export BACKFILL_BLOCK_NODE_SOURCES_PATH=\"/opt/hiero/block-node/backfill/block-node-sources.json\"; \
                   export SERVER_MAX_MESSAGE_SIZE_BYTES=\"4_194_304\"; export MESSAGING_BLOCK_ITEM_QUEUE_SIZE=512; export MESSAGING_BLOCK_NOTIFICATION_QUEUE_SIZE=16; \
-                   export JAVA_OPTS=\"-XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/tmp -Xms64G -Xmx118G\"; \
+                   export JAVA_OPTS=\"-XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/tmp -Xms48G -Xmx52G\"; \
                    export BLOCK_NODE_EARLIEST_MANAGED_BLOCK=$lastBlock; bash ./block-node-app-*/bin/block-node-app > ./logs/block-node.log 2>&1 &"
               fi
           done
@@ -980,7 +981,7 @@ jobs:
                 sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec $i -- bash -c \
                   "cd /opt/hiero/block-node/; . block_node.env; export BACKFILL_FETCH_BATCH_SIZE=10; export BACKFILL_BLOCK_NODE_SOURCES_PATH=\"/opt/hiero/block-node/backfill/block-node-sources.json\"; \
                    export SERVER_MAX_MESSAGE_SIZE_BYTES=\"4_194_304\"; export MESSAGING_BLOCK_ITEM_QUEUE_SIZE=512; export MESSAGING_BLOCK_NOTIFICATION_QUEUE_SIZE=16; \
-                   export JAVA_OPTS=\"-XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/tmp -Xms64G -Xmx118G\"; \
+                   export JAVA_OPTS=\"-XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/tmp -Xms48G -Xmx52G\"; \
                    export BLOCK_NODE_EARLIEST_MANAGED_BLOCK=$lastBlock; bash ./block-node-app-*/bin/block-node-app > ./logs/block-node.log 2>&1 &" 
               fi
           done
