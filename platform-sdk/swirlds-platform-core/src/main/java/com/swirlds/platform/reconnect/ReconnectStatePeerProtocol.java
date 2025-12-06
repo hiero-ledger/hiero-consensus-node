@@ -24,6 +24,7 @@ import com.swirlds.platform.network.NetworkProtocolException;
 import com.swirlds.platform.network.protocol.PeerProtocol;
 import com.swirlds.platform.network.protocol.ReservedSignedStateResultPromise;
 import com.swirlds.platform.state.signed.ReservedSignedState;
+import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.virtualmap.VirtualMap;
@@ -372,18 +373,22 @@ public class ReconnectStatePeerProtocol implements PeerProtocol {
      * @param connection the connection to use for the reconnect
      */
     private void teacher(final Connection connection) {
-        try (final ReservedSignedState state = teacherState) {
-            new ReconnectStateTeacher(
-                            platformContext,
-                            time,
-                            threadManager,
-                            connection,
-                            reconnectSocketTimeout,
-                            connection.getSelfId(),
-                            connection.getOtherId(),
-                            state.get().getRound(),
-                            reconnectMetrics)
-                    .execute(state.get());
+        try {
+            final SignedState state = teacherState.get();
+            final ReconnectStateTeacher teacher = new ReconnectStateTeacher(
+                    platformContext,
+                    time,
+                    threadManager,
+                    connection,
+                    reconnectSocketTimeout,
+                    connection.getSelfId(),
+                    connection.getOtherId(),
+                    state.getRound(),
+                    state,
+                    reconnectMetrics);
+            // The teacher now has all information needed to teach. Time to release the original state
+            teacherState.close();
+            teacher.execute();
         } finally {
             teacherThrottle.reconnectAttemptFinished();
             teacherState = null;
