@@ -2158,6 +2158,20 @@ public class UtilVerbs {
         });
     }
 
+    public static CustomSpecAssert validateChargedUsdForQueries(
+            String txn, double expectedUsd, double allowedPercentDiff) {
+        return assertionsHold((spec, assertLog) -> {
+            final var actualUsdCharged = getChargedUsedQuery(spec, txn);
+            assertEquals(
+                    expectedUsd,
+                    actualUsdCharged,
+                    (allowedPercentDiff / 100.0) * expectedUsd,
+                    String.format(
+                            "%s fee (%s) more than %.2f percent different than expected!",
+                            sdec(actualUsdCharged, 4), txn, allowedPercentDiff));
+        });
+    }
+
     public static CustomSpecAssert validateInnerTxnChargedUsd(String txn, String parent, double expectedUsd) {
         return validateInnerTxnChargedUsd(txn, parent, expectedUsd, 1.00);
     }
@@ -2882,6 +2896,23 @@ public class UtilVerbs {
         allRunFor(spec, subOp);
         final var rcd = subOp.getResponseRecord();
         return (1.0 * rcd.getTransactionFee())
+                / ONE_HBAR
+                / rcd.getReceipt().getExchangeRate().getCurrentRate().getHbarEquiv()
+                * rcd.getReceipt().getExchangeRate().getCurrentRate().getCentEquiv()
+                / 100;
+    }
+
+    private static double getChargedUsedQuery(@NonNull final HapiSpec spec, @NonNull final String txn) {
+        requireNonNull(spec);
+        requireNonNull(txn);
+        var subOp = getTxnRecord(txn).logged();
+        allRunFor(spec, subOp);
+        final var rcd = subOp.getResponseRecord();
+        return (-1.0
+                        * rcd.getTransferList().getAccountAmountsList().stream()
+                                .filter(aa -> aa.getAmount() < 0)
+                                .mapToLong(AccountAmount::getAmount)
+                                .sum())
                 / ONE_HBAR
                 / rcd.getReceipt().getExchangeRate().getCurrentRate().getHbarEquiv()
                 * rcd.getReceipt().getExchangeRate().getCurrentRate().getCentEquiv()
