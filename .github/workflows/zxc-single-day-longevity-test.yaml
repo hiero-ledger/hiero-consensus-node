@@ -583,7 +583,7 @@ jobs:
               else
                 sleep 1
                 #sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec $i -- bash -c \
-                #  "cd /opt/hiero/block-node/; export JAVA_OPTS=\"-Xms64G -Xmx128G\"; bash ./block-node-app-*/bin/block-node-app > ./logs/block-node.log 2>&1 &"
+                #  "cd /opt/hiero/block-node/; export JAVA_OPTS=\"-Xms64G -Xmx118G\"; bash ./block-node-app-*/bin/block-node-app > ./logs/block-node.log 2>&1 &"
               fi
           done
           sleep 30
@@ -955,7 +955,7 @@ jobs:
               else
                 sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec $i -- bash -c \
                   "cd /opt/hiero/block-node/; . block_node.env; export BACKFILL_FETCH_BATCH_SIZE=10; export BACKFILL_BLOCK_NODE_SOURCES_PATH=\"/opt/hiero/block-node/backfill/block-node-sources.json\"; \
-                   export JAVA_OPTS=\"-XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/tmp -Xms64G -Xmx128G\"; \
+                   export JAVA_OPTS=\"-XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/tmp -Xms64G -Xmx118G\"; \
                    export BLOCK_NODE_EARLIEST_MANAGED_BLOCK=$lastBlock; bash ./block-node-app-*/bin/block-node-app > ./logs/block-node.log 2>&1 &"
               fi
           done
@@ -976,7 +976,7 @@ jobs:
               else
                 sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec $i -- bash -c \
                   "cd /opt/hiero/block-node/; . block_node.env; export BACKFILL_FETCH_BATCH_SIZE=10; export BACKFILL_BLOCK_NODE_SOURCES_PATH=\"/opt/hiero/block-node/backfill/block-node-sources.json\"; \
-                   export JAVA_OPTS=\"-XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/tmp -Xms64G -Xmx128G\"; \
+                   export JAVA_OPTS=\"-XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/tmp -Xms64G -Xmx118G\"; \
                    export BLOCK_NODE_EARLIEST_MANAGED_BLOCK=$lastBlock; bash ./block-node-app-*/bin/block-node-app > ./logs/block-node.log 2>&1 &" 
               fi
           done
