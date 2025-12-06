@@ -7,7 +7,6 @@ import com.swirlds.common.threading.framework.config.ThreadConfiguration;
 import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.virtualmap.VirtualMap;
-import com.swirlds.virtualmap.internal.merkle.VirtualMapMetadata;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
@@ -68,21 +67,17 @@ public abstract class VirtualMapBaseBench extends BaseBench {
         hasher.shutdown();
     }
 
-    protected VirtualMap createMap() {
-        return createMap(null);
-    }
-
-    protected VirtualMap createEmptyMap(String label) {
+    protected VirtualMap createEmptyMap() {
         final MerkleDbConfig merkleDbConfig = getConfig(MerkleDbConfig.class);
         // Start with a relatively low virtual map size hint and let MerkleDb resize its HDHM
         MerkleDbDataSourceBuilder dataSourceBuilder =
                 new MerkleDbDataSourceBuilder(configuration, maxKey / 2, merkleDbConfig.hashesRamToDiskThreshold());
-        return new VirtualMap(label, dataSourceBuilder, configuration);
+        return new VirtualMap(dataSourceBuilder, configuration);
     }
 
     protected VirtualMap createMap(final long[] map) {
         final long start = System.currentTimeMillis();
-        VirtualMap virtualMap = restoreMap(LABEL);
+        VirtualMap virtualMap = restoreMap();
         if (virtualMap != null) {
             if (verify && map != null) {
                 final int parallelism = ForkJoinPool.getCommonPoolParallelism();
@@ -105,7 +100,7 @@ public abstract class VirtualMapBaseBench extends BaseBench {
                 logger.info("Loaded map in {} ms", System.currentTimeMillis() - start);
             }
         } else {
-            virtualMap = createEmptyMap(LABEL);
+            virtualMap = createEmptyMap();
         }
         BenchmarkMetrics.register(virtualMap::registerMetrics);
         return virtualMap;
@@ -233,8 +228,7 @@ public abstract class VirtualMapBaseBench extends BaseBench {
             return virtualMaps.stream()
                     .map(virtualMap -> {
                         final long start = System.currentTimeMillis();
-                        final VirtualMapMetadata virtualMapMetadata = virtualMap.getMetadata();
-                        final String label = virtualMapMetadata.getLabel();
+                        final String label = VirtualMap.LABEL;
                         final VirtualMap curMap = virtualMap.copy();
 
                         virtualMap.getHash();
@@ -286,7 +280,8 @@ public abstract class VirtualMapBaseBench extends BaseBench {
         return curMap;
     }
 
-    protected VirtualMap restoreMap(final String label) {
+    protected VirtualMap restoreMap() {
+        final String label = VirtualMap.LABEL;
         Path savedDir = null;
         for (int i = 0; ; i++) {
             final Path nextSavedDir = getBenchDir().resolve(SAVED + i).resolve(label);
