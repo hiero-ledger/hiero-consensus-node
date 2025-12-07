@@ -6,13 +6,10 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.state.token.NodePayment;
 import com.hedera.hapi.node.state.token.NodePayments;
-import com.hederahashgraph.api.proto.java.Node;
 import com.swirlds.state.spi.WritableSingletonState;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
-
 import java.util.HashMap;
-import java.util.Map;
 
 /**
  * Default writable implementation for node payments.
@@ -48,7 +45,9 @@ public class WritableNodePaymentsStore extends ReadableNodePaymentsStoreImpl {
      * Resets the node payments state for a new staking period.
      */
     public void resetForNewStakingPeriod() {
-        nodePaymentsState.put(NodePayments.newBuilder().payments(new HashMap<Long, NodePayment>()).build());
+        nodePaymentsState.put(NodePayments.newBuilder()
+                .payments(new HashMap<Long, NodePayment>())
+                .build());
     }
 
     public void addNodePayments(final long accountNumber, final long amount) {

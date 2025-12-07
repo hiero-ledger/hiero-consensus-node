@@ -419,9 +419,7 @@ public class SystemTransactions {
         autoNodeAdminKeyUpdates.tryIfPresent(adminConfig.upgradeSysFilesLoc(), systemContext);
     }
 
-    public void distributeFeesForStakingPeriod(){
-
-    }
+    public void distributeFeesForStakingPeriod() {}
 
     /**
      * Dispatches a synthetic node reward crypto transfer for the given active node accounts.

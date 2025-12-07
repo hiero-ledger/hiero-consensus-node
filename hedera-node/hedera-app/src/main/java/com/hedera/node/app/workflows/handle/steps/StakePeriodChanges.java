@@ -17,6 +17,7 @@ import com.hedera.node.app.records.BlockRecordManager;
 import com.hedera.node.app.records.ReadableBlockRecordStore;
 import com.hedera.node.app.service.roster.RosterService;
 import com.hedera.node.app.service.token.ReadableStakingInfoStore;
+import com.hedera.node.app.service.token.impl.handlers.staking.EndOfStakingPeriodFeeDistributor;
 import com.hedera.node.app.service.token.impl.handlers.staking.EndOfStakingPeriodUpdater;
 import com.hedera.node.app.service.token.records.TokenContext;
 import com.hedera.node.app.workflows.handle.stack.SavepointStackImpl;
@@ -44,6 +45,7 @@ public class StakePeriodChanges {
     private static final long DEFAULT_STAKING_PERIOD_MINS = 1440L;
     private static final long MINUTES_TO_MILLISECONDS = 60_000L;
 
+    private final EndOfStakingPeriodFeeDistributor endOfStakingPeriodFeeDistributor;
     private final EndOfStakingPeriodUpdater endOfStakingPeriodUpdater;
     private final ExchangeRateManager exchangeRateManager;
     private final BlockRecordManager blockRecordManager;
@@ -53,10 +55,12 @@ public class StakePeriodChanges {
     @Inject
     public StakePeriodChanges(
             @NonNull final ConfigProvider configProvider,
+            @NonNull final EndOfStakingPeriodFeeDistributor endOfStakingPeriodFeeDistributor,
             @NonNull final EndOfStakingPeriodUpdater endOfStakingPeriodUpdater,
             @NonNull final ExchangeRateManager exchangeRateManager,
             @NonNull final BlockRecordManager blockRecordManager,
             @NonNull final BlockStreamManager blockStreamManager) {
+        this.endOfStakingPeriodFeeDistributor = requireNonNull(endOfStakingPeriodFeeDistributor);
         this.endOfStakingPeriodUpdater = requireNonNull(endOfStakingPeriodUpdater);
         this.exchangeRateManager = requireNonNull(exchangeRateManager);
         this.blockRecordManager = requireNonNull(blockRecordManager);
@@ -141,6 +145,17 @@ public class StakePeriodChanges {
                 stack.commitFullStack();
             } catch (Exception e) {
                 logger.error("CATASTROPHIC failure updating midnight rates", e);
+                stack.rollbackFullStack();
+            }
+            // Distribute accumulated fees BEFORE updating node stakes
+            try {
+                final var feeDistributionBuilder = endOfStakingPeriodFeeDistributor.distributeFees(
+                        tokenContext, exchangeRateManager.exchangeRates());
+                if (feeDistributionBuilder != null) {
+                    stack.commitTransaction(feeDistributionBuilder);
+                }
+            } catch (Exception e) {
+                logger.error("CATASTROPHIC failure distributing end-of-period fees", e);
                 stack.rollbackFullStack();
             }
             try {

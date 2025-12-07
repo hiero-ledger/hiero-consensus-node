@@ -158,7 +158,7 @@ public class CryptoTransferValidator {
     }
 
     private void validateNoCreditsToFeeCollectionAccount(
-            final TokenTransferList transferList, AccountID feeCollectionAccount) {
+            final TokenTransferList transferList, final AccountID feeCollectionAccount) {
         validateTrue(
                 transferList.transfers().stream()
                         .noneMatch(aa -> (aa.amount() > 0 && aa.accountID().equals(feeCollectionAccount))),

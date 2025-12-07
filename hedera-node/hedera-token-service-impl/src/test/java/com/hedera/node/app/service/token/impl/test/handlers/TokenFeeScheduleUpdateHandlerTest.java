@@ -101,7 +101,8 @@ class TokenFeeScheduleUpdateHandlerTest extends CryptoTokenHandlerTestBase {
     void setup() {
         super.setUp();
         refreshWritableStores();
-        validator = new CustomFeesValidator(new FakeEntityIdFactoryImpl(SHARD, REALM), HederaTestConfigBuilder.createConfigProvider());
+        validator = new CustomFeesValidator(
+                new FakeEntityIdFactoryImpl(SHARD, REALM), HederaTestConfigBuilder.createConfigProvider());
         subject = new TokenFeeScheduleUpdateHandler(validator);
         givenTxn();
         final var config = HederaTestConfigBuilder.create()

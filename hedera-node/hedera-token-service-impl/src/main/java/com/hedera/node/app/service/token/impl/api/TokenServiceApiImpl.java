@@ -50,12 +50,10 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-
 import java.util.ArrayList;
 import java.util.function.LongConsumer;
 import java.util.function.ObjLongConsumer;
 import java.util.function.Predicate;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -411,12 +409,12 @@ public class TokenServiceApiImpl implements TokenServiceApi {
         final var payerAccount = lookupAccount("Payer", payerId);
         if (payerAccount.tinybarBalance() < fees.networkFee()) {
             throw new IllegalArgumentException(("Payer %s (balance=%d) cannot afford network fee of %d, "
-                    + "which should have been a due diligence failure")
+                            + "which should have been a due diligence failure")
                     .formatted(payerId, payerAccount.tinybarBalance(), fees.networkFee()));
         }
         if (fees.serviceFee() > 0 && payerAccount.tinybarBalance() < fees.totalFee()) {
             throw new IllegalArgumentException(("Payer %s (balance=%d) cannot afford total fee of %d, "
-                    + "which means service component should have been zeroed out")
+                            + "which means service component should have been zeroed out")
                     .formatted(payerId, payerAccount.tinybarBalance(), fees.totalFee()));
         }
         // Prioritize network fee over node fee
@@ -514,7 +512,6 @@ public class TokenServiceApiImpl implements TokenServiceApi {
                 .amount(-nodeFees)
                 .build());
     }
-
 
     private void distributeFees(long amount, @Nullable final ObjLongConsumer<AccountID> cb) {
         // We may have a rounding error, so we will first remove the node and staking rewards from the total, and then
@@ -798,13 +795,13 @@ public class TokenServiceApiImpl implements TokenServiceApi {
             @NonNull Account transferAccount,
             @NonNull final ExpiryValidator expiryValidator) {
         return expiryValidator.isDetached(
-                getEntityType(deleteAccount),
-                deleteAccount.expiredAndPendingRemoval(),
-                deleteAccount.tinybarBalance())
+                        getEntityType(deleteAccount),
+                        deleteAccount.expiredAndPendingRemoval(),
+                        deleteAccount.tinybarBalance())
                 || expiryValidator.isDetached(
-                getEntityType(transferAccount),
-                transferAccount.expiredAndPendingRemoval(),
-                transferAccount.tinybarBalance());
+                        getEntityType(transferAccount),
+                        transferAccount.expiredAndPendingRemoval(),
+                        transferAccount.tinybarBalance());
     }
 
     private EntityType getEntityType(@NonNull final Account account) {

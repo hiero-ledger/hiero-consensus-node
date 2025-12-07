@@ -2,25 +2,16 @@
 package com.hedera.node.app.service.token.impl.schemas;
 
 import static com.hedera.hapi.util.HapiUtils.SEMANTIC_VERSION_COMPARATOR;
-import static com.hedera.node.app.service.token.impl.handlers.TokenClaimAirdropHandler.asAccountAmount;
 import static com.swirlds.state.lifecycle.StateMetadata.computeLabel;
 
-import com.hedera.hapi.node.base.AccountAmount;
-import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.SemanticVersion;
-import com.hedera.hapi.node.base.TransferList;
 import com.hedera.hapi.node.state.token.NodePayments;
-import com.hedera.hapi.node.state.token.NodeRewards;
-import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.hapi.platform.state.SingletonType;
 import com.hedera.node.app.service.token.TokenService;
-import com.hedera.node.app.spi.workflows.SystemContext;
 import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.lifecycle.StateDefinition;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Set;
 
 public class V0700TokenSchema extends Schema<SemanticVersion> {

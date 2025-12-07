@@ -36,10 +36,9 @@ import com.hedera.node.app.service.token.impl.validators.CustomFeesValidator;
 import com.hedera.node.app.spi.fixtures.ids.FakeEntityIdFactoryImpl;
 import com.hedera.node.app.spi.validation.ExpiryValidator;
 import com.hedera.node.app.spi.workflows.HandleException;
+import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import java.util.ArrayList;
 import java.util.List;
-
-import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -50,7 +49,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 class CustomFeesValidatorTest extends CryptoTokenHandlerTestBase {
 
-    private final CustomFeesValidator subject = new CustomFeesValidator(new FakeEntityIdFactoryImpl(SHARD, REALM), HederaTestConfigBuilder.createConfigProvider());
+    private final CustomFeesValidator subject = new CustomFeesValidator(
+            new FakeEntityIdFactoryImpl(SHARD, REALM), HederaTestConfigBuilder.createConfigProvider());
 
     @Mock(strictness = Mock.Strictness.LENIENT)
     private ExpiryValidator expiryValidator;
