@@ -24,6 +24,9 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+/**
+ * @see HdhmBucketValidator
+ */
 public class HdhmBucketIntegrityValidator implements HdhmBucketValidator {
 
     private static final Logger log = LogManager.getLogger(HdhmBucketIntegrityValidator.class);
@@ -40,11 +43,17 @@ public class HdhmBucketIntegrityValidator implements HdhmBucketValidator {
     private final CopyOnWriteArrayList<PathMismatchInfo> pathMismatchInfos = new CopyOnWriteArrayList<>();
     private final CopyOnWriteArrayList<HashCodeMismatchInfo> hashCodeMismatchInfos = new CopyOnWriteArrayList<>();
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
-    public String getTag() {
+    public @NonNull String getTag() {
         return HDHM_TAG;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void initialize(@NonNull final MerkleNodeState state) {
         final VirtualMap virtualMap = (VirtualMap) state.getRoot();
@@ -57,6 +66,9 @@ public class HdhmBucketIntegrityValidator implements HdhmBucketValidator {
         this.pathToDiskLocationLeafNodes = vds.getPathToDiskLocationLeafNodes();
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void processBucket(long bucketLocation, @NonNull final ParsedBucket bucket) {
         Objects.requireNonNull(pathToKeyValueDfc);
@@ -109,6 +121,9 @@ public class HdhmBucketIntegrityValidator implements HdhmBucketValidator {
         }
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void validate() {
         if (!stalePathsInfos.isEmpty()) {

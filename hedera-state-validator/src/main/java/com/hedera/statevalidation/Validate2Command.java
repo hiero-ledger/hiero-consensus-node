@@ -10,6 +10,7 @@ import static com.hedera.statevalidation.poc.validator.LeafBytesIntegrityValidat
 import static com.hedera.statevalidation.poc.validator.TokenRelationsIntegrityValidator.TOKEN_RELATIONS_TAG;
 import static com.swirlds.base.units.UnitConstants.BYTES_TO_MEBIBYTES;
 import static com.swirlds.base.units.UnitConstants.MEBIBYTES_TO_BYTES;
+import static com.swirlds.base.units.UnitConstants.NANOSECONDS_TO_MILLISECONDS;
 
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -73,23 +74,39 @@ public class Validate2Command implements Callable<Integer> {
 
     @Option(
             names = {"-io", "--io-threads"},
-            description = "Number of IO threads for reading from disk.")
+            description = "Number of IO threads for reading from disk. Default: 4.")
     private int ioThreads = 4;
 
     @Option(
             names = {"-p", "--process-threads"},
-            description = "Number of CPU threads for processing chunks.")
+            description = "Number of CPU threads for processing chunks. Default: 6.")
     private int processThreads = 6;
 
     @Option(
             names = {"-q", "--queue-capacity"},
-            description = "Queue capacity for backpressure control.")
+            description = "Queue capacity for backpressure control. Default: 100.")
     private int queueCapacity = 100;
 
     @Option(
             names = {"-b", "--batch-size"},
-            description = "Batch size for processing items.")
+            description = "Batch size for processing items. Default: 10.")
     private int batchSize = 10;
+
+    @Option(
+            names = {"-mcs", "--min-chunk-size-mib"},
+            description = "Minimum chunk size in mebibytes (MiB) for file reading. Default: 128 MiB.")
+    private int minChunkSizeMib = 128;
+
+    @Option(
+            names = {"-c", "--chunk-multiplier"},
+            description =
+                    "Multiplier for IO threads to determine target number of chunks (higher value = more, smaller chunks). Default: 2.")
+    private int chunkMultiplier = 2;
+
+    @Option(
+            names = {"-bs", "--buffer-size-kib"},
+            description = "Buffer size in kibibytes (KiB) for file reading operations. Default: 128 KiB.")
+    private int bufferSizeKib = 128;
 
     @CommandLine.Parameters(
             arity = "1..*",
@@ -122,17 +139,14 @@ public class Validate2Command implements Callable<Integer> {
 
     @Override
     public Integer call() {
-        final var validationExecutionListener = new ValidationExecutionListener();
         try (ExecutorService ioPool = Executors.newFixedThreadPool(ioThreads)) {
             try (ExecutorService processPool = Executors.newFixedThreadPool(processThreads)) {
-                final BlockingQueue<List<ItemData>> dataQueue = new LinkedBlockingQueue<>(queueCapacity);
-
-                final long startTime = System.currentTimeMillis();
-                final AtomicLong totalBoundarySearchMillis = new AtomicLong(0L);
+                final long startTime = System.nanoTime();
 
                 // Initialize state and get data file collections
                 parent.initializeStateDir();
                 final DeserializedSignedState deserializedSignedState = StateUtils.getDeserializedSignedState();
+                //noinspection resource -- doesn't matter in this context
                 final MerkleNodeState state =
                         deserializedSignedState.reservedSignedState().get().getState();
                 final VirtualMap virtualMap = (VirtualMap) state.getRoot();
@@ -140,79 +154,82 @@ public class Validate2Command implements Callable<Integer> {
 
                 final DataFileCollection pathToKeyValueDfc =
                         vds.getPathToKeyValue().getFileCollection();
+                //noinspection DataFlowIssue
                 final DataFileCollection pathToHashDfc = vds.getHashStoreDisk().getFileCollection();
                 final DataFileCollection keyToPathDfc = vds.getKeyToPath().getFileCollection();
 
                 // Initialize validators and listeners
+                final var validationExecutionListener = new ValidationExecutionListener();
                 final List<ValidationListener> validationListeners = List.of(validationExecutionListener);
                 final Map<Type, CopyOnWriteArraySet<Validator>> validators =
                         createAndInitValidators(state, tags, validationListeners);
 
-                int totalFiles = 0;
-                long globalTotalSize = 0L;
+                // Calculate file count and total size
+                int dataFileCount = 0;
+                long dataTotalSizeBytes = 0L;
                 final var fileReadTasks = new ArrayList<FileReadTask>();
 
                 if (validators.containsKey(Type.P2KV)) {
-                    totalFiles += pathToKeyValueDfc.getAllCompletedFiles().size();
-                    globalTotalSize += pathToKeyValueDfc.getAllCompletedFiles().stream()
+                    dataFileCount += pathToKeyValueDfc.getAllCompletedFiles().size();
+                    dataTotalSizeBytes += pathToKeyValueDfc.getAllCompletedFiles().stream()
                             .mapToLong(DataFileReader::getSize)
                             .sum();
                     log.debug(
-                            "P2KV file count: {}",
+                            "P2KV data file count: {}",
                             pathToKeyValueDfc.getAllCompletedFiles().size());
                 }
                 if (validators.containsKey(Type.P2H)) {
-                    totalFiles += pathToHashDfc.getAllCompletedFiles().size();
-                    globalTotalSize += pathToHashDfc.getAllCompletedFiles().stream()
+                    dataFileCount += pathToHashDfc.getAllCompletedFiles().size();
+                    dataTotalSizeBytes += pathToHashDfc.getAllCompletedFiles().stream()
                             .mapToLong(DataFileReader::getSize)
                             .sum();
                     log.debug(
-                            "P2H file count: {}",
+                            "P2H data file count: {}",
                             pathToHashDfc.getAllCompletedFiles().size());
                 }
                 if (validators.containsKey(Type.K2P)) {
-                    totalFiles += keyToPathDfc.getAllCompletedFiles().size();
-                    globalTotalSize += keyToPathDfc.getAllCompletedFiles().stream()
+                    dataFileCount += keyToPathDfc.getAllCompletedFiles().size();
+                    dataTotalSizeBytes += keyToPathDfc.getAllCompletedFiles().stream()
                             .mapToLong(DataFileReader::getSize)
                             .sum();
                     log.debug(
-                            "K2P file count: {}",
+                            "K2P data file count: {}",
                             keyToPathDfc.getAllCompletedFiles().size());
                 }
 
                 // Plan all file read tasks (calculate chunks for each file)
                 if (validators.containsKey(Type.P2KV)) {
-                    fileReadTasks.addAll(planTasksFor(pathToKeyValueDfc, Type.P2KV, ioThreads, globalTotalSize));
+                    fileReadTasks.addAll(planTasksFor(pathToKeyValueDfc, Type.P2KV, ioThreads));
                 }
                 if (validators.containsKey(Type.P2H)) {
-                    fileReadTasks.addAll(planTasksFor(pathToHashDfc, Type.P2H, ioThreads, globalTotalSize));
+                    fileReadTasks.addAll(planTasksFor(pathToHashDfc, Type.P2H, ioThreads));
                 }
                 if (validators.containsKey(Type.K2P)) {
-                    fileReadTasks.addAll(planTasksFor(keyToPathDfc, Type.K2P, ioThreads, globalTotalSize));
+                    fileReadTasks.addAll(planTasksFor(keyToPathDfc, Type.K2P, ioThreads));
                 }
 
-                log.debug("File count: {}", totalFiles);
-                log.debug("Total data size: {} MB", globalTotalSize * BYTES_TO_MEBIBYTES);
+                log.debug("Total file count: {}", dataFileCount);
+                log.debug("Total data size: {} MB", dataTotalSizeBytes * BYTES_TO_MEBIBYTES);
+                log.debug("Total file read tasks: {}", fileReadTasks.size());
 
                 // Sort tasks: largest chunks first (better thread utilization)
                 fileReadTasks.sort((a, b) -> Long.compare(b.endByte - b.startByte, a.endByte - a.startByte));
 
-                final int totalFileReadTasks = fileReadTasks.size();
+                // Initialize data structures for file chunks processing
+                final var dataStats = new DataStats();
+                final var totalBoundarySearchNanos = new AtomicLong(0L);
 
-                log.debug("Total file read tasks: {}", totalFileReadTasks);
+                final var dataQueue = new LinkedBlockingQueue<List<ItemData>>(queueCapacity);
+                final var processorFutures = new ArrayList<Future<Void>>();
+                final var ioFutures = new ArrayList<Future<Void>>();
 
-                final DataStats dataStats = new DataStats();
-
-                final List<Future<Void>> processorFutures = new ArrayList<>();
-                final List<Future<Void>> ioFutures = new ArrayList<>();
-
-                // Start processor threads
+                // Start process threads
                 for (int i = 0; i < processThreads; i++) {
                     processorFutures.add(processPool.submit(
                             new ProcessorTask(validators, validationListeners, dataQueue, vds, dataStats)));
                 }
 
-                // Submit all planned file read tasks
+                // Submit file read tasks
                 for (final FileReadTask task : fileReadTasks) {
                     ioFutures.add(ioPool.submit(() -> {
                         readFileChunk(
@@ -221,11 +238,12 @@ public class Validate2Command implements Callable<Integer> {
                                 task.type,
                                 task.startByte,
                                 task.endByte,
-                                totalBoundarySearchMillis);
+                                totalBoundarySearchNanos);
                         return null;
                     }));
                 }
 
+                // Wait for all io tasks to complete
                 for (final Future<Void> future : ioFutures) {
                     try {
                         future.get();
@@ -241,6 +259,7 @@ public class Validate2Command implements Callable<Integer> {
                     dataQueue.put(List.of(ItemData.poisonPill()));
                 }
 
+                // Wait for all processor tasks to complete
                 for (final Future<Void> future : processorFutures) {
                     try {
                         future.get();
@@ -249,8 +268,9 @@ public class Validate2Command implements Callable<Integer> {
                     }
                 }
 
-                for (var validatorSet : validators.values()) {
-                    for (var validator : validatorSet) {
+                // Perform final validations
+                for (final var validatorSet : validators.values()) {
+                    for (final var validator : validatorSet) {
                         try {
                             validator.validate();
                             validationListeners.forEach(listener -> listener.onValidationCompleted(validator.getTag()));
@@ -265,6 +285,7 @@ public class Validate2Command implements Callable<Integer> {
                     }
                 }
 
+                // Output only relevant data stats
                 if (validators.containsKey(Type.P2KV)) {
                     log.info(
                             "P2KV (Path -> Key/Value) Data Stats: \n {}",
@@ -281,10 +302,16 @@ public class Validate2Command implements Callable<Integer> {
                             dataStats.getK2p().toStringContent());
                 }
 
-                log.info(dataStats);
+                // Don't log total aggregate stats if only one validator is present
+                if (validators.size() > 1) {
+                    log.info(dataStats);
+                }
 
-                log.debug("Total boundary search time: {} ms", totalBoundarySearchMillis.get());
-                log.debug("Total processing time: {} ms", System.currentTimeMillis() - startTime);
+                log.debug(
+                        "Total boundary search time: {} ms",
+                        totalBoundarySearchNanos.get() * NANOSECONDS_TO_MILLISECONDS);
+                log.debug(
+                        "Total processing time: {} ms", (System.nanoTime() - startTime) * NANOSECONDS_TO_MILLISECONDS);
 
                 // common validation for error reads
                 if (dataStats.hasErrorReads()) {
@@ -389,24 +416,21 @@ public class Validate2Command implements Callable<Integer> {
 
     // Helper: Plan tasks for one collection
     private List<FileReadTask> planTasksFor(
-            @NonNull final DataFileCollection dfc,
-            @NonNull final ItemData.Type dataType,
-            final int ioThreads,
-            final long globalTotalSize) {
-
+            @NonNull final DataFileCollection dfc, @NonNull final Type dataType, final int ioThreads) {
         final List<FileReadTask> tasks = new ArrayList<>();
 
         final long collectionTotalSize = dfc.getAllCompletedFiles().stream()
                 .mapToLong(DataFileReader::getSize)
                 .sum();
 
+        // Calculate chunks for each file
         for (final DataFileReader reader : dfc.getAllCompletedFiles()) {
             final long fileSize = reader.getSize();
             if (fileSize == 0) {
                 continue;
             }
 
-            final int chunks = calculateOptimalChunks(reader, ioThreads, collectionTotalSize);
+            final int chunks = calculateOptimalChunks(reader, collectionTotalSize, ioThreads);
             final long chunkSize = (fileSize + chunks - 1) / chunks;
 
             log.debug(
@@ -432,32 +456,45 @@ public class Validate2Command implements Callable<Integer> {
         return tasks;
     }
 
+    // Helper: Calculate the optimal number of chunks for the file
     private int calculateOptimalChunks(
-            @NonNull final DataFileReader reader, final int ioThreads, final long globalTotalDataSize) {
-
+            @NonNull final DataFileReader reader, final long collectionTotalSize, final int ioThreads) {
         final long fileSize = reader.getSize();
 
-        // literals here can be extracted to params
-        final long targetChunkSize = Math.max(globalTotalDataSize / (ioThreads * 2), 128 * MEBIBYTES_TO_BYTES);
+        final int minChunkSize = minChunkSizeMib * MEBIBYTES_TO_BYTES;
 
+        // Calculate target chunk size: divide total collection size by (ioThreads * chunkMultiplier)
+        // to distribute work evenly across threads, but ensure it's at least minChunkSize
+        final long targetChunkSize = Math.max(collectionTotalSize / (ioThreads * chunkMultiplier), minChunkSize);
+
+        // If file is smaller than target chunk size, process it as a single chunk
         if (fileSize < targetChunkSize) {
             return 1;
         }
 
+        // Otherwise, divide file into chunks of approximately targetChunkSize (round up)
         return (int) Math.ceil((double) fileSize / targetChunkSize);
     }
 
+    // Helper: Read the file chunk and put data into the queue
     private void readFileChunk(
             @NonNull final DataFileReader reader,
             @NonNull final BlockingQueue<List<ItemData>> dataQueue,
             @NonNull final Type dataType,
             final long startByte,
             final long endByte,
-            @NonNull final AtomicLong totalBoundarySearchMillis)
+            @NonNull final AtomicLong totalBoundarySearchNanos)
             throws IOException, InterruptedException {
 
+        final int bufferSizeBytes = bufferSizeKib * 1024;
         try (ChunkedFileIterator iterator = new ChunkedFileIterator(
-                reader.getPath(), reader.getMetadata(), dataType, startByte, endByte, totalBoundarySearchMillis)) {
+                reader.getPath(),
+                reader.getMetadata(),
+                dataType,
+                startByte,
+                endByte,
+                bufferSizeBytes,
+                totalBoundarySearchNanos)) {
 
             List<ItemData> batch = new ArrayList<>(batchSize);
             while (iterator.next()) {

@@ -6,14 +6,10 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 
 /**
  * Utility class providing assertion-like methods for state validation.
- * Unlike JUnit assertions, these are designed for production validation scenarios
- * and provide detailed error context suitable for operational debugging.
  */
 public final class ValidationAssertions {
 
-    private ValidationAssertions() {
-        // Utility class - no instantiation
-    }
+    private ValidationAssertions() {}
 
     /**
      * Validates that an object is not null.

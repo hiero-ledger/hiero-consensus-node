@@ -25,26 +25,70 @@ import java.util.concurrent.CopyOnWriteArraySet;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+/**
+ * A concurrent task that processes batches of data items from a blocking queue and dispatches them
+ * to appropriate validators based on data type.
+ *
+ * <p>This class is designed to run as part of a parallel validation pipeline where multiple
+ * {@code ProcessorTask} instances consume data items from a shared queue. Each task processes
+ * three types of MerkleDB data:
+ * <ul>
+ *     <li><b>P2KV (Path to Key/Value)</b> - Virtual leaf bytes processed by {@link LeafBytesValidator}</li>
+ *     <li><b>P2H (Path to Hash)</b> - Virtual hash records processed by {@link HashRecordValidator}</li>
+ *     <li><b>K2P (Key to Path)</b> - HDHM buckets processed by {@link HdhmBucketValidator}</li>
+ * </ul>
+ *
+ * <p>The processor validates each data item's location against the corresponding index to determine
+ * if it represents a live object or obsolete data. Live objects are passed to registered validators,
+ * while obsolete items are tracked in statistics. Thread-safe validator sets ({@link CopyOnWriteArraySet})
+ * allow validators to be removed dynamically if they fail during processing.
+ *
+ * <p>The task terminates gracefully when it receives a poison pill item in the queue.
+ *
+ * @see Validator
+ * @see ValidationListener
+ * @see DataStats
+ */
 public class ProcessorTask implements Callable<Void> {
 
     private static final Logger log = LogManager.getLogger(ProcessorTask.class);
 
+    /** List of listeners to notify about validation events such as start, completion, or failure */
     private final List<ValidationListener> validationListeners;
 
+    /** Thread-safe set of validators for P2KV (Path to Key/Value) data items, may be null if no P2KV validators configured */
     private final CopyOnWriteArraySet<Validator> p2kvValidators;
+    /** Thread-safe set of validators for P2H (Path to Hash) data items, may be null if no P2H validators configured */
     private final CopyOnWriteArraySet<Validator> p2hValidators;
+    /** Thread-safe set of validators for K2P (Key to Path) data items, may be null if no K2P validators configured */
     private final CopyOnWriteArraySet<Validator> k2pValidators;
 
+    /** The MerkleDB data source providing access to file collections for error logging */
     private final MerkleDbDataSource vds;
 
+    /** Blocking queue from which batches of data items are consumed for processing */
     private final BlockingQueue<List<ItemData>> dataQueue;
 
+    /** Index mapping leaf node paths to their disk locations, used to determine if P2KV items are live */
     private final LongList pathToDiskLocationLeafNodes;
+    /** Index mapping internal node paths to their disk locations, used to determine if P2H items are live */
     private final LongList pathToDiskLocationInternalNodes;
+    /** Index mapping bucket indexes to their disk locations, used to determine if K2P items are live */
     private final LongList bucketIndexToBucketLocation;
 
+    /** Statistics collector for tracking item counts, space usage, and error counts per data type */
     private final DataStats dataStats;
 
+    /**
+     * Creates a new ProcessorTask that consumes data items from a queue and dispatches them to validators.
+     *
+     * @param validators map of data types to their corresponding validator sets; validators may be
+     *                   dynamically removed from these sets if they fail during processing
+     * @param validationListeners listeners to notify about validation lifecycle events
+     * @param dataQueue the blocking queue from which batches of data items are consumed
+     * @param vds the MerkleDB data source providing location indexes and file collections
+     * @param dataStats statistics collector for tracking processing metrics
+     */
     public ProcessorTask(
             @NonNull final Map<Type, CopyOnWriteArraySet<Validator>> validators,
             @NonNull final List<ValidationListener> validationListeners,
@@ -68,6 +112,16 @@ public class ProcessorTask implements Callable<Void> {
         this.dataStats = dataStats;
     }
 
+    /**
+     * Executes the processor task, continuously consuming and processing batches of data items
+     * from the queue until a poison pill is received or the thread is interrupted.
+     *
+     * <p>Each batch is processed sequentially, with individual items dispatched to the appropriate
+     * processing method based on their data type. The task terminates gracefully when it encounters
+     * a poison pill item in any batch.
+     *
+     * @return always returns {@code null} upon completion
+     */
     @Override
     public Void call() {
         try {
@@ -95,6 +149,11 @@ public class ProcessorTask implements Callable<Void> {
         return null;
     }
 
+    /**
+     * Dispatches a single data item to the appropriate processing method based on its type.
+     *
+     * @param data the data item to process
+     */
     private void processChunk(@NonNull final ItemData data) {
         switch (data.type()) {
             case P2KV -> processVirtualLeafBytes(data);
@@ -103,17 +162,32 @@ public class ProcessorTask implements Callable<Void> {
         }
     }
 
+    /**
+     * Processes a P2KV (Path to Key/Value) data item containing virtual leaf bytes.
+     *
+     * <p>This method performs the following operations:
+     * <ol>
+     *     <li>Updates space and item count statistics</li>
+     *     <li>For live items, passes them to all registered P2KV validators</li>
+     * </ol>
+     *
+     * <p>If a validator throws an exception during processing, it is removed from the validator set
+     * and listeners are notified of the failure. This ensures that a failing validator does not
+     * block processing of subsequent items.
+     *
+     * @param data the P2KV data item to process
+     */
     private void processVirtualLeafBytes(@NonNull final ItemData data) {
         try {
             dataStats.getP2kv().addSpaceSize(data.bytes().length());
             dataStats.getP2kv().incrementItemCount();
 
-            final VirtualLeafBytes virtualLeafBytes =
+            final VirtualLeafBytes<?> virtualLeafBytes =
                     VirtualLeafBytes.parseFrom(data.bytes().toReadableSequentialData());
             final long path = virtualLeafBytes.path();
 
             if (data.location() == pathToDiskLocationLeafNodes.get(path)) {
-                // live object, perform ops on it...
+                // Live object, perform ops on it...
                 if (p2kvValidators == null || p2kvValidators.isEmpty()) {
                     return;
                 }
@@ -121,12 +195,12 @@ public class ProcessorTask implements Callable<Void> {
                     try {
                         ((LeafBytesValidator) validator).processLeafBytes(data.location(), virtualLeafBytes);
                     } catch (final ValidationException e) {
-                        // Remove validator and notify listeners only once (removeIf returns true only for the thread
-                        // that removes)
+                        // Remove validator and notify listeners only once
                         if (p2kvValidators.removeIf(v -> v.getTag().equals(validator.getTag()))) {
                             validationListeners.forEach(listener -> listener.onValidationFailed(e));
                         }
                     } catch (final Exception e) {
+                        // Remove validator and notify listeners only once
                         if (p2kvValidators.removeIf(v -> v.getTag().equals(validator.getTag()))) {
                             validationListeners.forEach(listener -> listener.onValidationFailed(new ValidationException(
                                     validator.getTag(), "Unexpected exception: " + e.getMessage(), e)));
@@ -141,7 +215,7 @@ public class ProcessorTask implements Callable<Void> {
                         vds.getPathToKeyValue().getFileCollection(),
                         data);
             } else {
-                // add to wasted items/space
+                // Add to wasted items/space
                 dataStats.getP2kv().addObsoleteSpaceSize(data.bytes().length());
                 dataStats.getP2kv().incrementObsoleteItemCount();
             }
@@ -152,6 +226,21 @@ public class ProcessorTask implements Callable<Void> {
         }
     }
 
+    /**
+     * Processes a P2H (Path to Hash) data item containing a virtual hash record.
+     *
+     * <p>This method performs the following operations:
+     * <ol>
+     *     <li>Updates space and item count statistics</li>
+     *     <li>For live items, passes them to all registered P2H validators</li>
+     * </ol>
+     *
+     * <p>If a validator throws an exception during processing, it is removed from the validator set
+     * and listeners are notified of the failure. This ensures that a failing validator does not
+     * block processing of subsequent items.
+     *
+     * @param data the P2H data item to process
+     */
     private void processVirtualHashRecord(@NonNull final ItemData data) {
         try {
             dataStats.getP2h().addSpaceSize(data.bytes().length());
@@ -162,7 +251,7 @@ public class ProcessorTask implements Callable<Void> {
             final long path = virtualHashRecord.path();
 
             if (data.location() == pathToDiskLocationInternalNodes.get(path)) {
-                // live object, perform ops on it...
+                // Live object, perform ops on it...
                 if (p2hValidators == null || p2hValidators.isEmpty()) {
                     return;
                 }
@@ -170,14 +259,12 @@ public class ProcessorTask implements Callable<Void> {
                     try {
                         ((HashRecordValidator) validator).processHashRecord(virtualHashRecord);
                     } catch (final ValidationException e) {
-                        // Remove validator and notify listeners only once (removeIf returns true only for the thread
-                        // that removes)
+                        // Remove validator and notify listeners only once
                         if (p2hValidators.removeIf(v -> v.getTag().equals(validator.getTag()))) {
                             validationListeners.forEach(listener -> listener.onValidationFailed(e));
                         }
                     } catch (final Exception e) {
-                        // Remove validator and notify listeners only once (removeIf returns true only for the thread
-                        // that removes)
+                        // Remove validator and notify listeners only once
                         if (p2hValidators.removeIf(v -> v.getTag().equals(validator.getTag()))) {
                             validationListeners.forEach(listener -> listener.onValidationFailed(new ValidationException(
                                     validator.getTag(), "Unexpected exception: " + e.getMessage(), e)));
@@ -192,7 +279,7 @@ public class ProcessorTask implements Callable<Void> {
                         vds.getHashStoreDisk().getFileCollection(),
                         data);
             } else {
-                // add to wasted items/space
+                // Add to wasted items/space
                 dataStats.getP2h().addObsoleteSpaceSize(data.bytes().length());
                 dataStats.getP2h().incrementObsoleteItemCount();
             }
@@ -203,48 +290,63 @@ public class ProcessorTask implements Callable<Void> {
         }
     }
 
+    /**
+     * Processes a K2P (Key to Path) data item containing an HDHM bucket.
+     *
+     * <p>This method performs the following operations:
+     * <ol>
+     *     <li>Updates space and item count statistics</li>
+     *     <li>For live items, passes them to all registered K2P validators</li>
+     * </ol>
+     *
+     * <p>If a validator throws an exception during processing, it is removed from the validator set
+     * and listeners are notified of the failure. This ensures that a failing validator does not
+     * block processing of subsequent items.
+     *
+     * @param data the K2P data item to process
+     */
     private void processBucket(@NonNull final ItemData data) {
         try {
             dataStats.getK2p().addSpaceSize(data.bytes().length());
             dataStats.getK2p().incrementItemCount();
 
-            final ParsedBucket bucket = new ParsedBucket();
-            bucket.readFrom(data.bytes().toReadableSequentialData());
+            try (final ParsedBucket bucket = new ParsedBucket()) {
+                bucket.readFrom(data.bytes().toReadableSequentialData());
 
-            if (data.location() == bucketIndexToBucketLocation.get(bucket.getBucketIndex())) {
-                // live object, perform ops on it...
-                if (k2pValidators == null || k2pValidators.isEmpty()) {
-                    return;
-                }
-                k2pValidators.forEach(validator -> {
-                    try {
-                        ((HdhmBucketValidator) validator).processBucket(data.location(), bucket);
-                    } catch (final ValidationException e) {
-                        // Remove validator and notify listeners only once (removeIf returns true only for the thread
-                        // that removes)
-                        if (k2pValidators.removeIf(v -> v.getTag().equals(validator.getTag()))) {
-                            validationListeners.forEach(listener -> listener.onValidationFailed(e));
-                        }
-                    } catch (final Exception e) {
-                        // Remove validator and notify listeners only once (removeIf returns true only for the thread
-                        // that removes)
-                        if (k2pValidators.removeIf(v -> v.getTag().equals(validator.getTag()))) {
-                            validationListeners.forEach(listener -> listener.onValidationFailed(new ValidationException(
-                                    validator.getTag(), "Unexpected exception: " + e.getMessage(), e)));
-                        }
+                if (data.location() == bucketIndexToBucketLocation.get(bucket.getBucketIndex())) {
+                    // Live object, perform ops on it...
+                    if (k2pValidators == null || k2pValidators.isEmpty()) {
+                        return;
                     }
-                });
-            } else if (data.location() == -1) {
-                dataStats.getK2p().incrementInvalidLocationCount();
-                LogUtils.printFileDataLocationErrorPoc(
-                        log,
-                        "data.location() was -1 for K2P entry",
-                        vds.getKeyToPath().getFileCollection(),
-                        data);
-            } else {
-                // add to wasted items/space
-                dataStats.getK2p().addObsoleteSpaceSize(data.bytes().length());
-                dataStats.getK2p().incrementObsoleteItemCount();
+                    k2pValidators.forEach(validator -> {
+                        try {
+                            ((HdhmBucketValidator) validator).processBucket(data.location(), bucket);
+                        } catch (final ValidationException e) {
+                            // Remove validator and notify listeners only once
+                            if (k2pValidators.removeIf(v -> v.getTag().equals(validator.getTag()))) {
+                                validationListeners.forEach(listener -> listener.onValidationFailed(e));
+                            }
+                        } catch (final Exception e) {
+                            // Remove validator and notify listeners only once
+                            if (k2pValidators.removeIf(v -> v.getTag().equals(validator.getTag()))) {
+                                validationListeners.forEach(
+                                        listener -> listener.onValidationFailed(new ValidationException(
+                                                validator.getTag(), "Unexpected exception: " + e.getMessage(), e)));
+                            }
+                        }
+                    });
+                } else if (data.location() == -1) {
+                    dataStats.getK2p().incrementInvalidLocationCount();
+                    LogUtils.printFileDataLocationErrorPoc(
+                            log,
+                            "data.location() was -1 for K2P entry",
+                            vds.getKeyToPath().getFileCollection(),
+                            data);
+                } else {
+                    // Add to wasted items/space
+                    dataStats.getK2p().addObsoleteSpaceSize(data.bytes().length());
+                    dataStats.getK2p().incrementObsoleteItemCount();
+                }
             }
         } catch (final Exception e) {
             dataStats.getK2p().incrementParseErrorCount();

@@ -10,6 +10,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+/**
+ * @see HashRecordValidator
+ */
 public class HashRecordIntegrityValidator implements HashRecordValidator {
 
     private static final Logger log = LogManager.getLogger(HashRecordIntegrityValidator.class);
@@ -18,20 +21,32 @@ public class HashRecordIntegrityValidator implements HashRecordValidator {
 
     private final AtomicInteger totalEntriesProcessed = new AtomicInteger(0);
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
-    public String getTag() {
+    public @NonNull String getTag() {
         return INTERNAL_TAG;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void initialize(@NonNull final MerkleNodeState state) {}
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void processHashRecord(@NonNull final VirtualHashRecord hashRecord) {
         ValidationAssertions.requireNonNull(hashRecord.hash(), getTag());
         totalEntriesProcessed.incrementAndGet();
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void validate() {
         log.debug("Successfully checked {} VirtualHashRecord entries", totalEntriesProcessed.get());

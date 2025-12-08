@@ -19,6 +19,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+/**
+ * @see LeafBytesValidator
+ */
 public class LeafBytesIntegrityValidator implements LeafBytesValidator {
 
     private static final Logger log = LogManager.getLogger(LeafBytesIntegrityValidator.class);
@@ -32,11 +35,17 @@ public class LeafBytesIntegrityValidator implements LeafBytesValidator {
     private final AtomicInteger successCount = new AtomicInteger(0);
     private final AtomicInteger exceptionCount = new AtomicInteger(0);
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
-    public String getTag() {
+    public @NonNull String getTag() {
         return LEAF_TAG;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void initialize(@NonNull final MerkleNodeState state) {
         this.virtualMap = (VirtualMap) state.getRoot();
@@ -45,8 +54,11 @@ public class LeafBytesIntegrityValidator implements LeafBytesValidator {
         this.keyToPath = vds.getKeyToPath();
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
-    public void processLeafBytes(long dataLocation, @NonNull final VirtualLeafBytes leafBytes) {
+    public void processLeafBytes(long dataLocation, @NonNull final VirtualLeafBytes<?> leafBytes) {
         Objects.requireNonNull(virtualMap);
         Objects.requireNonNull(pathToKeyValueDfc);
         Objects.requireNonNull(keyToPath);
@@ -67,6 +79,9 @@ public class LeafBytesIntegrityValidator implements LeafBytesValidator {
         }
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void validate() {
         log.debug("Successfully checked {} VirtualLeafBytes entries", successCount.get());

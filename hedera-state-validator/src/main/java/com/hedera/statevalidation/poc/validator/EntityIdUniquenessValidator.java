@@ -38,6 +38,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+/**
+ * @see LeafBytesValidator
+ */
 public class EntityIdUniquenessValidator implements LeafBytesValidator {
 
     private static final Logger log = LogManager.getLogger(EntityIdUniquenessValidator.class);
@@ -54,11 +57,17 @@ public class EntityIdUniquenessValidator implements LeafBytesValidator {
 
     private final AtomicInteger issuesFound = new AtomicInteger(0);
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
-    public String getTag() {
+    public @NonNull String getTag() {
         return ENTITY_ID_UNIQUENESS_TAG;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void initialize(@NonNull final MerkleNodeState state) {
         this.tokensState = Objects.requireNonNull(
@@ -75,8 +84,11 @@ public class EntityIdUniquenessValidator implements LeafBytesValidator {
                 state.getReadableStates(ScheduleService.NAME).get(SCHEDULES_BY_ID_STATE_ID));
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
-    public void processLeafBytes(long dataLocation, @NonNull final VirtualLeafBytes leafBytes) {
+    public void processLeafBytes(long dataLocation, @NonNull final VirtualLeafBytes<?> leafBytes) {
         long entityId = IMPERMISSIBLE_ENTITY_ID;
 
         try {
@@ -116,6 +128,9 @@ public class EntityIdUniquenessValidator implements LeafBytesValidator {
         }
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void validate() {
         ValidationAssertions.requireEqual(0, issuesFound.get(), getTag());

@@ -16,6 +16,9 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicLong;
 
+/**
+ * @see LeafBytesValidator
+ */
 public class EntityIdCountValidator implements LeafBytesValidator {
 
     public static final String ENTITY_ID_COUNT_TAG = "entityIdCount";
@@ -38,11 +41,17 @@ public class EntityIdCountValidator implements LeafBytesValidator {
     private final AtomicLong hookCount = new AtomicLong(0);
     private final AtomicLong lambdaStorageCount = new AtomicLong(0);
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
-    public String getTag() {
+    public @NonNull String getTag() {
         return ENTITY_ID_COUNT_TAG;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void initialize(@NonNull final MerkleNodeState state) {
         final ReadableSingletonState<EntityCounts> entityIdSingleton =
@@ -50,8 +59,11 @@ public class EntityIdCountValidator implements LeafBytesValidator {
         this.entityCounts = Objects.requireNonNull(entityIdSingleton.get());
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
-    public void processLeafBytes(long dataLocation, @NonNull final VirtualLeafBytes leafBytes) {
+    public void processLeafBytes(long dataLocation, @NonNull final VirtualLeafBytes<?> leafBytes) {
         try {
             final StateKey key = StateKey.PROTOBUF.parse(leafBytes.keyBytes());
             switch (key.key().kind()) {
@@ -76,6 +88,9 @@ public class EntityIdCountValidator implements LeafBytesValidator {
         }
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void validate() {
         ValidationAssertions.requireNonNull(entityCounts, getTag());

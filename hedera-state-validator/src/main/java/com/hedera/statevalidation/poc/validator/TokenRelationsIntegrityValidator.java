@@ -26,6 +26,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+/**
+ * @see LeafBytesValidator
+ */
 public class TokenRelationsIntegrityValidator implements LeafBytesValidator {
 
     private static final Logger log = LogManager.getLogger(TokenRelationsIntegrityValidator.class);
@@ -39,11 +42,17 @@ public class TokenRelationsIntegrityValidator implements LeafBytesValidator {
     private final AtomicInteger accountFailCounter = new AtomicInteger(0);
     private final AtomicInteger tokenFailCounter = new AtomicInteger(0);
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
-    public String getTag() {
+    public @NonNull String getTag() {
         return TOKEN_RELATIONS_TAG;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void initialize(@NonNull final MerkleNodeState state) {
         this.virtualMap = (VirtualMap) state.getRoot();
@@ -55,8 +64,11 @@ public class TokenRelationsIntegrityValidator implements LeafBytesValidator {
         log.debug("Number of token relations: {}", numTokenRelations);
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
-    public void processLeafBytes(long dataLocation, @NonNull final VirtualLeafBytes leafBytes) {
+    public void processLeafBytes(long dataLocation, @NonNull final VirtualLeafBytes<?> leafBytes) {
         Objects.requireNonNull(virtualMap);
 
         final Bytes keyBytes = leafBytes.keyBytes();
@@ -103,6 +115,9 @@ public class TokenRelationsIntegrityValidator implements LeafBytesValidator {
         }
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void validate() {
         ValidationAssertions.requireEqual(objectsProcessed.get(), numTokenRelations, getTag());

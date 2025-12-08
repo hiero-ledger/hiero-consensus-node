@@ -27,30 +27,78 @@ import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.concurrent.atomic.AtomicLong;
 
+/**
+ * Iterator class for iterating over data items in a specific byte range (chunk) of a data file
+ * created by {@link com.swirlds.merkledb.files.DataFileWriter}. It is designed to be used in a
+ * {@code while(iter.next()){...}} loop, where you can then read the data items info for the
+ * current item with {@link #getDataItemData()} and {@link #getDataItemDataLocation()}.
+ *
+ * <p>Unlike {@link com.swirlds.merkledb.files.DataFileIterator} which reads an entire file
+ * sequentially, this iterator operates on a defined byte range, enabling parallel processing
+ * of large data files by creating multiple iterator instances working on different chunks
+ * of the same file concurrently.
+ *
+ * <p>When starting from a non-zero byte offset, the iterator automatically scans forward to
+ * locate a valid data item boundary by validating the protobuf structure of encountered data.
+ * Supported data types for boundary validation include {@link VirtualHashRecord},
+ * {@link VirtualLeafBytes}, and {@link Bucket}.
+ *
+ * <p>Each iterator instance should be used from a single thread, but multiple instances
+ * can safely operate on different byte ranges of the same file in parallel.
+ *
+ * @see com.swirlds.merkledb.files.DataFileIterator
+ * @see com.swirlds.merkledb.files.DataFileReader
+ */
 public class ChunkedFileIterator implements AutoCloseable {
-    // move to cmd params?
-    private static final int BUFFER_SIZE = 128 * 1024;
-
+    /** File channel used for reading the data file and positioning within the byte range */
     private final FileChannel channel;
+    /** The file metadata providing file index for data location calculation */
     private final DataFileMetadata metadata;
 
+    /** The starting byte offset in the file for this chunk, adjusted to the nearest valid data item boundary */
     private long startByte;
+    /** The ending byte offset in the file for this chunk (exclusive) */
     private final long endByte;
 
+    /** The type of data items in this file, used for boundary validation when starting mid-file */
     private final ItemData.Type dataType;
 
+    /** Buffer size in bytes for both boundary scanning and stream reading operations */
+    private final int bufferSizeBytes;
+
+    /** Buffered input stream this iterator is reading from */
     private BufferedInputStream bufferedInputStream;
+    /** Readable sequential data on top of the buffered input stream */
     private ReadableSequentialData in;
+    /** Buffer that is reused for reading each data item */
     private BufferedData dataItemBuffer;
+    /** The offset in bytes from start of file to the beginning of the current data item */
     private long currentDataItemFilePosition;
+    /** True if this iterator has been closed */
     private boolean closed = false;
 
+    /**
+     * Create a new ChunkedFileIterator for a specific byte range of an existing data file.
+     *
+     * <p>If {@code startByte} is greater than zero, the constructor will scan forward from that
+     * position to find a valid data item boundary before beginning iteration.
+     *
+     * @param path the path to the data file to read
+     * @param metadata the file metadata providing the file index
+     * @param dataType the type of data items in this file, used for boundary validation
+     * @param startByte the starting byte offset in the file (will be adjusted to nearest boundary if non-zero)
+     * @param endByte the ending byte offset in the file (exclusive)
+     * @param bufferSizeBytes the buffer size for both boundary scanning and stream reading
+     * @param totalBoundarySearchMillis atomic counter to accumulate boundary search time in nanoseconds
+     * @throws IOException if there was a problem opening the file or finding a valid boundary
+     */
     public ChunkedFileIterator(
             @NonNull final Path path,
             @NonNull final DataFileMetadata metadata,
             @NonNull final Type dataType,
             long startByte,
             long endByte,
+            int bufferSizeBytes,
             @NonNull final AtomicLong totalBoundarySearchMillis)
             throws IOException {
         this.channel = FileChannel.open(path, StandardOpenOption.READ);
@@ -62,14 +110,14 @@ public class ChunkedFileIterator implements AutoCloseable {
 
             this.dataType = dataType;
 
+            this.bufferSizeBytes = bufferSizeBytes;
+
             if (startByte > 0) {
                 // Find boundary, then position channel and open streams
-                final long startTime = System.currentTimeMillis();
+                final long startTimeNanos = System.nanoTime();
                 this.startByte += findBoundaryOffset();
-                // FIXME: update to nanos
-                final long boundaryOffsetSearchTime = System.currentTimeMillis() - startTime;
-                //            System.out.println("Found boundary offset in:" + boundaryOffsetSearchTime + " ms");
-                totalBoundarySearchMillis.addAndGet(boundaryOffsetSearchTime);
+                final long boundaryOffsetSearchTimeNanos = System.nanoTime() - startTimeNanos;
+                totalBoundarySearchMillis.addAndGet(boundaryOffsetSearchTimeNanos);
                 channel.position(this.startByte);
                 openStreams();
             } else {
@@ -88,16 +136,107 @@ public class ChunkedFileIterator implements AutoCloseable {
         }
     }
 
+    /**
+     * Advance to the next data item within this chunk's byte range.
+     *
+     * @return true if a data item was read, or false if the end of the chunk has been reached
+     * @throws IOException if there was a problem reading from the file
+     * @throws IllegalStateException if the iterator has been closed
+     * @throws IllegalArgumentException if an unknown data file field is encountered
+     */
+    public boolean next() throws IOException {
+        if (closed) {
+            throw new IllegalStateException("Cannot read from a closed iterator");
+        }
+
+        while (in.hasRemaining()) {
+            currentDataItemFilePosition = startByte + in.position();
+
+            if (currentDataItemFilePosition >= endByte) {
+                return false;
+            }
+
+            final int tag = in.readVarInt(false);
+            final int fieldNum = tag >> TAG_FIELD_OFFSET;
+
+            if (fieldNum == FIELD_DATAFILE_ITEMS.number()) {
+                final int dataItemSize = in.readVarInt(false);
+                dataItemBuffer = fillBuffer(dataItemSize);
+                return true;
+            } else if (fieldNum == FIELD_DATAFILE_METADATA.number()) {
+                final int metadataSize = in.readVarInt(false);
+                in.skip(metadataSize);
+            } else {
+                throw new IllegalArgumentException("Unknown data file field: " + fieldNum);
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Get the current data item's data. This is a shared buffer and must NOT be leaked from
+     * the call site or modified directly.
+     *
+     * @return buffer containing the data item bytes, or null if the iterator has been closed
+     *         or is in the before-first or after-last states
+     */
+    public BufferedData getDataItemData() {
+        return dataItemBuffer;
+    }
+
+    /**
+     * Get the data location (file index + byte offset) for the current data item.
+     *
+     * @return current data item location encoded as a long value
+     */
+    public long getDataItemDataLocation() {
+        return DataFileCommon.dataLocation(metadata.getIndex(), currentDataItemFilePosition);
+    }
+
+    /**
+     * Close the iterator, releasing all resources including the file channel and streams.
+     *
+     * @throws IOException if this resource cannot be closed
+     */
+    @Override
+    public void close() throws IOException {
+        if (!closed) {
+            closed = true;
+            dataItemBuffer = null;
+            if (bufferedInputStream != null) {
+                bufferedInputStream.close();
+            }
+            channel.close();
+        }
+    }
+
+    // =================================================================================================================
+    // Private methods
+
+    /**
+     * Opens buffered input streams on top of the file channel for sequential reading.
+     */
     private void openStreams() {
         final var channelStream = Channels.newInputStream(channel);
-        this.bufferedInputStream = new BufferedInputStream(channelStream, BUFFER_SIZE);
+        this.bufferedInputStream = new BufferedInputStream(channelStream, bufferSizeBytes);
         this.in = new ReadableStreamingData(bufferedInputStream);
     }
 
+    /**
+     * Scans forward from the current {@code startByte} position to find the offset to the nearest
+     * valid data item boundary. Uses buffered reads to minimize disk I/O.
+     *
+     * <p>The method reads a chunk of data and scans byte-by-byte looking for a valid protobuf tag
+     * followed by data that can be successfully parsed according to the {@code dataType}.
+     *
+     * @return the offset from {@code startByte} to the nearest valid data item boundary
+     * @throws IOException if no valid boundary is found within the buffer or if reading fails
+     */
     private long findBoundaryOffset() throws IOException {
         // Use buffer to minimize disk I/O and channel repositioning
         // It should account for boundary + full data item to validate its proto schema
-        final ByteBuffer scanBuffer = ByteBuffer.allocate(BUFFER_SIZE);
+        final ByteBuffer scanBuffer = ByteBuffer.allocate(bufferSizeBytes);
 
         // Read large chunk at current position
         scanBuffer.clear();
@@ -148,6 +287,12 @@ public class ChunkedFileIterator implements AutoCloseable {
         throw new IOException("No valid data item boundary found in chunk");
     }
 
+    /**
+     * Validates whether the buffer contains a valid data item of the expected type.
+     *
+     * @param buffer the buffer containing potential data item bytes
+     * @return true if the buffer contains valid data that can be parsed, false otherwise
+     */
     private boolean isValidDataItem(@NonNull final BufferedData buffer) {
         try {
             if (!buffer.hasRemaining()) {
@@ -168,77 +313,54 @@ public class ChunkedFileIterator implements AutoCloseable {
         }
     }
 
+    /**
+     * Attempts to parse the buffer as a {@link VirtualHashRecord}.
+     *
+     * @param buffer the buffer containing potential hash record bytes
+     * @return true if parsing succeeds
+     */
     private boolean validateVirtualHashRecord(@NonNull final BufferedData buffer) {
         VirtualHashRecord.parseFrom(buffer);
         return true;
     }
 
+    /**
+     * Attempts to parse the buffer as a {@link VirtualLeafBytes}.
+     *
+     * @param buffer the buffer containing potential leaf bytes
+     * @return true if parsing succeeds
+     */
     private boolean validateVirtualLeafBytes(@NonNull final BufferedData buffer) {
         VirtualLeafBytes.parseFrom(buffer);
         return true;
     }
 
-    private boolean validateBucket(@NonNull final BufferedData buffer) {
-        final Bucket bucket = new ParsedBucket();
-        bucket.readFrom(buffer);
-        return true;
-    }
-
-    public boolean next() throws IOException {
-        if (closed) {
-            throw new IllegalStateException("Cannot read from a closed iterator");
-        }
-
-        while (in.hasRemaining()) {
-            currentDataItemFilePosition = startByte + in.position();
-
-            if (currentDataItemFilePosition >= endByte) {
-                return false;
-            }
-
-            final int tag = in.readVarInt(false);
-            final int fieldNum = tag >> TAG_FIELD_OFFSET;
-
-            if (fieldNum == FIELD_DATAFILE_ITEMS.number()) {
-                final int dataItemSize = in.readVarInt(false);
-                dataItemBuffer = fillBuffer(dataItemSize);
-                return true;
-            } else if (fieldNum == FIELD_DATAFILE_METADATA.number()) {
-                final int metadataSize = in.readVarInt(false);
-                in.skip(metadataSize);
-            } else {
-                throw new IllegalArgumentException("Unknown data file field: " + fieldNum);
-            }
-        }
-
-        return false;
-    }
-
-    public BufferedData getDataItemData() {
-        return dataItemBuffer;
-    }
-
-    public long getDataItemDataLocation() {
-        return DataFileCommon.dataLocation(metadata.getIndex(), currentDataItemFilePosition);
-    }
-
-    @Override
-    public void close() throws IOException {
-        if (!closed) {
-            closed = true;
-            dataItemBuffer = null;
-            if (bufferedInputStream != null) {
-                bufferedInputStream.close();
-            }
-            channel.close();
+    /**
+     * Attempts to parse the buffer as a {@link Bucket}.
+     *
+     * @param buffer the buffer containing potential bucket bytes
+     * @return true if parsing succeeds
+     */
+    private boolean validateBucket(@NonNull final BufferedData buffer) throws IOException {
+        try (final Bucket bucket = new ParsedBucket()) {
+            bucket.readFrom(buffer);
+            return true;
         }
     }
 
+    /**
+     * Reads the specified number of bytes from the current position into a buffer.
+     *
+     * @param bytesToRead number of bytes to read
+     * @return buffer containing the requested bytes
+     * @throws IOException if the requested bytes cannot be read or if bytesToRead is invalid
+     */
     private BufferedData fillBuffer(int bytesToRead) throws IOException {
         if (bytesToRead <= 0) {
             throw new IOException("Malformed data, requested bytes: " + bytesToRead);
         }
 
+        // Create or resize the buffer if necessary
         if (dataItemBuffer == null || dataItemBuffer.capacity() < bytesToRead) {
             dataItemBuffer = BufferedData.allocate(bytesToRead);
         }

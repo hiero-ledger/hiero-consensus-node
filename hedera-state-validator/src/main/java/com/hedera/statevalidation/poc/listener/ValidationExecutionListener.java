@@ -2,37 +2,53 @@
 package com.hedera.statevalidation.poc.listener;
 
 import com.hedera.statevalidation.poc.util.ValidationException;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-// update logging format
+/**
+ * A {@link ValidationListener} implementation that logs validation lifecycle events
+ * and tracks overall validation failure status.
+ */
 public class ValidationExecutionListener implements ValidationListener {
 
     private static final Logger log = LogManager.getLogger(ValidationExecutionListener.class);
 
     private volatile boolean failed = false;
 
+    /**
+     * {@inheritDoc}
+     * <p>Logs the validator start event at INFO level.
+     */
     @Override
-    public void onValidationStarted(String tag) {
-        log.debug(framedString(tag + " started"));
+    public void onValidationStarted(@NonNull final String tag) {
+        log.info("Validator [{}] started", tag);
     }
 
+    /**
+     * {@inheritDoc}
+     * <p>Logs the validator completion event at INFO level.
+     */
     @Override
-    public void onValidationCompleted(String tag) {
-        log.debug(framedString(tag + " finished"));
+    public void onValidationCompleted(@NonNull final String tag) {
+        log.info("Validator [{}] completed successfully", tag);
     }
 
+    /**
+     * {@inheritDoc}
+     * <p>Sets the failed flag and logs the failure event at ERROR level.
+     */
     @Override
-    public void onValidationFailed(ValidationException error) {
+    public void onValidationFailed(@NonNull final ValidationException error) {
         this.failed = true;
-        log.debug(framedString(error.getValidatorTag() + " failed"));
+        log.error("Validator [{}] failed: {}", error.getValidatorTag(), error.getMessage(), error);
     }
 
-    private String framedString(String stringToFrame) {
-        String frame = " ".repeat(stringToFrame.length() + 6);
-        return String.format("\n%s\n   %s   \n%s", frame, stringToFrame, frame);
-    }
-
+    /**
+     * Returns whether any validator has failed.
+     *
+     * @return {@code true} if at least one validator failed, {@code false} otherwise
+     */
     public boolean isFailed() {
         return failed;
     }

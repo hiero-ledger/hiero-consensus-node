@@ -24,6 +24,9 @@ import java.util.concurrent.atomic.AtomicLong;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+/**
+ * @see LeafBytesValidator
+ */
 public class AccountAndSupplyValidator implements LeafBytesValidator {
 
     private static final Logger log = LogManager.getLogger(AccountAndSupplyValidator.class);
@@ -40,11 +43,17 @@ public class AccountAndSupplyValidator implements LeafBytesValidator {
 
     private long numAccounts;
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
-    public String getTag() {
+    public @NonNull String getTag() {
         return ACCOUNT_TAG;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void initialize(@NonNull final MerkleNodeState state) {
         final VirtualMap virtualMap = (VirtualMap) state.getRoot();
@@ -62,8 +71,11 @@ public class AccountAndSupplyValidator implements LeafBytesValidator {
         log.debug("Number of accounts: {}", numAccounts);
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
-    public void processLeafBytes(long dataLocation, @NonNull final VirtualLeafBytes leafBytes) {
+    public void processLeafBytes(long dataLocation, @NonNull final VirtualLeafBytes<?> leafBytes) {
         final Bytes keyBytes = leafBytes.keyBytes();
         final Bytes valueBytes = leafBytes.valueBytes();
         final int readKeyStateId = StateKeyUtils.extractStateIdFromStateKeyOneOf(keyBytes);
@@ -84,6 +96,9 @@ public class AccountAndSupplyValidator implements LeafBytesValidator {
         }
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void validate() {
         ValidationAssertions.requireEqual(TOTAL_tHBAR_SUPPLY, totalBalance.get(), getTag());
