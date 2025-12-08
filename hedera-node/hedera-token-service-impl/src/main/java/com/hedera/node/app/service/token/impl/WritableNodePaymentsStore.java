@@ -45,9 +45,8 @@ public class WritableNodePaymentsStore extends ReadableNodePaymentsStoreImpl {
      * Resets the node payments state for a new staking period.
      */
     public void resetForNewStakingPeriod() {
-        nodePaymentsState.put(NodePayments.newBuilder()
-                .payments(new HashMap<Long, NodePayment>())
-                .build());
+        nodePaymentsState.put(
+                NodePayments.newBuilder().payments(new HashMap<>()).build());
     }
 
     public void addNodePayments(final long accountNumber, final long amount) {

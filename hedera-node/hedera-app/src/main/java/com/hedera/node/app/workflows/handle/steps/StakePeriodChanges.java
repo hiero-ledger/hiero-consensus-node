@@ -17,9 +17,10 @@ import com.hedera.node.app.records.BlockRecordManager;
 import com.hedera.node.app.records.ReadableBlockRecordStore;
 import com.hedera.node.app.service.roster.RosterService;
 import com.hedera.node.app.service.token.ReadableStakingInfoStore;
-import com.hedera.node.app.service.token.impl.handlers.staking.EndOfStakingPeriodFeeDistributor;
 import com.hedera.node.app.service.token.impl.handlers.staking.EndOfStakingPeriodUpdater;
 import com.hedera.node.app.service.token.records.TokenContext;
+import com.hedera.node.app.services.FeeDistributor;
+import com.hedera.node.app.workflows.handle.record.SystemTransactions;
 import com.hedera.node.app.workflows.handle.stack.SavepointStackImpl;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockStreamConfig;
@@ -45,22 +46,24 @@ public class StakePeriodChanges {
     private static final long DEFAULT_STAKING_PERIOD_MINS = 1440L;
     private static final long MINUTES_TO_MILLISECONDS = 60_000L;
 
-    private final EndOfStakingPeriodFeeDistributor endOfStakingPeriodFeeDistributor;
+    private final FeeDistributor feeDistributor;
     private final EndOfStakingPeriodUpdater endOfStakingPeriodUpdater;
     private final ExchangeRateManager exchangeRateManager;
     private final BlockRecordManager blockRecordManager;
     private final BlockStreamManager blockStreamManager;
     private final StreamMode streamMode;
+    private final SystemTransactions systemTransactions;
 
     @Inject
     public StakePeriodChanges(
             @NonNull final ConfigProvider configProvider,
-            @NonNull final EndOfStakingPeriodFeeDistributor endOfStakingPeriodFeeDistributor,
+            @NonNull final FeeDistributor feeDistributor,
             @NonNull final EndOfStakingPeriodUpdater endOfStakingPeriodUpdater,
             @NonNull final ExchangeRateManager exchangeRateManager,
             @NonNull final BlockRecordManager blockRecordManager,
-            @NonNull final BlockStreamManager blockStreamManager) {
-        this.endOfStakingPeriodFeeDistributor = requireNonNull(endOfStakingPeriodFeeDistributor);
+            @NonNull final BlockStreamManager blockStreamManager,
+            @NonNull final SystemTransactions systemTransactions) {
+        this.feeDistributor = requireNonNull(feeDistributor);
         this.endOfStakingPeriodUpdater = requireNonNull(endOfStakingPeriodUpdater);
         this.exchangeRateManager = requireNonNull(exchangeRateManager);
         this.blockRecordManager = requireNonNull(blockRecordManager);
@@ -69,6 +72,7 @@ public class StakePeriodChanges {
                 .getConfiguration()
                 .getConfigData(BlockStreamConfig.class)
                 .streamMode();
+        this.systemTransactions = requireNonNull(systemTransactions);
     }
 
     /**
@@ -149,8 +153,8 @@ public class StakePeriodChanges {
             }
             // Distribute accumulated fees BEFORE updating node stakes
             try {
-                final var feeDistributionBuilder = endOfStakingPeriodFeeDistributor.distributeFees(
-                        tokenContext, exchangeRateManager.exchangeRates());
+                final var feeDistributionBuilder = feeDistributor.distributeFees(
+                        stack, tokenContext, exchangeRateManager.exchangeRates(), systemTransactions);
                 if (feeDistributionBuilder != null) {
                     stack.commitTransaction(feeDistributionBuilder);
                 }

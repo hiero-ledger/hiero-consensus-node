@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.hedera.node.app.service.token.impl.handlers.staking;
+package com.hedera.node.app.services;
 
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_TRANSFER;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
@@ -19,13 +19,17 @@ import com.hedera.node.app.service.token.impl.WritableNodePaymentsStore;
 import com.hedera.node.app.service.token.records.CryptoTransferStreamBuilder;
 import com.hedera.node.app.service.token.records.TokenContext;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
+import com.hedera.node.app.workflows.handle.record.SystemTransactions;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.AccountsConfig;
 import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.node.config.data.NodesConfig;
 import com.hedera.node.config.data.StakingConfig;
+import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+
+import java.time.Instant;
 import java.util.ArrayList;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -44,10 +48,10 @@ import org.apache.logging.log4j.Logger;
  * </ol>
  */
 @Singleton
-public class EndOfStakingPeriodFeeDistributor {
-    private static final Logger log = LogManager.getLogger(EndOfStakingPeriodFeeDistributor.class);
+public class FeeDistributor {
+    private static final Logger log = LogManager.getLogger(FeeDistributor.class);
 
-    private static final String FEE_DISTRIBUTION_MEMO = "End of staking period fee distribution";
+    public static final String FEE_DISTRIBUTION_MEMO = "Synthetic end of staking period fee distribution";
 
     private final AccountsConfig accountsConfig;
     private final LedgerConfig ledgerConfig;
@@ -56,14 +60,15 @@ public class EndOfStakingPeriodFeeDistributor {
     private final EntityIdFactory entityIdFactory;
 
     /**
-     * Constructs an {@link EndOfStakingPeriodFeeDistributor} instance.
+     * Constructs an {@link FeeDistributor} instance.
      *
      * @param configProvider the configuration provider
      * @param entityIdFactory the entity ID factory
      */
     @Inject
-    public EndOfStakingPeriodFeeDistributor(
-            @NonNull final ConfigProvider configProvider, @NonNull final EntityIdFactory entityIdFactory) {
+    public FeeDistributor(
+            @NonNull final ConfigProvider configProvider,
+            @NonNull final EntityIdFactory entityIdFactory) {
         final var config = configProvider.getConfiguration();
         this.accountsConfig = config.getConfigData(AccountsConfig.class);
         this.ledgerConfig = config.getConfigData(LedgerConfig.class);
@@ -78,11 +83,13 @@ public class EndOfStakingPeriodFeeDistributor {
      * This method should be called at the start of each new staking period, before any other operations.
      *
      * @param context the token context for the current transaction
-     * @param exchangeRateSet
+     * @param exchangeRateSet the current exchange rate set
      * @return the stream builder for the synthetic fee distribution transaction, or null if no fees to distribute
      */
     @Nullable
-    public StreamBuilder distributeFees(@NonNull final TokenContext context, final ExchangeRateSet exchangeRateSet) {
+    public StreamBuilder distributeFees(
+            @NonNull final State state, @NonNull final TokenContext context, final ExchangeRateSet exchangeRateSet,
+            SystemTransactions systemTransactions) {
         requireNonNull(context);
         log.info("Distributing accumulated fees for the just-finished staking period @ {}", context.consensusTime());
 
@@ -90,51 +97,37 @@ public class EndOfStakingPeriodFeeDistributor {
         final var nodePaymentsStore = context.writableStore(WritableNodePaymentsStore.class);
 
         final var feeCollectionAccountId = entityIdFactory.newAccountId(accountsConfig.feeCollectionAccount());
-        final var feeCollectionAccount = accountStore.getAccountById(feeCollectionAccountId);
-        if (feeCollectionAccount == null) {
-            log.warn("Fee collection account {} not found, skipping fee distribution", feeCollectionAccountId);
-            return null;
-        }
-
+        final var feeCollectionAccount = requireNonNull(accountStore.getAccountById(feeCollectionAccountId));
         final long feeCollectionBalance = feeCollectionAccount.tinybarBalance();
+
         if (feeCollectionBalance == 0) {
             log.info("Fee collection account has zero balance, skipping fee distribution");
             nodePaymentsStore.resetForNewStakingPeriod();
             return null;
         }
 
-        final var nodePayments = nodePaymentsStore.get();
-        if (nodePayments == null) {
-            log.warn("NodePayments state not found, skipping fee distribution");
-            return null;
-        }
+        final var nodePayments = requireNonNull(nodePaymentsStore.get());
 
         final var transferAmounts = new ArrayList<AccountAmount>();
         long totalNodeFees = 0L;
 
         // Pay node fees to each node's account
         for (final var entry : nodePayments.payments().entrySet()) {
-            final var nodeAccountNum = entry.getKey();
-            final var nodePayment = entry.getValue();
-            final var nodeAccountId = entityIdFactory.newAccountId(nodeAccountNum);
+            final var nodeAccountId = entityIdFactory.newAccountId(entry.getKey());
             final var nodeAccount = accountStore.getAccountById(nodeAccountId);
-
-            // Per HIP-1259: If the node's account cannot accept fees (deleted or doesn't exist), they are forfeit
+            final var nodeFee = entry.getValue().fees();
+            // If the node's account cannot accept fees (deleted or doesn't exist), they are forfeit
             if (nodeAccount != null && !nodeAccount.deleted()) {
-                final long nodeFee = nodePayment.fees();
                 if (nodeFee > 0) {
                     transferAmounts.add(AccountAmount.newBuilder()
                             .accountID(nodeAccountId)
                             .amount(nodeFee)
                             .build());
                     totalNodeFees += nodeFee;
-                    log.debug("Node account {} will receive {} tinybars", nodeAccountNum, nodeFee);
+                    log.info("Node account {} will receive {} tinybars", nodeAccountId, nodeFee);
                 }
             } else {
-                log.info(
-                        "Node account {} is deleted or doesn't exist, forfeiting {} tinybars",
-                        nodeAccountNum,
-                        nodePayment.fees());
+                log.info("Node account {} is deleted or doesn't exist, forfeiting {} tinybars", nodeAccountId, nodeFee);
             }
         }
 
@@ -168,31 +161,24 @@ public class EndOfStakingPeriodFeeDistributor {
 
         // Reset the NodePayments map for the new staking period
         nodePaymentsStore.resetForNewStakingPeriod();
-
         if (transferAmounts.isEmpty()) {
             log.info("No fees to distribute");
             return null;
         }
 
         // Create the synthetic fee distribution transaction
-        final var syntheticFeeDistributionTxn = TransactionBody.newBuilder()
-                .memo(FEE_DISTRIBUTION_MEMO)
-                .cryptoTransfer(CryptoTransferTransactionBody.newBuilder()
-                        .transfers(TransferList.newBuilder()
-                                .accountAmounts(transferAmounts)
-                                .build())
+        final var transferBody = CryptoTransferTransactionBody.newBuilder()
+                .transfers(TransferList.newBuilder()
+                        .accountAmounts(transferAmounts)
                         .build())
                 .build();
+        final var syntheticFeeDistributionTxn = TransactionBody.newBuilder()
+                .memo(FEE_DISTRIBUTION_MEMO)
+                .cryptoTransfer(transferBody)
+                .build();
 
-        log.info(
-                "Distributing {} tinybars from fee collection account: {} to nodes, {} to network/service accounts",
-                feeCollectionBalance,
-                totalNodeFees,
-                networkServiceFees);
-
-        // Apply the balance changes directly to the accounts
-        applyBalanceChanges(transferAmounts, accountStore);
-
+        // dispatch the synthetic transaction as a preceding record
+        systemTransactions.dispatchFeeDistribution(state, context.consensusTime(), transferBody);
         return context.addPrecedingChildRecordBuilder(CryptoTransferStreamBuilder.class, CRYPTO_TRANSFER)
                 .signedTx(signedTxWith(syntheticFeeDistributionTxn))
                 .memo(FEE_DISTRIBUTION_MEMO)
@@ -210,14 +196,13 @@ public class EndOfStakingPeriodFeeDistributor {
             @NonNull final AccountID nodeRewardAccountId,
             @NonNull final ReadableAccountStore accountStore,
             @NonNull final ArrayList<AccountAmount> transferAmounts) {
-
         long balance = amount;
 
         final var nodeRewardAccount = accountStore.getAccountById(nodeRewardAccountId);
         final boolean preservingRewardBalance =
                 nodesConfig.nodeRewardsEnabled() && nodesConfig.preserveMinNodeRewardBalance();
 
-        // Per HIP-1259: If 0.0.801 is low, route fees fully there until it reaches the configured minimum
+        // If 0.0.801 is low, route fees fully there until it reaches the configured minimum
         if (preservingRewardBalance
                 && nodeRewardAccount != null
                 && nodeRewardAccount.tinybarBalance() <= nodesConfig.minNodeRewardBalance()) {
@@ -229,7 +214,6 @@ public class EndOfStakingPeriodFeeDistributor {
             log.info("Routing all {} tinybars to node reward account (below minimum balance)", balance);
             return;
         }
-
         // Normal distribution: split among 0.0.98, 0.0.800, and 0.0.801
         final long nodeReward = (stakingConfig.feesNodeRewardPercentage() * amount) / 100;
         balance -= nodeReward;
@@ -239,7 +223,6 @@ public class EndOfStakingPeriodFeeDistributor {
                     .amount(nodeReward)
                     .build());
         }
-
         final long stakingReward = (stakingConfig.feesStakingRewardPercentage() * amount) / 100;
         balance -= stakingReward;
         if (stakingReward > 0) {
@@ -248,7 +231,6 @@ public class EndOfStakingPeriodFeeDistributor {
                     .amount(stakingReward)
                     .build());
         }
-
         // Whatever is left over goes to the funding account
         if (balance > 0) {
             transferAmounts.add(AccountAmount.newBuilder()

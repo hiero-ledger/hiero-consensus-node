@@ -17,7 +17,6 @@ import static com.hedera.node.app.spi.workflows.HandleException.validateFalse;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static java.util.Objects.requireNonNull;
 
-import com.hedera.hapi.node.base.AccountAmount;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.Key;
@@ -25,7 +24,6 @@ import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.node.app.hapi.utils.EntityType;
 import com.hedera.node.app.service.addressbook.ReadableAccountNodeRelStore;
-import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.entityid.WritableEntityCounters;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.api.ContractChangeSummary;
@@ -50,7 +48,6 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.util.ArrayList;
 import java.util.function.LongConsumer;
 import java.util.function.ObjLongConsumer;
 import java.util.function.Predicate;
@@ -483,110 +480,6 @@ public class TokenServiceApiImpl implements TokenServiceApi {
     @Override
     public void updateContract(Account contract) {
         accountStore.put(contract);
-    }
-
-    public void distributeFees(EntityIdFactory entityIdFactory) {
-        final var nodePayments = nodePaymentStore.get().payments();
-        final var feeCollectionAccount = lookupAccount("Fee collection", feeCollectionAccountID);
-        final var feeCollectionBalance = feeCollectionAccount.tinybarBalance();
-
-        final var transferList = new ArrayList<AccountAmount>();
-        var nodeFees = 0L;
-        // transfer all the node payments from fee collection account to node reward account
-        for (final var entry : nodePayments.entrySet()) {
-            // validate node account id is not deleted. Add the fees to transfer list
-            // and distribute the fees at the end of the day
-            final var nodeAccountId = entityIdFactory.newAccountId(entry.getKey());
-            if (accountStore.getAccountById(nodeAccountId) != null) {
-                transferList.add(AccountAmount.newBuilder()
-                        .accountID(nodeAccountId)
-                        .amount(entry.getValue().fees())
-                        .build());
-                nodeFees += entry.getValue().fees();
-            }
-        }
-        final var networkServiceFees = feeCollectionBalance - nodeFees;
-        distributeFees(networkServiceFees, null);
-        transferList.add(AccountAmount.newBuilder()
-                .accountID(feeCollectionAccountID)
-                .amount(-nodeFees)
-                .build());
-    }
-
-    private void distributeFees(long amount, @Nullable final ObjLongConsumer<AccountID> cb) {
-        // We may have a rounding error, so we will first remove the node and staking rewards from the total, and then
-        // whatever is left over goes to the funding account.
-        long balance = amount;
-
-        final var nodeRewardAccount = lookupAccount("Node rewards", nodeRewardAccountID);
-        final boolean preservingRewardBalance =
-                nodesConfig.nodeRewardsEnabled() && nodesConfig.preserveMinNodeRewardBalance();
-        if (!preservingRewardBalance || nodeRewardAccount.tinybarBalance() > nodesConfig.minNodeRewardBalance()) {
-            final long nodeReward = (stakingConfig.feesNodeRewardPercentage() * amount) / 100;
-            balance -= nodeReward;
-            payNodeRewardAccount(nodeReward);
-            if (cb != null) {
-                cb.accept(nodeRewardAccountID, nodeReward);
-            }
-
-            final long stakingReward = (stakingConfig.feesStakingRewardPercentage() * amount) / 100;
-            balance -= stakingReward;
-            payStakingRewardAccount(stakingReward);
-            if (cb != null) {
-                cb.accept(stakingRewardAccountID, stakingReward);
-            }
-
-            // Whatever is left over goes to the funding account
-            final var fundingAccount = lookupAccount("Funding", fundingAccountID);
-            accountStore.put(fundingAccount
-                    .copyBuilder()
-                    .tinybarBalance(fundingAccount.tinybarBalance() + balance)
-                    .build());
-            if (cb != null) {
-                cb.accept(fundingAccountID, balance);
-            }
-        } else {
-            payNodeRewardAccount(balance);
-            if (cb != null) {
-                cb.accept(nodeRewardAccountID, balance);
-            }
-        }
-    }
-
-    /**
-     * Pays the staking reward account the given amount. If the staking reward account doesn't exist, an exception is
-     * thrown. This account *should* have been created at genesis, so it should always exist, even if staking rewards
-     * are disabled.
-     *
-     * @param amount The amount to credit the staking reward account.
-     * @throws IllegalStateException if the staking rewards account doesn't exist
-     */
-    private void payStakingRewardAccount(final long amount) {
-        if (amount == 0) return;
-        final var stakingAccount = lookupAccount("Staking reward", stakingRewardAccountID);
-        accountStore.put(stakingAccount
-                .copyBuilder()
-                .tinybarBalance(stakingAccount.tinybarBalance() + amount)
-                .build());
-    }
-
-    /**
-     * Retracts the given amount from the node staking account the given amount. If the node reward account doesn't
-     * exist, an exception is thrown.
-     *
-     * @param amount The amount to debit the node staking account.
-     * @throws IllegalStateException if the node staking account doesn't exist
-     */
-    private long retractStakingRewardAccount(final long amount) {
-        if (amount == 0) return 0L;
-        final var stakingAccount = lookupAccount("Staking reward", stakingRewardAccountID);
-        final long balance = stakingAccount.tinybarBalance();
-        final long amountToRetract = Math.min(amount, balance);
-        accountStore.put(stakingAccount
-                .copyBuilder()
-                .tinybarBalance(balance - amountToRetract)
-                .build());
-        return amountToRetract;
     }
 
     /**
