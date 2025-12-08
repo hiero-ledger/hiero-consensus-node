@@ -269,30 +269,6 @@ public class ConsensusServiceSimpleFeesSuite {
                     0.05,
                     1);
         }
-        // TODO: support queries
-        //        @HapiTest()
-        //        @DisplayName("compare get topic info")
-        //        final Stream<DynamicTest> getTopicInfoComparison() {
-        //            return compare(() -> Arrays.asList(
-        //                    newKeyNamed(PAYER),
-        //                    cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
-        //                    // create topic. provide up to 1 hbar to pay for it
-        //                    createTopic("testTopic")
-        //                            .blankMemo()
-        //                            .payingWith(PAYER)
-        //                            .adminKeyName(PAYER)
-        //                            .fee(ONE_HBAR)
-        //                            .via("create-topic-txn"),
-        //                    // the extra 10 is for the admin key
-        //                    validateChargedUsd("create-topic-txn", 0.01022),
-        //                    // get topic info, provide up to 1 hbar to pay for it
-        //                    getTopicInfo("testTopic")
-        //                            .payingWith(PAYER)
-        //                            .fee(ONE_HBAR)
-        //                            .via("get-topic-txn")
-        //                            .logged(),
-        //                    validateChargedUsd("get-topic-txn", 0.000101)));
-        //        }
 
         @HapiTest
         @DisplayName("compare get topic info")
