@@ -3,7 +3,6 @@ package com.swirlds.platform.reconnect;
 
 import static com.swirlds.common.formatting.StringFormattingUtils.formattedList;
 import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
-import static com.swirlds.platform.StateInitializer.initializeMerkleNodeState;
 
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.streams.MerkleDataInputStream;
@@ -21,13 +20,12 @@ import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.state.signed.SignedStateInvalidException;
 import com.swirlds.platform.state.snapshot.SignedStateFileReader;
 import com.swirlds.state.MerkleNodeState;
-import com.swirlds.virtualmap.VirtualMap;
+import com.swirlds.state.StateLifecycleManager;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.net.SocketException;
 import java.time.Duration;
 import java.util.Objects;
-import java.util.function.Function;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -48,7 +46,7 @@ public class ReconnectStateLearner {
     private final MerkleNodeState currentState;
     private final Duration reconnectSocketTimeout;
     private final ReconnectMetrics statistics;
-    private final Function<VirtualMap, MerkleNodeState> createStateFromVirtualMap;
+    private final StateLifecycleManager stateLifecycleManager;
 
     private SigSet sigSet;
     private final PlatformContext platformContext;
@@ -70,8 +68,7 @@ public class ReconnectStateLearner {
      * 		the amount of time that should be used for the socket timeout
      * @param statistics
      * 		reconnect metrics
-     * @param createStateFromVirtualMap
-     *      a function to instantiate the state object from a Virtual Map
+     * @param stateLifecycleManager the state lifecycle manager
      */
     public ReconnectStateLearner(
             @NonNull final PlatformContext platformContext,
@@ -80,8 +77,8 @@ public class ReconnectStateLearner {
             @NonNull final MerkleNodeState currentState,
             @NonNull final Duration reconnectSocketTimeout,
             @NonNull final ReconnectMetrics statistics,
-            @NonNull final Function<VirtualMap, MerkleNodeState> createStateFromVirtualMap) {
-        this.createStateFromVirtualMap = Objects.requireNonNull(createStateFromVirtualMap);
+            @NonNull final StateLifecycleManager stateLifecycleManager) {
+        this.stateLifecycleManager = Objects.requireNonNull(stateLifecycleManager);
 
         currentState.throwIfImmutable("Can not perform reconnect with immutable state");
         currentState.throwIfDestroyed("Can not perform reconnect with destroyed state");
@@ -208,13 +205,11 @@ public class ReconnectStateLearner {
                 platformContext.getMetrics());
         synchronizer.synchronize();
 
-        final MerkleNodeState merkleNodeState = initializeMerkleNodeState(
-                createStateFromVirtualMap, synchronizer.getRoot(), platformContext.getMetrics());
-
+        final MerkleNodeState receivedState = stateLifecycleManager.createStateFrom(synchronizer.getRoot());
         final SignedState newSignedState = new SignedState(
                 platformContext.getConfiguration(),
                 CryptoStatic::verifySignature,
-                merkleNodeState,
+                receivedState,
                 "ReconnectLearner.reconnect()",
                 false,
                 false,

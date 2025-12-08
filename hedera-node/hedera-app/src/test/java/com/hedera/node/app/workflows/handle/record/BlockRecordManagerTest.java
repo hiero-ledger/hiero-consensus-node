@@ -473,9 +473,7 @@ final class BlockRecordManagerTest extends AppTestBase {
     }
 
     private static State simpleBlockInfoState(final BlockInfo blockInfo) {
-        final var virtualMapLabel =
-                "vm-" + BlockRecordManagerTest.class.getSimpleName() + "-" + java.util.UUID.randomUUID();
-        final var virtualMap = VirtualMapUtils.createVirtualMap(virtualMapLabel);
+        final var virtualMap = VirtualMapUtils.createVirtualMap();
         return new VirtualMapState(virtualMap, new NoOpMetrics()) {
             @NonNull
             @Override
