@@ -2,6 +2,7 @@
 package com.swirlds.platform.state.signed;
 
 import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticThreadManager;
+import static com.swirlds.platform.state.signed.StartupStateUtils.loadStateFile;
 import static com.swirlds.platform.state.snapshot.SignedStateFileWriter.writeSignedStateToDisk;
 import static com.swirlds.platform.test.fixtures.config.ConfigUtils.CONFIGURATION;
 import static com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer.registerConstructablesForStorage;
@@ -14,6 +15,7 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.spy;
 
 import com.hedera.hapi.node.base.SemanticVersion;
+import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.config.StateCommonConfig_;
@@ -30,11 +32,12 @@ import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
 import com.swirlds.platform.config.StateConfig_;
 import com.swirlds.platform.internal.SignedStateLoadingException;
-import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.snapshot.SignedStateFilePath;
 import com.swirlds.platform.state.snapshot.StateToDiskReason;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
-import com.swirlds.state.test.fixtures.merkle.TestVirtualMapState;
+import com.swirlds.state.StateLifecycleManager;
+import com.swirlds.state.merkle.StateLifecycleManagerImpl;
+import com.swirlds.state.test.fixtures.merkle.VirtualMapStateTestUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.BufferedWriter;
 import java.io.IOException;
@@ -70,7 +73,6 @@ public class StartupStateUtilsTests {
     private final String mainClassName = "mainClassName";
     private final String swirldName = "swirldName";
     private SemanticVersion currentSoftwareVersion;
-    private PlatformStateFacade platformStateFacade;
 
     @BeforeEach
     void beforeEach() throws IOException {
@@ -80,7 +82,6 @@ public class StartupStateUtilsTests {
                 .getOrCreateConfig()
                 .getConfigData(StateCommonConfig.class));
         currentSoftwareVersion = SemanticVersion.newBuilder().major(1).build();
-        platformStateFacade = new PlatformStateFacade();
     }
 
     @AfterEach
@@ -126,22 +127,23 @@ public class StartupStateUtilsTests {
         final SignedState signedState =
                 new RandomSignedStateGenerator(random).setRound(round).build();
 
-        // make the state immutable
-        signedState.getState().copy().release();
+        final StateLifecycleManager stateLifecycleManager = new StateLifecycleManagerImpl(
+                new NoOpMetrics(), new FakeTime(), VirtualMapStateTestUtils::createTestStateWithVM);
+        stateLifecycleManager.initState(signedState.getState(), true);
+        stateLifecycleManager.getMutableState().release();
         // FUTURE WORK: https://github.com/hiero-ledger/hiero-consensus-node/issues/19905
         TestMerkleCryptoFactory.getInstance()
                 .digestTreeSync(signedState.getState().getRoot());
 
         final Path savedStateDirectory =
                 signedStateFilePath.getSignedStateDirectory(mainClassName, selfId, swirldName, round);
-
         writeSignedStateToDisk(
                 platformContext,
                 selfId,
                 savedStateDirectory,
-                signedState,
                 StateToDiskReason.PERIODIC_SNAPSHOT,
-                platformStateFacade);
+                signedState,
+                stateLifecycleManager);
 
         if (corrupted) {
             final Path stateFilePath = savedStateDirectory.resolve("SignedState.swh");
@@ -162,14 +164,13 @@ public class StartupStateUtilsTests {
 
         final RecycleBin recycleBin = initializeRecycleBin(platformContext, selfId);
 
-        final SignedState loadedState = StartupStateUtils.loadStateFile(
+        final SignedState loadedState = loadStateFile(
                         recycleBin,
                         selfId,
                         mainClassName,
                         swirldName,
-                        TestVirtualMapState::new,
+                        VirtualMapStateTestUtils::createTestStateWithVM,
                         currentSoftwareVersion,
-                        platformStateFacade,
                         platformContext)
                 .getNullable();
 
@@ -192,14 +193,13 @@ public class StartupStateUtilsTests {
         }
 
         final RecycleBin recycleBin = initializeRecycleBin(platformContext, selfId);
-        final SignedState loadedState = StartupStateUtils.loadStateFile(
+        final SignedState loadedState = loadStateFile(
                         recycleBin,
                         selfId,
                         mainClassName,
                         swirldName,
-                        TestVirtualMapState::new,
+                        VirtualMapStateTestUtils::createTestStateWithVM,
                         currentSoftwareVersion,
-                        platformStateFacade,
                         platformContext)
                 .get();
 
@@ -227,14 +227,13 @@ public class StartupStateUtilsTests {
         }
         final RecycleBin recycleBin = initializeRecycleBin(platformContext, selfId);
 
-        assertThrows(SignedStateLoadingException.class, () -> StartupStateUtils.loadStateFile(
+        assertThrows(SignedStateLoadingException.class, () -> loadStateFile(
                         recycleBin,
                         selfId,
                         mainClassName,
                         swirldName,
-                        TestVirtualMapState::new,
+                        VirtualMapStateTestUtils::createTestStateWithVM,
                         currentSoftwareVersion,
-                        platformStateFacade,
                         platformContext)
                 .get());
     }
@@ -273,14 +272,13 @@ public class StartupStateUtilsTests {
         }
         RandomSignedStateGenerator.releaseAllBuiltSignedStates();
 
-        final SignedState loadedState = StartupStateUtils.loadStateFile(
+        final SignedState loadedState = loadStateFile(
                         recycleBin,
                         selfId,
                         mainClassName,
                         swirldName,
-                        TestVirtualMapState::new,
+                        VirtualMapStateTestUtils::createTestStateWithVM,
                         currentSoftwareVersion,
-                        platformStateFacade,
                         platformContext)
                 .getNullable();
 

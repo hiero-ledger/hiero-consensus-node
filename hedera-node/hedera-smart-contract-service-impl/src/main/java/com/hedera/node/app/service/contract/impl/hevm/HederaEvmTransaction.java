@@ -5,6 +5,7 @@ import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.pb
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
+import com.hedera.hapi.node.base.HookId;
 import com.hedera.hapi.node.contract.ContractCreateTransactionBody;
 import com.hedera.hapi.node.hooks.HookDispatchTransactionBody;
 import com.hedera.node.app.hapi.utils.ethereum.CodeDelegation;
@@ -120,6 +121,7 @@ public record HederaEvmTransaction(
     }
 
     /**
+     * @param exception the exception to set
      * @return a copy of this transaction with the given {@code exception}
      */
     public HederaEvmTransaction withException(@NonNull final HandleException exception) {
@@ -139,7 +141,21 @@ public record HederaEvmTransaction(
                 exception,
                 this.hookDispatch);
     }
+    /**
+     * @return the hook id, or null if this is not a hook dispatch
+     */
+    @Nullable
+    public HookId maybeHookId() {
+        return hookDispatch != null
+                ? new HookId(
+                        hookDispatch.executionOrThrow().hookEntityIdOrThrow(),
+                        hookDispatch.executionOrThrow().callOrThrow().hookIdOrThrow())
+                : null;
+    }
 
+    /**
+     * @return the address of the hook owner, or null if this is not a hook dispatch
+     */
     public Address hookOwnerAddress() {
         if (hookDispatch == null) {
             return null;

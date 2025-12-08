@@ -214,8 +214,6 @@ public class RpcPeerHandler implements GossipRpcReceiver {
     public void cleanup() {
         clearInternalState();
         state.peerStillSendingEvents = false;
-        sharedShadowgraphSynchronizer.deregisterPeerHandler(this);
-        this.syncMetrics.reportSyncPhase(peerId, SyncPhase.OUTSIDE_OF_RPC);
     }
 
     // HANDLE INCOMING MESSAGES - all done on dispatch thread
@@ -316,8 +314,7 @@ public class RpcPeerHandler implements GossipRpcReceiver {
 
         this.syncMetrics.eventWindow(state.mySyncData.eventWindow(), remoteEventWindow);
 
-        this.sharedShadowgraphSynchronizer.reportRoundDifference(
-                state.mySyncData.eventWindow(), remoteEventWindow, peerId);
+        this.sharedShadowgraphSynchronizer.reportSyncStatus(state.mySyncData.eventWindow(), remoteEventWindow, peerId);
 
         final FallenBehindStatus behindStatus =
                 fallenBehindMonitor.check(state.mySyncData.eventWindow(), state.remoteSyncData.eventWindow(), peerId);
@@ -370,7 +367,7 @@ public class RpcPeerHandler implements GossipRpcReceiver {
         state.shadowWindow = sharedShadowgraphSynchronizer.reserveEventWindow();
         state.myTips = sharedShadowgraphSynchronizer.getTips();
         final List<Hash> tipHashes =
-                state.myTips.stream().map(ShadowEvent::getEventBaseHash).collect(Collectors.toList());
+                state.myTips.stream().map(ShadowEvent::getBaseHash).collect(Collectors.toList());
         state.mySyncData = new SyncData(state.shadowWindow.getEventWindow(), tipHashes, ignoreIncomingEvents);
         sender.sendSyncData(state.mySyncData);
         this.syncMetrics.outgoingSyncRequestSent();

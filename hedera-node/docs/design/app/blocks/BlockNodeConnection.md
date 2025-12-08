@@ -6,7 +6,7 @@
 2. [Definitions](#definitions)
 3. [Component Responsibilities](#component-responsibilities)
 4. [Component Interaction](#component-interaction)
-5. [State Management](#state-management)
+5. [Lifecycle](#lifecycle)
 6. [State Machine Diagrams](#state-machine-diagrams)
 7. [Error Handling](#error-handling)
 
@@ -29,6 +29,7 @@ It manages connection state, handles communication, and reports errors to the `B
 
 - Establish and maintain the connection transport.
 - Handle incoming and outgoing message flow.
+- Detect unresponsive block nodes via configurable timeouts on pipeline operations.
 - Report connection errors promptly.
 - Coordinate with `BlockNodeConnectionManager` on lifecycle events.
 - Notify the block buffer when a block has been acknowledged and therefore eligible to be pruned.
@@ -64,10 +65,8 @@ sending requests to the block node. The worker operates in a loop, sleeping for 
 the configuration property `blockNode.connectionWorkerSleepDuration`. When not sleeping, the worker will first check if
 the current streaming block needs to be updated. If this is the first time the worker has performed this check, one of
 the following will happen:
-- If the connection with initialized with an explicit block to start with, then that block will be loaded from the block buffer.
-- If the connection wasn't initialized with an explicit block, then the earliest, unacknowledged block in the block buffer
-will be selected as the starting point.
-- If no blocks in the block buffer have been acknowledged, then the earliest block in the buffer will be selected.
+- If the connection was initialized with an explicit block to start with, then that block will be loaded from the block buffer.
+- If the connection wasn't initialized with an explicit block, then the most recent block produced is chosen as the block to start streaming.
 - If at any point during the lifespan of the connection a `SkipBlock` or `ResendBlock` response is received, then the
 worker will detect this and switch to that block.
 
@@ -104,6 +103,35 @@ the transition to a terminal state, it too will cease operations.
 
 To establish a connection back to the block node, a new connection object will need to be created.
 
+### Request Sizing
+
+There are two configurations that govern the size of a `PublishStreamRequest` that gets sent to a block node.
+These configurations are `messageSizeSoftLimitBytes` and `messageSizeHardLimitBytes`. These configurations can be
+customized for each block node via the `block-nodes.json` file.
+
+Under normal circumstances, requests are packed with multiple block items such that they get as close to the soft
+limit message size as possible. If a block item is large and would cause the request to exceed the soft limit, then
+the large item will be sent in its own request. The absolute maximum size a request can be is defined by the hard
+limit message size. If an item (or serialized request) exceeds this hard limit, then the consensus node cannot send
+the item/request to the block node.
+
+It is **strongly** recommended that the hard limit be set to `6292480`. This size is 6 MB + 1 KB. The
+largest block items currently supported are 6 MB, and the additional 1 KB is for overhead. If the hard limit is set to
+smaller than 6 MB and one of these large items are produced, then it cannot be sent to a block node.
+
+The default soft limit size is 2 MB. The default hard limit size is 6 MB + 1 KB.
+
+### Graceful Connection Close
+
+When a connection is closed, a best effort attempt to gracefully close the connection will be performed. There are two
+aspects to this "graceful close":
+1. Unless the connection is unstable, or we are notifying the block node it is too far behind, before closing an attempt
+will be made to send an EndStream request to the block with the code `RESET`.
+2. If the connection is actively streaming a block, a best effort to stream the rest of the block will be performed
+before closing the connection.
+
+A caveat to this is if the connection manager is being shutdown, then the connections will NOT be closed gracefully.
+
 ### Connection States
 
 - **UNINITIALIZED**: Initial state when a connection object is created. The bidi RequestObserver needs to be created.
@@ -129,6 +157,7 @@ stateDiagram-v2
     ACTIVE --> CLOSING : ResendBlock unavailable
     ACTIVE --> CLOSING : gRPC onError
     ACTIVE --> CLOSING : Stream failure
+    ACTIVE --> CLOSING : Pipeline operation timeout
     ACTIVE --> CLOSING : Manual close
     ACTIVE --> ACTIVE : BlockAcknowledgement
     ACTIVE --> ACTIVE : SkipBlock
@@ -227,4 +256,49 @@ The connection implements a configurable rate limiting mechanism for EndOfStream
 
 <dt>blockNode.maxRequestDelay</dt>
 <dd>The maximum amount of time between attempting to send block items to a block node, regardless of the number of items ready to send.</dd>
+
+<dt>pipelineOperationTimeout</dt>
+<dd>The maximum duration allowed for pipeline onNext() and onComplete() operations before considering the block node unresponsive. Default: 30 seconds.</dd>
 </dl>
+
+### Pipeline Operation Timeout
+
+To detect unresponsive block nodes during message transmission and connection establishment, the connection implements configurable timeouts for pipeline operations.
+
+#### Timeout Behavior
+
+Pipeline operations (`onNext()`, `onComplete()`, and pipeline creation) are potentially blocking I/O operations that are executed on a dedicated virtual thread executor with timeout enforcement using `Future.get(timeout)`. The executor is provided via dependency injection through the constructor, allowing for flexible configuration and easier testing.
+
+- **Pipeline creation timeout**: When establishing the gRPC connection via `createRequestPipeline()`, both the gRPC client creation and bidirectional stream setup are executed with timeout protection. If the operation does not complete within the configured timeout period:
+  - The Future is cancelled to interrupt the blocked operation
+  - The timeout metric is incremented
+  - A `RuntimeException` is thrown with the underlying `TimeoutException`
+  - The connection remains in UNINITIALIZED state
+  - The connection manager's error handling will schedule a retry with exponential backoff
+- **onNext() timeout**: When sending block items via `sendRequest()`, the operation is submitted to the connection's dedicated executor and the calling thread blocks waiting for completion with a timeout. If the operation does not complete within the configured timeout period:
+  - The Future is cancelled to interrupt the blocked operation
+  - The timeout metric is incremented
+  - `handleStreamFailure()` is triggered (only if connection is still ACTIVE)
+  - The connection follows standard failure handling with exponential backoff retry
+  - The connection manager will select a different block node for the next attempt if one is available
+  - `TimeoutException` is caught and handled internally
+- **onComplete() timeout**: When closing the stream via `closePipeline()`, the operation is submitted to the same dedicated executor with the same timeout mechanism. If the operation does not complete within the configured timeout period:
+  - The Future is cancelled to interrupt the blocked operation
+  - The timeout metric is incremented
+  - Since the connection is already in CLOSING state, only the timeout is logged
+  - The connection completes the close operation normally
+
+**Note**: The dedicated executor (typically a virtual thread executor in production) is provided during construction and properly shut down when the connection closes with a 5-second grace period for termination, ensuring no resource leaks. If tasks don't complete within the grace period, `shutdownNow()` is called to forcefully terminate them.
+
+#### Exception Handling
+
+The implementation handles multiple exception scenarios across all timeout-protected operations:
+- **TimeoutException**: Pipeline operation exceeded the timeout - triggers failure handling for `onNext()` and pipeline creation, logged for `onComplete()`
+- **InterruptedException**: Thread was interrupted while waiting - interrupt status is restored via `Thread.currentThread().interrupt()` before propagating the exception (for `onNext()` and pipeline creation) or logging it (for `onComplete()` and executor shutdown)
+- **ExecutionException**: Error occurred during pipeline operation execution - the underlying cause is unwrapped and re-thrown (for `onNext()` and pipeline creation) or logged (for `onComplete()`)
+
+All exception scenarios include appropriate DEBUG-level logging with context information to aid in troubleshooting.
+
+#### Metrics
+
+A new metric `conn_pipelineOperationTimeout` tracks the total number of timeout events for pipeline creation, `onNext()`, and `onComplete()` operations, enabling operators to monitor block node responsiveness and connection establishment issues.

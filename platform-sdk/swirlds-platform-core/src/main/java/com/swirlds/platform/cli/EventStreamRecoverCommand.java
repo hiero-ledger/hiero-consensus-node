@@ -3,7 +3,6 @@ package com.swirlds.platform.cli;
 
 import static com.swirlds.common.io.utility.FileUtils.getAbsolutePath;
 import static com.swirlds.platform.recovery.EventRecoveryWorkflow.recoverState;
-import static com.swirlds.platform.state.service.PlatformStateFacade.DEFAULT_PLATFORM_STATE_FACADE;
 
 import com.swirlds.cli.commands.EventStreamCommand;
 import com.swirlds.cli.utility.AbstractCommand;
@@ -67,10 +66,10 @@ public final class EventStreamRecoverCommand extends AbstractCommand {
 
     @CommandLine.Parameters(
             index = "0",
-            description = "The path to the bootstrap SignedState.swh file."
-                    + "Events will be replayed on top of this state file.")
-    private void setBootstrapSignedState(final Path bootstrapSignedState) {
-        this.bootstrapSignedState = pathMustExist(bootstrapSignedState.toAbsolutePath());
+            description =
+                    "The path to the bootstrap state directory." + "Events will be replayed on top of this state.")
+    private void setBootstrapSignedState(final Path bootstrapSignedStateDir) {
+        this.bootstrapSignedState = dirMustExist(bootstrapSignedStateDir.toAbsolutePath());
     }
 
     @CommandLine.Option(
@@ -122,8 +121,7 @@ public final class EventStreamRecoverCommand extends AbstractCommand {
                 finalRound,
                 outputPath,
                 selfId,
-                loadSigningKeys,
-                DEFAULT_PLATFORM_STATE_FACADE);
+                loadSigningKeys);
         return 0;
     }
 }

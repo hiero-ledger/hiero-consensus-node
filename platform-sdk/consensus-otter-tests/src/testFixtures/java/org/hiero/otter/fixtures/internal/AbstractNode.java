@@ -26,7 +26,7 @@ import org.hiero.otter.fixtures.AsyncNodeActions;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.TransactionFactory;
-import org.hiero.otter.fixtures.app.OtterTransaction;
+import org.hiero.otter.fixtures.network.transactions.OtterTransaction;
 import org.hiero.otter.fixtures.util.OtterSavedStateUtils;
 
 /**
@@ -292,13 +292,6 @@ public abstract class AbstractNode implements Node {
      * @param timeout the maximum duration to wait for the node to stop
      */
     protected abstract void doKillImmediately(@NonNull Duration timeout);
-
-    /**
-     * Submit a transaction to the node.
-     *
-     * @param transaction the transaction to submit
-     */
-    protected abstract void submitTransaction(@NonNull OtterTransaction transaction);
 
     /**
      * {@inheritDoc}

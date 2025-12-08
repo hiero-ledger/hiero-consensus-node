@@ -8,6 +8,7 @@ import static com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork.
 import static com.hedera.services.bdd.junit.support.TestPlanUtils.hasAnnotatedTestNode;
 import static com.hedera.services.bdd.spec.HapiPropertySource.getConfigRealm;
 import static com.hedera.services.bdd.spec.HapiPropertySource.getConfigShard;
+import static com.hedera.services.bdd.spec.HapiSpecSetup.getDefaultInstance;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.services.bdd.HapiBlockNode;
@@ -23,7 +24,6 @@ import com.hedera.services.bdd.spec.infrastructure.HapiClients;
 import com.hedera.services.bdd.spec.keys.RepeatableKeyGenerator;
 import com.hedera.services.bdd.spec.remote.RemoteNetworkFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -167,9 +167,12 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
             }
         }
 
-        private @Nullable HederaNetwork sharedRemoteNetworkIfRequested() {
+        private HederaNetwork sharedRemoteNetworkIfRequested() {
             final var sharedTargetYml = System.getProperty("hapi.spec.nodes.remoteYml");
-            return (sharedTargetYml != null) ? RemoteNetworkFactory.newWithTargetFrom(sharedTargetYml) : null;
+            return (sharedTargetYml != null)
+                    ? RemoteNetworkFactory.newWithTargetFrom(sharedTargetYml)
+                    : RemoteNetworkFactory.newWithTargetFrom(
+                            getDefaultInstance().remoteNodesYmlLoc());
         }
 
         /**

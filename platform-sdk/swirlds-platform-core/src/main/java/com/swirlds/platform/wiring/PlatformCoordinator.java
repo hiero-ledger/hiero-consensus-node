@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.wiring;
 
-import static com.swirlds.platform.state.service.PlatformStateFacade.DEFAULT_PLATFORM_STATE_FACADE;
+import static com.swirlds.platform.state.service.PlatformStateUtils.consensusSnapshotOf;
+import static com.swirlds.platform.state.service.PlatformStateUtils.legacyRunningEventHashOf;
 
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.common.io.IOIterator;
 import com.swirlds.common.stream.RunningEventHashOverride;
-import com.swirlds.component.framework.schedulers.builders.TaskSchedulerType;
 import com.swirlds.config.api.Configuration;
+import com.swirlds.platform.builder.ApplicationCallbacks;
 import com.swirlds.platform.components.AppNotifier;
 import com.swirlds.platform.components.EventWindowManager;
 import com.swirlds.platform.components.consensus.ConsensusEngine;
@@ -19,7 +20,6 @@ import com.swirlds.platform.event.orphan.OrphanBuffer;
 import com.swirlds.platform.event.preconsensus.InlinePcesWriter;
 import com.swirlds.platform.event.validation.EventSignatureValidator;
 import com.swirlds.platform.listeners.ReconnectCompleteNotification;
-import com.swirlds.platform.publisher.PlatformPublisher;
 import com.swirlds.platform.state.hashlogger.HashLogger;
 import com.swirlds.platform.state.iss.IssDetector;
 import com.swirlds.platform.state.nexus.SignedStateNexus;
@@ -47,13 +47,15 @@ import org.hiero.consensus.roster.RosterUtils;
  *
  * @param components
  */
-public record PlatformCoordinator(@NonNull PlatformComponents components) implements StatusActionSubmitter {
+public record PlatformCoordinator(@NonNull PlatformComponents components, @NonNull ApplicationCallbacks callbacks)
+        implements StatusActionSubmitter {
 
     /**
      * Constructor
      */
     public PlatformCoordinator {
         Objects.requireNonNull(components);
+        Objects.requireNonNull(callbacks);
     }
 
     /**
@@ -242,12 +244,8 @@ public record PlatformCoordinator(@NonNull PlatformComponents components) implem
                 .consensusEngineWiring()
                 .getInputWire(ConsensusEngine::outOfBandSnapshotUpdate)
                 .inject(consensusSnapshot);
-
-        if (components.platformPublisherWiring().getSchedulerType() != TaskSchedulerType.NO_OP) {
-            components
-                    .platformPublisherWiring()
-                    .getInputWire(PlatformPublisher::publishSnapshotOverride)
-                    .inject(consensusSnapshot);
+        if (callbacks.snapshotOverrideConsumer() != null) {
+            callbacks.snapshotOverrideConsumer().accept(consensusSnapshot);
         }
     }
 
@@ -399,8 +397,7 @@ public record PlatformCoordinator(@NonNull PlatformComponents components) implem
 
         final MerkleNodeState state = signedState.getState();
 
-        final ConsensusSnapshot consensusSnapshot =
-                Objects.requireNonNull(DEFAULT_PLATFORM_STATE_FACADE.consensusSnapshotOf(state));
+        final ConsensusSnapshot consensusSnapshot = Objects.requireNonNull(consensusSnapshotOf(state));
         this.consensusSnapshotOverride(consensusSnapshot);
 
         final RosterHistory rosterHistory = RosterUtils.createRosterHistory(state);
@@ -409,7 +406,7 @@ public record PlatformCoordinator(@NonNull PlatformComponents components) implem
         this.updateEventWindow(EventWindowUtils.createEventWindow(consensusSnapshot, configuration));
 
         final RunningEventHashOverride runningEventHashOverride =
-                new RunningEventHashOverride(DEFAULT_PLATFORM_STATE_FACADE.legacyRunningEventHashOf(state), true);
+                new RunningEventHashOverride(legacyRunningEventHashOf(state), true);
         this.updateRunningHash(runningEventHashOverride);
         this.registerPcesDiscontinuity(signedState.getRound());
     }

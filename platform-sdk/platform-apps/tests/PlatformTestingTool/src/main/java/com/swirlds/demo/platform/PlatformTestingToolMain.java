@@ -34,7 +34,6 @@ import com.google.protobuf.ByteString;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.base.time.Time;
 import com.swirlds.base.units.UnitConstants;
 import com.swirlds.base.utility.Pair;
 import com.swirlds.common.merkle.iterators.MerkleIterator;
@@ -73,7 +72,6 @@ import com.swirlds.platform.ParameterProvider;
 import com.swirlds.platform.listeners.ReconnectCompleteListener;
 import com.swirlds.platform.listeners.StateWriteToDiskCompleteListener;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
-import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.system.DefaultSwirldMain;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.SystemExitCode;
@@ -322,7 +320,7 @@ public class PlatformTestingToolMain extends DefaultSwirldMain<PlatformTestingTo
     public PlatformTestingToolMain() {
         // the config needs to be loaded before the init() method
         config = PlatformConfig.getDefault();
-        consensusStateEventHandler = new PlatformTestingToolConsensusStateEventHandler(new PlatformStateFacade());
+        consensusStateEventHandler = new PlatformTestingToolConsensusStateEventHandler();
     }
 
     /**
@@ -891,8 +889,7 @@ public class PlatformTestingToolMain extends DefaultSwirldMain<PlatformTestingTo
      * </p>
      */
     @Override
-    public Function<VirtualMap, PlatformTestingToolState> stateRootFromVirtualMap(
-            @NonNull final Metrics metrics, @NonNull final Time time) {
+    public Function<VirtualMap, PlatformTestingToolState> stateRootFromVirtualMap(@NonNull final Metrics metrics) {
         return (virtualMap) -> {
             throw new UnsupportedOperationException();
         };

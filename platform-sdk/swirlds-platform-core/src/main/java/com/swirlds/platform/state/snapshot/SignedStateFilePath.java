@@ -219,7 +219,7 @@ public class SignedStateFilePath {
                             continue;
                         }
 
-                        savedStates.put(round, new SavedStateInfo(stateFile, metadata));
+                        savedStates.put(round, new SavedStateInfo(subDir, metadata));
 
                     } catch (final NumberFormatException e) {
                         logger.warn(

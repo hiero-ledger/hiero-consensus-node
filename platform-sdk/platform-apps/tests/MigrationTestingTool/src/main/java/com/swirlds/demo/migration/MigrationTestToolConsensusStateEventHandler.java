@@ -4,6 +4,7 @@ package com.swirlds.demo.migration;
 import static com.swirlds.demo.migration.MigrationTestingToolMain.PREVIOUS_SOFTWARE_VERSION;
 import static com.swirlds.demo.migration.TransactionUtils.isSystemTransaction;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
+import static com.swirlds.platform.state.service.PlatformStateUtils.bulkUpdateOf;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
@@ -11,9 +12,9 @@ import com.hedera.hapi.util.HapiUtils;
 import com.hedera.pbj.runtime.ParseException;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
-import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
+import com.swirlds.state.merkle.VirtualMapState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
@@ -31,10 +32,9 @@ import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 import org.hiero.consensus.model.transaction.Transaction;
 
 /**
- * This class handles the lifecycle events for the {@link MigrationTestingToolState}.
+ * This class handles the lifecycle events for the {@link VirtualMapState}.
  */
-public class MigrationTestToolConsensusStateEventHandler
-        implements ConsensusStateEventHandler<MigrationTestingToolState> {
+public class MigrationTestToolConsensusStateEventHandler implements ConsensusStateEventHandler<VirtualMapState> {
 
     private static final Logger logger = LogManager.getLogger(MigrationTestToolConsensusStateEventHandler.class);
 
@@ -47,7 +47,7 @@ public class MigrationTestToolConsensusStateEventHandler
 
     @Override
     public void onStateInitialized(
-            @NonNull final MigrationTestingToolState state,
+            @NonNull final VirtualMapState state,
             @NonNull final Platform platform,
             @NonNull final InitTrigger trigger,
             @Nullable final SemanticVersion previousVersion) {
@@ -69,9 +69,11 @@ public class MigrationTestToolConsensusStateEventHandler
 
     @Override
     public void onHandleConsensusRound(
-            @NonNull Round round,
-            @NonNull MigrationTestingToolState state,
-            @NonNull Consumer<ScopedSystemTransaction<StateSignatureTransaction>> stateSignatureTransactionCallback) {
+            @NonNull final Round round,
+            @NonNull final VirtualMapState state,
+            @NonNull
+                    final Consumer<ScopedSystemTransaction<StateSignatureTransaction>>
+                            stateSignatureTransactionCallback) {
         state.throwIfImmutable();
 
         // After enough rounds, we set the state to be a freeze state
@@ -83,7 +85,7 @@ public class MigrationTestToolConsensusStateEventHandler
                     FREEZE_TIME_OFFSET.getSeconds(),
                     round.getConsensusTimestamp(),
                     freezeTime);
-            PlatformStateFacade.DEFAULT_PLATFORM_STATE_FACADE.bulkUpdateOf(state, v -> {
+            bulkUpdateOf(state, v -> {
                 v.setFreezeTime(freezeTime);
             });
         }
@@ -106,9 +108,11 @@ public class MigrationTestToolConsensusStateEventHandler
 
     @Override
     public void onPreHandle(
-            @NonNull Event event,
-            @NonNull MigrationTestingToolState state,
-            @NonNull Consumer<ScopedSystemTransaction<StateSignatureTransaction>> stateSignatureTransactionCallback) {
+            @NonNull final Event event,
+            @NonNull final VirtualMapState state,
+            @NonNull
+                    final Consumer<ScopedSystemTransaction<StateSignatureTransaction>>
+                            stateSignatureTransactionCallback) {
         event.forEachTransaction(transaction -> {
             if (isSystemTransaction(transaction.getApplicationTransaction())) {
                 consumeSystemTransaction(transaction, event, stateSignatureTransactionCallback);
@@ -117,21 +121,21 @@ public class MigrationTestToolConsensusStateEventHandler
     }
 
     @Override
-    public boolean onSealConsensusRound(@NonNull Round round, @NonNull MigrationTestingToolState state) {
+    public boolean onSealConsensusRound(@NonNull final Round round, @NonNull final VirtualMapState state) {
         // no-op
         return true;
     }
 
     @Override
     public void onUpdateWeight(
-            @NonNull MigrationTestingToolState state,
-            @NonNull AddressBook configAddressBook,
-            @NonNull PlatformContext context) {
+            @NonNull final VirtualMapState state,
+            @NonNull final AddressBook configAddressBook,
+            @NonNull final PlatformContext context) {
         // no-op
     }
 
     @Override
-    public void onNewRecoveredState(@NonNull MigrationTestingToolState recoveredState) {
+    public void onNewRecoveredState(@NonNull final VirtualMapState recoveredState) {
         // no-op
     }
 

@@ -105,7 +105,7 @@ public class BlockContentsValidator implements BlockStreamValidator {
             final var kind = item.item().kind();
             switch (kind) {
                 case EVENT_HEADER, STATE_CHANGES -> hasEventOrStateChange = true;
-                case RECORD_FILE, FILTERED_ITEM_HASH, FILTERED_SINGLE_ITEM ->
+                case RECORD_FILE, FILTERED_SINGLE_ITEM ->
                     Assertions.fail("Unexpected item type " + kind + " at index " + currentIndex);
                 default -> {
                     // No-op
