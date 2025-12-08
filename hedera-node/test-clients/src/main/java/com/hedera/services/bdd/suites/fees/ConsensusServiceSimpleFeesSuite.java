@@ -256,7 +256,14 @@ public class ConsensusServiceSimpleFeesSuite {
                                 .via("submit-message-txn")),
                 "submit-message-txn",
                 0.05,
+                    // base == 0
+                    // network + node = 1000000
+                    // extra bytes = 1023-100= 923
+                    // byte cost = 110000
+                    // total = 102530000
+                    0.01025,
                 1,
+                    0.01025,
                 0.05,
                 1);
     }
