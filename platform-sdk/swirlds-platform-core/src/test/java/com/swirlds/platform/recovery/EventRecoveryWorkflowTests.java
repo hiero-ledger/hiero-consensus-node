@@ -20,7 +20,6 @@ import static org.mockito.Mockito.when;
 
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.platform.config.StateConfig;
-import com.swirlds.platform.recovery.emergencyfile.EmergencyRecoveryFile;
 import com.swirlds.platform.recovery.internal.StreamedRound;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.state.MerkleNodeState;
@@ -244,41 +243,6 @@ class EventRecoveryWorkflowTests {
                 hash1,
                 EventRecoveryWorkflow.getHashEventsCons(initialHash1, buildMockRound(events4)),
                 "hash should have changed");
-    }
-
-    @Test
-    void testUpdateEmergencyRecoveryFile() throws IOException {
-        final Random random = RandomUtils.getRandomPrintSeed();
-        final Hash hash = randomHash(random);
-        final long round = randomPositiveLong(random);
-        final Instant stateTimestamp = Instant.ofEpochMilli(randomPositiveLong(random));
-
-        final EmergencyRecoveryFile recoveryFile = new EmergencyRecoveryFile(round, hash, stateTimestamp);
-        recoveryFile.write(tmpDir);
-
-        final Instant bootstrapTime = Instant.ofEpochMilli(randomPositiveLong(random));
-
-        EventRecoveryWorkflow.updateEmergencyRecoveryFile(stateConfig, tmpDir, bootstrapTime);
-
-        // Verify the contents of the updated recovery file
-        final EmergencyRecoveryFile updatedRecoveryFile = EmergencyRecoveryFile.read(stateConfig, tmpDir);
-        assertNotNull(updatedRecoveryFile, "Updated recovery file should not be null");
-        assertEquals(round, updatedRecoveryFile.round(), "round does not match");
-        assertEquals(hash, updatedRecoveryFile.hash(), "hash does not match");
-        assertEquals(stateTimestamp, updatedRecoveryFile.timestamp(), "state timestamp does not match");
-        assertNotNull(updatedRecoveryFile.recovery().bootstrap(), "bootstrap should not be null");
-        assertEquals(
-                bootstrapTime,
-                updatedRecoveryFile.recovery().bootstrap().timestamp(),
-                "bootstrap timestamp does not match");
-
-        // Verify the contents of the backup recovery file (copy of the original)
-        final EmergencyRecoveryFile backupFile = EmergencyRecoveryFile.read(stateConfig, tmpDir.resolve("backup"));
-        assertNotNull(backupFile, "Updated recovery file should not be null");
-        assertEquals(round, backupFile.round(), "round does not match");
-        assertEquals(hash, backupFile.hash(), "hash does not match");
-        assertEquals(stateTimestamp, backupFile.timestamp(), "state timestamp does not match");
-        assertNull(backupFile.recovery().bootstrap(), "No bootstrap information should exist in the backup");
     }
 
     // FUTURE WORK reapplyTransactions() test
