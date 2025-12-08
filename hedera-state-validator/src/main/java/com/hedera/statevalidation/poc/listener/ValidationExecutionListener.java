@@ -6,9 +6,11 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 // update logging format
-public class LoggingValidationListener implements ValidationListener {
+public class ValidationExecutionListener implements ValidationListener {
 
-    private static final Logger log = LogManager.getLogger(LoggingValidationListener.class);
+    private static final Logger log = LogManager.getLogger(ValidationExecutionListener.class);
+
+    private volatile boolean failed = false;
 
     @Override
     public void onValidationStarted(String tag) {
@@ -22,11 +24,16 @@ public class LoggingValidationListener implements ValidationListener {
 
     @Override
     public void onValidationFailed(ValidationException error) {
+        this.failed = true;
         log.debug(framedString(error.getValidatorTag() + " failed"));
     }
 
     private String framedString(String stringToFrame) {
         String frame = " ".repeat(stringToFrame.length() + 6);
         return String.format("\n%s\n   %s   \n%s", frame, stringToFrame, frame);
+    }
+
+    public boolean isFailed() {
+        return failed;
     }
 }

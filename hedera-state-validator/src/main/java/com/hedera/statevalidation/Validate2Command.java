@@ -13,7 +13,7 @@ import static com.swirlds.base.units.UnitConstants.MEBIBYTES_TO_BYTES;
 
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.hedera.statevalidation.poc.listener.LoggingValidationListener;
+import com.hedera.statevalidation.poc.listener.ValidationExecutionListener;
 import com.hedera.statevalidation.poc.listener.ValidationListener;
 import com.hedera.statevalidation.poc.model.DataStats;
 import com.hedera.statevalidation.poc.model.ItemData;
@@ -44,6 +44,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.Callable;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -63,7 +64,7 @@ import picocli.CommandLine.ParentCommand;
         name = "validate2",
         mixinStandardHelpOptions = true,
         description = "Validate command v2. Validates the state by running some of the validators in parallel.")
-public class Validate2Command implements Runnable {
+public class Validate2Command implements Callable<Integer> {
 
     private static final Logger log = LogManager.getLogger(Validate2Command.class);
 
@@ -120,7 +121,8 @@ public class Validate2Command implements Runnable {
     private Validate2Command() {}
 
     @Override
-    public void run() {
+    public Integer call() {
+        final var validationExecutionListener = new ValidationExecutionListener();
         try (ExecutorService ioPool = Executors.newFixedThreadPool(ioThreads)) {
             try (ExecutorService processPool = Executors.newFixedThreadPool(processThreads)) {
                 final BlockingQueue<List<ItemData>> dataQueue = new LinkedBlockingQueue<>(queueCapacity);
@@ -142,7 +144,7 @@ public class Validate2Command implements Runnable {
                 final DataFileCollection keyToPathDfc = vds.getKeyToPath().getFileCollection();
 
                 // Initialize validators and listeners
-                final List<ValidationListener> validationListeners = List.of(new LoggingValidationListener());
+                final List<ValidationListener> validationListeners = List.of(validationExecutionListener);
                 final Map<Type, CopyOnWriteArraySet<Validator>> validators =
                         createAndInitValidators(state, tags, validationListeners);
 
@@ -247,17 +249,14 @@ public class Validate2Command implements Runnable {
                     }
                 }
 
-                boolean anyValidationFailed = false;
                 for (var validatorSet : validators.values()) {
                     for (var validator : validatorSet) {
                         try {
                             validator.validate();
                             validationListeners.forEach(listener -> listener.onValidationCompleted(validator.getTag()));
                         } catch (final ValidationException e) {
-                            anyValidationFailed = true;
                             validationListeners.forEach(listener -> listener.onValidationFailed(e));
                         } catch (final Exception e) {
-                            anyValidationFailed = true;
                             validationListeners.forEach(listener -> listener.onValidationFailed(new ValidationException(
                                     validator.getTag(),
                                     "Unexpected exception during validation: " + e.getMessage(),
@@ -284,17 +283,15 @@ public class Validate2Command implements Runnable {
 
                 log.info(dataStats);
 
-                // common validation for error reads
-                if (dataStats.hasErrorReads()) {
-                    throw new RuntimeException("Error reads found. Full info: \n " + dataStats);
-                }
-
-                if (anyValidationFailed) {
-                    throw new ValidationException("*", "One or more validators failed. Check logs for details.");
-                }
-
                 log.debug("Total boundary search time: {} ms", totalBoundarySearchMillis.get());
                 log.debug("Total processing time: {} ms", System.currentTimeMillis() - startTime);
+
+                // common validation for error reads
+                if (dataStats.hasErrorReads()) {
+                    return 1;
+                }
+
+                return validationExecutionListener.isFailed() ? 1 : 0;
             }
         } catch (final RuntimeException e) {
             throw e;
@@ -374,6 +371,9 @@ public class Validate2Command implements Runnable {
                 try {
                     validator.initialize(state);
                     return false; // keep validator
+                } catch (final ValidationException e) {
+                    validationListeners.forEach(listener -> listener.onValidationFailed(e));
+                    return true; // remove validator
                 } catch (final Exception e) {
                     validationListeners.forEach(listener -> listener.onValidationFailed(
                             new ValidationException(validator.getTag(), "Unexpected exception: " + e.getMessage(), e)));
