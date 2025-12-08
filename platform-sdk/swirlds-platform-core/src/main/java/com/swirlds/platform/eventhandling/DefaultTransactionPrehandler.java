@@ -9,7 +9,7 @@ import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.state.signed.ReservedSignedState;
-import com.swirlds.platform.stats.AverageTimeStat;
+import com.swirlds.common.metrics.statistics.AverageTimeStat;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.temporal.ChronoUnit;
 import java.util.Objects;

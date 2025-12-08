@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.stats;
+package com.swirlds.common.metrics.statistics;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
@@ -15,9 +15,9 @@ import com.swirlds.common.metrics.platform.PlatformMetricsFactoryImpl;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.platform.stats.cycle.AccumulatedCycleMetrics;
-import com.swirlds.platform.stats.cycle.CycleDefinition;
-import com.swirlds.platform.stats.cycle.CycleTracker;
+import com.swirlds.common.metrics.statistics.cycle.AccumulatedCycleMetrics;
+import com.swirlds.common.metrics.statistics.cycle.CycleDefinition;
+import com.swirlds.common.metrics.statistics.cycle.CycleTracker;
 import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.ScheduledExecutorService;

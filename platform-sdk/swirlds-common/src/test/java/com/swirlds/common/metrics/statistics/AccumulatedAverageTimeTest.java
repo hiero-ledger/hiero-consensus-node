@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.stats;
+package com.swirlds.common.metrics.statistics;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -12,7 +12,7 @@ import com.swirlds.common.metrics.platform.PlatformMetricsFactoryImpl;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.platform.stats.simple.AccumulatedAverageTime;
+import com.swirlds.common.metrics.statistics.simple.AccumulatedAverageTime;
 import java.time.Duration;
 import java.util.concurrent.ScheduledExecutorService;
 import org.junit.jupiter.api.Assertions;

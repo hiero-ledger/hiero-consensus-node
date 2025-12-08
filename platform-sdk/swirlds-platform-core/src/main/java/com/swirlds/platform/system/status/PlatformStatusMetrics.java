@@ -3,7 +3,7 @@ package com.swirlds.platform.system.status;
 
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.platform.stats.StatConstructor;
+import com.swirlds.common.metrics.statistics.StatConstructor;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.concurrent.atomic.AtomicReference;
 import org.hiero.consensus.model.status.PlatformStatus;

@@ -17,7 +17,7 @@ import com.swirlds.metrics.api.Counter;
 import com.swirlds.metrics.api.LongAccumulator;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.internal.EventImpl;
-import com.swirlds.platform.stats.AverageStat;
+import com.swirlds.common.metrics.statistics.AverageStat;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.temporal.ChronoUnit;
 import java.util.Iterator;

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.stats.atomic;
+package com.swirlds.common.metrics.statistics.atomic;
 
 import org.hiero.base.concurrent.atomic.AtomicIntPair;
 

@@ -14,7 +14,7 @@ import com.swirlds.common.metrics.SpeedometerMetric;
 import com.swirlds.metrics.api.Counter;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.internal.EventImpl;
-import com.swirlds.platform.stats.AverageAndMax;
+import com.swirlds.common.metrics.statistics.AverageAndMax;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Objects;

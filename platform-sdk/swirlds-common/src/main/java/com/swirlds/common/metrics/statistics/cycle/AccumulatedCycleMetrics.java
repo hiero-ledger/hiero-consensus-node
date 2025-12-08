@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.stats.cycle;
+package com.swirlds.common.metrics.statistics.cycle;
 
 import static com.swirlds.metrics.api.FloatFormats.FORMAT_8_1;
 
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.platform.stats.AverageAndMax;
-import com.swirlds.platform.stats.simple.AccumulatedAverageTime;
+import com.swirlds.common.metrics.statistics.AverageAndMax;
+import com.swirlds.common.metrics.statistics.simple.AccumulatedAverageTime;
 import java.util.Arrays;
 import java.util.concurrent.TimeUnit;
 
