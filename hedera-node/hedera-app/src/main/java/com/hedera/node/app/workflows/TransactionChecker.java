@@ -130,12 +130,24 @@ public class TransactionChecker {
      */
     @NonNull
     public TransactionInfo parseAndCheck(@NonNull final Bytes buffer) throws PreCheckException {
+        final int maxBytes = maxIngestParseSize();
         // Fail fast if there are too many transaction bytes
-        if (buffer.length() > maxIngestParseSize()) {
+        if (buffer.length() > maxBytes) {
             throw new PreCheckException(TRANSACTION_OVERSIZE);
         }
         final var tx = parse(buffer, maxBytes);
         return check(tx, maxBytes);
+    }
+
+    /**
+     * Parses and checks a signed transaction encoded as protobuf in the given buffer.
+     * @param buffer The buffer containing the protobuf bytes of the signed transaction
+     * @return The parsed {@link TransactionInfo}
+     * @throws PreCheckException If parsing fails or any of the checks fail.
+     */
+    @NonNull
+    public TransactionInfo parseSignedAndCheck(@NonNull final Bytes buffer) throws PreCheckException {
+        return parseSignedAndCheck(buffer, maxIngestParseSize());
     }
 
     /**
