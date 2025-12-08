@@ -260,11 +260,8 @@ public class PlatformComponentBuilder {
     @NonNull
     public InternalEventValidator buildInternalEventValidator() {
         if (internalEventValidator == null) {
-            final boolean singleNodeNetwork =
-                    blocks.rosterHistory().getCurrentRoster().rosterEntries().size() == 1;
             internalEventValidator = new DefaultInternalEventValidator(
                     blocks.platformContext(),
-                    singleNodeNetwork,
                     blocks.intakeEventCounter(),
                     blocks.execution().getTransactionLimits());
         }
@@ -805,7 +802,6 @@ public class PlatformComponentBuilder {
                     blocks.stateLifecycleManager(),
                     () -> blocks.getLatestCompleteStateReference().get().get(),
                     blocks.intakeEventCounter(),
-                    blocks.createStateFromVirtualMap(),
                     blocks.fallenBehindMonitor(),
                     blocks.reservedSignedStateResultPromise());
         }

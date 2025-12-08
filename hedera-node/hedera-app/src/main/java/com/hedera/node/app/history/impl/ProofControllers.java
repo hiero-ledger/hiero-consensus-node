@@ -5,12 +5,14 @@ import static com.hedera.node.app.hints.HintsService.maybeWeightsFrom;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.state.hints.HintsConstruction;
+import com.hedera.hapi.node.state.history.HistoryProof;
 import com.hedera.hapi.node.state.history.HistoryProofConstruction;
 import com.hedera.node.app.history.HistoryLibrary;
 import com.hedera.node.app.history.HistoryService;
 import com.hedera.node.app.history.ReadableHistoryStore;
 import com.hedera.node.app.service.roster.impl.ActiveRosters;
 import com.hedera.node.app.spi.info.NodeInfo;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Optional;
@@ -25,7 +27,7 @@ public class ProofControllers {
 
     private final Executor executor;
     private final ProofKeysAccessor keyAccessor;
-    private final HistoryLibrary library;
+    private final HistoryLibrary historyLibrary;
     private final HistoryService historyService;
     private final HistorySubmissions submissions;
     private final Supplier<NodeInfo> selfNodeInfoSupplier;
@@ -41,13 +43,13 @@ public class ProofControllers {
     public ProofControllers(
             @NonNull final Executor executor,
             @NonNull final ProofKeysAccessor keyAccessor,
-            @NonNull final HistoryLibrary library,
+            @NonNull final HistoryLibrary historyLibrary,
             @NonNull final HistorySubmissions submissions,
             @NonNull final Supplier<NodeInfo> selfNodeInfoSupplier,
             @NonNull final HistoryService historyService) {
         this.executor = requireNonNull(executor);
         this.keyAccessor = requireNonNull(keyAccessor);
-        this.library = requireNonNull(library);
+        this.historyLibrary = requireNonNull(historyLibrary);
         this.submissions = requireNonNull(submissions);
         this.selfNodeInfoSupplier = requireNonNull(selfNodeInfoSupplier);
         this.historyService = requireNonNull(historyService);
@@ -60,7 +62,7 @@ public class ProofControllers {
      * @param construction the construction
      * @param historyStore the history store
      * @param activeHintsConstruction the active hinTS construction, if any
-     * @param wrapsEnabled whether recursive chain-of-trust proofs are enabled
+     * @param activeProofConstruction the active proof construction, if any
      * @return the result of the operation
      */
     public @NonNull ProofController getOrCreateFor(
@@ -68,16 +70,17 @@ public class ProofControllers {
             @NonNull final HistoryProofConstruction construction,
             @NonNull final ReadableHistoryStore historyStore,
             @Nullable final HintsConstruction activeHintsConstruction,
-            final boolean wrapsEnabled) {
+            @NonNull final HistoryProofConstruction activeProofConstruction) {
         requireNonNull(activeRosters);
         requireNonNull(construction);
         requireNonNull(historyStore);
+        requireNonNull(activeProofConstruction);
         if (currentConstructionId() != construction.constructionId()) {
             if (controller != null) {
                 controller.cancelPendingWork();
             }
-            controller =
-                    newControllerFor(activeRosters, construction, historyStore, activeHintsConstruction, wrapsEnabled);
+            controller = newControllerFor(
+                    activeRosters, construction, historyStore, activeHintsConstruction, activeProofConstruction);
         }
         return requireNonNull(controller);
     }
@@ -110,7 +113,7 @@ public class ProofControllers {
      * @param construction the proof construction
      * @param historyStore the history store
      * @param activeHintsConstruction the active hinTS construction, if any
-     * @param wrapsEnabled whether recursive chain-of-trust proofs are enabled
+     * @param activeProofConstruction the active proof construction
      * @return the controller
      */
     private ProofController newControllerFor(
@@ -118,32 +121,42 @@ public class ProofControllers {
             @NonNull final HistoryProofConstruction construction,
             @NonNull final ReadableHistoryStore historyStore,
             @Nullable final HintsConstruction activeHintsConstruction,
-            final boolean wrapsEnabled) {
+            @NonNull final HistoryProofConstruction activeProofConstruction) {
         final var weights = activeRosters.transitionWeights(maybeWeightsFrom(activeHintsConstruction));
         if (!weights.sourceNodesHaveTargetThreshold()) {
             return new InertProofController(construction.constructionId());
         } else {
             final var keyPublications = historyStore.getProofKeyPublications(weights.targetNodeIds());
-            final var signaturePublications =
-                    historyStore.getSignaturePublications(construction.constructionId(), weights.targetNodeIds());
+            final var wrapsMessagePublications =
+                    historyStore.getWrapsMessagePublications(construction.constructionId(), weights.targetNodeIds());
             final var votes = historyStore.getVotes(construction.constructionId(), weights.sourceNodeIds());
             final var selfId = selfNodeInfoSupplier.get().nodeId();
             final var schnorrKeyPair = keyAccessor.getOrCreateSchnorrKeyPair(construction.constructionId());
+            final var sourceProof = activeProofConstruction.targetProof();
             return new ProofControllerImpl(
                     selfId,
-                    wrapsEnabled,
                     schnorrKeyPair,
-                    historyStore.getLedgerId(),
                     construction,
                     weights,
                     executor,
-                    library,
                     submissions,
                     keyPublications,
-                    signaturePublications,
+                    wrapsMessagePublications,
                     votes,
-                    historyService);
+                    historyService,
+                    historyLibrary,
+                    WrapsHistoryProver::new,
+                    sourceProof);
         }
+    }
+
+    /**
+     * Returns whether the given proof is extensible with a WRAPS proof.
+     * @param proof the proof
+     * @return whether the proof is extensible with a WRAPS proof
+     */
+    public static boolean isWrapsExtensible(@Nullable final HistoryProof proof) {
+        return proof != null && !Bytes.EMPTY.equals(proof.uncompressedWrapsProof());
     }
 
     /**
