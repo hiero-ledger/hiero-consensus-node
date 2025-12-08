@@ -375,19 +375,23 @@ public class ReconnectStatePeerProtocol implements PeerProtocol {
     private void teacher(final Connection connection) {
         try {
             final SignedState state = teacherState.get();
-            final ReconnectStateTeacher teacher = new ReconnectStateTeacher(
-                    platformContext,
-                    time,
-                    threadManager,
-                    connection,
-                    reconnectSocketTimeout,
-                    connection.getSelfId(),
-                    connection.getOtherId(),
-                    state.getRound(),
-                    state,
-                    reconnectMetrics);
-            // The teacher now has all information needed to teach. Time to release the original state
-            teacherState.close();
+            ReconnectStateTeacher teacher;
+            try {
+                teacher = new ReconnectStateTeacher(
+                        platformContext,
+                        time,
+                        threadManager,
+                        connection,
+                        reconnectSocketTimeout,
+                        connection.getSelfId(),
+                        connection.getOtherId(),
+                        state.getRound(),
+                        state,
+                        reconnectMetrics);
+            } finally {
+                // The teacher now has all the information needed to teach. Time to release the original state
+                teacherState.close();
+            }
             teacher.execute();
         } finally {
             teacherThrottle.reconnectAttemptFinished();

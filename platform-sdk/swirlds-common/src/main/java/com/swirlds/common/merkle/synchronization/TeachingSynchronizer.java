@@ -92,7 +92,6 @@ public class TeachingSynchronizer {
      */
     public void synchronize() throws InterruptedException {
         try {
-            view.waitUntilReady();
             sendTree();
         } finally {
             view.close();

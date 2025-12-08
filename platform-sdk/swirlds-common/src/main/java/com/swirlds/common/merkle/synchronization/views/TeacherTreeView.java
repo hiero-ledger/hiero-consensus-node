@@ -80,17 +80,4 @@ public interface TeacherTreeView<T>
      * @throws IOException If an I/O error occurred
      */
     void writeChildHashes(T parent, SerializableDataOutputStream out) throws IOException;
-
-    /**
-     * It is possible to create a teacher view that is not immediately ready for use, and later becomes ready for use
-     * after miscellaneous background operations complete. This method blocks until that background work is completed,
-     * after which the view is ready to be used during a reconnect.
-     *
-     * @throws InterruptedException
-     * 		if the thread is interrupted
-     */
-    default void waitUntilReady() throws InterruptedException {
-        // By default, a view is considered "ready" after constructed.
-        // If that is not the case for a view implementation, override this method.
-    }
 }

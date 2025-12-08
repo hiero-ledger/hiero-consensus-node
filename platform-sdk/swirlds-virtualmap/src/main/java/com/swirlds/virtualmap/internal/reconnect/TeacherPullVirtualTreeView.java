@@ -10,7 +10,6 @@ import com.swirlds.common.merkle.synchronization.TeachingSynchronizer;
 import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
 import com.swirlds.common.merkle.synchronization.streams.AsyncOutputStream;
 import com.swirlds.common.merkle.synchronization.views.TeacherTreeView;
-import com.swirlds.common.threading.framework.config.ThreadConfiguration;
 import com.swirlds.common.threading.manager.ThreadManager;
 import com.swirlds.common.threading.pool.StandardWorkGroup;
 import com.swirlds.virtualmap.VirtualMap;
@@ -18,8 +17,6 @@ import com.swirlds.virtualmap.internal.RecordAccessor;
 import com.swirlds.virtualmap.internal.merkle.VirtualMapMetadata;
 import com.swirlds.virtualmap.internal.pipeline.VirtualPipeline;
 import java.io.IOException;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Hash;
@@ -45,17 +42,7 @@ public final class TeacherPullVirtualTreeView extends VirtualTreeViewBase implem
     /**
      * The {@link RecordAccessor} used for accessing the original map state.
      */
-    private RecordAccessor records;
-
-    /**
-     * This latch counts down when the view is fully initialized and ready for use.
-     */
-    private final CountDownLatch readyLatch = new CountDownLatch(1);
-
-    /**
-     * Indicates whether this teacher view is ready after {@link #readyLatch} is released.
-     */
-    private final AtomicBoolean ready = new AtomicBoolean(false);
+    private final RecordAccessor records;
 
     /**
      * Create a new {@link TeacherPullVirtualTreeView}.
@@ -78,19 +65,7 @@ public final class TeacherPullVirtualTreeView extends VirtualTreeViewBase implem
         // There is no distinction between originalState and reconnectState in this implementation
         super(map, state, state);
         this.reconnectConfig = reconnectConfig;
-        new ThreadConfiguration(threadManager)
-                .setRunnable(() -> {
-                    try {
-                        records = pipeline.pausePipelineAndRun("copy", map::detach);
-                        ready.set(true);
-                    } finally {
-                        readyLatch.countDown();
-                    }
-                })
-                .setComponent("virtualmap")
-                .setThreadName("detacher")
-                .build()
-                .start();
+        this.records = pipeline.pausePipelineAndRun("copy", map::detach);
     }
 
     @Override
@@ -147,17 +122,6 @@ public final class TeacherPullVirtualTreeView extends VirtualTreeViewBase implem
      */
     public Hash loadHash(final long path) {
         return records.findHash(path);
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void waitUntilReady() throws InterruptedException {
-        readyLatch.await();
-        if (!ready.get()) {
-            throw new RuntimeException("Failed to wait until teacher view is ready");
-        }
     }
 
     /**
@@ -251,13 +215,9 @@ public final class TeacherPullVirtualTreeView extends VirtualTreeViewBase implem
     @Override
     public void close() {
         try {
-            waitUntilReady();
             records.close();
         } catch (final IOException e) {
             logger.error(EXCEPTION.getMarker(), "interrupted while attempting to close data source");
-        } catch (final InterruptedException e) {
-            logger.error(EXCEPTION.getMarker(), "Failed to close data source properly", e);
-            Thread.currentThread().interrupt();
         }
     }
 }
