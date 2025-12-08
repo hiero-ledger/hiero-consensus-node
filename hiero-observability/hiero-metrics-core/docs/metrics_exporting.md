@@ -15,10 +15,11 @@ To be discovered by SPI mechanism implementations of this interface should be re
 
 [MetricsExportManager](../src/main/java/org/hiero/metrics/api/export/MetricsExportManager.java) is the interface to manage metrics registry and exporters.
 `MetricsExportManager.Builder` must be used to create instance of export manager.
-Its `withDiscoverExporters` method accepts `Configuration`, allows to discover all available `MetricsExporterFactory`s in module path and create required exporters.
-If there is only one pulling exporter, export manager won't start export thread and will allow pulling exporter to collect metric snapshots on demand.
+Its `withDiscoverExporters` method accepts `Configuration`, allows to discover all available `MetricsExporterFactory`s in module path and create required exporters.<br/>
+If there is only one pulling exporter, export manager won't start export thread and will allow pulling exporter to collect metric snapshots on demand.<br/>
 If there is at least one pushing exporter or more than one pulling exporter, export manager will start export thread that will take snapshots of metrics and
-provide them to all exporters at configured interval.
+provide them to all exporters at configured interval. Be aware that in this case, pulling exporters, while collecting metrics on their own schedule, will get 
+snapshots of metrics based on export manager interval.
 
 ### Export Internals
 
@@ -38,7 +39,7 @@ where placeholders are replaced with actual values from snapshots.
 
 ### Export Extensions
 
-Metrics Core module doesn't provide any built-in exporters, but there are extensions can be added to runtime:
+Metrics Core module doesn't provide any built-in exporters, but there are extensions that can be added to runtime:
 - `hiero-openmetrics-http` - module that provides HTTP server with Prometheus-compatible ([OpenMetrics1.1](https://github.com/prometheus/OpenMetrics/blob/main/specification/OpenMetrics.md)) endpoint to scrape metrics.
 
 Clients may use `org.hiero.metrics.api.export.extension` package to implement their own exporters and factories.

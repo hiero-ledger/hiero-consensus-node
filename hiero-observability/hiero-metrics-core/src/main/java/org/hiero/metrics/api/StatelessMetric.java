@@ -13,8 +13,9 @@ import org.hiero.metrics.api.core.NumberSupplier;
 import org.hiero.metrics.internal.StatelessMetricImpl;
 
 /**
- * A stateless metric of type {@link MetricType#GAUGE} that doesn't hold any state
- * and gets/exports its value using provided suppliers.
+ * A stateless metric of type {@link MetricType#GAUGE}, which holds data points per unique combination
+ * of dynamic label values without providing any methods to update values. It only requires value suppliers
+ * to retrieve the current value of each data point.
  * <p>
  * Value suppliers are provided per data point during metric construction using
  * {@link Builder#registerDataPoint(NumberSupplier, String...)}, or could be added later

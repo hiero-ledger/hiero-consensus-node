@@ -7,25 +7,24 @@
 All metrics interfaces available to use are defined in `org.hiero.metrics.api` package.<br/>
 Each interface has a builder class to configure and create an instance of the metric with specific implementation,
 that is hidden from the client. Any builder requires a [MetricKey](../src/main/java/org/hiero/metrics/api/core/MetricKey.java) to be provided,
-that identifies metric with name and class of metric interface (see [Metric Registry](#metric-registry) for more details).
+that identifies metric by name and class of metric interface.
 
-Main metric interface is [Metric](../src/main/java/org/hiero/metrics/api/core/Metric.java)
+Core metric interface is [Metric](../src/main/java/org/hiero/metrics/api/core/Metric.java)
 which provides methods to access metric metadata and information about labels of the metric, defined during metric creation.
 Metric may have zero or more _static_ labels that already have a value and will be attached to all data points of the metric.
 Metric may also have zero or more _dynamic_ labels, names of which are defined during metric creation
 and values are defined when accessing a specific data point of the metric for observation/update.
-Metric names and labels must be of pattern `^[a-zA-Z_][a-zA-Z0-9_]*$`.
 
-There are two main extensions of the Metric interface:
+There are two main extensions of the `Metric` interface:
 - [StatelessMetric](../src/main/java/org/hiero/metrics/api/StatelessMetric.java)<br/>
-Terminal metric that does not provide methods to observe/update data points - only access/read them.
-Updates for such metrics are done via external code. Examples are JVM memory usage metric, CPU usage metric, etc.
+A metric that holds data points per unique combination of dynamic label values, which do not provide methods to observe/update value - only access/read them.
+Updates to such metrics are done via external code. Examples are JVM memory usage metric, CPU usage metric, etc.
 - [StatefulMetric](../src/main/java/org/hiero/metrics/api/core/StatefulMetric.java)<br/>
-This is not a terminal metric (has an abstract builder) which stores data points per unique combination of dynamic label values.
-It knows its data point type and how to instantiate it, so if new dynamic label values are provided,
+A base interface for metrics, which store data points per unique combination of dynamic label values, that provide methods to update the values.
+Metric knows how to instantiate a data point, so if new dynamic label values are provided,
 it will create a new data point and return it to the client for observation, otherwise return existing data point.
 Stateful metric also knows data point default initializer - an object used to initialize newly created data points (like initial value),
-but API also allows to provide custom initializer when accessing specific data point.
+but API also allows to provide custom initializer when accessing data point by specific dynamic label values.
 If no dynamic labels are defined for the metric, then it will have a single data point, which also will be created lazily on first access.
 
 ### Metric Types
@@ -79,11 +78,10 @@ Metric registry should be explicitly provided to the binder.
 1. Use global labels in Metric Registry only if they cannot be added during metrics ingestion.
    Usually ingesters like OTEL Collector are able to attach environment or instance labels to all metrics, when collecting them.
 2. **DO NOT** use high-cardinality objects (like IDs, hashes, timestamps, etc.) as dynamic label values of the metric.
-3. API allows to create multiple metric registries, but usually one registry per application is enough.
-4. Metric must be registered once in a registry and may be use in different places in the code.
+3. Metric must be registered once in a registry and may be use in different places in the code.
    Use [MetricsRegistrationProvider](../src/main/java/org/hiero/metrics/api/core/MetricsRegistrationProvider.java) for metrics registration
    and [MetricsBinder](../src/main/java/org/hiero/metrics/api/core/MetricsBinder.java) to propagate registry and access metrics and their data points in application classes.
-5. When metric has dynamic labels, pass String label names and values in **alphabetical** order to access labeled data points.
-   Moreover, labeled data point also can be cached, if it is used frequently and label values are known in advance - this will avoid map lookups on each access.
+4. When metric has dynamic labels, it is recommended to pass `String` label names and values in **alphabetical** order to access labeled data points. This may slightly improve performance of map lookups internally, because framework will not need to reorder label names and values on each access.
+5. If label values are known in advance (not provided from outside), it is recommended to access labeled data point once and keep in some class field. This will avoid map lookups on each access labeled data point update.
 
 [📘Back to Overview](metrics_overview.md)

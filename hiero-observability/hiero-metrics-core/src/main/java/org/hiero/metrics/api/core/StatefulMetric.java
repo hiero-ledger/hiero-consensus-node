@@ -6,10 +6,10 @@ import java.util.Objects;
 import java.util.function.Function;
 
 /**
- * Base interface for a metric that can have multiple data points holding values,
- * each associated with a unique set of dynamic label values.
+ * Base interface for a metric, which holds data points per unique combination
+ * of dynamic label values, providing methods to update values.
  * <p>
- * Implementation is responsible for creating a new data point for each unique set of label values.
+ * Implementation is responsible for creating a new data point for each unique set of dynamic label values.
  * <p>
  * Clients should pay attention the dynamic label values cardinality, as high cardinality can lead to
  * higher costs for metrics backends. <b>Do not use</b> labels with values having unbounded cardinality,
