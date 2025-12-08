@@ -2,6 +2,7 @@
 package com.hedera.node.app.blocks.impl.streaming;
 
 import static com.hedera.hapi.util.HapiUtils.asAccountString;
+import static com.hedera.node.app.blocks.BlockStreamManager.NUM_SIBLINGS_PER_BLOCK;
 import static com.swirlds.common.io.utility.FileUtils.getAbsolutePath;
 import static java.util.Objects.requireNonNull;
 
@@ -243,7 +244,7 @@ public class FileBlockItemWriter implements BlockItemWriter {
             // Verify old proofs without block timestamp or sibling hashes are skipped
             if (pendingProof.blockTimestamp() == null
                     || Objects.equals(pendingProof.blockTimestamp(), Timestamp.DEFAULT)
-                    || pendingProof.siblingHashesFromPrevBlockRoot().size() != 4) {
+                    || pendingProof.siblingHashesFromPrevBlockRoot().size() != NUM_SIBLINGS_PER_BLOCK) {
                 logger.warn(
                         "Pending proof metadata from {} is missing required fields (not considering remaining - {})",
                         proofJson.toPath(),
