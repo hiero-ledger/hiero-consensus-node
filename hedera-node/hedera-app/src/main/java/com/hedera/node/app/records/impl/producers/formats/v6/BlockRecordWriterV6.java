@@ -145,6 +145,9 @@ public final class BlockRecordWriterV6 implements BlockRecordWriter {
             @NonNull final Signer signer,
             @NonNull final FileSystem fileSystem) {
 
+        logger.info("******** {} - Creating BlockRecordWriterV6", Thread.currentThread());
+        logger.info("******** with {}", nodeAccountId);
+
         if (config.recordFileVersion() != 6) {
             logger.fatal(
                     "Bad configuration: BlockRecordWriterV6 used with record file version {}",

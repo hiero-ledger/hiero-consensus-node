@@ -7,6 +7,7 @@ import com.hedera.hapi.node.base.AccountID;
 import com.hedera.node.app.records.impl.producers.BlockRecordWriter;
 import com.hedera.node.app.records.impl.producers.BlockRecordWriterFactory;
 import com.hedera.node.app.records.impl.producers.formats.v6.BlockRecordWriterV6;
+import com.hedera.node.app.spi.records.SelfNodeAccountIdManager;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockRecordStreamConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -23,7 +24,7 @@ public class BlockRecordWriterFactoryImpl implements BlockRecordWriterFactory {
     private final ConfigProvider configProvider;
     private final Signer signer;
     private final FileSystem fileSystem;
-    private final AccountID selfNodeAccountId;
+    private final SelfNodeAccountIdManager selfNodeAccountIdManager;
 
     /**
      *
@@ -40,7 +41,7 @@ public class BlockRecordWriterFactoryImpl implements BlockRecordWriterFactory {
         this.configProvider = requireNonNull(configProvider);
         this.fileSystem = requireNonNull(fileSystem);
         this.signer = requireNonNull(signer);
-        this.selfNodeAccountId = selfNodeAccountIdManager.getSelfNodeAccountId();
+        this.selfNodeAccountIdManager = selfNodeAccountIdManager;
     }
 
     @Override
@@ -55,7 +56,7 @@ public class BlockRecordWriterFactoryImpl implements BlockRecordWriterFactory {
             case 6 ->
                 new BlockRecordWriterV6(
                         configProvider.getConfiguration().getConfigData(BlockRecordStreamConfig.class),
-                        selfNodeAccountId,
+                        selfNodeAccountIdManager.getSelfNodeAccountId(),
                         signer,
                         fileSystem);
             case 7 -> throw new IllegalArgumentException("Record file version 7 is not yet supported");

@@ -91,8 +91,8 @@ public class StateNetworkInfo implements NetworkInfo {
                 .getConfiguration()
                 .getConfigData(LedgerConfig.class)
                 .id();
-        this.nodeInfos = nodeInfosFrom(state);
         this.selfId = selfId;
+        this.nodeInfos = nodeInfosFrom(state);
     }
 
     @NonNull
@@ -146,6 +146,7 @@ public class StateNetworkInfo implements NetworkInfo {
             // until the first round is handled and the system entities created; c.f. doGenesisSetup()
             // in SystemTransactions which will give us another chance to populate from state then
             final var network = genesisNetworkSupplier.get();
+            log.info("#### GENESIS - Creating node infos for network {}", network);
             for (final var metadata : network.nodeMetadata()) {
                 final var node = metadata.nodeOrThrow();
                 final var nodeInfo = new NodeInfoImpl(
@@ -163,6 +164,17 @@ public class StateNetworkInfo implements NetworkInfo {
             final ReadableKVState<EntityNumber, Node> nodes =
                     state.getReadableStates(AddressBookService.NAME).get(NODES_STATE_ID);
             final var hederaConfig = configuration.getConfigData(HederaConfig.class);
+            log.info("#### Create network info");
+            log.info("#### Self id {}", selfId);
+            log.info("#### Active roster: ");
+            for (final var rosterEntry : activeRoster.rosterEntries()) {
+                log.info("#Roster entry - Node id {}" , rosterEntry.nodeId());
+            }
+            final var allNodesSize = entityCounts.get().numNodes();
+            log.info("#### All nodes in state: ");
+            for (int i = 0; i < allNodesSize; i++) {
+                log.info("#{}. Node account id{}",i , nodes.get(EntityNumber.newBuilder().number(i).build()).accountId());
+            }
             for (final var rosterEntry : activeRoster.rosterEntries()) {
                 // At genesis the node store is derived from the roster, hence must have info for every
                 // node id; and from then on, the roster is derived from the node store, and hence the

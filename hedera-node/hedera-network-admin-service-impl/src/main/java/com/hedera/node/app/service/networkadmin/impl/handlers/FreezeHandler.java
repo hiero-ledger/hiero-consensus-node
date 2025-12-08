@@ -194,10 +194,6 @@ public class FreezeHandler implements TransactionHandler {
                             && updateFileID.fileNum()
                                     <= filesConfig.softwareUpdateRange().right()) {
                         upgradeActions.extractSoftwareUpgrade(upgradeFileStore.getFull(updateFileID));
-
-                        // keep track of the initial self account id for entire upgrade boundary
-                        final NodeInfo selfInfo = context.networkInfo().selfNodeInfo();
-                        selfNodeAccountIdManager.setSelfNodeAccountId(selfInfo.accountId());
                     }
                 } catch (IOException e) {
                     throw new IllegalStateException("Error extracting upgrade file", e);

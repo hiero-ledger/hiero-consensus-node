@@ -29,6 +29,7 @@ import com.hedera.node.app.quiescence.QuiescenceController;
 import com.hedera.node.app.quiescence.TxPipelineTracker;
 import com.hedera.node.app.records.BlockRecordInjectionModule;
 import com.hedera.node.app.records.BlockRecordManager;
+import com.hedera.node.app.records.impl.producers.formats.SelfNodeAccountIdManagerImpl;
 import com.hedera.node.app.service.consensus.impl.ConsensusServiceImpl;
 import com.hedera.node.app.service.contract.impl.ContractServiceImpl;
 import com.hedera.node.app.service.file.impl.FileServiceImpl;
@@ -43,6 +44,7 @@ import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.migrate.StartupNetworks;
 import com.hedera.node.app.spi.records.RecordCache;
+import com.hedera.node.app.spi.records.SelfNodeAccountIdManager;
 import com.hedera.node.app.spi.throttle.ScheduleThrottle;
 import com.hedera.node.app.state.HederaStateInjectionModule;
 import com.hedera.node.app.state.WorkingStateAccessor;
@@ -58,6 +60,7 @@ import com.hedera.node.app.workflows.prehandle.PreHandleWorkflow;
 import com.hedera.node.app.workflows.query.QueryWorkflow;
 import com.hedera.node.app.workflows.query.annotations.OperatorQueries;
 import com.hedera.node.app.workflows.query.annotations.UserQueries;
+import com.hedera.node.config.ConfigProvider;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.listeners.ReconnectCompleteListener;
 import com.swirlds.platform.listeners.StateWriteToDiskCompleteListener;
@@ -66,6 +69,8 @@ import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.system.state.notifications.AsyncFatalIssListener;
 import dagger.BindsInstance;
 import dagger.Component;
+import dagger.Provides;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.charset.Charset;
 import java.time.InstantSource;
@@ -160,6 +165,8 @@ public interface HederaInjectionComponent {
 
     QuiescenceController quiescenceController();
 
+    SelfNodeAccountIdManager selfNodeAccountIdManager();
+
     @Component.Builder
     interface Builder {
         @BindsInstance
@@ -245,6 +252,9 @@ public interface HederaInjectionComponent {
 
         @BindsInstance
         Builder appContext(AppContext appContext);
+
+        @BindsInstance
+        Builder selfNodeAccountIdManager(SelfNodeAccountIdManager selfNodeAccountIdManager);
 
         HederaInjectionComponent build();
     }

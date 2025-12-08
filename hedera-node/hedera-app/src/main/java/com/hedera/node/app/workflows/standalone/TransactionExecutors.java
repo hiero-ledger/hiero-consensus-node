@@ -14,6 +14,8 @@ import com.hedera.node.app.hints.impl.HintsServiceImpl;
 import com.hedera.node.app.history.impl.HistoryLibraryImpl;
 import com.hedera.node.app.history.impl.HistoryServiceImpl;
 import com.hedera.node.app.info.NodeInfoImpl;
+import com.hedera.node.app.info.StateNetworkInfo;
+import com.hedera.node.app.records.impl.producers.formats.SelfNodeAccountIdManagerImpl;
 import com.hedera.node.app.service.consensus.impl.ConsensusServiceImpl;
 import com.hedera.node.app.service.contract.impl.ContractServiceImpl;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
@@ -28,6 +30,7 @@ import com.hedera.node.app.signature.impl.SignatureVerifierImpl;
 import com.hedera.node.app.state.recordcache.LegacyListRecordSource;
 import com.hedera.node.app.throttle.AppThrottleFactory;
 import com.hedera.node.app.throttle.ThrottleAccumulator;
+import com.hedera.node.app.workflows.standalone.impl.StandaloneNetworkInfo;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.types.StreamMode;
@@ -310,6 +313,7 @@ public enum TransactionExecutors {
                 .historyService(historyService)
                 .metrics(NO_OP_METRICS)
                 .throttleFactory(appContext.throttleFactory())
+                .selfNodeAccountIdManager(new SelfNodeAccountIdManagerImpl(configProvider, new StandaloneNetworkInfo(configProvider)))
                 .build();
         componentRef.set(component);
         return component;

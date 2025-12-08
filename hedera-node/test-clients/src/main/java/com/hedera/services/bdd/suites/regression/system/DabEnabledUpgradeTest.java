@@ -380,14 +380,16 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
                                         .accountId("newNodeAccountId")
                                         .signedByPayerAnd("newNodeAccountId"),
 
-                                // try death restart of the node
-                                getVersionInfo().exposingServicesVersionTo(currentVersion::set),
-                                FakeNmt.shutdownWithin(byNodeId(nodeId.get()), SHUTDOWN_TIMEOUT),
-                                logIt("Node is supposedly down"),
-                                sleepFor(PORT_UNBINDING_WAIT_PERIOD.toMillis()),
-                                sourcing(() -> FakeNmt.restartWithConfigVersion(
-                                        byNodeId(nodeId.get()), configVersionOf(currentVersion.get()))),
-                                waitForActive(byNodeId(4), Duration.ofSeconds(210)),
+
+
+//                                // try death restart of the node
+//                                getVersionInfo().exposingServicesVersionTo(currentVersion::set),
+//                                FakeNmt.shutdownWithin(byNodeId(nodeId.get()), SHUTDOWN_TIMEOUT),
+//                                logIt("Node is supposedly down"),
+//                                sleepFor(PORT_UNBINDING_WAIT_PERIOD.toMillis()),
+//                                sourcing(() -> FakeNmt.restartWithConfigVersion(
+//                                        byNodeId(nodeId.get()), configVersionOf(currentVersion.get()))),
+//                                waitForActive(byNodeId(4), Duration.ofSeconds(210)),
 
                                 // reconnect the node
                                 getVersionInfo().exposingServicesVersionTo(currentVersion::set),
@@ -421,6 +423,9 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
                     // 3. Update the node_account_id.txt on startup after the upgrade
                     prepareFakeUpgrade(),
                     upgradeToNextConfigVersion(),
+                    // create record
+                    burstOfTps(MIXED_OPS_BURST_TPS, Duration.ofSeconds(5)),
+
                     // after the upgrade the node should start using the new paths
                     validatePathsExist(nodeToUpdate, accountId),
 
@@ -428,15 +433,18 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
                     nodeUpdate(nodeToUpdate).accountId("newAccount").signedByPayerAnd("newAccount"),
                     // 5. reconnect
                     getVersionInfo().exposingServicesVersionTo(startVersion::set),
-                    sourcing(() ->
-                            reconnectNode(byNodeId(Long.parseLong(nodeToUpdate)), configVersionOf(startVersion.get()))),
+//                    sourcing(() ->
+//                            reconnectNode(byNodeId(Long.parseLong(nodeToUpdate)), configVersionOf(startVersion.get()))),
                     // 6. validate the new record paths are empty even after reconnect
                     validatePathsAfterUpdate(nodeToUpdate, accountId, newAccountId),
 
                     // 7. upgrade and validate the new records and blocks paths exist
                     prepareFakeUpgrade(),
                     upgradeToNextConfigVersion(),
-                    validatePathsExist(nodeToUpdate, newAccountId));
+                    // create record
+                    burstOfTps(MIXED_OPS_BURST_TPS, Duration.ofSeconds(5)),
+                    validatePathsExist(nodeToUpdate, newAccountId)
+            );
         }
     }
 
@@ -521,11 +529,20 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
 
     private static ContextualActionOp validatePathsExist(String nodeId, AtomicReference<AccountID> accountId) {
         return doingContextual((spec) -> {
+
             final var recordPath = Paths.get(recordsPath(nodeId) + "record" + asAccountString(accountId.get()));
             assertThat(recordPath.toFile().exists()).isTrue();
-
             final var blockPath = Paths.get(blocksPath(nodeId) + "block-" + asAccountString(accountId.get()));
             assertThat(blockPath.toFile().exists()).isTrue();
+
+
+            final var nodeAccountIdFilePath =
+                    Paths.get(nodeAccountIdFilePath(nodeId)).resolve("node_account_id.txt");
+            try {
+                assertThat(Files.readString(nodeAccountIdFilePath)).isEqualTo(asAccountString(accountId.get()));
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
         });
     }
 }

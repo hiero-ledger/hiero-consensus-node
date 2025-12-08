@@ -31,10 +31,10 @@ public interface HederaStateInjectionModule {
         return new WorkingStateAccessor();
     }
 
-    @Provides
-    @Singleton
-    static SelfNodeAccountIdManager selfNodeAccountIdManager(
-            @NonNull final ConfigProvider configProvider, @NonNull final NetworkInfo networkInfo) {
-        return new SelfNodeAccountIdManagerImpl(configProvider, networkInfo);
-    }
+//    @Provides
+//    @Singleton
+//    static SelfNodeAccountIdManager selfNodeAccountIdManager(
+//            @NonNull final ConfigProvider configProvider, @NonNull final NetworkInfo networkInfo) {
+//        return new SelfNodeAccountIdManagerImpl(configProvider, networkInfo);
+//    }
 }
