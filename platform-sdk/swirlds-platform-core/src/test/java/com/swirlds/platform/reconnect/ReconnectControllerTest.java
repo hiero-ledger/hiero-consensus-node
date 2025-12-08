@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.reconnect;
 
+import static com.swirlds.state.test.fixtures.merkle.VirtualMapStateTestUtils.createTestState;
 import static java.lang.Thread.sleep;
 import static org.hiero.base.crypto.test.fixtures.CryptoRandomUtils.randomSignature;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
@@ -165,6 +166,17 @@ class ReconnectControllerTest {
         // Mock PlatformCoordinator
         platformCoordinator = mock(PlatformCoordinator.class);
 
+        // Create real FallenBehindMonitor (needs to be created before setting up coordinator mock)
+        fallenBehindMonitor = new FallenBehindMonitor(NUM_NODES - 1, 0.5);
+
+        // Configure platformCoordinator.pauseGossip() to call fallenBehindMonitor.notifySyncProtocolPaused()
+        doAnswer(inv -> {
+                    fallenBehindMonitor.notifySyncProtocolPaused();
+                    return null;
+                })
+                .when(platformCoordinator)
+                .pauseGossip();
+
         // Mock SwirldStateManager
         stateLifecycleManager = mock(StateLifecycleManager.class);
         when(stateLifecycleManager.getMutableState()).thenReturn(testWorkingState);
@@ -174,9 +186,6 @@ class ReconnectControllerTest {
 
         // Mock ConsensusStateEventHandler
         consensusStateEventHandler = mock(ConsensusStateEventHandler.class);
-
-        // Create real FallenBehindMonitor
-        fallenBehindMonitor = new FallenBehindMonitor(NUM_NODES - 1, 0.5);
 
         // Create real state provider for peer reconnect
         stateProvider = new BlockingResourceProvider<>();
@@ -242,6 +251,9 @@ class ReconnectControllerTest {
         private RunnableCompletionControl controllerRunnable;
         private final List<RunnableCompletionControl> parallelTasks = new ArrayList<>();
 
+        /** Default timeout for wait operations */
+        private static final Duration DEFAULT_WAIT_TIMEOUT = Duration.ofSeconds(5);
+
         ReconnectScenario(final ReconnectController controller) {
             this.controller = controller;
         }
@@ -301,30 +313,84 @@ class ReconnectControllerTest {
             return this;
         }
 
-        /** Wait for reconnect processing to complete */
+        /**
+         * Wait for reconnect processing to request a state (uses default timeout).
+         *
+         * @return this scenario for method chaining
+         * @throws AssertionError if timeout expires before state is requested
+         */
         ReconnectScenario waitForReconnectToRequestState() {
+            return waitForReconnectToRequestState(DEFAULT_WAIT_TIMEOUT);
+        }
+
+        /**
+         * Wait for reconnect processing to request a state with custom timeout.
+         *
+         * @param timeout maximum time to wait
+         * @return this scenario for method chaining
+         * @throws AssertionError if timeout expires before state is requested
+         */
+        ReconnectScenario waitForReconnectToRequestState(final Duration timeout) {
+            return waitForReconnectToRequestState(timeout, "Reconnect did not request state within " + timeout);
+        }
+
+        /**
+         * Wait for reconnect processing to request a state with custom timeout and message.
+         *
+         * @param timeout maximum time to wait
+         * @param timeoutMessage custom message to display on timeout
+         * @return this scenario for method chaining
+         * @throws AssertionError if timeout expires before state is requested
+         */
+        ReconnectScenario waitForReconnectToRequestState(final Duration timeout, final String timeoutMessage) {
+            final long startTime = System.currentTimeMillis();
+            final long timeoutMillis = timeout.toMillis();
+
             while (!stateProvider.isWaitingForResource()) {
+                final long elapsed = System.currentTimeMillis() - startTime;
+                if (elapsed >= timeoutMillis) {
+                    fail(String.format(
+                            "%s. Waited %dms. Controller state: isAlive=%s, isWaiting=%s",
+                            timeoutMessage, elapsed, isControllerAlive(), stateProvider.isWaitingForResource()));
+                }
                 sleep(100);
             }
             return this;
         }
 
-        /** Stop the controller gracefully */
-        void stop() {
+        /** Stop the controller gracefully*/
+        void stop(final Duration timeout, final String failureMessage) {
             controller.stopReconnectLoop();
             interruptControllerThread();
-            parallelTasks.forEach(r -> r.waitIsFinished(LONG_TIMEOUT));
-            controllerRunnable.waitIsFinished(LONG_TIMEOUT);
+            waitFor(() -> parallelTasks.forEach(r -> r.waitIsFinished(timeout)), failureMessage);
+            waitFor(() -> controllerRunnable.waitIsFinished(timeout), failureMessage);
+        }
+
+        /**
+         * Wait for a condition to become true with custom timeout.
+         *
+         * @throws AssertionError if timeout expires before condition becomes true
+         */
+        private void waitFor(Runnable runnable, String failureMessage) {
+            try {
+                runnable.run();
+            } catch (Exception e) {
+                if (e.getMessage().startsWith("Timed out")) {
+                    fail(failureMessage);
+                }
+                throw e;
+            }
         }
 
         void interruptControllerThread() {
             controllerThread.interrupt();
         }
 
-        /** Wait for controller to finish (without stopping it first) */
-        void waitForFinish() {
-            controllerRunnable.waitIsFinished(LONG_TIMEOUT);
-            parallelTasks.forEach(r -> r.waitIsFinished(LONG_TIMEOUT));
+        /** Wait for controller to finish (without stopping it first)
+         * @param timeout*/
+        void waitForFinish(final Duration timeout) {
+            waitFor(() -> controllerRunnable.waitIsFinished(timeout), "Wait for finish timed out elapsed");
+            waitFor(() -> parallelTasks.forEach(r -> r.waitIsFinished(timeout)), "Wait for finish timed out elapsed");
         }
 
         /** Execute a custom action during the scenario */
@@ -339,9 +405,20 @@ class ReconnectControllerTest {
             return this;
         }
 
-        /** Wait for a specified duration */
+        /** Wait for a specified duration (milliseconds) */
         ReconnectScenario wait(final int millis) {
             sleep(millis);
+            return this;
+        }
+
+        /**
+         * Wait for a specified duration.
+         *
+         * @param duration how long to wait
+         * @return this scenario for method chaining
+         */
+        ReconnectScenario wait(final Duration duration) {
+            sleep(duration.toMillis());
             return this;
         }
 
@@ -378,7 +455,7 @@ class ReconnectControllerTest {
                 .reportFallenBehind(NodeId.of(1), NodeId.of(2))
                 .waitForReconnectToRequestState()
                 .parallelRun(peer, peer, peer, peer)
-                .stop();
+                .stop(LONG_TIMEOUT, "Controller did not finished when expected");
 
         assertEquals(1, counter.get());
     }
@@ -392,7 +469,7 @@ class ReconnectControllerTest {
                 .reportFallenBehind(NodeId.of(1), NodeId.of(2))
                 .waitForReconnectToRequestState()
                 .provideState()
-                .stop();
+                .stop(LONG_TIMEOUT, "Controller did not finished when expected");
 
         // Verify the expected interactions
         verify(platformCoordinator, times(1)).submitStatusAction(any(FallenBehindAction.class));
@@ -415,7 +492,7 @@ class ReconnectControllerTest {
                     // After consumption, the promise should not allow new acquires (consumed)
                     assertFalse(stateProvider.acquireProvidePermit());
                 })
-                .stop();
+                .stop(LONG_TIMEOUT, "Controller did not finished when expected");
     }
 
     @Test
@@ -457,7 +534,7 @@ class ReconnectControllerTest {
                         fail();
                     }
                 })
-                .stop();
+                .stop(LONG_TIMEOUT, "Controller did not finished when expected");
 
         assertEquals(2, validationAttempts.get(), "Should have attempted validation twice");
         verify(platformCoordinator, times(1)).resumeGossip();
@@ -473,7 +550,7 @@ class ReconnectControllerTest {
                 .provideException(new RuntimeException("simulated exception"))
                 .waitForReconnectToRequestState()
                 .provideState(testSignedState.reserve("second"))
-                .stop();
+                .stop(LONG_TIMEOUT, "Controller did not finished when expected");
     }
 
     @Test
@@ -488,7 +565,7 @@ class ReconnectControllerTest {
         new ReconnectScenario(createController())
                 .startWithExitCapture(capturedExitCode)
                 .reportFallenBehind(NodeId.of(1), NodeId.of(2))
-                .waitForFinish();
+                .waitForFinish(LONG_TIMEOUT);
 
         // Verify the correct exit code was captured
         assertEquals(
@@ -503,7 +580,7 @@ class ReconnectControllerTest {
                 .reportFallenBehind(NodeId.of(1), NodeId.of(2))
                 .waitForReconnectToRequestState()
                 .provideState()
-                .stop();
+                .stop(LONG_TIMEOUT, "Controller did not finished when expected");
 
         // Verify monitor was reset after successful reconnect
         assertFalse(
@@ -519,6 +596,7 @@ class ReconnectControllerTest {
         // Track operation order
         doAnswer(inv -> {
                     operationOrder.updateAndGet(s -> s + "pauseGossip,");
+                    fallenBehindMonitor.notifySyncProtocolPaused();
                     return null;
                 })
                 .when(platformCoordinator)
@@ -544,7 +622,7 @@ class ReconnectControllerTest {
                 .waitForReconnectToRequestState()
                 .provideState()
                 .wait(200)
-                .stop();
+                .stop(LONG_TIMEOUT, "Controller did not finished when expected");
 
         // Verify operations occurred in correct order
         final String operations = operationOrder.get();
@@ -583,7 +661,7 @@ class ReconnectControllerTest {
                     controller.stopReconnectLoop();
                     scenario.interruptControllerThread();
                 })
-                .waitForFinish();
+                .waitForFinish(LONG_TIMEOUT);
 
         // Verify the action was submitted with correct round
         assertNotNull(capturedAction.get(), "ReconnectCompleteAction should have been submitted");
@@ -622,7 +700,7 @@ class ReconnectControllerTest {
                         Assertions.fail();
                     }
                 })
-                .waitForFinish();
+                .waitForFinish(LONG_TIMEOUT);
 
         // Verify the correct exit code was captured
         assertNotNull(capturedExitCode.get(), "SystemExitUtils.exitSystem should have been called");
@@ -654,7 +732,7 @@ class ReconnectControllerTest {
                 })
                 .reportFallenBehind(NodeId.of(1), NodeId.of(2))
                 .wait(1000)
-                .waitForFinish();
+                .waitForFinish(LONG_TIMEOUT);
 
         // Verify the correct exit code was captured
         assertNotNull(capturedExitCode.get(), "SystemExitUtils.exitSystem should have been called when window elapsed");
@@ -682,7 +760,7 @@ class ReconnectControllerTest {
         new ReconnectScenario(controller)
                 .startWithExitCapture(capturedExitCode)
                 .reportFallenBehind(NodeId.of(1), NodeId.of(2))
-                .waitForFinish();
+                .waitForFinish(LONG_TIMEOUT);
 
         // Verify the correct exit code was captured
         assertNotNull(
@@ -704,7 +782,7 @@ class ReconnectControllerTest {
                 .startWithExitCapture(capturedExitCode)
                 // Start controller
                 .reportFallenBehind(NodeId.of(1), NodeId.of(2))
-                .waitForFinish();
+                .waitForFinish(LONG_TIMEOUT);
 
         // Verify the correct exit code was captured
         assertNotNull(
@@ -726,7 +804,7 @@ class ReconnectControllerTest {
                 .reportFallenBehind(NodeId.of(1), NodeId.of(2))
                 .waitForReconnectToRequestState()
                 .syncRun(scenario::interruptControllerThread)
-                .waitForFinish();
+                .waitForFinish(LONG_TIMEOUT);
 
         // Verify the correct exit code was captured
         assertNotNull(
@@ -754,7 +832,7 @@ class ReconnectControllerTest {
                     controller.stopReconnectLoop();
                     scenario.interruptControllerThread();
                 })
-                .waitForFinish();
+                .waitForFinish(LONG_TIMEOUT);
 
         // Wait for system exit to be called
         assertNull(
