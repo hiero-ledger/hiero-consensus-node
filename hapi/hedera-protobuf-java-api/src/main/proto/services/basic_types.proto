@@ -1848,6 +1848,16 @@ enum HederaFunctionality {
      * (Internal-only) Dispatch a hook action.
      */
     HookDispatch = 110;
+
+    /**
+     * Get a CLPR ledger configuration.
+     */
+    ClprGetLedgerConfig = 111;
+
+    /**
+     * Creates or updates a CLPR remote configuration.
+     */
+    ClprSetLedgerConfig = 112;
 }
 
 /**
