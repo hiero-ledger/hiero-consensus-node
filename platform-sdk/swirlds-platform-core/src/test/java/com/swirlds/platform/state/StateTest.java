@@ -10,7 +10,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
 import com.swirlds.platform.crypto.CryptoStatic;
-import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.test.fixtures.merkle.VirtualMapStateTestUtils;
@@ -68,7 +67,7 @@ class StateTest {
     private static SignedState randomSignedState(boolean isSupposedToBeHashed) {
         Random random = new Random(0);
         final String virtualMapLabel = "vm-" + StateTest.class.getSimpleName() + "-" + java.util.UUID.randomUUID();
-        final MerkleNodeState merkleNodeState = VirtualMapStateTestUtils.createTestStateWithLabel(virtualMapLabel);
+        final MerkleNodeState merkleNodeState = VirtualMapStateTestUtils.createTestState();
         boolean shouldSaveToDisk = random.nextBoolean();
         SignedState signedState = new SignedState(
                 TestPlatformContextBuilder.create().build().getConfiguration(),
@@ -77,8 +76,7 @@ class StateTest {
                 "test",
                 shouldSaveToDisk,
                 false,
-                false,
-                new PlatformStateFacade());
+                false);
         if (isSupposedToBeHashed) {
             // Hash the underlying VirtualMap
             signedState.getState().getHash();

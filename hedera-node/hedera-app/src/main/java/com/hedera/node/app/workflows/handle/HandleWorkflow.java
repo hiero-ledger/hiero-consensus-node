@@ -4,6 +4,7 @@ package com.hedera.node.app.workflows.handle;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.BUSY;
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
 import static com.hedera.node.app.blocks.BlockStreamManager.PendingWork.GENESIS_WORK;
+import static com.hedera.node.app.history.impl.ProofControllers.isWrapsExtensible;
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_STATE_ID;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.SCHEDULED;
 import static com.hedera.node.app.state.logging.TransactionStateLogger.logStartEvent;
@@ -15,6 +16,7 @@ import static com.hedera.node.app.workflows.handle.TransactionType.ORDINARY_TRAN
 import static com.hedera.node.app.workflows.handle.TransactionType.POST_UPGRADE_TRANSACTION;
 import static com.hedera.node.config.types.StreamMode.BLOCKS;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
+import static com.swirlds.platform.state.service.PlatformStateUtils.isFreezeRound;
 import static com.swirlds.platform.system.InitTrigger.EVENT_STREAM_RECOVERY;
 import static java.time.Instant.EPOCH;
 import static java.util.Objects.requireNonNull;
@@ -44,6 +46,7 @@ import com.hedera.node.app.info.CurrentPlatformStatus;
 import com.hedera.node.app.quiescence.QuiescenceController;
 import com.hedera.node.app.records.BlockRecordManager;
 import com.hedera.node.app.records.BlockRecordService;
+import com.hedera.node.app.records.impl.BlockRecordManagerImpl;
 import com.hedera.node.app.service.entityid.EntityIdService;
 import com.hedera.node.app.service.entityid.impl.WritableEntityIdStoreImpl;
 import com.hedera.node.app.service.roster.RosterService;
@@ -77,12 +80,10 @@ import com.hedera.node.app.workflows.handle.steps.StakePeriodChanges;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.ConsensusConfig;
-import com.hedera.node.config.data.QuiescenceConfig;
 import com.hedera.node.config.data.SchedulingConfig;
 import com.hedera.node.config.data.TssConfig;
 import com.hedera.node.config.types.StreamMode;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.service.PlatformStateService;
 import com.swirlds.platform.state.service.ReadablePlatformStateStore;
 import com.swirlds.platform.state.service.WritablePlatformStateStore;
@@ -124,7 +125,6 @@ public class HandleWorkflow {
     public static final String ALERT_MESSAGE = "Possibly CATASTROPHIC failure";
     public static final String SYSTEM_ENTITIES_CREATED_MSG = "System entities created";
 
-    private final boolean quiescenceEnabled;
     private final StreamMode streamMode;
     private final NetworkInfo networkInfo;
     private final StakePeriodChanges stakePeriodChanges;
@@ -163,7 +163,6 @@ public class HandleWorkflow {
     // The last second for which this workflow has confirmed all scheduled transactions are executed
     private long lastExecutedSecond;
     private final NodeRewardManager nodeRewardManager;
-    private final PlatformStateFacade platformStateFacade;
     // Flag to indicate whether we have checked for transplant updates after JVM started
     private boolean checkedForTransplant;
 
@@ -196,7 +195,6 @@ public class HandleWorkflow {
             @NonNull final BlockHashSigner blockHashSigner,
             @Nullable final AtomicBoolean systemEntitiesCreatedFlag,
             @NonNull final NodeRewardManager nodeRewardManager,
-            @NonNull final PlatformStateFacade platformStateFacade,
             @NonNull final BlockBufferService blockBufferService,
             @NonNull final Map<Class<?>, ServiceApiProvider<?>> apiProviders,
             @NonNull final QuiescenceController quiescenceController) {
@@ -224,14 +222,12 @@ public class HandleWorkflow {
         this.quiescenceController = requireNonNull(quiescenceController);
         final var config = configProvider.getConfiguration();
         this.streamMode = config.getConfigData(BlockStreamConfig.class).streamMode();
-        this.quiescenceEnabled = config.getConfigData(QuiescenceConfig.class).enabled();
         this.hintsService = requireNonNull(hintsService);
         this.historyService = requireNonNull(historyService);
         this.blockHashSigner = requireNonNull(blockHashSigner);
         this.currentPlatformStatus = requireNonNull(currentPlatformStatus);
         this.nodeRewardManager = requireNonNull(nodeRewardManager);
         this.systemEntitiesCreatedFlag = systemEntitiesCreatedFlag;
-        this.platformStateFacade = requireNonNull(platformStateFacade);
         this.blockBufferService = requireNonNull(blockBufferService);
         this.apiProviders = requireNonNull(apiProviders);
     }
@@ -331,7 +327,7 @@ public class HandleWorkflow {
             }
 
             // Update the latest freeze round after everything is handled
-            if (platformStateFacade.isFreezeRound(state, round)) {
+            if (isFreezeRound(state, round)) {
                 // If this is a freeze round, we need to update the freeze info state
                 final var platformStateStore =
                         new WritablePlatformStateStore(state.getWritableStates(PlatformStateService.NAME));
@@ -364,9 +360,7 @@ public class HandleWorkflow {
             if (streamMode != RECORDS) {
                 writeEventHeader(event);
             }
-
             final var creator = networkInfo.nodeInfo(event.getCreatorId().id());
-
             final BiConsumer<StateSignatureTransaction, Bytes> shortCircuitTxnCallback = (txn, bytes) -> {
                 if (txn != null) {
                     final var scopedTxn =
@@ -374,11 +368,12 @@ public class HandleWorkflow {
                     stateSignatureTxnCallback.accept(scopedTxn);
                 }
 
-                final var txnItem =
-                        BlockItem.newBuilder().signedTransaction(bytes).build();
-                blockStreamManager.writeItem(txnItem);
+                if (streamMode != RECORDS) {
+                    final var txnItem =
+                            BlockItem.newBuilder().signedTransaction(bytes).build();
+                    blockStreamManager.writeItem(txnItem);
+                }
             };
-
             logStartEvent(event, creator);
             for (final var it = event.consensusTransactionIterator(); it.hasNext(); ) {
                 final var platformTxn = it.next();
@@ -408,6 +403,12 @@ public class HandleWorkflow {
                     receiptEntriesBatchSize,
                     blockStreamManager,
                     streamMode);
+            // If using just a record stream, we check for quiescence after every round instead of after every block;
+            // since with streamMode=RECORDS, "blocks" (.rcd files) stop being created exactly when we want to quiesce
+            // (when there are no user txs being created)
+            if (streamMode == RECORDS) {
+                ((BlockRecordManagerImpl) blockRecordManager).maybeQuiesce(state);
+            }
         }
         final boolean isGenesis =
                 switch (streamMode) {
@@ -559,10 +560,21 @@ public class HandleWorkflow {
         return true;
     }
 
+    /**
+     * Executes all scheduled transactions that are due to expire in the interval
+     * {@code [lastIntervalProcessTime, consensusNow]} and returns whether any were executed.
+     * @param state the state to execute scheduled transactions from
+     * @param consensusNow the current consensus time
+     * @param proximalCreatorInfo the node info of the "closest" event creator
+     * @return whether any scheduled transactions were executed
+     */
     private boolean executeScheduledTransactions(
             @NonNull final State state,
             @NonNull final Instant consensusNow,
-            @NonNull final NodeInfo proximalCreatorInfo) {
+            @Nullable final NodeInfo proximalCreatorInfo) {
+        if (proximalCreatorInfo == null) {
+            return false;
+        }
         var executionStart = streamMode == RECORDS
                 ? blockRecordManager.lastIntervalProcessTime()
                 : blockStreamManager.lastIntervalProcessTime();
@@ -914,7 +926,8 @@ public class HandleWorkflow {
             if (tssConfig.historyEnabled()) {
                 historyService.onFinishedConstruction((historyStore, construction) -> {
                     final var rosterStore = new ReadableRosterStoreImpl(state.getReadableStates(RosterService.NAME));
-                    if (historyStore.getActiveConstruction().constructionId() == construction.constructionId()) {
+                    final var activeConstruction = historyStore.getActiveConstruction();
+                    if (activeConstruction.constructionId() == construction.constructionId()) {
                         // We just finished the genesis proof, so we use it immediately
                         final var proof = construction.targetProofOrThrow();
                         historyService.setLatestHistoryProof(proof);
@@ -924,23 +937,30 @@ public class HandleWorkflow {
                         logger.info("Set ledger id to '{}'", ledgerId);
                         return;
                     }
-                    if (rosterStore.candidateIsWeightRotation()) {
+                    // WRAPS genesis is the first proof that bootstraps the chain of trust; but it takes a long time
+                    // to finish, so we make do right after network genesis with a list-of-signatures block proof
+                    final boolean isWrapsGenesis =
+                            tssConfig.wrapsEnabled() && !isWrapsExtensible(activeConstruction.targetProof());
+                    if (isWrapsGenesis || rosterStore.candidateIsWeightRotation()) {
                         historyStore.handoff(
                                 requireNonNull(rosterStore.getActiveRoster()),
-                                requireNonNull(rosterStore.getCandidateRoster()),
-                                requireNonNull(rosterStore.getCandidateRosterHash()));
+                                rosterStore.getCandidateRoster(),
+                                isWrapsGenesis ? null : requireNonNull(rosterStore.getCandidateRosterHash()));
                         // Make sure we include the latest chain-of-trust proof in following block proofs
                         historyService.setLatestHistoryProof(construction.targetProofOrThrow());
-                        final var writableHintsStates = state.getWritableStates(HintsService.NAME);
-                        final var writableEntityStates = state.getWritableStates(EntityIdService.NAME);
-                        final var entityCounters = new WritableEntityIdStoreImpl(writableEntityStates);
-                        final var hintsStore = new WritableHintsStoreImpl(writableHintsStates, entityCounters);
-                        hintsService.handoff(
-                                hintsStore,
-                                requireNonNull(rosterStore.getActiveRoster()),
-                                requireNonNull(rosterStore.getCandidateRoster()),
-                                requireNonNull(rosterStore.getCandidateRosterHash()),
-                                tssConfig.forceHandoffs());
+                        // Finishing WRAPS genesis has no actual implications for hinTS
+                        if (!isWrapsGenesis) {
+                            final var writableHintsStates = state.getWritableStates(HintsService.NAME);
+                            final var writableEntityStates = state.getWritableStates(EntityIdService.NAME);
+                            final var entityCounters = new WritableEntityIdStoreImpl(writableEntityStates);
+                            final var hintsStore = new WritableHintsStoreImpl(writableHintsStates, entityCounters);
+                            hintsService.handoff(
+                                    hintsStore,
+                                    requireNonNull(rosterStore.getActiveRoster()),
+                                    requireNonNull(rosterStore.getCandidateRoster()),
+                                    requireNonNull(rosterStore.getCandidateRosterHash()),
+                                    tssConfig.forceHandoffs());
+                        }
                     }
                 });
             }
@@ -986,14 +1006,22 @@ public class HandleWorkflow {
                     final var hintsStore = new ReadableHintsStoreImpl(hintsWritableStates, entityCounters);
                     final var historyStore = new WritableHistoryStoreImpl(historyWritableStates);
                     // If we are doing a chain-of-trust proof, this is the verification key we are proving;
-                    // at genesis, the active construction's key---otherwise, the next construction's key
+                    // at genesis (including WRAPS genesis), the active hinTS construction's key---otherwise,
+                    // the next hinTS construction's key...note that even when this is null, the controller
+                    // can still make progress on publishing proof keys as needed
                     final var vk = Optional.ofNullable(
-                                    historyStore.getLedgerId() == null
+                                    (historyStore.getLedgerId() == null
+                                                    || (tssConfig.wrapsEnabled()
+                                                            && historyStore
+                                                                    .getActiveConstruction()
+                                                                    .hasTargetProof()
+                                                            && !isWrapsExtensible(historyStore
+                                                                    .getActiveConstruction()
+                                                                    .targetProof())))
                                             ? hintsStore.getActiveConstruction().hintsScheme()
                                             : hintsStore.getNextConstruction().hintsScheme())
                             .map(s -> s.preprocessedKeysOrThrow().verificationKey())
                             .orElse(null);
-                    // If applicable, this is the verification key that needs a chain-of-trust proof
                     doStreamingKVChanges(
                             historyWritableStates,
                             null,

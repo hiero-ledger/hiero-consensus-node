@@ -33,10 +33,9 @@ import org.junit.jupiter.api.Test;
  */
 class ContainerLoggingTest {
 
-    private static final String SWIRLDS_LOG_PATH = "build/container/node-%d/output/swirlds.log";
-    private static final String HASHSTREAM_LOG_PATH =
-            "build/container/node-%d/output/swirlds-hashstream/swirlds-hashstream.log";
-    private static final String OTTER_LOG_PATH = "build/container/node-%d/output/otter.log";
+    private static final String SWIRLDS_LOG_PATH = "node-%d/output/swirlds.log";
+    private static final String HASHSTREAM_LOG_PATH = "node-%d/output/swirlds-hashstream/swirlds-hashstream.log";
+    private static final String OTTER_LOG_PATH = "node-%d/output/otter.log";
 
     /**
      * Comprehensive integration test for containerized node logging.
@@ -53,6 +52,7 @@ class ContainerLoggingTest {
         context.reconfigure();
 
         final TestEnvironment env = new ContainerTestEnvironment();
+        final Path rootOutputDir = env.outputDirectory();
         final List<NodeId> nodeIds;
         final Map<NodeId, SingleNodeLogResult> logResults;
         final Map<NodeId, String[]> consoleOutputs;
@@ -99,11 +99,11 @@ class ContainerLoggingTest {
 
         // After destroy, verify each node's log file contains messages with allowed markers
         for (final NodeId nodeId : nodeIds) {
-            final Path swirldsLogFile = Path.of(String.format(SWIRLDS_LOG_PATH, nodeId.id()));
+            final Path swirldsLogFile = rootOutputDir.resolve(String.format(SWIRLDS_LOG_PATH, nodeId.id()));
             awaitFile(swirldsLogFile, Duration.ofSeconds(10L));
-            final Path hashstreamLogFile = Path.of(String.format(HASHSTREAM_LOG_PATH, nodeId.id()));
+            final Path hashstreamLogFile = rootOutputDir.resolve(String.format(HASHSTREAM_LOG_PATH, nodeId.id()));
             awaitFile(hashstreamLogFile, Duration.ofSeconds(10L));
-            final Path otterLogFile = Path.of(String.format(OTTER_LOG_PATH, nodeId.id()));
+            final Path otterLogFile = rootOutputDir.resolve(String.format(OTTER_LOG_PATH, nodeId.id()));
             awaitFile(otterLogFile, Duration.ofSeconds(10L));
 
             final List<StructuredLog> inMemoryLog = logResults.get(nodeId).logs();
@@ -153,7 +153,7 @@ class ContainerLoggingTest {
                     .as("Host console output should only contain INFO log levels")
                     .allMatch(logLine -> LoggingTestUtils.lineHasLogLevels(logLine, Level.INFO));
 
-            // Verify that the log messages from the container only appear in the in-memory log, swirlds.log, and the
+            // Verify that the log messages from the platform only appear in the in-memory log, swirlds.log, and the
             // container console
             assertThat(inMemoryLog)
                     .as("Node %s in-memory log should contain '// Node is Starting //' message", nodeId)
@@ -173,6 +173,48 @@ class ContainerLoggingTest {
             assertThat(hostConsoleOutput)
                     .as("Host console output should NOT contain '// Node is Starting //' message")
                     .noneMatch(line -> line.contains("// Node is Starting //"));
+
+            // Verify that the log messages from system services only appear in the in-memory log, swirlds.log, and the
+            // container console
+            assertThat(inMemoryLog)
+                    .as("Node %s in-memory log should contain 'RosterService initialized' message", nodeId)
+                    .anyMatch(log -> log.message().contains("RosterService initialized"));
+            assertThat(containerConsoleOutput)
+                    .as("Node %s console output should contain 'RosterService initialized' message", nodeId)
+                    .anyMatch(line -> line.contains("RosterService initialized"));
+            assertThat(swirldsLogContent)
+                    .as("Node %s swirlds.log should contain 'RosterService initialized' message", nodeId)
+                    .anyMatch(line -> line.contains("RosterService initialized"));
+            assertThat(hashstreamLogContent)
+                    .as("Node %s hashstream.log should NOT contain 'RosterService initialized' message", nodeId)
+                    .noneMatch(line -> line.contains("RosterService initialized"));
+            assertThat(otterLogContent)
+                    .as("Node %s otter.log should NOT contain 'RosterService initialized' message", nodeId)
+                    .noneMatch(line -> line.contains("RosterService initialized"));
+            assertThat(hostConsoleOutput)
+                    .as("Host console output should NOT contain 'RosterService initialized' message")
+                    .noneMatch(line -> line.contains("RosterService initialized"));
+
+            // Verify that the log messages from app services only appear in the in-memory log, swirlds.log, and the
+            // container console
+            assertThat(inMemoryLog)
+                    .as("Node %s in-memory log should contain 'ConsistencyService initialized' message", nodeId)
+                    .anyMatch(log -> log.message().contains("ConsistencyService initialized"));
+            assertThat(containerConsoleOutput)
+                    .as("Node %s console output should contain 'ConsistencyService initialized' message", nodeId)
+                    .anyMatch(line -> line.contains("ConsistencyService initialized"));
+            assertThat(swirldsLogContent)
+                    .as("Node %s swirlds.log should contain 'ConsistencyService initialized' message", nodeId)
+                    .anyMatch(line -> line.contains("ConsistencyService initialized"));
+            assertThat(hashstreamLogContent)
+                    .as("Node %s hashstream.log should NOT contain 'ConsistencyService initialized' message", nodeId)
+                    .noneMatch(line -> line.contains("ConsistencyService initialized"));
+            assertThat(otterLogContent)
+                    .as("Node %s otter.log should NOT contain 'ConsistencyService initialized' message", nodeId)
+                    .noneMatch(line -> line.contains("ConsistencyService initialized"));
+            assertThat(hostConsoleOutput)
+                    .as("Host console output should NOT contain 'ConsistencyService initialized' message")
+                    .noneMatch(line -> line.contains("ConsistencyService initialized"));
 
             // Verify that log messages from the DockerManager only appear in the container console and otter.log
             assertThat(inMemoryLog)

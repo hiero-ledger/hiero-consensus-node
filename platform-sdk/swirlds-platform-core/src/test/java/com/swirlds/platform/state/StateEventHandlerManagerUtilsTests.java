@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state;
 
+import static com.swirlds.platform.state.service.PlatformStateUtils.setCreationSoftwareVersionTo;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils;
-import com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade;
 import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
 import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.test.fixtures.merkle.VirtualMapStateTestUtils;
@@ -19,7 +19,7 @@ public class StateEventHandlerManagerUtilsTests {
     void testFastCopyIsMutable() {
         final String virtualMapLabel =
                 "vm-" + StateEventHandlerManagerUtilsTests.class.getSimpleName() + "-" + java.util.UUID.randomUUID();
-        final MerkleNodeState state = VirtualMapStateTestUtils.createTestStateWithLabel(virtualMapLabel);
+        final MerkleNodeState state = VirtualMapStateTestUtils.createTestState();
         TestingAppStateInitializer.initPlatformState(state);
         state.getRoot().reserve();
 
@@ -27,7 +27,7 @@ public class StateEventHandlerManagerUtilsTests {
                 SemanticVersion.newBuilder().major(1).build();
         // Create a fast copy
         final MerkleNodeState copy = state.copy();
-        TestPlatformStateFacade.TEST_PLATFORM_STATE_FACADE.setCreationSoftwareVersionTo(copy, softwareVersion);
+        setCreationSoftwareVersionTo(copy, softwareVersion);
         // Increment the reference count because this reference becomes the new value
         copy.getRoot().reserve();
 

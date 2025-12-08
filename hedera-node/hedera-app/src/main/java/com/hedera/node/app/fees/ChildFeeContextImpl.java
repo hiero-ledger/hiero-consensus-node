@@ -145,4 +145,9 @@ public class ChildFeeContextImpl implements FeeContext {
     public ExchangeRate activeRate() {
         return context.activeRate();
     }
+
+    @Override
+    public long getGasPriceInTinycents() {
+        return feeManager.getGasPriceInTinyCents(consensusNow);
+    }
 }

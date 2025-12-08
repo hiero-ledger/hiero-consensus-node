@@ -5,7 +5,6 @@ import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSee
 import static org.hiero.consensus.model.hashgraph.ConsensusConstants.ROUND_FIRST;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -19,11 +18,17 @@ import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.platform.internal.EventImpl;
 import com.swirlds.platform.test.fixtures.event.generator.StandardGraphGenerator;
 import com.swirlds.platform.test.fixtures.event.source.StandardEventSource;
+import com.swirlds.platform.test.fixtures.graph.SimpleGraph;
+import com.swirlds.platform.test.fixtures.graph.SimpleGraphs;
+import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Objects;
 import java.util.Random;
+import java.util.stream.Stream;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
@@ -42,13 +47,13 @@ class ConsensusLinkerTests {
 
     private ConsensusLinker linker;
 
-    private PlatformEvent genesisSelfParent;
-    private PlatformEvent genesisOtherParent;
+    private PlatformEvent cr0genesis;
+    private PlatformEvent cr1genesis;
 
     private FakeTime time;
 
-    private final NodeId selfId = NodeId.of(0);
-    private final NodeId otherId = NodeId.of(1);
+    private final NodeId cr0 = NodeId.of(0);
+    private final NodeId cr1 = NodeId.of(1);
 
     /**
      * Set up the in order linker for testing
@@ -62,26 +67,25 @@ class ConsensusLinkerTests {
     }
 
     private void inOrderLinkerSetup() {
-        linker = new ConsensusLinker(
-                TestPlatformContextBuilder.create().withTime(time).build());
+        linker = new ConsensusLinker(NoOpLinkerLogsAndMetrics.getInstance());
 
         time.tick(Duration.ofSeconds(1));
-        genesisSelfParent = new TestingEventBuilder(random)
-                .setCreatorId(selfId)
+        cr0genesis = new TestingEventBuilder(random)
+                .setCreatorId(cr0)
                 .setBirthRound(ROUND_FIRST)
                 .setTimeCreated(time.now())
                 .build();
 
-        linker.linkEvent(genesisSelfParent);
+        linker.linkEvent(cr0genesis);
 
         time.tick(Duration.ofSeconds(1));
-        genesisOtherParent = new TestingEventBuilder(random)
-                .setCreatorId(otherId)
+        cr1genesis = new TestingEventBuilder(random)
+                .setCreatorId(cr1)
                 .setBirthRound(ROUND_FIRST)
                 .setTimeCreated(time.now())
                 .build();
 
-        linker.linkEvent(genesisOtherParent);
+        linker.linkEvent(cr1genesis);
 
         time.tick(Duration.ofSeconds(1));
     }
@@ -116,80 +120,87 @@ class ConsensusLinkerTests {
     void standardOperation() {
         inOrderLinkerSetup();
 
-        // In the following test events are created with increasing generation and birth round numbers.
+        // In the following test events are created with increasing birth round numbers.
         // The linking should fail to occur based on the advancing event window.
-        // The values used for birthRound and generation are just for this test and do not reflect real world values.
+        // The values used for birthRound are just for this test and do not reflect real world values.
 
-        final PlatformEvent child1 = new TestingEventBuilder(random)
-                .setCreatorId(selfId)
-                .setSelfParent(genesisSelfParent)
-                .setOtherParent(genesisOtherParent)
-                .setBirthRound(genesisSelfParent.getBirthRound() + 1)
-                .setTimeCreated(time.now())
+        final PlatformEvent cr0br2 = new TestingEventBuilder(random)
+                .setCreatorId(cr0)
+                .setSelfParent(cr0genesis)
+                .setOtherParent(cr1genesis)
+                .setBirthRound(cr0genesis.getBirthRound() + 1)
                 .build();
 
-        final EventImpl linkedEvent1 = linker.linkEvent(child1);
-        assertNotEquals(null, linkedEvent1);
-        assertNotEquals(null, linkedEvent1.getSelfParent(), "Self parent is non-ancient, and should not be null");
-        assertNotEquals(null, linkedEvent1.getOtherParent(), "Other parent is non-ancient, and should not be null");
+        assertParents(linker.linkEvent(cr0br2), cr0genesis, cr1genesis);
 
-        time.tick(Duration.ofSeconds(1));
-
-        // cause genesisOtherParent to become ancient
-        EventWindow eventWindow = chooseEventWindow(genesisOtherParent);
-        assertFalse(eventWindow.isAncient(child1));
+        // cause genesis events to become ancient
+        EventWindow eventWindow = chooseEventWindow(cr1genesis);
+        assertFalse(eventWindow.isAncient(cr0br2));
         linker.setEventWindow(eventWindow);
 
-        final PlatformEvent child2 = new TestingEventBuilder(random)
-                .setCreatorId(selfId)
-                .setSelfParent(child1)
-                .setOtherParent(genesisOtherParent)
-                .setBirthRound(child1.getBirthRound() + 1)
-                .setTimeCreated(time.now())
+        final PlatformEvent cr0br3 = new TestingEventBuilder(random)
+                .setCreatorId(cr0)
+                .setSelfParent(cr0br2)
+                .setOtherParent(cr1genesis)
+                .setBirthRound(cr0br2.getBirthRound() + 1)
                 .build();
 
-        final EventImpl linkedEvent2 = linker.linkEvent(child2);
-        assertNotEquals(null, linkedEvent2);
-        assertNotEquals(null, linkedEvent2.getSelfParent(), "Self parent is non-ancient, and should not be null");
-        assertNull(linkedEvent2.getOtherParent(), "Other parent is ancient, and should be null");
+        assertParents(linker.linkEvent(cr0br3), cr0br2, null);
 
-        time.tick(Duration.ofSeconds(1));
+        // create an OP to be used later
+        final PlatformEvent cr1br4 = new TestingEventBuilder(random)
+                .setCreatorId(cr1)
+                .setSelfParent(cr1genesis)
+                .setBirthRound(cr0br3.getBirthRound() + 1)
+                .build();
+        assertParents(linker.linkEvent(cr1br4), null, null);
 
-        // cause child1 to become ancient
-        eventWindow = chooseEventWindow(child1);
-        assertFalse(eventWindow.isAncient(child2));
+        // cause cr0br2 to become ancient
+        eventWindow = chooseEventWindow(cr0br2);
+        assertFalse(eventWindow.isAncient(cr0br3));
         linker.setEventWindow(eventWindow);
 
-        final PlatformEvent child3 = new TestingEventBuilder(random)
-                .setCreatorId(selfId)
-                .setSelfParent(child1)
-                .setOtherParent(child2)
-                .setBirthRound(child2.getBirthRound() + 1)
-                .setTimeCreated(time.now())
+        final PlatformEvent cr0br4 = new TestingEventBuilder(random)
+                .setCreatorId(cr0)
+                .setSelfParent(cr0br2)
+                .setOtherParent(cr1br4)
+                .setBirthRound(cr1br4.getBirthRound() + 1)
                 .build();
 
-        final EventImpl linkedEvent3 = linker.linkEvent(child3);
-        assertNotEquals(null, linkedEvent3);
-        assertNull(linkedEvent3.getSelfParent(), "Self parent is ancient, and should be null");
-        assertNotEquals(null, linkedEvent3.getOtherParent(), "Other parent is non-ancient, and should not be null");
+        assertParents(linker.linkEvent(cr0br4), null, cr1br4);
 
-        time.tick(Duration.ofSeconds(1));
         // make both parents ancient.
-        eventWindow = chooseEventWindow(child2, child3);
+        eventWindow = chooseEventWindow(cr0br3, cr0br4);
         linker.setEventWindow(eventWindow);
 
-        final PlatformEvent child4 = new TestingEventBuilder(random)
-                .setCreatorId(selfId)
-                .setSelfParent(child2)
-                .setOtherParent(child3)
-                .setBirthRound(child3.getBirthRound() + 1)
-                .setTimeCreated(time.now())
+        final PlatformEvent cr0br5 = new TestingEventBuilder(random)
+                .setCreatorId(cr0)
+                .setSelfParent(cr0br3)
+                .setOtherParent(cr0br4)
+                .setBirthRound(cr0br4.getBirthRound() + 1)
                 .build();
 
-        final EventImpl linkedEvent4 = linker.linkEvent(child4);
-        assertNotEquals(null, linkedEvent4);
-        assertNull(linkedEvent4.getSelfParent(), "Self parent is ancient, and should be null");
-        assertNull(linkedEvent4.getOtherParent(), "Other parent is ancient, and should be null");
+        assertParents(linker.linkEvent(cr0br5), null, null);
+    }
+
+    @Test
+    @DisplayName("Tests linking with multiple other parents")
+    void multipleOtherParents() {
+        inOrderLinkerSetup();
+
+        final SimpleGraph graph = SimpleGraphs.mopGraph(random);
+        assertParentsMop(linker.linkEvent(graph.event(0)), null, List.of());
+        assertParentsMop(linker.linkEvent(graph.event(1)), null, List.of());
+        assertParentsMop(linker.linkEvent(graph.event(2)), null, List.of());
+        assertParentsMop(linker.linkEvent(graph.event(3)), null, List.of());
+        assertParentsMop(linker.linkEvent(graph.event(4)), graph.event(0), List.of());
+        assertParentsMop(linker.linkEvent(graph.event(5)), graph.event(1), graph.events(0, 2));
+        assertParentsMop(linker.linkEvent(graph.event(6)), graph.event(2), graph.events(1, 3));
+        assertParentsMop(linker.linkEvent(graph.event(7)), graph.event(3), List.of());
+        assertParentsMop(linker.linkEvent(graph.event(8)), graph.event(4), List.of());
+        assertParentsMop(linker.linkEvent(graph.event(9)), graph.event(5), graph.events(4, 6));
+        assertParentsMop(linker.linkEvent(graph.event(10)), graph.event(6), graph.events(5, 7));
+        assertParentsMop(linker.linkEvent(graph.event(11)), graph.event(7), List.of());
     }
 
     @Test
@@ -198,15 +209,12 @@ class ConsensusLinkerTests {
         inOrderLinkerSetup();
 
         final PlatformEvent child = new TestingEventBuilder(random)
-                .setCreatorId(selfId)
-                .setOtherParent(genesisOtherParent)
+                .setCreatorId(cr0)
+                .setOtherParent(cr1genesis)
                 .setTimeCreated(time.now())
                 .build();
 
-        final EventImpl linkedEvent = linker.linkEvent(child);
-        assertNotEquals(null, linkedEvent);
-        assertNull(linkedEvent.getSelfParent(), "Self parent is missing, and should be null");
-        assertNotEquals(null, linkedEvent.getOtherParent(), "Other parent is not missing, and should not be null");
+        assertParents(linker.linkEvent(child), null, cr1genesis);
     }
 
     @Test
@@ -215,15 +223,12 @@ class ConsensusLinkerTests {
         inOrderLinkerSetup();
 
         final PlatformEvent child = new TestingEventBuilder(random)
-                .setCreatorId(selfId)
-                .setSelfParent(genesisSelfParent)
+                .setCreatorId(cr0)
+                .setSelfParent(cr0genesis)
                 .setTimeCreated(time.now())
                 .build();
 
-        final EventImpl linkedEvent = linker.linkEvent(child);
-        assertNotEquals(null, linkedEvent);
-        assertNotEquals(null, linkedEvent.getSelfParent(), "Self parent is not missing, and should not be null");
-        assertNull(linkedEvent.getOtherParent(), "Other parent is missing, and should be null");
+        assertParents(linker.linkEvent(child), cr0genesis, null);
     }
 
     @Test
@@ -235,9 +240,9 @@ class ConsensusLinkerTests {
                 EventWindowBuilder.builder().setAncientThreshold(3).build());
 
         final PlatformEvent child1 = new TestingEventBuilder(random)
-                .setCreatorId(selfId)
-                .setSelfParent(genesisSelfParent)
-                .setOtherParent(genesisOtherParent)
+                .setCreatorId(cr0)
+                .setSelfParent(cr0genesis)
+                .setOtherParent(cr1genesis)
                 .setBirthRound(1)
                 .setTimeCreated(time.now())
                 .build();
@@ -247,9 +252,9 @@ class ConsensusLinkerTests {
         assertNull(linker.linkEvent(child1));
 
         final PlatformEvent child2 = new TestingEventBuilder(random)
-                .setCreatorId(selfId)
+                .setCreatorId(cr0)
                 .setSelfParent(child1)
-                .setOtherParent(genesisOtherParent)
+                .setOtherParent(cr1genesis)
                 .setBirthRound(2)
                 .setTimeCreated(time.now())
                 .build();
@@ -263,16 +268,13 @@ class ConsensusLinkerTests {
         inOrderLinkerSetup();
 
         final PlatformEvent child = new TestingEventBuilder(random)
-                .setCreatorId(selfId)
-                .setSelfParent(genesisSelfParent)
-                .setOtherParent(genesisOtherParent)
-                .overrideSelfParentBirthRound(genesisSelfParent.getBirthRound() + 1) // birth round doesn't match actual
+                .setCreatorId(cr0)
+                .setSelfParent(cr0genesis)
+                .setOtherParent(cr1genesis)
+                .overrideSelfParentBirthRound(cr0genesis.getBirthRound() + 1) // birth round doesn't match actual
                 .build();
 
-        final EventImpl linkedEvent = linker.linkEvent(child);
-        assertNotEquals(null, linkedEvent);
-        assertNull(linkedEvent.getSelfParent(), "Self parent has mismatched birth round, and should be null");
-        assertNotEquals(null, linkedEvent.getOtherParent(), "Other parent should not be null");
+        assertParents(linker.linkEvent(child), null, cr1genesis);
     }
 
     @Test
@@ -280,17 +282,12 @@ class ConsensusLinkerTests {
     void otherParentBirthRoundMismatch() {
         inOrderLinkerSetup();
         final PlatformEvent child = new TestingEventBuilder(random)
-                .setCreatorId(selfId)
-                .setSelfParent(genesisSelfParent)
-                .setOtherParent(genesisOtherParent)
-                .overrideOtherParentBirthRound(
-                        genesisOtherParent.getBirthRound() + 1) // birth round doesn't match actual
+                .setCreatorId(cr0)
+                .setSelfParent(cr0genesis)
+                .setOtherParent(cr1genesis)
+                .overrideOtherParentBirthRound(cr1genesis.getBirthRound() + 1) // birth round doesn't match actual
                 .build();
-
-        final EventImpl linkedEvent = linker.linkEvent(child);
-        assertNotEquals(null, linkedEvent);
-        assertNotEquals(null, linkedEvent.getSelfParent(), "Self parent should not be null");
-        assertNull(linkedEvent.getOtherParent(), "Other parent has mismatched birth round, and should be null");
+        assertParents(linker.linkEvent(child), cr0genesis, null);
     }
 
     @Test
@@ -299,25 +296,22 @@ class ConsensusLinkerTests {
         inOrderLinkerSetup();
 
         final PlatformEvent lateParent = new TestingEventBuilder(random)
-                .setCreatorId(selfId)
-                .setSelfParent(genesisSelfParent)
-                .setOtherParent(genesisOtherParent)
+                .setCreatorId(cr0)
+                .setSelfParent(cr0genesis)
+                .setOtherParent(cr1genesis)
                 .setTimeCreated(time.now().plus(Duration.ofSeconds(10)))
                 .build();
 
         linker.linkEvent(lateParent);
 
         final PlatformEvent child = new TestingEventBuilder(random)
-                .setCreatorId(selfId)
+                .setCreatorId(cr0)
                 .setSelfParent(lateParent)
-                .setOtherParent(genesisOtherParent)
+                .setOtherParent(cr1genesis)
                 .setTimeCreated(time.now())
                 .build();
 
-        final EventImpl linkedEvent = linker.linkEvent(child);
-        assertNotEquals(null, linkedEvent);
-        assertNull(linkedEvent.getSelfParent(), "Self parent has mismatched time created, and should be null");
-        assertNotEquals(null, linkedEvent.getOtherParent(), "Other parent should not be null");
+        assertParents(linker.linkEvent(child), null, cr1genesis);
     }
 
     @Test
@@ -325,25 +319,22 @@ class ConsensusLinkerTests {
     void otherParentTimeCreatedMismatch() {
         inOrderLinkerSetup();
         final PlatformEvent lateParent = new TestingEventBuilder(random)
-                .setCreatorId(otherId)
-                .setSelfParent(genesisOtherParent)
-                .setOtherParent(genesisSelfParent)
+                .setCreatorId(cr1)
+                .setSelfParent(cr1genesis)
+                .setOtherParent(cr0genesis)
                 .setTimeCreated(time.now().plus(Duration.ofSeconds(10)))
                 .build();
 
         linker.linkEvent(lateParent);
 
         final PlatformEvent child = new TestingEventBuilder(random)
-                .setCreatorId(selfId)
-                .setSelfParent(genesisSelfParent)
+                .setCreatorId(cr0)
+                .setSelfParent(cr0genesis)
                 .setOtherParent(lateParent)
                 .setTimeCreated(time.now())
                 .build();
 
-        final EventImpl linkedEvent = linker.linkEvent(child);
-        assertNotEquals(null, linkedEvent);
-        assertNotEquals(null, linkedEvent.getSelfParent(), "Self parent should not be null");
-        assertNotEquals(null, linkedEvent.getOtherParent(), "Other parent should not be null");
+        assertParents(linker.linkEvent(child), cr0genesis, lateParent);
     }
 
     @Test
@@ -363,7 +354,7 @@ class ConsensusLinkerTests {
                 new StandardEventSource());
 
         final List<EventImpl> linkedEvents = new LinkedList<>();
-        final ConsensusLinker linker = new ConsensusLinker(platformContext);
+        final ConsensusLinker linker = new ConsensusLinker(NoOpLinkerLogsAndMetrics.getInstance());
 
         EventWindow eventWindow = EventWindow.getGenesisEventWindow();
 
@@ -434,5 +425,67 @@ class ConsensusLinkerTests {
                 }
             }
         }
+    }
+
+    /**
+     * Asserts that the given event has the expected parents linked. This method assumes there is at most one other
+     * parent.
+     *
+     * @param toAssert            the event to assert the parents of
+     * @param expectedSelfParent  the expected self parent
+     * @param expectedOtherParent the expected other parent
+     */
+    private static void assertParents(
+            @Nullable final EventImpl toAssert,
+            @Nullable final PlatformEvent expectedSelfParent,
+            @Nullable final PlatformEvent expectedOtherParent) {
+        assertParentsMop(
+                toAssert, expectedSelfParent, expectedOtherParent == null ? List.of() : List.of(expectedOtherParent));
+    }
+
+    /**
+     * Asserts that the given event has the expected parents linked. This method supports multiple other parents.
+     *
+     * @param toAssert             the event to assert the parents of
+     * @param expectedSelfParent   the expected self parent
+     * @param expectedOtherParents the expected other parents
+     */
+    private static void assertParentsMop(
+            @Nullable final EventImpl toAssert,
+            @Nullable final PlatformEvent expectedSelfParent,
+            @NonNull final List<PlatformEvent> expectedOtherParents) {
+        assertNotNull(toAssert, "The linker event should not be null");
+        if (expectedSelfParent == null) {
+            assertNull(toAssert.getSelfParent(), "Self parent should be null");
+        } else {
+            assertNotNull(toAssert.getSelfParent(), "Self parent should not be null");
+            assertSame(expectedSelfParent, toAssert.getSelfParent().getBaseEvent(), "Self parent does not match");
+        }
+        if (expectedOtherParents.isEmpty()) {
+            assertNull(toAssert.getOtherParent(), "Other parent should be null");
+            assertEquals(0, toAssert.getOtherParents().size(), "Other parents list should be empty");
+        } else {
+            assertNotNull(toAssert.getOtherParent(), "Other parent should not be null");
+            assertSame(
+                    expectedOtherParents.getFirst(),
+                    toAssert.getOtherParent().getBaseEvent(),
+                    "Other parent does not match");
+        }
+        for (final EventImpl otherParent : toAssert.getOtherParents()) {
+            assertNotNull(otherParent, "The list of other-parents should not contain nulls");
+        }
+        assertEquals(
+                expectedOtherParents,
+                toAssert.getOtherParents().stream().map(EventImpl::getBaseEvent).toList(),
+                "Other parents list does not match");
+        for (final EventImpl otherParent : toAssert.getAllParents()) {
+            assertNotNull(otherParent, "The list of all parents should not contain nulls");
+        }
+        assertEquals(
+                Stream.concat(Stream.of(expectedSelfParent), expectedOtherParents.stream())
+                        .filter(Objects::nonNull)
+                        .toList(),
+                toAssert.getAllParents().stream().map(EventImpl::getBaseEvent).toList(),
+                "All parents list does not match");
     }
 }

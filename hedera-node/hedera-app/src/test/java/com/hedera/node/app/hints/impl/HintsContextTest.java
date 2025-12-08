@@ -65,6 +65,7 @@ class HintsContextTest {
         return new TssConfig(
                 Duration.ofSeconds(60),
                 Duration.ofSeconds(300),
+                Duration.ofSeconds(10),
                 Duration.ofSeconds(60),
                 Duration.ofSeconds(300),
                 Duration.ofSeconds(10),

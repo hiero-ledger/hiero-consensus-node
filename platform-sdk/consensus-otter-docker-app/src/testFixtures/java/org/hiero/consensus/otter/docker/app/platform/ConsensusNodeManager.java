@@ -23,7 +23,6 @@ import com.swirlds.platform.builder.PlatformBuilder;
 import com.swirlds.platform.builder.PlatformBuildingBlocks;
 import com.swirlds.platform.builder.PlatformComponentBuilder;
 import com.swirlds.platform.listeners.PlatformStatusChangeListener;
-import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.service.PlatformStateService;
 import com.swirlds.platform.state.service.ReadablePlatformStateStore;
 import com.swirlds.platform.state.signed.HashedReservedSignedState;
@@ -33,6 +32,8 @@ import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
 import com.swirlds.platform.util.BootstrapUtils;
 import com.swirlds.platform.wiring.PlatformComponents;
 import com.swirlds.state.MerkleNodeState;
+import com.swirlds.state.StateLifecycleManager;
+import com.swirlds.state.merkle.StateLifecycleManagerImpl;
 import com.swirlds.state.merkle.VirtualMapState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
@@ -105,7 +106,6 @@ public class ConsensusNodeManager {
 
         setupGlobalMetrics(platformConfig);
         final Metrics metrics = getMetricsProvider().createPlatformMetrics(selfId);
-        final PlatformStateFacade platformStateFacade = new PlatformStateFacade();
 
         log.info(STARTUP.getMarker(), "Creating node {} with version {}", selfId, version);
 
@@ -116,6 +116,8 @@ public class ConsensusNodeManager {
 
         final PlatformContext platformContext = PlatformContext.create(
                 platformConfig, Time.getCurrent(), metrics, fileSystemManager, recycleBin, merkleCryptography);
+        final StateLifecycleManager stateLifecycleManager = new StateLifecycleManagerImpl(
+                metrics, time, virtualMap -> new VirtualMapState(virtualMap, metrics), platformConfig);
 
         otterApp = new OtterApp(platformConfig, version);
 
@@ -126,9 +128,8 @@ public class ConsensusNodeManager {
                 OtterApp.APP_NAME,
                 OtterApp.SWIRLD_NAME,
                 selfId,
-                platformStateFacade,
                 platformContext,
-                virtualMap -> new VirtualMapState(virtualMap, metrics));
+                stateLifecycleManager);
         final ReservedSignedState initialState = reservedState.state();
         final MerkleNodeState state = initialState.get().getState();
 
@@ -148,8 +149,7 @@ public class ConsensusNodeManager {
                         selfId,
                         Long.toString(selfId.id()),
                         rosterHistory,
-                        platformStateFacade,
-                        virtualMap -> new VirtualMapState(virtualMap, metrics))
+                        stateLifecycleManager)
                 .withPlatformContext(platformContext)
                 .withConfiguration(platformConfig)
                 .withKeysAndCerts(keysAndCerts)

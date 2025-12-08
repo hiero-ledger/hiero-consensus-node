@@ -6,6 +6,11 @@ import static com.swirlds.logging.legacy.LogMarker.STATE_TO_DISK;
 import static com.swirlds.platform.StateInitializer.initializeState;
 import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.getMetricsProvider;
 import static com.swirlds.platform.state.address.RosterMetrics.registerRosterMetrics;
+import static com.swirlds.platform.state.service.PlatformStateUtils.ancientThresholdOf;
+import static com.swirlds.platform.state.service.PlatformStateUtils.consensusSnapshotOf;
+import static com.swirlds.platform.state.service.PlatformStateUtils.isInFreezePeriod;
+import static com.swirlds.platform.state.service.PlatformStateUtils.legacyRunningEventHashOf;
+import static com.swirlds.platform.state.service.PlatformStateUtils.setCreationSoftwareVersionTo;
 import static org.hiero.base.CompareTo.isLessThan;
 
 import com.hedera.hapi.node.state.roster.Roster;
@@ -40,7 +45,6 @@ import com.swirlds.platform.state.nexus.DefaultLatestCompleteStateNexus;
 import com.swirlds.platform.state.nexus.LatestCompleteStateNexus;
 import com.swirlds.platform.state.nexus.LockFreeStateNexus;
 import com.swirlds.platform.state.nexus.SignedStateNexus;
-import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.DefaultStateSignatureCollector;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SignedState;
@@ -158,8 +162,6 @@ public class SwirldsPlatform implements Platform {
         // The reservation on this state is held by the caller of this constructor.
         final SignedState initialState = blocks.initialState().get();
 
-        final PlatformStateFacade platformStateFacade = blocks.platformStateFacade();
-
         selfId = blocks.selfId();
 
         // This will be initialized to a non-null value if birth round migration is performed. This is necessary
@@ -207,24 +209,22 @@ public class SwirldsPlatform implements Platform {
                 () -> latestImmutableStateNexus.getState("PCES replay"),
                 () -> isLessThan(blocks.model().getUnhealthyDuration(), replayHealthThreshold));
 
-        initializeState(this, platformContext, initialState, blocks.consensusStateEventHandler(), platformStateFacade);
+        initializeState(this, platformContext, initialState, blocks.consensusStateEventHandler());
 
         // This object makes a copy of the state. After this point, initialState becomes immutable.
         final StateLifecycleManager stateLifecycleManager = blocks.stateLifecycleManager();
         final MerkleNodeState state = initialState.getState();
-        stateLifecycleManager.initState(state, true);
-        platformStateFacade.setCreationSoftwareVersionTo(stateLifecycleManager.getMutableState(), blocks.appVersion());
+        stateLifecycleManager.initState(state);
+        setCreationSoftwareVersionTo(stateLifecycleManager.getMutableState(), blocks.appVersion());
 
         final EventWindowManager eventWindowManager = new DefaultEventWindowManager();
 
         blocks.freezeCheckHolder()
-                .setFreezeCheckRef(instant ->
-                        platformStateFacade.isInFreezePeriod(instant, stateLifecycleManager.getMutableState()));
+                .setFreezeCheckRef(instant -> isInFreezePeriod(instant, stateLifecycleManager.getMutableState()));
 
         final AppNotifier appNotifier = new DefaultAppNotifier(blocks.notificationEngine());
 
         final ReconnectController reconnectController = new ReconnectController(
-                platformStateFacade,
                 currentRoster,
                 getContext().getMerkleCryptography(),
                 this,
@@ -236,7 +236,7 @@ public class SwirldsPlatform implements Platform {
                 blocks.reservedSignedStateResultPromise(),
                 selfId,
                 blocks.fallenBehindMonitor(),
-                new DefaultSignedStateValidator(platformContext, platformStateFacade));
+                new DefaultSignedStateValidator(platformContext));
 
         final Thread reconnectControllerThread = new ThreadConfiguration(AdHocThreadManager.getStaticThreadManager())
                 .setComponent("platform-core")
@@ -259,10 +259,9 @@ public class SwirldsPlatform implements Platform {
                 savedStateController,
                 appNotifier);
 
-        final Hash legacyRunningEventHash =
-                platformStateFacade.legacyRunningEventHashOf(initialState.getState()) == null
-                        ? Cryptography.NULL_HASH
-                        : platformStateFacade.legacyRunningEventHashOf((initialState.getState()));
+        final Hash legacyRunningEventHash = legacyRunningEventHashOf(initialState.getState()) == null
+                ? Cryptography.NULL_HASH
+                : legacyRunningEventHashOf((initialState.getState()));
         final RunningEventHashOverride runningEventHashOverride =
                 new RunningEventHashOverride(legacyRunningEventHash, false);
         platformCoordinator.updateRunningHash(runningEventHashOverride);
@@ -292,7 +291,7 @@ public class SwirldsPlatform implements Platform {
             startingRound = 0;
             platformCoordinator.updateEventWindow(EventWindow.getGenesisEventWindow());
         } else {
-            initialAncientThreshold = platformStateFacade.ancientThresholdOf(initialState.getState());
+            initialAncientThreshold = ancientThresholdOf(initialState.getState());
             startingRound = initialState.getRound();
 
             platformCoordinator.sendStateToHashLogger(initialState);
@@ -302,7 +301,7 @@ public class SwirldsPlatform implements Platform {
             savedStateController.registerSignedStateFromDisk(initialState);
 
             final ConsensusSnapshot consensusSnapshot =
-                    Objects.requireNonNull(platformStateFacade.consensusSnapshotOf(initialState.getState()));
+                    Objects.requireNonNull(consensusSnapshotOf(initialState.getState()));
             platformCoordinator.consensusSnapshotOverride(consensusSnapshot);
 
             // We only load non-ancient events during start up, so the initial expired threshold will be
