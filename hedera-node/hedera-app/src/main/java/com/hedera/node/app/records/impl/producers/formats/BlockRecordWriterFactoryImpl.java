@@ -3,7 +3,6 @@ package com.hedera.node.app.records.impl.producers.formats;
 
 import static java.util.Objects.requireNonNull;
 
-import com.hedera.hapi.node.base.AccountID;
 import com.hedera.node.app.records.impl.producers.BlockRecordWriter;
 import com.hedera.node.app.records.impl.producers.BlockRecordWriterFactory;
 import com.hedera.node.app.records.impl.producers.formats.v6.BlockRecordWriterV6;
@@ -37,7 +36,7 @@ public class BlockRecordWriterFactoryImpl implements BlockRecordWriterFactory {
             @NonNull final ConfigProvider configProvider,
             @NonNull final Signer signer,
             @NonNull final FileSystem fileSystem,
-            @NonNull final SelfNodeAccountIdManagerImpl selfNodeAccountIdManager) {
+            @NonNull final SelfNodeAccountIdManager selfNodeAccountIdManager) {
         this.configProvider = requireNonNull(configProvider);
         this.fileSystem = requireNonNull(fileSystem);
         this.signer = requireNonNull(signer);

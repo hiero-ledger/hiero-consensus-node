@@ -2,7 +2,6 @@
 package com.hedera.services.bdd.junit.hedera;
 
 import static com.hedera.services.bdd.junit.hedera.subprocess.ProcessUtils.BLOCK_STREAMS_DIR;
-import static com.hedera.services.bdd.junit.hedera.subprocess.ProcessUtils.GENERATED_DIR;
 import static com.hedera.services.bdd.junit.hedera.subprocess.ProcessUtils.RECORD_STREAMS_DIR;
 import static com.hedera.services.bdd.junit.hedera.subprocess.ProcessUtils.SAVED_STATES_DIR;
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.APPLICATION_PROPERTIES;
@@ -108,7 +107,6 @@ public abstract class AbstractNode implements HederaNode {
                         .resolve(Hedera.APP_NAME)
                         .resolve("" + getNodeId())
                         .resolve(Hedera.SWIRLD_NAME);
-            case NODE_GENERATED_DIR -> workingDir.resolve(DATA_DIR).resolve(GENERATED_DIR);
         };
     }
 

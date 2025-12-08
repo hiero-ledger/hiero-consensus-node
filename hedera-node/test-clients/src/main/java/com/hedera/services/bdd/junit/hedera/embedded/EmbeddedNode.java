@@ -7,7 +7,6 @@ import static com.hedera.services.bdd.junit.hedera.ExternalPath.DATA_CONFIG_DIR;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.GENESIS_PROPERTIES;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.LOG4J2_XML;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.NODE_ADMIN_KEYS_JSON;
-import static com.hedera.services.bdd.junit.hedera.ExternalPath.NODE_GENERATED_DIR;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.RECORD_STREAMS_DIR;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.UPGRADE_ARTIFACTS_DIR;
 import static com.hedera.services.bdd.junit.hedera.embedded.EmbeddedNetwork.CONCURRENT_WORKING_DIR;
@@ -46,7 +45,6 @@ public class EmbeddedNode extends AbstractLocalNode<EmbeddedNode> implements Hed
         assertWorkingDirInitialized();
         // Without the normal lag of node startup, record stream assertions may check this directory too fast
         ensureDir(getExternalPath(RECORD_STREAMS_DIR).normalize().toString());
-        ensureDir(getExternalPath(NODE_GENERATED_DIR).normalize().toString());
         System.setProperty(
                 "hedera.app.properties.path",
                 getExternalPath(APPLICATION_PROPERTIES).toAbsolutePath().toString());
@@ -56,9 +54,6 @@ public class EmbeddedNode extends AbstractLocalNode<EmbeddedNode> implements Hed
         System.setProperty(
                 "hedera.recordStream.logDir",
                 getExternalPath(RECORD_STREAMS_DIR).getParent().toString());
-        System.setProperty(
-                "nodes.nodeGeneratedDir",
-                getExternalPath(NODE_GENERATED_DIR).toAbsolutePath().toString());
         System.setProperty(
                 "blockStream.blockFileDir",
                 getExternalPath(BLOCK_STREAMS_DIR).getParent().toString());

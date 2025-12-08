@@ -43,7 +43,6 @@ import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.blocks.impl.ImmediateStateChangeListener;
 import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.records.BlockRecordManager;
-import com.hedera.node.app.records.impl.producers.formats.SelfNodeAccountIdManagerImpl;
 import com.hedera.node.app.service.addressbook.ReadableNodeStore;
 import com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
@@ -368,11 +367,7 @@ public class SystemTransactions {
             final var nodeStore = new ReadableStoreFactory(state).getStore(ReadableNodeStore.class);
             fileService.updateAddressBookAndNodeDetailsAfterFreeze(systemContext, nodeStore);
         }
-
-        // keep track of the initial self account id for entire upgrade boundary
-        log.info("{} SETTING NODE {} ACCOUNT ID {}", Thread.currentThread(), networkInfo.selfNodeInfo().nodeId(), networkInfo.selfNodeInfo().accountId());
-        final NodeInfo selfInfo = networkInfo.selfNodeInfo();
-        selfNodeAccountIdManager.setSelfNodeAccountId(selfInfo.accountId());
+        selfNodeAccountIdManager.setSelfNodeAccountId(networkInfo.selfNodeInfo().accountId());
 
         // And then we update the system files for fees schedules, throttles, override properties, and override
         // permissions from any upgrade files that are present in the configured directory
