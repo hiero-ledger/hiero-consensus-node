@@ -14,16 +14,6 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 public final class VirtualMapStateTestUtils {
 
     /**
-     * Creates a virtual map state with the given label.
-     * @param virtualMapLabel the label to use for the virtual map.
-     * @return the created virtual map state
-     */
-    public static VirtualMapState createTestStateWithLabel(@NonNull final String virtualMapLabel) {
-        final var virtualMap = VirtualMapUtils.createVirtualMap(CONFIGURATION, virtualMapLabel);
-        return new VirtualMapState(virtualMap, new NoOpMetrics());
-    }
-
-    /**
      * Creates a virtual map state with the given virtual map.
      * @param virtualMap the virtual map to use.
      * @return the created virtual map state.

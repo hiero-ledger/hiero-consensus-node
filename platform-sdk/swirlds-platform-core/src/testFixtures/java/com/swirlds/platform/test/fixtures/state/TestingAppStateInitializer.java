@@ -63,10 +63,11 @@ public final class TestingAppStateInitializer {
             registry.registerConstructable(
                     new ClassConstructorPair(VirtualMap.class, () -> new VirtualMap(configuration)));
             registry.registerConstructable(new ClassConstructorPair(
-                    MerkleDbDataSourceBuilder.class, () -> new MerkleDbDataSourceBuilder(configuration)));
-            registry.registerConstructable(new ClassConstructorPair(
                     VirtualNodeCache.class,
                     () -> new VirtualNodeCache(configuration.getConfigData(VirtualMapConfig.class))));
+            ConstructableRegistry.getInstance()
+                    .registerConstructable(new ClassConstructorPair(
+                            MerkleDbDataSourceBuilder.class, () -> new MerkleDbDataSourceBuilder(configuration)));
         } catch (ConstructableRegistryException e) {
             throw new IllegalStateException(e);
         }
@@ -172,9 +173,8 @@ public final class TestingAppStateInitializer {
                                         null));
                     } else if (def.onDisk()) {
                         initializeServiceState(state, md, () -> {
-                            final var label = StateMetadata.computeLabel(RosterStateId.SERVICE_NAME, def.stateKey());
                             final var dsBuilder = new MerkleDbDataSourceBuilder(configuration, def.maxKeysHint(), 16);
-                            final var virtualMap = new VirtualMap(label, dsBuilder, configuration);
+                            final var virtualMap = new VirtualMap(dsBuilder, configuration);
                             return virtualMap;
                         });
                     } else {

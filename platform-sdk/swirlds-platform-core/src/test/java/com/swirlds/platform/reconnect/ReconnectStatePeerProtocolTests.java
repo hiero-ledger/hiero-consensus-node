@@ -160,8 +160,7 @@ class ReconnectStatePeerProtocolTests {
                 reconnectMetrics,
                 fallenBehindManager,
                 reservedSignedStateResultPromise,
-                mock(StateLifecycleManager.class),
-                a -> null);
+                mock(StateLifecycleManager.class));
         reconnectProtocol.updatePlatformStatus(ACTIVE);
 
         assertEquals(
@@ -203,8 +202,7 @@ class ReconnectStatePeerProtocolTests {
                 reconnectMetrics,
                 fallenBehindManager,
                 reservedSignedStateResultPromise,
-                mock(StateLifecycleManager.class),
-                a -> null);
+                mock(StateLifecycleManager.class));
         reconnectProtocol.updatePlatformStatus(ACTIVE);
         assertEquals(
                 params.shouldAccept(),
@@ -241,8 +239,7 @@ class ReconnectStatePeerProtocolTests {
                 () -> ACTIVE,
                 Time.getCurrent(),
                 reservedSignedStateResultPromise,
-                mock(StateLifecycleManager.class),
-                a -> null);
+                mock(StateLifecycleManager.class));
         final SignedState signedState = spy(new RandomSignedStateGenerator().build());
         when(signedState.isComplete()).thenReturn(true);
         final MerkleNodeState state = mock(MerkleNodeState.class);
@@ -262,8 +259,7 @@ class ReconnectStatePeerProtocolTests {
                 () -> ACTIVE,
                 Time.getCurrent(),
                 reservedSignedStateResultPromise,
-                mock(StateLifecycleManager.class),
-                a -> null);
+                mock(StateLifecycleManager.class));
 
         // pretend we have fallen behind
         when(fallenBehindManager.hasFallenBehind()).thenReturn(true);
@@ -296,8 +292,7 @@ class ReconnectStatePeerProtocolTests {
                     reconnectMetrics,
                     fallenBehindManager,
                     reservedSignedStateResultPromise,
-                    mock(StateLifecycleManager.class),
-                    a -> null);
+                    mock(StateLifecycleManager.class));
             reconnectProtocol.updatePlatformStatus(ACTIVE);
             assertFalse(
                     reservedSignedStateResultPromise.acquire(),
@@ -355,8 +350,7 @@ class ReconnectStatePeerProtocolTests {
                 reconnectMetrics,
                 fallenBehindManager,
                 reservedSignedStateResultPromise,
-                mock(StateLifecycleManager.class),
-                a -> null);
+                mock(StateLifecycleManager.class));
         reconnectProtocol.updatePlatformStatus(ACTIVE);
         final PeerProtocol peerProtocol = reconnectProtocol.createPeerInstance(NodeId.of(0));
         assertTrue(peerProtocol.shouldInitiate());
@@ -399,8 +393,7 @@ class ReconnectStatePeerProtocolTests {
                 reconnectMetrics,
                 fallenBehindManager,
                 reservedSignedStateResultPromise,
-                mock(StateLifecycleManager.class),
-                a -> null);
+                mock(StateLifecycleManager.class));
         reconnectProtocol.updatePlatformStatus(ACTIVE);
         final PeerProtocol peerProtocol = reconnectProtocol.createPeerInstance(NodeId.of(0));
         assertTrue(peerProtocol.shouldAccept());
@@ -436,8 +429,7 @@ class ReconnectStatePeerProtocolTests {
                 reconnectMetrics,
                 fallenBehindManager,
                 reservedSignedStateResultPromise,
-                mock(StateLifecycleManager.class),
-                a -> null);
+                mock(StateLifecycleManager.class));
         reconnectProtocol.updatePlatformStatus(ACTIVE);
         final PeerProtocol peerProtocol = reconnectProtocol.createPeerInstance(NodeId.of(0));
         assertFalse(peerProtocol.shouldAccept());
@@ -466,8 +458,7 @@ class ReconnectStatePeerProtocolTests {
                 reconnectMetrics,
                 fallenBehindManager,
                 reservedSignedStateResultPromise,
-                mock(StateLifecycleManager.class),
-                a -> null);
+                mock(StateLifecycleManager.class));
         reconnectProtocol.updatePlatformStatus(CHECKING);
         final PeerProtocol peerProtocol = reconnectProtocol.createPeerInstance(NodeId.of(0));
         assertFalse(peerProtocol.shouldAccept());
@@ -492,8 +483,7 @@ class ReconnectStatePeerProtocolTests {
                 reconnectMetrics,
                 mock(FallenBehindMonitor.class),
                 reservedSignedStateResultPromise,
-                mock(StateLifecycleManager.class),
-                a -> null);
+                mock(StateLifecycleManager.class));
         reconnectProtocol.updatePlatformStatus(ACTIVE);
         final PeerProtocol peerProtocol = reconnectProtocol.createPeerInstance(NodeId.of(0));
         assertTrue(peerProtocol.shouldAccept());
@@ -538,8 +528,7 @@ class ReconnectStatePeerProtocolTests {
                 reconnectMetrics,
                 mock(FallenBehindMonitor.class),
                 reservedSignedStateResultPromise,
-                mock(StateLifecycleManager.class),
-                a -> null);
+                mock(StateLifecycleManager.class));
         reconnectProtocol.updatePlatformStatus(ACTIVE);
         final PeerProtocol peerProtocol = reconnectProtocol.createPeerInstance(NodeId.of(0));
         assertFalse(peerProtocol.shouldAccept());

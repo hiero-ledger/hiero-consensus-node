@@ -15,6 +15,9 @@ import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SignedStateComparison;
 import com.swirlds.platform.state.snapshot.SignedStateFileReader;
 import com.swirlds.platform.util.BootstrapUtils;
+import com.swirlds.state.StateLifecycleManager;
+import com.swirlds.state.merkle.StateLifecycleManagerImpl;
+import com.swirlds.state.merkle.VirtualMapState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Path;
@@ -119,13 +122,14 @@ public final class CompareStatesCommand extends AbstractCommand {
 
         logger.info(LogMarker.CLI.getMarker(), "Loading state from {}", stateDirPath);
 
+        final StateLifecycleManager stateLifecycleManager = new StateLifecycleManagerImpl(
+                platformContext.getMetrics(),
+                platformContext.getTime(),
+                virtualMap -> new VirtualMapState(virtualMap, platformContext.getMetrics()),
+                platformContext.getConfiguration());
+
         final ReservedSignedState signedState = SignedStateFileReader.readState(
-                        stateDirPath,
-                        (virtualMap) -> {
-                            // FUTURE WORK: https://github.com/hiero-ledger/hiero-consensus-node/issues/19003
-                            throw new UnsupportedOperationException();
-                        },
-                        platformContext)
+                        stateDirPath, platformContext, stateLifecycleManager)
                 .reservedSignedState();
         logger.info(LogMarker.CLI.getMarker(), "Hashing state");
         try {

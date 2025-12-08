@@ -16,9 +16,6 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.io.config.FileSystemManagerConfig;
 import com.swirlds.common.io.config.TemporaryFileConfig;
-import com.swirlds.common.io.streams.MerkleDataInputStream;
-import com.swirlds.common.io.streams.MerkleDataOutputStream;
-import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.crypto.MerkleCryptography;
 import com.swirlds.common.test.fixtures.merkle.TestMerkleCryptoFactory;
 import com.swirlds.config.api.Configuration;
@@ -37,15 +34,9 @@ import com.swirlds.state.test.fixtures.merkle.queue.QueueNode;
 import com.swirlds.state.test.fixtures.merkle.singleton.SingletonNode;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
-import edu.umd.cs.findbugs.annotations.NonNull;
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.nio.file.Path;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Stream;
-import org.hiero.base.constructable.ClassConstructorPair;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.base.crypto.config.CryptoConfig;
@@ -118,8 +109,7 @@ public class MerkleTestBase extends StateTestBase {
 
     /** Sets up the "Fruit" virtual map, label, and metadata. */
     protected void setupFruitVirtualMap() {
-        fruitVirtualLabel = computeLabel(FIRST_SERVICE, FRUIT_STATE_KEY);
-        fruitVirtualMap = createVirtualMap(fruitVirtualLabel);
+        fruitVirtualMap = createVirtualMap();
         fruitMetadata = new StateMetadata<>(
                 FIRST_SERVICE,
                 StateDefinition.onDisk(FRUIT_STATE_ID, FRUIT_STATE_KEY, ProtoBytes.PROTOBUF, ProtoBytes.PROTOBUF, 100));
@@ -175,19 +165,16 @@ public class MerkleTestBase extends StateTestBase {
             registry.registerConstructables("com.swirlds.merkle");
             registry.registerConstructables("com.swirlds.merkle.tree");
 
-            ConstructableRegistry.getInstance()
-                    .registerConstructable(new ClassConstructorPair(
-                            MerkleDbDataSourceBuilder.class, () -> new MerkleDbDataSourceBuilder(CONFIGURATION)));
             registerVirtualMapConstructables(CONFIGURATION);
         } catch (ConstructableRegistryException ex) {
             throw new AssertionError(ex);
         }
     }
 
-    /** Creates a new arbitrary virtual map with the given label, storageDir, and metadata */
-    protected VirtualMap createVirtualMap(String label) {
+    /** Creates a new arbitrary virtual map */
+    protected VirtualMap createVirtualMap() {
         final var builder = new MerkleDbDataSourceBuilder(CONFIGURATION, 100, 0);
-        return new VirtualMap(label, builder, CONFIGURATION);
+        return new VirtualMap(builder, CONFIGURATION);
     }
 
     private StateValueCodec<ProtoBytes> getStateValueCodec(final int stateId) {
@@ -225,24 +212,6 @@ public class MerkleTestBase extends StateTestBase {
         final Bytes keyBytes = StateUtils.getStateKeyForKv(FRUIT_STATE_ID, key, ProtoBytes.PROTOBUF);
         final StateValue<ProtoBytes> stateValue = fruitVirtualMap.get(keyBytes, getStateValueCodec(FRUIT_STATE_ID));
         return stateValue != null ? stateValue.value() : null;
-    }
-
-    /** A convenience method used to serialize a merkle tree */
-    protected byte[] writeTree(@NonNull final MerkleNode tree, @NonNull final Path tempDir) throws IOException {
-        final var byteOutputStream = new ByteArrayOutputStream();
-        try (final var out = new MerkleDataOutputStream(byteOutputStream)) {
-            out.writeMerkleTree(tempDir, tree);
-        }
-        return byteOutputStream.toByteArray();
-    }
-
-    /** A convenience method used to deserialize a merkle tree */
-    protected <T extends MerkleNode> T parseTree(@NonNull final byte[] state, @NonNull final Path tempDir)
-            throws IOException {
-        final var byteInputStream = new ByteArrayInputStream(state);
-        try (final var in = new MerkleDataInputStream(byteInputStream)) {
-            return in.readMerkleTree(tempDir, 100);
-        }
     }
 
     /** A convenience method for creating {@link SemanticVersion}. */
