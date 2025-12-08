@@ -3,9 +3,9 @@ package com.swirlds.platform.metrics.event;
 
 import static com.swirlds.metrics.api.Metrics.PLATFORM_CATEGORY;
 
+import com.swirlds.common.metrics.statistics.AverageAndMaxTimeStat;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.components.consensus.ConsensusEngineOutput;
-import com.swirlds.common.metrics.statistics.AverageAndMaxTimeStat;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.temporal.ChronoUnit;
 import java.util.List;

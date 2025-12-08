@@ -3,9 +3,9 @@ package com.swirlds.common.metrics.statistics.cycle;
 
 import static com.swirlds.metrics.api.FloatFormats.FORMAT_8_1;
 
-import com.swirlds.metrics.api.Metrics;
 import com.swirlds.common.metrics.statistics.AverageAndMax;
 import com.swirlds.common.metrics.statistics.simple.AccumulatedAverageTime;
+import com.swirlds.metrics.api.Metrics;
 import java.util.Arrays;
 import java.util.concurrent.TimeUnit;
 
