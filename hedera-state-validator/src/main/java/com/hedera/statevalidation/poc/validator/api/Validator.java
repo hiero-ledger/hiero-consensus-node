@@ -43,6 +43,11 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 public interface Validator {
 
     /**
+     * Special tag that matches all validators. When specified, all available validators will be run.
+     */
+    String ALL_TAG = "all";
+
+    /**
      * Returns the unique identifier tag for this validator.
      *
      * <p>The tag is used for:

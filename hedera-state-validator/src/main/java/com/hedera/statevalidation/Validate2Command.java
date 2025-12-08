@@ -8,6 +8,7 @@ import static com.hedera.statevalidation.poc.validator.HashRecordIntegrityValida
 import static com.hedera.statevalidation.poc.validator.HdhmBucketIntegrityValidator.HDHM_TAG;
 import static com.hedera.statevalidation.poc.validator.LeafBytesIntegrityValidator.LEAF_TAG;
 import static com.hedera.statevalidation.poc.validator.TokenRelationsIntegrityValidator.TOKEN_RELATIONS_TAG;
+import static com.hedera.statevalidation.poc.validator.api.Validator.ALL_TAG;
 import static com.swirlds.base.units.UnitConstants.BYTES_TO_MEBIBYTES;
 import static com.swirlds.base.units.UnitConstants.MEBIBYTES_TO_BYTES;
 import static com.swirlds.base.units.UnitConstants.NANOSECONDS_TO_MILLISECONDS;
@@ -111,6 +112,8 @@ public class Validate2Command implements Callable<Integer> {
     @CommandLine.Parameters(
             arity = "1..*",
             description = "Tag to run: ["
+                    + ALL_TAG
+                    + ", "
                     + INTERNAL_TAG
                     + ", "
                     + LEAF_TAG
@@ -126,6 +129,7 @@ public class Validate2Command implements Callable<Integer> {
                     + ENTITY_ID_UNIQUENESS_TAG
                     + "]")
     private String[] tags = {
+        ALL_TAG,
         INTERNAL_TAG,
         LEAF_TAG,
         HDHM_TAG,
@@ -335,13 +339,14 @@ public class Validate2Command implements Callable<Integer> {
             @NonNull final String[] tags,
             @NonNull final List<ValidationListener> validationListeners) {
         final Set<String> tagSet = Set.of(tags);
+        final boolean runAll = tagSet.contains(ALL_TAG);
 
         final Map<Type, CopyOnWriteArraySet<Validator>> validatorsMap = new HashMap<>();
 
         // 1. Populate map with validators that match supplied tags
         final var hashRecordValidators = new CopyOnWriteArraySet<Validator>();
         final var hashRecordValidator = new HashRecordIntegrityValidator();
-        if (tagSet.contains(hashRecordValidator.getTag())) {
+        if (runAll || tagSet.contains(hashRecordValidator.getTag())) {
             hashRecordValidators.add(hashRecordValidator);
         }
         if (!hashRecordValidators.isEmpty()) {
@@ -350,7 +355,7 @@ public class Validate2Command implements Callable<Integer> {
         // hdhm
         final var hdhmBucketValidators = new CopyOnWriteArraySet<Validator>();
         final var hdhmBucketValidator = new HdhmBucketIntegrityValidator();
-        if (tagSet.contains(hdhmBucketValidator.getTag())) {
+        if (runAll || tagSet.contains(hdhmBucketValidator.getTag())) {
             hdhmBucketValidators.add(hdhmBucketValidator);
         }
         if (!hdhmBucketValidators.isEmpty()) {
@@ -359,32 +364,32 @@ public class Validate2Command implements Callable<Integer> {
         // leaf, etc.
         final var leafBytesValidators = new CopyOnWriteArraySet<Validator>();
         final var leafBytesValidator = new LeafBytesIntegrityValidator();
-        if (tagSet.contains(leafBytesValidator.getTag())) {
+        if (runAll || tagSet.contains(leafBytesValidator.getTag())) {
             leafBytesValidators.add(leafBytesValidator);
         }
         final var accountValidator = new AccountAndSupplyValidator();
-        if (tagSet.contains(accountValidator.getTag())) {
+        if (runAll || tagSet.contains(accountValidator.getTag())) {
             leafBytesValidators.add(accountValidator);
         }
         if (!leafBytesValidators.isEmpty()) {
             validatorsMap.put(Type.P2KV, leafBytesValidators);
         }
         final var tokenRelationsValidator = new TokenRelationsIntegrityValidator();
-        if (tagSet.contains(tokenRelationsValidator.getTag())) {
+        if (runAll || tagSet.contains(tokenRelationsValidator.getTag())) {
             leafBytesValidators.add(tokenRelationsValidator);
         }
         if (!leafBytesValidators.isEmpty()) {
             validatorsMap.put(Type.P2KV, leafBytesValidators);
         }
         final var entityIdCountValidator = new EntityIdCountValidator();
-        if (tagSet.contains(entityIdCountValidator.getTag())) {
+        if (runAll || tagSet.contains(entityIdCountValidator.getTag())) {
             leafBytesValidators.add(entityIdCountValidator);
         }
         if (!leafBytesValidators.isEmpty()) {
             validatorsMap.put(Type.P2KV, leafBytesValidators);
         }
         final var entityIdUniquenessValidator = new EntityIdUniquenessValidator();
-        if (tagSet.contains(entityIdUniquenessValidator.getTag())) {
+        if (runAll || tagSet.contains(entityIdUniquenessValidator.getTag())) {
             leafBytesValidators.add(entityIdUniquenessValidator);
         }
         if (!leafBytesValidators.isEmpty()) {
