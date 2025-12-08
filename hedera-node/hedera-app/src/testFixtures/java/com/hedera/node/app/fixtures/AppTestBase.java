@@ -145,8 +145,7 @@ public class AppTestBase extends TestBase implements TransactionFactory, Scenari
                 .state(nodesState)
                 .build();
 
-        final var virtualMapLabel = "vm-" + AppTestBase.class.getSimpleName() + "-" + java.util.UUID.randomUUID();
-        final var virtualMap = VirtualMapUtils.createVirtualMap(virtualMapLabel);
+        final var virtualMap = VirtualMapUtils.createVirtualMap();
 
         state = new VirtualMapState(virtualMap, new NoOpMetrics()) {
             @NonNull
