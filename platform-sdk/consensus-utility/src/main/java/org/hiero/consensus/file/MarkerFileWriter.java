@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.util;
+package org.hiero.consensus.file;
 
+import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.utility.throttle.RateLimitedLogger;
 import com.swirlds.logging.legacy.LogMarker;
-import com.swirlds.platform.config.PathsConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
@@ -47,18 +47,13 @@ public class MarkerFileWriter {
      * Creates a new {@link MarkerFileWriter} with the given {@link PlatformContext}.  If the marker file writer is
      * enabled, files are written to the configured directory.
      *
-     * @param platformContext the platform context containing configuration.
+     * @param time the time source
+     * @param enabled whether marker file writing is enabled
+     * @param markerFileDirectoryPath the directory where marker files are written
      */
-    public MarkerFileWriter(@NonNull final PlatformContext platformContext) {
-        final boolean enabled = platformContext
-                .getConfiguration()
-                .getConfigData(PathsConfig.class)
-                .writePlatformMarkerFiles();
-        final Path markerFileDirectoryPath = platformContext
-                .getConfiguration()
-                .getConfigData(PathsConfig.class)
-                .getMarkerFilesDir();
-        failedToWriteMarkerFileLogger = new RateLimitedLogger(logger, platformContext.getTime(), Duration.ofMinutes(1));
+    public MarkerFileWriter(
+            @NonNull final Time time, final boolean enabled, @Nullable final Path markerFileDirectoryPath) {
+        failedToWriteMarkerFileLogger = new RateLimitedLogger(logger, time, Duration.ofMinutes(1));
         Path directory = null;
         if (enabled) {
             if (markerFileDirectoryPath != null) {

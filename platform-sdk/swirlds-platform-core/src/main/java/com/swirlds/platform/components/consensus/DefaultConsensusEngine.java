@@ -8,6 +8,7 @@ import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.platform.Consensus;
 import com.swirlds.platform.ConsensusImpl;
+import com.swirlds.platform.config.PathsConfig;
 import com.swirlds.platform.consensus.EventWindowUtils;
 import com.swirlds.platform.event.linking.ConsensusLinker;
 import com.swirlds.platform.event.linking.DefaultLinkerLogsAndMetrics;
@@ -70,7 +71,16 @@ public class DefaultConsensusEngine implements ConsensusEngine {
             @NonNull final FreezeCheckHolder freezeChecker) {
 
         final ConsensusMetrics consensusMetrics = new ConsensusMetricsImpl(selfId, platformContext.getMetrics());
-        consensus = new ConsensusImpl(platformContext, consensusMetrics, roster);
+        final ConsensusConfig consensusConfig =
+                platformContext.getConfiguration().getConfigData(ConsensusConfig.class);
+        final PathsConfig pathsConfig = platformContext.getConfiguration().getConfigData(PathsConfig.class);
+        consensus = new ConsensusImpl(
+                consensusConfig,
+                platformContext.getTime(),
+                consensusMetrics,
+                roster,
+                pathsConfig.writePlatformMarkerFiles(),
+                pathsConfig.getMarkerFilesDir());
 
         linker = new ConsensusLinker(
                 new DefaultLinkerLogsAndMetrics(platformContext.getMetrics(), platformContext.getTime()));

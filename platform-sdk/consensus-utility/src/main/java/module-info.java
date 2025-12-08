@@ -2,9 +2,10 @@
 module org.hiero.consensus.utility {
     exports org.hiero.consensus.config;
     exports org.hiero.consensus.crypto;
-    exports org.hiero.consensus.exceptions;
-    exports org.hiero.consensus.roster;
     exports org.hiero.consensus.event;
+    exports org.hiero.consensus.exceptions;
+    exports org.hiero.consensus.file;
+    exports org.hiero.consensus.roster;
     exports org.hiero.consensus.transaction;
 
     requires transitive com.hedera.node.hapi;
