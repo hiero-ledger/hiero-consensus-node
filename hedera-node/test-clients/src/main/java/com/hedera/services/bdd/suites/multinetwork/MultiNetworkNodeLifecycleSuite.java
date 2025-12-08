@@ -5,8 +5,8 @@ import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
 import static com.hedera.services.bdd.junit.hedera.utils.AddressBookUtils.nodeIdsFrom;
 import static com.hedera.services.bdd.spec.HapiSpec.multiNetworkHapiTest;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeDelete;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeCreate;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeDelete;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doAdhoc;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateCandidateRoster;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
@@ -14,6 +14,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.hedera.node.app.hapi.utils.CommonPbjConverters;
 import com.hedera.services.bdd.junit.MultiNetworkHapiTest;
 import com.hedera.services.bdd.junit.TestTags;
 import com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork;
@@ -22,9 +23,7 @@ import com.hedera.services.bdd.spec.utilops.FakeNmt;
 import com.hedera.services.bdd.spec.utilops.UtilVerbs;
 import com.hedera.services.bdd.suites.hip869.NodeCreateTest;
 import com.hedera.services.bdd.suites.regression.system.LifecycleTest;
-import com.hedera.node.app.hapi.utils.CommonPbjConverters;
 import java.security.cert.CertificateEncodingException;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
@@ -106,10 +105,7 @@ public class MultiNetworkNodeLifecycleSuite extends AbstractMultiNetworkSuite im
             // Ensure channel pools are initialized for this network before fee downloads
             UtilVerbs.doingContextual(spec -> spec.subProcessNetworkOrThrow().refreshClients()),
             doAdhoc(() -> CURRENT_CONFIG_VERSION.set(0)),
-            cryptoCreate(newNodeAccount)
-                    .payingWith(GENESIS)
-                    .balance(ONE_HBAR)
-                    .exposingCreatedIdTo(createdAccount::set),
+            cryptoCreate(newNodeAccount).payingWith(GENESIS).balance(ONE_HBAR).exposingCreatedIdTo(createdAccount::set),
             withOpContext((spec, opLog) -> {
                 final var protoId = createdAccount.get();
                 final var pbjId = CommonPbjConverters.toPbj(protoId);
@@ -143,8 +139,7 @@ public class MultiNetworkNodeLifecycleSuite extends AbstractMultiNetworkSuite im
 
     private SpecOperation[] ensureNetworkReady(final SubProcessNetwork network, final List<Long> expectedIds) {
         return new SpecOperation[] {
-            UtilVerbs.doingContextual(spec -> network.refreshClients()),
-            rosterShouldMatch(expectedIds)
+            UtilVerbs.doingContextual(spec -> network.refreshClients()), rosterShouldMatch(expectedIds)
         };
     }
 

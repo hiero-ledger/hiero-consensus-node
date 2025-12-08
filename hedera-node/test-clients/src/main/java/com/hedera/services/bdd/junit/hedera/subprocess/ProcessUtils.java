@@ -190,12 +190,7 @@ public class ProcessUtils {
                     if (handleOpt.isPresent()) {
                         final var handle = handleOpt.get();
                         if (handle.isAlive()) {
-                            log.info(
-                                    "Destroying node{} with PID '{}' from {} (Alive? {})",
-                                    metadata.nodeId(),
-                                    pid,
-                                    pidFile,
-                                    "Yes");
+                            log.info("Destroying node{} with PID '{}' from {}", metadata.nodeId(), pid, pidFile);
                             handle.destroy();
                             if (handle.isAlive()) {
                                 handle.destroyForcibly();
@@ -270,9 +265,10 @@ public class ProcessUtils {
     }
 
     /**
-     * Derives a unique JDWP port for a node from its allocated service ports. By choosing a port just above the
-     * highest assigned service port, we avoid collisions across multi-network runs while keeping the port within
-     * the reserved per-node range.
+     * Returns the pre-allocated JDWP debug port for the given node metadata.
+     * <p>
+     * The actual derivation and allocation of the debug port occurs elsewhere in the port allocation logic.
+     * This method simply returns the port value stored in {@link NodeMetadata}.
      */
     private static int jdwpPort(@NonNull final NodeMetadata metadata) {
         return metadata.debugPort();

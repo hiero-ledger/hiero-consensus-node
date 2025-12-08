@@ -1544,7 +1544,7 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
         private MultiNetworkSpecBuilder(@NonNull final Map<String, HederaNetwork> networks) {
             requireNonNull(networks);
             if (networks.isEmpty()) {
-                throw new IllegalArgumentException("multiHapiTest requires at least one network");
+                throw new IllegalArgumentException("multiNetworkHapiTest requires at least one network");
             }
             this.networks = Map.copyOf(networks);
         }
@@ -1574,7 +1574,7 @@ public class HapiSpec implements Runnable, Executable, LifecycleTest {
         private void runSteps(@NonNull final String displayName) {
             requireNonNull(displayName);
             if (steps.isEmpty()) {
-                throw new IllegalStateException("multiHapiTest requires at least one network step");
+                throw new IllegalStateException("multiNetworkHapiTest requires at least one network step");
             }
             int index = 1;
             for (final var step : steps) {
