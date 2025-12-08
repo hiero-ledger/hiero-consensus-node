@@ -237,8 +237,7 @@ public class ConsensusServiceSimpleFeesSuite {
         final var byte_size = 100;
         final byte[] messageBytes = new byte[byte_size]; // up to 1k
         Arrays.fill(messageBytes, (byte) 0b1);
-        return compareSimpleToOld(
-                () -> Arrays.asList(
+        return compareSimpleToOld(() -> Arrays.asList(
                         cryptoCreate(PAYER).balance(ONE_MILLION_HBARS),
                         cryptoCreate("collector"),
                         createTopic("testTopic")
@@ -256,14 +255,7 @@ public class ConsensusServiceSimpleFeesSuite {
                                 .via("submit-message-txn")),
                 "submit-message-txn",
                 0.05,
-                    // base == 0
-                    // network + node = 1000000
-                    // extra bytes = 1023-100= 923
-                    // byte cost = 110000
-                    // total = 102530000
-                    0.01025,
                 1,
-                    0.01025,
                 0.05,
                 1);
     }
