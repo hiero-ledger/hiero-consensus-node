@@ -3,7 +3,6 @@ package com.swirlds.virtualmap.internal.merkle;
 
 import static com.swirlds.virtualmap.internal.Path.INVALID_PATH;
 import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.CONFIGURATION;
-import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.VM_LABEL;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -57,7 +56,7 @@ public class RecordAccessorTest {
 
     @BeforeEach
     void setUp() throws IOException {
-        VirtualMapMetadata state = new VirtualMapMetadata(VM_LABEL);
+        VirtualMapMetadata state = new VirtualMapMetadata();
         VirtualNodeCache cache = new VirtualNodeCache(CONFIGURATION.getConfigData(VirtualMapConfig.class));
         dataSource = new BreakableDataSource();
         records = new RecordAccessor(state, cache, dataSource);

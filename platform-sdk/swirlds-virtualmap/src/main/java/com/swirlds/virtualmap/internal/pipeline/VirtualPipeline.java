@@ -251,7 +251,7 @@ public class VirtualPipeline {
         }
 
         // During reconnect, an existing virtual root node may be inserted to a new virtual map node.
-        // When it happens, the root node is initialized with {@link VirtualRootNode#postInit()} and
+        // When it happens, the root node is initialized with {@link VirtualMap#postInit()} and
         // requested to register in the same pipeline multiple times
         if (isAlreadyRegistered(copy)) {
             logger.info(VIRTUAL_MERKLE_STATS.getMarker(), "Virtual root copy is already registered in the pipeline");
@@ -631,7 +631,7 @@ public class VirtualPipeline {
     /**
      * Checks if the copy is already registered in this pipeline.
      *
-     * There is a similar method in VirtualRootNode, but it only checks the VirtualPipeline
+     * There is a similar method in VirtualMap, but it only checks the VirtualPipeline
      * but not if it actually contains the copy.
      *
      * @param copy

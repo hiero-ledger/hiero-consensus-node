@@ -148,11 +148,16 @@ public class TransactionDispatcher {
                     CRYPTO_TRANSFER,
                     SCHEDULE_CREATE,
                     SCHEDULE_SIGN,
-                    SCHEDULE_DELETE,
-                    FILE_CREATE,
-                    FILE_APPEND,
-                    FILE_UPDATE,
-                    FILE_DELETE -> true;
+                    SCHEDULE_DELETE -> true;
+            case FILE_CREATE, FILE_APPEND, FILE_UPDATE, FILE_DELETE -> true;
+            case TOKEN_CREATION,
+                    TOKEN_MINT,
+                    TOKEN_BURN,
+                    TOKEN_DELETION,
+                    TOKEN_PAUSE,
+                    TOKEN_FREEZE,
+                    TOKEN_UNPAUSE,
+                    TOKEN_UNFREEZE -> true;
             default -> false;
         };
     }
