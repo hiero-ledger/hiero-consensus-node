@@ -79,8 +79,6 @@ import org.json.JSONObject;
  */
 public class VirtualMapState implements MerkleNodeState {
 
-    public static final String VM_LABEL = "state";
-
     private static final Logger logger = LogManager.getLogger(VirtualMapState.class);
 
     /**
@@ -131,7 +129,7 @@ public class VirtualMapState implements MerkleNodeState {
         dsBuilder = new MerkleDbDataSourceBuilder(
                 configuration, merkleDbConfig.initialCapacity(), merkleDbConfig.hashesRamToDiskThreshold());
 
-        this.virtualMap = new VirtualMap(VM_LABEL, dsBuilder, configuration);
+        this.virtualMap = new VirtualMap(dsBuilder, configuration);
         this.virtualMap.registerMetrics(metrics);
     }
 
@@ -144,6 +142,7 @@ public class VirtualMapState implements MerkleNodeState {
     public VirtualMapState(@NonNull final VirtualMap virtualMap, @NonNull final Metrics metrics) {
         this.virtualMap = requireNonNull(virtualMap);
         this.metrics = requireNonNull(metrics);
+        this.virtualMap.registerMetrics(metrics);
     }
 
     /**

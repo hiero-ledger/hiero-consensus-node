@@ -54,7 +54,6 @@ module com.swirlds.common {
     exports com.swirlds.common.units.internal;
     exports com.swirlds.common.metrics.statistics;
     exports com.swirlds.common.metrics.statistics.internal to
-            com.swirlds.demo.platform,
             com.swirlds.platform.core;
     exports com.swirlds.common.startup;
     exports com.swirlds.common.merkle.synchronization.stats;

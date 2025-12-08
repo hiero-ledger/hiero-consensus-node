@@ -802,7 +802,6 @@ public class PlatformComponentBuilder {
                     blocks.stateLifecycleManager(),
                     () -> blocks.getLatestCompleteStateReference().get().get(),
                     blocks.intakeEventCounter(),
-                    blocks.createStateFromVirtualMap(),
                     blocks.fallenBehindMonitor(),
                     blocks.reservedSignedStateResultPromise());
         }

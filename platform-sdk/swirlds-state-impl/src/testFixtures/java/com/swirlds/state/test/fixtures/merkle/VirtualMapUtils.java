@@ -27,24 +27,23 @@ public final class VirtualMapUtils {
             .withConfigDataType(ReconnectConfig.class)
             .build();
 
-    public static VirtualMap createVirtualMap(@NonNull final String label) {
-        return createVirtualMap(CONFIGURATION, label);
+    public static VirtualMap createVirtualMap() {
+        return createVirtualMap(CONFIGURATION);
     }
 
-    public static VirtualMap createVirtualMap(@NonNull Configuration configuration, @NonNull final String label) {
+    public static VirtualMap createVirtualMap(@NonNull Configuration configuration) {
         final long MAX_NUM_OF_KEYS = 1_000L; // fixed small number to avoid OOO
-        return createVirtualMap(configuration, label, MAX_NUM_OF_KEYS);
+        return createVirtualMap(configuration, MAX_NUM_OF_KEYS);
     }
 
-    public static VirtualMap createVirtualMap(@NonNull final String label, final long maxNumberOfKeys) {
-        return createVirtualMap(CONFIGURATION, label, maxNumberOfKeys);
+    public static VirtualMap createVirtualMap(final long maxNumberOfKeys) {
+        return createVirtualMap(CONFIGURATION, maxNumberOfKeys);
     }
 
-    public static VirtualMap createVirtualMap(
-            @NonNull Configuration configuration, @NonNull final String label, final long maxNumberOfKeys) {
+    public static VirtualMap createVirtualMap(@NonNull Configuration configuration, final long maxNumberOfKeys) {
         final MerkleDbConfig merkleDbConfig = configuration.getConfigData(MerkleDbConfig.class);
         final var dsBuilder = new MerkleDbDataSourceBuilder(
                 configuration, maxNumberOfKeys, merkleDbConfig.hashesRamToDiskThreshold());
-        return new VirtualMap(label, dsBuilder, configuration);
+        return new VirtualMap(dsBuilder, configuration);
     }
 }

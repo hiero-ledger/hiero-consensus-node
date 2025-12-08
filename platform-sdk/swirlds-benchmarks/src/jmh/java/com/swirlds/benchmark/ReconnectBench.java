@@ -111,8 +111,8 @@ public class ReconnectBench extends VirtualMapBaseBench {
 
         final Random random = new Random(randomSeed);
 
-        teacherMap = createEmptyMap("teacher");
-        learnerMap = createEmptyMap("learner");
+        teacherMap = createEmptyMap();
+        learnerMap = createEmptyMap();
 
         final AtomicReference<VirtualMap> teacherRef = new AtomicReference<>(teacherMap);
         final AtomicReference<VirtualMap> learnerRef = new AtomicReference<>(learnerMap);
@@ -147,14 +147,14 @@ public class ReconnectBench extends VirtualMapBaseBench {
     /** Restore the saved state from disk as a new test on-disk copy for each iteration. */
     @Setup(Level.Invocation)
     public void setupInvocation() {
-        teacherMap = restoreMap("teacher");
+        teacherMap = restoreMap();
         if (teacherMap == null) {
             throw new RuntimeException("Failed to restore the 'teacher' map");
         }
         teacherMap = flushMap(teacherMap);
         BenchmarkMetrics.register(teacherMap::registerMetrics);
 
-        learnerMap = restoreMap("learner");
+        learnerMap = restoreMap();
         if (learnerMap == null) {
             throw new RuntimeException("Failed to restore the 'learner' map");
         }

@@ -15,8 +15,6 @@ import com.swirlds.virtualmap.datasource.VirtualDataSourceBuilder;
  */
 public final class VirtualMapTestUtils {
 
-    public static final String VM_LABEL = "Test";
-
     private VirtualMapTestUtils() {}
 
     public static final Configuration CONFIGURATION = ConfigurationBuilder.create()
@@ -28,12 +26,8 @@ public final class VirtualMapTestUtils {
 
     public static final VirtualMapConfig VIRTUAL_MAP_CONFIG = CONFIGURATION.getConfigData(VirtualMapConfig.class);
 
-    public static VirtualMap createMap(String label) {
-        final VirtualDataSourceBuilder builder = new InMemoryBuilder();
-        return new VirtualMap(label, builder, CONFIGURATION);
-    }
-
     public static VirtualMap createMap() {
-        return createMap(VM_LABEL);
+        final VirtualDataSourceBuilder builder = new InMemoryBuilder();
+        return new VirtualMap(builder, CONFIGURATION);
     }
 }
