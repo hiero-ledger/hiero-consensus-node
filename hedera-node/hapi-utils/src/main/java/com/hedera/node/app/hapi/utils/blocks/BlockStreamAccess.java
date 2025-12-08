@@ -43,14 +43,6 @@ public enum BlockStreamAccess {
 
     private static final Logger log = LogManager.getLogger(BlockStreamAccess.class);
 
-    public static void main(String[] args) {
-        var loc =
-                "/Users/michaeltinker/ContDev/hiero-consensus-node/hedera-node/test-clients/build/hapi-test/node0/data/blockStreams/block-11.12.3";
-        loc = loc + "/000000000000000000000000000000000247.blk.gz";
-        final var blocks = BLOCK_STREAM_ACCESS.readBlocks(Path.of(loc));
-        System.out.println("Read " + blocks.size() + " blocks");
-    }
-
     /**
      * Reads all files matching the block file pattern from the given path and returns them in
      * ascending order of block number.
@@ -72,11 +64,7 @@ public enum BlockStreamAccess {
      */
     public static Stream<Block> readBlocks(@NonNull final Path path, boolean checkForMarkerFiles) {
         try {
-            return orderedBlocksFrom(path, checkForMarkerFiles).stream()
-                    .map(BlockStreamAccess::blockFrom)
-                    .peek(b -> System.out.println("Read block #"
-                            + b.items().getFirst().blockHeaderOrThrow().number() + " w/ proof "
-                            + b.items().getLast().blockProof()));
+            return orderedBlocksFrom(path, checkForMarkerFiles).stream().map(BlockStreamAccess::blockFrom);
         } catch (IOException e) {
             log.error("Failed to read blocks from path {}", path, e);
             throw new UncheckedIOException(e);
