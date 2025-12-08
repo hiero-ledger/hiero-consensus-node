@@ -432,9 +432,8 @@ public class TransactionChecker {
 
         // Check if the transaction exceeds the payer-specific limit
         if (txSize > maxSizeAllowed && !isExemptFromStandardSizeLimit(functionality)) {
-            // Track non-governance oversized transactions
-            final boolean isGovernancePayer = isGovernanceAccount(payerAccountId);
-            if (!isGovernancePayer) {
+            if (!isGovernanceAccount(payerAccountId)) {
+                // Track non-governance oversized transactions
                 nonGovernanceOversizedTransactionsCounter.increment();
             }
             throw new PreCheckException(TRANSACTION_OVERSIZE);
