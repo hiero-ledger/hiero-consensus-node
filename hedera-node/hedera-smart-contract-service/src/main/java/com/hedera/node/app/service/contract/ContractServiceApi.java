@@ -4,6 +4,7 @@ package com.hedera.node.app.service.contract;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.Optional;
 
 /**
  * Additional API for the Smart Contract Service beyond its dispatchable handlers.
@@ -17,4 +18,6 @@ public interface ContractServiceApi {
      * @param bytecode  the runtime bytecode to set for the account
      */
     void setAccountDelegationTarget(@NonNull AccountID accountID, @NonNull Bytes bytecode);
+
+    Optional<Bytes> getAccountDelegationTarget(@NonNull AccountID accountID);
 }

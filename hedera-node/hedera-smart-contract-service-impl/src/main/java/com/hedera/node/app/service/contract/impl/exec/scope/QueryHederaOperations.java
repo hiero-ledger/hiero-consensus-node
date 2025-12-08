@@ -23,6 +23,7 @@ import java.util.Collections;
 import java.util.List;
 import javax.inject.Inject;
 import org.hyperledger.besu.datatypes.Address;
+import org.jetbrains.annotations.NotNull;
 
 /**
  * A read-only {@link HederaOperations} implementation based on a {@link QueryContext}.
@@ -286,5 +287,15 @@ public class QueryHederaOperations implements HederaOperations {
     public ContractMetrics contractMetrics() {
         // As we do not have throttle adviser it makes no sense to use the metrics
         return null;
+    }
+
+    @Override
+    public boolean setAccountCodeDelegation(@NotNull AccountID accountID, @NotNull Address delegationAddress) {
+        throw new UnsupportedOperationException("Queries cannot set code delegation");
+    }
+
+    @Override
+    public boolean createAccountCodeDelegationIndicator(@NotNull Address delegationAddress) {
+        throw new UnsupportedOperationException("Queries cannot create account and set code delegation");
     }
 }

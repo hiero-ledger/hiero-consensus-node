@@ -36,6 +36,7 @@ import org.hyperledger.besu.evm.account.MutableAccount;
 import org.hyperledger.besu.evm.frame.ExceptionalHaltReason;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 import org.hyperledger.besu.evm.worldstate.WorldUpdater;
+import org.jetbrains.annotations.NotNull;
 
 /**
  * A {@link WorldUpdater} that delegates to a given {@link HandleHederaOperations} for state management.
@@ -478,6 +479,23 @@ public class ProxyWorldUpdater implements HederaWorldUpdater {
     @NonNull
     public ExchangeRate currentExchangeRate() {
         return enhancement().systemOperations().currentExchangeRate();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public boolean setAccountCodeDelegationIndicator(
+            @NonNull final AccountID accountID, @NonNull final Address delegationAddress) {
+        return enhancement.operations().setAccountCodeDelegation(accountID, delegationAddress);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public boolean createAccountCodeDelegationIndicator(@NotNull Address delegationAddress) {
+        return enhancement.operations().createAccountCodeDelegationIndicator(delegationAddress);
     }
 
     private long getValidatedCreationNumber(
