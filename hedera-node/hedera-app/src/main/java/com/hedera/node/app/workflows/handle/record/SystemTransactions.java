@@ -12,7 +12,6 @@ import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSch
 import static com.hedera.node.app.service.file.impl.schemas.V0490FileSchema.dispatchSynthFileUpdate;
 import static com.hedera.node.app.service.file.impl.schemas.V0490FileSchema.parseConfigList;
 import static com.hedera.node.app.service.token.impl.schemas.V0610TokenSchema.dispatchSynthNodeRewards;
-import static com.hedera.node.app.services.FeeDistributor.FEE_DISTRIBUTION_MEMO;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.NODE;
 import static com.hedera.node.app.util.FileUtilities.createFileID;
 import static com.hedera.node.app.workflows.handle.HandleOutput.failInvalidStreamItems;
@@ -39,7 +38,6 @@ import com.hedera.hapi.node.state.entity.EntityCounts;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.node.state.token.StakingNodeInfo;
 import com.hedera.hapi.node.token.CryptoCreateTransactionBody;
-import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.blocks.impl.ImmediateStateChangeListener;
@@ -419,17 +417,6 @@ public class SystemTransactions {
                 adminConfig.upgradeNodeAdminKeysFile(),
                 SystemTransactions::parseNodeAdminKeys);
         autoNodeAdminKeyUpdates.tryIfPresent(adminConfig.upgradeSysFilesLoc(), systemContext);
-    }
-
-    public void dispatchFeeDistribution(
-            @NonNull final State state, @NonNull final Instant now, @NonNull final CryptoTransferTransactionBody body) {
-        requireNonNull(state);
-        requireNonNull(now);
-        requireNonNull(body);
-        log.info("Dispatching fee distribution: {}", body);
-        final var systemContext = newSystemContext(
-                now, state, dispatch -> {}, UseReservedConsensusTimes.NO, TriggerStakePeriodSideEffects.YES);
-        systemContext.dispatchAdmin(b -> b.memo(FEE_DISTRIBUTION_MEMO).cryptoTransfer(body).build());
     }
 
     /**

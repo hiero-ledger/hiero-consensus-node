@@ -20,7 +20,6 @@ import com.hedera.node.app.service.token.ReadableStakingInfoStore;
 import com.hedera.node.app.service.token.impl.handlers.staking.EndOfStakingPeriodUpdater;
 import com.hedera.node.app.service.token.records.TokenContext;
 import com.hedera.node.app.services.FeeDistributor;
-import com.hedera.node.app.workflows.handle.record.SystemTransactions;
 import com.hedera.node.app.workflows.handle.stack.SavepointStackImpl;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockStreamConfig;
@@ -52,7 +51,6 @@ public class StakePeriodChanges {
     private final BlockRecordManager blockRecordManager;
     private final BlockStreamManager blockStreamManager;
     private final StreamMode streamMode;
-    private final SystemTransactions systemTransactions;
 
     @Inject
     public StakePeriodChanges(
@@ -61,8 +59,7 @@ public class StakePeriodChanges {
             @NonNull final EndOfStakingPeriodUpdater endOfStakingPeriodUpdater,
             @NonNull final ExchangeRateManager exchangeRateManager,
             @NonNull final BlockRecordManager blockRecordManager,
-            @NonNull final BlockStreamManager blockStreamManager,
-            @NonNull final SystemTransactions systemTransactions) {
+            @NonNull final BlockStreamManager blockStreamManager) {
         this.feeDistributor = requireNonNull(feeDistributor);
         this.endOfStakingPeriodUpdater = requireNonNull(endOfStakingPeriodUpdater);
         this.exchangeRateManager = requireNonNull(exchangeRateManager);
@@ -72,7 +69,6 @@ public class StakePeriodChanges {
                 .getConfiguration()
                 .getConfigData(BlockStreamConfig.class)
                 .streamMode();
-        this.systemTransactions = requireNonNull(systemTransactions);
     }
 
     /**
@@ -153,8 +149,8 @@ public class StakePeriodChanges {
             }
             // Distribute accumulated fees BEFORE updating node stakes
             try {
-                final var feeDistributionBuilder = feeDistributor.distributeFees(
-                        stack, tokenContext, exchangeRateManager.exchangeRates(), systemTransactions);
+                final var feeDistributionBuilder =
+                        feeDistributor.distributeFees(stack, tokenContext, exchangeRateManager.exchangeRates());
                 if (feeDistributionBuilder != null) {
                     stack.commitTransaction(feeDistributionBuilder);
                 }

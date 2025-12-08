@@ -19,7 +19,7 @@ import com.hedera.node.app.service.token.impl.WritableNodePaymentsStore;
 import com.hedera.node.app.service.token.records.CryptoTransferStreamBuilder;
 import com.hedera.node.app.service.token.records.TokenContext;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
-import com.hedera.node.app.workflows.handle.record.SystemTransactions;
+import com.hedera.node.app.workflows.handle.stack.SavepointStackImpl;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.AccountsConfig;
 import com.hedera.node.config.data.LedgerConfig;
@@ -28,8 +28,6 @@ import com.hedera.node.config.data.StakingConfig;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-
-import java.time.Instant;
 import java.util.ArrayList;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -82,15 +80,19 @@ public class FeeDistributor {
      * <p>
      * This method should be called at the start of each new staking period, before any other operations.
      *
+     * @param state the savepoint stack for the current transaction
      * @param context the token context for the current transaction
      * @param exchangeRateSet the current exchange rate set
      * @return the stream builder for the synthetic fee distribution transaction, or null if no fees to distribute
      */
     @Nullable
     public StreamBuilder distributeFees(
-            @NonNull final State state, @NonNull final TokenContext context, final ExchangeRateSet exchangeRateSet,
-            SystemTransactions systemTransactions) {
+            @NonNull final State state,
+            @NonNull final TokenContext context,
+            @NonNull final ExchangeRateSet exchangeRateSet) {
+        requireNonNull(state);
         requireNonNull(context);
+        requireNonNull(exchangeRateSet);
         log.info("Distributing accumulated fees for the just-finished staking period @ {}", context.consensusTime());
 
         final var accountStore = context.writableStore(WritableAccountStore.class);
@@ -166,6 +168,9 @@ public class FeeDistributor {
             return null;
         }
 
+        // Apply the balance changes directly to the accounts
+        applyBalanceChanges(transferAmounts, accountStore);
+
         // Create the synthetic fee distribution transaction
         final var transferBody = CryptoTransferTransactionBody.newBuilder()
                 .transfers(TransferList.newBuilder()
@@ -177,8 +182,13 @@ public class FeeDistributor {
                 .cryptoTransfer(transferBody)
                 .build();
 
-        // dispatch the synthetic transaction as a preceding record
-        systemTransactions.dispatchFeeDistribution(state, context.consensusTime(), transferBody);
+        log.info(
+                "Distributing {} tinybars from fee collection account: {} to nodes, {} to network/service accounts",
+                feeCollectionBalance,
+                totalNodeFees,
+                networkServiceFees);
+
+        // Create a preceding child record for the fee distribution
         return context.addPrecedingChildRecordBuilder(CryptoTransferStreamBuilder.class, CRYPTO_TRANSFER)
                 .signedTx(signedTxWith(syntheticFeeDistributionTxn))
                 .memo(FEE_DISTRIBUTION_MEMO)
