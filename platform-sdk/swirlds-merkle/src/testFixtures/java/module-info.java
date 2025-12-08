@@ -24,7 +24,5 @@ open module com.swirlds.merkle.test.fixtures {
     requires com.swirlds.logging;
     requires com.swirlds.merkledb;
     requires com.swirlds.virtualmap;
-    requires org.hiero.base.utility.test.fixtures;
-    requires org.apache.logging.log4j.core;
     requires org.apache.logging.log4j;
 }

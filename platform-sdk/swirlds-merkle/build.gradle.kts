@@ -18,7 +18,6 @@ testModuleInfo {
 }
 
 timingSensitiveModuleInfo {
-    requires("com.hedera.pbj.runtime")
     requires("com.swirlds.base")
     requires("com.swirlds.common")
     requires("com.swirlds.common.test.fixtures")

@@ -8,8 +8,7 @@ open module com.swirlds.merkle {
             com.swirlds.merkle.test.fixtures;
 
     requires transitive com.swirlds.common;
-    requires transitive com.swirlds.metrics.api;
-    requires transitive org.hiero.base.crypto;
+    requires org.hiero.base.crypto;
     requires transitive org.hiero.base.utility;
     requires static transitive com.github.spotbugs.annotations;
 }
