@@ -102,7 +102,6 @@ import com.hedera.node.app.workflows.query.QueryWorkflow;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.Utils;
 import com.hedera.node.config.data.BlockStreamConfig;
-import com.hedera.node.config.data.GovernanceTransactionsConfig;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.NetworkAdminConfig;
 import com.hedera.node.config.data.QuiescenceConfig;
@@ -111,6 +110,7 @@ import com.hedera.node.config.data.VersionConfig;
 import com.hedera.node.config.types.StreamMode;
 import com.hedera.node.internal.network.Network;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.base.time.Time;
 import com.swirlds.common.notification.NotificationEngine;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
@@ -127,10 +127,11 @@ import com.swirlds.platform.system.state.notifications.StateHashedListener;
 import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.State;
 import com.swirlds.state.StateChangeListener;
+import com.swirlds.state.StateLifecycleManager;
+import com.swirlds.state.merkle.StateLifecycleManagerImpl;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.spi.WritableSingletonStateBase;
-import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.charset.Charset;
@@ -147,7 +148,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 import java.util.function.BiPredicate;
 import java.util.function.Consumer;
-import java.util.function.Function;
 import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -383,7 +383,10 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
     private Supplier<Network> genesisNetworkSupplier;
 
     @NonNull
-    private StoreMetricsServiceImpl storeMetricsService;
+    private final StoreMetricsServiceImpl storeMetricsService;
+
+    @NonNull
+    private final StateLifecycleManager stateLifecycleManager;
 
     private boolean onceOnlyServiceInitializationPostDaggerHasHappened = false;
 
@@ -434,7 +437,9 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
      * @param hintsServiceFactory the factory for the hinTS service
      * @param historyServiceFactory the factory for the history service
      * @param blockHashSignerFactory the factory for the block hash signer
+     * @param configuration the configuration to use for the node
      * @param metrics the metrics object to use for reporting
+     * @param time the time source to use for measuring time
      * @param baseSupplier the base supplier to create a new state with
      */
     public Hedera(
@@ -446,7 +451,9 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
             @NonNull final HintsServiceFactory hintsServiceFactory,
             @NonNull final HistoryServiceFactory historyServiceFactory,
             @NonNull final BlockHashSignerFactory blockHashSignerFactory,
+            @NonNull final Configuration configuration,
             @NonNull final Metrics metrics,
+            @NonNull final Time time,
             @NonNull final Supplier<MerkleNodeState> baseSupplier) {
         requireNonNull(registryFactory);
         requireNonNull(constructableRegistry);
@@ -507,14 +514,9 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
         boundaryStateChangeListener = new BoundaryStateChangeListener(storeMetricsService, configSupplier);
         hintsService = hintsServiceFactory.apply(appContext, bootstrapConfig);
         historyService = historyServiceFactory.apply(appContext, bootstrapConfig);
-        final GovernanceTransactionsConfig governanceConfig =
-                bootstrapConfig.getConfigData(GovernanceTransactionsConfig.class);
-        final int maxTransactionBytes = governanceConfig.isEnabled()
-                ? governanceConfig.maxTxnSize()
-                : bootstrapConfig.getConfigData(HederaConfig.class).transactionMaxBytes();
         utilServiceImpl = new UtilServiceImpl(appContext, (txnBytes, config) -> daggerApp
                 .transactionChecker()
-                .parseSignedAndCheck(txnBytes, maxTransactionBytes)
+                .parseSignedAndCheck(txnBytes)
                 .txBody());
         tokenServiceImpl = new TokenServiceImpl(appContext);
         consensusServiceImpl = new ConsensusServiceImpl();
@@ -558,11 +560,14 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
         final var blockStreamsEnabled = isBlockStreamEnabled();
         stateRootSupplier = blockStreamsEnabled ? () -> withListeners(baseSupplier.get()) : baseSupplier;
         onSealConsensusRound = blockStreamsEnabled ? this::manageBlockEndRound : (round, state) -> true;
+        stateLifecycleManager = new StateLifecycleManagerImpl(
+                metrics, time, virtualMap -> new VirtualMapState(virtualMap, metrics), configuration);
     }
 
     /**
      * {@inheritDoc}
      */
+    @NonNull
     @Override
     public SemanticVersion getSemanticVersion() {
         return version;
@@ -585,14 +590,6 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
     @NonNull
     public MerkleNodeState newStateRoot() {
         return stateRootSupplier.get();
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public Function<VirtualMap, MerkleNodeState> stateRootFromVirtualMap(@NonNull final Metrics metrics) {
-        return virtualMap -> new VirtualMapState(virtualMap, metrics);
     }
 
     /**
@@ -1170,24 +1167,45 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
         return SignedTransaction.PROTOBUF.toBytes(signedTx);
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void submitStateSignature(@NonNull final StateSignatureTransaction stateSignatureTransaction) {
         transactionPool.submitPriorityTransaction(encodeSystemTransaction(stateSignatureTransaction));
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public @NonNull List<TimestampedTransaction> getTransactionsForEvent() {
         return transactionPool.getTransactionsForEvent();
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public boolean hasBufferedSignatureTransactions() {
         return transactionPool.hasBufferedSignatureTransactions();
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public @NonNull TransactionLimits getTransactionLimits() {
         return transactionLimits;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @NonNull
+    @Override
+    public StateLifecycleManager getStateLifecycleManager() {
+        return stateLifecycleManager;
     }
 
     /*==================================================================================================================
