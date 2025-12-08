@@ -2,7 +2,6 @@
 package com.swirlds.platform;
 
 import static com.swirlds.common.io.utility.FileUtils.throwIfFileExists;
-import static com.swirlds.common.merkle.utility.MerkleTreeSnapshotReader.SIGNED_STATE_FILE_NAME;
 import static com.swirlds.platform.StateFileManagerTests.hashState;
 import static com.swirlds.platform.state.snapshot.SignedStateFileReader.readState;
 import static com.swirlds.platform.state.snapshot.SignedStateFileUtils.CURRENT_ROSTER_FILE_NAME;
@@ -40,6 +39,8 @@ import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.StateLifecycleManagerImpl;
 import com.swirlds.state.test.fixtures.merkle.VirtualMapStateTestUtils;
+import com.swirlds.virtualmap.VirtualMap;
+import com.swirlds.virtualmap.internal.merkle.VirtualMapMetadata;
 import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.IOException;
@@ -78,7 +79,7 @@ class SignedStateFileReadWriteTest {
     void beforeEach() throws IOException {
         testDirectory = LegacyTemporaryFileBuilder.buildTemporaryFile("SignedStateFileReadWriteTest", CONFIGURATION);
         stateLifecycleManager = new StateLifecycleManagerImpl(
-                new NoOpMetrics(), new FakeTime(), VirtualMapStateTestUtils::createTestStateWithVM);
+                new NoOpMetrics(), new FakeTime(), VirtualMapStateTestUtils::createTestStateWithVM, CONFIGURATION);
         LegacyTemporaryFileBuilder.overrideTemporaryFileLocation(testDirectory.resolve("tmp"));
     }
 
@@ -121,10 +122,8 @@ class SignedStateFileReadWriteTest {
     @DisplayName("Write Then Read State File Test")
     void writeThenReadStateFileTest() throws IOException {
         final SignedState signedState = new RandomSignedStateGenerator().build();
-        final Path stateFile = testDirectory.resolve(SIGNED_STATE_FILE_NAME);
         final Path signatureSetFile = testDirectory.resolve(SIGNATURE_SET_FILE_NAME);
 
-        assertFalse(exists(stateFile), "signed state file should not yet exist");
         assertFalse(exists(signatureSetFile), "signature set file should not yet exist");
 
         MerkleNodeState state = signedState.getState();
@@ -133,14 +132,24 @@ class SignedStateFileReadWriteTest {
         stateLifecycleManager.createSnapshot(signedState.getState(), testDirectory);
         writeSignatureSetFile(testDirectory, signedState);
 
-        assertTrue(exists(stateFile), "signed state file should be present");
         assertTrue(exists(signatureSetFile), "signature set file should be present");
 
         final PlatformContext platformContext =
                 TestPlatformContextBuilder.create().build();
         final DeserializedSignedState deserializedSignedState =
-                readState(testDirectory, VirtualMapStateTestUtils::createTestStateWithVM, platformContext);
+                readState(testDirectory, platformContext, stateLifecycleManager);
         hashState(deserializedSignedState.reservedSignedState().get());
+
+        final VirtualMapMetadata originalMetadata =
+                ((VirtualMap) signedState.getState().getRoot()).getMetadata();
+        final VirtualMapMetadata loadedMetadata = ((VirtualMap) deserializedSignedState
+                        .reservedSignedState()
+                        .get()
+                        .getState()
+                        .getRoot())
+                .getMetadata();
+
+        assertEquals(originalMetadata, loadedMetadata, "metadata should be equal");
 
         assertNotNull(deserializedSignedState.originalHash(), "hash should not be null");
         assertEquals(signedState.getState().getHash(), deserializedSignedState.originalHash(), "hash should match");
@@ -150,6 +159,7 @@ class SignedStateFileReadWriteTest {
                 "hash should match");
         assertNotSame(
                 signedState, deserializedSignedState.reservedSignedState().get(), "state should be a different object");
+        state.release();
         deserializedSignedState.reservedSignedState().get().getState().release();
     }
 
@@ -160,14 +170,13 @@ class SignedStateFileReadWriteTest {
                 .setSoftwareVersion(platformVersion)
                 .build();
         final Path directory = testDirectory.resolve("state");
-        stateLifecycleManager.initState(signedState.getState(), true);
+        stateLifecycleManager.initState(signedState.getState());
 
-        final Path stateFile = directory.resolve(SIGNED_STATE_FILE_NAME);
         final Path hashInfoFile = directory.resolve(HASH_INFO_FILE_NAME);
         final Path settingsUsedFile = directory.resolve("settingsUsed.txt");
         final Path addressBookFile = directory.resolve(CURRENT_ROSTER_FILE_NAME);
 
-        throwIfFileExists(stateFile, hashInfoFile, settingsUsedFile, directory);
+        throwIfFileExists(hashInfoFile, settingsUsedFile, directory);
         final String configDir = testDirectory.resolve("data/saved").toString();
         final Configuration configuration = changeConfigAndConfigHolder(configDir);
 
@@ -186,7 +195,6 @@ class SignedStateFileReadWriteTest {
                 signedState,
                 stateLifecycleManager);
 
-        assertTrue(exists(stateFile), "state file should exist");
         assertTrue(exists(hashInfoFile), "hash info file should exist");
         assertTrue(exists(settingsUsedFile), "settings used file should exist");
         assertTrue(exists(addressBookFile), "address book file should exist");

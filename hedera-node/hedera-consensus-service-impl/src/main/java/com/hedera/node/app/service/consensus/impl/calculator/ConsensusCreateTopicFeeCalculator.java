@@ -6,7 +6,7 @@ import static org.hiero.hapi.fees.FeeScheduleUtils.lookupServiceFee;
 
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.transaction.TransactionBody;
-import com.hedera.node.app.spi.fees.CalculatorState;
+import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -20,7 +20,7 @@ public class ConsensusCreateTopicFeeCalculator implements ServiceFeeCalculator {
     @Override
     public void accumulateServiceFee(
             @NonNull TransactionBody txnBody,
-            @Nullable CalculatorState calculatorState,
+            @Nullable FeeContext feeContext,
             @NonNull FeeResult feeResult,
             @NonNull FeeSchedule feeSchedule) {
         long keys = 0;
@@ -38,6 +38,10 @@ public class ConsensusCreateTopicFeeCalculator implements ServiceFeeCalculator {
                 lookupServiceFee(feeSchedule, HederaFunctionality.CONSENSUS_CREATE_TOPIC);
         feeResult.addServiceFee(1, serviceDef.baseFee());
         addExtraFee(feeResult, serviceDef, Extra.KEYS, feeSchedule, keys);
+        final var hasCustomFees = !op.customFees().isEmpty();
+        if (hasCustomFees) {
+            addExtraFee(feeResult, serviceDef, Extra.CONSENSUS_CREATE_TOPIC_WITH_CUSTOM_FEE, feeSchedule, 1);
+        }
     }
 
     @Override

@@ -61,15 +61,14 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
      * CryptoDelete uses only SIGNATURES extra for the service fee.
      *
      * @param txnBody the transaction body
-     * @param calculatorState the calculator state containing signature count
+     * @param feeContext the fee context containing signature count
      * @return the calculated fee result
      */
     @NonNull
     @Override
-    public FeeResult calculateTxFee(
-            @NonNull final TransactionBody txnBody, @Nullable final CalculatorState calculatorState) {
+    public FeeResult calculateTxFee(@NonNull final TransactionBody txnBody, @Nullable final FeeContext feeContext) {
         // Extract primitive counts (no allocations)
-        final long signatures = calculatorState != null ? calculatorState.numTxnSignatures() : 0;
+        final long signatures = feeContext != null ? feeContext.numTxnSignatures() : 0;
         final var result = new FeeResult();
 
         // Add node base and extras
@@ -81,7 +80,7 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
 
         final var serviceFeeCalculator =
                 serviceFeeCalculators.get(txnBody.data().kind());
-        serviceFeeCalculator.accumulateServiceFee(txnBody, calculatorState, result, feeSchedule);
+        serviceFeeCalculator.accumulateServiceFee(txnBody, feeContext, result, feeSchedule);
         return result;
     }
 
@@ -111,13 +110,13 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
      * Default implementation for query fee calculation.
      *
      * @param query The query to calculate fees for
-     * @param calculatorState calculator state
+     * @param feeContext fee context
      * @return Never returns normally
      * @throws UnsupportedOperationException always
      */
     @Override
     @NonNull
-    public FeeResult calculateQueryFee(@NonNull final Query query, @Nullable final CalculatorState calculatorState) {
+    public FeeResult calculateQueryFee(@NonNull final Query query, @Nullable final FeeContext feeContext) {
         throw new UnsupportedOperationException(
                 "Query fee calculation not supported for " + getClass().getSimpleName());
     }

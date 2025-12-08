@@ -38,7 +38,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Signature;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.model.roster.Address;
 import org.hiero.consensus.roster.RosterRetriever;
 import org.hiero.consensus.roster.RosterUtils;
 
@@ -591,35 +590,6 @@ public class SignedState {
         signingWeight += rosterEntry.weight();
 
         return isComplete();
-    }
-
-    /**
-     * Check if a signature is valid.  If a node has no weight, we consider the signature to be invalid.
-     *
-     * @param address   the address of the signer, or null if there is no signing address
-     * @param signature the signature to check
-     * @return true if the signature is valid, false otherwise
-     */
-    @SuppressWarnings("BooleanMethodIsAlwaysInverted")
-    private boolean isSignatureValid(@Nullable final Address address, @NonNull final Signature signature) {
-        if (address == null) {
-            // Signing node is not in the address book.
-            return false;
-        }
-
-        if (address.getWeight() == 0) {
-            // Signing node has no weight.
-            return false;
-        }
-
-        if (address.getSigPublicKey() == null) {
-            // If the address does not have a valid public key, the signature is invalid.
-            // https://github.com/hashgraph/hedera-services/issues/16648
-            return false;
-        }
-
-        return signatureVerifier.verifySignature(
-                state.getHash().getBytes(), signature.getBytes(), address.getSigPublicKey());
     }
 
     /**

@@ -629,6 +629,7 @@ public abstract class AbstractNetwork implements Network {
     @Override
     public void restoreConnectivity() {
         networkPartitions.clear();
+        connected.clear();
         latencyOverrides.clear();
         bandwidthOverrides.clear();
         updateConnections();
@@ -974,7 +975,7 @@ public abstract class AbstractNetwork implements Network {
     @Override
     public boolean nodesAreBehindByNodeCount(
             @NonNull final Node maybeBehindNode, @Nullable final Node... otherMaybeBehindNodes) {
-        final Set<Node> maybeBehindNodes = Utils.collect(maybeBehindNode, otherMaybeBehindNodes);
+        final Set<Node> maybeBehindNodes = Utils.toSet(maybeBehindNode, otherMaybeBehindNodes);
         final Set<Node> peerNodes =
                 nodes().stream().filter(n -> !maybeBehindNodes.contains(n)).collect(Collectors.toSet());
 
@@ -1213,7 +1214,9 @@ public abstract class AbstractNetwork implements Network {
          */
         @Override
         public void disconnect() {
+            log.info("Disconnecting connection from node {} to node {}", sender.selfId(), receiver.selfId());
             connected.put(connectionKey, false);
+            updateConnections();
         }
 
         /**
@@ -1221,7 +1224,9 @@ public abstract class AbstractNetwork implements Network {
          */
         @Override
         public void connect() {
+            log.info("Connecting connection from node {} to node {}", sender.selfId(), receiver.selfId());
             connected.put(connectionKey, true);
+            updateConnections();
         }
 
         /**
@@ -1237,6 +1242,7 @@ public abstract class AbstractNetwork implements Network {
          */
         @Override
         public void restoreConnectivity() {
+            log.info("Restoring connectivity from node {} to node {}", sender.selfId(), receiver.selfId());
             connected.remove(connectionKey);
             restoreLatency();
             restoreBandwidthLimit();
@@ -1257,7 +1263,9 @@ public abstract class AbstractNetwork implements Network {
         @Override
         public void latency(@NonNull final Duration latency) {
             requireNonNull(latency);
+            log.info("Setting latency from node {} to node {} to {}", sender.selfId(), receiver.selfId(), latency);
             latencyOverrides.put(connectionKey, new LatencyOverride(latency, jitter()));
+            updateConnections();
         }
 
         /**
@@ -1275,7 +1283,9 @@ public abstract class AbstractNetwork implements Network {
         @Override
         public void jitter(@NonNull final Percentage jitter) {
             requireNonNull(jitter);
+            log.info("Setting jitter from node {} to node {} to {}", sender.selfId(), receiver.selfId(), jitter);
             latencyOverrides.put(connectionKey, new LatencyOverride(latency(), jitter));
+            updateConnections();
         }
 
         /**
@@ -1283,7 +1293,9 @@ public abstract class AbstractNetwork implements Network {
          */
         @Override
         public void restoreLatency() {
+            log.info("Restoring latency from node {} to node {}", sender.selfId(), receiver.selfId());
             latencyOverrides.remove(connectionKey);
+            updateConnections();
         }
 
         /**
@@ -1301,7 +1313,13 @@ public abstract class AbstractNetwork implements Network {
         @Override
         public void bandwidthLimit(@NonNull final BandwidthLimit bandwidthLimit) {
             requireNonNull(bandwidthLimit);
+            log.info(
+                    "Setting bandwidth limit from node {} to node {} to {}",
+                    sender.selfId(),
+                    receiver.selfId(),
+                    bandwidthLimit);
             bandwidthOverrides.put(connectionKey, bandwidthLimit);
+            updateConnections();
         }
 
         /**
@@ -1309,7 +1327,9 @@ public abstract class AbstractNetwork implements Network {
          */
         @Override
         public void restoreBandwidthLimit() {
+            log.info("Restoring bandwidth limit from node {} to node {}", sender.selfId(), receiver.selfId());
             bandwidthOverrides.remove(connectionKey);
+            updateConnections();
         }
     }
 

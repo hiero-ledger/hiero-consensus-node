@@ -18,9 +18,7 @@ import com.swirlds.platform.state.iss.IssScratchpad;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.system.status.StatusActionSubmitter;
 import com.swirlds.platform.wiring.PlatformComponents;
-import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.StateLifecycleManager;
-import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.security.SecureRandom;
@@ -80,7 +78,6 @@ import org.hiero.consensus.roster.RosterHistory;
  *                                               needs to be done, long term plan is to stop using static variables)
  * @param execution                              the instance of the execution layer, which allows consensus to interact
  *                                               with the execution layer
- * @param createStateFromVirtualMap              a function to instantiate the state object from a Virtual Map
  * @param fallenBehindMonitor                    an instance of the fallenBehind Monitor which tracks if the node has fallen behind
  * @param reservedSignedStateResultPromise             a shared data structure that Gossip and the ReconnectController will use provide
  *                                               and obtain a reference to a ReservedSignedState
@@ -113,7 +110,6 @@ public record PlatformBuildingBlocks(
         boolean firstPlatform,
         @NonNull ConsensusStateEventHandler consensusStateEventHandler,
         @NonNull ExecutionLayer execution,
-        @NonNull Function<VirtualMap, MerkleNodeState> createStateFromVirtualMap,
         @NonNull FallenBehindMonitor fallenBehindMonitor,
         @NonNull ReservedSignedStateResultPromise reservedSignedStateResultPromise) {
     public PlatformBuildingBlocks {
@@ -141,7 +137,6 @@ public record PlatformBuildingBlocks(
         requireNonNull(getLatestCompleteStateReference);
         requireNonNull(consensusStateEventHandler);
         requireNonNull(execution);
-        requireNonNull(createStateFromVirtualMap);
         requireNonNull(fallenBehindMonitor);
         requireNonNull(reservedSignedStateResultPromise);
     }

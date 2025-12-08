@@ -68,7 +68,6 @@ import com.hedera.node.app.workflows.TransactionChecker.RequireMinValidLifetimeB
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
 import com.hedera.node.app.workflows.purechecks.PureChecksContextImpl;
-import com.hedera.node.config.Utils;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.HooksConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -261,17 +260,16 @@ public final class IngestChecker {
         final var consensusTime = instantSource.instant();
 
         // 1. Check the syntax
-        final var maxBytes = Utils.maxIngestParseSize(configuration);
         TransactionInfo txInfo;
         if (innerTransaction == YES) {
-            txInfo = transactionChecker.parseSignedAndCheck(serializedTransaction, maxBytes);
+            txInfo = transactionChecker.parseSignedAndCheck(serializedTransaction);
         } else {
-            txInfo = transactionChecker.parseAndCheck(serializedTransaction, maxBytes);
+            txInfo = transactionChecker.parseAndCheck(serializedTransaction);
             result.setTxnInfo(txInfo);
         }
 
-        // check jumbo size after parsing
-        transactionChecker.checkJumboTransactionBody(txInfo);
+        // check jumbo size after parsing (preliminary validation before payer is known)
+        transactionChecker.checkTransactionSize(txInfo);
         final var txBody = txInfo.txBody();
         final var functionality = txInfo.functionality();
 
@@ -309,6 +307,12 @@ public final class IngestChecker {
         // 5. Get payer account
         final var storeFactory = new ReadableStoreFactory(state);
         final var payer = solvencyPreCheck.getPayerAccount(storeFactory, txInfo.payerID());
+        final var payerAccountId = payer.accountIdOrThrow();
+
+        // 5a. Check transaction size limits based on the payer account's privileges
+        // (governance accounts may submit larger transactions)
+        transactionChecker.checkTransactionSizeLimitBasedOnPayer(txInfo, payerAccountId);
+
         final var payerKey = payer.key();
         // There should, absolutely, be a key for this account. If there isn't, then something is wrong in
         // state. So we will log this with a warning. We will also have to do something about the fact that

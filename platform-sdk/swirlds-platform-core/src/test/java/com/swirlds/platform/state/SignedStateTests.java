@@ -58,8 +58,7 @@ class SignedStateTests {
      */
     private MerkleNodeState buildMockState(
             final Random random, final Runnable reserveCallback, final Runnable releaseCallback) {
-        final var virtualMapLabel = "vm-" + SignedStateTests.class.getSimpleName() + "-" + java.util.UUID.randomUUID();
-        final var real = VirtualMapStateTestUtils.createTestStateWithLabel(virtualMapLabel);
+        final var real = VirtualMapStateTestUtils.createTestState();
         TestingAppStateInitializer.initConsensusModuleStates(real, CONFIGURATION);
         RosterUtils.setActiveRoster(real, RandomRosterBuilder.create(random).build(), 0L);
         final MerkleNodeState state = spy(real);
@@ -209,8 +208,7 @@ class SignedStateTests {
     @Test
     @DisplayName("Alternate Constructor Reservations Test")
     void alternateConstructorReservationsTest() {
-        final var virtualMapLabel = "vm-" + SignedStateTests.class.getSimpleName() + "-" + java.util.UUID.randomUUID();
-        final var virtualMap = VirtualMapUtils.createVirtualMap(virtualMapLabel);
+        final var virtualMap = VirtualMapUtils.createVirtualMap();
 
         final MerkleNodeState state = spy(createTestStateWithVM(virtualMap));
         final PlatformStateModifier platformState = mock(PlatformStateModifier.class);
