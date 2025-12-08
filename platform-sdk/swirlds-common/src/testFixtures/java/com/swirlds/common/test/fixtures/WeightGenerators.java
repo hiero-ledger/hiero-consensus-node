@@ -112,7 +112,7 @@ public final class WeightGenerators {
         long remainingWeight = totalWeight - firstNodeWeight;
         weights.add(firstNodeWeight);
         for (int i = 1; i < numberOfNodes - 1; i++) {
-            final long weight = r.nextLong(remainingWeight);
+            final long weight = r.nextLong(Math.min(remainingWeight, halfTotalWeight));
             remainingWeight -= weight;
             weights.add(weight);
         }

@@ -32,8 +32,7 @@ public record ChaosBotConfiguration(
                     new HighLatencyNodeExperiment(),
                     new LowBandwidthNodeExperiment(),
                     new NetworkPartitionExperiment(),
-                    new NodeFailureExperiment(),
-                    new NodeIsolationExperiment()));
+                    new NodeFailureExperiment()));
 
     /**
      * Create a new configuration.

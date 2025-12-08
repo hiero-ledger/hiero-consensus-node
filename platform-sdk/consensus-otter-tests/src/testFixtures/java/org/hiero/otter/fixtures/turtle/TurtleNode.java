@@ -9,6 +9,7 @@ import static java.util.Objects.requireNonNull;
 import static org.assertj.core.api.Assertions.fail;
 import static org.hiero.otter.fixtures.app.OtterStateUtils.createGenesisState;
 import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.DESTROYED;
+import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.INIT;
 import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.RUNNING;
 import static org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle.SHUTDOWN;
 import static org.hiero.otter.fixtures.logging.context.NodeLoggingContext.logToConsole;
@@ -36,6 +37,8 @@ import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.wiring.PlatformComponents;
 import com.swirlds.state.MerkleNodeState;
+import com.swirlds.state.StateLifecycleManager;
+import com.swirlds.state.merkle.StateLifecycleManagerImpl;
 import com.swirlds.state.merkle.VirtualMapState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -169,12 +172,16 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
 
             logToConsole(() -> log.info("Starting node {}...", selfId));
 
-            InMemorySubscriptionManager.INSTANCE.subscribe(logEntry -> {
-                if (Objects.equals(logEntry.nodeId(), selfId)) {
-                    resultsCollector.addLogEntry(logEntry);
-                }
-                return lifeCycle == DESTROYED ? UNSUBSCRIBE : CONTINUE;
-            });
+            // Only subscribe to log entries if the node is in the INIT stage to avoid double subscriptions after
+            // restart
+            if (lifeCycle == INIT) {
+                InMemorySubscriptionManager.INSTANCE.subscribe(logEntry -> {
+                    if (Objects.equals(logEntry.nodeId(), selfId)) {
+                        resultsCollector.addLogEntry(logEntry);
+                    }
+                    return lifeCycle == DESTROYED ? UNSUBSCRIBE : CONTINUE;
+                });
+            }
 
             // Log the startup message using the same STARTUP marker and message as production nodes
             // Uses a platform logger to ensure it routes through per-node appenders
@@ -218,6 +225,12 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
                     .withRecycleBin(recycleBin)
                     .build();
 
+            final StateLifecycleManager stateLifecycleManager = new StateLifecycleManagerImpl(
+                    metrics,
+                    timeManager.time(),
+                    virtualMap -> new VirtualMapState(virtualMap, metrics),
+                    currentConfiguration);
+
             model = WiringModelBuilder.create(platformContext.getMetrics(), timeManager.time())
                     .deterministic()
                     .withUncaughtExceptionHandler((t, e) -> fail("Unexpected exception in wiring framework", e))
@@ -233,7 +246,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
                     OtterApp.SWIRLD_NAME,
                     selfId,
                     platformContext,
-                    virtualMap -> new VirtualMapState(virtualMap, metrics));
+                    stateLifecycleManager);
 
             final ReservedSignedState initialState = reservedState.state();
             final MerkleNodeState state = initialState.get().getState();
@@ -258,7 +271,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
                             selfId,
                             eventStreamLoc,
                             rosterHistory,
-                            virtualMap -> new VirtualMapState(virtualMap, metrics))
+                            stateLifecycleManager)
                     .withPlatformContext(platformContext)
                     .withConfiguration(currentConfiguration)
                     .withKeysAndCerts(keysAndCerts)

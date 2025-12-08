@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.state.merkle;
 
-import static com.swirlds.state.test.fixtures.merkle.VirtualMapStateTestUtils.createTestStateWithLabel;
+import static com.swirlds.state.test.fixtures.merkle.VirtualMapStateTestUtils.createTestState;
 import static com.swirlds.state.test.fixtures.merkle.VirtualMapStateTestUtils.createTestStateWithVM;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThatThrownBy;
@@ -167,9 +167,7 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
          * Utility method that migrates from version 9 to 10
          */
         void migrateFromV9ToV10() {
-            final var virtualMapLabel =
-                    "vm-" + MerkleSchemaRegistryTest.class.getSimpleName() + "-" + java.util.UUID.randomUUID();
-            final var virtualMap = VirtualMapUtils.createVirtualMap(virtualMapLabel);
+            final var virtualMap = VirtualMapUtils.createVirtualMap();
             SemanticVersion latestVersion = version(10, 0, 0);
             schemaRegistry.migrate(
                     createTestStateWithVM(virtualMap),
@@ -198,9 +196,7 @@ class MerkleSchemaRegistryTest extends MerkleTestBase {
             for (int i = 1; i < versions.length; i++) {
                 versions[i] = version(0, i, 0);
             }
-            final var virtualMapLabel =
-                    "vm-" + MerkleSchemaRegistryTest.class.getSimpleName() + "-" + java.util.UUID.randomUUID();
-            merkleTree = createTestStateWithLabel(virtualMapLabel);
+            merkleTree = createTestState();
         }
 
         @AfterEach
