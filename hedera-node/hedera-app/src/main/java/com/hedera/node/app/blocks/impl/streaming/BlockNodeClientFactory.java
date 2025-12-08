@@ -85,7 +85,8 @@ public class BlockNodeClientFactory {
      * @param timeout the timeout to use
      * @return a new {@link BlockNodeServiceClient} instance
      */
-    public BlockNodeServiceClient createServiceClient(@NonNull final BlockNodeConfiguration config, @NonNull final Duration timeout) {
+    public BlockNodeServiceClient createServiceClient(
+            @NonNull final BlockNodeConfiguration config, @NonNull final Duration timeout) {
         final PbjGrpcClient client = buildPbjClient(config, timeout);
         return new BlockNodeServiceClient(client, new DefaultRequestOptions());
     }

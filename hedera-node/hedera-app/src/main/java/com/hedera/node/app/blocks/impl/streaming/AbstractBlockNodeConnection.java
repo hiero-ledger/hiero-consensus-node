@@ -26,11 +26,11 @@ public abstract class AbstractBlockNodeConnection {
         /**
          * Denotes a connection that intends to stream block data to a block node.
          */
-        BLOCK_STREAMING("B"), // 'B' for block
+        BLOCK_STREAMING("STR"), // block STReaming
         /**
          * Denotes a connection that intends to query server information from a block node.
          */
-        SERVER_STATUS("S"); // 'S' for status
+        SERVER_STATUS("SVC"); // block node SerViCe
 
         private final String key;
 
@@ -83,7 +83,7 @@ public abstract class AbstractBlockNodeConnection {
         requireNonNull(type, "type is required");
 
         connectionId =
-                String.format("%s:%05d", type.key, connIdCtrByType.get(type).incrementAndGet());
+                String.format("%s.%06d", type.key, connIdCtrByType.get(type).incrementAndGet());
         stateRef = new AtomicReference<>(ConnectionState.UNINITIALIZED);
     }
 
@@ -118,7 +118,7 @@ public abstract class AbstractBlockNodeConnection {
 
         if (!latestState.canTransitionTo(newState)) {
             logger.warn(
-                    "{} Attempted to downgrade state from {} to {}, but this is not allowed; ignoring update",
+                    "{} Attempted to downgrade state from {} to {}, but this is not allowed; this is not allowed",
                     this,
                     latestState,
                     newState);
