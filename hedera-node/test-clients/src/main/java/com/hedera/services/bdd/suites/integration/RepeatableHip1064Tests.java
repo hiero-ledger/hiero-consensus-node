@@ -745,7 +745,7 @@ public class RepeatableHip1064Tests {
         });
     }
 
-    static SpecOperation validateRecordFees(final String record, List<Long> expectedFeeAccounts) {
+    public static SpecOperation validateRecordFees(final String record, List<Long> expectedFeeAccounts) {
         return UtilVerbs.withOpContext((spec, opLog) -> {
             var fileCreate = getTxnRecord(record);
             allRunFor(spec, fileCreate);

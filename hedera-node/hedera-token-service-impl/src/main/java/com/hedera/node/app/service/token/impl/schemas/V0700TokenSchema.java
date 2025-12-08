@@ -17,8 +17,8 @@ import java.util.Set;
 public class V0700TokenSchema extends Schema<SemanticVersion> {
 
     public static final String NODE_PAYMENTS_KEY = "NODE_PAYMENTS";
-    public static final int NODE_PAYMENTS_STATE_ID = SingletonType.TOKENSERVICE_I_NODE_REWARDS.protoOrdinal();
-    public static final String NODE_REWARDS_STATE_LABEL = computeLabel(TokenService.NAME, NODE_PAYMENTS_KEY);
+    public static final int NODE_PAYMENTS_STATE_ID = SingletonType.TOKENSERVICE_I_NODE_PAYMENTS.protoOrdinal();
+    public static final String NODE_PAYMENTS_STATE_LABEL = computeLabel(TokenService.NAME, NODE_PAYMENTS_KEY);
 
     private static final SemanticVersion VERSION =
             SemanticVersion.newBuilder().major(0).minor(70).patch(0).build();

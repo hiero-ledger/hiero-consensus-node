@@ -28,6 +28,7 @@ import com.hedera.node.app.records.ReadableBlockRecordStore;
 import com.hedera.node.app.service.addressbook.AddressBookService;
 import com.hedera.node.app.service.entityid.EntityIdService;
 import com.hedera.node.app.service.token.impl.handlers.staking.EndOfStakingPeriodUpdater;
+import com.hedera.node.app.services.FeeDistributor;
 import com.hedera.node.app.workflows.handle.record.TokenContextImpl;
 import com.hedera.node.app.workflows.handle.stack.SavepointStackImpl;
 import com.hedera.node.config.ConfigProvider;
@@ -92,6 +93,9 @@ public class StakePeriodChangesTest {
 
     @Mock
     private ConfigProvider configProvider;
+
+    @Mock
+    private FeeDistributor feeDistributor;
 
     private StakePeriodChanges subject;
 
@@ -299,7 +303,12 @@ public class StakePeriodChangesTest {
         given(context.configuration()).willReturn(config);
 
         subject = new StakePeriodChanges(
-                configProvider, stakingPeriodCalculator, exchangeRateManager, blockRecordManager, blockStreamManager);
+                configProvider,
+                stakingPeriodCalculator,
+                exchangeRateManager,
+                blockRecordManager,
+                blockStreamManager,
+                feeDistributor);
 
         given(stack.getWritableStates(EntityIdService.NAME)).willReturn(writableStates);
         given(writableStates.<EntityCounts>getSingleton(ENTITY_COUNTS_STATE_ID)).willReturn(entityCountsState);

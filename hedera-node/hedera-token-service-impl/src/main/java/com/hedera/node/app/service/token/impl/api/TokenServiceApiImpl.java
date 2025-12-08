@@ -90,18 +90,11 @@ public class TokenServiceApiImpl implements TokenServiceApi {
         this.nodePaymentStore = new WritableNodePaymentsStore(writableStates);
 
         nodesConfig = config.getConfigData(NodesConfig.class);
-        final var hederaConfig = config.getConfigData(HederaConfig.class);
+        // Determine whether staking is enabled
         stakingConfig = config.getConfigData(StakingConfig.class);
-        nodeRewardAccountID = AccountID.newBuilder()
-                .shardNum(hederaConfig.shard())
-                .realmNum(hederaConfig.realm())
-                .accountNum(config.getConfigData(AccountsConfig.class).nodeRewardAccount())
-                .build();
-        feeCollectionAccountID = AccountID.newBuilder()
-                .shardNum(hederaConfig.shard())
-                .realmNum(hederaConfig.realm())
-                .accountNum(config.getConfigData(AccountsConfig.class).feeCollectionAccount())
-                .build();
+
+        // Compute the account ID's for funding (normally 0.0.98) and staking rewards (normally 0.0.800).
+        final var hederaConfig = config.getConfigData(HederaConfig.class);
         fundingAccountID = AccountID.newBuilder()
                 .shardNum(hederaConfig.shard())
                 .realmNum(hederaConfig.realm())
@@ -111,6 +104,16 @@ public class TokenServiceApiImpl implements TokenServiceApi {
                 .shardNum(hederaConfig.shard())
                 .realmNum(hederaConfig.realm())
                 .accountNum(config.getConfigData(AccountsConfig.class).stakingRewardAccount())
+                .build();
+        nodeRewardAccountID = AccountID.newBuilder()
+                .shardNum(hederaConfig.shard())
+                .realmNum(hederaConfig.realm())
+                .accountNum(config.getConfigData(AccountsConfig.class).nodeRewardAccount())
+                .build();
+        feeCollectionAccountID = AccountID.newBuilder()
+                .shardNum(hederaConfig.shard())
+                .realmNum(hederaConfig.realm())
+                .accountNum(config.getConfigData(AccountsConfig.class).feeCollectionAccount())
                 .build();
     }
 
@@ -372,7 +375,12 @@ public class TokenServiceApiImpl implements TokenServiceApi {
         if (cb == null) {
             feeBuilder.transactionFee(feeBuilder.transactionFee() + amountToCharge);
         }
-        payFeeCollectionAccount(amountToCharge, cb);
+        if (nodesConfig.feeCollectionAccountEnabled()) {
+            payFeeCollectionAccount(amountToCharge, cb);
+        } else {
+            distributeToNetworkFundingAccounts(amountToCharge, cb);
+        }
+
         return new Fees(0, amountToCharge, 0);
     }
 
@@ -380,7 +388,9 @@ public class TokenServiceApiImpl implements TokenServiceApi {
     public void refundFee(@NonNull final AccountID payerId, final long amount, @NonNull final FeeStreamBuilder rb) {
         requireNonNull(payerId);
         requireNonNull(rb);
-        final long retractedAmount = retractFromFeeCollectionAccount(amount);
+        final long retractedAmount = nodesConfig.feeCollectionAccountEnabled()
+                ? retractFromFeeCollectionAccount(amount)
+                : retractFromNetworkFundingAccounts(amount);
         final var payerAccount = lookupAccount("Payer", payerId);
         refundPayer(payerAccount, retractedAmount);
         rb.transactionFee(Math.max(0, rb.transactionFee() - retractedAmount));
@@ -422,13 +432,28 @@ public class TokenServiceApiImpl implements TokenServiceApi {
         chargePayer(payerAccount, amountToCharge, cb);
         // Record the amount charged into the record builder
         rb.transactionFee(amountToCharge);
-        payFeeCollectionAccount(amountToDistributeToFundingAccounts, cb);
+        if (nodesConfig.feeCollectionAccountEnabled()) {
+            payFeeCollectionAccount(amountToDistributeToFundingAccounts, cb);
+        } else {
+            distributeToNetworkFundingAccounts(amountToDistributeToFundingAccounts, cb);
+        }
 
         if (chargeableNodeFee > 0) {
-            // Update node payments map with this amount and send this payment to fee collection account.
-            // This will be distributed to node accounts at the end of the day
-            payFeeCollectionAccount(chargeableNodeFee, cb);
-            nodePaymentStore.addNodePayments(nodeAccountId.accountNumOrThrow(), chargeableNodeFee);
+            if (nodesConfig.feeCollectionAccountEnabled()) {
+                // Update node payments map with this amount and send this payment to fee collection account.
+                // This will be distributed to node accounts at the end of the day
+                payFeeCollectionAccount(chargeableNodeFee, cb);
+                nodePaymentStore.addNodePayments(nodeAccountId.accountNumOrThrow(), chargeableNodeFee);
+            } else {
+                final var nodeAccount = lookupAccount("Node account", nodeAccountId);
+                accountStore.put(nodeAccount
+                        .copyBuilder()
+                        .tinybarBalance(nodeAccount.tinybarBalance() + chargeableNodeFee)
+                        .build());
+                if (cb != null) {
+                    cb.accept(nodeAccountId, chargeableNodeFee);
+                }
+            }
             // onNodeFee is used for node rewards, so still update this callback
             onNodeFee.accept(chargeableNodeFee);
         }
@@ -464,7 +489,9 @@ public class TokenServiceApiImpl implements TokenServiceApi {
             onNodeRefund.accept(amountToRetract);
             amountRetracted += amountToRetract;
         }
-        amountRetracted += retractFromFeeCollectionAccount(fees.totalWithoutNodeFee());
+        amountRetracted += nodesConfig.feeCollectionAccountEnabled()
+                ? retractFromFeeCollectionAccount(fees.totalWithoutNodeFee())
+                : retractFromNetworkFundingAccounts(fees.totalWithoutNodeFee());
         final var payerAccount = lookupAccount("Payer", payerId);
         refundPayer(payerAccount, amountRetracted);
         rb.transactionFee(Math.max(0, rb.transactionFee() - amountRetracted));
@@ -537,19 +564,9 @@ public class TokenServiceApiImpl implements TokenServiceApi {
                 .build());
     }
 
-    private void payFeeCollectionAccount(final long amount) {
-        if (amount == 0) return;
-        final var feeCollection = lookupAccount("Fee collection", feeCollectionAccountID);
-        accountStore.put(feeCollection
-                .copyBuilder()
-                .tinybarBalance(feeCollection.tinybarBalance() + amount)
-                .build());
-    }
-
     /**
      * Retracts the given amount from the node reward account the given amount. If the node reward account doesn't
      * exist, an exception is thrown.
-     *
      * @param amount The amount to debit the node reward account.
      * @throws IllegalStateException if the node rewards account doesn't exist
      */
@@ -565,12 +582,35 @@ public class TokenServiceApiImpl implements TokenServiceApi {
         return amountToRetract;
     }
 
-    private long retractFeeCollectionAccount(final long amount) {
+    /**
+     * Pays the staking reward account the given amount. If the staking reward account doesn't exist, an exception is
+     * thrown. This account *should* have been created at genesis, so it should always exist, even if staking rewards
+     * are disabled.
+     *
+     * @param amount The amount to credit the staking reward account.
+     * @throws IllegalStateException if the staking rewards account doesn't exist
+     */
+    private void payStakingRewardAccount(final long amount) {
+        if (amount == 0) return;
+        final var stakingAccount = lookupAccount("Staking reward", stakingRewardAccountID);
+        accountStore.put(stakingAccount
+                .copyBuilder()
+                .tinybarBalance(stakingAccount.tinybarBalance() + amount)
+                .build());
+    }
+
+    /**
+     * Retracts the given amount from the node staking account the given amount. If the node reward account doesn't
+     * exist, an exception is thrown.
+     * @param amount The amount to debit the node staking account.
+     * @throws IllegalStateException if the node staking account doesn't exist
+     */
+    private long retractStakingRewardAccount(final long amount) {
         if (amount == 0) return 0L;
-        final var feeCollectionAccount = lookupAccount("Fee collection", feeCollectionAccountID);
-        final long balance = feeCollectionAccount.tinybarBalance();
+        final var stakingAccount = lookupAccount("Staking reward", stakingRewardAccountID);
+        final long balance = stakingAccount.tinybarBalance();
         final long amountToRetract = Math.min(amount, balance);
-        accountStore.put(feeCollectionAccount
+        accountStore.put(stakingAccount
                 .copyBuilder()
                 .tinybarBalance(balance - amountToRetract)
                 .build());
@@ -701,6 +741,27 @@ public class TokenServiceApiImpl implements TokenServiceApi {
         return account.smartContract() ? EntityType.CONTRACT_BYTECODE : EntityType.ACCOUNT;
     }
 
+    private void payFeeCollectionAccount(final long amount) {
+        if (amount == 0) return;
+        final var feeCollection = lookupAccount("Fee collection", feeCollectionAccountID);
+        accountStore.put(feeCollection
+                .copyBuilder()
+                .tinybarBalance(feeCollection.tinybarBalance() + amount)
+                .build());
+    }
+
+    private long retractFeeCollectionAccount(final long amount) {
+        if (amount == 0) return 0L;
+        final var feeCollectionAccount = lookupAccount("Fee collection", feeCollectionAccountID);
+        final long balance = feeCollectionAccount.tinybarBalance();
+        final long amountToRetract = Math.min(amount, balance);
+        accountStore.put(feeCollectionAccount
+                .copyBuilder()
+                .tinybarBalance(balance - amountToRetract)
+                .build());
+        return amountToRetract;
+    }
+
     private void payFeeCollectionAccount(final long amount, @Nullable final ObjLongConsumer<AccountID> cb) {
         payFeeCollectionAccount(amount);
         if (cb != null) {
@@ -716,6 +777,81 @@ public class TokenServiceApiImpl implements TokenServiceApi {
             return retractFeeCollectionAccount(amount);
         } else {
             return retractNodeRewardAccount(amount);
+        }
+    }
+
+    private void distributeToNetworkFundingAccounts(final long amount, @Nullable final ObjLongConsumer<AccountID> cb) {
+        // We may have a rounding error, so we will first remove the node and staking rewards from the total, and then
+        // whatever is left over goes to the funding account.
+        long balance = amount;
+
+        final var nodeRewardAccount = lookupAccount("Node rewards", nodeRewardAccountID);
+        final boolean preservingRewardBalance =
+                nodesConfig.nodeRewardsEnabled() && nodesConfig.preserveMinNodeRewardBalance();
+        if (!preservingRewardBalance || nodeRewardAccount.tinybarBalance() > nodesConfig.minNodeRewardBalance()) {
+            final long nodeReward = (stakingConfig.feesNodeRewardPercentage() * amount) / 100;
+            balance -= nodeReward;
+            payNodeRewardAccount(nodeReward);
+            if (cb != null) {
+                cb.accept(nodeRewardAccountID, nodeReward);
+            }
+
+            final long stakingReward = (stakingConfig.feesStakingRewardPercentage() * amount) / 100;
+            balance -= stakingReward;
+            payStakingRewardAccount(stakingReward);
+            if (cb != null) {
+                cb.accept(stakingRewardAccountID, stakingReward);
+            }
+
+            // Whatever is left over goes to the funding account
+            final var fundingAccount = lookupAccount("Funding", fundingAccountID);
+            accountStore.put(fundingAccount
+                    .copyBuilder()
+                    .tinybarBalance(fundingAccount.tinybarBalance() + balance)
+                    .build());
+            if (cb != null) {
+                cb.accept(fundingAccountID, balance);
+            }
+        } else {
+            payNodeRewardAccount(balance);
+            if (cb != null) {
+                cb.accept(nodeRewardAccountID, balance);
+            }
+        }
+    }
+
+    /**
+     * Retracts up to the given amount from the network funding accounts.
+     * @param amount The amount to retract from the network funding accounts.
+     * @return The amount that was actually retracted from the funding account.
+     */
+    private long retractFromNetworkFundingAccounts(final long amount) {
+        // We may have a rounding error, so we will first remove the node and staking rewards from the total, and then
+        // whatever is left over goes to the funding account.
+        long balance = amount;
+
+        final var nodeRewardAccount = lookupAccount("Node rewards", nodeRewardAccountID);
+        final boolean preservingRewardBalance =
+                nodesConfig.nodeRewardsEnabled() && nodesConfig.preserveMinNodeRewardBalance();
+        if (!preservingRewardBalance || nodeRewardAccount.tinybarBalance() > nodesConfig.minNodeRewardBalance()) {
+            long amountRetracted = 0;
+            final long nodeReward = (stakingConfig.feesNodeRewardPercentage() * amount) / 100;
+            balance -= nodeReward;
+            amountRetracted += retractNodeRewardAccount(nodeReward);
+            final long stakingReward = (stakingConfig.feesStakingRewardPercentage() * amount) / 100;
+            balance -= stakingReward;
+            amountRetracted += retractStakingRewardAccount(stakingReward);
+            // Whatever is left over goes to the funding account
+            final var fundingAccount = lookupAccount("Funding", fundingAccountID);
+            final long fundingBalance = fundingAccount.tinybarBalance();
+            final long amountToRetract = Math.min(balance, fundingBalance);
+            accountStore.put(fundingAccount
+                    .copyBuilder()
+                    .tinybarBalance(fundingBalance - amountToRetract)
+                    .build());
+            return (amountRetracted + amountToRetract);
+        } else {
+            return retractNodeRewardAccount(balance);
         }
     }
 }

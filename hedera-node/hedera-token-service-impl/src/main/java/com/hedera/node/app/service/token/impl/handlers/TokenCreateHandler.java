@@ -40,7 +40,6 @@ import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
-import com.hedera.node.config.data.AccountsConfig;
 import com.hedera.node.config.data.EntitiesConfig;
 import com.hedera.node.config.data.TokensConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -110,7 +109,6 @@ public class TokenCreateHandler extends BaseTokenHandler implements TransactionH
         final var op = txn.tokenCreationOrThrow();
         // Create or get needed config and stores
         final var tokensConfig = context.configuration().getConfigData(TokensConfig.class);
-        final var accountsConfig = context.configuration().getConfigData(AccountsConfig.class);
         final var storeFactory = context.storeFactory();
         final var accountStore = storeFactory.writableStore(WritableAccountStore.class);
         final var tokenStore = storeFactory.writableStore(WritableTokenStore.class);

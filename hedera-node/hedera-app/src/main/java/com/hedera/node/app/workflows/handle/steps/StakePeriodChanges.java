@@ -23,6 +23,7 @@ import com.hedera.node.app.services.FeeDistributor;
 import com.hedera.node.app.workflows.handle.stack.SavepointStackImpl;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockStreamConfig;
+import com.hedera.node.config.data.NodesConfig;
 import com.hedera.node.config.data.StakingConfig;
 import com.hedera.node.config.types.StreamMode;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -55,11 +56,11 @@ public class StakePeriodChanges {
     @Inject
     public StakePeriodChanges(
             @NonNull final ConfigProvider configProvider,
-            @NonNull final FeeDistributor feeDistributor,
             @NonNull final EndOfStakingPeriodUpdater endOfStakingPeriodUpdater,
             @NonNull final ExchangeRateManager exchangeRateManager,
             @NonNull final BlockRecordManager blockRecordManager,
-            @NonNull final BlockStreamManager blockStreamManager) {
+            @NonNull final BlockStreamManager blockStreamManager,
+            @NonNull final FeeDistributor feeDistributor) {
         this.feeDistributor = requireNonNull(feeDistributor);
         this.endOfStakingPeriodUpdater = requireNonNull(endOfStakingPeriodUpdater);
         this.exchangeRateManager = requireNonNull(exchangeRateManager);
@@ -149,10 +150,16 @@ public class StakePeriodChanges {
             }
             // Distribute accumulated fees BEFORE updating node stakes
             try {
-                final var feeDistributionBuilder =
-                        feeDistributor.distributeFees(stack, tokenContext, exchangeRateManager.exchangeRates());
-                if (feeDistributionBuilder != null) {
-                    stack.commitTransaction(feeDistributionBuilder);
+                final var feeCollectionAccountEnabled = tokenContext
+                        .configuration()
+                        .getConfigData(NodesConfig.class)
+                        .feeCollectionAccountEnabled();
+                if (feeCollectionAccountEnabled) {
+                    final var feeDistributionBuilder =
+                            feeDistributor.distributeFees(stack, tokenContext, exchangeRateManager.exchangeRates());
+                    if (feeDistributionBuilder != null) {
+                        stack.commitTransaction(feeDistributionBuilder);
+                    }
                 }
             } catch (Exception e) {
                 logger.error("CATASTROPHIC failure distributing end-of-period fees", e);
