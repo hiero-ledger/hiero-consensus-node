@@ -6,7 +6,6 @@ module org.hiero.consensus.hashgraph {
     requires transitive com.swirlds.config.api;
     requires transitive com.swirlds.metrics.api;
     requires transitive org.hiero.consensus.model;
-    requires java.sql;
     requires static com.github.spotbugs.annotations;
 
     exports org.hiero.consensus.hashgraph;
