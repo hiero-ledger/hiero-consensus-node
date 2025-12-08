@@ -19,7 +19,7 @@ public class StateEventHandlerManagerUtilsTests {
     void testFastCopyIsMutable() {
         final String virtualMapLabel =
                 "vm-" + StateEventHandlerManagerUtilsTests.class.getSimpleName() + "-" + java.util.UUID.randomUUID();
-        final MerkleNodeState state = VirtualMapStateTestUtils.createTestStateWithLabel(virtualMapLabel);
+        final MerkleNodeState state = VirtualMapStateTestUtils.createTestState();
         TestingAppStateInitializer.initPlatformState(state);
         state.getRoot().reserve();
 

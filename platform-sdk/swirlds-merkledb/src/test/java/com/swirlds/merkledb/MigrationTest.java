@@ -13,7 +13,6 @@ import com.swirlds.merkledb.test.fixtures.ExampleFixedValue;
 import com.swirlds.merkledb.test.fixtures.ExampleLongKey;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.VirtualMapMigration;
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -30,12 +29,12 @@ class MigrationTest {
 
     @Test
     @DisplayName("extractVirtualMapData() Test")
-    void extractVirtualMapDataTest() throws IOException, InterruptedException {
+    void extractVirtualMapDataTest() throws InterruptedException {
 
         final int size = 5_000_000;
 
         // Build a virtual map.
-        VirtualMap map = new VirtualMap("extractVirtualMapDataTest", constructBuilder(), CONFIGURATION);
+        VirtualMap map = new VirtualMap(constructBuilder(), CONFIGURATION);
         for (int i = 0; i < size; i++) {
             if (((i + 1) % (size / 100) == 0)) {
                 // Make a copy of the map in order to allow things to be flushed to disk
@@ -95,12 +94,12 @@ class MigrationTest {
 
     @Test
     @DisplayName("Extract VirtualMap Data Concurrently")
-    void extractDataConcurrentlyTest() throws IOException, InterruptedException {
+    void extractDataConcurrentlyTest() throws InterruptedException {
 
         final int size = 5_000_000;
 
         // Build a virtual map.
-        VirtualMap map = new VirtualMap("extractDataConcurrentlyTest", constructBuilder(), CONFIGURATION);
+        VirtualMap map = new VirtualMap(constructBuilder(), CONFIGURATION);
 
         final Random random = new Random(42);
         final byte[] value = new byte[ExampleFixedValue.RANDOM_BYTES];

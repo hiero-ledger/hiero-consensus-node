@@ -246,7 +246,7 @@ public final class LearnerPushVirtualTreeView extends VirtualTreeViewBase implem
             // We send the first and last leaf path when reconnecting because we don't have access
             // to this information in the virtual root node at this point in the flow, even though
             // the info has already been sent and resides in the ExternalVirtualMapMetadata that is a sibling
-            // of the VirtualRootNode. This doesn't affect correctness or hashing.
+            // of the VirtualMap. This doesn't affect correctness or hashing.
             final long firstLeafPath = in.readLong();
             final long lastLeafPath = in.readLong();
             reconnectState.setLastLeafPath(lastLeafPath);
