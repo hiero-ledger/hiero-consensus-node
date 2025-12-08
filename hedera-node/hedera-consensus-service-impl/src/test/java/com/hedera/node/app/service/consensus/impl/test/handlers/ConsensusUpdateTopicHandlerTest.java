@@ -12,7 +12,6 @@ import static com.hedera.node.app.spi.validation.ExpiryMeta.NA;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -424,50 +423,6 @@ class ConsensusUpdateTopicHandlerTest extends ConsensusTestBase {
 
         final var newTopic = writableTopicState.get(topicId);
         assertEquals(topic, newTopic);
-    }
-
-    @Test
-    @DisplayName("Check if there is memo update")
-    void memoMutationsIsNonExpiry() {
-        final var op = OP_BUILDER.memo("HI").build();
-        assertTrue(ConsensusUpdateTopicHandler.wantsToMutateNonExpiryField(op));
-    }
-
-    @Test
-    @DisplayName("Check if there is adminKey update")
-    void adminKeyMutationIsNonExpiry() {
-        final var op = OP_BUILDER.adminKey(key).build();
-        assertTrue(ConsensusUpdateTopicHandler.wantsToMutateNonExpiryField(op));
-    }
-
-    @Test
-    @DisplayName("Check if there is submitKey update")
-    void submitKeyMutationIsNonExpiry() {
-        final var op = OP_BUILDER.submitKey(key).build();
-        assertTrue(ConsensusUpdateTopicHandler.wantsToMutateNonExpiryField(op));
-    }
-
-    @Test
-    @DisplayName("Validate Mutate NonExpiryField autoRenewPeriod as expected")
-    void autoRenewPeriodMutationIsNonExpiry() {
-        final var autoRenewPeriod = Duration.newBuilder().seconds(123L).build();
-        final var op = OP_BUILDER.autoRenewPeriod(autoRenewPeriod).build();
-        assertTrue(ConsensusUpdateTopicHandler.wantsToMutateNonExpiryField(op));
-    }
-
-    @Test
-    @DisplayName("Check if there is autoRenewAccount update")
-    void autoRenewAccountMutationIsNonExpiry() {
-        final var op = OP_BUILDER.autoRenewAccount(autoRenewId).build();
-        assertTrue(ConsensusUpdateTopicHandler.wantsToMutateNonExpiryField(op));
-    }
-
-    @Test
-    @DisplayName("Check if there is autoRenewPeriod update")
-    void expiryMutationIsExpiry() {
-        final var expiryTime = Timestamp.newBuilder().seconds(123L).build();
-        final var op = OP_BUILDER.expirationTime(expiryTime).build();
-        assertFalse(ConsensusUpdateTopicHandler.wantsToMutateNonExpiryField(op));
     }
 
     @Test
