@@ -57,7 +57,7 @@ public class WritableNodePaymentsStore extends ReadableNodePaymentsStoreImpl {
                 .accountNumber(accountNumber)
                 .fees(oldFees + amount)
                 .build();
-        final var payments = nodePayments.payments();
+        final var payments = new HashMap<>(nodePayments.payments());
         payments.put(accountNumber, payment);
         nodePaymentsState.put(NodePayments.newBuilder().payments(payments).build());
     }
