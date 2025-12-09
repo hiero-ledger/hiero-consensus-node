@@ -110,6 +110,17 @@ public interface DoubleGauge extends SettableMetric<DoubleSupplier, DoubleGaugeM
         }
 
         /**
+         * Set the aggregation operator to {@code sum}.
+         * Default initial value for newly created datapoint is {@code 0.0}.
+         * The gauge will be reset to its initial value after each export.
+         *
+         * @return this builder
+         */
+        public Builder withSumOperator() {
+            return withOperator(StatUtils.DOUBLE_SUM, true).withInitValue(StatUtils.ZERO);
+        }
+
+        /**
          * Set the aggregation operator to track {@code max} spikes of the values.
          * Default initial value for newly created measurement is {@link Double#NEGATIVE_INFINITY}.
          * The gauge will be reset to its initial value after each export.
