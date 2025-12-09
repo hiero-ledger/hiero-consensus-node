@@ -55,6 +55,9 @@ class ProofControllerImplTest {
     private HistorySubmissions submissions;
 
     @Mock
+    private WrapsMpcStateMachine machine;
+
+    @Mock
     private HistoryLibrary historyLibrary;
 
     @Mock
@@ -99,7 +102,8 @@ class ProofControllerImplTest {
                         any(),
                         any(),
                         eq(historyLibrary),
-                        eq(submissions)))
+                        eq(submissions),
+                        eq(machine)))
                 .willReturn(prover);
 
         subject = new ProofControllerImpl(
@@ -109,6 +113,7 @@ class ProofControllerImplTest {
                 weights,
                 executor,
                 submissions,
+                machine,
                 keyPublications,
                 wrapsMessagePublications,
                 existingVotes,
@@ -142,6 +147,7 @@ class ProofControllerImplTest {
                 weights,
                 executor,
                 submissions,
+                machine,
                 keyPublications,
                 wrapsMessagePublications,
                 existingVotes,
@@ -167,6 +173,7 @@ class ProofControllerImplTest {
                 weights,
                 executor,
                 submissions,
+                machine,
                 keyPublications,
                 wrapsMessagePublications,
                 existingVotes,
@@ -192,6 +199,7 @@ class ProofControllerImplTest {
                 weights,
                 executor,
                 submissions,
+                machine,
                 keyPublications,
                 wrapsMessagePublications,
                 existingVotes,
@@ -238,6 +246,7 @@ class ProofControllerImplTest {
                 weights,
                 executor,
                 submissions,
+                machine,
                 keyPublications,
                 wrapsMessagePublications,
                 existingVotes,
@@ -265,6 +274,7 @@ class ProofControllerImplTest {
                 weights,
                 executor,
                 submissions,
+                machine,
                 keyPublications,
                 wrapsMessagePublications,
                 existingVotes,
@@ -300,6 +310,7 @@ class ProofControllerImplTest {
                 weights,
                 executor,
                 submissions,
+                machine,
                 keyPublications,
                 wrapsMessagePublications,
                 existingVotes,
@@ -338,6 +349,7 @@ class ProofControllerImplTest {
                 weights,
                 executor,
                 submissions,
+                machine,
                 keyPublications,
                 wrapsMessagePublications,
                 existingVotes,
@@ -375,6 +387,7 @@ class ProofControllerImplTest {
                 weights,
                 executor,
                 submissions,
+                machine,
                 keyPublications,
                 wrapsMessagePublications,
                 existingVotes,
@@ -423,6 +436,7 @@ class ProofControllerImplTest {
                 weights,
                 executor,
                 submissions,
+                machine,
                 keyPublications,
                 wrapsMessagePublications,
                 existingVotes,
@@ -468,6 +482,7 @@ class ProofControllerImplTest {
                 weights,
                 executor,
                 submissions,
+                machine,
                 keyPublications,
                 wrapsMessagePublications,
                 existingVotes,
@@ -515,6 +530,7 @@ class ProofControllerImplTest {
                 weights,
                 executor,
                 submissions,
+                machine,
                 keyPublications,
                 wrapsMessagePublications,
                 existingVotes,

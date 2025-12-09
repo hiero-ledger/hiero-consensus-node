@@ -30,6 +30,7 @@ public class ProofControllers {
     private final HistoryLibrary historyLibrary;
     private final HistoryService historyService;
     private final HistorySubmissions submissions;
+    private final WrapsMpcStateMachine machine;
     private final Supplier<NodeInfo> selfNodeInfoSupplier;
 
     /**
@@ -46,13 +47,15 @@ public class ProofControllers {
             @NonNull final HistoryLibrary historyLibrary,
             @NonNull final HistorySubmissions submissions,
             @NonNull final Supplier<NodeInfo> selfNodeInfoSupplier,
-            @NonNull final HistoryService historyService) {
+            @NonNull final HistoryService historyService,
+            @NonNull final WrapsMpcStateMachine machine) {
         this.executor = requireNonNull(executor);
         this.keyAccessor = requireNonNull(keyAccessor);
         this.historyLibrary = requireNonNull(historyLibrary);
         this.submissions = requireNonNull(submissions);
         this.selfNodeInfoSupplier = requireNonNull(selfNodeInfoSupplier);
         this.historyService = requireNonNull(historyService);
+        this.machine = requireNonNull(machine);
     }
 
     /**
@@ -140,6 +143,7 @@ public class ProofControllers {
                     weights,
                     executor,
                     submissions,
+                    machine,
                     keyPublications,
                     wrapsMessagePublications,
                     votes,

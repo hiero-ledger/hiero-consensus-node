@@ -15,6 +15,7 @@ import static org.mockito.Mockito.isNull;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
+import com.hedera.hapi.block.stream.AggregatedNodeSignatures;
 import com.hedera.hapi.block.stream.ChainOfTrustProof;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.history.HistoryProof;
@@ -97,7 +98,15 @@ class WrapsHistoryProverTest {
         weights = new RosterTransitionWeights(sourceWeights, targetWeights);
 
         subject = new WrapsHistoryProver(
-                SELF_ID, KEY_PAIR, null, weights, proofKeys, executor, historyLibrary, submissions);
+                SELF_ID,
+                KEY_PAIR,
+                null,
+                weights,
+                proofKeys,
+                executor,
+                historyLibrary,
+                submissions,
+                new WrapsMpcStateMachine());
     }
 
     private static HistoryProofConstruction constructionWithPhase(WrapsPhase phase, Instant graceEnd) {
@@ -117,7 +126,15 @@ class WrapsHistoryProverTest {
                 .chainOfTrustProof(ChainOfTrustProof.DEFAULT)
                 .build();
         subject = new WrapsHistoryProver(
-                SELF_ID, KEY_PAIR, nonGenesisSourceProof, weights, proofKeys, executor, historyLibrary, submissions);
+                SELF_ID,
+                KEY_PAIR,
+                nonGenesisSourceProof,
+                weights,
+                proofKeys,
+                executor,
+                historyLibrary,
+                submissions,
+                new WrapsMpcStateMachine());
 
         final var outcome = subject.advance(
                 EPOCH, constructionWithPhase(R1, null), TARGET_METADATA, targetProofKeys, tssConfig, null);
@@ -135,7 +152,15 @@ class WrapsHistoryProverTest {
         final var construction = constructionWithPhase(R1, graceEnd);
 
         subject = new WrapsHistoryProver(
-                SELF_ID, KEY_PAIR, HistoryProof.DEFAULT, weights, proofKeys, executor, historyLibrary, submissions);
+                SELF_ID,
+                KEY_PAIR,
+                HistoryProof.DEFAULT,
+                weights,
+                proofKeys,
+                executor,
+                historyLibrary,
+                submissions,
+                new WrapsMpcStateMachine());
 
         subject.addWrapsSigningMessage(
                 CONSTRUCTION_ID,
@@ -153,7 +178,15 @@ class WrapsHistoryProverTest {
     @Test
     void advanceInitializesWrapsMessageAndPublishesR1() {
         subject = new WrapsHistoryProver(
-                SELF_ID, KEY_PAIR, null, weights, proofKeys, runnable -> runnable.run(), historyLibrary, submissions);
+                SELF_ID,
+                KEY_PAIR,
+                null,
+                weights,
+                proofKeys,
+                runnable -> runnable.run(),
+                historyLibrary,
+                submissions,
+                new WrapsMpcStateMachine());
         given(historyLibrary.hashAddressBook(any())).willReturn("HASH".getBytes(UTF_8));
         given(historyLibrary.computeWrapsMessage(any(), any())).willReturn("MSG".getBytes(UTF_8));
         given(historyLibrary.runWrapsPhaseR1(any(), any(), any())).willReturn(MESSAGE_BYTES.toByteArray());
@@ -173,7 +206,15 @@ class WrapsHistoryProverTest {
     @Test
     void advancePublishesR3WhenEligible() {
         subject = new WrapsHistoryProver(
-                SELF_ID, KEY_PAIR, null, weights, proofKeys, runnable -> runnable.run(), historyLibrary, submissions);
+                SELF_ID,
+                KEY_PAIR,
+                null,
+                weights,
+                proofKeys,
+                runnable -> runnable.run(),
+                historyLibrary,
+                submissions,
+                new WrapsMpcStateMachine());
         given(historyLibrary.hashAddressBook(any())).willReturn("HASH".getBytes(UTF_8));
         given(historyLibrary.computeWrapsMessage(any(), any())).willReturn("MSG".getBytes(UTF_8));
         given(historyLibrary.runWrapsPhaseR3(any(), any(), any(), any(), any(), any()))
@@ -217,7 +258,15 @@ class WrapsHistoryProverTest {
     @Test
     void advancePublishesR2WhenEligible() {
         subject = new WrapsHistoryProver(
-                SELF_ID, KEY_PAIR, null, weights, proofKeys, runnable -> runnable.run(), historyLibrary, submissions);
+                SELF_ID,
+                KEY_PAIR,
+                null,
+                weights,
+                proofKeys,
+                runnable -> runnable.run(),
+                historyLibrary,
+                submissions,
+                new WrapsMpcStateMachine());
         given(historyLibrary.hashAddressBook(any())).willReturn("HASH".getBytes(UTF_8));
         given(historyLibrary.computeWrapsMessage(any(), any())).willReturn("MSG".getBytes(UTF_8));
         given(historyLibrary.runWrapsPhaseR2(any(), any(), any(), any(), any())).willReturn(R2_MESSAGE.toByteArray());
@@ -286,7 +335,15 @@ class WrapsHistoryProverTest {
     @Test
     void aggregatePhasePublishesAggregateVoteWhenWrapsDisabledOrNoSourceProof() {
         subject = new WrapsHistoryProver(
-                SELF_ID, KEY_PAIR, null, weights, proofKeys, runnable -> runnable.run(), historyLibrary, submissions);
+                SELF_ID,
+                KEY_PAIR,
+                null,
+                weights,
+                proofKeys,
+                runnable -> runnable.run(),
+                historyLibrary,
+                submissions,
+                new WrapsMpcStateMachine());
         given(historyLibrary.hashAddressBook(any())).willReturn("HASH".getBytes(UTF_8));
         given(historyLibrary.computeWrapsMessage(any(), any())).willReturn("MSG".getBytes(UTF_8));
         given(historyLibrary.runAggregationPhase(any(), any(), any(), any(), any()))
@@ -333,9 +390,10 @@ class WrapsHistoryProverTest {
                 sourceProof,
                 weights,
                 proofKeys,
-                runnable -> runnable.run(),
+                Runnable::run,
                 historyLibrary,
-                submissions);
+                submissions,
+                new WrapsMpcStateMachine());
         given(historyLibrary.hashAddressBook(any())).willReturn("HASH".getBytes(UTF_8));
         given(historyLibrary.computeWrapsMessage(any(), any())).willReturn("MSG".getBytes(UTF_8));
         given(historyLibrary.runAggregationPhase(any(), any(), any(), any(), any()))
@@ -348,6 +406,8 @@ class WrapsHistoryProverTest {
                 new com.hedera.cryptography.wraps.Proof(UNCOMPRESSED.toByteArray(), COMPRESSED.toByteArray());
         given(historyLibrary.constructIncrementalWrapsProof(any(), any(), any(), any(), any(), any(), any()))
                 .willReturn(incremental);
+        given(historyLibrary.wrapsProverReady()).willReturn(true);
+        given(historyLibrary.verifyAggregateSignature(any(), any(), any())).willReturn(true);
 
         setField("entropy", new byte[32]);
         subject.addWrapsSigningMessage(
@@ -400,7 +460,8 @@ class WrapsHistoryProverTest {
     void aggregatePhasePublishesGenesisWrapsVoteWhenSourceProofNotExtensible() {
         final var sourceProof = HistoryProof.newBuilder()
                 .uncompressedWrapsProof(Bytes.EMPTY)
-                .chainOfTrustProof(ChainOfTrustProof.DEFAULT)
+                .chainOfTrustProof(
+                        ChainOfTrustProof.newBuilder().aggregatedNodeSignatures(AggregatedNodeSignatures.DEFAULT))
                 .build();
 
         subject = new WrapsHistoryProver(
@@ -411,7 +472,8 @@ class WrapsHistoryProverTest {
                 proofKeys,
                 runnable -> runnable.run(),
                 historyLibrary,
-                submissions);
+                submissions,
+                new WrapsMpcStateMachine());
         given(historyLibrary.hashAddressBook(any())).willReturn("HASH".getBytes(UTF_8));
         given(historyLibrary.computeWrapsMessage(any(), any())).willReturn("MSG".getBytes(UTF_8));
         given(historyLibrary.runAggregationPhase(any(), any(), any(), any(), any()))
@@ -426,6 +488,8 @@ class WrapsHistoryProverTest {
                 .willReturn(genesis);
         given(historyLibrary.constructIncrementalWrapsProof(any(), any(), any(), any(), any(), any(), any()))
                 .willReturn(genesis);
+        given(historyLibrary.wrapsProverReady()).willReturn(true);
+        given(historyLibrary.verifyAggregateSignature(any(), any(), any())).willReturn(true);
 
         setField("entropy", new byte[32]);
         subject.addWrapsSigningMessage(
@@ -574,7 +638,15 @@ class WrapsHistoryProverTest {
         final var voteFuture = new CompletableFuture<Void>();
 
         subject = new WrapsHistoryProver(
-                SELF_ID, KEY_PAIR, null, weights, proofKeys, runnable -> runnable.run(), historyLibrary, submissions);
+                SELF_ID,
+                KEY_PAIR,
+                null,
+                weights,
+                proofKeys,
+                runnable -> runnable.run(),
+                historyLibrary,
+                submissions,
+                new WrapsMpcStateMachine());
 
         setField("r1Future", r1Future);
         setField("r2Future", r2Future);

@@ -76,6 +76,7 @@ public class ProofControllerImpl implements ProofController {
             @NonNull final RosterTransitionWeights weights,
             @NonNull final Executor executor,
             @NonNull final HistorySubmissions submissions,
+            @NonNull final WrapsMpcStateMachine machine,
             @NonNull final List<ProofKeyPublication> keyPublications,
             @NonNull final List<WrapsMessagePublication> wrapsMessagePublications,
             @NonNull final Map<Long, HistoryProofVote> votes,
@@ -83,6 +84,7 @@ public class ProofControllerImpl implements ProofController {
             @NonNull final HistoryLibrary historyLibrary,
             @NonNull final HistoryProver.Factory proverFactory,
             @Nullable final HistoryProof sourceProof) {
+        requireNonNull(machine);
         this.selfId = selfId;
         this.executor = requireNonNull(executor);
         this.submissions = requireNonNull(submissions);
@@ -113,7 +115,8 @@ public class ProofControllerImpl implements ProofController {
                     sourceProofKeys,
                     executor,
                     historyLibrary,
-                    submissions);
+                    submissions,
+                    machine);
             wrapsMessagePublications.stream().sorted().forEach(publication -> requireNonNull(prover)
                     .replayWrapsSigningMessage(constructionId(), publication));
         } else {

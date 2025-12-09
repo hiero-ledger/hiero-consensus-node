@@ -72,6 +72,8 @@ public class WrapsHistoryProver implements HistoryProver {
 
     private final HistoryLibrary historyLibrary;
     private final HistorySubmissions submissions;
+    private final WrapsMpcStateMachine machine;
+
     private final Map<WrapsPhase, SortedMap<Long, WrapsMessagePublication>> phaseMessages =
             new EnumMap<>(WrapsPhase.class);
     private final Map<Long, Bytes> explicitHistoryProofHashes = new HashMap<>();
@@ -180,7 +182,8 @@ public class WrapsHistoryProver implements HistoryProver {
             @NonNull final Map<Long, Bytes> proofKeys,
             @NonNull final Executor executor,
             @NonNull final HistoryLibrary historyLibrary,
-            @NonNull final HistorySubmissions submissions) {
+            @NonNull final HistorySubmissions submissions,
+            @NonNull final WrapsMpcStateMachine machine) {
         this.selfId = selfId;
         this.sourceProof = sourceProof;
         this.schnorrKeyPair = requireNonNull(schnorrKeyPair);
@@ -189,6 +192,7 @@ public class WrapsHistoryProver implements HistoryProver {
         this.executor = requireNonNull(executor);
         this.historyLibrary = requireNonNull(historyLibrary);
         this.submissions = requireNonNull(submissions);
+        this.machine = requireNonNull(machine);
     }
 
     @NonNull

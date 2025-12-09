@@ -49,7 +49,8 @@ public interface HistoryProver {
                 @NonNull Map<Long, Bytes> proofKeys,
                 @NonNull Executor executor,
                 @NonNull HistoryLibrary library,
-                @NonNull HistorySubmissions submissions);
+                @NonNull HistorySubmissions submissions,
+                @NonNull WrapsMpcStateMachine machine);
     }
 
     /**
