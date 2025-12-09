@@ -55,6 +55,7 @@ import "services/state/token/token_relation.proto";
 import "services/state/tss/tss_encryption_keys.proto";
 import "services/state/tss/tss_message_map_key.proto";
 import "services/state/tss/tss_vote_map_key.proto";
+import "interledger/state/clpr/clpr_ledger.proto";
 
 /**
  * This message defines the State Item.
@@ -272,6 +273,11 @@ message StateKey {
      * A state identifier for WRAPS message histories used in a roster transition proof.
      */
     com.hedera.hapi.node.state.history.ConstructionNodeId HistoryService_I_WRAPS_MESSAGE_HISTORIES = 54;
+
+    /**
+     * A state identifier for CLPR Ledger Configuration.
+     */
+    org.hiero.hapi.interledger.state.clpr.ClprLedgerId ClprService_I_CONFIGURATIONS = 55;
 
     // Queue states
     /**
@@ -615,6 +621,11 @@ message StateValue {
      * A state identifier for WRAPS message histories used in a roster transition proof.
      */
     com.hedera.hapi.node.state.history.WrapsMessageHistory HistoryService_I_WRAPS_MESSAGE_HISTORIES = 54;
+
+    /**
+     * A state identifier for CLPR Ledger Configuration.
+     */
+    org.hiero.hapi.interledger.state.clpr.ClprLedgerConfiguration ClprService_I_CONFIGURATIONS = 55;
 
     /**
      * Metadata of the round receipts queue.

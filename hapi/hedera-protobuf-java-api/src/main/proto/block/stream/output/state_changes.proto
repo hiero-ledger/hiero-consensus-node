@@ -61,6 +61,7 @@ import "services/state/hints/hints_types.proto";
 import "services/state/history/history_types.proto";
 import "services/state/entity/entity_counts.proto";
 import "services/auxiliary/hints/crs_publication.proto";
+import "interledger/state/clpr/clpr_ledger.proto";
 
 /**
  * A set of state changes.
@@ -482,6 +483,11 @@ enum StateIdentifier {
      * A state identifier for WRAPS message histories.
      */
     STATE_ID_WRAPS_MESSAGE_HISTORIES = 54;
+
+    /**
+     * A state identifier for CLPR ledger configurations. Key/value state.
+     */
+    STATE_ID_CLPR_LEDGER_CONFIGURATIONS = 55;
 
     /**
      * A state identifier for the round receipts queue. Queue state.
@@ -914,6 +920,11 @@ message MapChangeKey {
          * A lambda storage slot key.
          */
         com.hedera.hapi.node.state.hooks.LambdaSlotKey lambda_slot_key = 24;
+
+        /**
+         * A CLPR ledger identifier key.
+         */
+        org.hiero.hapi.interledger.state.clpr.ClprLedgerId clpr_ledger_id_key = 25;
     }
 }
 
@@ -1094,6 +1105,11 @@ message MapChangeValue {
          * A WRAPS message history.
          */
         com.hedera.hapi.node.state.history.WrapsMessageHistory wraps_message_history_value = 31;
+
+        /**
+         * A CLPR ledger configuration value.
+         */
+        org.hiero.hapi.interledger.state.clpr.ClprLedgerConfiguration clpr_ledger_configuration_value = 32;
     }
 }
 
