@@ -32,6 +32,8 @@ import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
 import com.swirlds.platform.util.BootstrapUtils;
 import com.swirlds.platform.wiring.PlatformComponents;
 import com.swirlds.state.MerkleNodeState;
+import com.swirlds.state.StateLifecycleManager;
+import com.swirlds.state.merkle.StateLifecycleManagerImpl;
 import com.swirlds.state.merkle.VirtualMapState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
@@ -114,6 +116,8 @@ public class ConsensusNodeManager {
 
         final PlatformContext platformContext = PlatformContext.create(
                 platformConfig, Time.getCurrent(), metrics, fileSystemManager, recycleBin, merkleCryptography);
+        final StateLifecycleManager stateLifecycleManager = new StateLifecycleManagerImpl(
+                metrics, time, virtualMap -> new VirtualMapState(virtualMap, metrics), platformConfig);
 
         otterApp = new OtterApp(platformConfig, version);
 
@@ -125,7 +129,7 @@ public class ConsensusNodeManager {
                 OtterApp.SWIRLD_NAME,
                 selfId,
                 platformContext,
-                virtualMap -> new VirtualMapState(virtualMap, metrics));
+                stateLifecycleManager);
         final ReservedSignedState initialState = reservedState.state();
         final MerkleNodeState state = initialState.get().getState();
 
@@ -145,7 +149,7 @@ public class ConsensusNodeManager {
                         selfId,
                         Long.toString(selfId.id()),
                         rosterHistory,
-                        virtualMap -> new VirtualMapState(virtualMap, metrics))
+                        stateLifecycleManager)
                 .withPlatformContext(platformContext)
                 .withConfiguration(platformConfig)
                 .withKeysAndCerts(keysAndCerts)

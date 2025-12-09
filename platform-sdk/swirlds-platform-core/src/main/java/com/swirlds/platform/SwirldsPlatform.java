@@ -214,7 +214,7 @@ public class SwirldsPlatform implements Platform {
         // This object makes a copy of the state. After this point, initialState becomes immutable.
         final StateLifecycleManager stateLifecycleManager = blocks.stateLifecycleManager();
         final MerkleNodeState state = initialState.getState();
-        stateLifecycleManager.initState(state, true);
+        stateLifecycleManager.initState(state);
         setCreationSoftwareVersionTo(stateLifecycleManager.getMutableState(), blocks.appVersion());
 
         final EventWindowManager eventWindowManager = new DefaultEventWindowManager();

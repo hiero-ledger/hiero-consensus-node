@@ -26,12 +26,10 @@ import com.swirlds.platform.network.protocol.ReservedSignedStateResultPromise;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.StateLifecycleManager;
-import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.Objects;
-import java.util.function.Function;
 import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -83,7 +81,6 @@ public class ReconnectStatePeerProtocol implements PeerProtocol {
     private final PlatformContext platformContext;
     private final ReservedSignedStateResultPromise reservedSignedStateResultPromise;
     private final StateLifecycleManager stateLifecycleManager;
-    private final Function<VirtualMap, MerkleNodeState> createStateFromVirtualMap;
 
     /**
      * @param threadManager              responsible for creating and managing threads
@@ -96,7 +93,6 @@ public class ReconnectStatePeerProtocol implements PeerProtocol {
      * @param platformStatusSupplier     provides the platform status
      * @param time                       the time object to use
      * @param reservedSignedStateResultPromise a mechanism to get a SignedState or block while it is not available
-     * @param createStateFromVirtualMap  a function to instantiate the state object from a Virtual Map
      */
     public ReconnectStatePeerProtocol(
             @NonNull final PlatformContext platformContext,
@@ -110,8 +106,7 @@ public class ReconnectStatePeerProtocol implements PeerProtocol {
             @NonNull final Supplier<PlatformStatus> platformStatusSupplier,
             @NonNull final Time time,
             @NonNull final ReservedSignedStateResultPromise reservedSignedStateResultPromise,
-            @NonNull final StateLifecycleManager stateLifecycleManager,
-            @NonNull final Function<VirtualMap, MerkleNodeState> createStateFromVirtualMap) {
+            @NonNull final StateLifecycleManager stateLifecycleManager) {
 
         this.platformContext = Objects.requireNonNull(platformContext);
         this.threadManager = Objects.requireNonNull(threadManager);
@@ -124,7 +119,6 @@ public class ReconnectStatePeerProtocol implements PeerProtocol {
         this.platformStatusSupplier = Objects.requireNonNull(platformStatusSupplier);
         this.reservedSignedStateResultPromise = Objects.requireNonNull(reservedSignedStateResultPromise);
         this.stateLifecycleManager = Objects.requireNonNull(stateLifecycleManager);
-        this.createStateFromVirtualMap = Objects.requireNonNull(createStateFromVirtualMap);
         Objects.requireNonNull(time);
 
         final Duration minimumTimeBetweenReconnects = platformContext
@@ -316,7 +310,7 @@ public class ReconnectStatePeerProtocol implements PeerProtocol {
                     consensusState,
                     reconnectSocketTimeout,
                     reconnectMetrics,
-                    createStateFromVirtualMap);
+                    stateLifecycleManager);
 
             logger.info(RECONNECT.getMarker(), () -> new ReconnectStartPayload(
                             "Starting reconnect in role of the receiver.",

@@ -52,10 +52,6 @@ public class InMemoryDataSource implements VirtualDataSource {
         this.keyToPathMap.putAll(copy.keyToPathMap);
     }
 
-    public String getName() {
-        return name;
-    }
-
     /**
      * Close the data source
      */

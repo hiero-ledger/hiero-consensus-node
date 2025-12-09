@@ -37,6 +37,7 @@ import com.hederahashgraph.api.proto.java.Response;
 import com.hederahashgraph.api.proto.java.Timestamp;
 import com.hederahashgraph.api.proto.java.Transaction;
 import com.hederahashgraph.api.proto.java.TransactionResponse;
+import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.base.utility.Pair;
 import com.swirlds.common.metrics.config.MetricsConfig;
 import com.swirlds.common.metrics.platform.DefaultPlatformMetrics;
@@ -295,7 +296,9 @@ public abstract class AbstractEmbeddedHedera implements EmbeddedHedera {
                         this.historyService = new FakeHistoryService(appContext, bootstrapConfig),
                 (hints, history, configProvider) ->
                         this.blockHashSigner = new LapsingBlockHashSigner(hints, history, configProvider),
+                PLATFORM_CONFIG,
                 metrics,
+                new FakeTime(),
                 () -> this.state);
         version = hedera.getSemanticVersion();
         blockStreamEnabled = hedera.isBlockStreamEnabled();

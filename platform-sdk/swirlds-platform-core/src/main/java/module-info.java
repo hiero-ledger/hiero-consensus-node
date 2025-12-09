@@ -40,11 +40,7 @@ module com.swirlds.platform.core {
     exports com.swirlds.platform.network.topology;
     exports com.swirlds.platform.recovery;
     exports com.swirlds.platform.state;
-    exports com.swirlds.platform.stats;
-    exports com.swirlds.platform.stats.atomic;
-    exports com.swirlds.platform.stats.cycle;
     exports com.swirlds.platform.state.editor;
-    exports com.swirlds.platform.stats.simple;
     exports com.swirlds.platform.state.signed;
     exports com.swirlds.platform.state.address;
     exports com.swirlds.platform.gossip.sync;
@@ -104,7 +100,6 @@ module com.swirlds.platform.core {
     exports com.swirlds.platform.state.service;
     exports com.swirlds.platform.builder.internal;
     exports com.swirlds.platform.config.internal;
-    exports com.swirlds.platform.freeze;
     exports com.swirlds.platform.network.protocol.rpc;
     exports com.swirlds.platform.state.iss to
             org.hiero.otter.test;
@@ -118,11 +113,11 @@ module com.swirlds.platform.core {
     requires transitive com.swirlds.config.api;
     requires transitive com.swirlds.metrics.api;
     requires transitive com.swirlds.state.api;
-    requires transitive com.swirlds.virtualmap;
     requires transitive org.hiero.base.concurrent;
     requires transitive org.hiero.base.crypto;
     requires transitive org.hiero.base.utility;
     requires transitive org.hiero.consensus.event.creator;
+    requires transitive org.hiero.consensus.hashgraph;
     requires transitive org.hiero.consensus.model;
     requires transitive org.hiero.consensus.utility;
     requires transitive com.fasterxml.jackson.annotation;
@@ -133,6 +128,7 @@ module com.swirlds.platform.core {
     requires com.swirlds.logging;
     requires com.swirlds.merkledb;
     requires com.swirlds.state.impl;
+    requires com.swirlds.virtualmap;
     requires com.fasterxml.jackson.core;
     requires com.fasterxml.jackson.dataformat.yaml;
     requires com.github.spotbugs.annotations;
