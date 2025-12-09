@@ -91,8 +91,8 @@ public class StateNetworkInfo implements NetworkInfo {
                 .getConfiguration()
                 .getConfigData(LedgerConfig.class)
                 .id();
-        this.selfId = selfId;
         this.nodeInfos = nodeInfosFrom(state);
+        this.selfId = selfId;
     }
 
     @NonNull

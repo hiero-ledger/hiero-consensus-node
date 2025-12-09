@@ -24,7 +24,6 @@ import com.hedera.node.app.service.networkadmin.impl.WritableFreezeStore;
 import com.hedera.node.app.service.token.ReadableStakingInfoStore;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
-import com.hedera.node.app.spi.records.SelfNodeAccountIdManager;
 import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
@@ -60,7 +59,6 @@ public class FreezeHandler implements TransactionHandler {
 
     private final Executor freezeExecutor;
     private final EntityIdFactory entityIdFactory;
-    private final SelfNodeAccountIdManager selfNodeAccountIdManager;
 
     /**
      * Constructs a {@link FreezeHandler} with the provided {@link Executor}.
@@ -70,11 +68,9 @@ public class FreezeHandler implements TransactionHandler {
     @Inject
     public FreezeHandler(
             @NonNull @Named("FreezeService") final Executor freezeExecutor,
-            @NonNull final EntityIdFactory entityIdFactory,
-            @NonNull final SelfNodeAccountIdManager selfNodeAccountIdManager) {
+            @NonNull final EntityIdFactory entityIdFactory) {
         this.freezeExecutor = requireNonNull(freezeExecutor);
         this.entityIdFactory = requireNonNull(entityIdFactory);
-        this.selfNodeAccountIdManager = requireNonNull(selfNodeAccountIdManager);
     }
 
     /**

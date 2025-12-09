@@ -27,10 +27,13 @@ import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfe
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.ensureStakingActivated;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.logIt;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.recordStreamMustIncludePassFrom;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.selectedItems;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateCandidateRoster;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitForActive;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitUntilStartOfNextStakingPeriod;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.spec.utilops.streams.assertions.VisibleItemsValidator.EXISTENCE_ONLY_VALIDATOR;
@@ -374,17 +377,14 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
                                         .accountId("newNodeAccountId")
                                         .signedByPayerAnd("newNodeAccountId"),
 
-                                //                                // try death restart of the node
-                                //
-                                // getVersionInfo().exposingServicesVersionTo(currentVersion::set),
-                                //                                FakeNmt.shutdownWithin(byNodeId(nodeId.get()),
-                                // SHUTDOWN_TIMEOUT),
-                                //                                logIt("Node is supposedly down"),
-                                //                                sleepFor(PORT_UNBINDING_WAIT_PERIOD.toMillis()),
-                                //                                sourcing(() -> FakeNmt.restartWithConfigVersion(
-                                //                                        byNodeId(nodeId.get()),
-                                // configVersionOf(currentVersion.get()))),
-                                //                                waitForActive(byNodeId(4), Duration.ofSeconds(210)),
+                                // try death restart of the node
+                                getVersionInfo().exposingServicesVersionTo(currentVersion::set),
+                                FakeNmt.shutdownWithin(byNodeId(nodeId.get()), SHUTDOWN_TIMEOUT),
+                                logIt("Node is supposedly down"),
+                                sleepFor(PORT_UNBINDING_WAIT_PERIOD.toMillis()),
+                                sourcing(() -> FakeNmt.restartWithConfigVersion(
+                                        byNodeId(nodeId.get()), configVersionOf(currentVersion.get()))),
+                                waitForActive(byNodeId(4), Duration.ofSeconds(210)),
 
                                 // reconnect the node
                                 getVersionInfo().exposingServicesVersionTo(currentVersion::set),
@@ -428,9 +428,8 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
                     nodeUpdate(nodeToUpdate).accountId("newAccount").signedByPayerAnd("newAccount"),
                     // 5. reconnect
                     getVersionInfo().exposingServicesVersionTo(startVersion::set),
-                    //                    sourcing(() ->
-                    //                            reconnectNode(byNodeId(Long.parseLong(nodeToUpdate)),
-                    // configVersionOf(startVersion.get()))),
+                    sourcing(() ->
+                            reconnectNode(byNodeId(Long.parseLong(nodeToUpdate)), configVersionOf(startVersion.get()))),
                     // 6. validate the new record paths are empty even after reconnect
                     validatePathsAfterUpdate(nodeToUpdate, accountId, newAccountId),
 
@@ -482,10 +481,6 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
 
     private static String blocksPath(String nodeId) {
         return "build/hapi-test/node%s/data/blockStreams/".formatted(nodeId);
-    }
-
-    private static String nodeAccountIdFilePath(String nodeId) {
-        return "build/hapi-test/node%s/data/generated/".formatted(nodeId);
     }
 
     private static ContextualActionOp validatePathsAfterUpdate(
