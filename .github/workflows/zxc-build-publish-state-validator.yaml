@@ -66,13 +66,11 @@ jobs:
         id: version-and-artifact
         run: |
           set -euo pipefail
-          ROOT_VER_FILE="version.txt"
-          if [[ ! -f "${ROOT_VER_FILE}" ]]; then
-            echo "version.txt not found at repo root" >&2; exit 1
-          fi
-          FULL_VER="$(cat "${ROOT_VER_FILE}" | tr -d '\r' | xargs)"
-          # Extract major.minor from versions like 0.70.0-SNAPSHOT -> 0.70
-          MAJOR_MINOR="$(echo "${FULL_VER}" | sed -E 's/^([0-9]+\.[0-9]+).*$/\1/')"
+          FULL_VER=$(./gradlew --no-daemon :hedera-state-validator:properties | grep '^version:' | cut -d ' ' -f2)
+          # Remove -SNAPSHOT suffix if present
+          VER_WITHOUT_SNAPSHOT=${FULL_VER%-SNAPSHOT}
+          # Extract major.minor (first two segments)
+          MAJOR_MINOR=$(echo "$VER_WITHOUT_SNAPSHOT" | cut -d '.' -f1-2)
 
           # Locate the Shadow (uber) JAR built by the module
           # Shadow defaults to "-all" classifier; pick the most recent matching jar
