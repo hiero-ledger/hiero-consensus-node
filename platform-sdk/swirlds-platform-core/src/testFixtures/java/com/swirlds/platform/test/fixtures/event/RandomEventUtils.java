@@ -32,12 +32,8 @@ public class RandomEventUtils {
             final Instant timestamp,
             final long birthRound,
             final TransactionWrapper[] transactions,
-            final EventImpl selfParent,
-            final EventImpl otherParent,
+            final List<EventImpl> allParents,
             final boolean fakeHash) {
-
-        final List<EventImpl> allParents =
-                Stream.of(selfParent, otherParent).filter(Objects::nonNull).toList();
 
         final UnsignedEvent unsignedEvent = randomUnsignedEventWithTimestamp(
                 random, creatorId, timestamp, birthRound, transactions, allParents, fakeHash);

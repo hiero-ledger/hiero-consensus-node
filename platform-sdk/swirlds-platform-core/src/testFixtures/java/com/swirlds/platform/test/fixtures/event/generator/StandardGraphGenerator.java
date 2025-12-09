@@ -32,12 +32,12 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Random;
 import org.hiero.consensus.crypto.DefaultEventHasher;
 import org.hiero.consensus.model.event.PlatformEvent;
@@ -50,6 +50,8 @@ import org.hiero.consensus.roster.RosterUtils;
  * A utility class for generating a graph of events.
  */
 public class StandardGraphGenerator implements GraphGenerator {
+    /** The default maximum number of other-parents for each event */
+    private static final int DEFAULT_MAX_OTHER_PARENTS = 1;
 
     /**
      * A list of sources. There is one source per node that is being simulated.
@@ -132,43 +134,72 @@ public class StandardGraphGenerator implements GraphGenerator {
     private Random random;
 
     /**
-     * Construct a new StandardEventGenerator.
-     * <p>
-     * Note: once an event source has been passed to this constructor it should not be modified by the outer context.
-     *
-     * @param platformContext the platform context
-     * @param seed            The random seed used to generate events.
-     * @param eventSources    One or more event sources.
+     * Same as {@link #StandardGraphGenerator(PlatformContext, long, int, List, Roster)} with:
+     * <ul>
+     *     <li>maxOtherParents set to {@value #DEFAULT_MAX_OTHER_PARENTS}</li>
+     *     <li>roster generated from event sources</li>
+     * </ul>
      */
     public StandardGraphGenerator(
             @NonNull final PlatformContext platformContext, final long seed, final EventSource... eventSources) {
-        this(platformContext, seed, new ArrayList<>(Arrays.asList(eventSources)));
+        this(platformContext, seed, Arrays.asList(eventSources));
     }
 
     /**
-     * Construct a new StandardEventGenerator.
-     *
-     * @param platformContext the platform context
-     * @param seed            The random seed used to generate events.
-     * @param eventSources    One or more event sources.
+     * Same as {@link #StandardGraphGenerator(PlatformContext, long, int, List, Roster)} with:
+     * <ul>
+     *     <li>maxOtherParents set to {@value #DEFAULT_MAX_OTHER_PARENTS}</li>
+     *     <li>roster generated from event sources</li>
+     * </ul>
      */
     public StandardGraphGenerator(
             @NonNull final PlatformContext platformContext,
             final long seed,
             @NonNull final List<EventSource> eventSources) {
-        this(platformContext, seed, eventSources, RandomRosterBuilder.create(new Random(seed))
+        this(platformContext, seed, DEFAULT_MAX_OTHER_PARENTS, eventSources);
+    }
+
+    /**
+     * Same as {@link #StandardGraphGenerator(PlatformContext, long, int, List, Roster)} with:
+     * <ul>
+     *     <li>roster generated from event sources</li>
+     * </ul>
+     */
+    public StandardGraphGenerator(
+            @NonNull final PlatformContext platformContext,
+            final long seed,
+            final int maxOtherParents,
+            @NonNull final List<EventSource> eventSources) {
+        this(platformContext, seed, maxOtherParents, eventSources, RandomRosterBuilder.create(new Random(seed))
                 .withSize(eventSources.size())
                 .build());
     }
 
+    /**
+     * Same as {@link #StandardGraphGenerator(PlatformContext, long, int, List, Roster)} with:
+     * <ul>
+     *     <li>maxOtherParents set to {@value #DEFAULT_MAX_OTHER_PARENTS}</li>
+     * </ul>
+     */
     public StandardGraphGenerator(
             @NonNull final PlatformContext platformContext,
             final long seed,
             @NonNull final List<EventSource> eventSources,
             @NonNull final Roster roster) {
-        this(platformContext, seed, 1, eventSources, roster);
+        this(platformContext, seed, DEFAULT_MAX_OTHER_PARENTS, eventSources, roster);
     }
 
+    /**
+     * Construct a new StandardEventGenerator.
+     * <p>
+     * Note: once an event source has been passed to this constructor it should not be modified by the outer context.
+     *
+     * @param platformContext The platform context
+     * @param seed            The random seed used to generate events.
+     * @param maxOtherParents The maximum number of other-parents for each event.
+     * @param eventSources    One or more event sources.
+     * @param roster          The roster to use.
+     */
     public StandardGraphGenerator(
             @NonNull final PlatformContext platformContext,
             final long seed,
@@ -398,7 +429,7 @@ public class StandardGraphGenerator implements GraphGenerator {
     /**
      * Get the next timestamp for the next event.
      */
-    private Instant getNextTimestamp(@NonNull final EventSource source, @Nullable final NodeId otherParentId) {
+    private Instant getNextTimestamp(@NonNull final EventSource source, @NonNull final Collection<NodeId> otherParentIds) {
         if (previousTimestamp == null) {
             previousTimestamp = DEFAULT_FIRST_EVENT_TIME_CREATED;
             previousCreatorId = source.getNodeId();
@@ -413,7 +444,7 @@ public class StandardGraphGenerator implements GraphGenerator {
 
         // don't repeat a timestamp if the previously emitted event is either parent of the new event
         final boolean forbidRepeatTimestamp = previousCreatorId != null
-                && (previousCreatorId.equals(source.getNodeId()) || previousCreatorId.equals(otherParentId));
+                && (previousCreatorId.equals(source.getNodeId()) || otherParentIds.contains(previousCreatorId));
         if (!previousTimestampForSource.equals(previousTimestamp) && shouldRepeatTimestamp && !forbidRepeatTimestamp) {
             return previousTimestamp;
         } else {
@@ -438,15 +469,23 @@ public class StandardGraphGenerator implements GraphGenerator {
          */
     public EventImpl buildNextEvent(final long eventIndex) {
         final EventSource source = getNextEventSource(eventIndex);
-        final EventSource otherParentSource = getNextOtherParentSource(eventIndex, source);
+        // using map for parents in case of duplicate sources
+        final Map<NodeId, EventSource> otherParentSources = new HashMap<>();
+        for (int i = 0; i < maxOtherParents; i++) {
+            final EventSource otherParentSource = getNextOtherParentSource(eventIndex, source);
+            if (otherParentSource != null) {
+                otherParentSources.put(otherParentSource.getNodeId(), otherParentSource);
+            }
+        }
+
 
         final long birthRound = consensus.getLastRoundDecided() + 1;
 
         final EventImpl next = source.generateEvent(
                 getRandom(),
                 eventIndex,
-                otherParentSource,
-                getNextTimestamp(source, Optional.ofNullable(otherParentSource).map(EventSource::getNodeId).orElse(null)),
+                otherParentSources.values(),
+                getNextTimestamp(source, otherParentSources.keySet()),
                 birthRound);
 
         new DefaultEventHasher().hashEvent(next.getBaseEvent());
