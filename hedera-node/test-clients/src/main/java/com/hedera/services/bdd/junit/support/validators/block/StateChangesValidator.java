@@ -17,9 +17,8 @@ import static com.hedera.node.app.hapi.utils.CommonUtils.noThrowSha384HashOf;
 import static com.hedera.node.app.hapi.utils.CommonUtils.sha384DigestOrThrow;
 import static com.hedera.node.app.hapi.utils.blocks.BlockStreamUtils.stateNameOf;
 import static com.hedera.node.app.hints.HintsService.maybeWeightsFrom;
-import static com.hedera.node.app.history.impl.ProofControllerImpl.EMPTY_PUBLIC_KEY;
+import static com.hedera.node.app.history.HistoryLibrary.EMPTY_PUBLIC_KEY;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
-import static com.hedera.node.app.service.roster.impl.RosterTransitionWeights.atLeastOneThirdOfTotal;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.APPLICATION_PROPERTIES;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.DATA_CONFIG_DIR;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.SAVED_STATES_DIR;
@@ -33,7 +32,6 @@ import static com.swirlds.platform.system.InitTrigger.GENESIS;
 import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.toMap;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.hapi.block.stream.Block;
@@ -182,6 +180,17 @@ public class StateChangesValidator implements BlockStreamValidator {
                     targetWeights::get,
                     id -> proofKeys.getOrDefault(id, EMPTY_PUBLIC_KEY));
         }
+
+        public byte[] wrapsMessageGiven(@NonNull final HistoryLibrary library, @NonNull final Bytes metadata) {
+            final var targetAddressBook = HistoryLibrary.AddressBook.from(
+                    new TreeMap<>(targetWeights()),
+                    nodeId -> proofKeys.getOrDefault(nodeId, EMPTY_PUBLIC_KEY).toByteArray());
+            return library.computeWrapsMessage(targetAddressBook, metadata.toByteArray());
+        }
+
+        public byte[][] publicKeysFor(@NonNull final List<Long> nodeIds) {
+            return nodeIds.stream().map(proofKeys::get).map(Bytes::toByteArray).toArray(byte[][]::new);
+        }
     }
 
     /**
@@ -205,7 +214,7 @@ public class StateChangesValidator implements BlockStreamValidator {
                 .toAbsolutePath()
                 .normalize();
         // 3 if debugging most PR checks, 4 if debugging the HAPI (Restart) check
-        final long hintsThresholdDenominator = 4;
+        final long hintsThresholdDenominator = 3;
         final long shard = 11;
         final long realm = 12;
         final var validator = new StateChangesValidator(
@@ -216,7 +225,7 @@ public class StateChangesValidator implements BlockStreamValidator {
                 node0Dir.resolve("data/config"),
                 16,
                 HintsEnabled.YES,
-                HistoryEnabled.NO,
+                HistoryEnabled.YES,
                 hintsThresholdDenominator,
                 shard,
                 realm);
@@ -683,47 +692,32 @@ public class StateChangesValidator implements BlockStreamValidator {
                     case UNSET ->
                         Assertions.fail("Empty chain-of-trust for hinTS key in proof (start round #" + firstRound
                                 + ") - " + proof);
-                    case NODE_SIGNATURES -> {
-                        requireNonNull(activeWeights);
+                    case AGGREGATED_NODE_SIGNATURES -> {
                         final var context = vkContexts.get(vk);
-                        assertNotNull(
-                                context, "No context for verification key in proof (start round #" + firstRound + ")");
-                        // Signatures are over (targetBookHash || hash(verificationKey))
-                        final var targetBookHash = context.targetBookHash(historyLibrary);
-                        final var message = targetBookHash.append(historyLibrary.hashHintsVerificationKey(vk));
-                        long signingWeight = 0;
-                        final var signatures =
-                                chainOfTrustProof.nodeSignaturesOrThrow().nodeSignatures();
-                        final var weights = context.proverWeights();
-                        for (final var s : signatures) {
-                            final long nodeId = s.nodeId();
-                            final var proofKey = context.proofKeys().get(nodeId);
-                            assertTrue(
-                                    historyLibrary.verifySchnorr(s.signature(), message, proofKey),
-                                    "Invalid signature for node" + nodeId
-                                            + " in chain-of-trust for hinTS key in proof (start round #" + firstRound
-                                            + ") - " + proof);
-                            signingWeight += weights.getOrDefault(s.nodeId(), 0L);
-                        }
-                        final long threshold = atLeastOneThirdOfTotal(weights);
+                        final var wrapsMessage = context.wrapsMessageGiven(historyLibrary, vk);
+                        final var nonRecursiveProof = chainOfTrustProof.aggregatedNodeSignaturesOrThrow();
                         assertTrue(
-                                signingWeight >= threshold,
-                                "Insufficient weight in chain-of-trust for hinTS key in proof (start round #"
-                                        + firstRound + ") - " + proof
-                                        + " (expected >= " + threshold + ", got " + signingWeight
-                                        + ")");
+                                historyLibrary.verifyAggregateSignature(
+                                        wrapsMessage,
+                                        context.publicKeysFor(nonRecursiveProof.signingNodeIds()),
+                                        nonRecursiveProof.aggregatedSignature().toByteArray()),
+                                "Invalid aggregated signature in proof (start round #" + firstRound + ") - context "
+                                        + context);
                     }
-                    case WRAPS_PROOF ->
+                    case WRAPS_PROOF -> {
+                        final var compressedProof = chainOfTrustProof.wrapsProofOrThrow();
                         assertTrue(
-                                historyLibrary.verifyChainOfTrust(chainOfTrustProof.wrapsProofOrThrow()),
-                                "Insufficient weight in chain-of-trust for hinTS key in proof (start round #"
-                                        + firstRound + ") - " + proof);
+                                historyLibrary.isValidWraps(compressedProof.toByteArray()),
+                                "Invalid WRAPS proof (start round #" + firstRound + ") - " + chainOfTrustProof);
+                    }
                 }
             }
         } else {
             final var expectedSignature = Bytes.wrap(noThrowSha384HashOf(provenHash.toByteArray()));
             assertEquals(
-                    expectedSignature, proof.signedBlockProof().blockSignature(), "Signature mismatch for " + proof);
+                    expectedSignature,
+                    proof.signedBlockProofOrThrow().blockSignature(),
+                    "Signature mismatch for " + proof);
         }
     }
 
@@ -750,7 +744,7 @@ public class StateChangesValidator implements BlockStreamValidator {
             }
             final var serviceName = stateName.substring(0, delimIndex);
             final var writableStates = state.getWritableStates(serviceName);
-            final var stateId = stateChange.stateId();
+            final int stateId = stateChange.stateId();
             switch (stateChange.changeOperation().kind()) {
                 case UNSET -> throw new IllegalStateException("Change operation is not set");
                 case STATE_ADD, STATE_REMOVE -> {
@@ -784,10 +778,9 @@ public class StateChangesValidator implements BlockStreamValidator {
                                     .hintsSchemeOrThrow()
                                     .preprocessedKeysOrThrow()
                                     .verificationKey();
-                            vkContexts.put(
-                                    activeVk,
-                                    new HistoryContext(
-                                            proverWeights, Map.copyOf(activeWeights), Map.copyOf(proofKeys)));
+                            final var activeVkContext =
+                                    new HistoryContext(proverWeights, Map.copyOf(activeWeights), Map.copyOf(proofKeys));
+                            vkContexts.put(activeVk, activeVkContext);
                         }
                     } else if (stateChange.stateId() == STATE_ID_LEDGER_ID.protoOrdinal()) {
                         ledgerId = ((ProtoBytes) singleton).value();

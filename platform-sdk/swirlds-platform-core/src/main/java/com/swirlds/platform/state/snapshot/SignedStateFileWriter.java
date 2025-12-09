@@ -22,7 +22,6 @@ import com.swirlds.common.io.streams.MerkleDataOutputStream;
 import com.swirlds.common.merkle.utility.MerkleTreeVisualizer;
 import com.swirlds.logging.legacy.payload.StateSavedToDiskPayload;
 import com.swirlds.platform.config.StateConfig;
-import com.swirlds.platform.recovery.emergencyfile.EmergencyRecoveryFile;
 import com.swirlds.platform.state.signed.SigSet;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.state.MerkleNodeState;
@@ -159,7 +158,6 @@ public final class SignedStateFileWriter {
         writeSignatureSetFile(directory, signedState);
         writeHashInfoFile(platformContext, directory, signedState.getState());
         writeMetadataFile(selfId, directory, signedState);
-        writeEmergencyRecoveryFile(directory, signedState);
         final Roster currentRoster = signedState.getRoster();
         writeRosterFile(directory, currentRoster);
         writeSettingsUsed(directory, platformContext.getConfiguration());
@@ -241,12 +239,5 @@ public final class SignedStateFileWriter {
                     e);
             throw e;
         }
-    }
-
-    private static void writeEmergencyRecoveryFile(final Path savedStateDirectory, final SignedState signedState)
-            throws IOException {
-        new EmergencyRecoveryFile(
-                        signedState.getRound(), signedState.getState().getHash(), signedState.getConsensusTimestamp())
-                .write(savedStateDirectory);
     }
 }

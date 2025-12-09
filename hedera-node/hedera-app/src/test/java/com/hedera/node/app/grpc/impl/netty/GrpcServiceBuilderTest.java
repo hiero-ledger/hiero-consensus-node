@@ -195,6 +195,61 @@ final class GrpcServiceBuilderTest {
         assertThat(jumboBuff.length()).isEqualTo(MAX_JUMBO_TXN_SIZE + 1);
     }
 
+    @Test
+    @DisplayName("Regular marshaller enforces standard transaction size limit")
+    void regularMarshallerEnforcesStandardSizeLimit() {
+        final var sd = builder.transaction("txnA").build(metrics, configProvider);
+
+        final var marshaller = (DataBufferMarshaller)
+                sd.getMethod(SERVICE_NAME + "/txnA").getMethodDescriptor().getRequestMarshaller();
+
+        // Create a stream larger than the standard limit
+        final var oversizedArr = TestUtils.randomBytes(MAX_MESSAGE_SIZE + 1000);
+        final var stream = new ByteArrayInputStream(oversizedArr);
+        final var buff = marshaller.parse(stream);
+
+        // Should truncate to MAX_MESSAGE_SIZE + 1 (the "too big" indicator)
+        assertThat(buff.length()).isEqualTo(MAX_MESSAGE_SIZE + 1);
+    }
+
+    @Test
+    @DisplayName("Jumbo marshaller allows larger transactions than regular marshaller")
+    void jumboMarshallerAllowsLargerTransactions() {
+        final var config = enableJumboTransactions();
+        final var sd = builder.transaction("callEthereum").build(metrics, () -> config);
+
+        final var jumboMarshaller = (DataBufferMarshaller) sd.getMethod(SERVICE_NAME + "/callEthereum")
+                .getMethodDescriptor()
+                .getRequestMarshaller();
+
+        // Create a stream larger than standard limit but within jumbo limit
+        final int sizeAboveStandardBelowJumbo = MAX_MESSAGE_SIZE + 10000;
+        final var arr = TestUtils.randomBytes(sizeAboveStandardBelowJumbo);
+        final var stream = new ByteArrayInputStream(arr);
+        final var buff = jumboMarshaller.parse(stream);
+
+        // Should accept the full size since it's within jumbo limit
+        assertThat(buff.length()).isEqualTo(sizeAboveStandardBelowJumbo);
+    }
+
+    @Test
+    @DisplayName("Query methods always use regular marshaller regardless of jumbo setting")
+    void queryMethodsAlwaysUseRegularMarshaller() {
+        final var config = enableJumboTransactions();
+        final var sd = builder.query("queryA").build(metrics, () -> config);
+
+        final var queryMarshaller = (DataBufferMarshaller)
+                sd.getMethod(SERVICE_NAME + "/queryA").getMethodDescriptor().getRequestMarshaller();
+
+        // Create a stream larger than standard limit
+        final var oversizedArr = TestUtils.randomBytes(MAX_MESSAGE_SIZE + 1000);
+        final var stream = new ByteArrayInputStream(oversizedArr);
+        final var buff = queryMarshaller.parse(stream);
+
+        // Should truncate to MAX_MESSAGE_SIZE + 1 (queries use regular marshaller)
+        assertThat(buff.length()).isEqualTo(MAX_MESSAGE_SIZE + 1);
+    }
+
     private VersionedConfiguration enableJumboTransactions() {
         final var spyConfig = spy(configuration);
         final var jumboConfig = configuration.getConfigData(JumboTransactionsConfig.class);

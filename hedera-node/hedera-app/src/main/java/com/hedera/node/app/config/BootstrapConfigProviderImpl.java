@@ -8,6 +8,7 @@ import com.hedera.node.config.converter.BytesConverter;
 import com.hedera.node.config.converter.CongestionMultipliersConverter;
 import com.hedera.node.config.converter.EntityScaleFactorsConverter;
 import com.hedera.node.config.converter.LongPairConverter;
+import com.hedera.node.config.converter.PermissionedAccountsRangeConverter;
 import com.hedera.node.config.converter.SemanticVersionConverter;
 import com.hedera.node.config.data.AccountsConfig;
 import com.hedera.node.config.data.BlockNodeConnectionConfig;
@@ -16,6 +17,7 @@ import com.hedera.node.config.data.BootstrapConfig;
 import com.hedera.node.config.data.ContractsConfig;
 import com.hedera.node.config.data.FeesConfig;
 import com.hedera.node.config.data.FilesConfig;
+import com.hedera.node.config.data.GovernanceTransactionsConfig;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.JumboTransactionsConfig;
 import com.hedera.node.config.data.LedgerConfig;
@@ -27,6 +29,7 @@ import com.hedera.node.config.sources.PropertyConfigSource;
 import com.hedera.node.config.types.CongestionMultipliers;
 import com.hedera.node.config.types.EntityScaleFactors;
 import com.hedera.node.config.types.LongPair;
+import com.hedera.node.config.types.PermissionedAccountsRange;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
@@ -69,10 +72,12 @@ public class BootstrapConfigProviderImpl extends ConfigProviderBase {
                 .withConfigDataType(OpsDurationConfig.class)
                 .withConfigDataType(JumboTransactionsConfig.class)
                 .withConfigDataType(FeesConfig.class)
+                .withConfigDataType(GovernanceTransactionsConfig.class)
                 .withConverter(Bytes.class, new BytesConverter())
                 .withConverter(SemanticVersion.class, new SemanticVersionConverter())
                 .withConverter(CongestionMultipliers.class, new CongestionMultipliersConverter())
                 .withConverter(EntityScaleFactors.class, new EntityScaleFactorsConverter())
+                .withConverter(PermissionedAccountsRange.class, new PermissionedAccountsRangeConverter())
                 .withConverter(LongPair.class, new LongPairConverter());
 
         try {

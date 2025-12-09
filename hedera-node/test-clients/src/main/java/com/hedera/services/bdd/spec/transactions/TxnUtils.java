@@ -93,6 +93,7 @@ import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.SplittableRandom;
 import java.util.UUID;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiPredicate;
 import java.util.function.Function;
@@ -516,6 +517,25 @@ public class TxnUtils {
             final byte[] rnd = UUID.randomUUID().toString().getBytes();
             System.arraycopy(rnd, 0, data, i, Math.min(rnd.length, n - 1 - i));
             i += rnd.length;
+        }
+        return data;
+    }
+
+    /**
+     * Generates random UTF-8 bytes of the specified length, ensuring no null bytes (0x00) are present.
+     * This is useful for creating memo content that passes PreCheckValidator validation.
+     *
+     * @param numberOfBytes the number of bytes to generate
+     * @return a byte array of length n with no null bytes
+     */
+    public static byte[] randomUtf8BytesNoZeroBytes(final int numberOfBytes) {
+        final byte[] data = randomUtf8Bytes(numberOfBytes);
+        // Replace any null bytes with random non-null bytes
+        for (int i = 0; i < data.length; i++) {
+            if (data[i] == 0) {
+                // Generate a random byte from 1-255 (avoiding 0)
+                data[i] = (byte) (ThreadLocalRandom.current().nextInt(1, 256));
+            }
         }
         return data;
     }

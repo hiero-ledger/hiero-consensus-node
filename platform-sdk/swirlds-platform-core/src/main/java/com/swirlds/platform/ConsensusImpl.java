@@ -18,7 +18,6 @@ import com.swirlds.common.utility.throttle.RateLimitedLogger;
 import com.swirlds.logging.legacy.LogMarker;
 import com.swirlds.platform.consensus.AncestorSearch;
 import com.swirlds.platform.consensus.CandidateWitness;
-import com.swirlds.platform.consensus.ConsensusConfig;
 import com.swirlds.platform.consensus.ConsensusRounds;
 import com.swirlds.platform.consensus.ConsensusSorter;
 import com.swirlds.platform.consensus.ConsensusUtils;
@@ -45,6 +44,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.utility.CommonUtils;
+import org.hiero.consensus.hashgraph.ConsensusConfig;
 import org.hiero.consensus.model.event.NonDeterministicGeneration;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusConstants;
@@ -1147,27 +1147,37 @@ public class ConsensusImpl implements Consensus {
             return x.getRoundCreated();
         }
 
+        final EventImpl selfParent = selfParent(x);
+        final EventImpl otherParent = otherParent(x);
+
         // roundCreated of self parent
-        final long rsp = round(selfParent(x));
+        final long rsp = round(selfParent);
         // roundCreated of other parent
-        final long rop = round(otherParent(x));
+        final long rop = round(otherParent);
 
         //
-        // if parents have unequal rounds, then copy the round of the later parent
+        // If parents have unequal rounds, we can assign the higher parent round to this event
+        // because if the higher parent round couldn't strongly see a supermajority of witnesses,
+        // then this event also cannot.
         //
-        if (rsp > rop) {
+        // There is an edge case where a single node has a super majority of weight. In this case,
+        // we do want to advance if the parent with the higher round has a super majority, so we
+        // continue to the super majority check below. This edge case only occurs in testing, so
+        // we do not optimize for it here.
+        //
+        if (rsp > rop && !hasSuperMajority(selfParent)) {
             x.setRoundCreated(rsp);
             return x.getRoundCreated();
         }
-        if (rop > rsp) {
+        if (rop > rsp && !hasSuperMajority(otherParent)) {
             x.setRoundCreated(rop);
             return x.getRoundCreated();
         }
 
         //
-        // parents have equal rounds. But if both are -infinity, then this is -infinity
+        // If both parents are -infinity, then this is -infinity
         //
-        if (rsp == ConsensusConstants.ROUND_NEGATIVE_INFINITY) {
+        if (rsp == ConsensusConstants.ROUND_NEGATIVE_INFINITY && rop == ConsensusConstants.ROUND_NEGATIVE_INFINITY) {
             x.setRoundCreated(ConsensusConstants.ROUND_NEGATIVE_INFINITY);
             return x.getRoundCreated();
         }
@@ -1175,9 +1185,9 @@ public class ConsensusImpl implements Consensus {
         // number of members that are voting
         final int numMembers = roster.rosterEntries().size();
 
-        // parents have equal rounds (not -1), so check if x can strongly see witnesses with a
-        // supermajority of stake
-        // sum of stake involved
+        // parents have equal rounds (not -1) OR they are different and one has a super-majority,
+        // so check if x can strongly see witnesses with a supermajority of weight.
+        // sum of weight involved
         long weight = 0;
         int numStronglySeen = 0;
         for (int m = 0; m < numMembers; m++) {
@@ -1196,6 +1206,24 @@ public class ConsensusImpl implements Consensus {
         // it's not a supermajority, so don't advance to the next round
         x.setRoundCreated(parentRound(x));
         return x.getRoundCreated();
+    }
+
+    /**
+     * Check if the creator of this event has a supermajority of weight in the roster
+     *
+     * @param x the event being queried
+     * @return true if the creator of this event has a supermajority of weight in the roster
+     */
+    private boolean hasSuperMajority(@Nullable final EventImpl x) {
+        if (x == null) {
+            return false;
+        }
+        final Integer memberIndex = rosterIndicesMap.get(x.getCreatorId().id());
+        if (memberIndex == null) {
+            return false;
+        }
+        final long weight = getWeight(memberIndex);
+        return Threshold.SUPER_MAJORITY.isSatisfiedBy(weight, rosterTotalWeight);
     }
 
     /**

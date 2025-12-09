@@ -2,13 +2,12 @@
 package com.hedera.node.app.workflows.dispatcher;
 
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
-import static com.hedera.node.app.hapi.utils.CommonUtils.productWouldOverflow;
+import static com.hedera.node.app.spi.fees.util.FeeUtils.feeResultToFees;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.fees.FeeManager;
-import com.hedera.node.app.hapi.utils.fee.FeeBuilder;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.HandleContext;
@@ -19,11 +18,9 @@ import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
 import com.hedera.node.app.spi.workflows.WarmupContext;
 import com.hedera.node.config.data.FeesConfig;
-import com.hederahashgraph.api.proto.java.ExchangeRate;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import javax.inject.Inject;
 import javax.inject.Singleton;
-import org.hiero.hapi.fees.FeeResult;
 
 /**
  * A {@code TransactionDispatcher} provides functionality to forward pre-check, pre-handle, and handle-transaction
@@ -136,31 +133,30 @@ public class TransactionDispatcher {
         }
 
         return switch (feeContext.body().data().kind()) {
-            case CONSENSUS_CREATE_TOPIC, CONSENSUS_DELETE_TOPIC, CONSENSUS_SUBMIT_MESSAGE, CONSENSUS_UPDATE_TOPIC ->
-                true;
-            case CRYPTO_DELETE,
+            case CONSENSUS_CREATE_TOPIC,
+                    CONSENSUS_DELETE_TOPIC,
+                    CONSENSUS_SUBMIT_MESSAGE,
+                    CONSENSUS_UPDATE_TOPIC,
+                    CRYPTO_APPROVE_ALLOWANCE,
                     CRYPTO_CREATE_ACCOUNT,
+                    CRYPTO_DELETE,
+                    CRYPTO_DELETE_ALLOWANCE,
                     CRYPTO_UPDATE_ACCOUNT,
+                    CRYPTO_TRANSFER,
                     SCHEDULE_CREATE,
                     SCHEDULE_SIGN,
                     SCHEDULE_DELETE -> true;
+            case FILE_CREATE, FILE_APPEND, FILE_UPDATE, FILE_DELETE -> true;
+            case TOKEN_CREATION,
+                    TOKEN_MINT,
+                    TOKEN_BURN,
+                    TOKEN_DELETION,
+                    TOKEN_PAUSE,
+                    TOKEN_FREEZE,
+                    TOKEN_UNPAUSE,
+                    TOKEN_UNFREEZE -> true;
             default -> false;
         };
-    }
-
-    private static long tinycentsToTinybars(final long amount, final ExchangeRate rate) {
-        final var hbarEquiv = rate.getHbarEquiv();
-        if (productWouldOverflow(amount, hbarEquiv)) {
-            return FeeBuilder.getTinybarsFromTinyCents(rate, amount);
-        }
-        return amount * hbarEquiv / rate.getCentEquiv();
-    }
-
-    private static Fees feeResultToFees(FeeResult feeResult, ExchangeRate rate) {
-        return new Fees(
-                tinycentsToTinybars(feeResult.node, rate),
-                tinycentsToTinybars(feeResult.network, rate),
-                tinycentsToTinybars(feeResult.service, rate));
     }
 
     /**

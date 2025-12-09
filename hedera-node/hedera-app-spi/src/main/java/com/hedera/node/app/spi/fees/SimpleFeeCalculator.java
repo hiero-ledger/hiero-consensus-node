@@ -19,16 +19,15 @@ package com.hedera.node.app.spi.fees;
 
 import com.hedera.hapi.node.transaction.Query;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.node.app.spi.workflows.QueryContext;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
 import org.hiero.hapi.fees.FeeResult;
 
 /** Calculates transaction and query fees. Null context = approximate, non-null = exact using state. */
 public interface SimpleFeeCalculator {
 
     @NonNull
-    FeeResult calculateTxFee(@NonNull TransactionBody txnBody, @NonNull CalculatorState calculatorState);
+    FeeResult calculateTxFee(@NonNull TransactionBody txnBody, @NonNull FeeContext feeContext);
 
-    @NonNull
-    FeeResult calculateQueryFee(@NonNull Query query, @Nullable CalculatorState calculatorState);
+    long calculateQueryFee(@NonNull Query query, @NonNull QueryContext queryContext);
 }

@@ -4,7 +4,7 @@ export MALLOC_ARENA_MAX=4
 
 APP_HOME=/opt/hgcapp/services-hedera/HapiApp2.0
 
-if [[ "${isToClean}" = "clean" ]]
+if [[ "${isToClean}" == "clean" ]]
 then
   echo "Cleaning old data ..."
 
@@ -18,7 +18,7 @@ then
   
 fi
 
-if [[ "${isToClean}" = "cobertura" ]]
+if [[ "${isToClean}" == "cobertura" ]]
 then
   echo "Cleaning old data ..."
 
@@ -45,7 +45,7 @@ then
   export EXTRA_COBERTURA_OPTS="--add-modules cobertura --add-reads cobertura=ALL-UNNAMED --add-opens cobertura/net.sourceforge.cobertura=ALL-UNNAMED  --add-modules org.slf4j --add-reads cobertura=org.slf4j --add-reads org.slf4j=cobertura $(cat module_reads.txt)"
 fi
 
-if [[ "${isToClean}" = "import" ]]
+if [[ "${isToClean}" == "import" ]]
 then
   echo "Prepare for import ..."
 

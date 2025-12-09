@@ -53,6 +53,8 @@ public class IssService implements OtterService {
             @NonNull final VirtualMapState state) {
         this.selfId = selfId;
         this.scratchPad = Scratchpad.create(configuration, selfId, IssServiceScratchpad.class, NAME);
+
+        log.info(STARTUP.getMarker(), "IssService initialized");
     }
 
     /**
