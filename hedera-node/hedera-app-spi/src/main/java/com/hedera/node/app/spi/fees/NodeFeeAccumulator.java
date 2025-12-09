@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.spi.fees;
 
+import com.hedera.hapi.node.base.AccountID;
+
 /**
  * A functional interface for accumulating node fees during transaction processing.
  * <p>
@@ -17,8 +19,8 @@ public interface NodeFeeAccumulator {
     /**
      * Accumulates fees for a node account.
      *
-     * @param nodeAccountNumber the node account number
+     * @param nodeAccountId the node account id
      * @param fees the fees to accumulate
      */
-    void accumulate(long nodeAccountNumber, long fees);
+    void accumulate(AccountID nodeAccountId, long fees);
 }

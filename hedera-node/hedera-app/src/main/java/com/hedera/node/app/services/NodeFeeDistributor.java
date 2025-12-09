@@ -34,8 +34,8 @@ import com.swirlds.state.spi.CommittableWritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.SortedMap;
-import java.util.TreeMap;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
@@ -65,7 +65,7 @@ public class NodeFeeDistributor implements NodeFeeAccumulator {
 
     // The amount of fees to pay to each node. This is updated in-memory each transaction
     // and will be written back to state at the end of every block
-    private final SortedMap<Long, Long> nodeFees = new TreeMap<>();
+    private final Map<AccountID, Long> nodeFees = new LinkedHashMap<>();
 
     /**
      * Constructs an {@link NodeFeeDistributor} instance.
@@ -94,7 +94,7 @@ public class NodeFeeDistributor implements NodeFeeAccumulator {
         if (configProvider.getConfiguration().getConfigData(NodesConfig.class).feeCollectionAccountEnabled()) {
             nodeFees.clear();
             final var nodePayments = nodePaymentsFrom(state);
-            nodePayments.payments().forEach(pair -> nodeFees.put(pair.accountNumber(), pair.fees()));
+            nodePayments.payments().forEach(pair -> nodeFees.put(pair.nodeAccountId(), pair.fees()));
         }
     }
 
@@ -116,8 +116,8 @@ public class NodeFeeDistributor implements NodeFeeAccumulator {
      * to accumulate fees without writing to state.
      */
     @Override
-    public void accumulate(long nodeAccountNumber, long fees) {
-        nodeFees.merge(nodeAccountNumber, fees, Long::sum);
+    public void accumulate(AccountID nodeAccountId, long fees) {
+        nodeFees.merge(nodeAccountId, fees, Long::sum);
     }
 
     /**
@@ -207,23 +207,22 @@ public class NodeFeeDistributor implements NodeFeeAccumulator {
 
             // Pay node fees to each node's account
             for (final var payment : requireNonNull(nodePaymentsStore.get()).payments()) {
-                final var nodeAccountId = entityIdFactory.newAccountId(payment.accountNumber());
-                final var nodeAccount = accountStore.getAccountById(nodeAccountId);
+                final var nodeAccount = accountStore.getAccountById(payment.nodeAccountId());
                 final var nodeFee = payment.fees();
                 // If the node's account cannot accept fees (deleted or doesn't exist), they are forfeit
                 if (nodeAccount != null && !nodeAccount.deleted()) {
                     if (nodeFee > 0) {
                         transferAmounts.add(AccountAmount.newBuilder()
-                                .accountID(nodeAccountId)
+                                .accountID(payment.nodeAccountId())
                                 .amount(nodeFee)
                                 .build());
                         totalNodeFees += nodeFee;
-                        log.info("Node account {} will receive {} tinybars", nodeAccountId, nodeFee);
+                        log.info("Node account {} will receive {} tinybars", payment.nodeAccountId(), nodeFee);
                     }
                 } else {
                     log.info(
                             "Node account {} is deleted or doesn't exist, forfeiting {} tinybars",
-                            nodeAccountId,
+                            payment.nodeAccountId(),
                             nodeFee);
                 }
             }
@@ -351,7 +350,7 @@ public class NodeFeeDistributor implements NodeFeeAccumulator {
         // Build updated payments list from in-memory nodeFees map
         final var updatedPayments = nodeFees.entrySet().stream()
                 .map(entry -> NodePayment.newBuilder()
-                        .accountNumber(entry.getKey())
+                        .nodeAccountId(entry.getKey())
                         .fees(entry.getValue())
                         .build())
                 .toList();

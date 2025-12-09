@@ -2,9 +2,6 @@
 package com.hedera.node.app.workflows.handle.record;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.*;
 
@@ -43,7 +40,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 class SystemTransactionsTest {
     private static final Instant NOW = Instant.ofEpochSecond(1234567L);
-    private static final AccountID NODE_ACCOUNT_ID = AccountID.newBuilder().accountNum(3L).build();
+    private static final AccountID NODE_ACCOUNT_ID =
+            AccountID.newBuilder().accountNum(3L).build();
 
     @Mock(strictness = Mock.Strictness.LENIENT)
     private InitTrigger initTrigger;
@@ -211,11 +209,10 @@ class SystemTransactionsTest {
     @Test
     void testDispatchNodePaymentsWithNullState() {
         final var transfers = TransferList.newBuilder()
-                .accountAmounts(List.of(
-                        AccountAmount.newBuilder()
-                                .accountID(AccountID.newBuilder().accountNum(3L).build())
-                                .amount(100L)
-                                .build()))
+                .accountAmounts(List.of(AccountAmount.newBuilder()
+                        .accountID(AccountID.newBuilder().accountNum(3L).build())
+                        .amount(100L)
+                        .build()))
                 .build();
 
         assertThrows(NullPointerException.class, () -> subject.dispatchNodePayments(null, NOW, transfers));
@@ -224,11 +221,10 @@ class SystemTransactionsTest {
     @Test
     void testDispatchNodePaymentsWithNullNow() {
         final var transfers = TransferList.newBuilder()
-                .accountAmounts(List.of(
-                        AccountAmount.newBuilder()
-                                .accountID(AccountID.newBuilder().accountNum(3L).build())
-                                .amount(100L)
-                                .build()))
+                .accountAmounts(List.of(AccountAmount.newBuilder()
+                        .accountID(AccountID.newBuilder().accountNum(3L).build())
+                        .amount(100L)
+                        .build()))
                 .build();
 
         assertThrows(NullPointerException.class, () -> subject.dispatchNodePayments(state, null, transfers));
@@ -329,7 +325,8 @@ class SystemTransactionsTest {
 
         assertThrows(
                 NullPointerException.class,
-                () -> subject.dispatchNodeRewards(state, NOW, List.of(0L), 100L, nodeRewardsAccountId, 1000L, 0L, null));
+                () -> subject.dispatchNodeRewards(
+                        state, NOW, List.of(0L), 100L, nodeRewardsAccountId, 1000L, 0L, null));
     }
 
     @Test
@@ -455,9 +452,8 @@ class SystemTransactionsTest {
     @Test
     void testDispatchNodePaymentsWithNonEmptyTransfersButEmptyAccountAmounts() {
         // TransferList with empty accountAmounts list
-        final var transfers = TransferList.newBuilder()
-                .accountAmounts(List.of())
-                .build();
+        final var transfers =
+                TransferList.newBuilder().accountAmounts(List.of()).build();
 
         subject.dispatchNodePayments(state, NOW, transfers);
 
@@ -466,4 +462,3 @@ class SystemTransactionsTest {
         verifyNoInteractions(dispatchProcessor);
     }
 }
-

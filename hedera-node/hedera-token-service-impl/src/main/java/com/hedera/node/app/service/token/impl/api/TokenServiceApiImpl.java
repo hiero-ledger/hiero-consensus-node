@@ -462,7 +462,7 @@ public class TokenServiceApiImpl implements TokenServiceApi {
                 // This will be distributed to node accounts at the end of the day
                 payFeeCollectionAccount(chargeableNodeFee, cb);
                 // Accumulate node fees in memory - will be written to state at block boundaries
-                nodeFeeAccumulator.accumulate(nodeAccountId.accountNumOrThrow(), chargeableNodeFee);
+                nodeFeeAccumulator.accumulate(nodeAccountId, chargeableNodeFee);
             } else {
                 final var nodeAccount = lookupAccount("Node account", nodeAccountId);
                 accountStore.put(nodeAccount

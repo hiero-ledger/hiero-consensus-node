@@ -26,6 +26,7 @@ option java_package = "com.hederahashgraph.api.proto.java";
 option java_multiple_files = true;
 
 import "services/timestamp.proto";
+import "services/basic_types.proto";
 
 /**
  * A singleton state object that accumulates node fees for distribution<br/>
@@ -33,7 +34,7 @@ import "services/timestamp.proto";
  */
 message NodePayments {
   /**
-   * A map of node account number to the total amount of fees due to each node
+   * A list of node account id to the total amount of fees due to each node in the current staking period
    */
   repeated NodePayment payments = 1;
 
@@ -48,9 +49,9 @@ message NodePayments {
  */
 message NodePayment {
   /**
-   * The node account number
+   * The node account id
    */
-  uint64 account_number = 1;
+  AccountID node_account_id = 1;
   /**
    * The total amount of fees due to the node in tinybars
    */

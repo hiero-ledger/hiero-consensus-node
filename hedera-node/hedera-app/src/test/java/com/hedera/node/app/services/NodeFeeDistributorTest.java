@@ -35,9 +35,7 @@ import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.swirlds.state.State;
-import com.swirlds.state.spi.ReadableStates;
 import com.swirlds.state.spi.WritableSingletonStateBase;
-import com.swirlds.state.spi.WritableStates;
 import com.swirlds.state.test.fixtures.FunctionReadableSingletonState;
 import com.swirlds.state.test.fixtures.FunctionWritableSingletonState;
 import com.swirlds.state.test.fixtures.MapReadableStates;
@@ -58,6 +56,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 class NodeFeeDistributorTest {
     private static final Instant NOW = Instant.ofEpochSecond(1_234_567L);
     private static final Instant PREV_PERIOD = NOW.minusSeconds(1500);
+    private static final AccountID NODE_ACCOUNT_ID_3 = asAccount(0, 0, 3);
+    private static final AccountID NODE_ACCOUNT_ID_5 = asAccount(0, 0, 5);
 
     @Mock(strictness = Mock.Strictness.LENIENT)
     private ConfigProvider configProvider;
@@ -76,7 +76,6 @@ class NodeFeeDistributorTest {
     private final AtomicReference<NodePayments> nodePaymentsRef = new AtomicReference<>();
     private WritableSingletonStateBase<NodePayments> nodePaymentsState;
     private NodeFeeDistributor subject;
-
 
     @BeforeEach
     void setUp() {
@@ -99,9 +98,9 @@ class NodeFeeDistributorTest {
         subject.onOpenBlock(state);
         assertEquals(0, nodePaymentsRef.get().payments().size());
 
-        subject.accumulate(3L, 100L);
-        subject.accumulate(3L, 50L);
-        subject.accumulate(5L, 200L);
+        subject.accumulate(NODE_ACCOUNT_ID_3, 100L);
+        subject.accumulate(NODE_ACCOUNT_ID_3, 50L);
+        subject.accumulate(NODE_ACCOUNT_ID_5, 200L);
         subject.onCloseBlock(state);
 
         // Verify the state was updated
@@ -111,13 +110,13 @@ class NodeFeeDistributorTest {
 
         // Verify the fees were merged correctly
         final var payment3 = updatedPayments.payments().stream()
-                .filter(p -> p.accountNumber() == 3L)
+                .filter(p -> p.nodeAccountId().equals(NODE_ACCOUNT_ID_3))
                 .findFirst()
                 .orElseThrow();
         assertEquals(150L, payment3.fees());
 
         final var payment5 = updatedPayments.payments().stream()
-                .filter(p -> p.accountNumber() == 5L)
+                .filter(p -> p.nodeAccountId().equals(NODE_ACCOUNT_ID_5))
                 .findFirst()
                 .orElseThrow();
         assertEquals(200L, payment5.fees());
@@ -125,8 +124,8 @@ class NodeFeeDistributorTest {
 
     @Test
     void testResetNodeFeesClearsMap() {
-        subject.accumulate(3L, 100L);
-        subject.accumulate(5L, 200L);
+        subject.accumulate(NODE_ACCOUNT_ID_3, 100L);
+        subject.accumulate(NODE_ACCOUNT_ID_5, 200L);
         subject.resetNodeFees();
 
         // After reset, onCloseBlock should write empty payments
@@ -143,8 +142,14 @@ class NodeFeeDistributorTest {
     void testOnOpenBlockLoadsStateIntoMemory() {
         final var initialPayments = NodePayments.newBuilder()
                 .payments(List.of(
-                        NodePayment.newBuilder().accountNumber(3L).fees(100L).build(),
-                        NodePayment.newBuilder().accountNumber(5L).fees(200L).build()))
+                        NodePayment.newBuilder()
+                                .nodeAccountId(NODE_ACCOUNT_ID_3)
+                                .fees(100L)
+                                .build(),
+                        NodePayment.newBuilder()
+                                .nodeAccountId(NODE_ACCOUNT_ID_5)
+                                .fees(200L)
+                                .build()))
                 .build();
         givenSetup(initialPayments);
 
@@ -153,7 +158,7 @@ class NodeFeeDistributorTest {
         assertEquals(2, nodePaymentsRef.get().payments().size());
 
         // Accumulate more fees - this should merge with existing
-        subject.accumulate(3L, 50L);
+        subject.accumulate(NODE_ACCOUNT_ID_3, 50L);
         subject.onCloseBlock(state);
 
         // Verify the state was updated with merged fees
@@ -163,14 +168,14 @@ class NodeFeeDistributorTest {
 
         // Find the payment for account 3 and verify it has 150 (100 from state + 50 accumulated)
         final var payment3 = updatedPayments.payments().stream()
-                .filter(p -> p.accountNumber() == 3L)
+                .filter(p -> p.nodeAccountId().equals(NODE_ACCOUNT_ID_3))
                 .findFirst()
                 .orElseThrow();
         assertEquals(150L, payment3.fees());
 
         // Account 5 should still have 200 (unchanged from state)
         final var payment5 = updatedPayments.payments().stream()
-                .filter(p -> p.accountNumber() == 5L)
+                .filter(p -> p.nodeAccountId().equals(NODE_ACCOUNT_ID_5))
                 .findFirst()
                 .orElseThrow();
         assertEquals(200L, payment5.fees());
@@ -181,14 +186,14 @@ class NodeFeeDistributorTest {
         givenSetup(NodePayments.DEFAULT);
 
         subject.onOpenBlock(state);
-        subject.accumulate(7L, 300L);
+        subject.accumulate(asAccount(0, 0, 7L), 300L);
         subject.onCloseBlock(state);
 
         // Verify the state was updated (commit is called internally by onCloseBlock)
         final var updatedPayments = nodePaymentsRef.get();
         assertNotNull(updatedPayments);
         assertEquals(1, updatedPayments.payments().size());
-        assertEquals(7L, updatedPayments.payments().get(0).accountNumber());
+        assertEquals(7L, updatedPayments.payments().get(0).nodeAccountId());
         assertEquals(300L, updatedPayments.payments().get(0).fees());
     }
 
@@ -231,8 +236,10 @@ class NodeFeeDistributorTest {
         // Set up with last distribution time in previous period
         final var nodePayments = NodePayments.newBuilder()
                 .lastNodeFeeDistributionTime(asTimestamp(PREV_PERIOD))
-                .payments(List.of(
-                        NodePayment.newBuilder().accountNumber(3L).fees(100L).build()))
+                .payments(List.of(NodePayment.newBuilder()
+                        .nodeAccountId(NODE_ACCOUNT_ID_3)
+                        .fees(100L)
+                        .build()))
                 .build();
         givenSetupForDistribution(nodePayments, 1000L);
 
@@ -267,8 +274,14 @@ class NodeFeeDistributorTest {
         final var nodePayments = NodePayments.newBuilder()
                 .lastNodeFeeDistributionTime(asTimestamp(PREV_PERIOD))
                 .payments(List.of(
-                        NodePayment.newBuilder().accountNumber(3L).fees(100L).build(),
-                        NodePayment.newBuilder().accountNumber(999L).fees(200L).build()))
+                        NodePayment.newBuilder()
+                                .nodeAccountId(NODE_ACCOUNT_ID_3)
+                                .fees(100L)
+                                .build(),
+                        NodePayment.newBuilder()
+                                .nodeAccountId(asAccount(0, 0, 999L))
+                                .fees(200L)
+                                .build()))
                 .build();
         givenSetupForDistributionWithDeletedAccount(nodePayments, 1000L, 999L);
 
@@ -320,13 +333,10 @@ class NodeFeeDistributorTest {
                 NODE_PAYMENTS_STATE_ID, NODE_PAYMENTS_STATE_LABEL, nodePaymentsRef::get);
 
         // Use MapWritableStates which properly commits to backing store
-        writableStates = MapWritableStates.builder()
-                .state(nodePaymentsState)
-                .build();
+        writableStates = MapWritableStates.builder().state(nodePaymentsState).build();
 
-        readableStates = MapReadableStates.builder()
-                .state(readableNodePaymentsState)
-                .build();
+        readableStates =
+                MapReadableStates.builder().state(readableNodePaymentsState).build();
 
         lenient().when(state.getReadableStates(TokenService.NAME)).thenReturn(readableStates);
         lenient().when(state.getWritableStates(TokenService.NAME)).thenReturn(writableStates);
@@ -341,22 +351,37 @@ class NodeFeeDistributorTest {
                 NODE_PAYMENTS_STATE_ID, NODE_PAYMENTS_STATE_LABEL, nodePaymentsRef::get);
 
         final var entityIdState = new FunctionWritableSingletonState<>(
-                ENTITY_ID_STATE_ID, ENTITY_ID_STATE_LABEL, () -> EntityNumber.newBuilder().build(), c -> {});
+                ENTITY_ID_STATE_ID,
+                ENTITY_ID_STATE_LABEL,
+                () -> EntityNumber.newBuilder().build(),
+                c -> {});
         final var entityCountsState = new FunctionWritableSingletonState<>(
                 ENTITY_COUNTS_STATE_ID, ENTITY_COUNTS_STATE_LABEL, () -> EntityCounts.DEFAULT, c -> {});
 
         // Set up accounts
         final var accounts = MapWritableKVState.<AccountID, Account>builder(ACCOUNTS_STATE_ID, ACCOUNTS_STATE_LABEL)
-                .value(asAccount(0, 0, 802), Account.newBuilder().tinybarBalance(feeCollectionBalance).build())
-                .value(asAccount(0, 0, 3), Account.newBuilder().tinybarBalance(0).build())
-                .value(asAccount(0, 0, 98), Account.newBuilder().tinybarBalance(0).build())
-                .value(asAccount(0, 0, 800), Account.newBuilder().tinybarBalance(0).build())
-                .value(asAccount(0, 0, 801), Account.newBuilder().tinybarBalance(0).build())
+                .value(
+                        asAccount(0, 0, 802),
+                        Account.newBuilder()
+                                .tinybarBalance(feeCollectionBalance)
+                                .build())
+                .value(
+                        asAccount(0, 0, 3),
+                        Account.newBuilder().tinybarBalance(0).build())
+                .value(
+                        asAccount(0, 0, 98),
+                        Account.newBuilder().tinybarBalance(0).build())
+                .value(
+                        asAccount(0, 0, 800),
+                        Account.newBuilder().tinybarBalance(0).build())
+                .value(
+                        asAccount(0, 0, 801),
+                        Account.newBuilder().tinybarBalance(0).build())
                 .build();
 
         // Set up aliases (empty, but required by ReadableAccountStoreImpl)
-        final var aliases =
-                MapWritableKVState.<ProtoBytes, AccountID>builder(ALIASES_STATE_ID, ALIASES_STATE_LABEL).build();
+        final var aliases = MapWritableKVState.<ProtoBytes, AccountID>builder(ALIASES_STATE_ID, ALIASES_STATE_LABEL)
+                .build();
 
         writableStates = new MapWritableStates(Map.of(
                 NODE_PAYMENTS_STATE_ID, nodePaymentsState,
@@ -366,7 +391,8 @@ class NodeFeeDistributorTest {
                 ALIASES_STATE_ID, aliases));
 
         final var readableEntityIdState = new FunctionReadableSingletonState<>(
-                ENTITY_ID_STATE_ID, ENTITY_ID_STATE_LABEL, () -> EntityNumber.newBuilder().build());
+                ENTITY_ID_STATE_ID, ENTITY_ID_STATE_LABEL, () -> EntityNumber.newBuilder()
+                        .build());
         final var readableEntityCountsState = new FunctionReadableSingletonState<>(
                 ENTITY_COUNTS_STATE_ID, ENTITY_COUNTS_STATE_LABEL, () -> EntityCounts.DEFAULT);
 
@@ -391,23 +417,40 @@ class NodeFeeDistributorTest {
                 NODE_PAYMENTS_STATE_ID, NODE_PAYMENTS_STATE_LABEL, nodePaymentsRef::get);
 
         final var entityIdState = new FunctionWritableSingletonState<>(
-                ENTITY_ID_STATE_ID, ENTITY_ID_STATE_LABEL, () -> EntityNumber.newBuilder().build(), c -> {});
+                ENTITY_ID_STATE_ID,
+                ENTITY_ID_STATE_LABEL,
+                () -> EntityNumber.newBuilder().build(),
+                c -> {});
         final var entityCountsState = new FunctionWritableSingletonState<>(
                 ENTITY_COUNTS_STATE_ID, ENTITY_COUNTS_STATE_LABEL, () -> EntityCounts.DEFAULT, c -> {});
 
         // Set up accounts with a deleted account
         final var accounts = MapWritableKVState.<AccountID, Account>builder(ACCOUNTS_STATE_ID, ACCOUNTS_STATE_LABEL)
-                .value(asAccount(0, 0, 802), Account.newBuilder().tinybarBalance(feeCollectionBalance).build())
-                .value(asAccount(0, 0, 3), Account.newBuilder().tinybarBalance(0).build())
-                .value(asAccount(0, 0, deletedAccountNum), Account.newBuilder().deleted(true).build())
-                .value(asAccount(0, 0, 98), Account.newBuilder().tinybarBalance(0).build())
-                .value(asAccount(0, 0, 800), Account.newBuilder().tinybarBalance(0).build())
-                .value(asAccount(0, 0, 801), Account.newBuilder().tinybarBalance(0).build())
+                .value(
+                        asAccount(0, 0, 802),
+                        Account.newBuilder()
+                                .tinybarBalance(feeCollectionBalance)
+                                .build())
+                .value(
+                        asAccount(0, 0, 3),
+                        Account.newBuilder().tinybarBalance(0).build())
+                .value(
+                        asAccount(0, 0, deletedAccountNum),
+                        Account.newBuilder().deleted(true).build())
+                .value(
+                        asAccount(0, 0, 98),
+                        Account.newBuilder().tinybarBalance(0).build())
+                .value(
+                        asAccount(0, 0, 800),
+                        Account.newBuilder().tinybarBalance(0).build())
+                .value(
+                        asAccount(0, 0, 801),
+                        Account.newBuilder().tinybarBalance(0).build())
                 .build();
 
         // Set up aliases (empty, but required by ReadableAccountStoreImpl)
-        final var aliases =
-                MapWritableKVState.<ProtoBytes, AccountID>builder(ALIASES_STATE_ID, ALIASES_STATE_LABEL).build();
+        final var aliases = MapWritableKVState.<ProtoBytes, AccountID>builder(ALIASES_STATE_ID, ALIASES_STATE_LABEL)
+                .build();
 
         writableStates = new MapWritableStates(Map.of(
                 NODE_PAYMENTS_STATE_ID, nodePaymentsState,
@@ -417,7 +460,8 @@ class NodeFeeDistributorTest {
                 ALIASES_STATE_ID, aliases));
 
         final var readableEntityIdState = new FunctionReadableSingletonState<>(
-                ENTITY_ID_STATE_ID, ENTITY_ID_STATE_LABEL, () -> EntityNumber.newBuilder().build());
+                ENTITY_ID_STATE_ID, ENTITY_ID_STATE_LABEL, () -> EntityNumber.newBuilder()
+                        .build());
         final var readableEntityCountsState = new FunctionReadableSingletonState<>(
                 ENTITY_COUNTS_STATE_ID, ENTITY_COUNTS_STATE_LABEL, () -> EntityCounts.DEFAULT);
 
@@ -432,4 +476,3 @@ class NodeFeeDistributorTest {
         lenient().when(state.getReadableStates(EntityIdService.NAME)).thenReturn(readableStates);
     }
 }
-
