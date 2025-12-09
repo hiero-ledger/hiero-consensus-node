@@ -7,6 +7,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.MAX_ENTITIES_IN_PRICE_R
 import static com.hedera.hapi.node.base.ResponseCodeEnum.NOT_SUPPORTED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.PENDING_NFT_AIRDROP_ALREADY_EXISTS;
 import static com.hedera.hapi.util.HapiUtils.isHollow;
+import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
 import static com.hedera.node.app.service.token.impl.handlers.transfer.AssociateTokenRecipientsStep.PLACEHOLDER_SYNTHETIC_ASSOCIATION;
 import static com.hedera.node.app.service.token.impl.handlers.transfer.AssociateTokenRecipientsStep.associationFeeFor;
 import static com.hedera.node.app.service.token.impl.util.AirdropHandlerHelper.createAccountPendingAirdrop;
@@ -17,6 +18,7 @@ import static com.hedera.node.app.service.token.impl.util.AirdropHandlerHelper.c
 import static com.hedera.node.app.service.token.impl.util.AirdropHandlerHelper.separateFungibleTransfers;
 import static com.hedera.node.app.service.token.impl.util.AirdropHandlerHelper.separateNftTransfers;
 import static com.hedera.node.app.service.token.impl.util.CryptoTransferHelper.createAccountAmount;
+import static com.hedera.node.app.spi.fees.util.FeeUtils.feeResultToFees;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static java.lang.Math.toIntExact;
 import static java.util.Objects.requireNonNull;
@@ -69,6 +71,7 @@ import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.hapi.fees.FeeResult;
 
 /**
  * This class contains all workflow-related functionality regarding {@link
@@ -502,22 +505,22 @@ public class TokenAirdropHandler extends TransferExecutor implements Transaction
     }
 
     /**
-     * Gets the airdrop fee for the token airdrop transaction, when no pending airdrop is created.
-     * This is charged when receiver is not yet associated with the token and has max auto-associations set to -1.
-     * So, this will not create a pending airdrop and auto-association fee is automatically charged during the
-     * CryptoTransfer auto-association step.
+     * Gets the fee for a token airdrop that results in a pending airdrop.
+     * This fee is charged when a pending airdrop is created for the receiver.
      * @param feeContext the fee context
-     * @return the airdrop fee
+     * @return the total fee for a pending airdrop (airdrop fee + association fee)
      */
     private long airdropFee(final HandleContext feeContext) {
         final var context = ((FeeContext) feeContext);
 
         if (feeContext.configuration().getConfigData(FeesConfig.class).simpleFeesEnabled()) {
             // return airdrop extra fee if simple fees are enabled
-
-            //                    final var feeSchedule = context.feeSchedule();
-            //                    final ServiceFeeDefinition serviceDef = lookupServiceFee(feeSchedule,
-            // HederaFunctionality.CRYPTO_TRANSFER);
+            // TODO read from fee schedule instead of hardcoding
+            final var airdropFee = 500_000_000L;
+            final var airdropFeeResult = new FeeResult();
+            airdropFeeResult.addServiceFee(1, airdropFee);
+            return feeResultToFees(airdropFeeResult, fromPbj(context.activeRate()))
+                    .totalFee();
         }
 
         return context.feeCalculatorFactory()

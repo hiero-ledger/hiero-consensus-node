@@ -45,12 +45,13 @@ import org.junit.jupiter.api.Tag;
 @Tag(MATS)
 @Tag(SIMPLE_FEES)
 public class AirdropSimpleFeesTest extends TokenAirdropBase {
-    private static final double BASE_AIRDROP_FEE = 0.05;
+    private static final double NODE_AND_NETWORK_FEE = 0.001;
+    private static final double PENDING_AIRDROP_FEE = 0.05;
     private static final double BASE_CLAIM_AIRDROP_FEE = 0.001;
     private static final double BASE_CANCEL_AIRDROP_FEE = 0.001;
     private static final double TOKEN_ASSOCIATION_FEE = 0.05;
     // NFTs always charge token association fee, so 0.1 base
-    private static final double NFT_AIRDROP_FEE = BASE_AIRDROP_FEE + TOKEN_ASSOCIATION_FEE;
+    private static final double NFT_AIRDROP_FEE = PENDING_AIRDROP_FEE + TOKEN_ASSOCIATION_FEE;
 
     @HapiTest
     @DisplayName("charge association fee for FT correctly")
@@ -58,12 +59,7 @@ public class AirdropSimpleFeesTest extends TokenAirdropBase {
         var receiver = "receiver";
         return hapiTest(
                 cryptoCreate("owner").balance(ONE_HUNDRED_HBARS),
-                newKeyNamed("freezeKey"),
-                tokenCreate("FT")
-                        .treasury("owner")
-                        .tokenType(FUNGIBLE_COMMON)
-                        .freezeKey("freezeKey")
-                        .initialSupply(1000L),
+                tokenCreate("FT").treasury("owner").tokenType(FUNGIBLE_COMMON).initialSupply(1000L),
                 cryptoCreate(receiver).maxAutomaticTokenAssociations(0),
                 tokenAirdrop(moving(1, "FT").between("owner", receiver))
                         .payingWith("owner")
@@ -71,8 +67,8 @@ public class AirdropSimpleFeesTest extends TokenAirdropBase {
                 tokenAirdrop(moving(1, "FT").between("owner", receiver))
                         .payingWith("owner")
                         .via("second airdrop"),
-                validateChargedUsd("airdrop", BASE_AIRDROP_FEE + TOKEN_ASSOCIATION_FEE),
-                validateChargedUsd("second airdrop", BASE_AIRDROP_FEE));
+                validateChargedUsd("airdrop", NODE_AND_NETWORK_FEE + PENDING_AIRDROP_FEE + TOKEN_ASSOCIATION_FEE),
+                validateChargedUsd("second airdrop", NODE_AND_NETWORK_FEE + PENDING_AIRDROP_FEE));
     }
 
     @HapiTest
@@ -98,8 +94,8 @@ public class AirdropSimpleFeesTest extends TokenAirdropBase {
                 tokenAirdrop(movingUnique("NFT", 2).between("owner", "receiver"))
                         .payingWith("owner")
                         .via("second airdrop"),
-                validateChargedUsd("airdrop", NFT_AIRDROP_FEE),
-                validateChargedUsd("second airdrop", NFT_AIRDROP_FEE));
+                validateChargedUsd("airdrop", NODE_AND_NETWORK_FEE + NFT_AIRDROP_FEE),
+                validateChargedUsd("second airdrop", NODE_AND_NETWORK_FEE + NFT_AIRDROP_FEE));
     }
 
     @HapiTest
@@ -175,7 +171,7 @@ public class AirdropSimpleFeesTest extends TokenAirdropBase {
                                 .pendingAirdrops(includingFungiblePendingAirdrop(moving(10, FUNGIBLE_TOKEN)
                                         .between("sender", RECEIVER_WITH_0_AUTO_ASSOCIATIONS)))),
                 getAccountBalance(RECEIVER_WITH_0_AUTO_ASSOCIATIONS).hasTokenBalance(FUNGIBLE_TOKEN, 0),
-                validateChargedUsd("airdrop", BASE_AIRDROP_FEE + TOKEN_ASSOCIATION_FEE),
+                validateChargedUsd("airdrop", PENDING_AIRDROP_FEE + TOKEN_ASSOCIATION_FEE),
 
                 // Cancel the airdrop
                 tokenCancelAirdrop(pendingAirdrop("sender", RECEIVER_WITH_0_AUTO_ASSOCIATIONS, FUNGIBLE_TOKEN))
@@ -206,5 +202,28 @@ public class AirdropSimpleFeesTest extends TokenAirdropBase {
                         .via("airdrop"),
                 // The transaction should be charged the same as a crypto transfer
                 validateChargedUsd("airdrop", FUNGIBLE_TOKEN_BASE_FEE));
+    }
+
+    @HapiTest
+    @DisplayName("airdrop results in multiple pending airdrops")
+    final Stream<DynamicTest> airdropResultsInMultiplePending() {
+        return hapiTest(
+                cryptoCreate("owner").balance(ONE_HUNDRED_HBARS),
+                tokenCreate("FT1").treasury("owner").tokenType(FUNGIBLE_COMMON).initialSupply(1000L),
+                tokenCreate("FT2").treasury("owner").tokenType(FUNGIBLE_COMMON).initialSupply(1000L),
+                cryptoCreate("receiver").maxAutomaticTokenAssociations(0),
+                tokenAirdrop(
+                                moving(1, "FT1").between("owner", "receiver"),
+                                moving(1, "FT2").between("owner", "receiver"))
+                        .payingWith("owner")
+                        .via("airdrop"),
+                tokenAirdrop(
+                                moving(1, "FT1").between("owner", "receiver"),
+                                moving(1, "FT2").between("owner", "receiver"))
+                        .payingWith("owner")
+                        .via("second airdrop"),
+                validateChargedUsd(
+                        "airdrop", NODE_AND_NETWORK_FEE + 2 * PENDING_AIRDROP_FEE + 2 * TOKEN_ASSOCIATION_FEE),
+                validateChargedUsd("second airdrop", NODE_AND_NETWORK_FEE + 2 * PENDING_AIRDROP_FEE));
     }
 }
