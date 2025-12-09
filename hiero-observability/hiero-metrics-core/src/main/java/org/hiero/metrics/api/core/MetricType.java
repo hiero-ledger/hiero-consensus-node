@@ -6,7 +6,7 @@ package org.hiero.metrics.api.core;
  */
 public enum MetricType {
     /**
-     * Unknown metric type - should not be used but exists for cases when now suitable metric type is available.
+     * Unknown metric type - should not be used but exists for cases when no suitable metric type is available.
      */
     UNKNOWN,
     /**

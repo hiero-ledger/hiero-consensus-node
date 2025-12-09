@@ -45,7 +45,8 @@ public final class FrequencyCumulativeAvg implements DoubleSupplier {
         this.time = Objects.requireNonNull(time, "time provider cannot be null");
 
         compute = (startTime, count) -> {
-            int millisElapsed = currentTimeMillis() - startTime;
+            int millisElapsed = elapsed(startTime, currentTimeMillis());
+
             if (millisElapsed == 0) {
                 // theoretically this is infinity, but we will say that 1 millisecond of time passed because some time
                 // has to have passed
@@ -152,5 +153,17 @@ public final class FrequencyCumulativeAvg implements DoubleSupplier {
 
     private int currentTimeMillis() {
         return (int) (time.currentTimeMillis() % Integer.MAX_VALUE);
+    }
+
+    /**
+     * @return the elapsed time in from the start time until the end time
+     */
+    private int elapsed(final int startTime, final int endTime) {
+        if (endTime >= startTime) {
+            return endTime - startTime;
+        } else {
+            // if the lower 31 bits of the epoch has rolled over, the start time will be bigger than current time
+            return Integer.MAX_VALUE - startTime + endTime;
+        }
     }
 }

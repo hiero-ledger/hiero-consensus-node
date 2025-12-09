@@ -20,7 +20,7 @@ There are two main extensions of the `Metric` interface:
 A metric which doesn't hold measurements providing methods to update the values, but instead holds observable value suppliers per unique combination of dynamic labels.
 Updates to such metrics are done via external code. Examples are JVM memory usage metric, CPU usage metric, etc.
 - [SettableMetric](../src/main/java/org/hiero/metrics/api/core/SettableMetric.java)<br/>
-  Base interface for a metric, which holds measurements per unique combination of dynamic label values, providing methods to update values.
+Base interface for a metric, which holds measurements per unique combination of dynamic label values, providing methods to update values.
 Metric knows how to instantiate a measurement, so if new dynamic label values are provided,
 it will create a new measurement and return it to the client for observation, otherwise return existing measurement.
 Such metric also knows measurement default initializer - an object used to initialize newly created measurements (like initial value),
@@ -32,7 +32,7 @@ If no dynamic labels are defined for the metric, then it will have a single meas
 Supported metric types are defined by enum [MetricType](../src/main/java/org/hiero/metrics/api/core/MetricType.java)
 Here is the table of all metrics available to use:
 
-| Metric                                                                             | Type     | Description                                                                                                                          |
+|                                       Metric                                       |   Type   |                                                             Description                                                              |
 |------------------------------------------------------------------------------------|----------|--------------------------------------------------------------------------------------------------------------------------------------|
 | [LongCounter](../src/main/java/org/hiero/metrics/api/LongCounter.java)             | Counter  | Allows to increment `long` (only increasing), should be used also for lower types like `integer`.                                    |
 | [DoubleCounter](../src/main/java/org/hiero/metrics/api/DoubleCounter.java)         | Counter  | Allows to increment `double` (only increasing).                                                                                      |
