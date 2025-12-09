@@ -49,12 +49,14 @@ class IndirectProofSequenceValidator {
 
     private final Map<Long, Bytes> expectedBlockRootHashes = new HashMap<>();
     private final Map<Long, Bytes> expectedPreviousBlockRootHashes = new HashMap<>();
+    private final Map<Long, MerkleSiblingHash[]> expectedSiblingsByBlock = new HashMap<>();
 
     /**
      * The signed block proof corresponding to the latest signed block number. This is needed to
      * verify the indirect proofs and must be the last proof in the sequence.
      */
     private BlockProof signedProof;
+
     /**
      * The consensus timestamp of the signed block corresponding to the latest signed block number.
      */
@@ -93,9 +95,10 @@ class IndirectProofSequenceValidator {
     void registerProof(
             final long blockNumber,
             final @NonNull BlockProof proof,
-            final @NonNull Bytes blockRootHash,
+            final @NonNull Bytes expectedBlockHash,
             final @NonNull Bytes previousBlockHash,
-            final @NonNull Timestamp blockTimestamp) {
+            final @NonNull Timestamp blockTimestamp,
+            final @NonNull MerkleSiblingHash[] expectedSiblings) {
         if (endOfSequenceReached) {
             throw new IllegalStateException(
                     "Cannot track indirect proof for block #%s: end of sequence previously reached"
@@ -135,10 +138,7 @@ class IndirectProofSequenceValidator {
             // Block's Merkle Path 2: block contents path
             // Technically we could roll the timestamp into the sibling hashes here, but for clarity we keep them
             // separate
-            final var siblingHashes = proof.blockStateProof().paths().get(BLOCK_CONTENTS_PATH_INDEX).siblings().stream()
-                    .map(s -> new MerkleSiblingHash(s.isLeft(), s.hash()))
-                    .toList();
-            final var mp2 = new PartialMerklePath(null, previousBlockHash, siblingHashes);
+            final var mp2 = new PartialMerklePath(null, previousBlockHash, Arrays.asList(expectedSiblings));
 
             // Block's Merkle Path 3: parent (i.e. combined hash of left child and right child)
             // This is the combined result and should have no data
@@ -150,8 +150,9 @@ class IndirectProofSequenceValidator {
             actualIndirectProofs.put(blockNumber, proof.blockStateProof());
         }
 
-        expectedBlockRootHashes.put(blockNumber, blockRootHash);
+        expectedBlockRootHashes.put(blockNumber, expectedBlockHash);
         expectedPreviousBlockRootHashes.put(blockNumber, previousBlockHash);
+        expectedSiblingsByBlock.put(blockNumber, expectedSiblings);
 
         log.info("Registered proof for block {}", blockNumber);
     }
@@ -313,8 +314,8 @@ class IndirectProofSequenceValidator {
         // Merkle Path 2: enumerate all sibling hashes for remaining UNSIGNED blocks
         MerklePath.Builder earliestBlockMp2 = MerklePath.newBuilder();
 
-        // Create a set of siblings for all unsigned blocks remaining, plus another set for the signed block (excluding
-        // its timestamp)
+        // Create a set of siblings for all _unsigned_ blocks remaining, plus another set for the signed block
+        // (excluding its timestamp)
         final var numBlocksRemaining = signedBlockNum - firstUnsignedBlockNum;
         final var totalExpectedSiblings = expectedSiblingsFrom(numBlocksRemaining);
         final SiblingNode[] allSiblingHashes = new SiblingNode[totalExpectedSiblings];
@@ -361,11 +362,12 @@ class IndirectProofSequenceValidator {
             final var currUnsignedBlockSiblings = new SiblingNode[currUnsignedBlockSiblingsSize];
             final var currUnsignedBlockStartingIndex =
                     (int) ((currUnsignedBlock - firstUnsignedBlockNum) * UNSIGNED_BLOCK_SIBLING_COUNT);
+            currentBlockNum = 0;
             for (int i = currUnsignedBlockStartingIndex; i < allSiblingHashes.length; i++) {
                 // Copy the subset of sibling hashes from the full set of hashes (note: COPIES the current hash)
-                currUnsignedBlockSiblings[i] = allSiblingHashes[currUnsignedBlockStartingIndex + i]
-                        .copyBuilder()
-                        .build();
+                currUnsignedBlockSiblings[(int) currentBlockNum] =
+                        allSiblingHashes[i].copyBuilder().build();
+                currentBlockNum++;
             }
 
             newMp2.siblings(currUnsignedBlockSiblings).nextPathIndex(FINAL_MERKLE_PATH_INDEX);
@@ -415,8 +417,14 @@ class IndirectProofSequenceValidator {
         // Verify the sequence of hashes by recomputing each block hash from the previous block
         // hash and the indirect proof
         final var finalExpectedHash = expectedBlockRootHashes.get(signedBlockNum);
+        assertTrue(
+                finalExpectedHash.length() > 0,
+                "Final expected block hash is empty for signed block " + signedBlockNum);
         for (long blockNum = firstUnsignedBlockNum; blockNum < signedBlockNum; blockNum++) {
             final var expectedPreviousBlockHash = expectedPreviousBlockRootHashes.get(blockNum);
+            assertTrue(
+                    expectedPreviousBlockHash.length() > 0,
+                    "Expected previous block hash is empty for block " + blockNum);
 
             final var actualBlockStateProof = actualIndirectProofs.get(blockNum);
             assertNotNull(actualBlockStateProof, "Missing indirect state proof for block " + blockNum);
@@ -489,7 +497,7 @@ class IndirectProofSequenceValidator {
         // For the signed block we _do_ include its siblings in the state proof's block contents path, but we _don't_
         // include the timestamp as a sibling hash. The verification algorithm expects the signed block's timestamp to
         // be provided separately.
-        return unsignedSiblingCount + +SIGNED_BLOCK_SIBLING_COUNT;
+        return unsignedSiblingCount + SIGNED_BLOCK_SIBLING_COUNT;
     }
 
     // A quick note: any field in this record can be null depending on which of the three types of merkle path it

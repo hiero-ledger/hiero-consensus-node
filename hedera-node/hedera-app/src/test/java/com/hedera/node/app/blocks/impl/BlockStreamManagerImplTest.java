@@ -687,10 +687,10 @@ class BlockStreamManagerImplTest {
         assertEquals(
                 FIRST_FAKE_SIGNATURE,
                 aProof.blockStateProof().signedBlockProof().blockSignature());
-        // An indirect state proof must have 3 merkle paths
-        assertEquals(
-                BlockStateProofGenerator.EXPECTED_MERKLE_PATH_COUNT,
-                aProof.blockStateProof().paths().size());
+        // (FUTURE) An indirect state proof must have 3 merkle paths. Enable when full state proofs are supported.
+        //        assertEquals(
+        //                BlockStateProofGenerator.EXPECTED_MERKLE_PATH_COUNT,
+        //                aProof.blockStateProof().paths().size());
         // And the proof for N+1 using a direct proof
         final var bProofItem = lastBItem.get();
         assertNotNull(bProofItem);

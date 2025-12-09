@@ -29,6 +29,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.BlockProof;
 import com.hedera.hapi.block.stream.ChainOfTrustProof;
+import com.hedera.hapi.block.stream.MerklePath;
 import com.hedera.hapi.block.stream.MerkleSiblingHash;
 import com.hedera.hapi.block.stream.StateProof;
 import com.hedera.hapi.block.stream.SubMerkleTree;
@@ -784,17 +785,31 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             } else {
                 // This is a pending block whose block number precedes the signed block number, so we construct an
                 // indirect state proof
-                final var stateProof = BlockStateProofGenerator.generateStateProof(
-                        currentPendingBlock,
-                        blockNumber,
-                        blockSignature,
-                        signedBlock.blockTimestamp(),
-                        // Pass the remaining pending blocks, but don't remove them from the queue
-                        pendingBlocks.stream());
-                proof = currentPendingBlock.proofBuilder().blockStateProof(stateProof);
 
-                if (log.isDebugEnabled()) {
-                    logStateProof(blockSignature, currentPendingBlock, blockNumber, stateProof);
+                if (configProvider
+                        .getConfiguration()
+                        .getConfigData(BlockStreamConfig.class)
+                        .enableStateProofs()) {
+                    final var stateProof = BlockStateProofGenerator.generateStateProof(
+                            currentPendingBlock,
+                            blockNumber,
+                            blockSignature,
+                            signedBlock.blockTimestamp(),
+                            // Pass the remaining pending blocks, but don't remove them from the queue
+                            pendingBlocks.stream());
+                    proof = currentPendingBlock.proofBuilder().blockStateProof(stateProof);
+
+                    if (log.isDebugEnabled()) {
+                        logStateProof(blockSignature, currentPendingBlock, blockNumber, stateProof);
+                    }
+                } else {
+                    // (FUTURE) Once state proofs are enabled, this placeholder proof can be removed
+                    proof = currentPendingBlock
+                            .proofBuilder()
+                            .blockStateProof(StateProof.newBuilder()
+                                    .paths(MerklePath.newBuilder().build())
+                                    .signedBlockProof(latestSignedBlockProof)
+                                    .build());
                 }
 
                 // Update the metrics
