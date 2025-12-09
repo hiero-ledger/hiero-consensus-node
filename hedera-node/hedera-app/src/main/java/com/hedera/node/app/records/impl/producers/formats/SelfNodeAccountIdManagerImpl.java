@@ -50,11 +50,10 @@ public class SelfNodeAccountIdManagerImpl implements SelfNodeAccountIdManager {
      * @return the self node's account ID
      */
     public AccountID getSelfNodeAccountId() {
-        if (accountId != null) {
-            return accountId;
+        if (accountId == null) {
+            initSelfNodeAccountId();
         }
 
-        initSelfNodeAccountId();
         return accountId;
     }
 
