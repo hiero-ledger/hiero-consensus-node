@@ -17,6 +17,7 @@ import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.concurrent.atomic.AtomicReference;
 import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -31,7 +32,7 @@ public class SelfNodeAccountIdManagerImpl implements SelfNodeAccountIdManager {
     private final NodeInfo nodeInfo;
     private final State state;
 
-    private AccountID accountId;
+    private final AtomicReference<AccountID> accountId = new AtomicReference<>();
 
     /**
      * Primary constructor used in production: reads self node account ID from state node details file.
@@ -50,11 +51,11 @@ public class SelfNodeAccountIdManagerImpl implements SelfNodeAccountIdManager {
      * @return the self node's account ID
      */
     public AccountID getSelfNodeAccountId() {
-        if (accountId == null) {
+        if (accountId.get() == null) {
             initSelfNodeAccountId();
         }
 
-        return accountId;
+        return accountId.get();
     }
 
     /**
@@ -62,12 +63,12 @@ public class SelfNodeAccountIdManagerImpl implements SelfNodeAccountIdManager {
      * @param accountId the new account ID
      */
     public void setSelfNodeAccountId(@NonNull final AccountID accountId) {
-        this.accountId = requireNonNull(accountId);
+        this.accountId.set(requireNonNull(accountId));
     }
 
     private void initSelfNodeAccountId() {
         if (state == null) {
-            accountId = nodeInfo.accountId();
+            accountId.set(nodeInfo.accountId());
             return;
         }
         final var config = configProvider.getConfiguration();
@@ -81,7 +82,7 @@ public class SelfNodeAccountIdManagerImpl implements SelfNodeAccountIdManager {
                 logger.info(
                         "Node details file ({}) missing or empty; falling back to self NodeInfo",
                         filesConfig.nodeDetails());
-                accountId = nodeInfo.accountId();
+                accountId.set(nodeInfo.accountId());
                 return;
             }
             final var book = NodeAddressBook.PROTOBUF.parse(bytes);
@@ -90,15 +91,15 @@ public class SelfNodeAccountIdManagerImpl implements SelfNodeAccountIdManager {
                     .filter(addr -> addr.nodeId() == selfNodeId)
                     .findFirst();
             if (maybeEntry.isPresent() && maybeEntry.get().hasNodeAccountId()) {
-                accountId = maybeEntry.get().nodeAccountIdOrThrow();
+                accountId.set(maybeEntry.get().nodeAccountIdOrThrow());
             } else {
                 logger.warn("Self node id {} not found in node details; using NodeInfo account id", selfNodeId);
-                accountId = nodeInfo.accountId();
+                accountId.set(nodeInfo.accountId());
             }
         } catch (ParseException e) {
             logger.warn(
                     "Failed to parse node details (file {}); using NodeInfo account id", filesConfig.nodeDetails(), e);
-            accountId = nodeInfo.accountId();
+            accountId.set(nodeInfo.accountId());
         }
     }
 }
