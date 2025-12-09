@@ -438,7 +438,7 @@ class ProxyWorldUpdaterTest {
         given(frame.getRemainingGas()).willReturn(pretendCost * 2);
         given(frame.getMessageFrameStack()).willReturn(new ArrayDeque<>());
         given(frame.getContextVariable(FrameUtils.OPS_DURATION_COUNTER)).willReturn(OpsDurationCounter.disabled());
-        given(evmFrameState.tryLazyCreation(SOME_EVM_ADDRESS)).willReturn(Optional.empty());
+        given(evmFrameState.tryLazyCreation(SOME_EVM_ADDRESS, null)).willReturn(Optional.empty());
         final var maybeHaltReason = subject.tryLazyCreation(SOME_EVM_ADDRESS, frame);
         assertTrue(maybeHaltReason.isEmpty());
         verify(frame).decrementRemainingGas(pretendCost);
@@ -450,7 +450,7 @@ class ProxyWorldUpdaterTest {
         final var haltReason = Optional.<ExceptionalHaltReason>of(FAILURE_DURING_LAZY_ACCOUNT_CREATION);
         given(hederaOperations.lazyCreationCostInGas(SOME_EVM_ADDRESS)).willReturn(pretendCost);
         given(frame.getRemainingGas()).willReturn(pretendCost * 2);
-        given(evmFrameState.tryLazyCreation(SOME_EVM_ADDRESS)).willReturn(haltReason);
+        given(evmFrameState.tryLazyCreation(SOME_EVM_ADDRESS, null)).willReturn(haltReason);
         final var maybeHaltReason = subject.tryLazyCreation(SOME_EVM_ADDRESS, frame);
         assertEquals(haltReason, maybeHaltReason);
         verify(frame, never()).decrementRemainingGas(pretendCost);

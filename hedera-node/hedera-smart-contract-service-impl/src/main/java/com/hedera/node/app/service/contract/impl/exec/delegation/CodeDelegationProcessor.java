@@ -106,17 +106,20 @@ public record CodeDelegationProcessor(long chainId) {
 
         result.addAccessedDelegatorAddress(authorizerAddress);
 
+        final var delegatedContractAddress = Address.wrap(Bytes.wrap(codeDelegation.address()));
+
         MutableAccount authority;
         if (maybeAuthorityAccount.isEmpty()) {
             // only create an account if nonce is valid
             if (codeDelegation.nonce() != 0) {
                 return;
             }
-            // TODO: check for sufficient gas to create account
 
-            if (!((ProxyWorldUpdater) worldUpdater).createAccountCodeDelegationIndicator(authorizerAddress)) {
+            if (!((ProxyWorldUpdater) worldUpdater)
+                    .createAccountWithCodeDelegationIndicator(authorizerAddress, delegatedContractAddress)) {
                 return;
             }
+
             authority = worldUpdater.getAccount(authorizerAddress);
             if (authority == null) {
                 return;
@@ -138,7 +141,8 @@ public record CodeDelegationProcessor(long chainId) {
             }
 
             if (!((ProxyWorldUpdater) worldUpdater)
-                    .setAccountCodeDelegationIndicator(((HederaEvmAccount) authority).hederaId(), authorizerAddress)) {
+                    .setAccountCodeDelegationIndicator(
+                            ((HederaEvmAccount) authority).hederaId(), delegatedContractAddress)) {
                 return;
             }
             result.incrementAlreadyExistingDelegators();

@@ -36,7 +36,6 @@ import org.hyperledger.besu.evm.account.MutableAccount;
 import org.hyperledger.besu.evm.frame.ExceptionalHaltReason;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 import org.hyperledger.besu.evm.worldstate.WorldUpdater;
-import org.jetbrains.annotations.NotNull;
 
 /**
  * A {@link WorldUpdater} that delegates to a given {@link HandleHederaOperations} for state management.
@@ -219,7 +218,7 @@ public class ProxyWorldUpdater implements HederaWorldUpdater {
         if (gasCost > frame.getRemainingGas()) {
             return Optional.of(INSUFFICIENT_GAS);
         }
-        final var maybeHaltReason = evmFrameState.tryLazyCreation(recipient);
+        final var maybeHaltReason = evmFrameState.tryLazyCreation(recipient, null);
         if (maybeHaltReason.isPresent()) {
             return maybeHaltReason;
         }
@@ -494,8 +493,13 @@ public class ProxyWorldUpdater implements HederaWorldUpdater {
      * {@inheritDoc}
      */
     @Override
-    public boolean createAccountCodeDelegationIndicator(@NotNull Address delegationAddress) {
-        return enhancement.operations().createAccountCodeDelegationIndicator(delegationAddress);
+    public boolean createAccountWithCodeDelegationIndicator(
+            @NonNull final Address authority, @NonNull final Address delegationAddress) {
+
+        // TODO: check for sufficient gas to create account
+
+        final var maybeHaltReason = evmFrameState.tryLazyCreation(authority, delegationAddress);
+        return maybeHaltReason.isEmpty();
     }
 
     private long getValidatedCreationNumber(

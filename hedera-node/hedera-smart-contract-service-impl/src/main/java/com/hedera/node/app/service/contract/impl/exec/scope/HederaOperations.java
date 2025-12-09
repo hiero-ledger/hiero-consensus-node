@@ -21,7 +21,6 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
 import org.hyperledger.besu.datatypes.Address;
-import org.jetbrains.annotations.NotNull;
 
 /**
  * Provides the Hedera operations that only a {@link ProxyWorldUpdater} needs (but not a {@link DispatchingEvmFrameState}.
@@ -315,11 +314,4 @@ public interface HederaOperations {
      * @return true if the code delegation was set successfully, false otherwise
      */
     boolean setAccountCodeDelegation(@NonNull final AccountID accountID, @NonNull final Address delegationAddress);
-
-    /**
-     * Create a new account with code delegation to the given address for the new account.
-     * @param delegationAddress the address to set as the delegation indicator
-     * @return true if the account was created and the code delegation was set successfully, false otherwise
-     */
-    boolean createAccountCodeDelegationIndicator(@NotNull Address delegationAddress);
 }

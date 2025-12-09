@@ -42,7 +42,6 @@ import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.api.ContractChangeSummary;
 import com.hedera.node.app.service.token.api.TokenServiceApi;
-import com.hedera.node.app.service.token.records.CryptoCreateStreamBuilder;
 import com.hedera.node.app.service.token.records.CryptoUpdateStreamBuilder;
 import com.hedera.node.app.spi.fees.FeeCharging;
 import com.hedera.node.app.spi.fees.Fees;
@@ -66,7 +65,6 @@ import java.util.List;
 import java.util.Map;
 import javax.inject.Inject;
 import org.hyperledger.besu.datatypes.Address;
-import org.jetbrains.annotations.NotNull;
 
 /**
  * A fully mutable {@link HederaOperations} implementation based on a {@link HandleContext}.
@@ -568,7 +566,7 @@ public class HandleHederaOperations implements HederaOperations {
      * {@inheritDoc}
      */
     @Override
-    public boolean setAccountCodeDelegation(@NotNull AccountID accountID, @NotNull Address delegationAddress) {
+    public boolean setAccountCodeDelegation(@NonNull AccountID accountID, @NonNull Address delegationAddress) {
         // Dispatch a synthetic transaction to set the delegation
         final var cryptoUpdate = CryptoUpdateTransactionBody.newBuilder()
                 .accountIDToUpdate(accountID)
@@ -579,24 +577,6 @@ public class HandleHederaOperations implements HederaOperations {
 
         final var streamBuilder =
                 context.dispatch(independentChildDispatch(context.payer(), body, CryptoUpdateStreamBuilder.class));
-
-        return streamBuilder.status() == SUCCESS;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public boolean createAccountCodeDelegationIndicator(@NotNull Address delegationAddress) {
-        // Dispatch a synthetic transaction create account and to set the delegation
-        final var cryptoCreate = CryptoCreateTransactionBody.newBuilder()
-                .delegationAddress(tuweniToPbjBytes(delegationAddress))
-                .build();
-        final var body =
-                TransactionBody.newBuilder().cryptoCreateAccount(cryptoCreate).build();
-
-        final var streamBuilder =
-                context.dispatch(independentChildDispatch(context.payer(), body, CryptoCreateStreamBuilder.class));
 
         return streamBuilder.status() == SUCCESS;
     }

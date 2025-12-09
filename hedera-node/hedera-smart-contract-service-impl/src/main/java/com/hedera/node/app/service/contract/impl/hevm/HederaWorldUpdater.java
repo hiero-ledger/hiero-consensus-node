@@ -308,8 +308,10 @@ public interface HederaWorldUpdater extends WorldUpdater {
 
     /**
      * Create a new account with code delegation to the given address for the new account.
+     * @param authority the alias address of the new account to create
      * @param delegationAddress the address to set as the delegation indicator
      * @return true if the account was created and the code delegation was set successfully, false otherwise
      */
-    boolean createAccountCodeDelegationIndicator(@NonNull final Address delegationAddress);
+    boolean createAccountWithCodeDelegationIndicator(
+            @NonNull final Address authority, @NonNull final Address delegationAddress);
 }
