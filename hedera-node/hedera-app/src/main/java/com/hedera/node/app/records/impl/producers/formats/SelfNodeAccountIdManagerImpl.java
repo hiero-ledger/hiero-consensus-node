@@ -78,7 +78,7 @@ public class SelfNodeAccountIdManagerImpl implements SelfNodeAccountIdManager {
             final var nodeDetailsFile = fileStore.getFileLeaf(nodeDetailsId);
             final Bytes bytes = (nodeDetailsFile == null) ? Bytes.EMPTY : nodeDetailsFile.contents();
             if (bytes.length() == 0) {
-                logger.warn(
+                logger.info(
                         "Node details file ({}) missing or empty; falling back to self NodeInfo",
                         filesConfig.nodeDetails());
                 accountId = nodeInfo.accountId();
