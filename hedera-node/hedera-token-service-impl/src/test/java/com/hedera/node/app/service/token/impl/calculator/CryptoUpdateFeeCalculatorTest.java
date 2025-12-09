@@ -345,7 +345,7 @@ class CryptoUpdateFeeCalculatorTest {
                 .extras(
                         makeExtraDef(Extra.SIGNATURES, 1000000L),
                         makeExtraDef(Extra.KEYS, 100000000L),
-                        makeExtraDef(Extra.HOOKS, 10000000L),
+                        makeExtraDef(Extra.HOOK_UPDATES, 10000000L),
                         makeExtraDef(Extra.BYTES, 110L))
                 .services(makeService(
                         "CryptoService",
@@ -354,7 +354,7 @@ class CryptoUpdateFeeCalculatorTest {
                                 1200000L, // baseFee from production config
                                 makeExtraIncluded(Extra.SIGNATURES, 1),
                                 makeExtraIncluded(Extra.KEYS, 1),
-                                makeExtraIncluded(Extra.HOOKS, 0)))) // No hooks included
+                                makeExtraIncluded(Extra.HOOK_UPDATES, 0)))) // No hooks included
                 .build();
     }
 

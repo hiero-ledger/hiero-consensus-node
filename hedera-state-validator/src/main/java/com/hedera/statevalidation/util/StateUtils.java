@@ -62,8 +62,10 @@ import com.swirlds.platform.state.snapshot.DeserializedSignedState;
 import com.swirlds.platform.util.BootstrapUtils;
 import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.State;
+import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.lifecycle.Schema;
+import com.swirlds.state.merkle.StateLifecycleManagerImpl;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.virtualmap.constructable.ConstructableUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -105,13 +107,16 @@ public final class StateUtils {
 
             final PlatformContext platformContext = getPlatformContext();
             final ServicesRegistryImpl serviceRegistry = initServiceRegistry();
+            final StateLifecycleManager stateLifecycleManager = new StateLifecycleManagerImpl(
+                    platformContext.getMetrics(),
+                    platformContext.getTime(),
+                    virtualMap -> new VirtualMapState(virtualMap, platformContext.getMetrics()),
+                    platformContext.getConfiguration());
 
             serviceRegistry.register(new RosterServiceImpl(roster -> true, (r, b) -> {}, StateUtils::getState));
 
-            deserializedSignedState = readState(
-                    Path.of(ConfigUtils.STATE_DIR).toAbsolutePath(),
-                    virtualMap -> new VirtualMapState(virtualMap, platformContext.getMetrics()),
-                    platformContext);
+            deserializedSignedState =
+                    readState(Path.of(ConfigUtils.STATE_DIR).toAbsolutePath(), platformContext, stateLifecycleManager);
 
             initServiceMigrator(getState(), platformContext, serviceRegistry);
 

@@ -46,7 +46,6 @@ import java.nio.file.StandardOpenOption;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -1383,14 +1382,14 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         Files.deleteIfExists(file);
         awaitCondition(() -> availableNodes().isEmpty(), 3_000);
 
-        // Exercise unchanged path: write back same content and ensure no restart occurs
+        // Exercise unchanged path: write back the same content and ensure no restart occurs
         Files.writeString(
                 file, valid, StandardCharsets.UTF_8, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
         awaitCondition(() -> !availableNodes().isEmpty(), 5_000);
-        final Map<BlockNodeConfiguration, BlockNodeConnection> before = new HashMap<>(connections());
+        final List<BlockNodeConfiguration> before = availableNodes();
         invoke_refreshAvailableBlockNodes();
-        final Map<BlockNodeConfiguration, BlockNodeConnection> after = new HashMap<>(connections());
-        assertThat(after.keySet()).isEqualTo(before.keySet());
+        final List<BlockNodeConfiguration> after = availableNodes();
+        assertThat(after).isEqualTo(before);
     }
 
     @Test
