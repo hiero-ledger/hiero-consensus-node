@@ -35,6 +35,7 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.security.SecureRandom;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.EnumMap;
@@ -571,7 +572,10 @@ public class WrapsHistoryProver implements HistoryProver {
                             }
                             final var isValid =
                                     historyLibrary.verifyAggregateSignature(message, publicKeysForR1(), signature);
-                            log.info("Aggregate signature is {}", isValid ? "valid" : "invalid");
+                            if (!isValid) {
+                                throw new IllegalStateException("Invalid aggregate signature using nodes "
+                                        + phaseMessages.get(R1).keySet());
+                            }
                             Proof proof;
                             if (!isWrapsExtensible(sourceProof)) {
                                 final long now = System.nanoTime();
@@ -581,9 +585,7 @@ public class WrapsHistoryProver implements HistoryProver {
                                         signature,
                                         phaseMessages.get(R1).keySet(),
                                         targetBook);
-                                log.info(
-                                        "Constructed genesis WRAPS proof in {}ms",
-                                        (System.nanoTime() - now) / 1_000_000);
+                                logElapsed("constructing genesis WRAPS proof", now);
                             } else {
                                 proof = new Proof(
                                         sourceProof.uncompressedWrapsProof().toByteArray(),
@@ -620,14 +622,17 @@ public class WrapsHistoryProver implements HistoryProver {
                                     targetMetadata.toByteArray(),
                                     effectiveSignature,
                                     effectiveSigners);
-                            log.info(
-                                    "Constructed incremental WRAPS proof in {}ms",
-                                    (System.nanoTime() - now) / 1_000_000);
+                            logElapsed("constructing incremental WRAPS proof", now);
                             yield new ProofPhaseOutput(proof.compressed(), proof.uncompressed());
                         }
                     }
                 },
                 executor);
+    }
+
+    private void logElapsed(@NonNull final String event, final long startNs) {
+        final var duration = Duration.ofNanos(System.nanoTime() - startNs);
+        log.info("FINISHED {} - took {}m {}s", event, duration.toMinutes(), duration.toSecondsPart());
     }
 
     private byte[][] publicKeysForR1() {
