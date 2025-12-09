@@ -746,10 +746,6 @@ class VirtualMapTests extends VirtualTestBase {
 
     /**
      * This test validates that for the basic tree below, the routes are set correctly.
-     * When the tests are moved to the swirlds-test module, we should use a MerkleMap
-     * and insert one million elements, and insert the same elements into a
-     * {@link VirtualMap}. Then, we iterate over the routes of both maps and their
-     * routes should match.
      *
      * <pre>
      *                      VirtualMap
