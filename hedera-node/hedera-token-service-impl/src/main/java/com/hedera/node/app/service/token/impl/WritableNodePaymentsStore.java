@@ -5,14 +5,10 @@ import static com.hedera.node.app.service.token.impl.schemas.V0700TokenSchema.NO
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.Timestamp;
-import com.hedera.hapi.node.state.token.NodePayment;
 import com.hedera.hapi.node.state.token.NodePayments;
-import com.hedera.hapi.node.state.token.NodeRewards;
 import com.swirlds.state.spi.WritableSingletonState;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
-
-import java.util.HashMap;
 import java.util.List;
 
 /**

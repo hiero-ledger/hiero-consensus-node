@@ -19,7 +19,6 @@ import com.hedera.node.app.service.roster.RosterService;
 import com.hedera.node.app.service.token.ReadableStakingInfoStore;
 import com.hedera.node.app.service.token.impl.handlers.staking.EndOfStakingPeriodUpdater;
 import com.hedera.node.app.service.token.records.TokenContext;
-import com.hedera.node.app.services.NodeFeeDistributor;
 import com.hedera.node.app.workflows.handle.stack.SavepointStackImpl;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockStreamConfig;
@@ -45,7 +44,6 @@ public class StakePeriodChanges {
     private static final long DEFAULT_STAKING_PERIOD_MINS = 1440L;
     private static final long MINUTES_TO_MILLISECONDS = 60_000L;
 
-    private final NodeFeeDistributor feeDistributor;
     private final EndOfStakingPeriodUpdater endOfStakingPeriodUpdater;
     private final ExchangeRateManager exchangeRateManager;
     private final BlockRecordManager blockRecordManager;
@@ -58,9 +56,7 @@ public class StakePeriodChanges {
             @NonNull final EndOfStakingPeriodUpdater endOfStakingPeriodUpdater,
             @NonNull final ExchangeRateManager exchangeRateManager,
             @NonNull final BlockRecordManager blockRecordManager,
-            @NonNull final BlockStreamManager blockStreamManager,
-            @NonNull final NodeFeeDistributor feeDistributor) {
-        this.feeDistributor = requireNonNull(feeDistributor);
+            @NonNull final BlockStreamManager blockStreamManager) {
         this.endOfStakingPeriodUpdater = requireNonNull(endOfStakingPeriodUpdater);
         this.exchangeRateManager = requireNonNull(exchangeRateManager);
         this.blockRecordManager = requireNonNull(blockRecordManager);

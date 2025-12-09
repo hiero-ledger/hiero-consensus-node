@@ -22,6 +22,7 @@ import com.hedera.node.app.service.token.TokenService;
 import com.hedera.node.app.service.token.impl.ReadableNodePaymentsStoreImpl;
 import com.hedera.node.app.service.token.impl.WritableAccountStore;
 import com.hedera.node.app.service.token.impl.WritableNodePaymentsStore;
+import com.hedera.node.app.spi.fees.NodeFeeAccumulator;
 import com.hedera.node.app.workflows.handle.record.SystemTransactions;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.AccountsConfig;
@@ -31,15 +32,12 @@ import com.hedera.node.config.data.StakingConfig;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.CommittableWritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
-
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.SortedMap;
 import java.util.TreeMap;
-import java.util.stream.Collectors;
 import javax.inject.Inject;
 import javax.inject.Singleton;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -55,7 +53,7 @@ import org.apache.logging.log4j.Logger;
  * </ol>
  */
 @Singleton
-public class NodeFeeDistributor {
+public class NodeFeeDistributor implements NodeFeeAccumulator {
     private static final Logger log = LogManager.getLogger(NodeFeeDistributor.class);
 
     private final AccountsConfig accountsConfig;
@@ -65,7 +63,7 @@ public class NodeFeeDistributor {
     private final EntityIdFactory entityIdFactory;
     private final ConfigProvider configProvider;
 
-    // The amount of fees to pay to each node. This is updated from state at the start of every round
+    // The amount of fees to pay to each node. This is updated in-memory each transaction
     // and will be written back to state at the end of every block
     private final SortedMap<Long, Long> nodeFees = new TreeMap<>();
 
@@ -77,8 +75,7 @@ public class NodeFeeDistributor {
      */
     @Inject
     public NodeFeeDistributor(
-            @NonNull final ConfigProvider configProvider,
-            @NonNull final EntityIdFactory entityIdFactory) {
+            @NonNull final ConfigProvider configProvider, @NonNull final EntityIdFactory entityIdFactory) {
         final var config = configProvider.getConfiguration();
         this.configProvider = configProvider;
         this.accountsConfig = config.getConfigData(AccountsConfig.class);
@@ -88,9 +85,12 @@ public class NodeFeeDistributor {
         this.entityIdFactory = entityIdFactory;
     }
 
+    /**
+     * Called at the start of each block to load node payments from state into memory.
+     *
+     * @param state the state
+     */
     public void onOpenBlock(@NonNull final State state) {
-        // read the node payment info from state at start of every block. So, we can commit the accumulated changes
-        // at end of every block
         if (configProvider.getConfiguration().getConfigData(NodesConfig.class).feeCollectionAccountEnabled()) {
             nodeFees.clear();
             final var nodePayments = nodePaymentsFrom(state);
@@ -99,7 +99,7 @@ public class NodeFeeDistributor {
     }
 
     /**
-     * Updates node rewards state at the end of a block given the collected node fees.
+     * Called at the end of each block to write accumulated node fees back to state.
      *
      * @param state the state
      */
@@ -109,10 +109,20 @@ public class NodeFeeDistributor {
         }
     }
 
-    public void updateFeesEachTransaction(long nodeAccountNumber, long fees) {
+    /**
+     * {@inheritDoc}
+     * <p>
+     * Updates the in-memory node fees for a transaction. This is called for each transaction
+     * to accumulate fees without writing to state.
+     */
+    @Override
+    public void accumulate(long nodeAccountNumber, long fees) {
         nodeFees.merge(nodeAccountNumber, fees, Long::sum);
     }
 
+    /**
+     * Resets the in-memory node fees map.
+     */
     public void resetNodeFees() {
         nodeFees.clear();
     }
@@ -142,9 +152,9 @@ public class NodeFeeDistributor {
      * @param now the current time
      * @return whether the last time node rewards were paid was a different staking period
      */
-    private LastNodeFeesPaymentTime classifyLastNodeFeesPaymentTime(@NonNull final State state, @NonNull final Instant now) {
-        final var nodeFeePaymentsStore =
-                new ReadableNodePaymentsStoreImpl(state.getReadableStates(TokenService.NAME));
+    private LastNodeFeesPaymentTime classifyLastNodeFeesPaymentTime(
+            @NonNull final State state, @NonNull final Instant now) {
+        final var nodeFeePaymentsStore = new ReadableNodePaymentsStoreImpl(state.getReadableStates(TokenService.NAME));
         final var lastPaidTime = nodeFeePaymentsStore.get().lastNodeFeeDistributionTime();
         if (lastPaidTime == null) {
             return LastNodeFeesPaymentTime.NEVER;
@@ -165,9 +175,8 @@ public class NodeFeeDistributor {
      * @param state the savepoint stack for the current transaction
      * @return the stream builder for the synthetic fee distribution transaction, or null if no fees to distribute
      */
-    public boolean distributeFees(@NonNull final State state,
-                                  @NonNull final Instant now,
-                                  final SystemTransactions systemTransactions) {
+    public boolean distributeFees(
+            @NonNull final State state, @NonNull final Instant now, final SystemTransactions systemTransactions) {
         requireNonNull(state);
         requireNonNull(now);
         requireNonNull(systemTransactions);
@@ -212,7 +221,10 @@ public class NodeFeeDistributor {
                         log.info("Node account {} will receive {} tinybars", nodeAccountId, nodeFee);
                     }
                 } else {
-                    log.info("Node account {} is deleted or doesn't exist, forfeiting {} tinybars", nodeAccountId, nodeFee);
+                    log.info(
+                            "Node account {} is deleted or doesn't exist, forfeiting {} tinybars",
+                            nodeAccountId,
+                            nodeFee);
                 }
             }
 
@@ -235,7 +247,9 @@ public class NodeFeeDistributor {
 
             // Add the debit from fee collection account
             if (!transferAmounts.isEmpty()) {
-                final long totalDistributed = transferAmounts.stream().mapToLong(AccountAmount::amount).sum();
+                final long totalDistributed = transferAmounts.stream()
+                        .mapToLong(AccountAmount::amount)
+                        .sum();
                 transferAmounts.add(AccountAmount.newBuilder()
                         .accountID(feeCollectionAccountId)
                         .amount(-totalDistributed)
@@ -248,56 +262,14 @@ public class NodeFeeDistributor {
                     totalNodeFees,
                     networkServiceFees);
 
-            systemTransactions.dispatchNodePayments(state, now, TransferList.newBuilder().accountAmounts(transferAmounts).build());
+            systemTransactions.dispatchNodePayments(
+                    state,
+                    now,
+                    TransferList.newBuilder().accountAmounts(transferAmounts).build());
         }
         nodePaymentsStore.resetForNewStakingPeriod(asTimestamp(now));
         resetNodeFees();
         return true;
-    }
-
-
-    /**
-     * Updates the node reward state in the given state. This method will be called at the end of every block.
-     * <p>
-     * This method updates the number of rounds in the staking period and the number of missed judge rounds for
-     * each node.
-     *
-     * @param state the state to update
-     */
-    private void updateNodePaymentsState(@NonNull final State state) {
-        final var writableTokenState = state.getWritableStates(TokenService.NAME);
-        final var nodePaymentsState = writableTokenState.<NodePayments>getSingleton(NODE_PAYMENTS_STATE_ID);
-        final var nodePaymentsBuilder = NodePayments.newBuilder();
-
-        final var existingNodePaymentsMap = requireNonNull(nodePaymentsState.get()).payments().stream()
-                .collect(Collectors.toMap(NodePayment::accountNumber, NodePayment::fees));
-        // Add the fees collected in the block to the existing node payments map. If new nodes have joined, they will
-        // have an entry in the nodeFees map but not in the existingNodePaymentsMap. In that case, we add them to the
-        // existingNodePaymentsMap with a fee of 0.
-        for (final var entry : existingNodePaymentsMap.entrySet()) {
-            nodeFees.merge(entry.getKey(), entry.getValue(), Long::sum);
-        }
-        // compute node payments from nodeFees
-        nodeFees.forEach((accountNumber, fees) -> nodePaymentsBuilder.payments(NodePayment.newBuilder()
-                .accountNumber(accountNumber)
-                .fees(fees)
-                .build()));
-        nodePaymentsState.put(nodePaymentsBuilder.build());
-        ((CommittableWritableStates) writableTokenState).commit();
-        log.info("Updated node payments state with {} entries", nodePaymentsBuilder.payments().size());
-    }
-
-
-    /**
-     * Gets the node reward info state from the given state.
-     *
-     * @param state the state
-     * @return the node reward info state
-     */
-    private @NonNull NodePayments nodePaymentsFrom(@NonNull final State state) {
-        final var nodePayments =
-                state.getReadableStates(TokenService.NAME).<NodePayments>getSingleton(NODE_PAYMENTS_STATE_ID);
-        return requireNonNull(nodePayments.get());
     }
 
     /**
@@ -352,5 +324,43 @@ public class NodeFeeDistributor {
                     .amount(balance)
                     .build());
         }
+    }
+
+    /**
+     * Gets the node payments from state.
+     *
+     * @param state the state
+     * @return the node payments
+     */
+    private @NonNull NodePayments nodePaymentsFrom(@NonNull final State state) {
+        final var nodePayments =
+                state.getReadableStates(TokenService.NAME).<NodePayments>getSingleton(NODE_PAYMENTS_STATE_ID);
+        return requireNonNull(nodePayments.get());
+    }
+
+    /**
+     * Updates the node payments state with the accumulated in-memory fees.
+     *
+     * @param state the state to update
+     */
+    private void updateNodePaymentsState(@NonNull final State state) {
+        final var writableTokenState = state.getWritableStates(TokenService.NAME);
+        final var nodePaymentsState = writableTokenState.<NodePayments>getSingleton(NODE_PAYMENTS_STATE_ID);
+        final var currentPayments = requireNonNull(nodePaymentsState.get());
+
+        // Build updated payments list from in-memory nodeFees map
+        final var updatedPayments = nodeFees.entrySet().stream()
+                .map(entry -> NodePayment.newBuilder()
+                        .accountNumber(entry.getKey())
+                        .fees(entry.getValue())
+                        .build())
+                .toList();
+
+        nodePaymentsState.put(NodePayments.newBuilder()
+                .payments(updatedPayments)
+                .lastNodeFeeDistributionTime(currentPayments.lastNodeFeeDistributionTime())
+                .build());
+        ((CommittableWritableStates) writableTokenState).commit();
+        log.info("Updated node payments state with {} entries", updatedPayments.size());
     }
 }

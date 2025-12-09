@@ -2,6 +2,7 @@
 package com.hedera.node.app.spi.api;
 
 import com.hedera.node.app.service.entityid.WritableEntityCounters;
+import com.hedera.node.app.spi.fees.NodeFeeAccumulator;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -24,11 +25,13 @@ public interface ServiceApiProvider<T> {
      *
      * @param configuration  the node configuration
      * @param writableStates the writable state of the service
-     * @param entityCounters
+     * @param entityCounters the entity counters
+     * @param nodeFeeAccumulator the accumulator for node fees (used for in-memory fee accumulation)
      * @return the new API instance
      */
     T newInstance(
             @NonNull Configuration configuration,
             @NonNull WritableStates writableStates,
-            @NonNull final WritableEntityCounters entityCounters);
+            @NonNull WritableEntityCounters entityCounters,
+            @NonNull NodeFeeAccumulator nodeFeeAccumulator);
 }

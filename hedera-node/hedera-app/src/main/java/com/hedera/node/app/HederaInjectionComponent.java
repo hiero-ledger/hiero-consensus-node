@@ -249,6 +249,9 @@ public interface HederaInjectionComponent {
         @BindsInstance
         Builder appContext(AppContext appContext);
 
+        @BindsInstance
+        Builder nodeFeeAccumulator(NodeFeeDistributor nodeFeeDistributor);
+
         HederaInjectionComponent build();
     }
 }

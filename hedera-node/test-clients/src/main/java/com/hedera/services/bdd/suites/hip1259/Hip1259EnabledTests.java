@@ -9,7 +9,6 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.hip1259.Hip1259DisabledTests.validateRecordContains;
 import static com.hedera.services.bdd.suites.hip1259.Hip1259DisabledTests.validateRecordNotContains;
-import static com.hedera.services.bdd.suites.integration.RepeatableHip1064Tests.validateRecordFees;
 
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;

@@ -30,9 +30,9 @@ import com.hedera.node.app.service.token.api.ContractChangeSummary;
 import com.hedera.node.app.service.token.api.FeeStreamBuilder;
 import com.hedera.node.app.service.token.api.TokenServiceApi;
 import com.hedera.node.app.service.token.impl.WritableAccountStore;
-import com.hedera.node.app.service.token.impl.WritableNodePaymentsStore;
 import com.hedera.node.app.service.token.impl.validators.StakingValidator;
 import com.hedera.node.app.spi.fees.Fees;
+import com.hedera.node.app.spi.fees.NodeFeeAccumulator;
 import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.validation.ExpiryValidator;
 import com.hedera.node.app.spi.workflows.HandleException;
@@ -61,7 +61,7 @@ public class TokenServiceApiImpl implements TokenServiceApi {
     private static final Logger logger = LogManager.getLogger(TokenServiceApiImpl.class);
 
     private final WritableAccountStore accountStore;
-    private final WritableNodePaymentsStore nodePaymentStore;
+    private final NodeFeeAccumulator nodeFeeAccumulator;
     private final AccountID nodeRewardAccountID;
     private final AccountID feeCollectionAccountID;
     private final NodesConfig nodesConfig;
@@ -72,7 +72,7 @@ public class TokenServiceApiImpl implements TokenServiceApi {
     private final AccountID stakingRewardAccountID;
 
     /**
-     * Constructs a {@link TokenServiceApiImpl}.
+     * Constructs a {@link TokenServiceApiImpl}.Used only in tests
      *
      * @param config the configuration
      * @param writableStates the writable states
@@ -84,10 +84,28 @@ public class TokenServiceApiImpl implements TokenServiceApi {
             @NonNull final WritableStates writableStates,
             @NonNull final Predicate<CryptoTransferTransactionBody> customFeeTest,
             @NonNull final WritableEntityCounters entityCounters) {
+        this(config, writableStates, customFeeTest, entityCounters, NodeFeeAccumulator.NOOP);
+    }
+
+    /**
+     * Constructs a {@link TokenServiceApiImpl} with a node fee accumulator.
+     *
+     * @param config the configuration
+     * @param writableStates the writable states
+     * @param customFeeTest a predicate for determining if a transfer has custom fees
+     * @param entityCounters the entity counters
+     * @param nodeFeeAccumulator the accumulator for node fees (used for in-memory fee accumulation)
+     */
+    public TokenServiceApiImpl(
+            @NonNull final Configuration config,
+            @NonNull final WritableStates writableStates,
+            @NonNull final Predicate<CryptoTransferTransactionBody> customFeeTest,
+            @NonNull final WritableEntityCounters entityCounters,
+            @NonNull final NodeFeeAccumulator nodeFeeAccumulator) {
         this.customFeeTest = customFeeTest;
         requireNonNull(config);
         this.accountStore = new WritableAccountStore(writableStates, entityCounters);
-        this.nodePaymentStore = new WritableNodePaymentsStore(writableStates);
+        this.nodeFeeAccumulator = requireNonNull(nodeFeeAccumulator);
 
         nodesConfig = config.getConfigData(NodesConfig.class);
         // Determine whether staking is enabled
@@ -443,7 +461,8 @@ public class TokenServiceApiImpl implements TokenServiceApi {
                 // Update node payments map with this amount and send this payment to fee collection account.
                 // This will be distributed to node accounts at the end of the day
                 payFeeCollectionAccount(chargeableNodeFee, cb);
-                nodePaymentStore.addNodePayments(nodeAccountId.accountNumOrThrow(), chargeableNodeFee);
+                // Accumulate node fees in memory - will be written to state at block boundaries
+                nodeFeeAccumulator.accumulate(nodeAccountId.accountNumOrThrow(), chargeableNodeFee);
             } else {
                 final var nodeAccount = lookupAccount("Node account", nodeAccountId);
                 accountStore.put(nodeAccount

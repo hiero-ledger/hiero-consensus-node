@@ -19,7 +19,6 @@ import com.swirlds.state.State;
 import dagger.Module;
 import dagger.Provides;
 import edu.umd.cs.findbugs.annotations.NonNull;
-
 import java.nio.file.FileSystem;
 import java.util.function.Supplier;
 import javax.inject.Singleton;
@@ -88,18 +87,18 @@ public interface BlockStreamModule {
     static BlockStreamManager.Lifecycle provideBlockStreamManagerLifecycle(
             @NonNull final NodeRewardManager nodeRewardManager,
             @NonNull final BoundaryStateChangeListener listener,
-            @NonNull final NodeFeeDistributor feeDistributor) {
+            @NonNull final NodeFeeDistributor nodeFeeDistributor) {
         return new BlockStreamManager.Lifecycle() {
             @Override
             public void onOpenBlock(@NonNull final State state) {
-                feeDistributor.onOpenBlock(state);
+                nodeFeeDistributor.onOpenBlock(state);
                 listener.resetCollectedNodeFees();
                 nodeRewardManager.onOpenBlock(state);
             }
 
             @Override
             public void onCloseBlock(@NonNull final State state) {
-                feeDistributor.onCloseBlock(state);
+                nodeFeeDistributor.onCloseBlock(state);
                 nodeRewardManager.onCloseBlock(state, listener.nodeFeesCollected());
             }
         };

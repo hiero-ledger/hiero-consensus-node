@@ -85,7 +85,6 @@ import com.hedera.node.config.data.StakingConfig;
 import com.hedera.node.config.types.StreamMode;
 import com.hedera.node.internal.network.NodeMetadata;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.hederahashgraph.api.proto.java.CryptoCreate;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.state.State;
@@ -422,14 +421,13 @@ public class SystemTransactions {
         autoNodeAdminKeyUpdates.tryIfPresent(adminConfig.upgradeSysFilesLoc(), systemContext);
     }
 
-    public void dispatchNodePayments(@NonNull final State state,
-                                     @NonNull final Instant now,
-                                     @NonNull final TransferList transfers) {
+    public void dispatchNodePayments(
+            @NonNull final State state, @NonNull final Instant now, @NonNull final TransferList transfers) {
         requireNonNull(state);
         requireNonNull(now);
         requireNonNull(transfers);
 
-        if(transfers.accountAmounts().isEmpty()) {
+        if (transfers.accountAmounts().isEmpty()) {
             log.info("No fees to distribute for nodes");
             return;
         }
@@ -438,11 +436,12 @@ public class SystemTransactions {
                 now, state, dispatch -> {}, UseReservedConsensusTimes.NO, TriggerStakePeriodSideEffects.YES);
         systemContext.dispatchAdmin(b -> b.memo("Synthetic node fees payment")
                 .cryptoTransfer(CryptoTransferTransactionBody.newBuilder()
-                        .transfers(transfers).build())
+                        .transfers(transfers)
+                        .build())
                 .build());
     }
 
-     /**
+    /**
      * Dispatches a synthetic node reward crypto transfer for the given active node accounts.
      * If the {@link NodesConfig#minPerPeriodNodeRewardUsd()} is greater than zero, inactive nodes will receive the minimum node
      * reward.
@@ -458,13 +457,13 @@ public class SystemTransactions {
      */
     public void dispatchNodeRewards(
             @NonNull final State state,
-                                     @NonNull final Instant now,
-                                     @NonNull final List<Long> activeNodeIds,
-                                     final long perNodeReward,
-                                     @NonNull final AccountID nodeRewardsAccountId,
-                                     final long rewardAccountBalance,
-                                     final long minNodeReward,
-                                     @NonNull final List<RosterEntry> rosterEntries) {
+            @NonNull final Instant now,
+            @NonNull final List<Long> activeNodeIds,
+            final long perNodeReward,
+            @NonNull final AccountID nodeRewardsAccountId,
+            final long rewardAccountBalance,
+            final long minNodeReward,
+            @NonNull final List<RosterEntry> rosterEntries) {
         requireNonNull(state);
         requireNonNull(now);
         requireNonNull(activeNodeIds);

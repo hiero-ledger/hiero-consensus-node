@@ -94,7 +94,6 @@ import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -106,7 +105,6 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import javax.inject.Inject;
 import javax.inject.Singleton;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.event.ConsensusEvent;
@@ -319,14 +317,16 @@ public class HandleWorkflow {
 
             try {
                 if (lastConsTime.isAfter(EPOCH)) {
-                    transactionsDispatched |= feeDistributor.distributeFees(state, lastConsTime.plusNanos(1), systemTransactions);
+                    transactionsDispatched |=
+                            feeDistributor.distributeFees(state, lastConsTime.plusNanos(1), systemTransactions);
                 }
             } catch (Exception e) {
                 logger.warn("Failed to pay node fees to nodes", e);
             }
             try {
                 if (lastConsTime.isAfter(EPOCH)) {
-                    transactionsDispatched |= nodeRewardManager.maybeRewardActiveNodes(state, lastConsTime.plusNanos(1), systemTransactions);
+                    transactionsDispatched |= nodeRewardManager.maybeRewardActiveNodes(
+                            state, lastConsTime.plusNanos(1), systemTransactions);
                 }
             } catch (Exception e) {
                 logger.warn("Failed to reward active nodes", e);
@@ -425,7 +425,8 @@ public class HandleWorkflow {
         }
         final boolean isGenesis =
                 switch (streamMode) {
-                    case RECORDS -> blockRecordManager.consTimeOfLastHandledTxn().equals(EPOCH);
+                    case RECORDS ->
+                        blockRecordManager.consTimeOfLastHandledTxn().equals(EPOCH);
                     case BLOCKS, BOTH -> blockStreamManager.pendingWork() == GENESIS_WORK;
                 };
         if (isGenesis) {
@@ -680,7 +681,8 @@ public class HandleWorkflow {
             final var iter = scheduleService.executableTxns(
                     executionStart,
                     iteratorEnd,
-                    StoreFactoryImpl.from(state, ScheduleService.NAME, config, writableEntityIdStore, apiProviders));
+                    StoreFactoryImpl.from(
+                            state, ScheduleService.NAME, config, writableEntityIdStore, apiProviders, feeDistributor));
 
             final var writableStates = state.getWritableStates(ScheduleService.NAME);
             // Configuration sets a maximum number of execution slots per user transaction
@@ -1024,13 +1026,13 @@ public class HandleWorkflow {
                     // can still make progress on publishing proof keys as needed
                     final var vk = Optional.ofNullable(
                                     (historyStore.getLedgerId() == null
-                                            || (tssConfig.wrapsEnabled()
-                                            && historyStore
-                                            .getActiveConstruction()
-                                            .hasTargetProof()
-                                            && !isWrapsExtensible(historyStore
-                                            .getActiveConstruction()
-                                            .targetProof())))
+                                                    || (tssConfig.wrapsEnabled()
+                                                            && historyStore
+                                                                    .getActiveConstruction()
+                                                                    .hasTargetProof()
+                                                            && !isWrapsExtensible(historyStore
+                                                                    .getActiveConstruction()
+                                                                    .targetProof())))
                                             ? hintsStore.getActiveConstruction().hintsScheme()
                                             : hintsStore.getNextConstruction().hintsScheme())
                             .map(s -> s.preprocessedKeysOrThrow().verificationKey())
