@@ -28,14 +28,19 @@ import com.swirlds.platform.test.fixtures.event.DynamicValue;
 import com.swirlds.platform.test.fixtures.event.DynamicValueGenerator;
 import com.swirlds.platform.test.fixtures.event.source.EventSource;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Random;
 import org.hiero.consensus.crypto.DefaultEventHasher;
 import org.hiero.consensus.model.event.PlatformEvent;
+import org.hiero.consensus.model.hashgraph.ConsensusConstants;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.roster.RosterUtils;
@@ -43,12 +48,22 @@ import org.hiero.consensus.roster.RosterUtils;
 /**
  * A utility class for generating a graph of events.
  */
-public class StandardGraphGenerator extends AbstractGraphGenerator {
+public class StandardGraphGenerator implements GraphGenerator {
 
     /**
      * A list of sources. There is one source per node that is being simulated.
      */
     private final List<EventSource> sources;
+    /**
+     * The initial seed of this generator.
+     */
+    private final long initialSeed;
+
+    /** The maximum number of other-parents that newly generated events should have */
+    private final int maxOtherParents;
+
+    /** The highest birth round of created events for each creator */
+    private final Map<NodeId, Long> maxBirthRoundPerCreator;
 
     /**
      * Determines the probability that a node becomes the other parent of an event.
@@ -106,6 +121,14 @@ public class StandardGraphGenerator extends AbstractGraphGenerator {
      * The linker for events to use with the internal consensus.
      */
     private ConsensusLinker linker;
+    /**
+     * The total number of events that have been emitted by this generator.
+     */
+    private long numEventsGenerated;
+    /**
+     * The source of all randomness for this class.
+     */
+    private Random random;
 
     /**
      * Construct a new StandardEventGenerator.
@@ -132,21 +155,9 @@ public class StandardGraphGenerator extends AbstractGraphGenerator {
             @NonNull final PlatformContext platformContext,
             final long seed,
             @NonNull final List<EventSource> eventSources) {
-        super(seed);
-        this.platformContext = Objects.requireNonNull(platformContext);
-        this.sources = Objects.requireNonNull(eventSources);
-        if (eventSources.isEmpty()) {
-            throw new IllegalArgumentException("At least one event source is required");
-        }
-
-        final int eventSourceCount = eventSources.size();
-
-        this.roster = RandomRosterBuilder.create(getRandom())
-                .withSize(eventSourceCount)
-                .build();
-        setAddressBookInitializeEventSources(eventSources, roster);
-        buildDefaultOtherParentAffinityMatrix();
-        initializeInternalConsensus();
+        this(platformContext, seed, eventSources, RandomRosterBuilder.create(new Random(seed))
+                .withSize(eventSources.size())
+                .build());
     }
 
     public StandardGraphGenerator(
@@ -154,7 +165,19 @@ public class StandardGraphGenerator extends AbstractGraphGenerator {
             final long seed,
             @NonNull final List<EventSource> eventSources,
             @NonNull final Roster roster) {
-        super(seed);
+        this(platformContext, seed, 1, eventSources, roster);
+    }
+
+    public StandardGraphGenerator(
+            @NonNull final PlatformContext platformContext,
+            final long seed,
+            final int maxOtherParents,
+            @NonNull final List<EventSource> eventSources,
+            @NonNull final Roster roster) {
+        this.initialSeed = seed;
+        this.maxOtherParents = maxOtherParents;
+        this.random = new Random(seed);
+        this.maxBirthRoundPerCreator = new HashMap<>();
         this.platformContext = Objects.requireNonNull(platformContext);
         this.sources = Objects.requireNonNull(eventSources);
 
@@ -168,17 +191,13 @@ public class StandardGraphGenerator extends AbstractGraphGenerator {
     }
 
     /**
-     * Copy constructor.
-     */
-    private StandardGraphGenerator(final StandardGraphGenerator that) {
-        this(that, that.getInitialSeed());
-    }
-
-    /**
      * Copy constructor, but with a different seed.
      */
     private StandardGraphGenerator(final StandardGraphGenerator that, final long seed) {
-        super(seed);
+        this.initialSeed = seed;
+        this.maxOtherParents = that.maxOtherParents;
+        this.random = new Random(seed);
+        this.maxBirthRoundPerCreator = new HashMap<>();
 
         this.affinityMatrix = that.affinityMatrix.cleanCopy();
         this.sources = new ArrayList<>(that.sources.size());
@@ -292,7 +311,7 @@ public class StandardGraphGenerator extends AbstractGraphGenerator {
      */
     @Override
     public StandardGraphGenerator cleanCopy() {
-        return new StandardGraphGenerator(this);
+        return new StandardGraphGenerator(this, this.initialSeed);
     }
 
     /**
@@ -341,9 +360,8 @@ public class StandardGraphGenerator extends AbstractGraphGenerator {
     }
 
     /**
-     * {@inheritDoc}
-     */
-    @Override
+         * Child classes should reset internal metadata in this method.
+         */
     protected void resetInternalData() {
         for (final EventSource source : sources) {
             source.reset();
@@ -410,9 +428,10 @@ public class StandardGraphGenerator extends AbstractGraphGenerator {
     }
 
     /**
-     * {@inheritDoc}
-     */
-    @Override
+         * Build the event that will be returned by getNextEvent.
+         *
+         * @param eventIndex the index of the event to build
+         */
     public EventImpl buildNextEvent(final long eventIndex) {
         final EventSource source = getNextEventSource(eventIndex);
         final EventSource otherParentSource = getNextOtherParentSource(eventIndex, source);
@@ -494,5 +513,63 @@ public class StandardGraphGenerator extends AbstractGraphGenerator {
     public HashgraphGuiSource createGuiSource() {
         return new StandardGuiSource(
                 getRoster(), new GuiEventStorage(consensus, linker, platformContext.getConfiguration()));
+    }
+
+    /**
+     * {@inheritDoc}
+     * <p>
+     * Child classes must call super.reset() if they override this method.
+     */
+    @Override
+    public final void reset() {
+        numEventsGenerated = 0;
+        random = new Random(initialSeed);
+        maxBirthRoundPerCreator.clear();
+        resetInternalData();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    public final EventImpl generateEvent() {
+        return generateEventWithoutIndex();
+    }
+
+    /**
+     * The same as {@link #generateEvent()}, but does not set the stream sequence number.
+     */
+    public final EventImpl generateEventWithoutIndex() {
+        final EventImpl next = buildNextEvent(numEventsGenerated);
+        next.getBaseEvent().signalPrehandleCompletion();
+        numEventsGenerated++;
+        updateMaxBirthRound(next);
+        return next;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public final long getNumEventsGenerated() {
+        return numEventsGenerated;
+    }
+
+    /**
+     * Get the Random object to be used by this class.
+     */
+    protected final Random getRandom() {
+        return random;
+    }
+
+    private void updateMaxBirthRound(@NonNull final EventImpl event) {
+        maxBirthRoundPerCreator.merge(event.getCreatorId(), event.getBirthRound(), Math::max);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public long getMaxBirthRound(@Nullable final NodeId creatorId) {
+        return maxBirthRoundPerCreator.getOrDefault(creatorId, ConsensusConstants.ROUND_NEGATIVE_INFINITY);
     }
 }
