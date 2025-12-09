@@ -18,7 +18,7 @@ import static com.hedera.node.app.service.token.impl.util.AirdropHandlerHelper.c
 import static com.hedera.node.app.service.token.impl.util.AirdropHandlerHelper.separateFungibleTransfers;
 import static com.hedera.node.app.service.token.impl.util.AirdropHandlerHelper.separateNftTransfers;
 import static com.hedera.node.app.service.token.impl.util.CryptoTransferHelper.createAccountAmount;
-import static com.hedera.node.app.spi.fees.util.FeeUtils.feeResultToFees;
+import static com.hedera.node.app.spi.fees.util.FeeUtils.tinycentsToTinybars;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static java.lang.Math.toIntExact;
 import static java.util.Objects.requireNonNull;
@@ -71,7 +71,7 @@ import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.hapi.fees.FeeResult;
+import org.hiero.hapi.support.fees.Extra;
 
 /**
  * This class contains all workflow-related functionality regarding {@link
@@ -515,12 +515,8 @@ public class TokenAirdropHandler extends TransferExecutor implements Transaction
 
         if (feeContext.configuration().getConfigData(FeesConfig.class).simpleFeesEnabled()) {
             // return airdrop extra fee if simple fees are enabled
-            // TODO read from fee schedule instead of hardcoding
-            final var airdropFee = 500_000_000L;
-            final var airdropFeeResult = new FeeResult();
-            airdropFeeResult.addServiceFee(1, airdropFee);
-            return feeResultToFees(airdropFeeResult, fromPbj(context.activeRate()))
-                    .totalFee();
+            final var airdropFee = context.getSimpleFeeCalculator().getExtraFee(Extra.AIRDROPS);
+            return tinycentsToTinybars(airdropFee, fromPbj(context.activeRate()));
         }
 
         return context.feeCalculatorFactory()
