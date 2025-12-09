@@ -251,18 +251,7 @@ public class TipsetEventCreator implements EventCreator {
             return buildAndProcessEvent();
         }
 
-        final long selfishness = tipsetWeightCalculator.getMaxSelfishnessScore();
-        tipsetMetrics.getSelfishnessMetric().update(selfishness);
-
-        // Never bother with anti-selfishness techniques if we have a selfishness score of 1.
-        // We are pretty much guaranteed to be selfish to ~1/3 of other nodes by a score of 1.
-        final double beNiceChance = (selfishness - 1) / antiSelfishnessFactor;
-
-        if (beNiceChance > 0 && random.nextDouble() < beNiceChance) {
-            return createEventToReduceSelfishness();
-        } else {
-            return createEventByOptimizingAdvancementWeight();
-        }
+        return createEventCombinedAlgorithm();
     }
 
     private PlatformEvent signEvent(final UnsignedEvent event) {
@@ -270,12 +259,13 @@ public class TipsetEventCreator implements EventCreator {
     }
 
     /**
-     * Create an event using the other parent with the best tipset advancement weight.
+     * Create an event using the other parent with the best tipset advancement weight, possibly mixing a single other
+     * parent to reduce selfishness.
      *
      * @return the new event, or null if it is not legal to create a new event
      */
     @Nullable
-    private UnsignedEvent createEventByOptimizingAdvancementWeight() {
+    private UnsignedEvent createEventCombinedAlgorithm() {
         final List<PlatformEvent> possibleOtherParents =
                 new ArrayList<>(childlessOtherEventTracker.getChildlessEvents());
         Collections.shuffle(possibleOtherParents, random);
@@ -314,20 +304,48 @@ public class TipsetEventCreator implements EventCreator {
             return buildAndProcessEvent();
         }
 
-        for (final PlatformEvent chosenBestParent : chosenBestParents) {
-            tipsetMetrics.getTipsetParentMetric(chosenBestParent.getCreatorId()).cycle();
+        final long selfishness = tipsetWeightCalculator.getMaxSelfishnessScore();
+        tipsetMetrics.getSelfishnessMetric().update(selfishness);
+
+        // Never bother with anti-selfishness techniques if we have a selfishness score of 1.
+        // We are pretty much guaranteed to be selfish to ~1/3 of other nodes by a score of 1.
+        final double beNiceChance = (selfishness - 1) / antiSelfishnessFactor;
+
+        boolean replacedBestParentForSelfishness = false;
+
+        if (beNiceChance > 0 && random.nextDouble() < beNiceChance) {
+            // replace one of the best parents with the one chosen to reduce selfishness
+            final PlatformEvent selflessParent = selectParentToReduceSelfishness();
+            // if we already contain that event, everything is good
+            if (!chosenBestParents.contains(selflessParent)) {
+                // otherwise, replace the least important parent with one we have chosen to reduce selfishness
+                // please note in case of single-parent events, this will replace the only parent
+                chosenBestParents.set(chosenBestParents.size() - 1, selflessParent);
+                replacedBestParentForSelfishness = true;
+            }
+        }
+
+        for (int i = 0; i < chosenBestParents.size(); i++) {
+            if (replacedBestParentForSelfishness && i == chosenBestParents.size() - 1) {
+                tipsetMetrics
+                        .getPityParentMetric(chosenBestParents.get(i).getCreatorId())
+                        .cycle();
+            } else {
+                tipsetMetrics
+                        .getTipsetParentMetric(chosenBestParents.get(i).getCreatorId())
+                        .cycle();
+            }
         }
 
         return buildAndProcessEvent(chosenBestParents.toArray(new PlatformEvent[chosenBestParents.size()]));
     }
 
     /**
-     * Create an event that reduces the selfishness score.
+     * Select a parent event that reduces the selfishness score.
      *
-     * @return the new event, or null if it is not legal to create a new event
+     * @return parent to reduce selfishness
      */
-    @Nullable
-    private UnsignedEvent createEventToReduceSelfishness() {
+    private PlatformEvent selectParentToReduceSelfishness() {
         final Collection<PlatformEvent> possibleOtherParents = childlessOtherEventTracker.getChildlessEvents();
         final List<PlatformEvent> ignoredNodes = new ArrayList<>(possibleOtherParents.size());
 
@@ -379,37 +397,19 @@ public class TipsetEventCreator implements EventCreator {
             return null;
         }
 
-        final List<PlatformEvent> selectedEvents = new ArrayList<>(maxOtherParents);
-
-        // select random parents with weights based on selfishness until we have run out of candidates
-        // or maxOtherParents parents were chosen
-        while (!ignoredNodes.isEmpty() && selectedEvents.size() < maxOtherParents) {
-            // Choose a random ignored node.
-            final int choice = random.nextInt(selfishnessSum);
-            int runningSum = 0;
-            for (int i = 0; i < ignoredNodes.size(); i++) {
-                runningSum += selfishnessScores.get(i);
-                if (choice < runningSum) {
-                    final PlatformEvent ignoredNode = ignoredNodes.get(i);
-                    tipsetMetrics
-                            .getPityParentMetric(ignoredNode.getCreatorId())
-                            .cycle();
-                    selectedEvents.add(ignoredNode);
-
-                    // remove node from list of candidates, so we won't select it again
-                    selfishnessSum -= selfishnessScores.get(i);
-                    ignoredNodes.remove(i);
-                    selfishnessScores.remove(i);
-                    break;
-                }
+        // Choose a random ignored node.
+        final int choice = random.nextInt(selfishnessSum);
+        int runningSum = 0;
+        for (int i = 0; i < ignoredNodes.size(); i++) {
+            runningSum += selfishnessScores.get(i);
+            if (choice < runningSum) {
+                final PlatformEvent ignoredNode = ignoredNodes.get(i);
+                return ignoredNode;
             }
         }
-        if (selectedEvents.isEmpty()) {
-            // This should be impossible.
-            throw new IllegalStateException("Failed to find an other parent");
-        }
 
-        return buildAndProcessEvent(selectedEvents.toArray(new PlatformEvent[selectedEvents.size()]));
+        // This should be impossible.
+        throw new IllegalStateException("Failed to find an other parent");
     }
 
     /**
