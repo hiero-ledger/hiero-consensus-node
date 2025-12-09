@@ -39,12 +39,6 @@ public interface TeacherTreeView<T>
             final MerkleDataOutputStream outputStream);
 
     /**
-     * Aborts the reconnect process on the teacher side. It may be used to release resources, when
-     * reconnect failed with an exception.
-     */
-    default void abort() {}
-
-    /**
      * Write data for a merkle leaf to the stream.
      *
      * @param out

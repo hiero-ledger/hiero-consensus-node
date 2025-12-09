@@ -129,22 +129,14 @@ public final class LearnerPushVirtualTreeView extends VirtualTreeViewBase implem
         final AsyncOutputStream<QueryResponse> out = learningSynchronizer.buildOutputStream(workGroup, outputStream);
         out.start();
 
-        final LearnerPushTask<Long> learnerThread =
-                new LearnerPushTask<>(workGroup, in, out, this, learningSynchronizer, mapStats);
+        final LearnerPushTask learnerThread =
+                new LearnerPushTask(workGroup, in, out, this, learningSynchronizer, mapStats);
         learnerThread.start();
     }
 
     @Override
     public void abort() {
         in.abort();
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public Long getOriginalRoot() {
-        return ROOT_PATH;
     }
 
     /**
@@ -254,14 +246,6 @@ public final class LearnerPushVirtualTreeView extends VirtualTreeViewBase implem
         logger.info(RECONNECT.getMarker(), "call root.endLearnerReconnect()");
         map.endLearnerReconnect();
         logger.info(RECONNECT.getMarker(), "close() complete");
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void releaseNode(final Long node) {
-        // no-op
     }
 
     /**

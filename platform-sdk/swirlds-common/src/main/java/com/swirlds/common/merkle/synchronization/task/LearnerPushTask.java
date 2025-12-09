@@ -19,20 +19,17 @@ import org.hiero.base.crypto.Hash;
 
 /**
  * This class manages the learner's work task for synchronization.
- *
- * @param <T>
- * 		the type of data used by the view to represent a node
  */
-public class LearnerPushTask<T> {
+public class LearnerPushTask {
 
     private static final Logger logger = LogManager.getLogger(LearnerPushTask.class);
 
     private static final String NAME = "learner-task";
 
     private final StandardWorkGroup workGroup;
-    private final AsyncInputStream<Lesson<T>> in;
+    private final AsyncInputStream<Lesson<Long>> in;
     private final AsyncOutputStream<QueryResponse> out;
-    private final LearnerTreeView<T> view;
+    private final LearnerTreeView<Long> view;
     private final ReconnectNodeCount nodeCount;
 
     private final ReconnectMapStats mapStats;
@@ -57,9 +54,9 @@ public class LearnerPushTask<T> {
      */
     public LearnerPushTask(
             final StandardWorkGroup workGroup,
-            final AsyncInputStream<Lesson<T>> in,
+            final AsyncInputStream<Lesson<Long>> in,
             final AsyncOutputStream<QueryResponse> out,
-            final LearnerTreeView<T> view,
+            final LearnerTreeView<Long> view,
             final ReconnectNodeCount nodeCount,
             @NonNull final ReconnectMapStats mapStats) {
         this.workGroup = workGroup;
@@ -77,17 +74,14 @@ public class LearnerPushTask<T> {
     /**
      * Based on the data in a lesson, get the node that should be inserted into the tree.
      */
-    private T extractNodeFromLesson(
-            final LearnerTreeView<T> view,
-            final ExpectedLesson<T> expectedLesson,
-            final Lesson<T> lesson,
-            boolean firstLesson) {
+    private Long extractNodeFromLesson(
+            final ExpectedLesson<Long> expectedLesson, final Lesson<Long> lesson, boolean firstLesson) {
 
         if (lesson.isCurrentNodeUpToDate()) {
             // We already have the correct node in our tree.
             return expectedLesson.getOriginalNode();
         } else {
-            final T node;
+            final Long node;
 
             if (firstLesson) {
                 // Special case: roots of subtrees with custom views will have been copied
@@ -106,18 +100,18 @@ public class LearnerPushTask<T> {
      * Handle queries associated with a lesson.
      */
     private void handleQueries(
-            final LearnerTreeView<T> view,
-            final AsyncInputStream<Lesson<T>> in,
+            final LearnerTreeView<Long> view,
+            final AsyncInputStream<Lesson<Long>> in,
             final AsyncOutputStream<QueryResponse> out,
             final List<Hash> queries,
-            final T originalParent,
-            final T newParent)
+            final Long originalParent,
+            final Long newParent)
             throws InterruptedException {
 
         final int childCount = queries.size();
         for (int childIndex = 0; childIndex < childCount; childIndex++) {
 
-            final T originalChild;
+            final Long originalChild;
             if (view.isInternal(originalParent, true) && view.getNumberOfChildren(originalParent) > childIndex) {
                 originalChild = view.getChild(originalParent, childIndex);
             } else {
@@ -146,7 +140,8 @@ public class LearnerPushTask<T> {
     /**
      * Update node counts for statistics.
      */
-    private void addToNodeCount(final ExpectedLesson<T> expectedLesson, final Lesson<T> lesson, final T newChild) {
+    private void addToNodeCount(
+            final ExpectedLesson<Long> expectedLesson, final Lesson<Long> lesson, final Long newChild) {
         if (lesson.isLeafLesson()) {
             mapStats.incrementLeafData(1, expectedLesson.isNodeAlreadyPresent() ? 1 : 0);
         }
@@ -178,18 +173,18 @@ public class LearnerPushTask<T> {
                 out;
                 view) {
 
-            view.expectLessonFor(null, 0, view.getOriginalRoot(), false);
+            view.expectLessonFor(null, 0, 0L, false);
             in.anticipateMessage();
 
             while (view.hasNextExpectedLesson()) {
 
-                final ExpectedLesson<T> expectedLesson = view.getNextExpectedLesson();
-                final Lesson<T> lesson = in.readAnticipatedMessage();
+                final ExpectedLesson<Long> expectedLesson = view.getNextExpectedLesson();
+                final Lesson<Long> lesson = in.readAnticipatedMessage();
                 mapStats.incrementTransfersFromTeacher();
 
-                final T parent = expectedLesson.getParent();
+                final Long parent = expectedLesson.getParent();
 
-                final T newChild = extractNodeFromLesson(view, expectedLesson, lesson, firstLesson);
+                final Long newChild = extractNodeFromLesson(expectedLesson, lesson, firstLesson);
 
                 firstLesson = false;
 

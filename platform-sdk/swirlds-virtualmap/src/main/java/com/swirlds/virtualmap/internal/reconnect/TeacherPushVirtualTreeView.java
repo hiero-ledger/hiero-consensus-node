@@ -30,7 +30,6 @@ import com.swirlds.virtualmap.internal.merkle.VirtualMapMetadata;
 import com.swirlds.virtualmap.internal.pipeline.VirtualPipeline;
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicLong;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Hash;
@@ -159,18 +158,11 @@ public final class TeacherPushVirtualTreeView extends VirtualTreeViewBase implem
         teacherReceiveTask.start();
     }
 
-    public Long getRoot() {
-        return ROOT_PATH;
-    }
-
-    private final AtomicLong processed = new AtomicLong(0);
-
     /**
      * {@inheritDoc}
      */
     @Override
     public void addToHandleQueue(final Long node) {
-        processed.incrementAndGet();
         checkValidNode(node, reconnectState);
         accumulatingHandleQueue.add(node);
     }

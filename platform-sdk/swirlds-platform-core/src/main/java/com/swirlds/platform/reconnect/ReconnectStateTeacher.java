@@ -75,6 +75,7 @@ public class ReconnectStateTeacher {
      * @param selfId                 this node's ID
      * @param otherId                the learner's ID
      * @param lastRoundReceived      the round of the state
+     * @param signedState            the state used for teaching; must be a signed VirtualMapState
      * @param statistics             reconnect metrics
      */
     public ReconnectStateTeacher(

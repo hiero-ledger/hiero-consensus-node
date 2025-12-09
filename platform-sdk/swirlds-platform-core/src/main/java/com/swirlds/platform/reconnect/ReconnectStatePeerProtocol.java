@@ -302,7 +302,6 @@ public class ReconnectStatePeerProtocol implements PeerProtocol {
      */
     private void learner(final Connection connection) {
         try {
-
             final MerkleNodeState consensusState = stateLifecycleManager.getMutableState();
             final ReconnectStateLearner learner = new ReconnectStateLearner(
                     platformContext,
@@ -369,7 +368,7 @@ public class ReconnectStatePeerProtocol implements PeerProtocol {
     private void teacher(final Connection connection) {
         try {
             final SignedState state = teacherState.get();
-            ReconnectStateTeacher teacher;
+            final ReconnectStateTeacher teacher;
             try {
                 teacher = new ReconnectStateTeacher(
                         platformContext,

@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.virtualmap.internal.reconnect;
 
-import static com.swirlds.virtualmap.internal.Path.ROOT_PATH;
-
 import com.swirlds.common.io.streams.MerkleDataInputStream;
 import com.swirlds.common.io.streams.MerkleDataOutputStream;
 import com.swirlds.common.merkle.synchronization.LearningSynchronizer;
@@ -211,14 +209,6 @@ public final class LearnerPullVirtualTreeView extends VirtualTreeViewBase implem
      * {@inheritDoc}
      */
     @Override
-    public Long getOriginalRoot() {
-        return ROOT_PATH;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
     public Hash getNodeHash(final Long originalChild) {
         // The path given is the _ORIGINAL_ child. Each call to this
         // method will be made only for the original state from the original tree.
@@ -286,14 +276,6 @@ public final class LearnerPullVirtualTreeView extends VirtualTreeViewBase implem
     public void close() {
         nodeRemover.allNodesReceived();
         map.endLearnerReconnect();
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void releaseNode(final Long node) {
-        // no-op
     }
 
     /**

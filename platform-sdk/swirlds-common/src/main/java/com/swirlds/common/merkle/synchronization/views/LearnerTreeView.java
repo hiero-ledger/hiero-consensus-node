@@ -47,13 +47,6 @@ public interface LearnerTreeView<T> extends LearnerExpectedLessonQueue<T>, TreeV
     default void abort() {}
 
     /**
-     * Get the root of the tree (or subtree).
-     *
-     * @return the root
-     */
-    T getOriginalRoot();
-
-    /**
      * Set the child of an internal node.
      *
      * @param parent
@@ -115,14 +108,6 @@ public interface LearnerTreeView<T> extends LearnerExpectedLessonQueue<T>, TreeV
      * 		if a problem is encountered with the stream
      */
     T deserializeInternal(SerializableDataInputStream in) throws IOException;
-
-    /**
-     * Release a leaf node.
-     *
-     * @param node
-     * 		the node to release
-     */
-    void releaseNode(T node);
 
     /**
      * Record metrics related to queries about children of a given parent during reconnect.

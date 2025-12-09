@@ -69,7 +69,7 @@ public class ReconnectStateLearner {
      * @param connection
      * 		the connection to use for the reconnect
      * @param currentState
-     * 		the most recent state from the learner
+     * 		the most recent state from the learner; must be a VirtualMapState
      * @param reconnectSocketTimeout
      * 		the amount of time that should be used for the socket timeout
      * @param statistics

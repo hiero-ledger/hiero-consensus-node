@@ -126,11 +126,6 @@ public class TeachingSynchronizer {
         workGroup.waitForTermination();
 
         if (workGroup.hasExceptions()) {
-
-            // Depending on where the failure occurred, there may be deserialized objects still sitting in
-            // the async input stream's queue that haven't been attached to any tree.
-            view.abort();
-
             throw new MerkleSynchronizationException(
                     "Synchronization failed with exceptions", firstReconnectException.get());
         }

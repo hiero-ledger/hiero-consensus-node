@@ -1160,7 +1160,12 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
      **/
 
     /**
-     * TODO
+     * Creates a virtual view for this map to use by reconnect teacher. The view is used
+     * to access all nodes and hashes in the virtual tree. The view must not share any
+     * data with this map, so if any changes are made to the map, they aren't reflected
+     * in the view.
+     *
+     * <p>The view will be closed by reconnect teacher, when reconnect is complete or failed.
      */
     public TeacherTreeView<Long> buildTeacherView() {
         final ReconnectConfig reconnectConfig = configuration.getConfigData(ReconnectConfig.class);
@@ -1177,16 +1182,15 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
     }
 
     /**
-     * TODO
+     * Initialize a new reconnect root created using {@link #newReconnectRoot()} with data
+     * from the specified virtual map.
      */
-    private void setupWithOriginalNode(@NonNull final MerkleNode originalNode) {
-        assert originalNode instanceof VirtualMap : "The original node was not a VirtualMap!";
-
+    private void setupWithOriginalNode(@NonNull final VirtualMap originalMap) {
         // NOTE: If we're reconnecting, then the old tree is toast. We hold onto the originalMap to
         // restart from that position again in the future if needed, but we're never going to use
         // the old map again. We need the data source builder from the old map so, we can create
         // new data sources in this new map with all the right settings.
-        originalMap = (VirtualMap) originalNode;
+        this.originalMap = originalMap;
         this.dataSourceBuilder = originalMap.dataSourceBuilder;
 
         // shutdown background compaction on original data source as it is no longer needed to be running as all data
@@ -1227,6 +1231,11 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
         statistics = originalMap.statistics;
     }
 
+    /**
+     * Creates a new virtual map to be used by reconnect learner. The new map will contain
+     * the same data as this map, all changes to the new map will not be reflected in
+     * this map.
+     */
     public VirtualMap newReconnectRoot() {
         final VirtualMap newRoot = new VirtualMap(configuration);
         // Ensure the original map is hashed here. Once hashed, all its internal nodes are also hashed,
@@ -1237,6 +1246,13 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
         return newRoot;
     }
 
+    /**
+     * Creates a virtual tree view for a new reconnect root created using {@link #newReconnectRoot()}.
+     * The view will be used to access all nodes and hashes in the virtual tree by reconnect
+     * learner.
+     *
+     * <p>The view will be closed by reconnect learner, when reconnect is complete or failed.
+     */
     public LearnerTreeView<Long> buildLearnerView(@NonNull final ReconnectMapStats mapStats) {
         final ReconnectConfig reconnectConfig = configuration.getConfigData(ReconnectConfig.class);
         assert originalMap != null;

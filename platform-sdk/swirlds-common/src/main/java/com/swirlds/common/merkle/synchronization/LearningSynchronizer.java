@@ -48,7 +48,17 @@ public class LearningSynchronizer implements ReconnectNodeCount {
 
     private final Runnable breakConnection;
 
+    /**
+     * New state root node used to put data from the teacher. The node is always a
+     * virtual map. FUTURE WORK: move this code from swirlds-common to a different
+     * module that may depend on swirlds-virtualmap and change newRoot type from
+     * MerkleNode to VirtualMap.
+     */
     private final MerkleNode newRoot;
+
+    /**
+     * Virtual tree view used to access nodes and hashes in the newRoot above.
+     */
     private final LearnerTreeView<?> view;
 
     private int leafNodesReceived;
