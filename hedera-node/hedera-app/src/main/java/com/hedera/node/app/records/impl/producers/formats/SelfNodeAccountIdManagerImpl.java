@@ -70,9 +70,9 @@ public class SelfNodeAccountIdManagerImpl implements SelfNodeAccountIdManager {
             accountId = nodeInfo.accountId();
             return;
         }
+        final var config = configProvider.getConfiguration();
+        final var filesConfig = config.getConfigData(FilesConfig.class);
         try {
-            final var config = configProvider.getConfiguration();
-            final var filesConfig = config.getConfigData(FilesConfig.class);
             final var nodeDetailsId = FileUtilities.createFileID(filesConfig.nodeDetails(), config);
             final var fileStore = new ReadableStoreFactory(state).getStore(ReadableFileStore.class);
             final var nodeDetailsFile = fileStore.getFileLeaf(nodeDetailsId);
@@ -96,7 +96,8 @@ public class SelfNodeAccountIdManagerImpl implements SelfNodeAccountIdManager {
                 accountId = nodeInfo.accountId();
             }
         } catch (ParseException e) {
-            logger.warn("Failed to parse node details (file 102); using NodeInfo account id", e);
+            logger.warn(
+                    "Failed to parse node details (file {}); using NodeInfo account id", filesConfig.nodeDetails(), e);
             accountId = nodeInfo.accountId();
         }
     }
