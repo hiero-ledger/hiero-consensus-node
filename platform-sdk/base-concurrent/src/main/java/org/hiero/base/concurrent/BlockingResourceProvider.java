@@ -110,6 +110,12 @@ public class BlockingResourceProvider<T> {
             waitingForResource.set(false);
         }
     }
+    /**
+     * If there is a client expecting a resource
+     */
+    public boolean isWaitingForResource() {
+        return waitingForResource.get();
+    }
 
     private void consumerDone() {
         resource.setResource(null);
