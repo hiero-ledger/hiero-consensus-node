@@ -3,7 +3,6 @@ package com.swirlds.virtualmap.constructable;
 
 import com.swirlds.config.api.Configuration;
 import com.swirlds.virtualmap.VirtualMap;
-import com.swirlds.virtualmap.internal.merkle.VirtualRootNode;
 import org.hiero.base.constructable.ClassConstructorPair;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.ConstructableRegistryException;
@@ -23,7 +22,5 @@ public final class ConstructableUtils {
             throws ConstructableRegistryException {
         ConstructableRegistry.getInstance()
                 .registerConstructable(new ClassConstructorPair(VirtualMap.class, () -> new VirtualMap(configuration)));
-        ConstructableRegistry.getInstance()
-                .registerConstructable(new ClassConstructorPair(VirtualRootNode.class, VirtualRootNode::new));
     }
 }

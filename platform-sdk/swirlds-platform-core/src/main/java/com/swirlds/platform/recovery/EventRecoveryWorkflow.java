@@ -6,6 +6,11 @@ import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static com.swirlds.platform.builder.PlatformBuildConstants.DEFAULT_CONFIG_FILE_NAME;
 import static com.swirlds.platform.eventhandling.DefaultTransactionPrehandler.NO_OP_CONSUMER;
+import static com.swirlds.platform.state.service.PlatformStateUtils.bulkUpdateOf;
+import static com.swirlds.platform.state.service.PlatformStateUtils.creationSoftwareVersionOf;
+import static com.swirlds.platform.state.service.PlatformStateUtils.freezeTimeOf;
+import static com.swirlds.platform.state.service.PlatformStateUtils.legacyRunningEventHashOf;
+import static com.swirlds.platform.state.service.PlatformStateUtils.updateLastFrozenTime;
 import static com.swirlds.platform.util.BootstrapUtils.setupConstructableRegistry;
 import static com.swirlds.platform.util.BootstrapUtils.setupConstructableRegistryWithConfiguration;
 import static com.swirlds.virtualmap.constructable.ConstructableUtils.registerVirtualMapConstructables;
@@ -36,7 +41,6 @@ import com.swirlds.platform.recovery.internal.RecoveredState;
 import com.swirlds.platform.recovery.internal.RecoveryPlatform;
 import com.swirlds.platform.recovery.internal.StreamedRound;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
-import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.state.snapshot.DeserializedSignedState;
@@ -48,9 +52,6 @@ import com.swirlds.platform.system.state.notifications.NewRecoveredStateListener
 import com.swirlds.platform.system.state.notifications.NewRecoveredStateNotification;
 import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.State;
-import com.swirlds.state.StateLifecycleManager;
-import com.swirlds.state.merkle.StateLifecycleManagerImpl;
-import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -60,7 +61,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.ExecutionException;
-import java.util.function.Function;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.CompareTo;
@@ -100,7 +100,6 @@ public final class EventRecoveryWorkflow {
      * @param allowPartialRounds      if true then allow the last round to be missing events, if false then ignore the
      *                                last round if it does not have all of its events
      * @param loadSigningKeys         if true then load the signing keys
-     * @param platformStateFacade     the facade to access the platform state
      */
     public static void recoverState(
             @NonNull final PlatformContext platformContext,
@@ -112,8 +111,7 @@ public final class EventRecoveryWorkflow {
             @NonNull final Long finalRound,
             @NonNull final Path resultingStateDirectory,
             @NonNull final NodeId selfId,
-            final boolean loadSigningKeys,
-            @NonNull final PlatformStateFacade platformStateFacade)
+            final boolean loadSigningKeys)
             throws IOException {
         Objects.requireNonNull(platformContext);
         Objects.requireNonNull(signedStateDir, "signedStateDir must not be null");
@@ -149,19 +147,10 @@ public final class EventRecoveryWorkflow {
 
         logger.info(STARTUP.getMarker(), "Loading state from {}", signedStateDir);
         // FUTURE-WORK: Follow Browser approach
-        final SwirldMain<? extends MerkleNodeState> hederaApp =
-                HederaUtils.createHederaAppMain(platformContext, platformStateFacade);
+        final SwirldMain<? extends MerkleNodeState> hederaApp = HederaUtils.createHederaAppMain(platformContext);
 
-        final DeserializedSignedState deserializedSignedState = SignedStateFileReader.readState(
-                signedStateDir,
-                v -> hederaApp
-                        .stateRootFromVirtualMap(platformContext.getMetrics(), platformContext.getTime())
-                        .apply(v),
-                platformStateFacade,
-                platformContext);
-        final StateLifecycleManager stateLifecycleManager = new StateLifecycleManagerImpl(
-                platformContext.getMetrics(), platformContext.getTime(), (Function<VirtualMap, MerkleNodeState>)
-                        hederaApp.stateRootFromVirtualMap(platformContext.getMetrics(), platformContext.getTime()));
+        final DeserializedSignedState deserializedSignedState =
+                SignedStateFileReader.readState(signedStateDir, platformContext, hederaApp.getStateLifecycleManager());
         try (final ReservedSignedState initialState = deserializedSignedState.reservedSignedState()) {
             HederaUtils.updateStateHash(hederaApp, deserializedSignedState);
 
@@ -186,8 +175,7 @@ public final class EventRecoveryWorkflow {
                     roundIterator,
                     finalRound,
                     selfId,
-                    loadSigningKeys,
-                    platformStateFacade);
+                    loadSigningKeys);
 
             logger.info(
                     STARTUP.getMarker(),
@@ -203,8 +191,7 @@ public final class EventRecoveryWorkflow {
                     selfId,
                     resultingStateDirectory,
                     recoveredState.state().get(),
-                    platformStateFacade,
-                    stateLifecycleManager);
+                    hederaApp.getStateLifecycleManager());
             final StateConfig stateConfig = platformContext.getConfiguration().getConfigData(StateConfig.class);
             updateEmergencyRecoveryFile(
                     stateConfig, resultingStateDirectory, initialState.get().getConsensusTimestamp());
@@ -303,8 +290,7 @@ public final class EventRecoveryWorkflow {
             @NonNull final IOIterator<StreamedRound> roundIterator,
             final long finalRound,
             @NonNull final NodeId selfId,
-            final boolean loadSigningKeys,
-            @NonNull final PlatformStateFacade platformStateFacade)
+            final boolean loadSigningKeys)
             throws IOException {
 
         Objects.requireNonNull(platformContext, "platformContext must not be null");
@@ -324,7 +310,7 @@ public final class EventRecoveryWorkflow {
                 new RecoveryPlatform(configuration, initialSignedState.get(), selfId, loadSigningKeys);
 
         ConsensusStateEventHandler consensusStateEventHandler = appMain.newConsensusStateEvenHandler();
-        SemanticVersion softwareVersion = platformStateFacade.creationSoftwareVersionOf(initialState);
+        SemanticVersion softwareVersion = creationSoftwareVersionOf(initialState);
         final var notificationEngine = platform.getNotificationEngine();
         notificationEngine.register(
                 NewRecoveredStateListener.class,
@@ -347,8 +333,7 @@ public final class EventRecoveryWorkflow {
                     round.getEventCount(),
                     round.getRoundNum());
 
-            signedState = handleNextRound(
-                    consensusStateEventHandler, platformContext, signedState, round, platformStateFacade);
+            signedState = handleNextRound(consensusStateEventHandler, platformContext, signedState, round);
             platform.setLatestState(signedState.get());
             lastEvent = getLastEvent(round);
         }
@@ -386,8 +371,7 @@ public final class EventRecoveryWorkflow {
             @NonNull final ConsensusStateEventHandler consensusStateEventHandler,
             @NonNull final PlatformContext platformContext,
             @NonNull final ReservedSignedState previousSignedState,
-            @NonNull final StreamedRound round,
-            @NonNull final PlatformStateFacade platformStateFacade) {
+            @NonNull final StreamedRound round) {
 
         final Instant currentRoundTimestamp = getRoundTimestamp(round);
         final SignedState previousState = previousSignedState.get();
@@ -397,24 +381,21 @@ public final class EventRecoveryWorkflow {
         final ConsensusConfig config = platformContext.getConfiguration().getConfigData(ConsensusConfig.class);
         new DefaultEventHasher().hashEvent(lastEvent);
 
-        platformStateFacade.bulkUpdateOf(newState, v -> {
+        bulkUpdateOf(newState, v -> {
             v.setRound(round.getRoundNum());
-            v.setLegacyRunningEventHash(
-                    getHashEventsCons(platformStateFacade.legacyRunningEventHashOf(newState), round));
+            v.setLegacyRunningEventHash(getHashEventsCons(legacyRunningEventHashOf(newState), round));
             v.setConsensusTimestamp(currentRoundTimestamp);
             v.setSnapshot(SyntheticSnapshot.generateSyntheticSnapshot(
                     round.getRoundNum(), lastEvent.getConsensusOrder(), currentRoundTimestamp, config, lastEvent));
-            v.setCreationSoftwareVersion(platformStateFacade.creationSoftwareVersionOf(previousState.getState()));
+            v.setCreationSoftwareVersion(creationSoftwareVersionOf(previousState.getState()));
         });
 
         applyTransactions(consensusStateEventHandler, previousState.getState(), newState, round);
 
-        final boolean isFreezeState = isFreezeState(
-                previousState.getConsensusTimestamp(),
-                currentRoundTimestamp,
-                platformStateFacade.freezeTimeOf(newState));
+        final boolean isFreezeState =
+                isFreezeState(previousState.getConsensusTimestamp(), currentRoundTimestamp, freezeTimeOf(newState));
         if (isFreezeState) {
-            platformStateFacade.updateLastFrozenTime(newState);
+            updateLastFrozenTime(newState);
         }
 
         final SignedState signedState = new SignedState(
@@ -424,8 +405,7 @@ public final class EventRecoveryWorkflow {
                 "EventRecoveryWorkflow.handleNextRound()",
                 isFreezeState,
                 false,
-                false,
-                platformStateFacade);
+                false);
         final ReservedSignedState reservedSignedState = signedState.reserve("recovery");
         previousSignedState.close();
 

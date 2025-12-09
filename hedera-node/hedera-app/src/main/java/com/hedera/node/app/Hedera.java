@@ -15,6 +15,9 @@ import static com.hedera.node.app.util.HederaAsciiArt.HEDERA;
 import static com.hedera.node.config.types.StreamMode.BLOCKS;
 import static com.hedera.node.config.types.StreamMode.RECORDS;
 import static com.swirlds.platform.state.service.PlatformStateService.PLATFORM_STATE_SERVICE;
+import static com.swirlds.platform.state.service.PlatformStateUtils.creationSemanticVersionOf;
+import static com.swirlds.platform.state.service.PlatformStateUtils.freezeTimeOf;
+import static com.swirlds.platform.state.service.PlatformStateUtils.lastFrozenTimeOf;
 import static com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID;
 import static com.swirlds.platform.system.InitTrigger.GENESIS;
 import static com.swirlds.platform.system.InitTrigger.RECONNECT;
@@ -115,7 +118,6 @@ import com.swirlds.platform.listeners.ReconnectCompleteListener;
 import com.swirlds.platform.listeners.ReconnectCompleteNotification;
 import com.swirlds.platform.listeners.StateWriteToDiskCompleteListener;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
-import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.service.PlatformStateService;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
@@ -125,10 +127,11 @@ import com.swirlds.platform.system.state.notifications.StateHashedListener;
 import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.State;
 import com.swirlds.state.StateChangeListener;
+import com.swirlds.state.StateLifecycleManager;
+import com.swirlds.state.merkle.StateLifecycleManagerImpl;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.spi.WritableSingletonStateBase;
-import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.charset.Charset;
@@ -145,7 +148,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 import java.util.function.BiPredicate;
 import java.util.function.Consumer;
-import java.util.function.Function;
 import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -266,6 +268,8 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
 
     private final TokenServiceImpl tokenServiceImpl;
 
+    private final ConsensusServiceImpl consensusServiceImpl;
+
     /**
      * The file service singleton, kept as a field here to avoid constructing twice
      * (once in constructor to register schemas, again inside Dagger component).
@@ -277,12 +281,6 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
      * during the state migration phase in the later initialization phase.
      */
     private final BlockStreamService blockStreamService;
-
-    /**
-     * The platform state facade singleton, kept as a field here to avoid constructing twice`
-     * (once in constructor to register schemas, again inside Dagger component).
-     */
-    private final PlatformStateFacade platformStateFacade;
 
     /**
      * The block hash signer factory.
@@ -385,7 +383,10 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
     private Supplier<Network> genesisNetworkSupplier;
 
     @NonNull
-    private StoreMetricsServiceImpl storeMetricsService;
+    private final StoreMetricsServiceImpl storeMetricsService;
+
+    @NonNull
+    private final StateLifecycleManager stateLifecycleManager;
 
     private boolean onceOnlyServiceInitializationPostDaggerHasHappened = false;
 
@@ -436,8 +437,9 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
      * @param hintsServiceFactory the factory for the hinTS service
      * @param historyServiceFactory the factory for the history service
      * @param blockHashSignerFactory the factory for the block hash signer
+     * @param configuration the configuration to use for the node
      * @param metrics the metrics object to use for reporting
-     * @param platformStateFacade the facade object to access platform state
+     * @param time the time source to use for measuring time
      * @param baseSupplier the base supplier to create a new state with
      */
     public Hedera(
@@ -449,8 +451,9 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
             @NonNull final HintsServiceFactory hintsServiceFactory,
             @NonNull final HistoryServiceFactory historyServiceFactory,
             @NonNull final BlockHashSignerFactory blockHashSignerFactory,
+            @NonNull final Configuration configuration,
             @NonNull final Metrics metrics,
-            @NonNull final PlatformStateFacade platformStateFacade,
+            @NonNull final Time time,
             @NonNull final Supplier<MerkleNodeState> baseSupplier) {
         requireNonNull(registryFactory);
         requireNonNull(constructableRegistry);
@@ -461,7 +464,6 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
         this.startupNetworksFactory = requireNonNull(startupNetworksFactory);
         this.blockHashSignerFactory = requireNonNull(blockHashSignerFactory);
         this.storeMetricsService = new StoreMetricsServiceImpl(metrics);
-        this.platformStateFacade = requireNonNull(platformStateFacade);
         logger.info(
                 """
 
@@ -514,10 +516,10 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
         historyService = historyServiceFactory.apply(appContext, bootstrapConfig);
         utilServiceImpl = new UtilServiceImpl(appContext, (txnBytes, config) -> daggerApp
                 .transactionChecker()
-                .parseSignedAndCheck(
-                        txnBytes, config.getConfigData(HederaConfig.class).transactionMaxBytes())
+                .parseSignedAndCheck(txnBytes)
                 .txBody());
         tokenServiceImpl = new TokenServiceImpl(appContext);
+        consensusServiceImpl = new ConsensusServiceImpl();
         contractServiceImpl = new ContractServiceImpl(appContext, metrics);
         scheduleServiceImpl = new ScheduleServiceImpl(appContext);
         blockStreamService = new BlockStreamService();
@@ -551,21 +553,21 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
                         new NetworkServiceImpl(),
                         new AddressBookServiceImpl(),
                         new RosterServiceImpl(
-                                this::canAdoptRoster,
-                                this::onAdoptRoster,
-                                () -> requireNonNull(initState),
-                                platformStateFacade),
+                                this::canAdoptRoster, this::onAdoptRoster, () -> requireNonNull(initState)),
                         PLATFORM_STATE_SERVICE)
                 .forEach(servicesRegistry::register);
         consensusStateEventHandler = new ConsensusStateEventHandlerImpl(this);
         final var blockStreamsEnabled = isBlockStreamEnabled();
         stateRootSupplier = blockStreamsEnabled ? () -> withListeners(baseSupplier.get()) : baseSupplier;
         onSealConsensusRound = blockStreamsEnabled ? this::manageBlockEndRound : (round, state) -> true;
+        stateLifecycleManager = new StateLifecycleManagerImpl(
+                metrics, time, virtualMap -> new VirtualMapState(virtualMap, metrics), configuration);
     }
 
     /**
      * {@inheritDoc}
      */
+    @NonNull
     @Override
     public SemanticVersion getSemanticVersion() {
         return version;
@@ -588,15 +590,6 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
     @NonNull
     public MerkleNodeState newStateRoot() {
         return stateRootSupplier.get();
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public Function<VirtualMap, MerkleNodeState> stateRootFromVirtualMap(
-            @NonNull final Metrics metrics, @NonNull final Time time) {
-        return virtualMap -> new HederaVirtualMapState(virtualMap, metrics, time);
     }
 
     /**
@@ -659,7 +652,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
                 startGrpcServer();
                 if (initState != null) {
                     // Disabling start up mode, so since now singletons will be commited only on block close
-                    if (initState instanceof VirtualMapState<?> virtualMapState) {
+                    if (initState instanceof VirtualMapState virtualMapState) {
                         virtualMapState.disableStartupMode();
                     }
                 }
@@ -712,7 +705,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
         requireNonNull(platformConfig);
         this.configProvider = new ConfigProviderImpl(trigger == GENESIS, metrics);
         this.genesisNetworkSupplier = () -> startupNetworks().genesisNetworkOrThrow(platformConfig);
-        final var deserializedVersion = platformStateFacade.creationSemanticVersionOf(state);
+        final var deserializedVersion = creationSemanticVersionOf(state);
         logger.info(
                 "Initializing Hedera state version {} in {} mode with trigger {} and previous version {}",
                 version,
@@ -742,8 +735,8 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
         }
         logger.info(
                 "Platform state includes freeze time={} and last frozen={}",
-                platformStateFacade.freezeTimeOf(state),
-                platformStateFacade.lastFrozenTimeOf(state));
+                freezeTimeOf(state),
+                lastFrozenTimeOf(state));
     }
 
     /**
@@ -830,8 +823,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
                 platformConfig,
                 startupNetworks,
                 storeMetricsService,
-                configProvider,
-                platformStateFacade);
+                configProvider);
         this.initState = null;
         migrationStateChanges = new ArrayList<>(migrationChanges);
         immediateStateChangeListener.reset(null);
@@ -982,7 +974,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
 
             logger.debug("Shutting down the state");
             final var state = daggerApp.workingStateAccessor().getState();
-            if (state instanceof HederaVirtualMapState msr) {
+            if (state instanceof VirtualMapState msr) {
                 msr.close();
             }
 
@@ -1175,24 +1167,45 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
         return SignedTransaction.PROTOBUF.toBytes(signedTx);
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void submitStateSignature(@NonNull final StateSignatureTransaction stateSignatureTransaction) {
         transactionPool.submitPriorityTransaction(encodeSystemTransaction(stateSignatureTransaction));
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public @NonNull List<TimestampedTransaction> getTransactionsForEvent() {
         return transactionPool.getTransactionsForEvent();
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public boolean hasBufferedSignatureTransactions() {
         return transactionPool.hasBufferedSignatureTransactions();
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public @NonNull TransactionLimits getTransactionLimits() {
         return transactionLimits;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @NonNull
+    @Override
+    public StateLifecycleManager getStateLifecycleManager() {
+        return stateLifecycleManager;
     }
 
     /*==================================================================================================================
@@ -1249,6 +1262,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
                 .contractServiceImpl(contractServiceImpl)
                 .utilServiceImpl(utilServiceImpl)
                 .tokenServiceImpl(tokenServiceImpl)
+                .consensusServiceImpl(consensusServiceImpl)
                 .scheduleService(scheduleServiceImpl)
                 .initTrigger(trigger)
                 .softwareVersion(version)
@@ -1270,7 +1284,6 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
                 .historyService(historyService)
                 .blockHashSigner(blockHashSigner)
                 .appContext(appContext)
-                .platformStateFacade(platformStateFacade)
                 .build();
         // Initialize infrastructure for fees, exchange rates, and throttles from the working state
         daggerApp.initializer().initialize(state, streamMode);

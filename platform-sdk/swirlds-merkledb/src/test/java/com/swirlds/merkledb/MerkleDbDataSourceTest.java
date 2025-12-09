@@ -4,6 +4,7 @@ package com.swirlds.merkledb;
 import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyFalse;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.*;
 import static com.swirlds.virtualmap.datasource.VirtualDataSource.INVALID_PATH;
+import static org.hiero.base.utility.test.fixtures.RandomUtils.nextInt;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -149,6 +150,28 @@ class MerkleDbDataSourceTest {
                     Duration.ofSeconds(1),
                     "Database should have been deleted by close()");
         });
+    }
+
+    @Test
+    void throwsOnNonPositiveInitialCapacity() {
+        // 0 initial capacity
+        assertThrows(IllegalStateException.class, () -> TestType.variable_variable
+                .dataType()
+                .createDataSource(
+                        Path.of("badInitialCapacityZero" + nextInt()),
+                        "badInitialZero",
+                        0,
+                        false,
+                        false));
+        // negative initial capacity
+        assertThrows(IllegalStateException.class, () -> TestType.variable_variable
+                .dataType()
+                .createDataSource(
+                        Path.of("badInitialCapacityNegative" + nextInt()),
+                        "badInitialNeg",
+                        -1,
+                        false,
+                        false));
     }
 
     @ParameterizedTest
@@ -653,30 +676,6 @@ class MerkleDbDataSourceTest {
                 assertEquals(keys.get(i), leaf.keyBytes(), "Wrong key at path " + i);
                 assertEquals(values.get(i), leaf.value(testType.dataType().getCodec()), "Wrong value at path " + i);
             }
-        });
-    }
-
-    // When a pre-0.67 MerkleDb snapshot is loaded, there are no values for initialCapacity and
-    // hashesRamToDiskThreshold in legacy table_metadata.pbj These values need to be initialized
-    // from MerkleDb config
-    @Test
-    void testRestoreSnapshotNoSomeValues() throws IOException {
-        final String dbName = "db";
-        final TestType testType = TestType.long_fixed;
-        final Path originalDbPath = testDirectory.resolve("testRestoreSnapshotNoSomeValues");
-        createAndApplyDataSource(originalDbPath, dbName, testType, 0, dataSource -> {
-            // Create a snapshot. Initial capacity and hashes threshold are zeroes, this simulates
-            // old (pre-0.67) snapshots
-            final Path snapshotDbPath = testDirectory.resolve("testRestoreSnapshotNoSomeValues-snapshot");
-            dataSource.snapshot(snapshotDbPath);
-
-            final int initialCapacity = 1111;
-
-            // Restore
-            final MerkleDbDataSource snapshot =
-                    testType.dataType().createDataSource(snapshotDbPath, dbName, initialCapacity, false, false);
-            assertEquals(initialCapacity, snapshot.getInitialCapacity());
-            snapshot.close();
         });
     }
 

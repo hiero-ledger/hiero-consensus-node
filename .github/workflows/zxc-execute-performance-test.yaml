@@ -57,7 +57,7 @@ env:
   GS_ROOT_DIR: gs://performance-engineering-reports/ephemeral/test_runs
   GS_ROOT_HTTPS: https://perf.analytics.eng.hashgraph.io/ephemeral/test_runs
   #Release version from jFrog
-  NLG_VERSION: 0.9.0
+  NLG_VERSION: 0.9.1
 
 defaults:
   run:
@@ -165,7 +165,7 @@ jobs:
       - name: Install Teleport Client
         uses: teleport-actions/setup@176c25dfcd19cd31a252f275d579822b243e7b9c # v1.0.6
         with:
-          version: 18.1.4
+          version: 18.4.0
 
       - name: Authorize Teleport SSH Access
         uses: teleport-actions/auth@d48447391aa28b202c98ae3f3358097025c32511 # v2.0.4

@@ -34,20 +34,16 @@ import com.swirlds.platform.network.protocol.SyncProtocol;
 import com.swirlds.platform.network.protocol.rpc.RpcProtocol;
 import com.swirlds.platform.reconnect.FallenBehindMonitor;
 import com.swirlds.platform.reconnect.ReconnectStateTeacherThrottle;
-import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.wiring.NoInput;
 import com.swirlds.platform.wiring.components.Gossip;
-import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.StateLifecycleManager;
-import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.security.cert.X509Certificate;
 import java.time.Duration;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.Consumer;
-import java.util.function.Function;
 import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -74,7 +70,6 @@ public class SyncGossipModular implements Gossip {
     private final FallenBehindMonitor fallenBehindMonitor;
     private final AbstractShadowgraphSynchronizer synchronizer;
     private final StateLifecycleManager stateLifecycleManager;
-    private final Function<VirtualMap, MerkleNodeState> createStateFromVirtualMap;
 
     // this is not a nice dependency, should be removed as well as the sharedState
     private Consumer<PlatformEvent> receivedEventHandler;
@@ -92,8 +87,6 @@ public class SyncGossipModular implements Gossip {
      * @param stateLifecycleManager            manages the mutable state
      * @param latestCompleteState           holds the latest signed state that has enough signatures to be verifiable
      * @param intakeEventCounter            keeps track of the number of events in the intake pipeline from each peer
-     * @param platformStateFacade           the facade to access the platform state
-     * @param createStateFromVirtualMap     a function to instantiate the state object from a Virtual Map
      * @param fallenBehindMonitor           an instance of the fallenBehind Monitor which tracks if the node has fallen behind
      * @param reservedSignedStateResultPromise a mechanism to get a SignedState or block while it is not available
      */
@@ -107,8 +100,6 @@ public class SyncGossipModular implements Gossip {
             @NonNull final StateLifecycleManager stateLifecycleManager,
             @NonNull final Supplier<ReservedSignedState> latestCompleteState,
             @NonNull final IntakeEventCounter intakeEventCounter,
-            @NonNull final PlatformStateFacade platformStateFacade,
-            @NonNull final Function<VirtualMap, MerkleNodeState> createStateFromVirtualMap,
             @NonNull final FallenBehindMonitor fallenBehindMonitor,
             @NonNull final ReservedSignedStateResultPromise reservedSignedStateResultPromise) {
 
@@ -133,7 +124,6 @@ public class SyncGossipModular implements Gossip {
 
         this.fallenBehindMonitor = fallenBehindMonitor;
         this.stateLifecycleManager = stateLifecycleManager;
-        this.createStateFromVirtualMap = createStateFromVirtualMap;
 
         final ProtocolConfig protocolConfig = platformContext.getConfiguration().getConfigData(ProtocolConfig.class);
 
@@ -189,11 +179,7 @@ public class SyncGossipModular implements Gossip {
         }
 
         final ReconnectStateSyncProtocol reconnectStateSyncProtocol = createStateSyncProtocol(
-                platformContext,
-                threadManager,
-                latestCompleteState,
-                platformStateFacade,
-                reservedSignedStateResultPromise);
+                platformContext, threadManager, latestCompleteState, reservedSignedStateResultPromise);
         this.protocols = ImmutableList.of(
                 HeartbeatProtocol.create(platformContext, this.network.getNetworkMetrics()),
                 reconnectStateSyncProtocol,
@@ -212,14 +198,12 @@ public class SyncGossipModular implements Gossip {
      * @param platformContext               the platform context
      * @param threadManager                 the thread manager
      * @param latestCompleteState           holds the latest signed state that has enough signatures to be verifiable
-     * @param platformStateFacade           the facade to access the platform state
      * @return constructed ReconnectProtocol
      */
     public ReconnectStateSyncProtocol createStateSyncProtocol(
             @NonNull final PlatformContext platformContext,
             @NonNull final ThreadManager threadManager,
             @NonNull final Supplier<ReservedSignedState> latestCompleteState,
-            @NonNull final PlatformStateFacade platformStateFacade,
             @NonNull final ReservedSignedStateResultPromise reservedSignedStateResultPromise) {
 
         final ReconnectConfig reconnectConfig =
@@ -238,10 +222,8 @@ public class SyncGossipModular implements Gossip {
                 reconnectConfig.asyncStreamTimeout(),
                 reconnectMetrics,
                 fallenBehindMonitor,
-                platformStateFacade,
                 reservedSignedStateResultPromise,
-                stateLifecycleManager,
-                createStateFromVirtualMap);
+                stateLifecycleManager);
     }
 
     /**
@@ -300,6 +282,7 @@ public class SyncGossipModular implements Gossip {
         });
         pauseGossip.bindConsumer(ignored -> {
             syncProtocol.pause();
+            fallenBehindMonitor.notifySyncProtocolPaused();
         });
         resumeGossip.bindConsumer(ignored -> {
             syncProtocol.resume();

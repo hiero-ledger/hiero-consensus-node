@@ -503,33 +503,45 @@ public final class VirtualHasher {
             final @NonNull VirtualMapConfig virtualMapConfig) {
         requireNonNull(virtualMapConfig);
 
+        this.hashReader = hashReader;
         // We don't want to include null checks everywhere, so let the listener be NoopListener if null
-        final VirtualHashListener normalizedListener = listener == null
+        this.listener = listener == null
                 ? new VirtualHashListener() {
                     /* noop */
                 }
                 : listener;
+        // Let the listener know we have started hashing.
+        this.listener.onHashingStarted(firstLeafPath, lastLeafPath);
 
         final ForkJoinPool pool = Thread.currentThread() instanceof ForkJoinWorkerThread thread
                 ? thread.getPool()
                 : getHashingPool(virtualMapConfig);
 
-        return pool.invoke(ForkJoinTask.adapt(() -> hashImpl(
-                hashReader,
-                hashChunkPreloader,
-                sortedDirtyLeaves,
-                firstLeafPath,
-                lastLeafPath,
-                normalizedListener,
-                virtualMapConfig,
-                pool)));
+        final ChunkHashTask rootTask = pool.invoke(ForkJoinTask.adapt(
+                () -> hashImpl(hashReader, hashChunkPreloader, sortedDirtyLeaves, firstLeafPath, lastLeafPath, virtualMapConfig, pool)));
+        if (rootTask != null) {
+            try {
+                rootTask.join();
+            } catch (final Exception e) {
+                if (!shutdown.get()) {
+                    logger.error(EXCEPTION.getMarker(), "Failed to wait for all hashing tasks", e);
+                    throw e;
+                }
+            }
+        }
+
+        this.listener.onHashingCompleted();
+
+        this.hashReader = null;
+        this.listener = null;
+
+        return rootTask != null ? rootTask.getResult() : null;
     }
 
     /**
-     * Internal method calculating the hash of the tree in a given fork-join pool.
+     * Internal method calculating the hash of the tree in a given fork-join pool. This method
+     * returns a root hashing task, which can be used to wait till hashing process is complete.
      *
-     * @param hashReader
-     * 		Return a {@link Hash} by path. Used when this method needs to look up clean nodes.
      * @param sortedDirtyLeaves
      * 		A stream of dirty leaves sorted in <strong>ASCENDING PATH ORDER</strong>, such that path
      * 		1234 comes before 1235. If null or empty, a null hash result is returned.
@@ -539,27 +551,20 @@ public final class VirtualHasher {
      * @param lastLeafPath
      * 		The lastLeafPath of the tree that is being hashed. If &lt; 1, then a null hash result is returned.
      * 		No leaf in {@code sortedDirtyLeaves} may have a path greater than {@code lastLeafPath}.
-     * @param listener
-     *      Hash listener. May be {@code null}
      * @param virtualMapConfig platform configuration for VirtualMap
      * @param pool the pool to use for hashing tasks.
-     * @return calculated root hash, or null if there are no dirty leaves to hash.
+     * @return the root hashing task, or null if there are no dirty leaves to hash.
      */
-    private Hash hashImpl(
+    private ChunkHashTask hashImpl(
             final @NonNull LongFunction<Hash> hashReader,
             final @Nullable Function<Long, VirtualHashChunk> hashChunkPreloader,
             final @NonNull Iterator<VirtualLeafBytes> sortedDirtyLeaves,
             final long firstLeafPath,
             final long lastLeafPath,
-            final @NonNull VirtualHashListener listener,
             final @NonNull VirtualMapConfig virtualMapConfig,
             final @NonNull ForkJoinPool pool) {
-        // Let the listener know we have started hashing.
-        listener.onHashingStarted(firstLeafPath, lastLeafPath);
-
         if (!sortedDirtyLeaves.hasNext()) {
             // Nothing to hash.
-            listener.onHashingCompleted();
             return null;
         } else {
             if ((firstLeafPath < 1) || (lastLeafPath < 1)) {
@@ -571,7 +576,6 @@ public final class VirtualHasher {
         this.hashChunkPreloader = hashChunkPreloader;
         this.firstLeafPath = firstLeafPath;
         this.lastLeafPath = lastLeafPath;
-        this.listener = listener;
 
         // Algo v6. This version is task based, where every task is responsible for hashing a small
         // chunk of the tree. Tasks are running in a fork-join pool, which is shared across all
@@ -749,22 +753,7 @@ public final class VirtualHasher {
         allTasks.forEach((path, task) -> task.complete());
         allTasks.clear();
 
-        try {
-            rootTask.join();
-        } catch (final Exception e) {
-            if (shutdown.get()) {
-                return null;
-            }
-            logger.error(EXCEPTION.getMarker(), "Failed to wait for all hashing tasks", e);
-            throw e;
-        }
-
-        listener.onHashingCompleted();
-
-        this.hashReader = null;
-        this.listener = null;
-
-        return rootTask.getResult();
+        return rootTask;
     }
 
     public Hash emptyRootHash() {

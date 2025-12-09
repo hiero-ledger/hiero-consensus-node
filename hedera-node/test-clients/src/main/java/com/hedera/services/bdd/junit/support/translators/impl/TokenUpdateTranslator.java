@@ -12,6 +12,7 @@ import com.hedera.services.bdd.junit.support.translators.BaseTranslator;
 import com.hedera.services.bdd.junit.support.translators.BlockTransactionPartsTranslator;
 import com.hedera.services.bdd.junit.support.translators.ScopedTraceData;
 import com.hedera.services.bdd.junit.support.translators.inputs.BlockTransactionParts;
+import com.hedera.services.bdd.junit.support.translators.inputs.HookMetadata;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
@@ -27,7 +28,8 @@ public class TokenUpdateTranslator implements BlockTransactionPartsTranslator {
             @NonNull final List<StateChange> remainingStateChanges,
             @Nullable final List<TraceData> tracesSoFar,
             @NonNull final List<ScopedTraceData> followingUnitTraces,
-            @Nullable final HookId executingHookId) {
+            @Nullable final HookId executingHookId,
+            @Nullable final HookMetadata hookMetadata) {
         return baseTranslator.recordFrom(
                 parts,
                 (receiptBuilder, recordBuilder) -> {

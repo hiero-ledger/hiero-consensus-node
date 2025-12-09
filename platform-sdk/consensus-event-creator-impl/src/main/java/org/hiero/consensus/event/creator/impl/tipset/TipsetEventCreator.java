@@ -242,7 +242,8 @@ public class TipsetEventCreator implements EventCreator {
         if (networkSize == 1) {
             // Special case: network of size 1.
             // We can always create a new event, no need to run the tipset algorithm.
-            return createEventForSizeOneNetwork();
+            // In a network of size one, we create events without other parents.
+            return buildAndProcessEvent(null);
         }
 
         final long selfishness = tipsetWeightCalculator.getMaxSelfishnessScore();
@@ -261,21 +262,6 @@ public class TipsetEventCreator implements EventCreator {
 
     private PlatformEvent signEvent(final UnsignedEvent event) {
         return new PlatformEvent(event, signer.sign(event.getHash().getBytes()));
-    }
-
-    /**
-     * Create the next event for a network of size 1 (i.e. where we are the only member). We don't use the tipset
-     * algorithm like normal, since we will never have a real other parent.
-     *
-     * @return the new event
-     */
-    @NonNull
-    private UnsignedEvent createEventForSizeOneNetwork() {
-        // There is a quirk in size 1 networks where we can only
-        // reach consensus if the self parent is also the other parent.
-        // Unexpected, but harmless. So just use the same event
-        // as both parents until that issue is resolved.
-        return buildAndProcessEvent(lastSelfEvent);
     }
 
     /**
@@ -430,10 +416,13 @@ public class TipsetEventCreator implements EventCreator {
     @NonNull
     private UnsignedEvent assembleEventObject(@Nullable final PlatformEvent otherParent) {
         final List<TimestampedTransaction> transactions = transactionSupplier.getTransactionsForEvent();
+        final List<EventDescriptorWrapper> allParents = Stream.of(lastSelfEvent, otherParent)
+                .filter(Objects::nonNull)
+                .map(PlatformEvent::getDescriptor)
+                .toList();
         final UnsignedEvent event = new UnsignedEvent(
                 selfId,
-                lastSelfEvent == null ? null : lastSelfEvent.getDescriptor(),
-                otherParent == null ? Collections.emptyList() : Collections.singletonList(otherParent.getDescriptor()),
+                allParents,
                 eventWindow.newEventBirthRound(),
                 calculateNewEventCreationTime(lastSelfEvent, otherParent, transactions),
                 transactions.stream().map(TimestampedTransaction::transaction).toList(),

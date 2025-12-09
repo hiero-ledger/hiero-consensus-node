@@ -6,6 +6,7 @@ import static com.swirlds.state.StateChangeListener.StateType.QUEUE;
 import static com.swirlds.state.StateChangeListener.StateType.SINGLETON;
 import static com.swirlds.state.lifecycle.StateMetadata.computeLabel;
 import static com.swirlds.state.merkle.StateItem.CODEC;
+import static com.swirlds.state.merkle.StateValue.extractStateIdFromStateValueOneOf;
 import static com.swirlds.state.merkle.disk.OnDiskQueueHelper.QUEUE_STATE_VALUE_CODEC;
 import static com.swirlds.virtualmap.internal.Path.INVALID_PATH;
 import static com.swirlds.virtualmap.internal.Path.getParentPath;
@@ -15,9 +16,12 @@ import static java.util.Objects.requireNonNull;
 import static org.hiero.base.crypto.Cryptography.NULL_HASH;
 
 import com.hedera.pbj.runtime.Codec;
+import com.hedera.pbj.runtime.ParseException;
+import com.hedera.pbj.runtime.UncheckedParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.Reservable;
 import com.swirlds.common.merkle.MerkleNode;
+import com.swirlds.common.utility.Mnemonics;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
 import com.swirlds.merkledb.config.MerkleDbConfig;
@@ -27,6 +31,7 @@ import com.swirlds.state.MerkleProof;
 import com.swirlds.state.SiblingHash;
 import com.swirlds.state.State;
 import com.swirlds.state.StateChangeListener;
+import com.swirlds.state.lifecycle.StateDefinition;
 import com.swirlds.state.lifecycle.StateMetadata;
 import com.swirlds.state.merkle.disk.OnDiskReadableKVState;
 import com.swirlds.state.merkle.disk.OnDiskReadableQueueState;
@@ -52,6 +57,8 @@ import com.swirlds.state.spi.WritableSingletonStateBase;
 import com.swirlds.state.spi.WritableStates;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
+import com.swirlds.virtualmap.internal.RecordAccessor;
+import com.swirlds.virtualmap.internal.merkle.VirtualMapMetadata;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
@@ -66,13 +73,12 @@ import java.util.concurrent.ConcurrentHashMap;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Hash;
+import org.json.JSONObject;
 
 /**
  * An implementation of {@link State} backed by a single Virtual Map.
  */
-public abstract class VirtualMapState<T extends VirtualMapState<T>> implements MerkleNodeState {
-
-    public static final String VM_LABEL = "state";
+public class VirtualMapState implements MerkleNodeState {
 
     private static final Logger logger = LogManager.getLogger(VirtualMapState.class);
 
@@ -124,7 +130,7 @@ public abstract class VirtualMapState<T extends VirtualMapState<T>> implements M
         dsBuilder = new MerkleDbDataSourceBuilder(
                 configuration, merkleDbConfig.initialCapacity(), merkleDbConfig.hashesRamToDiskThreshold());
 
-        this.virtualMap = new VirtualMap(VM_LABEL, dsBuilder, configuration);
+        this.virtualMap = new VirtualMap(dsBuilder, configuration);
         this.virtualMap.registerMetrics(metrics);
     }
 
@@ -137,6 +143,7 @@ public abstract class VirtualMapState<T extends VirtualMapState<T>> implements M
     public VirtualMapState(@NonNull final VirtualMap virtualMap, @NonNull final Metrics metrics) {
         this.virtualMap = requireNonNull(virtualMap);
         this.metrics = requireNonNull(metrics);
+        this.virtualMap.registerMetrics(metrics);
     }
 
     /**
@@ -144,7 +151,7 @@ public abstract class VirtualMapState<T extends VirtualMapState<T>> implements M
      *
      * @param from The other state to fast-copy from. Cannot be null.
      */
-    protected VirtualMapState(@NonNull final VirtualMapState<T> from) {
+    protected VirtualMapState(@NonNull final VirtualMapState from) {
         this.virtualMap = from.virtualMap.copy();
         this.metrics = from.metrics;
         this.startupMode = from.startupMode;
@@ -155,13 +162,6 @@ public abstract class VirtualMapState<T extends VirtualMapState<T>> implements M
             this.services.put(entry.getKey(), new HashMap<>(entry.getValue()));
         }
     }
-
-    /**
-     * Creates a copy of the instance.
-     *
-     * @return a copy of the instance
-     */
-    protected abstract T copyingConstructor();
 
     /**
      * {@inheritDoc}
@@ -205,8 +205,8 @@ public abstract class VirtualMapState<T extends VirtualMapState<T>> implements M
      */
     @NonNull
     @Override
-    public T copy() {
-        return copyingConstructor();
+    public VirtualMapState copy() {
+        return new VirtualMapState(this);
     }
 
     /**
@@ -838,5 +838,71 @@ public abstract class VirtualMapState<T extends VirtualMapState<T>> implements M
     @Override
     public boolean isHashed() {
         return virtualMap.isHashed();
+    }
+
+    @Override
+    public String getInfoJson() {
+        final JSONObject rootJson = new JSONObject();
+
+        final RecordAccessor recordAccessor = virtualMap.getRecords();
+        final VirtualMapMetadata virtualMapMetadata = virtualMap.getMetadata();
+
+        final JSONObject virtualMapMetadataJson = new JSONObject();
+        virtualMapMetadataJson.put("firstLeafPath", virtualMapMetadata.getFirstLeafPath());
+        virtualMapMetadataJson.put("lastLeafPath", virtualMapMetadata.getLastLeafPath());
+
+        rootJson.put("VirtualMapMetadata", virtualMapMetadataJson);
+
+        final JSONObject singletons = new JSONObject();
+        final JSONObject queues = new JSONObject();
+
+        services.forEach((key, value) -> {
+            value.forEach((s, stateMetadata) -> {
+                final String serviceName = stateMetadata.serviceName();
+                final StateDefinition<?, ?> stateDefinition = stateMetadata.stateDefinition();
+                final int stateId = stateDefinition.stateId();
+                final String stateKey = stateDefinition.stateKey();
+
+                if (stateDefinition.singleton()) {
+                    final Bytes singletonKey = StateKeyUtils.singletonKey(stateId);
+                    final VirtualLeafBytes<?> leafBytes = recordAccessor.findLeafRecord(singletonKey);
+                    if (leafBytes != null) {
+                        final var hash = recordAccessor.findHash(leafBytes.path());
+                        final JSONObject singletonJson = new JSONObject();
+                        if (hash != null) {
+                            singletonJson.put("mnemonic", Mnemonics.generateMnemonic(hash));
+                        }
+                        singletonJson.put("path", leafBytes.path());
+                        singletons.put(computeLabel(serviceName, stateKey), singletonJson);
+                    }
+                } else if (stateDefinition.queue()) {
+                    final Bytes queueStateKey = StateKeyUtils.queueStateKey(stateId);
+                    final VirtualLeafBytes<?> leafBytes = recordAccessor.findLeafRecord(queueStateKey);
+
+                    if (leafBytes != null) {
+                        final StateValue.StateValueCodec<QueueState> queueStateCodec = new StateValue.StateValueCodec<>(
+                                extractStateIdFromStateValueOneOf(leafBytes.valueBytes()),
+                                new QueueState.QueueStateCodec());
+                        try {
+                            final QueueState queueState = queueStateCodec
+                                    .parse(leafBytes.valueBytes())
+                                    .value();
+                            final JSONObject queueJson = new JSONObject();
+                            queueJson.put("head", queueState.head());
+                            queueJson.put("tail", queueState.tail());
+                            queueJson.put("path", leafBytes.path());
+                            queues.put(computeLabel(serviceName, stateKey), queueJson);
+                        } catch (ParseException e) {
+                            throw new UncheckedParseException(e);
+                        }
+                    }
+                }
+            });
+        });
+
+        rootJson.put("Singletons", singletons);
+        rootJson.put("Queues (Queue States)", queues);
+
+        return rootJson.toString();
     }
 }

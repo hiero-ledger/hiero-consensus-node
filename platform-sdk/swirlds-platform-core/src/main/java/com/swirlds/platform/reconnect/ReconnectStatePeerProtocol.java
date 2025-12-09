@@ -5,6 +5,8 @@ import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
 import static com.swirlds.metrics.api.FloatFormats.FORMAT_10_0;
 import static com.swirlds.metrics.api.Metrics.PLATFORM_CATEGORY;
+import static com.swirlds.platform.state.service.PlatformStateUtils.getInfoString;
+import static com.swirlds.platform.state.service.PlatformStateUtils.roundOf;
 
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
@@ -21,16 +23,13 @@ import com.swirlds.platform.network.Connection;
 import com.swirlds.platform.network.NetworkProtocolException;
 import com.swirlds.platform.network.protocol.PeerProtocol;
 import com.swirlds.platform.network.protocol.ReservedSignedStateResultPromise;
-import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.StateLifecycleManager;
-import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.Objects;
-import java.util.function.Function;
 import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -50,7 +49,6 @@ public class ReconnectStatePeerProtocol implements PeerProtocol {
     private final Supplier<ReservedSignedState> lastCompleteSignedState;
     private final Duration reconnectSocketTimeout;
     private final ReconnectMetrics reconnectMetrics;
-    private final PlatformStateFacade platformStateFacade;
     private final CountPerSecond reconnectRejectionMetrics;
     private InitiatedBy initiatedBy = InitiatedBy.NO_ONE;
     private final ThreadManager threadManager;
@@ -83,7 +81,6 @@ public class ReconnectStatePeerProtocol implements PeerProtocol {
     private final PlatformContext platformContext;
     private final ReservedSignedStateResultPromise reservedSignedStateResultPromise;
     private final StateLifecycleManager stateLifecycleManager;
-    private final Function<VirtualMap, MerkleNodeState> createStateFromVirtualMap;
 
     /**
      * @param threadManager              responsible for creating and managing threads
@@ -95,9 +92,7 @@ public class ReconnectStatePeerProtocol implements PeerProtocol {
      * @param fallenBehindMonitor        an instance of the fallenBehind Monitor which tracks if the node has fallen behind
      * @param platformStatusSupplier     provides the platform status
      * @param time                       the time object to use
-     * @param platformStateFacade        provides access to the platform state
      * @param reservedSignedStateResultPromise a mechanism to get a SignedState or block while it is not available
-     * @param createStateFromVirtualMap  a function to instantiate the state object from a Virtual Map
      */
     public ReconnectStatePeerProtocol(
             @NonNull final PlatformContext platformContext,
@@ -110,10 +105,8 @@ public class ReconnectStatePeerProtocol implements PeerProtocol {
             @NonNull final FallenBehindMonitor fallenBehindMonitor,
             @NonNull final Supplier<PlatformStatus> platformStatusSupplier,
             @NonNull final Time time,
-            @NonNull final PlatformStateFacade platformStateFacade,
             @NonNull final ReservedSignedStateResultPromise reservedSignedStateResultPromise,
-            @NonNull final StateLifecycleManager stateLifecycleManager,
-            @NonNull final Function<VirtualMap, MerkleNodeState> createStateFromVirtualMap) {
+            @NonNull final StateLifecycleManager stateLifecycleManager) {
 
         this.platformContext = Objects.requireNonNull(platformContext);
         this.threadManager = Objects.requireNonNull(threadManager);
@@ -124,10 +117,8 @@ public class ReconnectStatePeerProtocol implements PeerProtocol {
         this.reconnectMetrics = Objects.requireNonNull(reconnectMetrics);
         this.fallenBehindMonitor = Objects.requireNonNull(fallenBehindMonitor);
         this.platformStatusSupplier = Objects.requireNonNull(platformStatusSupplier);
-        this.platformStateFacade = Objects.requireNonNull(platformStateFacade);
         this.reservedSignedStateResultPromise = Objects.requireNonNull(reservedSignedStateResultPromise);
         this.stateLifecycleManager = Objects.requireNonNull(stateLifecycleManager);
-        this.createStateFromVirtualMap = Objects.requireNonNull(createStateFromVirtualMap);
         Objects.requireNonNull(time);
 
         final Duration minimumTimeBetweenReconnects = platformContext
@@ -319,15 +310,14 @@ public class ReconnectStatePeerProtocol implements PeerProtocol {
                     consensusState,
                     reconnectSocketTimeout,
                     reconnectMetrics,
-                    platformStateFacade,
-                    createStateFromVirtualMap);
+                    stateLifecycleManager);
 
             logger.info(RECONNECT.getMarker(), () -> new ReconnectStartPayload(
                             "Starting reconnect in role of the receiver.",
                             true,
                             connection.getSelfId().id(),
                             connection.getOtherId().id(),
-                            platformStateFacade.roundOf(consensusState))
+                            roundOf(consensusState))
                     .toString());
 
             final ReservedSignedState reservedSignedState = learner.execute();
@@ -348,8 +338,7 @@ public class ReconnectStatePeerProtocol implements PeerProtocol {
                     """
                             Information for state received during reconnect:
                             {}""",
-                    () -> platformStateFacade.getInfoString(
-                            reservedSignedState.get().getState(), debugHashDepth));
+                    () -> getInfoString(reservedSignedState.get().getState(), debugHashDepth));
 
             reservedSignedStateResultPromise.resolveWithValue(reservedSignedState);
 
@@ -387,8 +376,7 @@ public class ReconnectStatePeerProtocol implements PeerProtocol {
                             connection.getSelfId(),
                             connection.getOtherId(),
                             state.get().getRound(),
-                            reconnectMetrics,
-                            platformStateFacade)
+                            reconnectMetrics)
                     .execute(state.get());
         } finally {
             teacherThrottle.reconnectAttemptFinished();

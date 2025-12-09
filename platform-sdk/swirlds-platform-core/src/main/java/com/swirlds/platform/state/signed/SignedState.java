@@ -4,6 +4,9 @@ package com.swirlds.platform.state.signed;
 import static com.swirlds.common.utility.Threshold.MAJORITY;
 import static com.swirlds.common.utility.Threshold.SUPER_MAJORITY;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
+import static com.swirlds.platform.state.service.PlatformStateUtils.consensusTimestampOf;
+import static com.swirlds.platform.state.service.PlatformStateUtils.isGenesisStateOf;
+import static com.swirlds.platform.state.service.PlatformStateUtils.roundOf;
 import static com.swirlds.platform.state.signed.SignedStateHistory.SignedStateAction.CREATION;
 import static com.swirlds.platform.state.signed.SignedStateHistory.SignedStateAction.RELEASE;
 import static com.swirlds.platform.state.signed.SignedStateHistory.SignedStateAction.RESERVE;
@@ -19,7 +22,6 @@ import com.swirlds.common.utility.Threshold;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.config.StateConfig;
 import com.swirlds.platform.crypto.SignatureVerifier;
-import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.SignedStateHistory.SignedStateAction;
 import com.swirlds.platform.state.snapshot.StateToDiskReason;
 import com.swirlds.state.MerkleNodeState;
@@ -36,7 +38,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Signature;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.model.roster.Address;
 import org.hiero.consensus.roster.RosterRetriever;
 import org.hiero.consensus.roster.RosterUtils;
 
@@ -150,10 +151,6 @@ public class SignedState {
      * True if this round reached consensus during the replaying of the preconsensus event stream.
      */
     private final boolean pcesRound;
-    /**
-     * The facade to access the platform state
-     */
-    private final PlatformStateFacade platformStateFacade;
 
     /**
      * Instantiate a signed state.
@@ -171,7 +168,6 @@ public class SignedState {
      *                                 states that have been sent to the state garbage collector.
      * @param pcesRound                true if this round reached consensus during the replaying of the preconsensus
      *                                 event stream
-     * @param platformStateFacade      the facade to access the platform state
      */
     public SignedState(
             @NonNull final Configuration configuration,
@@ -180,9 +176,7 @@ public class SignedState {
             @NonNull final String reason,
             final boolean freezeState,
             final boolean deleteOnBackgroundThread,
-            final boolean pcesRound,
-            @NonNull final PlatformStateFacade platformStateFacade) {
-        this.platformStateFacade = platformStateFacade;
+            final boolean pcesRound) {
         this.signatureVerifier = requireNonNull(signatureVerifier);
         this.state = requireNonNull(state);
         state.getRoot().reserve();
@@ -209,7 +203,7 @@ public class SignedState {
      * @return the round number
      */
     public long getRound() {
-        return platformStateFacade.roundOf(state);
+        return roundOf(state);
     }
 
     /**
@@ -218,7 +212,7 @@ public class SignedState {
      * @return true if this is the genesis state
      */
     public boolean isGenesisState() {
-        return platformStateFacade.isGenesisStateOf(state);
+        return isGenesisStateOf(state);
     }
 
     /**
@@ -462,7 +456,7 @@ public class SignedState {
      * @return the consensus timestamp for this signed state.
      */
     public @NonNull Instant getConsensusTimestamp() {
-        return platformStateFacade.consensusTimestampOf(state);
+        return consensusTimestampOf(state);
     }
 
     /**
@@ -615,35 +609,6 @@ public class SignedState {
         signingWeight += rosterEntry.weight();
 
         return isComplete();
-    }
-
-    /**
-     * Check if a signature is valid.  If a node has no weight, we consider the signature to be invalid.
-     *
-     * @param address   the address of the signer, or null if there is no signing address
-     * @param signature the signature to check
-     * @return true if the signature is valid, false otherwise
-     */
-    @SuppressWarnings("BooleanMethodIsAlwaysInverted")
-    private boolean isSignatureValid(@Nullable final Address address, @NonNull final Signature signature) {
-        if (address == null) {
-            // Signing node is not in the address book.
-            return false;
-        }
-
-        if (address.getWeight() == 0) {
-            // Signing node has no weight.
-            return false;
-        }
-
-        if (address.getSigPublicKey() == null) {
-            // If the address does not have a valid public key, the signature is invalid.
-            // https://github.com/hashgraph/hedera-services/issues/16648
-            return false;
-        }
-
-        return signatureVerifier.verifySignature(
-                state.getHash().getBytes(), signature.getBytes(), address.getSigPublicKey());
     }
 
     /**

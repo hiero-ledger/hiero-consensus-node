@@ -3,7 +3,6 @@ package com.swirlds.platform.state.editor;
 
 import static com.swirlds.common.io.utility.FileUtils.getAbsolutePath;
 import static com.swirlds.platform.state.editor.StateEditorUtils.formatFile;
-import static com.swirlds.platform.state.service.PlatformStateFacade.DEFAULT_PLATFORM_STATE_FACADE;
 import static com.swirlds.platform.state.snapshot.SavedStateMetadata.NO_NODE_ID;
 import static com.swirlds.platform.state.snapshot.SignedStateFileWriter.writeSignedStateFilesToDirectory;
 
@@ -16,6 +15,7 @@ import com.swirlds.platform.config.DefaultConfiguration;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.StateLifecycleManagerImpl;
+import com.swirlds.state.merkle.VirtualMapState;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
@@ -49,10 +49,10 @@ public class StateEditorSave extends StateEditorOperation {
 
             logger.info(LogMarker.CLI.getMarker(), "Hashing state");
             final StateLifecycleManager stateLifecycleManager = new StateLifecycleManagerImpl(
-                    platformContext.getMetrics(), platformContext.getTime(), (virtualMap) -> {
-                        // FUTURE WORK: https://github.com/hiero-ledger/hiero-consensus-node/issues/19003
-                        throw new UnsupportedOperationException();
-                    });
+                    platformContext.getMetrics(),
+                    platformContext.getTime(),
+                    (virtualMap) -> new VirtualMapState(virtualMap, platformContext.getMetrics()),
+                    platformContext.getConfiguration());
 
             platformContext
                     .getMerkleCryptography()
@@ -69,12 +69,7 @@ public class StateEditorSave extends StateEditorOperation {
 
             try (final ReservedSignedState signedState = getStateEditor().getSignedStateCopy()) {
                 writeSignedStateFilesToDirectory(
-                        platformContext,
-                        NO_NODE_ID,
-                        directory,
-                        signedState.get(),
-                        DEFAULT_PLATFORM_STATE_FACADE,
-                        stateLifecycleManager);
+                        platformContext, NO_NODE_ID, directory, signedState.get(), stateLifecycleManager);
             }
 
         } catch (final IOException e) {

@@ -67,7 +67,7 @@ env:
   GRAFANA_SYSADM_CHI: https://grafana.lat.ope.eng.hashgraph.io/d/rYdddlPWk/node-exporter-single-node?orgId=1&timezone=utc&var-datasource=P631E2BA859A814B3&var-job=performance-chicago-node-exporter
 
   #Release version from jFrog
-  NLG_VERSION: 0.9.0
+  NLG_VERSION: 0.9.1
 
 jobs:
   longevity-tests-start:
@@ -110,7 +110,7 @@ jobs:
       - name: Install Teleport Client
         uses: teleport-actions/setup@176c25dfcd19cd31a252f275d579822b243e7b9c # v1.0.6
         with:
-          version: 18.1.4
+          version: 18.4.0
 
       - name: Authorize Teleport SSH Access
         id: auth-ssh
@@ -469,7 +469,7 @@ jobs:
       - name: Install Teleport Client
         uses: teleport-actions/setup@176c25dfcd19cd31a252f275d579822b243e7b9c # v1.0.6
         with:
-          version: 18.1.4
+          version: 18.4.0
 
       - name: Authorize Teleport SSH Access
         id: auth-ssh
@@ -613,7 +613,7 @@ jobs:
       - name: Install Teleport Client
         uses: teleport-actions/setup@176c25dfcd19cd31a252f275d579822b243e7b9c # v1.0.6
         with:
-          version: 18.1.4
+          version: 18.4.0
 
       - name: Authorize Teleport SSH Access
         id: auth-ssh

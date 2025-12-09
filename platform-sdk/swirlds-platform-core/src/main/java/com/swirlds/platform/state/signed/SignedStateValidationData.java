@@ -1,8 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state.signed;
 
+import static com.swirlds.platform.state.service.PlatformStateUtils.consensusTimestampOf;
+import static com.swirlds.platform.state.service.PlatformStateUtils.legacyRunningEventHashOf;
+import static com.swirlds.platform.state.service.PlatformStateUtils.roundOf;
+
 import com.hedera.hapi.node.state.roster.Roster;
-import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -28,15 +31,12 @@ public record SignedStateValidationData(
         @Nullable Hash rosterHash,
         @NonNull Hash consensusEventsRunningHash) {
 
-    public SignedStateValidationData(
-            @NonNull final State that,
-            @Nullable final Roster roster,
-            @NonNull final PlatformStateFacade platformStateFacade) {
+    public SignedStateValidationData(@NonNull final State that, @Nullable final Roster roster) {
         this(
-                platformStateFacade.roundOf(that),
-                platformStateFacade.consensusTimestampOf(that),
+                roundOf(that),
+                consensusTimestampOf(that),
                 roster == null ? null : RosterUtils.hash(roster),
-                platformStateFacade.legacyRunningEventHashOf(that));
+                legacyRunningEventHashOf(that));
     }
 
     /**

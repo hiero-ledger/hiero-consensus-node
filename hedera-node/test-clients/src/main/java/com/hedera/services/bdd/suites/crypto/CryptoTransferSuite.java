@@ -102,6 +102,7 @@ import static com.hedera.services.bdd.suites.file.FileUpdateSuite.CIVILIAN;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_AMOUNT_TRANSFERS_ONLY_ALLOWED_FOR_FUNGIBLE_COMMON;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_REPEATED_IN_ACCOUNT_AMOUNTS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_SENDER_ACCOUNT_BALANCE_FOR_CUSTOM_FEE;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_TX_FEE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ACCOUNT_AMOUNTS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ACCOUNT_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ALIAS_KEY;
@@ -2014,7 +2015,8 @@ public class CryptoTransferSuite {
                 cryptoTransfer(moving(5, feeDenom).between(treasury, receiver))
                         .payingWithNoSig(treasury)
                         .signedBy(treasury)
-                        .hasKnownStatus(INVALID_SIGNATURE),
+                        .sigMapPrefixes(uniqueWithFullPrefixesFor(treasury))
+                        .hasKnownStatusFrom(INVALID_SIGNATURE, INSUFFICIENT_TX_FEE),
                 // try again *with* the receiver sig.
                 cryptoTransfer(moving(5, feeDenom).between(treasury, receiver))
                         .payingWithNoSig(treasury)

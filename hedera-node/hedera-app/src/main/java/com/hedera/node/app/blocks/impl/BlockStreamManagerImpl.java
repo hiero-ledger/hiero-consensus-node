@@ -21,6 +21,7 @@ import static com.hedera.node.app.quiescence.TctProbe.blockStreamInfoFrom;
 import static com.hedera.node.app.records.BlockRecordService.EPOCH;
 import static com.hedera.node.app.records.impl.BlockRecordInfoUtils.HASH_SIZE;
 import static com.hedera.node.app.workflows.handle.HandleWorkflow.ALERT_MESSAGE;
+import static com.swirlds.platform.state.service.PlatformStateUtils.creationSemanticVersionOf;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.consensus.model.quiescence.QuiescenceCommand.QUIESCE;
 
@@ -69,7 +70,6 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Counter;
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.service.PlatformStateService;
 import com.swirlds.platform.state.service.ReadablePlatformStateStore;
 import com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema;
@@ -108,6 +108,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.concurrent.AbstractTask;
 import org.hiero.base.crypto.Hash;
+import org.hiero.consensus.model.event.ConsensusEvent;
 import org.hiero.consensus.model.hashgraph.Round;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 
@@ -139,7 +140,6 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     private final ConfigProvider configProvider;
     private final Supplier<BlockItemWriter> writerSupplier;
     private final BoundaryStateChangeListener boundaryStateChangeListener;
-    private final PlatformStateFacade platformStateFacade;
 
     private final Lifecycle lifecycle;
     private final BlockHashManager blockHashManager;
@@ -165,8 +165,8 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     private Bytes lastBlockHash;
     private long lastRoundOfPrevBlock;
     // A block's starting timestamp is defined as the consensus timestamp of the round's first transaction
-    private Instant blockTimestamp;
-    private Instant consensusTimeLastRound;
+    private Timestamp blockTimestamp;
+    private Instant consensusTimeCurrentRound;
     private Timestamp lastUsedTime;
     private BlockItemWriter writer;
 
@@ -251,7 +251,6 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             @NonNull final QuiescenceController quiescenceController,
             @NonNull final InitialStateHash initialStateHash,
             @NonNull final SemanticVersion version,
-            @NonNull final PlatformStateFacade platformStateFacade,
             @NonNull final Lifecycle lifecycle,
             @NonNull final QuiescedHeartbeat quiescedHeartbeat,
             @NonNull final Metrics metrics) {
@@ -262,7 +261,6 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         this.writerSupplier = requireNonNull(writerSupplier);
         this.executor = (ForkJoinPool) requireNonNull(executor);
         this.boundaryStateChangeListener = requireNonNull(boundaryStateChangeListener);
-        this.platformStateFacade = requireNonNull(platformStateFacade);
         this.lifecycle = requireNonNull(lifecycle);
         this.configProvider = requireNonNull(configProvider);
         this.quiescedHeartbeat = requireNonNull(quiescedHeartbeat);
@@ -387,7 +385,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         // Writer will be null when beginning a new block
         if (writer == null) {
             writer = writerSupplier.get();
-            blockTimestamp = round.getConsensusTimestamp();
+            blockTimestamp = asTimestamp(firstConsensusTimestampOf(round));
             lastUsedTime = asTimestamp(round.getConsensusTimestamp());
 
             final var blockStreamInfo = blockStreamInfoFrom(state);
@@ -418,12 +416,12 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             final var header = BlockHeader.newBuilder()
                     .number(blockNumber)
                     .hashAlgorithm(SHA2_384)
-                    .softwareVersion(platformStateFacade.creationSemanticVersionOf(state))
-                    .blockTimestamp(asTimestamp(blockTimestamp))
+                    .softwareVersion(creationSemanticVersionOf(state))
+                    .blockTimestamp(blockTimestamp)
                     .hapiProtoVersion(hapiVersion);
             worker.addItem(BlockItem.newBuilder().blockHeader(header).build());
         }
-        consensusTimeLastRound = round.getConsensusTimestamp();
+        consensusTimeCurrentRound = round.getConsensusTimestamp();
     }
 
     /**
@@ -711,8 +709,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                         "Writing network info to disk @ {} (REASON = {})",
                         exportPath.toAbsolutePath(),
                         diskNetworkExport);
-                DiskStartupNetworks.writeNetworkInfo(
-                        state, exportPath, EnumSet.allOf(InfoType.class), platformStateFacade);
+                DiskStartupNetworks.writeNetworkInfo(state, exportPath, EnumSet.allOf(InfoType.class));
             }
 
             // Clear the eventIndexInBlock map for the next block
@@ -763,7 +760,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
 
     @Override
     public @NonNull Timestamp blockTimestamp() {
-        return new Timestamp(blockTimestamp.getEpochSecond(), blockTimestamp.getNano());
+        return requireNonNull(blockTimestamp);
     }
 
     @Override
@@ -901,7 +898,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
         }
 
         // For time-based blocks, check if enough consensus time has elapsed
-        final var elapsed = Duration.between(blockTimestamp, consensusTimeLastRound);
+        final var elapsed = Duration.between(asInstant(blockTimestamp), consensusTimeCurrentRound);
         return elapsed.compareTo(blockPeriod) >= 0;
     }
 
@@ -1249,6 +1246,36 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             // Level 2 first sibling (right child)
             new MerkleSiblingHash(false, DEPTH_2_NODE_2_COMBINED)
         });
+    }
+
+    private static Instant firstConsensusTimestampOf(final Round round) {
+        Instant earliestEventTimestamp = null;
+        for (final ConsensusEvent consensusEvent : round) {
+            // Find the earliest event timestamp in the round (possibly needed later)
+            if (earliestEventTimestamp == null) {
+                final var eventTimestamp = consensusEvent.getConsensusTimestamp();
+                if (eventTimestamp != null
+                        && eventTimestamp.isAfter(Instant.EPOCH)
+                        && eventTimestamp.isBefore(round.getConsensusTimestamp())) {
+                    earliestEventTimestamp = eventTimestamp;
+                }
+            }
+
+            // Iterate through the transactions in the event to find the first consensus timestamp. If found, return it
+            // immediately.
+            final var consensusIt = consensusEvent.consensusTransactionIterator();
+            if (consensusIt.hasNext()) {
+                return consensusIt.next().getConsensusTimestamp();
+            }
+        }
+
+        // If the round has no transactions, but we found an earliest event timestamp, return that
+        if (earliestEventTimestamp != null) {
+            return earliestEventTimestamp;
+        }
+
+        // If the round has no event timestamps, return the round's timestamp
+        return round.getConsensusTimestamp();
     }
 
     private static int maxReadDepth(@NonNull final Configuration config) {

@@ -3,9 +3,8 @@ package com.swirlds.virtualmap.internal.merkle;
 
 import static com.swirlds.virtualmap.internal.Path.INVALID_PATH;
 import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.VIRTUAL_MAP_CONFIG;
-import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.VM_LABEL;
 import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.createHashChunkStream;
-import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.hash;
+import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.CONFIGURATION;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -58,7 +57,7 @@ public class RecordAccessorTest {
 
     @BeforeEach
     void setUp() throws IOException {
-        final VirtualMapMetadata state = new VirtualMapMetadata(VM_LABEL);
+        final VirtualMapMetadata state = new VirtualMapMetadata();
         dataSource = new BreakableDataSource();
         final int hashChunkHeight = VIRTUAL_MAP_CONFIG.virtualHasherChunkHeight();
         final VirtualNodeCache cache =
@@ -255,7 +254,7 @@ public class RecordAccessorTest {
 
     @Test
     void putHashTriggersLoadChunk() {
-        final VirtualMapMetadata state = new VirtualMapMetadata(VM_LABEL);
+        final VirtualMapMetadata state = new VirtualMapMetadata();
         final int hashChunkHeight = 2;
         final int chunkSize = VirtualHashChunk.getChunkSize(hashChunkHeight);
         dataSource = new BreakableDataSource();

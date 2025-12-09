@@ -540,6 +540,7 @@ public final class VirtualNodeCache implements FastCopyable {
             p.dirtyLeaves.merge(dirtyLeaves);
             p.dirtyLeafPaths.merge(dirtyLeafPaths);
             p.dirtyHashChunks.merge(dirtyHashChunks);
+            // Estimated sizes include both mutations and concurrent array overheads
             p.estimatedLeavesSizeInBytes.addAndGet(estimatedLeavesSizeInBytes.get());
             p.estimatedLeafPathsSizeInBytes.addAndGet(estimatedLeafPathsSizeInBytes.get());
             p.estimatedHashesSizeInBytes.addAndGet(estimatedHashesSizeInBytes.get());
@@ -601,6 +602,11 @@ public final class VirtualNodeCache implements FastCopyable {
                 estimatedLeavesSizeInBytes.get(),
                 dirtyLeafPaths.size(),
                 estimatedLeafPathsSizeInBytes.get());
+
+        // Update estimated size to include concurrent arrays storage overhead
+        estimatedHashesSizeInBytes.addAndGet(dirtyHashChunks.estimatedStorageMemoryOverhead());
+        estimatedLeavesSizeInBytes.addAndGet(dirtyLeaves.estimatedStorageMemoryOverhead());
+        estimatedLeafPathsSizeInBytes.addAndGet(dirtyLeafPaths.estimatedStorageMemoryOverhead());
     }
 
     // --------------------------------------------------------------------------------------------
@@ -939,7 +945,7 @@ public final class VirtualNodeCache implements FastCopyable {
      * 		Node path
      * @param hash
      * 		Node hash. Null values are accepted, although observed in tests only. In real scenarios
-     * 	    this method is only called by VirtualHasher (via VirtualRootNode), and it never puts
+     * 	    this method is only called by VirtualHasher (via VirtualMap), and it never puts
      * 	    null hashes to the cache
      * @throws MutabilityException
      * 		if the instance has been sealed

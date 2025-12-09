@@ -5,6 +5,7 @@ import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.getGlo
 import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.getMetricsProvider;
 import static com.swirlds.platform.gui.internal.BrowserWindowManager.getPlatforms;
 import static com.swirlds.platform.state.iss.IssDetector.DO_NOT_IGNORE_ROUNDS;
+import static com.swirlds.platform.state.service.PlatformStateUtils.latestFreezeRoundOf;
 
 import com.swirlds.common.merkle.utility.SerializableLong;
 import com.swirlds.common.threading.manager.AdHocThreadManager;
@@ -259,11 +260,8 @@ public class PlatformComponentBuilder {
     @NonNull
     public InternalEventValidator buildInternalEventValidator() {
         if (internalEventValidator == null) {
-            final boolean singleNodeNetwork =
-                    blocks.rosterHistory().getCurrentRoster().rosterEntries().size() == 1;
             internalEventValidator = new DefaultInternalEventValidator(
                     blocks.platformContext(),
-                    singleNodeNetwork,
                     blocks.intakeEventCounter(),
                     blocks.execution().getTransactionLimits());
         }
@@ -723,8 +721,8 @@ public class PlatformComponentBuilder {
                             .validateInitialState()
                     ? DO_NOT_IGNORE_ROUNDS
                     : initialStateRound;
-            final long latestFreezeRound = blocks.platformStateFacade()
-                    .latestFreezeRoundOf(blocks.initialState().get().getState());
+            final long latestFreezeRound =
+                    latestFreezeRoundOf(blocks.initialState().get().getState());
 
             issDetector = new DefaultIssDetector(
                     blocks.platformContext(),
@@ -804,8 +802,6 @@ public class PlatformComponentBuilder {
                     blocks.stateLifecycleManager(),
                     () -> blocks.getLatestCompleteStateReference().get().get(),
                     blocks.intakeEventCounter(),
-                    blocks.platformStateFacade(),
-                    blocks.createStateFromVirtualMap(),
                     blocks.fallenBehindMonitor(),
                     blocks.reservedSignedStateResultPromise());
         }
@@ -879,7 +875,6 @@ public class PlatformComponentBuilder {
                     actualMainClassName,
                     blocks.selfId(),
                     blocks.swirldName(),
-                    blocks.platformStateFacade(),
                     blocks.stateLifecycleManager());
         }
         return stateSnapshotManager;
@@ -911,7 +906,7 @@ public class PlatformComponentBuilder {
     @NonNull
     public HashLogger buildHashLogger() {
         if (hashLogger == null) {
-            hashLogger = new DefaultHashLogger(blocks.platformContext(), blocks.platformStateFacade());
+            hashLogger = new DefaultHashLogger(blocks.platformContext());
         }
         return hashLogger;
     }
@@ -1043,7 +1038,6 @@ public class PlatformComponentBuilder {
                     blocks.stateLifecycleManager(),
                     blocks.statusActionSubmitterReference().get(),
                     blocks.appVersion(),
-                    blocks.platformStateFacade(),
                     blocks.consensusStateEventHandler(),
                     blocks.selfId());
         }
