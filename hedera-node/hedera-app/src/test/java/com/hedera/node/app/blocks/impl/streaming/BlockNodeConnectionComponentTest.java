@@ -1005,6 +1005,13 @@ class BlockNodeConnectionComponentTest extends BlockNodeCommunicationTestBase {
 
         assertThat(streamingBlockNumber).hasValue(11);
 
+        // Stop the worker thread before verifying no more interactions to avoid race conditions
+        connection.updateConnectionState(ConnectionState.CLOSING);
+        final Thread workerThread = workerThreadRef.get();
+        if (workerThread != null) {
+            assertThat(workerThread.join(Duration.ofSeconds(2))).isTrue();
+        }
+
         verify(metrics, times(endOfBlockRequest)).recordRequestSent(RequestOneOfType.END_OF_BLOCK);
         verify(metrics, times(totalRequestsSent - endOfBlockRequest)).recordRequestSent(RequestOneOfType.BLOCK_ITEMS);
         verify(metrics, times(totalRequestsSent - endOfBlockRequest)).recordBlockItemsSent(anyInt());
