@@ -123,8 +123,6 @@ module com.swirlds.platform.core {
     requires transitive org.hiero.consensus.hashgraph;
     requires transitive org.hiero.consensus.model;
     requires transitive org.hiero.consensus.utility;
-    requires transitive com.fasterxml.jackson.annotation;
-    requires transitive com.fasterxml.jackson.databind;
     requires transitive info.picocli;
     requires transitive org.apache.logging.log4j;
     requires com.swirlds.config.extensions;
@@ -133,6 +131,7 @@ module com.swirlds.platform.core {
     requires com.swirlds.state.impl;
     requires com.swirlds.virtualmap;
     requires com.fasterxml.jackson.core;
+    requires com.fasterxml.jackson.databind;
     requires com.fasterxml.jackson.dataformat.yaml;
     requires com.github.spotbugs.annotations;
     requires com.google.common;
