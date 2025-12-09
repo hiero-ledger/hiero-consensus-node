@@ -7,7 +7,6 @@ import static com.swirlds.platform.gui.hashgraph.HashgraphGuiConstants.HASHGRAPH
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.platform.event.GossipEvent;
-import com.swirlds.platform.Consensus;
 import com.swirlds.platform.gui.hashgraph.HashgraphGuiConstants;
 import com.swirlds.platform.gui.hashgraph.HashgraphGuiSource;
 import com.swirlds.platform.gui.hashgraph.HashgraphPictureOptions;
@@ -55,8 +54,7 @@ public class HashgraphPicture extends JPanel {
     /** used to store an image when the freeze checkbox is checked */
     private BufferedImage image = null;
 
-    private RosterMetadata nonExpandedMetadata;
-    private RosterMetadata expandedMetadata;
+    private RosterMetadata metadata;
 
     /** used to store coordinates for branched events with a given generation for each branching node */
     private final Map<Long, Map<Long, GenerationCoordinates>> nodeIdToBranchIndexToCoordinates = new HashMap<>();
@@ -70,9 +68,8 @@ public class HashgraphPicture extends JPanel {
     }
 
     private void createMetadata() {
-        if ((expandedMetadata == null || nonExpandedMetadata == null) && hashgraphSource.isReady()) {
-            expandedMetadata = new RosterMetadata(hashgraphSource.getRoster(), true);
-            nonExpandedMetadata = new RosterMetadata(hashgraphSource.getRoster(), false);
+        if (metadata == null && hashgraphSource.isReady()) {
+            metadata = new RosterMetadata(hashgraphSource.getRoster());
         }
     }
 
@@ -93,7 +90,6 @@ public class HashgraphPicture extends JPanel {
             final FontMetrics fm = g.getFontMetrics();
             final Roster roster = hashgraphSource.getRoster();
             final int numMem = roster.rosterEntries().size();
-            final RosterMetadata currentMetadata = options.isExpanded() ? expandedMetadata : nonExpandedMetadata;
 
             List<EventImpl> events;
             if (options.displayLatestEvents()) {
@@ -115,15 +111,15 @@ public class HashgraphPicture extends JPanel {
                     .toList();
 
             pictureMetadata = new PictureMetadata(
-                    fm, this.getSize(), currentMetadata, events, hashgraphSource, nodeIdToBranchIndexToCoordinates);
+                    fm, this.getSize(), metadata, events, hashgraphSource, nodeIdToBranchIndexToCoordinates);
 
             selector.setMetadata(pictureMetadata);
             selector.setEventsInPicture(events);
 
             g.setColor(Color.BLACK);
 
-            for (int i = 0; i < currentMetadata.getNumColumns(); i++) {
-                final String name = currentMetadata.getLabel(i);
+            for (int i = 0; i < metadata.getNumColumns(); i++) {
+                final String name = metadata.getLabel(i);
 
                 // gap between columns
                 final int betweenGap = pictureMetadata.getGapBetweenColumns();
@@ -183,8 +179,7 @@ public class HashgraphPicture extends JPanel {
      * @param borderColor the color of the border
      */
     private void drawBorderAroundEvent(final Graphics g, final int d, final EventImpl event, final Color borderColor) {
-        final int xPos =
-                pictureMetadata.xpos(event.getOtherParent() != null ? event.getOtherParent() : event, event) - d / 2;
+        final int xPos = pictureMetadata.xpos(event) - d / 2;
         final int yPos = pictureMetadata.ypos(event) - d / 2;
         g.setColor(borderColor);
         g.fillOval(xPos - 5, yPos - 5, d + 10, d + 10);
@@ -218,9 +213,9 @@ public class HashgraphPicture extends JPanel {
             }
 
             g.drawLine(
-                    pictureMetadata.xpos(null, event),
+                    pictureMetadata.xpos(event),
                     pictureMetadata.ypos(event),
-                    pictureMetadata.xpos(null, parent),
+                    pictureMetadata.xpos(parent),
                     pictureMetadata.ypos(parent));
 
             if (selectedLines) {
@@ -257,7 +252,7 @@ public class HashgraphPicture extends JPanel {
             color = HashgraphGuiUtils.eventColor(event, options);
         }
 
-        final int xPos = pictureMetadata.xpos(e2, event) - d / 2;
+        final int xPos = pictureMetadata.xpos(event) - d / 2;
         final int yPos = pictureMetadata.ypos(event) - d / 2;
 
         if (selector.isSelected(event)) {
@@ -322,7 +317,7 @@ public class HashgraphPicture extends JPanel {
         if (!s.isEmpty()) {
             final Rectangle2D rect = fm.getStringBounds(s, g);
 
-            final int x = (int) (pictureMetadata.xpos(e2, event) - rect.getWidth() / 2. - fa / 4.);
+            final int x = (int) (pictureMetadata.xpos(event) - rect.getWidth() / 2. - fa / 4.);
             final int y = (int) (pictureMetadata.ypos(event) + rect.getHeight() / 2. - fd / 2);
             g.setColor(HashgraphGuiConstants.LABEL_OUTLINE);
             g.drawString(s, x - 1, y - 1);
