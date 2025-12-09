@@ -16,34 +16,34 @@ import java.util.function.ToDoubleFunction;
 import java.util.function.ToLongFunction;
 import org.hiero.metrics.api.core.MetricKey;
 import org.hiero.metrics.api.core.MetricType;
-import org.hiero.metrics.api.core.StatefulMetric;
+import org.hiero.metrics.api.core.SettableMetric;
 import org.hiero.metrics.api.core.ToNumberFunction;
 import org.hiero.metrics.api.stat.StatUtils;
 import org.hiero.metrics.api.utils.MetricUtils;
 import org.hiero.metrics.internal.StatsGaugeAdapterImpl;
 
 /**
- * A stateful metric of type {@link MetricType#GAUGE} similar to {@link GaugeAdapter} but holding multiple
- * custom data points (provided by the client code) per label set.
+ * A metric of type {@link MetricType#GAUGE} similar to {@link GaugeAdapter} but holding multiple
+ * custom measurements (provided by the client code) per label set.
  * <p>
  * This metric can be used for cases when some custom logic or aggregation is required to handle observed values,
  * and hold multiple values per label set.<br>
  * <p>
  * On export each value will have additional label to classify the value type - see {@link Builder#getStatLabel()}.
  * <p>
- * It is responsibility of the client to ensure that external data point is thread safe and provides atomic updates,
+ * It is responsibility of the client to ensure that external measurement is thread safe and provides atomic updates,
  * if needed.
  *
- * @param <D> the type of the data point held by the metric
+ * @param <D> the type of the measurement data held by the metric
  */
-public interface StatsGaugeAdapter<D> extends StatefulMetric<Supplier<D>, D> {
+public interface StatsGaugeAdapter<D> extends SettableMetric<Supplier<D>, D> {
 
     /**
      * Create a metric key for a {@link StatsGaugeAdapter} with the given name. <br>
      * See {@link MetricUtils#validateMetricNameCharacters(String)} for name requirements.
      *
      * @param name the name of the metric
-     * @param <D>  the type of the data point
+     * @param <D>  the type of the measurement data
      * @return the metric key
      */
     @NonNull
@@ -53,16 +53,17 @@ public interface StatsGaugeAdapter<D> extends StatefulMetric<Supplier<D>, D> {
 
     /**
      * Create a builder for a {@link StatsGaugeAdapter} with the given metric key.
-     * The data point is created using the provided factory.
+     * The measurement is created using the provided factory.
      *
      * @param key              the metric key
-     * @param dataPointFactory the factory function to create the data point
-     * @param <D>              the type of the data point
+     * @param measurementFactory the factory function to create the measurement
+     * @param <D>              the type of the measurement data
      * @return the builder
      */
     @NonNull
-    static <D> Builder<D> builder(@NonNull MetricKey<StatsGaugeAdapter<D>> key, @NonNull Supplier<D> dataPointFactory) {
-        return new Builder<>(key, dataPointFactory);
+    static <D> Builder<D> builder(
+            @NonNull MetricKey<StatsGaugeAdapter<D>> key, @NonNull Supplier<D> measurementFactory) {
+        return new Builder<>(key, measurementFactory);
     }
 
     /**
@@ -71,17 +72,17 @@ public interface StatsGaugeAdapter<D> extends StatefulMetric<Supplier<D>, D> {
      * Default additional label for export is {@value StatUtils#DEFAULT_STAT_LABEL}, and can be changed via
      * {@link #withStatLabel(String)}.
      *
-     * @param <D> the type of the data point held by the metric
+     * @param <D> the type of the measurement data held by the metric
      */
-    final class Builder<D> extends StatefulMetric.Builder<Supplier<D>, D, Builder<D>, StatsGaugeAdapter<D>> {
+    final class Builder<D> extends SettableMetric.Builder<Supplier<D>, D, Builder<D>, StatsGaugeAdapter<D>> {
 
         private String statLabel = DEFAULT_STAT_LABEL;
         private final List<String> statNames = new ArrayList<>();
         private final List<ToNumberFunction<D>> statExportGetters = new ArrayList<>();
         private Consumer<D> reset;
 
-        private Builder(@NonNull MetricKey<StatsGaugeAdapter<D>> key, @NonNull Supplier<D> dataPointFactory) {
-            super(MetricType.GAUGE, key, dataPointFactory, Supplier::get);
+        private Builder(@NonNull MetricKey<StatsGaugeAdapter<D>> key, @NonNull Supplier<D> measurementFactory) {
+            super(MetricType.GAUGE, key, measurementFactory, Supplier::get);
         }
 
         /**
@@ -101,7 +102,7 @@ public interface StatsGaugeAdapter<D> extends StatefulMetric<Supplier<D>, D> {
         }
 
         /**
-         * @return the list of functions to get the stat values from the data point
+         * @return the list of functions to get the stat values from the measurement
          */
         @NonNull
         public List<ToNumberFunction<D>> getStatExportGetters() {
@@ -109,7 +110,7 @@ public interface StatsGaugeAdapter<D> extends StatefulMetric<Supplier<D>, D> {
         }
 
         /**
-         * Get the optional reset function to reset the data point.
+         * Get the optional reset function to reset the measurement.
          *
          * @return the reset function, or {@code null} if not set
          */
@@ -119,8 +120,8 @@ public interface StatsGaugeAdapter<D> extends StatefulMetric<Supplier<D>, D> {
         }
 
         /**
-         * Set the optional reset function to reset the data points.
-         * If set, this function will be called to reset the data points when needed.
+         * Set the optional reset function to reset the measurements.
+         * If set, this function will be called to reset the measurements when needed.
          *
          * @param reset the reset function, must not be {@code null}
          * @return this builder
@@ -148,11 +149,11 @@ public interface StatsGaugeAdapter<D> extends StatefulMetric<Supplier<D>, D> {
         }
 
         /**
-         * Add a stat to be exported from the data point using the given function.
+         * Add a stat to be exported from the measurement using the given function.
          * The stat name must be unique and not blank.
          *
          * @param statName     the name of the stat
-         * @param exportGetter the function to get the {@code double} from the data point, must not be {@code null}
+         * @param exportGetter the function to get the {@code double} from the measurement, must not be {@code null}
          * @return this builder
          * @throws IllegalArgumentException if the stat name is blank or if the export getter is {@code null}
          */
@@ -162,11 +163,11 @@ public interface StatsGaugeAdapter<D> extends StatefulMetric<Supplier<D>, D> {
         }
 
         /**
-         * Add a stat to be exported from the data point using the given function.
+         * Add a stat to be exported from the measurement using the given function.
          * The stat name must be unique and not blank.
          *
          * @param statName     the name of the stat
-         * @param exportGetter the function to get the {@code long} from the data point, must not be {@code null}
+         * @param exportGetter the function to get the {@code long} from the measurement, must not be {@code null}
          * @return this builder
          * @throws IllegalArgumentException if the stat name is blank or if the export getter is {@code null}
          */

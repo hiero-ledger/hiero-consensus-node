@@ -24,10 +24,10 @@ snapshots of metrics based on export manager interval.
 ### Export Internals
 
 One of the important properties of export manager is that taking snapshots of the metrics happens synchronously
-and no more than one snapshot could be taken at a time. That allows to reuse snapshot objects for metrics and datapoints.
-Each datapoint during creation has associated snapshot object.
-When it comes to take a snapshot of the metrics for exporting, all metric datapoint snapshots are updated from their associated datapoint objects.
-[AppendArray](../src/main/java/org/hiero/metrics/internal/core/AppendArray.java) allows to fix size of elements (either metric snapshots or datapoint snapshots)
+and no more than one snapshot could be taken at a time. That allows to reuse snapshot objects for metrics and measurements.
+Each measurement during creation has associated snapshot object.
+When it comes to take a snapshot of the metrics for exporting, all metric measurement snapshots are updated from their associated measurement objects.
+[AppendArray](../src/main/java/org/hiero/metrics/internal/core/AppendArray.java) allows to fix size of elements (either metric snapshots or measurement snapshots)
 to be ready to read by exporter, and it is called when snapshots are updated synchronously by export manager.
 This approach allows to avoid creating new snapshot objects on each export and reduce GC pressure.
 

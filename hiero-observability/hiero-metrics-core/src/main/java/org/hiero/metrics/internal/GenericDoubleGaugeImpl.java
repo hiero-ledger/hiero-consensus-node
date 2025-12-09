@@ -4,14 +4,14 @@ package org.hiero.metrics.internal;
 import java.util.function.Supplier;
 import java.util.function.ToDoubleFunction;
 import org.hiero.metrics.api.GenericGauge;
-import org.hiero.metrics.api.datapoint.GaugeDataPoint;
-import org.hiero.metrics.internal.core.AbstractStatefulMetric;
+import org.hiero.metrics.api.measurement.GaugeMeasurement;
+import org.hiero.metrics.internal.core.AbstractSettableMetric;
 import org.hiero.metrics.internal.core.LabelValues;
-import org.hiero.metrics.internal.datapoint.DataPointHolder;
-import org.hiero.metrics.internal.export.snapshot.DoubleValueDataPointSnapshotImpl;
+import org.hiero.metrics.internal.export.snapshot.DoubleValueMeasurementSnapshotImpl;
+import org.hiero.metrics.internal.measurement.MeasurementHolder;
 
 public final class GenericDoubleGaugeImpl<T>
-        extends AbstractStatefulMetric<Supplier<T>, GaugeDataPoint<T>, DoubleValueDataPointSnapshotImpl>
+        extends AbstractSettableMetric<Supplier<T>, GaugeMeasurement<T>, DoubleValueMeasurementSnapshotImpl>
         implements GenericGauge<T> {
 
     private final ToDoubleFunction<T> valueConverter;
@@ -22,21 +22,22 @@ public final class GenericDoubleGaugeImpl<T>
     }
 
     @Override
-    protected void reset(GaugeDataPoint<T> dataPoint) {
-        dataPoint.reset();
+    protected void reset(GaugeMeasurement<T> measurement) {
+        measurement.reset();
     }
 
     @Override
-    protected DoubleValueDataPointSnapshotImpl createDataPointSnapshot(
-            GaugeDataPoint<T> datapoint, LabelValues dynamicLabelValues) {
-        return new DoubleValueDataPointSnapshotImpl(dynamicLabelValues);
+    protected DoubleValueMeasurementSnapshotImpl createMeasurementSnapshot(
+            GaugeMeasurement<T> measurement, LabelValues dynamicLabelValues) {
+        return new DoubleValueMeasurementSnapshotImpl(dynamicLabelValues);
     }
 
     @Override
-    protected void updateDatapointSnapshot(
-            DataPointHolder<GaugeDataPoint<T>, DoubleValueDataPointSnapshotImpl> dataPointHolder) {
-        dataPointHolder
+    protected void updateMeasurementSnapshot(
+            MeasurementHolder<GaugeMeasurement<T>, DoubleValueMeasurementSnapshotImpl> measurementHolder) {
+        measurementHolder
                 .snapshot()
-                .set(valueConverter.applyAsDouble(dataPointHolder.dataPoint().get()));
+                .set(valueConverter.applyAsDouble(
+                        measurementHolder.measurement().get()));
     }
 }

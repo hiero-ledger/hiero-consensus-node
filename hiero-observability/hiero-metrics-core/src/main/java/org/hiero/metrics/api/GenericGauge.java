@@ -11,20 +11,20 @@ import java.util.function.Supplier;
 import java.util.function.ToLongFunction;
 import org.hiero.metrics.api.core.MetricKey;
 import org.hiero.metrics.api.core.MetricType;
-import org.hiero.metrics.api.core.StatefulMetric;
+import org.hiero.metrics.api.core.SettableMetric;
 import org.hiero.metrics.api.core.ToNumberFunction;
-import org.hiero.metrics.api.datapoint.GaugeDataPoint;
+import org.hiero.metrics.api.measurement.GaugeMeasurement;
 import org.hiero.metrics.internal.GenericDoubleGaugeImpl;
 import org.hiero.metrics.internal.GenericLongGaugeImpl;
-import org.hiero.metrics.internal.datapoint.AtomicReferenceGaugeDataPoint;
+import org.hiero.metrics.internal.measurement.AtomicReferenceGaugeMeasurement;
 
 /**
- * A stateful metric of type {@link MetricType#GAUGE} that holds {@link GaugeDataPoint} per label set. <br>
- * Data points simply hold last observed custom value (convertable to numerical value on export).
+ * A metric of type {@link MetricType#GAUGE} that holds {@link GaugeMeasurement} per label set. <br>
+ * Measurements simply hold last observed custom value (convertable to numerical value on export).
  *
  * @param <T> the type of value used to observe/update the gauge and convert to {@code double} or {@code long} for export
  */
-public interface GenericGauge<T> extends StatefulMetric<Supplier<T>, GaugeDataPoint<T>> {
+public interface GenericGauge<T> extends SettableMetric<Supplier<T>, GaugeMeasurement<T>> {
 
     /**
      * Create a metric key for a {@link GenericGauge} with the given name.<br>
@@ -80,13 +80,14 @@ public interface GenericGauge<T> extends StatefulMetric<Supplier<T>, GaugeDataPo
     }
 
     /**
-     * A builder for a {@link GenericGauge} using {@link GaugeDataPoint} per label set.
+     * A builder for a {@link GenericGauge} using {@link GaugeMeasurement} per label set.
      * <p>
      * Default initial value is {@code null}.
      *
      * @param <T> the type of value used to observe/update the gauge
      */
-    final class Builder<T> extends StatefulMetric.Builder<Supplier<T>, GaugeDataPoint<T>, Builder<T>, GenericGauge<T>> {
+    final class Builder<T>
+            extends SettableMetric.Builder<Supplier<T>, GaugeMeasurement<T>, Builder<T>, GenericGauge<T>> {
 
         private final ToNumberFunction<T> valueConverter;
 
@@ -97,7 +98,7 @@ public interface GenericGauge<T> extends StatefulMetric<Supplier<T>, GaugeDataPo
          * @param valueConverter the function to convert the value to double for export
          */
         private Builder(@NonNull MetricKey<GenericGauge<T>> key, @NonNull ToNumberFunction<T> valueConverter) {
-            super(MetricType.GAUGE, key, () -> null, AtomicReferenceGaugeDataPoint::new);
+            super(MetricType.GAUGE, key, () -> null, AtomicReferenceGaugeMeasurement::new);
             this.valueConverter = Objects.requireNonNull(valueConverter, "value converter cannot be null");
         }
 

@@ -10,7 +10,7 @@ import org.hiero.metrics.api.core.MetricType;
 import org.junit.jupiter.api.Test;
 
 public class GenericGaugeTest
-        extends AbstractStatefulMetricBaseTest<GenericGauge<Duration>, GenericGauge.Builder<Duration>> {
+        extends AbstractSettableMetricBaseTest<GenericGauge<Duration>, GenericGauge.Builder<Duration>> {
 
     @Override
     protected MetricType metricType() {

@@ -5,13 +5,13 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.function.ToLongFunction;
 import org.hiero.metrics.api.GaugeAdapter;
-import org.hiero.metrics.internal.core.AbstractStatefulMetric;
+import org.hiero.metrics.internal.core.AbstractSettableMetric;
 import org.hiero.metrics.internal.core.LabelValues;
-import org.hiero.metrics.internal.datapoint.DataPointHolder;
-import org.hiero.metrics.internal.export.snapshot.LongValueDataPointSnapshotImpl;
+import org.hiero.metrics.internal.export.snapshot.LongValueMeasurementSnapshotImpl;
+import org.hiero.metrics.internal.measurement.MeasurementHolder;
 
 public final class LongGaugeAdapterImpl<D>
-        extends AbstractStatefulMetric<Supplier<D>, D, LongValueDataPointSnapshotImpl> implements GaugeAdapter<D> {
+        extends AbstractSettableMetric<Supplier<D>, D, LongValueMeasurementSnapshotImpl> implements GaugeAdapter<D> {
 
     private final ToLongFunction<D> exportGetter;
     private final Consumer<D> reset;
@@ -24,17 +24,18 @@ public final class LongGaugeAdapterImpl<D>
     }
 
     @Override
-    protected LongValueDataPointSnapshotImpl createDataPointSnapshot(D datapoint, LabelValues dynamicLabelValues) {
-        return new LongValueDataPointSnapshotImpl(dynamicLabelValues);
+    protected LongValueMeasurementSnapshotImpl createMeasurementSnapshot(
+            D measurement, LabelValues dynamicLabelValues) {
+        return new LongValueMeasurementSnapshotImpl(dynamicLabelValues);
     }
 
     @Override
-    protected void updateDatapointSnapshot(DataPointHolder<D, LongValueDataPointSnapshotImpl> dataPointHolder) {
-        dataPointHolder.snapshot().set(exportGetter.applyAsLong(dataPointHolder.dataPoint()));
+    protected void updateMeasurementSnapshot(MeasurementHolder<D, LongValueMeasurementSnapshotImpl> measurementHolder) {
+        measurementHolder.snapshot().set(exportGetter.applyAsLong(measurementHolder.measurement()));
     }
 
     @Override
-    protected void reset(D dataPoint) {
-        reset.accept(dataPoint);
+    protected void reset(D measurement) {
+        reset.accept(measurement);
     }
 }

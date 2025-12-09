@@ -5,16 +5,16 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.function.DoubleSupplier;
 import org.hiero.metrics.api.core.MetricKey;
 import org.hiero.metrics.api.core.MetricType;
-import org.hiero.metrics.api.core.StatefulMetric;
-import org.hiero.metrics.api.datapoint.DoubleCounterDataPoint;
+import org.hiero.metrics.api.core.SettableMetric;
+import org.hiero.metrics.api.measurement.DoubleCounterMeasurement;
 import org.hiero.metrics.api.stat.StatUtils;
 import org.hiero.metrics.internal.DoubleCounterImpl;
-import org.hiero.metrics.internal.datapoint.DoubleAdderCounterDataPoint;
+import org.hiero.metrics.internal.measurement.DoubleAdderCounterMeasurement;
 
 /**
- * A stateful metric of type {@link MetricType#COUNTER} that holds {@link DoubleCounterDataPoint} per label set.
+ * A metric of type {@link MetricType#COUNTER} that holds {@link DoubleCounterMeasurement} per label set.
  */
-public interface DoubleCounter extends StatefulMetric<DoubleSupplier, DoubleCounterDataPoint> {
+public interface DoubleCounter extends SettableMetric<DoubleSupplier, DoubleCounterMeasurement> {
 
     /**
      * Create a metric key for a {@link DoubleCounter} with the given name.<br>
@@ -52,20 +52,21 @@ public interface DoubleCounter extends StatefulMetric<DoubleSupplier, DoubleCoun
     }
 
     /**
-     * Builder for {@link DoubleCounter} using {@link DoubleCounterDataPoint} per label set.
+     * Builder for {@link DoubleCounter} using {@link DoubleCounterMeasurement} per label set.
      * <p>
      * Default initial value is {@code 0.0}, but could be modified using {@link #withInitValue(double)}.
      */
-    final class Builder extends StatefulMetric.Builder<DoubleSupplier, DoubleCounterDataPoint, Builder, DoubleCounter> {
+    final class Builder
+            extends SettableMetric.Builder<DoubleSupplier, DoubleCounterMeasurement, Builder, DoubleCounter> {
 
         private Builder(@NonNull MetricKey<DoubleCounter> key) {
-            super(MetricType.COUNTER, key, StatUtils.DOUBLE_INIT, DoubleAdderCounterDataPoint::new);
+            super(MetricType.COUNTER, key, StatUtils.DOUBLE_INIT, DoubleAdderCounterMeasurement::new);
         }
 
         /**
-         * Set the default value for the counter and any data point within this metric.
+         * Set the default value for the counter and any measurement within this metric.
          *
-         * @param initValue the default value for any data point within this metric
+         * @param initValue the default value for any measurement within this metric
          * @return this builder
          */
         @NonNull

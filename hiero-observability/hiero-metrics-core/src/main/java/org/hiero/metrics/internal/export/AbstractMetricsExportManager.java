@@ -14,9 +14,9 @@ import org.hiero.metrics.internal.export.snapshot.UpdatableMetricRegistrySnapsho
 /**
  * Base class for {@link MetricsExportManager} implementations holding na.
  * <p>
- * Metrics and datapoints snapshots taken from the managed registry are reusable objects, so
+ * Metrics and measurement snapshots taken from the managed registry are reusable objects, so
  * {@link #takeSnapshot()} is synchronized to ensure thread-safety and just updates the snapshots
- * from associated metrics and their datapoints.
+ * from associated metrics and their measurements.
  */
 public abstract class AbstractMetricsExportManager implements MetricsExportManager {
 

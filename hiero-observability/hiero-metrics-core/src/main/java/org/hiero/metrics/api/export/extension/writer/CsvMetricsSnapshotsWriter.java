@@ -12,12 +12,12 @@ import java.time.Instant;
 import java.util.Iterator;
 import java.util.List;
 import org.hiero.metrics.api.core.Label;
-import org.hiero.metrics.api.export.snapshot.DataPointSnapshot;
-import org.hiero.metrics.api.export.snapshot.DoubleValueDataPointSnapshot;
-import org.hiero.metrics.api.export.snapshot.LongValueDataPointSnapshot;
+import org.hiero.metrics.api.export.snapshot.DoubleValueMeasurementSnapshot;
+import org.hiero.metrics.api.export.snapshot.LongValueMeasurementSnapshot;
+import org.hiero.metrics.api.export.snapshot.MeasurementSnapshot;
 import org.hiero.metrics.api.export.snapshot.MetricSnapshot;
-import org.hiero.metrics.api.export.snapshot.MultiValueDataPointSnapshot;
-import org.hiero.metrics.api.export.snapshot.StateSetDataPointSnapshot;
+import org.hiero.metrics.api.export.snapshot.MultiValueMeasurementSnapshot;
+import org.hiero.metrics.api.export.snapshot.StateSetMeasurementSnapshot;
 
 /**
  * A {@link MetricsSnapshotsWriter} implementation that writes metrics in CSV format.
@@ -56,25 +56,25 @@ public class CsvMetricsSnapshotsWriter
     }
 
     @Override
-    protected void writeDataPoint(
+    protected void writeMeasurement(
             @NonNull Instant timestamp,
-            @NonNull DataPointSnapshot dataPointSnapshot,
-            @NonNull ByteArrayTemplate template,
+            @NonNull MeasurementSnapshot measurementSnapshot,
+            @NonNull ByteArrayTemplate measurementExportTemplate,
             @NonNull OutputStream output)
             throws IOException {
         byte[][] variables = new byte[3][]; // max 3 variables: timestamp, value, value type
         variables[0] = timestamp.toString().getBytes(StandardCharsets.UTF_8);
 
-        switch (dataPointSnapshot) {
-            case LongValueDataPointSnapshot snapshot -> {
+        switch (measurementSnapshot) {
+            case LongValueMeasurementSnapshot snapshot -> {
                 variables[1] = format(snapshot.getAsLong()).getBytes(StandardCharsets.UTF_8);
-                writeDataLine(template, 2, variables, output);
+                writeDataLine(measurementExportTemplate, 2, variables, output);
             }
-            case DoubleValueDataPointSnapshot snapshot -> {
+            case DoubleValueMeasurementSnapshot snapshot -> {
                 variables[1] = format(snapshot.getAsDouble()).getBytes(StandardCharsets.UTF_8);
-                writeDataLine(template, 2, variables, output);
+                writeDataLine(measurementExportTemplate, 2, variables, output);
             }
-            case MultiValueDataPointSnapshot snapshot -> {
+            case MultiValueMeasurementSnapshot snapshot -> {
                 for (int i = 0; i < snapshot.valuesCount(); i++) {
                     if (snapshot.isFloatingPointAt(i)) {
                         variables[1] = format(snapshot.doubleValueAt(i)).getBytes(StandardCharsets.UTF_8);
@@ -82,20 +82,20 @@ public class CsvMetricsSnapshotsWriter
                         variables[1] = format(snapshot.longValueAt(i)).getBytes(StandardCharsets.UTF_8);
                     }
                     variables[2] = snapshot.valueTypeAt(i).getBytes(StandardCharsets.UTF_8);
-                    writeDataLine(template, 3, variables, output);
+                    writeDataLine(measurementExportTemplate, 3, variables, output);
                 }
             }
-            case StateSetDataPointSnapshot<?> snapshot -> {
+            case StateSetMeasurementSnapshot<?> snapshot -> {
                 Enum<?>[] states = snapshot.states();
                 for (int i = 0; i < states.length; i++) {
                     variables[1] = format(snapshot.state(i) ? ONE : ZERO).getBytes(StandardCharsets.UTF_8);
                     variables[2] = states[i].toString().getBytes(StandardCharsets.UTF_8);
-                    writeDataLine(template, 3, variables, output);
+                    writeDataLine(measurementExportTemplate, 3, variables, output);
                 }
             }
             default ->
                 throw new IllegalArgumentException(
-                        "Unsupported data point snapshot type: " + dataPointSnapshot.getClass());
+                        "Unsupported measurement snapshot type: " + measurementSnapshot.getClass());
         }
     }
 
@@ -120,7 +120,7 @@ public class CsvMetricsSnapshotsWriter
         }
 
         @Override
-        protected ByteArrayTemplate buildDataPointExportTemplate(DataPointSnapshot dataPointSnapshot) {
+        protected ByteArrayTemplate buildMeasurementExportTemplate(MeasurementSnapshot measurementSnapshot) {
             ByteArrayTemplate.Builder builder = ByteArrayTemplate.builder()
                     .addPlaceholder() // timestamp
                     .append(COMMA)
@@ -132,10 +132,10 @@ public class CsvMetricsSnapshotsWriter
                     .append(COMMA)
                     .append(QUOTE);
 
-            boolean firstLabel = appendLabels(dataPointSnapshot, builder);
-            if (dataPointSnapshot instanceof MultiValueDataPointSnapshot snapshot) {
+            boolean firstLabel = appendLabels(measurementSnapshot, builder);
+            if (measurementSnapshot instanceof MultiValueMeasurementSnapshot snapshot) {
                 appendGenericMultiValueLabels(snapshot, builder, firstLabel);
-            } else if (dataPointSnapshot instanceof StateSetDataPointSnapshot) {
+            } else if (measurementSnapshot instanceof StateSetMeasurementSnapshot) {
                 appendStateSetLabels(builder, firstLabel);
             }
             return builder.append(QUOTE).build();
@@ -151,7 +151,7 @@ public class CsvMetricsSnapshotsWriter
         }
 
         private void appendGenericMultiValueLabels(
-                MultiValueDataPointSnapshot snapshot, ByteArrayTemplate.Builder builder, boolean firstLabel) {
+                MultiValueMeasurementSnapshot snapshot, ByteArrayTemplate.Builder builder, boolean firstLabel) {
             if (!firstLabel) {
                 builder.append(COMMA);
             }
@@ -160,9 +160,9 @@ public class CsvMetricsSnapshotsWriter
                     .addPlaceholder(); // Placeholder for value type
         }
 
-        private boolean appendLabels(DataPointSnapshot dataPointSnapshot, ByteArrayTemplate.Builder builder) {
+        private boolean appendLabels(MeasurementSnapshot measurementSnapshot, ByteArrayTemplate.Builder builder) {
             boolean firstLabel = appendStaticLabels(builder);
-            return appendDynamicLabels(dataPointSnapshot, builder, firstLabel);
+            return appendDynamicLabels(measurementSnapshot, builder, firstLabel);
         }
 
         private boolean appendStaticLabels(ByteArrayTemplate.Builder builder) {
@@ -178,10 +178,10 @@ public class CsvMetricsSnapshotsWriter
         }
 
         private boolean appendDynamicLabels(
-                DataPointSnapshot dataPointSnapshot, ByteArrayTemplate.Builder builder, boolean firstLabel) {
+                MeasurementSnapshot measurementSnapshot, ByteArrayTemplate.Builder builder, boolean firstLabel) {
             List<String> labelNames = metricSnapshot().dynamicLabelNames();
             for (int i = 0; i < labelNames.size(); i++) {
-                String labelValue = dataPointSnapshot.labelValue(i);
+                String labelValue = measurementSnapshot.labelValue(i);
                 if (!firstLabel) {
                     builder.append(COMMA);
                 }

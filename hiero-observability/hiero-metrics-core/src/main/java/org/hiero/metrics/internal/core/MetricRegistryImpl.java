@@ -13,7 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.metrics.api.core.Label;
 import org.hiero.metrics.api.core.Metric;
 import org.hiero.metrics.api.core.MetricKey;
-import org.hiero.metrics.api.export.snapshot.DataPointSnapshot;
+import org.hiero.metrics.api.export.snapshot.MeasurementSnapshot;
 import org.hiero.metrics.internal.export.SnapshotableMetric;
 import org.hiero.metrics.internal.export.SnapshotableMetricsRegistry;
 import org.hiero.metrics.internal.export.snapshot.UpdatableMetricRegistrySnapshot;
@@ -68,7 +68,7 @@ public final class MetricRegistryImpl implements SnapshotableMetricsRegistry {
             M metric = builder.withStaticLabels(globalLabels).build();
             logger.info("Registered metric: {} with global labels: {}", metric.metadata(), globalLabels);
 
-            if (metric instanceof SnapshotableMetric<? extends DataPointSnapshot> snapshotableMetric) {
+            if (metric instanceof SnapshotableMetric<? extends MeasurementSnapshot> snapshotableMetric) {
                 snapshot.add(snapshotableMetric);
             }
             return metric;

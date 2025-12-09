@@ -5,17 +5,17 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.function.BooleanSupplier;
 import org.hiero.metrics.api.core.MetricKey;
 import org.hiero.metrics.api.core.MetricType;
-import org.hiero.metrics.api.core.StatefulMetric;
-import org.hiero.metrics.api.datapoint.BooleanGaugeDataPoint;
+import org.hiero.metrics.api.core.SettableMetric;
+import org.hiero.metrics.api.measurement.BooleanGaugeMeasurement;
 import org.hiero.metrics.api.stat.StatUtils;
 import org.hiero.metrics.internal.BooleanGaugeImpl;
-import org.hiero.metrics.internal.datapoint.AtomicBooleanGaugeDataPoint;
+import org.hiero.metrics.internal.measurement.AtomicBooleanGaugeMeasurement;
 
 /**
- * A stateful metric of type {@link MetricType#GAUGE} that holds {@link BooleanGaugeDataPoint} per label set. <br>
+ * A metric of type {@link MetricType#GAUGE} that holds {@link BooleanGaugeMeasurement} per label set. <br>
  * Last set {@code boolean} value will be reported during export.
  */
-public interface BooleanGauge extends StatefulMetric<BooleanSupplier, BooleanGaugeDataPoint> {
+public interface BooleanGauge extends SettableMetric<BooleanSupplier, BooleanGaugeMeasurement> {
 
     /**
      * Create a metric key for a {@link BooleanGauge} with the given name.<br>
@@ -53,20 +53,21 @@ public interface BooleanGauge extends StatefulMetric<BooleanSupplier, BooleanGau
     }
 
     /**
-     * Builder for {@link BooleanGauge} using {@link BooleanGaugeDataPoint} per label set.
+     * Builder for {@link BooleanGauge} using {@link BooleanGaugeMeasurement} per label set.
      * <p>
      * Default initial value is {@code false}, but could be modified using {@link #withInitValue(boolean)}.
      */
-    final class Builder extends StatefulMetric.Builder<BooleanSupplier, BooleanGaugeDataPoint, Builder, BooleanGauge> {
+    final class Builder
+            extends SettableMetric.Builder<BooleanSupplier, BooleanGaugeMeasurement, Builder, BooleanGauge> {
 
         private Builder(@NonNull MetricKey<BooleanGauge> key) {
-            super(MetricType.GAUGE, key, StatUtils.BOOL_INIT_FALSE, AtomicBooleanGaugeDataPoint::new);
+            super(MetricType.GAUGE, key, StatUtils.BOOL_INIT_FALSE, AtomicBooleanGaugeMeasurement::new);
         }
 
         /**
-         * Set the default value for the gauge and any data point within this metric.
+         * Set the default value for the gauge and any measurement within this metric.
          *
-         * @param initValue the default value for any data point within this metric
+         * @param initValue the default value for any measurement within this metric
          * @return this builder
          */
         @NonNull

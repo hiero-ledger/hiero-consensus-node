@@ -5,13 +5,13 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.function.ToDoubleFunction;
 import org.hiero.metrics.api.GaugeAdapter;
-import org.hiero.metrics.internal.core.AbstractStatefulMetric;
+import org.hiero.metrics.internal.core.AbstractSettableMetric;
 import org.hiero.metrics.internal.core.LabelValues;
-import org.hiero.metrics.internal.datapoint.DataPointHolder;
-import org.hiero.metrics.internal.export.snapshot.DoubleValueDataPointSnapshotImpl;
+import org.hiero.metrics.internal.export.snapshot.DoubleValueMeasurementSnapshotImpl;
+import org.hiero.metrics.internal.measurement.MeasurementHolder;
 
 public final class DoubleGaugeAdapterImpl<D>
-        extends AbstractStatefulMetric<Supplier<D>, D, DoubleValueDataPointSnapshotImpl> implements GaugeAdapter<D> {
+        extends AbstractSettableMetric<Supplier<D>, D, DoubleValueMeasurementSnapshotImpl> implements GaugeAdapter<D> {
 
     private final ToDoubleFunction<D> exportGetter;
     private final Consumer<D> reset;
@@ -24,17 +24,19 @@ public final class DoubleGaugeAdapterImpl<D>
     }
 
     @Override
-    protected DoubleValueDataPointSnapshotImpl createDataPointSnapshot(D datapoint, LabelValues dynamicLabelValues) {
-        return new DoubleValueDataPointSnapshotImpl(dynamicLabelValues);
+    protected DoubleValueMeasurementSnapshotImpl createMeasurementSnapshot(
+            D measurement, LabelValues dynamicLabelValues) {
+        return new DoubleValueMeasurementSnapshotImpl(dynamicLabelValues);
     }
 
     @Override
-    protected void updateDatapointSnapshot(DataPointHolder<D, DoubleValueDataPointSnapshotImpl> dataPointHolder) {
-        dataPointHolder.snapshot().set(exportGetter.applyAsDouble(dataPointHolder.dataPoint()));
+    protected void updateMeasurementSnapshot(
+            MeasurementHolder<D, DoubleValueMeasurementSnapshotImpl> measurementHolder) {
+        measurementHolder.snapshot().set(exportGetter.applyAsDouble(measurementHolder.measurement()));
     }
 
     @Override
-    protected void reset(D dataPoint) {
-        reset.accept(dataPoint);
+    protected void reset(D measurement) {
+        reset.accept(measurement);
     }
 }

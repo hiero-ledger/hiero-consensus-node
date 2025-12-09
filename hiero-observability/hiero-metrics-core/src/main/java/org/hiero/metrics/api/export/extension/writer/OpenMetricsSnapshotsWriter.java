@@ -12,14 +12,14 @@ import java.util.List;
 import org.hiero.metrics.api.core.Label;
 import org.hiero.metrics.api.core.MetricMetadata;
 import org.hiero.metrics.api.core.MetricType;
-import org.hiero.metrics.api.export.snapshot.DataPointSnapshot;
-import org.hiero.metrics.api.export.snapshot.DoubleValueDataPointSnapshot;
-import org.hiero.metrics.api.export.snapshot.LongValueDataPointSnapshot;
+import org.hiero.metrics.api.export.snapshot.DoubleValueMeasurementSnapshot;
+import org.hiero.metrics.api.export.snapshot.LongValueMeasurementSnapshot;
+import org.hiero.metrics.api.export.snapshot.MeasurementSnapshot;
 import org.hiero.metrics.api.export.snapshot.MetricSnapshot;
 import org.hiero.metrics.api.export.snapshot.MetricsCollectionSnapshot;
-import org.hiero.metrics.api.export.snapshot.MultiValueDataPointSnapshot;
-import org.hiero.metrics.api.export.snapshot.SingleValueDataPointSnapshot;
-import org.hiero.metrics.api.export.snapshot.StateSetDataPointSnapshot;
+import org.hiero.metrics.api.export.snapshot.MultiValueMeasurementSnapshot;
+import org.hiero.metrics.api.export.snapshot.SingleValueMeasurementSnapshot;
+import org.hiero.metrics.api.export.snapshot.StateSetMeasurementSnapshot;
 
 /**
  * A {@link MetricsSnapshotsWriter} implementation that writes metrics in the OpenMetrics text format.
@@ -81,27 +81,27 @@ public class OpenMetricsSnapshotsWriter
     }
 
     @Override
-    protected void writeDataPoint(
+    protected void writeMeasurement(
             @NonNull Instant timestamp,
-            @NonNull DataPointSnapshot dataPointSnapshot,
-            @NonNull ByteArrayTemplate template,
+            @NonNull MeasurementSnapshot measurementSnapshot,
+            @NonNull ByteArrayTemplate measurementExportTemplate,
             @NonNull OutputStream output)
             throws IOException {
 
         byte[][] variables = new byte[3][]; // max 3 variables: value type, value, timestamp
 
-        switch (dataPointSnapshot) {
-            case LongValueDataPointSnapshot snapshot -> {
+        switch (measurementSnapshot) {
+            case LongValueMeasurementSnapshot snapshot -> {
                 byte[] convertedValue = convertValue(snapshot.getAsLong());
                 int varIdx = addValueAndTimestampVariables(timestamp, variables, convertedValue, 0);
-                writeDataLine(template, varIdx, variables, output);
+                writeDataLine(measurementExportTemplate, varIdx, variables, output);
             }
-            case DoubleValueDataPointSnapshot snapshot -> {
+            case DoubleValueMeasurementSnapshot snapshot -> {
                 byte[] convertedValue = convertValue(snapshot.getAsDouble());
                 int varIdx = addValueAndTimestampVariables(timestamp, variables, convertedValue, 0);
-                writeDataLine(template, varIdx, variables, output);
+                writeDataLine(measurementExportTemplate, varIdx, variables, output);
             }
-            case MultiValueDataPointSnapshot snapshot -> {
+            case MultiValueMeasurementSnapshot snapshot -> {
                 byte[] convertedValue;
                 for (int i = 0; i < snapshot.valuesCount(); i++) {
                     variables[0] = escape(snapshot.valueTypeAt(i)).getBytes(StandardCharsets.UTF_8);
@@ -109,21 +109,21 @@ public class OpenMetricsSnapshotsWriter
                             ? convertValue(snapshot.doubleValueAt(i))
                             : convertValue(snapshot.longValueAt(i));
                     int varIdx = addValueAndTimestampVariables(timestamp, variables, convertedValue, 1);
-                    writeDataLine(template, varIdx, variables, output);
+                    writeDataLine(measurementExportTemplate, varIdx, variables, output);
                 }
             }
-            case StateSetDataPointSnapshot<?> snapshot -> {
+            case StateSetMeasurementSnapshot<?> snapshot -> {
                 Enum<?>[] states = snapshot.states();
                 for (int i = 0; i < states.length; i++) {
                     variables[0] = escape(states[i].toString()).getBytes(StandardCharsets.UTF_8);
                     int varIdx = addValueAndTimestampVariables(
                             timestamp, variables, convertValue(snapshot.state(i) ? 1L : 0L), 1);
-                    writeDataLine(template, varIdx, variables, output);
+                    writeDataLine(measurementExportTemplate, varIdx, variables, output);
                 }
             }
             default ->
                 throw new IllegalArgumentException(
-                        "Unsupported data point snapshot type: " + dataPointSnapshot.getClass());
+                        "Unsupported measurement snapshot type: " + measurementSnapshot.getClass());
         }
     }
 
@@ -206,7 +206,7 @@ public class OpenMetricsSnapshotsWriter
 
     /**
      * Class for storing serialized data for a single metric, including metadata lines and
-     * pre-built data point export data templates.
+     * pre-built measurement export data templates.
      */
     public class MetricExportData extends BaseMetricExportData {
 
@@ -252,18 +252,18 @@ public class OpenMetricsSnapshotsWriter
         }
 
         @Override
-        protected ByteArrayTemplate buildDataPointExportTemplate(DataPointSnapshot dataPointSnapshot) {
-            return switch (dataPointSnapshot) {
-                case SingleValueDataPointSnapshot snapshot -> buildSingleValueTemplate(snapshot);
-                case MultiValueDataPointSnapshot snapshot -> buildGenericMultiValueTemplate(snapshot);
-                case StateSetDataPointSnapshot<?> snapshot -> buildStateSetTemplate(snapshot);
+        protected ByteArrayTemplate buildMeasurementExportTemplate(MeasurementSnapshot measurementSnapshot) {
+            return switch (measurementSnapshot) {
+                case SingleValueMeasurementSnapshot snapshot -> buildSingleValueTemplate(snapshot);
+                case MultiValueMeasurementSnapshot snapshot -> buildGenericMultiValueTemplate(snapshot);
+                case StateSetMeasurementSnapshot<?> snapshot -> buildStateSetTemplate(snapshot);
                 default ->
                     throw new IllegalArgumentException(
-                            "Unsupported data point snapshot type: " + dataPointSnapshot.getClass());
+                            "Unsupported measurement snapshot type: " + measurementSnapshot.getClass());
             };
         }
 
-        private ByteArrayTemplate buildSingleValueTemplate(SingleValueDataPointSnapshot dataPointSnapshot) {
+        private ByteArrayTemplate buildSingleValueTemplate(SingleValueMeasurementSnapshot measurementSnapshot) {
             ByteArrayTemplate.Builder builder = ByteArrayTemplate.builder();
 
             builder.append(metricNameBytes);
@@ -274,7 +274,7 @@ public class OpenMetricsSnapshotsWriter
             if (!metricSnapshot().staticLabels().isEmpty()
                     || !metricSnapshot().dynamicLabelNames().isEmpty()) {
                 builder.append(OPEN_BRACKET);
-                appendLabels(dataPointSnapshot, builder);
+                appendLabels(measurementSnapshot, builder);
                 builder.append(CLOSE_BRACKET);
             }
 
@@ -283,15 +283,15 @@ public class OpenMetricsSnapshotsWriter
             return builder.build();
         }
 
-        private ByteArrayTemplate buildGenericMultiValueTemplate(MultiValueDataPointSnapshot dataPointSnapshot) {
+        private ByteArrayTemplate buildGenericMultiValueTemplate(MultiValueMeasurementSnapshot measurementSnapshot) {
             ByteArrayTemplate.Builder builder =
                     ByteArrayTemplate.builder().append(metricNameBytes).append(OPEN_BRACKET);
 
-            boolean firstLabel = appendLabels(dataPointSnapshot, builder);
+            boolean firstLabel = appendLabels(measurementSnapshot, builder);
             if (!firstLabel) {
                 builder.append(COMMA);
             }
-            builder.appendUtf8(dataPointSnapshot.valueClassifier())
+            builder.appendUtf8(measurementSnapshot.valueClassifier())
                     .append(EQUALS_QUOTE)
                     .addPlaceholder() // Placeholder for value type
                     .append(QUOTE)
@@ -302,12 +302,12 @@ public class OpenMetricsSnapshotsWriter
             return builder.build();
         }
 
-        private ByteArrayTemplate buildStateSetTemplate(StateSetDataPointSnapshot<?> dataPointSnapshot) {
+        private ByteArrayTemplate buildStateSetTemplate(StateSetMeasurementSnapshot<?> measurementSnapshot) {
             ByteArrayTemplate.Builder builder = ByteArrayTemplate.builder().append(metricNameBytes);
 
             // state set requires an additional label with name equal to metric name and value equal to state name
             builder.append(OPEN_BRACKET);
-            boolean firstLabel = appendLabels(dataPointSnapshot, builder);
+            boolean firstLabel = appendLabels(measurementSnapshot, builder);
             if (!firstLabel) {
                 builder.append(COMMA);
             }
@@ -330,9 +330,9 @@ public class OpenMetricsSnapshotsWriter
             }
         }
 
-        private boolean appendLabels(DataPointSnapshot dataPointSnapshot, ByteArrayTemplate.Builder builder) {
+        private boolean appendLabels(MeasurementSnapshot measurementSnapshot, ByteArrayTemplate.Builder builder) {
             boolean firstLabel = appendStaticLabels(builder);
-            return appendDynamicLabels(dataPointSnapshot, builder, firstLabel);
+            return appendDynamicLabels(measurementSnapshot, builder, firstLabel);
         }
 
         private boolean appendStaticLabels(ByteArrayTemplate.Builder builder) {
@@ -351,10 +351,10 @@ public class OpenMetricsSnapshotsWriter
         }
 
         private boolean appendDynamicLabels(
-                DataPointSnapshot dataPointSnapshot, ByteArrayTemplate.Builder builder, boolean firstLabel) {
+                MeasurementSnapshot measurementSnapshot, ByteArrayTemplate.Builder builder, boolean firstLabel) {
             List<String> labelNames = metricSnapshot().dynamicLabelNames();
             for (int i = 0; i < labelNames.size(); i++) {
-                String labelValue = dataPointSnapshot.labelValue(i);
+                String labelValue = measurementSnapshot.labelValue(i);
                 if (!firstLabel) {
                     builder.append(COMMA);
                 }

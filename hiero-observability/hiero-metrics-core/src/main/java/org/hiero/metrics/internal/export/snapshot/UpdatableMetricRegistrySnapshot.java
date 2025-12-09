@@ -3,7 +3,7 @@ package org.hiero.metrics.internal.export.snapshot;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
-import org.hiero.metrics.api.export.snapshot.DataPointSnapshot;
+import org.hiero.metrics.api.export.snapshot.MeasurementSnapshot;
 import org.hiero.metrics.api.export.snapshot.MetricSnapshot;
 import org.hiero.metrics.api.export.snapshot.MetricsCollectionSnapshot;
 import org.hiero.metrics.internal.core.AppendArray;
@@ -25,7 +25,7 @@ public final class UpdatableMetricRegistrySnapshot implements MetricsCollectionS
         return this;
     }
 
-    public void add(SnapshotableMetric<? extends DataPointSnapshot> snapshotableMetric) {
+    public void add(SnapshotableMetric<? extends MeasurementSnapshot> snapshotableMetric) {
         snapshots.add(snapshotableMetric.snapshot());
     }
 

@@ -8,7 +8,7 @@ import java.util.Set;
 import org.hiero.metrics.api.core.Label;
 import org.hiero.metrics.api.core.MetricKey;
 import org.hiero.metrics.api.core.MetricType;
-import org.hiero.metrics.api.datapoint.StateSetDataPoint;
+import org.hiero.metrics.api.measurement.StateSetMeasurement;
 import org.hiero.metrics.api.utils.Unit;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -17,7 +17,7 @@ import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.MethodSource;
 
 public class StateSetTest
-        extends AbstractStatefulMetricBaseTest<
+        extends AbstractSettableMetricBaseTest<
                 StateSet<StateSetTest.TestEnum>, StateSet.Builder<StateSetTest.TestEnum>> {
 
     public enum TestEnum {
@@ -182,7 +182,7 @@ public class StateSetTest
         metric.getOrCreateLabeled("label", "1").setTrue(TestEnum.C);
         metric.getOrCreateLabeled("label", "2").setTrue(TestEnum.A);
 
-        // initializer should not interfere with already initialized datapoints
+        // initializer should not interfere with already initialized measurements
         verifyStates(metric.getOrCreateLabeled(Set.of(TestEnum.A), "label", "1"), false, false, true);
         verifyStates(metric.getOrCreateLabeled("label", "2"), true, true, false);
 
@@ -191,9 +191,9 @@ public class StateSetTest
         verifyStates(metric.getOrCreateLabeled("label", "2"), false, true, false);
     }
 
-    private void verifyStates(StateSetDataPoint<TestEnum> dataPoint, boolean... values) {
-        assertThat(dataPoint.getState(TestEnum.A)).isEqualTo(values[0]);
-        assertThat(dataPoint.getState(TestEnum.B)).isEqualTo(values[1]);
-        assertThat(dataPoint.getState(TestEnum.C)).isEqualTo(values[2]);
+    private void verifyStates(StateSetMeasurement<TestEnum> measurement, boolean... values) {
+        assertThat(measurement.getState(TestEnum.A)).isEqualTo(values[0]);
+        assertThat(measurement.getState(TestEnum.B)).isEqualTo(values[1]);
+        assertThat(measurement.getState(TestEnum.C)).isEqualTo(values[2]);
     }
 }

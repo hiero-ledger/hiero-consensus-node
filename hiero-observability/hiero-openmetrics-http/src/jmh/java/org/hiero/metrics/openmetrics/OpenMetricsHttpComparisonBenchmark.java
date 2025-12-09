@@ -36,7 +36,7 @@ public class OpenMetricsHttpComparisonBenchmark {
     public boolean useGzip;
 
     @Param({"10000"})
-    public int dataPointsCount;
+    public int measurementsCount;
 
     @Param({"4"})
     public int labelsBound; // exclusive bound as [0, labelsBound)
@@ -58,7 +58,7 @@ public class OpenMetricsHttpComparisonBenchmark {
         System.out.println("Using framework: " + frameworkName);
         httpTestScenario
                 .getFramework()
-                .generateAllMetricsTypesDeterministic(dataPointsCount, labelsBound, true, COMMON_METRIC_TYPES);
+                .generateAllMetricsTypesDeterministic(measurementsCount, labelsBound, true, COMMON_METRIC_TYPES);
         System.gc();
     }
 
@@ -89,7 +89,7 @@ public class OpenMetricsHttpComparisonBenchmark {
     @Measurement(iterations = 180, time = 1, timeUnit = TimeUnit.SECONDS)
     public void callOpenMetricsEndpoint() throws IOException, InterruptedException {
         // make some updates to metrics
-        httpTestScenario.getFramework().updateRandomDataPoints(1);
+        httpTestScenario.getFramework().updateRandomMeasurements(1);
         httpTestScenario.callEndpoint(useGzip);
     }
 }

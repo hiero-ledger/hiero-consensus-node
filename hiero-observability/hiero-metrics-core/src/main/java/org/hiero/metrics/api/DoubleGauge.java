@@ -9,20 +9,20 @@ import java.util.function.DoubleBinaryOperator;
 import java.util.function.DoubleSupplier;
 import org.hiero.metrics.api.core.MetricKey;
 import org.hiero.metrics.api.core.MetricType;
-import org.hiero.metrics.api.core.StatefulMetric;
-import org.hiero.metrics.api.datapoint.DoubleGaugeDataPoint;
+import org.hiero.metrics.api.core.SettableMetric;
+import org.hiero.metrics.api.measurement.DoubleGaugeMeasurement;
 import org.hiero.metrics.api.stat.StatUtils;
 import org.hiero.metrics.internal.DoubleGaugeImpl;
-import org.hiero.metrics.internal.datapoint.AtomicDoubleGaugeDataPoint;
-import org.hiero.metrics.internal.datapoint.DoubleAccumulatorGaugeDataPoint;
+import org.hiero.metrics.internal.measurement.AtomicDoubleGaugeMeasurement;
+import org.hiero.metrics.internal.measurement.DoubleAccumulatorGaugeMeasurement;
 
 /**
- * A stateful metric of type {@link MetricType#GAUGE} that holds {@link DoubleGaugeDataPoint} per label set.
+ * A metric of type {@link MetricType#GAUGE} that holds {@link DoubleGaugeMeasurement} per label set.
  * <p>
  * The gauge could be configured to hold the last value set, or to accumulate values using an operator
  * (e.g. sum, min, max). See {@link Builder} for details.
  */
-public interface DoubleGauge extends StatefulMetric<DoubleSupplier, DoubleGaugeDataPoint> {
+public interface DoubleGauge extends SettableMetric<DoubleSupplier, DoubleGaugeMeasurement> {
 
     /**
      * Create a metric key for a {@link DoubleGauge} with the given name. <br>
@@ -60,19 +60,19 @@ public interface DoubleGauge extends StatefulMetric<DoubleSupplier, DoubleGaugeD
     }
 
     /**
-     * Builder for {@link DoubleGauge} using {@link DoubleGaugeDataPoint} per label set.
+     * Builder for {@link DoubleGauge} using {@link DoubleGaugeMeasurement} per label set.
      * <p>
      * By default, it will export last value set, but could be configured to export accumulated values
      * using {@link #withOperator(DoubleBinaryOperator, boolean)}. <br>
      * Default initial value is {@code 0.0}, but could be modified with {@link #withInitValue(double)}.
      */
-    final class Builder extends StatefulMetric.Builder<DoubleSupplier, DoubleGaugeDataPoint, Builder, DoubleGauge> {
+    final class Builder extends SettableMetric.Builder<DoubleSupplier, DoubleGaugeMeasurement, Builder, DoubleGauge> {
 
         private DoubleBinaryOperator operator;
         private boolean resetOnExport = false;
 
         private Builder(@NonNull MetricKey<DoubleGauge> key) {
-            super(MetricType.GAUGE, key, DOUBLE_INIT, AtomicDoubleGaugeDataPoint::new);
+            super(MetricType.GAUGE, key, DOUBLE_INIT, AtomicDoubleGaugeMeasurement::new);
         }
 
         /**
@@ -84,9 +84,9 @@ public interface DoubleGauge extends StatefulMetric<DoubleSupplier, DoubleGaugeD
         }
 
         /**
-         * Set the initial value for the gauge and any data point within this metric.
+         * Set the initial value for the gauge and any measurement within this metric.
          *
-         * @param initValue the initial value for any data point within this metric
+         * @param initValue the initial value for any measurement within this metric
          * @return this builder
          */
         @NonNull
@@ -110,19 +110,8 @@ public interface DoubleGauge extends StatefulMetric<DoubleSupplier, DoubleGaugeD
         }
 
         /**
-         * Set the aggregation operator to {@code sum}.
-         * Default initial value for newly created datapoint is {@code 0.0}.
-         * The gauge will be reset to its initial value after each export.
-         *
-         * @return this builder
-         */
-        public DoubleGauge.Builder withSumOperator() {
-            return withOperator(StatUtils.DOUBLE_SUM, true).withInitValue(StatUtils.ZERO);
-        }
-
-        /**
          * Set the aggregation operator to track {@code max} spikes of the values.
-         * Default initial value for newly created datapoint is {@link Double#NEGATIVE_INFINITY}.
+         * Default initial value for newly created measurement is {@link Double#NEGATIVE_INFINITY}.
          * The gauge will be reset to its initial value after each export.
          *
          * @return this builder
@@ -133,7 +122,7 @@ public interface DoubleGauge extends StatefulMetric<DoubleSupplier, DoubleGaugeD
 
         /**
          * Set the aggregation operator to track {@code min} spikes of the values.
-         * Default initial value for newly created datapoint is {@link Double#POSITIVE_INFINITY}.
+         * Default initial value for newly created measurement is {@link Double#POSITIVE_INFINITY}.
          * The gauge will be reset to its initial value after each export.
          *
          * @return this builder
@@ -151,9 +140,9 @@ public interface DoubleGauge extends StatefulMetric<DoubleSupplier, DoubleGaugeD
         @Override
         public DoubleGauge buildMetric() {
             if (operator != null) {
-                withContainerFactory(init -> new DoubleAccumulatorGaugeDataPoint(operator, init));
+                withContainerFactory(init -> new DoubleAccumulatorGaugeMeasurement(operator, init));
             } else {
-                withContainerFactory(AtomicDoubleGaugeDataPoint::new);
+                withContainerFactory(AtomicDoubleGaugeMeasurement::new);
             }
 
             return new DoubleGaugeImpl(this);

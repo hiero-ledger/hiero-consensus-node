@@ -4,39 +4,39 @@ package org.hiero.metrics.internal;
 import java.util.function.LongSupplier;
 import java.util.function.ToLongFunction;
 import org.hiero.metrics.api.LongGauge;
-import org.hiero.metrics.api.datapoint.LongGaugeDataPoint;
-import org.hiero.metrics.internal.core.AbstractStatefulMetric;
+import org.hiero.metrics.api.measurement.LongGaugeMeasurement;
+import org.hiero.metrics.internal.core.AbstractSettableMetric;
 import org.hiero.metrics.internal.core.LabelValues;
-import org.hiero.metrics.internal.datapoint.DataPointHolder;
-import org.hiero.metrics.internal.export.snapshot.LongValueDataPointSnapshotImpl;
+import org.hiero.metrics.internal.export.snapshot.LongValueMeasurementSnapshotImpl;
+import org.hiero.metrics.internal.measurement.MeasurementHolder;
 
 public final class LongGaugeImpl
-        extends AbstractStatefulMetric<LongSupplier, LongGaugeDataPoint, LongValueDataPointSnapshotImpl>
+        extends AbstractSettableMetric<LongSupplier, LongGaugeMeasurement, LongValueMeasurementSnapshotImpl>
         implements LongGauge {
 
-    private final ToLongFunction<LongGaugeDataPoint> exportValueSupplier;
+    private final ToLongFunction<LongGaugeMeasurement> exportValueSupplier;
 
     public LongGaugeImpl(LongGauge.Builder builder) {
         super(builder);
 
         exportValueSupplier =
-                builder.isResetOnExport() ? LongGaugeDataPoint::getAndReset : LongGaugeDataPoint::getAsLong;
+                builder.isResetOnExport() ? LongGaugeMeasurement::getAndReset : LongGaugeMeasurement::getAsLong;
     }
 
     @Override
-    protected LongValueDataPointSnapshotImpl createDataPointSnapshot(
-            LongGaugeDataPoint datapoint, LabelValues dynamicLabelValues) {
-        return new LongValueDataPointSnapshotImpl(dynamicLabelValues);
+    protected LongValueMeasurementSnapshotImpl createMeasurementSnapshot(
+            LongGaugeMeasurement measurement, LabelValues dynamicLabelValues) {
+        return new LongValueMeasurementSnapshotImpl(dynamicLabelValues);
     }
 
     @Override
-    protected void updateDatapointSnapshot(
-            DataPointHolder<LongGaugeDataPoint, LongValueDataPointSnapshotImpl> dataPointHolder) {
-        dataPointHolder.snapshot().set(exportValueSupplier.applyAsLong(dataPointHolder.dataPoint()));
+    protected void updateMeasurementSnapshot(
+            MeasurementHolder<LongGaugeMeasurement, LongValueMeasurementSnapshotImpl> measurementHolder) {
+        measurementHolder.snapshot().set(exportValueSupplier.applyAsLong(measurementHolder.measurement()));
     }
 
     @Override
-    protected void reset(LongGaugeDataPoint dataPoint) {
-        dataPoint.reset();
+    protected void reset(LongGaugeMeasurement measurement) {
+        measurement.reset();
     }
 }

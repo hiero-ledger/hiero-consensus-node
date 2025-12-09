@@ -3,14 +3,14 @@ package org.hiero.metrics.internal;
 
 import java.util.function.BooleanSupplier;
 import org.hiero.metrics.api.BooleanGauge;
-import org.hiero.metrics.api.datapoint.BooleanGaugeDataPoint;
-import org.hiero.metrics.internal.core.AbstractStatefulMetric;
+import org.hiero.metrics.api.measurement.BooleanGaugeMeasurement;
+import org.hiero.metrics.internal.core.AbstractSettableMetric;
 import org.hiero.metrics.internal.core.LabelValues;
-import org.hiero.metrics.internal.datapoint.DataPointHolder;
-import org.hiero.metrics.internal.export.snapshot.LongValueDataPointSnapshotImpl;
+import org.hiero.metrics.internal.export.snapshot.LongValueMeasurementSnapshotImpl;
+import org.hiero.metrics.internal.measurement.MeasurementHolder;
 
 public final class BooleanGaugeImpl
-        extends AbstractStatefulMetric<BooleanSupplier, BooleanGaugeDataPoint, LongValueDataPointSnapshotImpl>
+        extends AbstractSettableMetric<BooleanSupplier, BooleanGaugeMeasurement, LongValueMeasurementSnapshotImpl>
         implements BooleanGauge {
 
     public BooleanGaugeImpl(BooleanGauge.Builder builder) {
@@ -18,19 +18,19 @@ public final class BooleanGaugeImpl
     }
 
     @Override
-    protected void reset(BooleanGaugeDataPoint dataPoint) {
-        dataPoint.reset();
+    protected void reset(BooleanGaugeMeasurement measurement) {
+        measurement.reset();
     }
 
     @Override
-    protected LongValueDataPointSnapshotImpl createDataPointSnapshot(
-            BooleanGaugeDataPoint datapoint, LabelValues dynamicLabelValues) {
-        return new LongValueDataPointSnapshotImpl(dynamicLabelValues);
+    protected LongValueMeasurementSnapshotImpl createMeasurementSnapshot(
+            BooleanGaugeMeasurement measurement, LabelValues dynamicLabelValues) {
+        return new LongValueMeasurementSnapshotImpl(dynamicLabelValues);
     }
 
     @Override
-    protected void updateDatapointSnapshot(
-            DataPointHolder<BooleanGaugeDataPoint, LongValueDataPointSnapshotImpl> dataPointHolder) {
-        dataPointHolder.snapshot().set(dataPointHolder.dataPoint().getAsLong());
+    protected void updateMeasurementSnapshot(
+            MeasurementHolder<BooleanGaugeMeasurement, LongValueMeasurementSnapshotImpl> measurementHolder) {
+        measurementHolder.snapshot().set(measurementHolder.measurement().getAsLong());
     }
 }

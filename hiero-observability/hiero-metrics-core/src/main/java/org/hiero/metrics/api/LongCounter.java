@@ -5,17 +5,17 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.function.LongSupplier;
 import org.hiero.metrics.api.core.MetricKey;
 import org.hiero.metrics.api.core.MetricType;
-import org.hiero.metrics.api.core.StatefulMetric;
-import org.hiero.metrics.api.datapoint.LongCounterDataPoint;
+import org.hiero.metrics.api.core.SettableMetric;
+import org.hiero.metrics.api.measurement.LongCounterMeasurement;
 import org.hiero.metrics.api.stat.StatUtils;
 import org.hiero.metrics.internal.LongCounterImpl;
-import org.hiero.metrics.internal.datapoint.AtomicLongCounterDataPoint;
-import org.hiero.metrics.internal.datapoint.LongAdderCounterDataPoint;
+import org.hiero.metrics.internal.measurement.AtomicLongCounterMeasurement;
+import org.hiero.metrics.internal.measurement.LongAdderCounterMeasurement;
 
 /**
- * A stateful metric of type {@link MetricType#COUNTER} that holds {@link LongCounterDataPoint} per label set.
+ * A metric of type {@link MetricType#COUNTER} that holds {@link LongCounterMeasurement} per label set.
  */
-public interface LongCounter extends StatefulMetric<LongSupplier, LongCounterDataPoint> {
+public interface LongCounter extends SettableMetric<LongSupplier, LongCounterMeasurement> {
 
     /**
      * Create a metric key for a {@link LongCounter} with the given name. <br>
@@ -53,21 +53,21 @@ public interface LongCounter extends StatefulMetric<LongSupplier, LongCounterDat
     }
 
     /**
-     * Builder for {@link LongCounter} using {@link LongCounterDataPoint} per label set.
+     * Builder for {@link LongCounter} using {@link LongCounterMeasurement} per label set.
      * <p>
      * Default initial value is {@code 0L}. <br>
-     * By default, {@link java.util.concurrent.atomic.LongAdder} is used in the data point implementation, but
+     * By default, {@link java.util.concurrent.atomic.LongAdder} is used in the measurement implementation, but
      * could be changed to use {@link java.util.concurrent.atomic.AtomicLong} by calling
      * {@link #withLowThreadContention()} if no high contention on update is expected.
      */
-    final class Builder extends StatefulMetric.Builder<LongSupplier, LongCounterDataPoint, Builder, LongCounter> {
+    final class Builder extends SettableMetric.Builder<LongSupplier, LongCounterMeasurement, Builder, LongCounter> {
 
         private Builder(@NonNull MetricKey<LongCounter> key) {
-            super(MetricType.COUNTER, key, StatUtils.LONG_INIT, LongAdderCounterDataPoint::new);
+            super(MetricType.COUNTER, key, StatUtils.LONG_INIT, LongAdderCounterMeasurement::new);
         }
 
         /**
-         * Sets the default initial value for the counter data points created by this metric.
+         * Sets the default initial value for the counter measurements created by this metric.
          *
          * @param initValue the initial value
          * @return this builder
@@ -78,14 +78,14 @@ public interface LongCounter extends StatefulMetric<LongSupplier, LongCounterDat
         }
 
         /**
-         * Uses {@link AtomicLongCounterDataPoint} instead of default {@link LongAdderCounterDataPoint}
-         * as the data point implementation for this metric, if no high contention on update is expected.
+         * Uses {@link AtomicLongCounterMeasurement} instead of default {@link LongAdderCounterMeasurement}
+         * as the measurement implementation for this metric, if no high contention on update is expected.
          *
          * @return this builder
          */
         @NonNull
         public Builder withLowThreadContention() {
-            withContainerFactory(AtomicLongCounterDataPoint::new);
+            withContainerFactory(AtomicLongCounterMeasurement::new);
             return this;
         }
 

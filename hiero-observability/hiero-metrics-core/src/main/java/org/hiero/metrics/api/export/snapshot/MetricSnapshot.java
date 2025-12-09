@@ -8,14 +8,14 @@ import org.hiero.metrics.api.core.Label;
 import org.hiero.metrics.api.core.MetricMetadata;
 
 /**
- * Snapshot of the {@link org.hiero.metrics.api.core.Metric} and its data points at some point in time.
- * Implementations are be mutable and reusable for performance reasons, allowing to update the data point snapshots
+ * Snapshot of the {@link org.hiero.metrics.api.core.Metric} and its measurements at some point in time.
+ * Implementations are be mutable and reusable for performance reasons, allowing to update the measurement snapshots
  * in place with centralized snapshotting manager. Metric snapshot can be used as key in hash map
  * to cache some specific to export destination metric representation or template (like bytes array).
  *
- * @see DataPointSnapshot
+ * @see MeasurementSnapshot
  */
-public interface MetricSnapshot extends ArrayAccessor<DataPointSnapshot> {
+public interface MetricSnapshot extends ArrayAccessor<MeasurementSnapshot> {
 
     /**
      * @return metric metadata, never {@code null}

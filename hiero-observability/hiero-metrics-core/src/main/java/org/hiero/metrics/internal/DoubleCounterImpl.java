@@ -3,14 +3,14 @@ package org.hiero.metrics.internal;
 
 import java.util.function.DoubleSupplier;
 import org.hiero.metrics.api.DoubleCounter;
-import org.hiero.metrics.api.datapoint.DoubleCounterDataPoint;
-import org.hiero.metrics.internal.core.AbstractStatefulMetric;
+import org.hiero.metrics.api.measurement.DoubleCounterMeasurement;
+import org.hiero.metrics.internal.core.AbstractSettableMetric;
 import org.hiero.metrics.internal.core.LabelValues;
-import org.hiero.metrics.internal.datapoint.DataPointHolder;
-import org.hiero.metrics.internal.export.snapshot.DoubleValueDataPointSnapshotImpl;
+import org.hiero.metrics.internal.export.snapshot.DoubleValueMeasurementSnapshotImpl;
+import org.hiero.metrics.internal.measurement.MeasurementHolder;
 
 public final class DoubleCounterImpl
-        extends AbstractStatefulMetric<DoubleSupplier, DoubleCounterDataPoint, DoubleValueDataPointSnapshotImpl>
+        extends AbstractSettableMetric<DoubleSupplier, DoubleCounterMeasurement, DoubleValueMeasurementSnapshotImpl>
         implements DoubleCounter {
 
     public DoubleCounterImpl(DoubleCounter.Builder builder) {
@@ -18,19 +18,19 @@ public final class DoubleCounterImpl
     }
 
     @Override
-    protected void reset(DoubleCounterDataPoint dataPoint) {
-        dataPoint.reset();
+    protected void reset(DoubleCounterMeasurement measurement) {
+        measurement.reset();
     }
 
     @Override
-    protected DoubleValueDataPointSnapshotImpl createDataPointSnapshot(
-            DoubleCounterDataPoint datapoint, LabelValues dynamicLabelValues) {
-        return new DoubleValueDataPointSnapshotImpl(dynamicLabelValues);
+    protected DoubleValueMeasurementSnapshotImpl createMeasurementSnapshot(
+            DoubleCounterMeasurement measurement, LabelValues dynamicLabelValues) {
+        return new DoubleValueMeasurementSnapshotImpl(dynamicLabelValues);
     }
 
     @Override
-    protected void updateDatapointSnapshot(
-            DataPointHolder<DoubleCounterDataPoint, DoubleValueDataPointSnapshotImpl> dataPointHolder) {
-        dataPointHolder.snapshot().set(dataPointHolder.dataPoint().getAsDouble());
+    protected void updateMeasurementSnapshot(
+            MeasurementHolder<DoubleCounterMeasurement, DoubleValueMeasurementSnapshotImpl> measurementHolder) {
+        measurementHolder.snapshot().set(measurementHolder.measurement().getAsDouble());
     }
 }

@@ -6,20 +6,20 @@ import java.util.Objects;
 import java.util.Set;
 import org.hiero.metrics.api.core.MetricKey;
 import org.hiero.metrics.api.core.MetricType;
-import org.hiero.metrics.api.core.StatefulMetric;
-import org.hiero.metrics.api.datapoint.StateSetDataPoint;
+import org.hiero.metrics.api.core.SettableMetric;
+import org.hiero.metrics.api.measurement.StateSetMeasurement;
 import org.hiero.metrics.internal.StateSetImpl;
-import org.hiero.metrics.internal.datapoint.EnumStateSetDataPoint;
+import org.hiero.metrics.internal.measurement.EnumStateSetMeasurement;
 
 /**
- * A stateful metric of type {@link MetricType#STATE_SET} that holds {@link StateSetDataPoint} per label set.
+ * A metric of type {@link MetricType#STATE_SET} that holds {@link StateSetMeasurement} per label set.
  * <p>
  * This requires enum type to ensure states are fixed size.<br>
  * This metric won't have a unit (if set, will be overridden to {@code null} during metric construction).
  *
  * @param <E> the enum type of the states in the set
  */
-public interface StateSet<E extends Enum<E>> extends StatefulMetric<Set<E>, StateSetDataPoint<E>> {
+public interface StateSet<E extends Enum<E>> extends SettableMetric<Set<E>, StateSetMeasurement<E>> {
 
     /**
      * Create a metric key for a {@link StateSet} with the given name. <br>
@@ -63,19 +63,19 @@ public interface StateSet<E extends Enum<E>> extends StatefulMetric<Set<E>, Stat
     }
 
     /**
-     * Builder for {@link StateSet} using {@link StateSetDataPoint} per label set.
+     * Builder for {@link StateSet} using {@link StateSetMeasurement} per label set.
      * <p>
      * By default, the initial state is empty and false for each state.
      *
      * @param <E> the type of the states in the set
      */
     final class Builder<E extends Enum<E>>
-            extends StatefulMetric.Builder<Set<E>, StateSetDataPoint<E>, Builder<E>, StateSet<E>> {
+            extends SettableMetric.Builder<Set<E>, StateSetMeasurement<E>, Builder<E>, StateSet<E>> {
 
         private final Class<E> enumClass;
 
         private Builder(@NonNull MetricKey<StateSet<E>> key, @NonNull Class<E> enumClass) {
-            super(MetricType.STATE_SET, key, Set.of(), init -> new EnumStateSetDataPoint<>(init, enumClass));
+            super(MetricType.STATE_SET, key, Set.of(), init -> new EnumStateSetMeasurement<>(init, enumClass));
             this.enumClass = enumClass;
         }
 

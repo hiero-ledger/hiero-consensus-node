@@ -11,7 +11,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
-public class LongGaugeTest extends AbstractStatefulMetricBaseTest<LongGauge, LongGauge.Builder> {
+public class LongGaugeTest extends AbstractSettableMetricBaseTest<LongGauge, LongGauge.Builder> {
 
     @Override
     protected MetricType metricType() {
@@ -176,7 +176,7 @@ public class LongGaugeTest extends AbstractStatefulMetricBaseTest<LongGauge, Lon
 
         assertThat(metric.getOrCreateLabeled(StatUtils.asInitializer(initialValue), "label", "1")
                         .getAsLong())
-                .as("initializer is not used when datapoint already initialized")
+                .as("initializer is not used when measurement already initialized")
                 .isNotEqualTo(initialValue);
     }
 }

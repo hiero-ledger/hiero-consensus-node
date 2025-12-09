@@ -2,7 +2,7 @@
 package org.hiero.metrics;
 
 import org.hiero.metrics.api.LongCounter;
-import org.hiero.metrics.api.datapoint.LongCounterDataPoint;
+import org.hiero.metrics.api.measurement.LongCounterMeasurement;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -18,16 +18,16 @@ import org.openjdk.jmh.annotations.Warmup;
 @State(Scope.Benchmark)
 public class LongAdderVsAtomicLongBenchmark {
 
-    private LongCounterDataPoint atomicLongDataPoint;
-    private LongCounterDataPoint longAdderDataPoint;
+    private LongCounterMeasurement atomicLongMeasurement;
+    private LongCounterMeasurement longAdderMeasurement;
 
     @Setup(Level.Trial)
     public void setupGlobal() {
-        atomicLongDataPoint = LongCounter.builder("atomic_long_counter")
+        atomicLongMeasurement = LongCounter.builder("atomic_long_counter")
                 .withLowThreadContention()
                 .build()
                 .getOrCreateNotLabeled();
-        longAdderDataPoint = LongCounter.builder("long_adder_counter").build().getOrCreateNotLabeled();
+        longAdderMeasurement = LongCounter.builder("long_adder_counter").build().getOrCreateNotLabeled();
     }
 
     @Benchmark
@@ -37,7 +37,7 @@ public class LongAdderVsAtomicLongBenchmark {
     @Measurement(iterations = 3, time = 3)
     @Threads(16)
     public void atomicLongCounter16Threads() {
-        atomicLongDataPoint.increment();
+        atomicLongMeasurement.increment();
     }
 
     @Benchmark
@@ -47,7 +47,7 @@ public class LongAdderVsAtomicLongBenchmark {
     @Measurement(iterations = 3, time = 3)
     @Threads(2)
     public void atomicLongCounter2Threads() {
-        atomicLongDataPoint.increment();
+        atomicLongMeasurement.increment();
     }
 
     @Benchmark
@@ -57,7 +57,7 @@ public class LongAdderVsAtomicLongBenchmark {
     @Measurement(iterations = 3, time = 3)
     @Threads(16)
     public void longAdderCounter16Threads() {
-        longAdderDataPoint.increment();
+        longAdderMeasurement.increment();
     }
 
     @Benchmark
@@ -67,6 +67,6 @@ public class LongAdderVsAtomicLongBenchmark {
     @Measurement(iterations = 3, time = 3)
     @Threads(2)
     public void longAdderCounter2Threads() {
-        longAdderDataPoint.increment();
+        longAdderMeasurement.increment();
     }
 }

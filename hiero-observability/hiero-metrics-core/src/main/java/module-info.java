@@ -6,7 +6,7 @@ module org.hiero.metrics.core {
     exports org.hiero.metrics.api;
     exports org.hiero.metrics.api.core;
     exports org.hiero.metrics.api.utils;
-    exports org.hiero.metrics.api.datapoint;
+    exports org.hiero.metrics.api.measurement;
     exports org.hiero.metrics.api.export;
     exports org.hiero.metrics.api.export.snapshot;
     exports org.hiero.metrics.api.export.extension;

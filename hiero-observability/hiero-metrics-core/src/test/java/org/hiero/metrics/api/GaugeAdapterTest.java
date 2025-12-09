@@ -13,7 +13,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
 public class GaugeAdapterTest
-        extends AbstractStatefulMetricBaseTest<GaugeAdapter<StatContainer>, GaugeAdapter.Builder<StatContainer>> {
+        extends AbstractSettableMetricBaseTest<GaugeAdapter<StatContainer>, GaugeAdapter.Builder<StatContainer>> {
 
     @Override
     protected MetricType metricType() {

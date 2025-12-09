@@ -11,7 +11,7 @@ import org.hiero.metrics.api.LongGauge;
 import org.hiero.metrics.api.StateSet;
 import org.hiero.metrics.api.core.Metric;
 import org.hiero.metrics.api.core.MetricRegistry;
-import org.hiero.metrics.api.core.StatefulMetric;
+import org.hiero.metrics.api.core.SettableMetric;
 import org.hiero.metrics.test.fixtures.SateSetEnum;
 
 /**
@@ -26,30 +26,33 @@ public final class DefaultMetricsFramework extends MetricFramework {
     public DefaultMetricsFramework() {
         registerAdapter(
                 MetricType.LONG_COUNTER,
-                createAdapter(LongCounter::builder, (dataPoint, dataPointId) -> dataPoint.increment()));
+                createAdapter(LongCounter::builder, (measurement, measurementId) -> measurement.increment()));
 
         registerAdapter(
                 MetricType.LONG_GAUGE,
-                createAdapter(LongGauge::builder, (dataPoint, dataPointId) -> dataPoint.update(randomLongForGauge())));
+                createAdapter(
+                        LongGauge::builder, (measurement, measurementId) -> measurement.update(randomLongForGauge())));
 
         registerAdapter(
                 MetricType.DOUBLE_COUNTER,
-                createAdapter(DoubleCounter::builder, (dataPoint, dataPointId) -> dataPoint.increment()));
+                createAdapter(DoubleCounter::builder, (measurement, measurementId) -> measurement.increment()));
 
         registerAdapter(
                 MetricType.DOUBLE_GAUGE,
                 createAdapter(
-                        DoubleGauge::builder, (dataPoint, dataPointId) -> dataPoint.update(randomDoubleForGauge())));
+                        DoubleGauge::builder,
+                        (measurement, measurementId) -> measurement.update(randomDoubleForGauge())));
 
         registerAdapter(
                 MetricType.BOOLEAN_GAUGE,
-                createAdapter(BooleanGauge::builder, (dataPoint, dataPointId) -> dataPoint.set(randomBoolean())));
+                createAdapter(BooleanGauge::builder, (measurement, measurementId) -> measurement.set(randomBoolean())));
 
         registerAdapter(
                 MetricType.STATE_SET,
                 createAdapter(
                         metricId -> StateSet.builder("metric_" + metricId, SateSetEnum.class),
-                        (dataPoint, dataPointId) -> dataPoint.set(SateSetEnum.randomStateSet(), randomBoolean())));
+                        (measurement, measurementId) ->
+                                measurement.set(SateSetEnum.randomStateSet(), randomBoolean())));
     }
 
     public MetricRegistry getMetricRegistry() {
@@ -73,15 +76,15 @@ public final class DefaultMetricsFramework extends MetricFramework {
         namesAndValues[2 * labelIdx + 1] = value;
     }
 
-    private <D, M extends StatefulMetric<?, D>, B extends StatefulMetric.Builder<?, D, B, M>>
+    private <D, M extends SettableMetric<?, D>, B extends SettableMetric.Builder<?, D, B, M>>
             MetricAdapter<M, D> createAdapter(
-                    Function<String, B> builderFactory, DataPointUpdater<D> dataPointUpdater) {
+                    Function<String, B> builderFactory, MeasurementUpdater<D> measurementUpdater) {
         return new MetricAdapter<>(
                 (metricId, labelNames) -> basicSetup(builderFactory.apply("metric_" + metricId), metricId)
                         .withDynamicLabelNames(labelNames)
                         .register(metricRegistry),
-                StatefulMetric::getOrCreateLabeled,
-                dataPointUpdater);
+                SettableMetric::getOrCreateLabeled,
+                measurementUpdater);
     }
 
     private <B extends Metric.Builder<B, ?>> B basicSetup(B builder, int metricId) {

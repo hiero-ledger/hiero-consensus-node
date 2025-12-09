@@ -13,7 +13,7 @@ import io.prometheus.metrics.model.snapshots.Unit;
 import java.util.UUID;
 import java.util.function.Supplier;
 import org.hiero.metrics.test.fixtures.SateSetEnum;
-import org.hiero.metrics.test.fixtures.framework.DataPointUpdater;
+import org.hiero.metrics.test.fixtures.framework.MeasurementUpdater;
 import org.hiero.metrics.test.fixtures.framework.MetricAdapter;
 import org.hiero.metrics.test.fixtures.framework.MetricFramework;
 import org.hiero.metrics.test.fixtures.framework.MetricType;
@@ -35,7 +35,7 @@ public class PrometheusFramework extends MetricFramework {
                 MetricType.STATE_SET,
                 createAdapter(
                         () -> StateSet.builder().states(SateSetEnum.class),
-                        (d, dataPointId) ->
+                        (d, measurementId) ->
                                 d.setFalse(SateSetEnum.randomStateSet().name())));
     }
 
@@ -44,7 +44,7 @@ public class PrometheusFramework extends MetricFramework {
     }
 
     private <D extends DataPoint, M extends StatefulMetric<D, ?>, B extends MetricWithFixedMetadata.Builder<B, M>>
-            MetricAdapter<M, D> createAdapter(Supplier<B> builderFactory, DataPointUpdater<D> dataPointUpdater) {
+            MetricAdapter<M, D> createAdapter(Supplier<B> builderFactory, MeasurementUpdater<D> measurementUpdater) {
         return new MetricAdapter<>(
                 (metricId, labelNames) -> builderFactory
                         .get()
@@ -54,7 +54,7 @@ public class PrometheusFramework extends MetricFramework {
                         .labelNames(labelNames)
                         .register(registry),
                 io.prometheus.metrics.core.metrics.StatefulMetric::labelValues,
-                dataPointUpdater);
+                measurementUpdater);
     }
 
     private Unit getUnitObject(int metricId) {

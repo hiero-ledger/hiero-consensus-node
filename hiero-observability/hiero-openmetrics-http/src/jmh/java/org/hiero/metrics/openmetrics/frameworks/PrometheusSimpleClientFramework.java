@@ -7,7 +7,7 @@ import io.prometheus.client.Gauge;
 import io.prometheus.client.SimpleCollector;
 import java.util.UUID;
 import java.util.function.BiFunction;
-import org.hiero.metrics.test.fixtures.framework.DataPointUpdater;
+import org.hiero.metrics.test.fixtures.framework.MeasurementUpdater;
 import org.hiero.metrics.test.fixtures.framework.MetricAdapter;
 import org.hiero.metrics.test.fixtures.framework.MetricFramework;
 import org.hiero.metrics.test.fixtures.framework.MetricType;
@@ -33,7 +33,7 @@ public class PrometheusSimpleClientFramework extends MetricFramework {
 
     private <D, C extends SimpleCollector<D>, B extends SimpleCollector.Builder<B, C>>
             MetricAdapter<C, D> createAdapter(
-                    BiFunction<String, String, B> builderFactory, DataPointUpdater<D> dataPointUpdater) {
+                    BiFunction<String, String, B> builderFactory, MeasurementUpdater<D> measurementUpdater) {
         return new MetricAdapter<>(
                 (metricId, labelNames) -> builderFactory
                         .apply("metric_" + metricId, UUID.randomUUID().toString())
@@ -41,6 +41,6 @@ public class PrometheusSimpleClientFramework extends MetricFramework {
                         .labelNames(labelNames)
                         .register(registry),
                 SimpleCollector::labels,
-                dataPointUpdater);
+                measurementUpdater);
     }
 }

@@ -7,25 +7,25 @@ import java.util.Objects;
 import org.hiero.metrics.api.core.Label;
 import org.hiero.metrics.api.core.Metric;
 import org.hiero.metrics.api.core.MetricMetadata;
-import org.hiero.metrics.api.export.snapshot.DataPointSnapshot;
-import org.hiero.metrics.internal.datapoint.DataPointHolder;
+import org.hiero.metrics.api.export.snapshot.MeasurementSnapshot;
 import org.hiero.metrics.internal.export.SnapshotableMetric;
 import org.hiero.metrics.internal.export.snapshot.UpdatableMetricSnapshot;
+import org.hiero.metrics.internal.measurement.MeasurementHolder;
 
 /**
  * Base class for all metric implementations requiring {@link Metric.Builder} for construction.
  * <p>
  * Implements common functionality like storing metadata, static and dynamic labels, and managing
- * datapoint snapshots.<br>
+ * measurement snapshots.<br>
  * Static and dynamic labels are alphabetically sorted to ensure consistent ordering.
  * <p>
- * Subclasses must implement methods to create and update datapoint snapshots.
+ * Subclasses must implement methods to create and update measurement snapshots.
  * Snapshot objects are reused during export to minimize object allocations.
  *
- * @param <D> The type of the data point associated with this metric.
- * @param <S> The type of the {@link DataPointSnapshot} associated with this metric.
+ * @param <D> The type of the measurement associated with this metric.
+ * @param <S> The type of the {@link MeasurementSnapshot} associated with this metric.
  */
-public abstract class AbstractMetric<D, S extends DataPointSnapshot> implements SnapshotableMetric<S> {
+public abstract class AbstractMetric<D, S extends MeasurementSnapshot> implements SnapshotableMetric<S> {
 
     private final MetricMetadata metadata;
     private final List<Label> staticLabels;
@@ -39,19 +39,20 @@ public abstract class AbstractMetric<D, S extends DataPointSnapshot> implements 
 
         staticLabels = builder.getStaticLabels().stream().sorted().toList();
         dynamicLabelNames = builder.getDynamicLabelNames().stream().sorted().toList();
-        metricSnapshot = new UpdatableMetricSnapshot<>(this, this::updateDatapointSnapshot);
+        metricSnapshot = new UpdatableMetricSnapshot<>(this, this::updateMeasurementSnapshot);
     }
 
-    protected final DataPointHolder<D, S> createAndTrackDataPointHolder(D datapoint, LabelValues dynamicLabelValues) {
-        DataPointHolder<D, S> dataPointHolder =
-                new DataPointHolder<>(datapoint, createDataPointSnapshot(datapoint, dynamicLabelValues));
-        metricSnapshot.addDataPointHolder(dataPointHolder);
-        return dataPointHolder;
+    protected final MeasurementHolder<D, S> createAndTrackMeasurementHolder(
+            D measurement, LabelValues dynamicLabelValues) {
+        MeasurementHolder<D, S> measurementHolder =
+                new MeasurementHolder<>(measurement, createMeasurementSnapshot(measurement, dynamicLabelValues));
+        metricSnapshot.addMeasurementHolder(measurementHolder);
+        return measurementHolder;
     }
 
-    protected abstract S createDataPointSnapshot(D datapoint, LabelValues dynamicLabelValues);
+    protected abstract S createMeasurementSnapshot(D measurement, LabelValues dynamicLabelValues);
 
-    protected abstract void updateDatapointSnapshot(DataPointHolder<D, S> dataPointHolder);
+    protected abstract void updateMeasurementSnapshot(MeasurementHolder<D, S> measurementHolder);
 
     protected LabelValues createLabelValues(String... namesAndValues) {
         Objects.requireNonNull(namesAndValues, "Label names and values must not be null");

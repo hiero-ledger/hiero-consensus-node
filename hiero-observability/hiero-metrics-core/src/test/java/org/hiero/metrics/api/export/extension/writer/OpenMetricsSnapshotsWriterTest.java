@@ -17,8 +17,8 @@ import org.hiero.metrics.api.GaugeAdapter;
 import org.hiero.metrics.api.GenericGauge;
 import org.hiero.metrics.api.LongCounter;
 import org.hiero.metrics.api.LongGauge;
+import org.hiero.metrics.api.ObservableGauge;
 import org.hiero.metrics.api.StateSet;
-import org.hiero.metrics.api.StatelessMetric;
 import org.hiero.metrics.api.StatsGaugeAdapter;
 import org.hiero.metrics.api.core.Label;
 import org.hiero.metrics.api.core.NumberSupplier;
@@ -136,7 +136,7 @@ public class OpenMetricsSnapshotsWriterTest {
         static StateSet<SateSetEnum> stateSet;
         static StatsGaugeAdapter<StatContainer> statsGauge;
         static GaugeAdapter<StatContainer> gaugeAdapter;
-        static StatelessMetric statelessMetric;
+        static ObservableGauge observableGauge;
 
         static final AtomicLong longContainer = new AtomicLong(0);
         static final AtomicDouble doubleContainer = new AtomicDouble(0);
@@ -189,10 +189,10 @@ public class OpenMetricsSnapshotsWriterTest {
                     .withDynamicLabelNames("label")
                     .register(snapshotProvider.getRegistry());
 
-            statelessMetric = StatelessMetric.builder("stateless_metric")
+            observableGauge = ObservableGauge.builder("observable_metric")
                     .withUnit(Unit.BYTE_UNIT)
                     .withDynamicLabelNames("memory")
-                    .registerDataPoint(longContainer::get, "memory", "total")
+                    .observeValue(longContainer::get, "memory", "total")
                     .register(snapshotProvider.getRegistry());
 
             exportAndVerify(
@@ -209,9 +209,9 @@ public class OpenMetricsSnapshotsWriterTest {
                 # TYPE state_set stateset
                 # TYPE gauge_adapter gauge
                 # TYPE stats_gauge gauge
-                # TYPE stateless_metric_byte gauge
-                # UNIT stateless_metric_byte byte
-                stateless_metric_byte{memory="total"} 0
+                # TYPE observable_metric_byte gauge
+                # UNIT observable_metric_byte byte
+                observable_metric_byte{memory="total"} 0
                 # EOF
                 """);
         }
@@ -244,8 +244,8 @@ public class OpenMetricsSnapshotsWriterTest {
 
             // update long container
             longContainer.set(100L);
-            // register new data point
-            statelessMetric.registerDataPoint(new NumberSupplier(doubleContainer), "memory", "used");
+            // register new measurement
+            observableGauge.observeValue(new NumberSupplier(doubleContainer), "memory", "used");
 
             exportAndVerify(
                     """
@@ -275,10 +275,10 @@ public class OpenMetricsSnapshotsWriterTest {
                 stats_gauge{label="val1",stat="cnt"} 2
                 stats_gauge{label="val1",stat="sum"} 9
                 stats_gauge{label="val1",stat="avg"} 4.5
-                # TYPE stateless_metric_byte gauge
-                # UNIT stateless_metric_byte byte
-                stateless_metric_byte{memory="total"} 100
-                stateless_metric_byte{memory="used"} 0
+                # TYPE observable_metric_byte gauge
+                # UNIT observable_metric_byte byte
+                observable_metric_byte{memory="total"} 100
+                observable_metric_byte{memory="used"} 0
                 # EOF
                 """);
         }
@@ -289,7 +289,7 @@ public class OpenMetricsSnapshotsWriterTest {
             booleanGauge.getOrCreateNotLabeled().set(false); // back to false
 
             longCounter.getOrCreateLabeled("l1", "v11", "l2", "v21").increment(); // total is 12
-            longCounter.getOrCreateLabeled("l1", "v12", "l2", "v22").increment(100L); // new data point
+            longCounter.getOrCreateLabeled("l1", "v12", "l2", "v22").increment(100L); // new measurement
             longCounter.getOrCreateLabeled("l1", "v12", "l2", "v22").increment(200L); // total is 300
 
             // no update to double counter, should remain 1.5
@@ -308,7 +308,7 @@ public class OpenMetricsSnapshotsWriterTest {
             gaugeAdapter.getOrCreateNotLabeled().update(10);
             gaugeAdapter.getOrCreateNotLabeled().update(100); // counter should be 3
 
-            statsGauge.getOrCreateLabeled("label", "val2").update(5); // new data point
+            statsGauge.getOrCreateLabeled("label", "val2").update(5); // new measurement
 
             doubleContainer.set(7.5);
 
@@ -346,10 +346,10 @@ public class OpenMetricsSnapshotsWriterTest {
                 stats_gauge{label="val2",stat="cnt"} 1
                 stats_gauge{label="val2",stat="sum"} 5
                 stats_gauge{label="val2",stat="avg"} 5
-                # TYPE stateless_metric_byte gauge
-                # UNIT stateless_metric_byte byte
-                stateless_metric_byte{memory="total"} 100
-                stateless_metric_byte{memory="used"} 7.5
+                # TYPE observable_metric_byte gauge
+                # UNIT observable_metric_byte byte
+                observable_metric_byte{memory="total"} 100
+                observable_metric_byte{memory="used"} 7.5
                 # EOF
                 """);
         }

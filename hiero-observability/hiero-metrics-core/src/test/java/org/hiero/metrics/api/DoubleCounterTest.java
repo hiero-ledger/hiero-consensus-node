@@ -11,7 +11,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
-public class DoubleCounterTest extends AbstractStatefulMetricBaseTest<DoubleCounter, DoubleCounter.Builder> {
+public class DoubleCounterTest extends AbstractSettableMetricBaseTest<DoubleCounter, DoubleCounter.Builder> {
 
     @Override
     protected MetricType metricType() {
@@ -103,7 +103,7 @@ public class DoubleCounterTest extends AbstractStatefulMetricBaseTest<DoubleCoun
 
         assertThat(metric.getOrCreateLabeled(StatUtils.asInitializer(initialValue), "label", "1")
                         .getAsDouble())
-                .as("initializer is not used when datapoint already initialized")
+                .as("initializer is not used when measurement already initialized")
                 .isNotEqualTo(initialValue);
 
         metric.reset();

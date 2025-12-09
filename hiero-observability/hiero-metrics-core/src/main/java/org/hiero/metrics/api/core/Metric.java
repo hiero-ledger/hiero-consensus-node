@@ -11,6 +11,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import org.hiero.metrics.api.measurement.Measurement;
 import org.hiero.metrics.api.utils.MetricUtils;
 import org.hiero.metrics.api.utils.Unit;
 
@@ -20,11 +21,11 @@ import org.hiero.metrics.api.utils.Unit;
  * A metric is defined by its {@link MetricMetadata}, a {@link Label} set of
  * static labels and a set of dynamic label names (may have no labels at all). Metric cannot have duplicate
  * label names, and dynamic label names must not conflict with static label names. Labels are used to differentiate
- * different data points associated with the metric.
+ * different measurements associated with the metric.
  * <p>
- * Metrics are immutable and thread-safe, but they may hold mutable {@link org.hiero.metrics.api.datapoint.DataPoint}s
+ * Metrics are immutable and thread-safe, but they may hold mutable {@link Measurement}s
  * per dynamic labels set, that can be updated with new measurements.
- * Metrics can also be reset to their initial state, which resets all associated datapoints.
+ * Metrics can also be reset to their initial state, which resets all associated measurements.
  * <p>
  * Since metric can support aggregations (like sum, min, max, avg, etc.), this interface doesn't expose
  * export or snapshot functionality - {@link org.hiero.metrics.api.export.MetricsExportManager} should be used
@@ -40,20 +41,21 @@ public interface Metric {
 
     /**
      * @return the immutable alphabetically ordered list of static labels associated with this metric
-     * and any of its data point, may be empty but never {@code null}
+     * and any of its measurement, may be empty but never {@code null}
      */
     @NonNull
     List<Label> staticLabels();
 
     /**
      * @return the immutable alphabetically ordered list of dynamic label names associated with this metric,
-     * may be empty but never {@code null}
+     * may be empty but never {@code null}.
+     * It is used to distinguish different measurements associated with this metric.
      */
     @NonNull
     List<String> dynamicLabelNames();
 
     /**
-     * Allows to reset the metric and all it's datapoints to its initial state.
+     * Allows to reset the metric and all it's measurements to its initial state.
      */
     void reset();
 

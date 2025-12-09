@@ -7,7 +7,7 @@ import java.io.OutputStream;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
-import org.hiero.metrics.api.export.snapshot.DataPointSnapshot;
+import org.hiero.metrics.api.export.snapshot.MeasurementSnapshot;
 import org.hiero.metrics.api.export.snapshot.MetricSnapshot;
 
 /**
@@ -15,7 +15,7 @@ import org.hiero.metrics.api.export.snapshot.MetricSnapshot;
  * between writes to optimize performance.
  * <p>
  * Subclasses must implement the abstract methods to define
- * how individual data points are written and how metric export data is constructed.
+ * how individual measurements are written and how metric export data is constructed.
  *
  * @param <M> the type of metric export data used for caching
  */
@@ -43,16 +43,16 @@ public abstract class AbstractCachingMetricsSnapshotsWriter<M extends BaseMetric
         beforeMetricWrite(metricExportData, output);
         int size = metricSnapshot.size();
         for (int i = 0; i < size; i++) {
-            DataPointSnapshot dataPointSnapshot = metricSnapshot.get(i);
-            ByteArrayTemplate dataPointExportTemplate =
-                    metricExportData.getOrCreateDatapointExportTemplate(dataPointSnapshot);
-            writeDataPoint(timestamp, dataPointSnapshot, dataPointExportTemplate, output);
+            MeasurementSnapshot measurementSnapshot = metricSnapshot.get(i);
+            ByteArrayTemplate measurementExportTemplate =
+                    metricExportData.getOrCreateMeasurementExportTemplate(measurementSnapshot);
+            writeMeasurement(timestamp, measurementSnapshot, measurementExportTemplate, output);
         }
         afterMetricWrite(metricExportData, output);
     }
 
     /**
-     * Called before writing each metric and its data points.
+     * Called before writing each metric and its measurements.
      *
      * @param metricExportData the metric export data
      * @param output the output stream to write to
@@ -63,7 +63,7 @@ public abstract class AbstractCachingMetricsSnapshotsWriter<M extends BaseMetric
     }
 
     /**
-     * Called after writing each metric and its data points.
+     * Called after writing each metric and its measurements.
      *
      * @param metricExportData the metric export data
      * @param output the output stream to write to
@@ -74,20 +74,20 @@ public abstract class AbstractCachingMetricsSnapshotsWriter<M extends BaseMetric
     }
 
     /**
-     * Writes a single data point to the output stream using the provided export template. <br>
-     * Usually implementation defines variables that datapoint snapshot can provide and uses them to
+     * Writes a single measurement to the output stream using the provided export template. <br>
+     * Usually implementation defines variables that measurement snapshot can provide and uses them to
      * fill the template.
      *
-     * @param timestamp the timestamp of the data point
-     * @param dataPointSnapshot the data point snapshot to write
-     * @param dataPointExportTemplate the export template for the datapoint
+     * @param timestamp the timestamp of the measurement
+     * @param measurementSnapshot the measurement snapshot to write
+     * @param measurementExportTemplate the export template for the measurement
      * @param output the output stream to write to
      * @throws IOException if an I/O error occurs
      */
-    protected abstract void writeDataPoint(
+    protected abstract void writeMeasurement(
             @NonNull Instant timestamp,
-            @NonNull DataPointSnapshot dataPointSnapshot,
-            @NonNull ByteArrayTemplate dataPointExportTemplate,
+            @NonNull MeasurementSnapshot measurementSnapshot,
+            @NonNull ByteArrayTemplate measurementExportTemplate,
             @NonNull OutputStream output)
             throws IOException;
 

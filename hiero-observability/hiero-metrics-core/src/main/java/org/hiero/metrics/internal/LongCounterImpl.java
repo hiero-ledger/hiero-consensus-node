@@ -3,14 +3,14 @@ package org.hiero.metrics.internal;
 
 import java.util.function.LongSupplier;
 import org.hiero.metrics.api.LongCounter;
-import org.hiero.metrics.api.datapoint.LongCounterDataPoint;
-import org.hiero.metrics.internal.core.AbstractStatefulMetric;
+import org.hiero.metrics.api.measurement.LongCounterMeasurement;
+import org.hiero.metrics.internal.core.AbstractSettableMetric;
 import org.hiero.metrics.internal.core.LabelValues;
-import org.hiero.metrics.internal.datapoint.DataPointHolder;
-import org.hiero.metrics.internal.export.snapshot.LongValueDataPointSnapshotImpl;
+import org.hiero.metrics.internal.export.snapshot.LongValueMeasurementSnapshotImpl;
+import org.hiero.metrics.internal.measurement.MeasurementHolder;
 
 public final class LongCounterImpl
-        extends AbstractStatefulMetric<LongSupplier, LongCounterDataPoint, LongValueDataPointSnapshotImpl>
+        extends AbstractSettableMetric<LongSupplier, LongCounterMeasurement, LongValueMeasurementSnapshotImpl>
         implements LongCounter {
 
     public LongCounterImpl(LongCounter.Builder builder) {
@@ -18,19 +18,19 @@ public final class LongCounterImpl
     }
 
     @Override
-    protected void reset(LongCounterDataPoint dataPoint) {
-        dataPoint.reset();
+    protected void reset(LongCounterMeasurement measurement) {
+        measurement.reset();
     }
 
     @Override
-    protected LongValueDataPointSnapshotImpl createDataPointSnapshot(
-            LongCounterDataPoint datapoint, LabelValues dynamicLabelValues) {
-        return new LongValueDataPointSnapshotImpl(dynamicLabelValues);
+    protected LongValueMeasurementSnapshotImpl createMeasurementSnapshot(
+            LongCounterMeasurement measurement, LabelValues dynamicLabelValues) {
+        return new LongValueMeasurementSnapshotImpl(dynamicLabelValues);
     }
 
     @Override
-    protected void updateDatapointSnapshot(
-            DataPointHolder<LongCounterDataPoint, LongValueDataPointSnapshotImpl> dataPointHolder) {
-        dataPointHolder.snapshot().set(dataPointHolder.dataPoint().getAsLong());
+    protected void updateMeasurementSnapshot(
+            MeasurementHolder<LongCounterMeasurement, LongValueMeasurementSnapshotImpl> measurementHolder) {
+        measurementHolder.snapshot().set(measurementHolder.measurement().getAsLong());
     }
 }

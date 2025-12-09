@@ -11,7 +11,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
-public class BooleanGaugeTest extends AbstractStatefulMetricBaseTest<BooleanGauge, BooleanGauge.Builder> {
+public class BooleanGaugeTest extends AbstractSettableMetricBaseTest<BooleanGauge, BooleanGauge.Builder> {
 
     @Override
     protected MetricType metricType() {
@@ -114,7 +114,7 @@ public class BooleanGaugeTest extends AbstractStatefulMetricBaseTest<BooleanGaug
 
         assertThat(metric.getOrCreateLabeled(StatUtils.asInitializer(initialValue), "label", "1")
                         .getAsBoolean())
-                .as("initializer is not used when datapoint already initialized")
+                .as("initializer is not used when measurement already initialized")
                 .isEqualTo(!initialValue);
 
         metric.reset();

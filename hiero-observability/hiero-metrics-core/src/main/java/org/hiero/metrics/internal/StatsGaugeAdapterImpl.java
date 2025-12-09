@@ -5,13 +5,13 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 import org.hiero.metrics.api.StatsGaugeAdapter;
 import org.hiero.metrics.api.core.ToNumberFunction;
-import org.hiero.metrics.internal.core.AbstractStatefulMetric;
+import org.hiero.metrics.internal.core.AbstractSettableMetric;
 import org.hiero.metrics.internal.core.LabelValues;
-import org.hiero.metrics.internal.datapoint.DataPointHolder;
-import org.hiero.metrics.internal.export.snapshot.MultiValueDataPointSnapshotImpl;
+import org.hiero.metrics.internal.export.snapshot.MultiValueMeasurementSnapshotImpl;
+import org.hiero.metrics.internal.measurement.MeasurementHolder;
 
 public final class StatsGaugeAdapterImpl<D>
-        extends AbstractStatefulMetric<Supplier<D>, D, MultiValueDataPointSnapshotImpl>
+        extends AbstractSettableMetric<Supplier<D>, D, MultiValueMeasurementSnapshotImpl>
         implements StatsGaugeAdapter<D> {
 
     private final String statLabelName;
@@ -37,27 +37,29 @@ public final class StatsGaugeAdapterImpl<D>
     }
 
     @Override
-    protected void reset(D dataPoint) {
-        reset.accept(dataPoint);
+    protected void reset(D measurement) {
+        reset.accept(measurement);
     }
 
     @Override
-    protected MultiValueDataPointSnapshotImpl createDataPointSnapshot(D datapoint, LabelValues dynamicLabelValues) {
-        return new MultiValueDataPointSnapshotImpl(
+    protected MultiValueMeasurementSnapshotImpl createMeasurementSnapshot(
+            D measurement, LabelValues dynamicLabelValues) {
+        return new MultiValueMeasurementSnapshotImpl(
                 dynamicLabelValues, statLabelName, statLabelValues, isFloatingPointAt);
     }
 
     @Override
-    protected void updateDatapointSnapshot(DataPointHolder<D, MultiValueDataPointSnapshotImpl> dataPointHolder) {
+    protected void updateMeasurementSnapshot(
+            MeasurementHolder<D, MultiValueMeasurementSnapshotImpl> measurementHolder) {
         ToNumberFunction<D> getter;
         for (int i = 0; i < statExportGetters.length; i++) {
             getter = statExportGetters[i];
             if (getter.isFloatingPointFunction()) {
-                double value = getter.getToDoubleFunction().applyAsDouble(dataPointHolder.dataPoint());
-                dataPointHolder.snapshot().setValueAt(i, value);
+                double value = getter.getToDoubleFunction().applyAsDouble(measurementHolder.measurement());
+                measurementHolder.snapshot().setValueAt(i, value);
             } else {
-                long value = getter.getToLongFunction().applyAsLong(dataPointHolder.dataPoint());
-                dataPointHolder.snapshot().setValueAt(i, value);
+                long value = getter.getToLongFunction().applyAsLong(measurementHolder.measurement());
+                measurementHolder.snapshot().setValueAt(i, value);
             }
         }
     }

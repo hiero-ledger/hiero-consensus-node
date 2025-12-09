@@ -2,13 +2,13 @@
 package org.hiero.metrics.internal.export;
 
 import org.hiero.metrics.api.core.Metric;
-import org.hiero.metrics.api.export.snapshot.DataPointSnapshot;
+import org.hiero.metrics.api.export.snapshot.MeasurementSnapshot;
 import org.hiero.metrics.internal.export.snapshot.UpdatableMetricSnapshot;
 
 /**
- * A metric that can produce a snapshot of its current data points.
+ * A metric that can produce a snapshot of its current measurements.
  */
-public interface SnapshotableMetric<S extends DataPointSnapshot> extends Metric {
+public interface SnapshotableMetric<S extends MeasurementSnapshot> extends Metric {
 
     UpdatableMetricSnapshot<?, S> snapshot();
 }

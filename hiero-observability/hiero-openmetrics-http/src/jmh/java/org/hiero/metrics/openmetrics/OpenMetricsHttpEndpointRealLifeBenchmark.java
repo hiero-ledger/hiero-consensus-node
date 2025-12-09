@@ -25,7 +25,7 @@ public class OpenMetricsHttpEndpointRealLifeBenchmark {
     private static final Random RANDOM = new Random();
 
     @Param({"10000"})
-    public int dataPointsCount;
+    public int measurementsCount;
 
     @Param({"4"})
     public int labelsBound;
@@ -39,7 +39,7 @@ public class OpenMetricsHttpEndpointRealLifeBenchmark {
     public void setupGlobal() throws IOException {
 
         httpTestScenario = new DefaultHttpTestScenario();
-        httpTestScenario.getFramework().generateAllMetricsTypesDeterministic(dataPointsCount, labelsBound, true);
+        httpTestScenario.getFramework().generateAllMetricsTypesDeterministic(measurementsCount, labelsBound, true);
 
         System.gc();
     }
@@ -79,7 +79,7 @@ public class OpenMetricsHttpEndpointRealLifeBenchmark {
     @Threads(8)
     @Measurement(iterations = 200, time = 3, timeUnit = TimeUnit.SECONDS)
     public void testMemoryLeaks8Threads() throws InterruptedException {
-        httpTestScenario.getFramework().updateRandomDataPoints(RANDOM.nextInt(10));
+        httpTestScenario.getFramework().updateRandomMeasurements(RANDOM.nextInt(10));
         Thread.sleep(RANDOM.nextLong(50, 100));
     }
 }

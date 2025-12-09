@@ -49,7 +49,7 @@ public abstract class MetricFramework {
      * @param metricType the metric type
      * @param adapter    the metric adapter
      * @param <M>        the metric type
-     * @param <D>        the data point type
+     * @param <D>        the measurement type
      */
     protected <M, D> void registerAdapter(MetricType metricType, MetricAdapter<M, D> adapter) {
         metricAdapters.put(metricType, adapter);
@@ -148,26 +148,27 @@ public abstract class MetricFramework {
      * This method is not thread-safe and should be called from a single thread.
      *
      * @param type            the metric type
-     * @param dataPointsCount the number of data points for this metric
-     * @param initDataPoints  whether to initialize the data points
-     * @param labelsCount     number of labels to generate (could be 0, meaning no labels and 1 datapoint)
+     * @param measurementsCount the number of measurements for this metric
+     * @param initMeasurements  whether to initialize the measurements
+     * @param labelsCount     number of labels to generate (could be 0, meaning no labels and 1 measurement)
      * @return the metric id
      */
-    public int createMetricWithLabels(MetricType type, int dataPointsCount, boolean initDataPoints, int labelsCount) {
+    public int createMetricWithLabels(
+            MetricType type, int measurementsCount, boolean initMeasurements, int labelsCount) {
         if (labelsCount < 0) {
             throw new IllegalArgumentException("labelsCount must be non-negative");
         }
-        if (dataPointsCount <= 0) {
-            throw new IllegalArgumentException("dataPointsCount must be positive");
+        if (measurementsCount <= 0) {
+            throw new IllegalArgumentException("measurementsCount must be positive");
         }
 
         MetricAdapter<?, ?> metricAdapter = getMetricAdapter(type);
         int metricId = metrics.size();
         if (labelsCount == 0) {
-            metrics.add(new MetricContext(metricAdapter, metricId, initDataPoints));
+            metrics.add(new MetricContext(metricAdapter, metricId, initMeasurements));
         } else {
             String[] labelNames = generateLabels(labelsCount);
-            metrics.add(new MetricContext(metricAdapter, metricId, labelNames, dataPointsCount, initDataPoints));
+            metrics.add(new MetricContext(metricAdapter, metricId, labelNames, measurementsCount, initMeasurements));
         }
         return metricId;
     }
@@ -175,30 +176,30 @@ public abstract class MetricFramework {
     /**
      * Generate metrics of all supported types deterministically.
      *
-     * @param dataPointsCount the total number of data points to generate
+     * @param measurementsCount the total number of measurements to generate
      * @param labelsBound     the maximum number of labels per metric
-     * @param initDataPoints  whether to initialize the data points
+     * @param initMeasurements  whether to initialize the measurements
      */
-    public void generateAllMetricsTypesDeterministic(int dataPointsCount, int labelsBound, boolean initDataPoints) {
+    public void generateAllMetricsTypesDeterministic(int measurementsCount, int labelsBound, boolean initMeasurements) {
         generateAllMetricsTypesDeterministic(
-                dataPointsCount,
+                measurementsCount,
                 labelsBound,
-                initDataPoints,
+                initMeasurements,
                 metricAdapters.keySet().toArray(new MetricType[0]));
     }
 
     /**
      * Generate metrics of specific types deterministically.
      *
-     * @param dataPointsCount the total number of data points to generate
+     * @param measurementsCount the total number of measurements to generate
      * @param labelsBound     the maximum number of labels per metric
-     * @param initDataPoints  whether to initialize the data points
+     * @param initMeasurements  whether to initialize the measurements
      * @param metricTypes     the metric types to generate
      */
     public void generateAllMetricsTypesDeterministic(
-            int dataPointsCount, int labelsBound, boolean initDataPoints, MetricType... metricTypes) {
-        if (dataPointsCount <= 0) {
-            throw new IllegalArgumentException("dataPointsCount must be positive");
+            int measurementsCount, int labelsBound, boolean initMeasurements, MetricType... metricTypes) {
+        if (measurementsCount <= 0) {
+            throw new IllegalArgumentException("measurementsCount must be positive");
         }
         if (labelsBound <= 0) {
             throw new IllegalArgumentException("labelsBound must be positive");
@@ -207,23 +208,23 @@ public abstract class MetricFramework {
             throw new IllegalArgumentException("At least one metric type must be provided");
         }
 
-        int dataPointsPerMetricType = dataPointsCount / metricTypes.length;
-        int dataPointsPerLabelsPerType = 0;
-        int noLabelDataPointsPerType = dataPointsPerMetricType;
+        int measurementsPerMetricType = measurementsCount / metricTypes.length;
+        int measurementsPerLabelsPerType = 0;
+        int noLabelMeasurementsPerType = measurementsPerMetricType;
 
         if (labelsBound > 1) {
-            dataPointsPerLabelsPerType = dataPointsPerMetricType / labelsBound;
-            noLabelDataPointsPerType = dataPointsPerLabelsPerType + (dataPointsPerMetricType % labelsBound);
+            measurementsPerLabelsPerType = measurementsPerMetricType / labelsBound;
+            noLabelMeasurementsPerType = measurementsPerLabelsPerType + (measurementsPerMetricType % labelsBound);
         }
 
         for (MetricType metricType : metricTypes) {
-            for (int i = 0; i < noLabelDataPointsPerType; i++) {
-                createMetricWithLabels(metricType, 1, initDataPoints, 0);
+            for (int i = 0; i < noLabelMeasurementsPerType; i++) {
+                createMetricWithLabels(metricType, 1, initMeasurements, 0);
             }
 
-            if (dataPointsPerLabelsPerType > 0) {
+            if (measurementsPerLabelsPerType > 0) {
                 for (int i = 1; i < labelsBound; i++) {
-                    createMetricWithLabels(metricType, dataPointsPerLabelsPerType, initDataPoints, i);
+                    createMetricWithLabels(metricType, measurementsPerLabelsPerType, initMeasurements, i);
                 }
             }
         }
@@ -237,26 +238,26 @@ public abstract class MetricFramework {
     }
 
     /**
-     * Update all data points of random metrics a specific number of times.
+     * Update all measurements of random metrics a specific number of times.
      *
-     * @param metricsCount the number of metrics to update all datapoints
+     * @param metricsCount the number of metrics to update all measurements
      */
-    public void updateRandomMetricsAllDataPoints(int metricsCount) {
+    public void updateRandomMetricsAllMeasurements(int metricsCount) {
         for (int i = 0; i < metricsCount; i++) {
-            getRandomMetric().updateAllDataPoints();
+            getRandomMetric().updateAllMeasurement();
         }
     }
 
     /**
-     * Update random data points of random metrics a specific number of times.
+     * Update random measurements of random metrics a specific number of times.
      *
-     * @param updatesCount the number of data points to update
+     * @param updatesCount the number of measurements to update
      */
-    public void updateRandomDataPoints(int updatesCount) {
+    public void updateRandomMeasurements(int updatesCount) {
         for (int i = 0; i < updatesCount; i++) {
             MetricFramework.MetricContext<?, ?> metric = getRandomMetric();
-            int dataPointId = random.nextInt(metric.getDataPointsCount());
-            metric.updateDataPoint(dataPointId);
+            int measurementId = random.nextInt(metric.getMeasurementsCount());
+            metric.updateMeasurement(measurementId);
         }
     }
 
@@ -282,23 +283,22 @@ public abstract class MetricFramework {
     }
 
     /**
-     * A context for a specific metric, including label names amd its data points fixed size.
-     * Knowing datapoint id,
+     * A context for a specific metric, including label names amd its measurements fixed size.
      */
     public class MetricContext<M, D> {
         private final M metric;
         private final String[] labelNames;
         private final MetricAdapter<M, D> metricAdapter;
-        private final int dataPointsCount;
+        private final int measurementsCount;
 
-        private MetricContext(MetricAdapter<M, D> metricAdapter, int metricId, boolean initDataPoint) {
+        private MetricContext(MetricAdapter<M, D> metricAdapter, int metricId, boolean initMeasurement) {
             this.metricAdapter = metricAdapter;
             this.metric = metricAdapter.createMetric(metricId, EMPTY_LABELS);
             labelNames = EMPTY_LABELS;
 
-            dataPointsCount = 1;
-            if (initDataPoint) {
-                updateDataPoint(0);
+            measurementsCount = 1;
+            if (initMeasurement) {
+                updateMeasurement(0);
             }
         }
 
@@ -306,70 +306,70 @@ public abstract class MetricFramework {
                 MetricAdapter<M, D> metricAdapter,
                 int metricId,
                 String[] labelNames,
-                int dataPointsCount,
-                boolean initDataPoints) {
-            if (dataPointsCount <= 0) {
-                throw new IllegalArgumentException("dataPointsCount must be positive");
+                int measurementsCount,
+                boolean initMeasurements) {
+            if (measurementsCount <= 0) {
+                throw new IllegalArgumentException("measurementsCount must be positive");
             }
 
             this.metricAdapter = metricAdapter;
             this.metric = metricAdapter.createMetric(metricId, labelNames);
             this.labelNames = labelNames;
-            this.dataPointsCount = dataPointsCount;
+            this.measurementsCount = measurementsCount;
 
-            if (initDataPoints) {
-                for (int i = 0; i < dataPointsCount; i++) {
-                    updateDataPoint(i);
+            if (initMeasurements) {
+                for (int i = 0; i < measurementsCount; i++) {
+                    updateMeasurement(i);
                 }
             }
         }
 
         /**
-         * Generate label values for a specific data point id.
-         * This operation is idempotent and for same data point id will generate same label values.
+         * Generate label values for a specific measurement id.
+         * This operation is idempotent and for same measurement id will generate same label values.
          *
-         * @param dataPointId the data point id
+         * @param measurementId the measurement id
          * @return the generated label values
          */
-        protected String[] generateLabelValues(int dataPointId) {
+        protected String[] generateLabelValues(int measurementId) {
             if (labelNames.length == 0) {
                 return EMPTY_LABELS;
             }
             String[] labelValues = initLabelValuesTemplate(labelNames);
             for (int j = 0; j < labelNames.length; j++) {
-                updateLabelValue(labelValues, j, "value_" + dataPointId + "_" + j);
+                updateLabelValue(labelValues, j, "value_" + measurementId + "_" + j);
             }
             return labelValues;
         }
 
         /**
-         * Update all data points of this metric.
+         * Update all measurements of this metric.
          */
-        public void updateAllDataPoints() {
-            for (int i = 0; i < getDataPointsCount(); i++) {
-                updateDataPoint(i);
+        public void updateAllMeasurement() {
+            for (int i = 0; i < getMeasurementsCount(); i++) {
+                updateMeasurement(i);
             }
         }
 
         /**
-         * @return number of data points for this metric
+         * @return number of measurements for this metric
          */
-        public int getDataPointsCount() {
-            return dataPointsCount;
+        public int getMeasurementsCount() {
+            return measurementsCount;
         }
 
         /**
-         * Update a specific data point of this metric.
+         * Update a specific measurement of this metric.
          *
-         * @param dataPointId the data point id
+         * @param measurementId the measurement id
          */
-        public void updateDataPoint(int dataPointId) {
-            if (dataPointId < 0 || dataPointId >= dataPointsCount) {
-                throw new IllegalArgumentException(
-                        "Invalid dataPointId: " + dataPointId + ", must be between 0 and " + (dataPointsCount - 1));
+        public void updateMeasurement(int measurementId) {
+            if (measurementId < 0 || measurementId >= measurementsCount) {
+                throw new IllegalArgumentException("Invalid measurementId: " + measurementId
+                        + ", must be between 0 and " + (measurementsCount - 1));
             }
-            String[] dataPointLabelValue = generateLabelValues(dataPointId);
-            metricAdapter.updateDataPoint(metric, dataPointLabelValue, dataPointId);
+            String[] measurementLabelValue = generateLabelValues(measurementId);
+            metricAdapter.updateMeasurement(metric, measurementLabelValue, measurementId);
         }
     }
 }

@@ -23,7 +23,7 @@ import org.hiero.metrics.internal.export.SnapshotableMetricsRegistry;
 import org.hiero.metrics.internal.export.config.MetricsExportManagerConfig;
 
 /**
- * Manager for exporting metrics data points from all managed registries to external systems using set of
+ * Manager for exporting metrics measurements from all managed registries to external systems using set of
  * {@link PushingMetricsExporter} or {@link PullingMetricsExporter}, or both.
  * <p>
  * Export manager can be created using {@link #builder} builder pattern.

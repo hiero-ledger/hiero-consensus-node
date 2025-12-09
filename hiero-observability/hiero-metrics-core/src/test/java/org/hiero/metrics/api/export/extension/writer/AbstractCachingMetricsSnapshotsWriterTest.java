@@ -12,7 +12,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
-import org.hiero.metrics.api.export.snapshot.DataPointSnapshot;
+import org.hiero.metrics.api.export.snapshot.MeasurementSnapshot;
 import org.hiero.metrics.api.export.snapshot.MetricSnapshot;
 import org.hiero.metrics.api.export.snapshot.MetricsCollectionSnapshot;
 import org.junit.jupiter.api.BeforeEach;
@@ -39,14 +39,14 @@ public class AbstractCachingMetricsSnapshotsWriterTest {
     }
 
     @Test
-    void testMetricsAndDataPoints() {
+    void testMetricsAndMeasurements() {
         MetricsCollectionSnapshot snapshots = mockSnapshots(Instant.now());
 
         writeAndVerify(snapshots, "");
         assertThat(writer.getCreatedMetricsAfterLastCall()).isEmpty();
-        assertThat(writer.getCreatedDatapointsAfterLastCall()).isEmpty();
+        assertThat(writer.getCreatedMeasurementsAfterLastCall()).isEmpty();
 
-        // add new metric1 with no data points
+        // add new metric1 with no measurements
         MetricSnapshot metric1 = mockMetricSnapshot("metric1");
         when(metric1.size()).thenReturn(0);
         when(snapshots.iterator()).thenReturn(List.of(metric1).iterator());
@@ -58,55 +58,56 @@ public class AbstractCachingMetricsSnapshotsWriterTest {
                 AFTER METRIC: metric1
                 """);
         assertThat(writer.getCreatedMetricsAfterLastCall()).containsExactlyInAnyOrder("metric1");
-        assertThat(writer.getCreatedDatapointsAfterLastCall()).isEmpty();
+        assertThat(writer.getCreatedMeasurementsAfterLastCall()).isEmpty();
 
-        // add metric1 new data point and new metric2 without data points
+        // add metric1 new measurement and new metric2 without measurements
         MetricSnapshot metric2 = mockMetricSnapshot("metric2");
         when(metric2.size()).thenReturn(0);
         when(snapshots.iterator()).thenReturn(List.of(metric1, metric2).iterator());
 
-        DataPointSnapshot dataPoint11 = mock(DataPointSnapshot.class);
-        when(dataPoint11.toString()).thenReturn("dataPoint11");
+        MeasurementSnapshot measurement11 = mock(MeasurementSnapshot.class);
+        when(measurement11.toString()).thenReturn("measurement11");
         when(metric1.size()).thenReturn(1);
-        when(metric1.get(0)).thenReturn(dataPoint11);
+        when(metric1.get(0)).thenReturn(measurement11);
 
         writeAndVerify(
                 snapshots,
                 """
                 BEFORE METRIC: metric1
-                DATA POINT: dataPoint11
+                MEASUREMENT: measurement11
                 AFTER METRIC: metric1
                 BEFORE METRIC: metric2
                 AFTER METRIC: metric2
                 """);
         assertThat(writer.getCreatedMetricsAfterLastCall()).containsExactlyInAnyOrder("metric2");
-        assertThat(writer.getCreatedDatapointsAfterLastCall()).containsExactlyInAnyOrder("dataPoint11");
+        assertThat(writer.getCreatedMeasurementsAfterLastCall()).containsExactlyInAnyOrder("measurement11");
 
-        // add metric1 new data point and metric2 new data point
+        // add metric1 new measurement and metric2 new measurement
         when(snapshots.iterator()).thenReturn(List.of(metric1, metric2).iterator());
-        DataPointSnapshot dataPoint12 = mock(DataPointSnapshot.class);
-        when(dataPoint12.toString()).thenReturn("dataPoint12");
+        MeasurementSnapshot measurement12 = mock(MeasurementSnapshot.class);
+        when(measurement12.toString()).thenReturn("measurement12");
         when(metric1.size()).thenReturn(2);
-        when(metric1.get(1)).thenReturn(dataPoint12);
+        when(metric1.get(1)).thenReturn(measurement12);
 
-        DataPointSnapshot dataPoint21 = mock(DataPointSnapshot.class);
-        when(dataPoint21.toString()).thenReturn("dataPoint21");
+        MeasurementSnapshot measurement21 = mock(MeasurementSnapshot.class);
+        when(measurement21.toString()).thenReturn("measurement21");
         when(metric2.size()).thenReturn(1);
-        when(metric2.get(0)).thenReturn(dataPoint21);
+        when(metric2.get(0)).thenReturn(measurement21);
 
         writeAndVerify(
                 snapshots,
                 """
                 BEFORE METRIC: metric1
-                DATA POINT: dataPoint11
-                DATA POINT: dataPoint12
+                MEASUREMENT: measurement11
+                MEASUREMENT: measurement12
                 AFTER METRIC: metric1
                 BEFORE METRIC: metric2
-                DATA POINT: dataPoint21
+                MEASUREMENT: measurement21
                 AFTER METRIC: metric2
                 """);
         assertThat(writer.getCreatedMetricsAfterLastCall()).isEmpty();
-        assertThat(writer.getCreatedDatapointsAfterLastCall()).containsExactlyInAnyOrder("dataPoint12", "dataPoint21");
+        assertThat(writer.getCreatedMeasurementsAfterLastCall())
+                .containsExactlyInAnyOrder("measurement12", "measurement21");
 
         // export again everything should be cached
         when(snapshots.iterator()).thenReturn(List.of(metric1, metric2).iterator());
@@ -114,15 +115,15 @@ public class AbstractCachingMetricsSnapshotsWriterTest {
                 snapshots,
                 """
                 BEFORE METRIC: metric1
-                DATA POINT: dataPoint11
-                DATA POINT: dataPoint12
+                MEASUREMENT: measurement11
+                MEASUREMENT: measurement12
                 AFTER METRIC: metric1
                 BEFORE METRIC: metric2
-                DATA POINT: dataPoint21
+                MEASUREMENT: measurement21
                 AFTER METRIC: metric2
                 """);
         assertThat(writer.getCreatedMetricsAfterLastCall()).isEmpty();
-        assertThat(writer.getCreatedDatapointsAfterLastCall()).isEmpty();
+        assertThat(writer.getCreatedMeasurementsAfterLastCall()).isEmpty();
     }
 
     private MetricsCollectionSnapshot mockSnapshots(Instant timestamp, MetricSnapshot... metrics) {
@@ -148,7 +149,7 @@ public class AbstractCachingMetricsSnapshotsWriterTest {
                     TestAbstractCachingMetricsSnapshotsWriter.TestBaseMetricExportData> {
 
         private final List<String> createdMetrics = new ArrayList<>();
-        private final List<String> createdDatapoints = new ArrayList<>();
+        private final List<String> createdMeasurements = new ArrayList<>();
 
         protected TestAbstractCachingMetricsSnapshotsWriter(TestBuilder builder) {
             super(builder);
@@ -160,9 +161,9 @@ public class AbstractCachingMetricsSnapshotsWriterTest {
             return result;
         }
 
-        public List<String> getCreatedDatapointsAfterLastCall() {
-            ArrayList<String> result = new ArrayList<>(createdDatapoints);
-            createdDatapoints.clear();
+        public List<String> getCreatedMeasurementsAfterLastCall() {
+            ArrayList<String> result = new ArrayList<>(createdMeasurements);
+            createdMeasurements.clear();
             return result;
         }
 
@@ -175,13 +176,13 @@ public class AbstractCachingMetricsSnapshotsWriterTest {
         }
 
         @Override
-        protected void writeDataPoint(
+        protected void writeMeasurement(
                 @NonNull Instant timestamp,
-                @NonNull DataPointSnapshot dataPointSnapshot,
-                @NonNull ByteArrayTemplate dataPointExportTemplate,
+                @NonNull MeasurementSnapshot measurementSnapshot,
+                @NonNull ByteArrayTemplate measurementExportTemplate,
                 @NonNull OutputStream output)
                 throws IOException {
-            output.write(dataPointExportTemplate.iterator().next());
+            output.write(measurementExportTemplate.iterator().next());
         }
 
         @Override
@@ -205,10 +206,10 @@ public class AbstractCachingMetricsSnapshotsWriterTest {
             }
 
             @Override
-            protected ByteArrayTemplate buildDataPointExportTemplate(DataPointSnapshot dataPointSnapshot) {
-                createdDatapoints.add(dataPointSnapshot.toString());
+            protected ByteArrayTemplate buildMeasurementExportTemplate(MeasurementSnapshot measurementSnapshot) {
+                createdMeasurements.add(measurementSnapshot.toString());
                 return ByteArrayTemplate.builder()
-                        .appendUtf8("DATA POINT: " + dataPointSnapshot + "\n")
+                        .appendUtf8("MEASUREMENT: " + measurementSnapshot + "\n")
                         .build();
             }
         }

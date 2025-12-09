@@ -28,8 +28,9 @@ In many standards like **OpenMetrics** and **OpenTelemetry** metric has these ke
 Metric labels provide dimensionality to metrics, allowing for more granular analysis.
 Each unique combination of labels (even empty) represents a distinct time series within the metric over time with exporting.
 Metric value(s), uniquely identified by the combination of metric metadata and labels.
-**Data Point** serve as a container for the actual metric value(s) and provide methods
-to update them on observation and retrieve value(s) during exporting.
+**Measurement** serve as a container for the actual metric value(s) and provide methods
+to update them on observation and retrieve value(s) during exporting.<br/>
+**Metric Registry** acts as a central repository for managing and organizing metrics.
 
 See more about metrics here: [📘Metrics Details](metrics_details.md).
 
@@ -151,7 +152,7 @@ Some key points of compatibility:
 ### Key classes
 
 - [Metric](../src/main/java/org/hiero/metrics/api/core/Metric.java)
-- [DataPoint](../src/main/java/org/hiero/metrics/api/datapoint/DataPoint.java)
+- [Measurement](../src/main/java/org/hiero/metrics/api/measurement/Measurement.java)
 - [MetricRegistry](../src/main/java/org/hiero/metrics/api/core/MetricRegistry.java)
 - [MetricsRegistrationProvider](../src/main/java/org/hiero/metrics/api/core/MetricsRegistrationProvider.java)
 - [MetricsExporter](../src/main/java/org/hiero/metrics/api/export/MetricsExporter.java)

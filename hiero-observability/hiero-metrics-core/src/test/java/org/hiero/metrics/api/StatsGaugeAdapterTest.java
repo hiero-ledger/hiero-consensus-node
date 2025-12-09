@@ -14,7 +14,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 public class StatsGaugeAdapterTest
-        extends AbstractStatefulMetricBaseTest<
+        extends AbstractSettableMetricBaseTest<
                 StatsGaugeAdapter<StatContainer>, StatsGaugeAdapter.Builder<StatContainer>> {
 
     @Override

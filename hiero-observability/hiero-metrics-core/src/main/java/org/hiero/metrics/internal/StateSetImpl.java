@@ -3,14 +3,14 @@ package org.hiero.metrics.internal;
 
 import java.util.Set;
 import org.hiero.metrics.api.StateSet;
-import org.hiero.metrics.api.datapoint.StateSetDataPoint;
-import org.hiero.metrics.internal.core.AbstractStatefulMetric;
+import org.hiero.metrics.api.measurement.StateSetMeasurement;
+import org.hiero.metrics.internal.core.AbstractSettableMetric;
 import org.hiero.metrics.internal.core.LabelValues;
-import org.hiero.metrics.internal.datapoint.DataPointHolder;
-import org.hiero.metrics.internal.export.snapshot.StateSetDataPointSnapshotImpl;
+import org.hiero.metrics.internal.export.snapshot.StateSetMeasurementSnapshotImpl;
+import org.hiero.metrics.internal.measurement.MeasurementHolder;
 
 public final class StateSetImpl<E extends Enum<E>>
-        extends AbstractStatefulMetric<Set<E>, StateSetDataPoint<E>, StateSetDataPointSnapshotImpl<E>>
+        extends AbstractSettableMetric<Set<E>, StateSetMeasurement<E>, StateSetMeasurementSnapshotImpl<E>>
         implements StateSet<E> {
 
     private final E[] enumConstants;
@@ -21,22 +21,22 @@ public final class StateSetImpl<E extends Enum<E>>
     }
 
     @Override
-    protected StateSetDataPointSnapshotImpl<E> createDataPointSnapshot(
-            StateSetDataPoint<E> datapoint, LabelValues dynamicLabelValues) {
-        return new StateSetDataPointSnapshotImpl<>(dynamicLabelValues, enumConstants);
+    protected StateSetMeasurementSnapshotImpl<E> createMeasurementSnapshot(
+            StateSetMeasurement<E> measurement, LabelValues dynamicLabelValues) {
+        return new StateSetMeasurementSnapshotImpl<>(dynamicLabelValues, enumConstants);
     }
 
     @Override
-    protected void updateDatapointSnapshot(
-            DataPointHolder<StateSetDataPoint<E>, StateSetDataPointSnapshotImpl<E>> dataPointHolder) {
+    protected void updateMeasurementSnapshot(
+            MeasurementHolder<StateSetMeasurement<E>, StateSetMeasurementSnapshotImpl<E>> measurementHolder) {
         for (E enumConstant : enumConstants) {
-            boolean value = dataPointHolder.dataPoint().getState(enumConstant);
-            dataPointHolder.snapshot().updateState(enumConstant.ordinal(), value);
+            boolean value = measurementHolder.measurement().getState(enumConstant);
+            measurementHolder.snapshot().updateState(enumConstant.ordinal(), value);
         }
     }
 
     @Override
-    protected void reset(StateSetDataPoint<E> dataPoint) {
-        dataPoint.reset();
+    protected void reset(StateSetMeasurement<E> measurement) {
+        measurement.reset();
     }
 }

@@ -7,25 +7,25 @@ import java.util.function.Consumer;
 import org.hiero.metrics.api.core.Label;
 import org.hiero.metrics.api.core.Metric;
 import org.hiero.metrics.api.core.MetricMetadata;
-import org.hiero.metrics.api.export.snapshot.DataPointSnapshot;
+import org.hiero.metrics.api.export.snapshot.MeasurementSnapshot;
 import org.hiero.metrics.api.export.snapshot.MetricSnapshot;
 import org.hiero.metrics.internal.core.AppendArray;
-import org.hiero.metrics.internal.datapoint.DataPointHolder;
+import org.hiero.metrics.internal.measurement.MeasurementHolder;
 
-public final class UpdatableMetricSnapshot<D, S extends DataPointSnapshot> implements MetricSnapshot {
+public final class UpdatableMetricSnapshot<D, S extends MeasurementSnapshot> implements MetricSnapshot {
 
     private final Metric metric;
-    private final Consumer<DataPointHolder<D, S>> snapshotUpdater;
-    private final AppendArray<DataPointHolder<D, S>> dataPointHolders;
+    private final Consumer<MeasurementHolder<D, S>> snapshotUpdater;
+    private final AppendArray<MeasurementHolder<D, S>> measurementHolders;
 
-    public UpdatableMetricSnapshot(Metric metric, Consumer<DataPointHolder<D, S>> snapshotUpdater) {
+    public UpdatableMetricSnapshot(Metric metric, Consumer<MeasurementHolder<D, S>> snapshotUpdater) {
         this.metric = metric;
         this.snapshotUpdater = snapshotUpdater;
-        this.dataPointHolders = new AppendArray<>(metric.dynamicLabelNames().isEmpty() ? 1 : 8);
+        this.measurementHolders = new AppendArray<>(metric.dynamicLabelNames().isEmpty() ? 1 : 8);
     }
 
-    public void addDataPointHolder(DataPointHolder<D, S> dataPoint) {
-        dataPointHolders.add(dataPoint);
+    public void addMeasurementHolder(MeasurementHolder<D, S> holder) {
+        measurementHolders.add(holder);
     }
 
     @NonNull
@@ -48,19 +48,19 @@ public final class UpdatableMetricSnapshot<D, S extends DataPointSnapshot> imple
 
     @Override
     public int size() {
-        return dataPointHolders.size();
+        return measurementHolders.size();
     }
 
     @NonNull
     @Override
-    public DataPointSnapshot get(int index) {
-        return dataPointHolders.get(index).snapshot();
+    public MeasurementSnapshot get(int index) {
+        return measurementHolders.get(index).snapshot();
     }
 
     public void updateSnapshot() {
-        int size = dataPointHolders.readyToRead();
+        int size = measurementHolders.readyToRead();
         for (int i = 0; i < size; i++) {
-            snapshotUpdater.accept(dataPointHolders.get(i));
+            snapshotUpdater.accept(measurementHolders.get(i));
         }
     }
 }
