@@ -155,9 +155,9 @@ public class TransactionDispatcher {
                     TOKEN_FREEZE,
                     TOKEN_UNPAUSE,
                     TOKEN_UNFREEZE,
-                 //                    TOKEN_AIRDROP,
-                 TOKEN_CLAIM_AIRDROP,
-                 TOKEN_CANCEL_AIRDROP-> true;
+                    TOKEN_AIRDROP,
+                    TOKEN_CLAIM_AIRDROP,
+                    TOKEN_CANCEL_AIRDROP -> true;
             default -> false;
         };
     }

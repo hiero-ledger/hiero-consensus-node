@@ -34,7 +34,6 @@ import com.hedera.hapi.node.base.TokenTransferList;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.state.token.AccountPendingAirdrop;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
-import com.hedera.hapi.node.token.TokenAirdropTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.token.ReadableAirdropStore;
@@ -57,6 +56,7 @@ import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
+import com.hedera.node.config.data.FeesConfig;
 import com.hedera.node.config.data.TokensConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -77,9 +77,6 @@ import org.apache.logging.log4j.Logger;
 @Singleton
 public class TokenAirdropHandler extends TransferExecutor implements TransactionHandler {
     private static final Logger log = LogManager.getLogger(TokenAirdropHandler.class);
-    public static final TransactionBody PLACEHOLDER_SYNTHETIC_AIRDROP = TransactionBody.newBuilder()
-            .tokenAirdrop(TokenAirdropTransactionBody.newBuilder().build())
-            .build();
     private final TokenAirdropValidator validator;
 
     /**
@@ -515,10 +512,13 @@ public class TokenAirdropHandler extends TransferExecutor implements Transaction
     private long airdropFee(final HandleContext feeContext) {
         final var context = ((FeeContext) feeContext);
 
-        //        if (feeContext.configuration().getConfigData(FeesConfig.class).simpleFeesEnabled()) {
-        //            return context.dispatchComputeFees(PLACEHOLDER_SYNTHETIC_AIRDROP, context.payer())
-        //                    .totalFee();
-        //        }
+        if (feeContext.configuration().getConfigData(FeesConfig.class).simpleFeesEnabled()) {
+            // return airdrop extra fee if simple fees are enabled
+
+            //                    final var feeSchedule = context.feeSchedule();
+            //                    final ServiceFeeDefinition serviceDef = lookupServiceFee(feeSchedule,
+            // HederaFunctionality.CRYPTO_TRANSFER);
+        }
 
         return context.feeCalculatorFactory()
                 .feeCalculator(SubType.DEFAULT)

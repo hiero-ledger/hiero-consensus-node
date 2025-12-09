@@ -28,6 +28,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.flattened;
+import static com.hedera.services.bdd.suites.fees.CryptoTransferSimpleFeesSuite.FUNGIBLE_TOKEN_BASE_FEE;
 import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
 import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
 
@@ -48,8 +49,8 @@ public class AirdropSimpleFeesTest extends TokenAirdropBase {
     private static final double BASE_CLAIM_AIRDROP_FEE = 0.001;
     private static final double BASE_CANCEL_AIRDROP_FEE = 0.001;
     private static final double TOKEN_ASSOCIATION_FEE = 0.05;
-    // NFTs always charge association fee, so 0.1 base
-    private static final double NFT_AIRDROP_FEE = 0.1;
+    // NFTs always charge token association fee, so 0.1 base
+    private static final double NFT_AIRDROP_FEE = BASE_AIRDROP_FEE + TOKEN_ASSOCIATION_FEE;
 
     @HapiTest
     @DisplayName("charge association fee for FT correctly")
@@ -71,7 +72,7 @@ public class AirdropSimpleFeesTest extends TokenAirdropBase {
                         .payingWith("owner")
                         .via("second airdrop"),
                 validateChargedUsd("airdrop", BASE_AIRDROP_FEE + TOKEN_ASSOCIATION_FEE),
-                validateChargedUsd("second airdrop", BASE_AIRDROP_FEE, 3));
+                validateChargedUsd("second airdrop", BASE_AIRDROP_FEE));
     }
 
     @HapiTest
@@ -151,39 +152,59 @@ public class AirdropSimpleFeesTest extends TokenAirdropBase {
     @HapiTest
     @DisplayName("cancel airdrop FT happy path")
     final Stream<DynamicTest> cancelAirdropFungibleTokenHappyPath() {
-        final var account = "account";
         return hapiTest(
                 cryptoCreate(OWNER).balance(ONE_HUNDRED_HBARS),
-                cryptoCreate(account),
+                cryptoCreate("sender"),
                 newKeyNamed(FUNGIBLE_FREEZE_KEY),
                 tokenCreate(FUNGIBLE_TOKEN)
                         .treasury(OWNER)
                         .tokenType(FUNGIBLE_COMMON)
                         .freezeKey(FUNGIBLE_FREEZE_KEY)
                         .initialSupply(1000L),
-                tokenAssociate(account, FUNGIBLE_TOKEN),
-                cryptoTransfer(moving(10, FUNGIBLE_TOKEN).between(OWNER, account)),
+                tokenAssociate("sender", FUNGIBLE_TOKEN),
+                cryptoTransfer(moving(10, FUNGIBLE_TOKEN).between(OWNER, "sender")),
                 cryptoCreate(RECEIVER_WITH_0_AUTO_ASSOCIATIONS).maxAutomaticTokenAssociations(0),
                 // Create an airdrop in pending state
-                tokenAirdrop(moving(10, FUNGIBLE_TOKEN).between(account, RECEIVER_WITH_0_AUTO_ASSOCIATIONS))
-                        .payingWith(account)
+                tokenAirdrop(moving(10, FUNGIBLE_TOKEN).between("sender", RECEIVER_WITH_0_AUTO_ASSOCIATIONS))
+                        .payingWith("sender")
                         .via("airdrop"),
 
                 // Verify that a pending state is created and the correct usd is charged
                 getTxnRecord("airdrop")
                         .hasPriority(recordWith()
                                 .pendingAirdrops(includingFungiblePendingAirdrop(moving(10, FUNGIBLE_TOKEN)
-                                        .between(account, RECEIVER_WITH_0_AUTO_ASSOCIATIONS)))),
+                                        .between("sender", RECEIVER_WITH_0_AUTO_ASSOCIATIONS)))),
                 getAccountBalance(RECEIVER_WITH_0_AUTO_ASSOCIATIONS).hasTokenBalance(FUNGIBLE_TOKEN, 0),
-                validateChargedUsd("airdrop", BASE_AIRDROP_FEE + TOKEN_ASSOCIATION_FEE, 1),
+                validateChargedUsd("airdrop", BASE_AIRDROP_FEE + TOKEN_ASSOCIATION_FEE),
 
                 // Cancel the airdrop
-                tokenCancelAirdrop(pendingAirdrop(account, RECEIVER_WITH_0_AUTO_ASSOCIATIONS, FUNGIBLE_TOKEN))
-                        .payingWith(account)
+                tokenCancelAirdrop(pendingAirdrop("sender", RECEIVER_WITH_0_AUTO_ASSOCIATIONS, FUNGIBLE_TOKEN))
+                        .payingWith("sender")
                         .via("cancelAirdrop"),
 
                 // Verify that the receiver doesn't have the token
                 getAccountBalance(RECEIVER_WITH_0_AUTO_ASSOCIATIONS).hasTokenBalance(FUNGIBLE_TOKEN, 0),
                 validateChargedUsd("cancelAirdrop", BASE_CANCEL_AIRDROP_FEE));
+    }
+
+    @HapiTest
+    @DisplayName("airdrop that defaults to FT crypto transfer")
+    final Stream<DynamicTest> airdropThatDefaultsToCryptoTransferBaseFee() {
+        return hapiTest(
+                cryptoCreate(OWNER).balance(ONE_HUNDRED_HBARS),
+                cryptoCreate("sender"),
+                cryptoCreate("receiver"),
+                tokenCreate(FUNGIBLE_TOKEN)
+                        .treasury(OWNER)
+                        .tokenType(FUNGIBLE_COMMON)
+                        .initialSupply(1000L),
+                tokenAssociate("sender", FUNGIBLE_TOKEN),
+                tokenAssociate("receiver", FUNGIBLE_TOKEN),
+                cryptoTransfer(moving(10, FUNGIBLE_TOKEN).between(OWNER, "sender")),
+                tokenAirdrop(moving(1, FUNGIBLE_TOKEN).between("sender", "receiver"))
+                        .payingWith("sender")
+                        .via("airdrop"),
+                // The transaction should be charged the same as a crypto transfer
+                validateChargedUsd("airdrop", FUNGIBLE_TOKEN_BASE_FEE));
     }
 }

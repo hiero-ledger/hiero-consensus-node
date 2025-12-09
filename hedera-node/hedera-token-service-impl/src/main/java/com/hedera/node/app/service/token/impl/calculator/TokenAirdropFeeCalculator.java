@@ -1,29 +1,33 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.calculator;
 
-import static org.hiero.hapi.fees.FeeScheduleUtils.lookupServiceFee;
-
-import com.hedera.hapi.node.base.HederaFunctionality;
+import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
-import com.hedera.node.app.spi.fees.CalculatorState;
-import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
+import com.hedera.node.app.spi.fees.FeeContext;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import org.hiero.hapi.fees.FeeResult;
 import org.hiero.hapi.support.fees.FeeSchedule;
-import org.hiero.hapi.support.fees.ServiceFeeDefinition;
 
-public class TokenAirdropFeeCalculator implements ServiceFeeCalculator {
+public class TokenAirdropFeeCalculator extends CryptoTransferFeeCalculator {
 
     @Override
     public void accumulateServiceFee(
             @NonNull final TransactionBody txnBody,
-            @Nullable final CalculatorState calculatorState,
+            @Nullable final FeeContext feeContext,
             @NonNull final FeeResult feeResult,
             @NonNull final FeeSchedule feeSchedule) {
-        // TODO: fix once we have the TokenTransferFeeCalculator
-        final ServiceFeeDefinition serviceDef = lookupServiceFee(feeSchedule, HederaFunctionality.TOKEN_AIRDROP);
-        feeResult.addServiceFee(1, serviceDef.baseFee());
+        final var op = txnBody.tokenAirdropOrThrow();
+        final var cryptoTransferBody = CryptoTransferTransactionBody.newBuilder()
+                .tokenTransfers(op.tokenTransfers())
+                .build();
+
+        final var syntheticCryptoTransfer = TransactionBody.newBuilder()
+                .cryptoTransfer(cryptoTransferBody)
+                .transactionID(txnBody.transactionID())
+                .build();
+
+        super.accumulateServiceFee(syntheticCryptoTransfer, feeContext, feeResult, feeSchedule);
     }
 
     public TransactionBody.DataOneOfType getTransactionType() {
