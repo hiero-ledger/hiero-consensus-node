@@ -35,7 +35,6 @@ import com.hedera.node.app.service.file.impl.FileServiceImpl;
 import com.hedera.node.app.service.schedule.impl.ScheduleServiceImpl;
 import com.hedera.node.app.service.token.impl.TokenServiceImpl;
 import com.hedera.node.app.service.util.impl.UtilServiceImpl;
-import com.hedera.node.app.services.NodeFeeDistributor;
 import com.hedera.node.app.services.NodeRewardManager;
 import com.hedera.node.app.services.ServicesInjectionModule;
 import com.hedera.node.app.services.ServicesRegistry;
@@ -143,8 +142,6 @@ public interface HederaInjectionComponent {
 
     NodeRewardManager nodeRewardManager();
 
-    NodeFeeDistributor nodeFeeDistributor();
-
     FeeManager feeManager();
 
     ExchangeRateManager exchangeRateManager();
@@ -248,9 +245,6 @@ public interface HederaInjectionComponent {
 
         @BindsInstance
         Builder appContext(AppContext appContext);
-
-        @BindsInstance
-        Builder nodeFeeAccumulator(NodeFeeDistributor nodeFeeDistributor);
 
         HederaInjectionComponent build();
     }

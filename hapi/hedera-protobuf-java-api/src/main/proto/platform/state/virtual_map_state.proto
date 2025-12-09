@@ -48,6 +48,7 @@ import "services/state/token/account.proto";
 import "services/state/token/account_pending_airdrop.proto";
 import "services/state/token/network_staking_rewards.proto";
 import "services/state/token/node_rewards.proto";
+import "services/state/token/node_payments.proto";
 import "services/state/token/nft.proto";
 import "services/state/token/staking_node_info.proto";
 import "services/state/token/token.proto";
@@ -619,7 +620,7 @@ message StateValue {
     /**
      * A state identifier for the node payments. Singleton state.
      */
-    proto.NodeRewards TokenService_I_NODE_PAYMENTS = 55;
+    proto.NodePayments TokenService_I_NODE_PAYMENTS = 55;
 
     /**
      * Metadata of the round receipts queue.
