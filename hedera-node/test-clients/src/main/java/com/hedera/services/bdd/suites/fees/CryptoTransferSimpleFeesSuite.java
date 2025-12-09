@@ -29,8 +29,12 @@ import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
+import com.hedera.services.bdd.junit.support.TestLifecycle;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Stream;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
@@ -64,6 +68,11 @@ public class CryptoTransferSimpleFeesSuite {
     private static final String NFT_TOKEN_2 = "nftToken2";
     private static final String NFT_TOKEN_WITH_FEES = "nftTokenWithFees";
     private static final String HOOK_CONTRACT = "TruePreHook";
+
+    @BeforeAll
+    public static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
+        testLifecycle.overrideInClass(Map.of("hooks.hooksEnabled", "true"));
+    }
 
     @HapiTest
     @DisplayName("DEFAULT: Simple 2-account HBAR transfer")
