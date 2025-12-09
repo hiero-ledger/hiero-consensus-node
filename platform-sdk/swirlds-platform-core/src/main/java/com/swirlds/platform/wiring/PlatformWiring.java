@@ -52,7 +52,6 @@ import java.util.Objects;
 import java.util.Queue;
 import org.hiero.consensus.crypto.EventHasher;
 import org.hiero.consensus.event.creator.EventCreationConfig;
-import org.hiero.consensus.event.creator.EventCreatorModule;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
@@ -83,7 +82,7 @@ public class PlatformWiring {
         components
                 .gossipWiring()
                 .getSyncProgressOutput()
-                .solderTo(components.eventCreationManagerWiring().getInputWire(EventCreatorModule::reportSyncProgress));
+                .solderTo(components.eventCreatorModule().syncProgressInputWire());
 
         components
                 .eventHasherWiring()
@@ -130,14 +129,12 @@ public class PlatformWiring {
         components
                 .pcesInlineWriterWiring()
                 .getOutputWire()
-                .solderTo(components.eventCreationManagerWiring().getInputWire(EventCreatorModule::registerEvent));
+                .solderTo(components.eventCreatorModule().orderedEventInputWire());
 
         components
                 .model()
                 .getHealthMonitorWire()
-                .solderTo(components
-                        .eventCreationManagerWiring()
-                        .getInputWire(EventCreatorModule::reportUnhealthyDuration));
+                .solderTo(components.eventCreatorModule().healthStatusInputWire());
 
         components
                 .model()
@@ -162,9 +159,7 @@ public class PlatformWiring {
         components
                 .model()
                 .buildHeartbeatWire(eventCreationHeartbeatFrequency)
-                .solderTo(
-                        components.eventCreationManagerWiring().getInputWire(EventCreatorModule::maybeCreateEvent),
-                        OFFER);
+                .solderTo(components.eventCreatorModule().heartbeatInputWire(), OFFER);
         components
                 .model()
                 .buildHeartbeatWire(platformContext
@@ -174,8 +169,8 @@ public class PlatformWiring {
                 .solderTo(components.platformMonitorWiring().getInputWire(PlatformMonitor::heartbeat), OFFER);
 
         components
-                .eventCreationManagerWiring()
-                .getOutputWire()
+                .eventCreatorModule()
+                .createdEventOutputWire()
                 .solderTo(
                         components.internalEventValidatorWiring().getInputWire(InternalEventValidator::validateEvent),
                         INJECT);
@@ -399,8 +394,7 @@ public class PlatformWiring {
         components
                 .platformMonitorWiring()
                 .getOutputWire()
-                .solderTo(
-                        components.eventCreationManagerWiring().getInputWire(EventCreatorModule::updatePlatformStatus));
+                .solderTo(components.eventCreatorModule().platformStatusInputWire());
         components
                 .platformMonitorWiring()
                 .getOutputWire()
@@ -476,8 +470,7 @@ public class PlatformWiring {
         eventWindowOutputWire.solderTo(
                 components.pcesInlineWriterWiring().getInputWire(InlinePcesWriter::updateNonAncientEventBoundary),
                 INJECT);
-        eventWindowOutputWire.solderTo(
-                components.eventCreationManagerWiring().getInputWire(EventCreatorModule::setEventWindow), INJECT);
+        eventWindowOutputWire.solderTo(components.eventCreatorModule().eventWindowInputWire(), INJECT);
         eventWindowOutputWire.solderTo(
                 components.latestCompleteStateNexusWiring().getInputWire(LatestCompleteStateNexus::updateEventWindow));
         eventWindowOutputWire.solderTo(
@@ -518,7 +511,6 @@ public class PlatformWiring {
     private static void buildUnsolderedWires(final PlatformComponents components) {
         components.eventDeduplicatorWiring().getInputWire(EventDeduplicator::clear);
         components.consensusEngineWiring().getInputWire(ConsensusEngine::outOfBandSnapshotUpdate);
-        components.eventCreationManagerWiring().getInputWire(EventCreatorModule::clear);
         components.notifierWiring().getInputWire(AppNotifier::sendReconnectCompleteNotification);
         components.notifierWiring().getInputWire(AppNotifier::sendPlatformStatusChangeNotification);
         components.eventSignatureValidatorWiring().getInputWire(EventSignatureValidator::updateRosterHistory);
@@ -533,6 +525,5 @@ public class PlatformWiring {
         components.branchReporterWiring().getInputWire(BranchReporter::clear);
         components.platformMonitorWiring().getInputWire(PlatformMonitor::submitStatusAction);
         components.platformMonitorWiring().getInputWire(PlatformMonitor::quiescenceCommand);
-        components.eventCreationManagerWiring().getInputWire(EventCreatorModule::quiescenceCommand);
     }
 }

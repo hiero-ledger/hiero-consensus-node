@@ -64,6 +64,7 @@ import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
  */
 public record PlatformComponents(
         WiringModel model,
+        EventCreatorModule eventCreatorModule,
         ComponentWiring<StateSigner, StateSignatureTransaction> stateSignerWiring,
         ComponentWiring<ConsensusEventStream, Void> consensusEventStreamWiring,
         ComponentWiring<IssHandler, Void> issHandlerWiring,
@@ -83,7 +84,6 @@ public record PlatformComponents(
         ComponentWiring<EventSignatureValidator, PlatformEvent> eventSignatureValidatorWiring,
         ComponentWiring<OrphanBuffer, List<PlatformEvent>> orphanBufferWiring,
         ConsensusWiring consensusEngineWiring,
-        ComponentWiring<EventCreatorModule, PlatformEvent> eventCreationManagerWiring,
         ComponentWiring<InlinePcesWriter, PlatformEvent> pcesInlineWriterWiring,
         ComponentWiring<TransactionPrehandler, Queue<ScopedSystemTransaction<StateSignatureTransaction>>>
                 applicationTransactionPrehandlerWiring,
@@ -136,7 +136,6 @@ public record PlatformComponents(
         } else {
             pcesInlineWriterWiring.bind(builder::buildInlinePcesWriter);
         }
-        eventCreationManagerWiring.bind(builder::buildEventCreator);
         stateSignatureCollectorWiring.bind(stateSignatureCollector);
         eventWindowManagerWiring.bind(eventWindowManager);
         applicationTransactionPrehandlerWiring.bind(builder::buildTransactionPrehandler);
@@ -166,7 +165,9 @@ public record PlatformComponents(
      * @param model                the wiring model
      */
     public static PlatformComponents create(
-            @NonNull final PlatformContext platformContext, @NonNull final WiringModel model) {
+            @NonNull final PlatformContext platformContext,
+            @NonNull final WiringModel model,
+            @NonNull final EventCreatorModule eventCreatorModule) {
 
         Objects.requireNonNull(platformContext);
         Objects.requireNonNull(model);
@@ -186,9 +187,6 @@ public record PlatformComponents(
         final ComponentWiring<OrphanBuffer, List<PlatformEvent>> orphanBufferWiring =
                 new ComponentWiring<>(model, OrphanBuffer.class, config.orphanBuffer());
         final ConsensusWiring consensusEngineWiring = ConsensusWiring.create(model, config.consensusEngine());
-
-        final ComponentWiring<EventCreatorModule, PlatformEvent> eventCreationManagerWiring =
-                new ComponentWiring<>(model, EventCreatorModule.class, config.eventCreationManager());
 
         final ComponentWiring<TransactionPrehandler, Queue<ScopedSystemTransaction<StateSignatureTransaction>>>
                 applicationTransactionPrehandlerWiring = new ComponentWiring<>(
@@ -263,6 +261,7 @@ public record PlatformComponents(
 
         return new PlatformComponents(
                 model,
+                eventCreatorModule,
                 stateSignerWiring,
                 consensusEventStreamWiring,
                 issHandlerWiring,
@@ -281,7 +280,6 @@ public record PlatformComponents(
                 eventSignatureValidatorWiring,
                 orphanBufferWiring,
                 consensusEngineWiring,
-                eventCreationManagerWiring,
                 pcesInlineWriterWiring,
                 applicationTransactionPrehandlerWiring,
                 stateSignatureCollectorWiring,
