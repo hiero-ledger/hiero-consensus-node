@@ -27,6 +27,7 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.metrics.api.Metrics;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -43,7 +44,7 @@ import org.openjdk.jmh.infra.Blackhole;
 @State(Scope.Benchmark)
 @Warmup(iterations = 10)
 @Measurement(iterations = 15)
-@Fork(1)
+@Fork(3) // Run 3 separate JVM processes for better statistical reliability
 public class BlockStreamingBenchmark {
 
     @Param({"100"})
@@ -60,7 +61,7 @@ public class BlockStreamingBenchmark {
     private BlockNodeConnectionManager connectionManager;
     private GrpcBlockItemWriter writer;
     private ScheduledExecutorService scheduler;
-    private java.util.concurrent.ExecutorService pipelineExecutor;
+    private ExecutorService pipelineExecutor;
     private ScheduledExecutorService metricsScheduler;
 
     private List<Block> blocks; // Pre-generated, excluded from measurement
@@ -69,7 +70,7 @@ public class BlockStreamingBenchmark {
     private long benchmarkEndTime;
 
     @Setup(Level.Trial)
-    public void setupTrial() throws Exception {
+    public void setupTrial() {
         server = FakeGrpcServer.builder()
                 .port(0)
                 .latency(FakeGrpcServer.LatencyConfig.none())
