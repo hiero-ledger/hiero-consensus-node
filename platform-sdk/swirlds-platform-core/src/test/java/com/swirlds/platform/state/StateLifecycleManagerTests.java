@@ -62,8 +62,9 @@ class StateLifecycleManagerTests {
         stateLifecycleManager = new StateLifecycleManagerImpl(
                 platformContext.getMetrics(),
                 platformContext.getTime(),
-                VirtualMapStateTestUtils::createTestStateWithVM);
-        stateLifecycleManager.initState(initialState, true);
+                VirtualMapStateTestUtils::createTestStateWithVM,
+                platformContext.getConfiguration());
+        stateLifecycleManager.initState(initialState);
     }
 
     @AfterEach
@@ -99,7 +100,7 @@ class StateLifecycleManagerTests {
     void initStateRefCount() {
         final SignedState ss1 = newSignedState();
         final Reservable state1 = ss1.getState().getRoot();
-        stateLifecycleManager.initState(ss1.getState(), false);
+        stateLifecycleManager.initStateOnReconnect(ss1.getState());
 
         assertEquals(
                 2,
@@ -113,7 +114,7 @@ class StateLifecycleManagerTests {
                 "The current consensus state should have a single reference count.");
 
         final SignedState ss2 = newSignedState();
-        stateLifecycleManager.initState(ss2.getState(), false);
+        stateLifecycleManager.initStateOnReconnect(ss2.getState());
         final MerkleNodeState consensusState2 = stateLifecycleManager.getMutableState();
 
         Reservable state2 = ss2.getState().getRoot();
@@ -158,7 +159,7 @@ class StateLifecycleManagerTests {
     @DisplayName("initState() rejects second startup initialization")
     void initStateRejectsSecondStartup() {
         final MerkleNodeState another = newState();
-        assertThrows(IllegalStateException.class, () -> stateLifecycleManager.initState(another, true));
+        assertThrows(IllegalStateException.class, () -> stateLifecycleManager.initState(another));
         another.release();
     }
 
@@ -166,7 +167,7 @@ class StateLifecycleManagerTests {
     @DisplayName("initState() rejects immutable input state")
     void initStateRejectsImmutableInput() {
         final MerkleNodeState immutable = stateLifecycleManager.getLatestImmutableState();
-        assertThrows(MutabilityException.class, () -> stateLifecycleManager.initState(immutable, false));
+        assertThrows(MutabilityException.class, () -> stateLifecycleManager.initState(immutable));
     }
 
     @Test
@@ -177,7 +178,8 @@ class StateLifecycleManagerTests {
         final StateLifecycleManager uninitialized = new StateLifecycleManagerImpl(
                 platformContext.getMetrics(),
                 platformContext.getTime(),
-                VirtualMapStateTestUtils::createTestStateWithVM);
+                VirtualMapStateTestUtils::createTestStateWithVM,
+                platformContext.getConfiguration());
         assertThrows(IllegalStateException.class, uninitialized::getMutableState);
     }
 
@@ -189,14 +191,36 @@ class StateLifecycleManagerTests {
         final StateLifecycleManager uninitialized = new StateLifecycleManagerImpl(
                 platformContext.getMetrics(),
                 platformContext.getTime(),
-                VirtualMapStateTestUtils::createTestStateWithVM);
+                VirtualMapStateTestUtils::createTestStateWithVM,
+                platformContext.getConfiguration());
         assertThrows(IllegalStateException.class, uninitialized::getLatestImmutableState);
     }
 
+    @Test
+    @DisplayName("createStateFrom() creates a state without changing reservation count and the state of the manager")
+    void createStateFrom() {
+        // Create an independent state and get its root (VirtualMap)
+        final MerkleNodeState state = VirtualMapStateTestUtils.createTestState();
+        final MerkleNodeState created = stateLifecycleManager.createStateFrom(state.getRoot());
+
+        // The created state should be non-null and reference the same root
+        assertSame(state.getRoot(), created.getRoot(), "createStateFrom should wrap the provided root");
+
+        // Reservation count should remain unchanged by createStateFrom
+        assertEquals(
+                0,
+                (created.getRoot()).getReservationCount(),
+                "createStateFrom must not alter the root reservation count");
+
+        // stateLifecycleManager remains unchanged
+        assertNotSame(state, stateLifecycleManager.getLatestImmutableState());
+        assertNotSame(state, stateLifecycleManager.getMutableState());
+
+        state.release();
+    }
+
     private static MerkleNodeState newState() {
-        final String virtualMapLabel =
-                StateLifecycleManagerTests.class.getSimpleName() + "-" + java.util.UUID.randomUUID();
-        final MerkleNodeState state = VirtualMapStateTestUtils.createTestStateWithLabel(virtualMapLabel);
+        final MerkleNodeState state = VirtualMapStateTestUtils.createTestState();
         TestingAppStateInitializer.initPlatformState(state);
 
         setCreationSoftwareVersionTo(

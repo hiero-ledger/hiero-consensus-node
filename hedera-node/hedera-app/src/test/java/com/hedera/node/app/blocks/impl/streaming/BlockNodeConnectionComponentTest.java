@@ -22,6 +22,9 @@ import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.node.app.blocks.impl.streaming.BlockNodeConnection.ConnectionState;
+import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeConfiguration;
+import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeHelidonGrpcConfiguration;
+import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeHelidonHttpConfiguration;
 import com.hedera.node.app.metrics.BlockStreamMetrics;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.pbj.grpc.client.helidon.PbjGrpcClientConfig;
@@ -224,6 +227,8 @@ class BlockNodeConnectionComponentTest extends BlockNodeCommunicationTestBase {
                 .priority(nodeConfig.priority())
                 .messageSizeSoftLimitBytes(softLimitBytes)
                 .messageSizeHardLimitBytes(hardLimitBytes)
+                .clientGrpcConfig(BlockNodeHelidonGrpcConfiguration.DEFAULT)
+                .clientHttpConfig(BlockNodeHelidonHttpConfiguration.DEFAULT)
                 .build();
 
         connection = new BlockNodeConnection(

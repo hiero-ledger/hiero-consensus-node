@@ -22,6 +22,7 @@ import static org.mockito.Mockito.when;
 import com.hedera.node.app.blocks.impl.streaming.BlockNodeConnection.ConnectionState;
 import com.hedera.node.app.blocks.impl.streaming.BlockNodeConnectionManager.BlockNodeConnectionTask;
 import com.hedera.node.app.blocks.impl.streaming.BlockNodeConnectionManager.RetryState;
+import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeConfiguration;
 import com.hedera.node.app.metrics.BlockStreamMetrics;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfigImpl;
@@ -45,7 +46,6 @@ import java.nio.file.StandardOpenOption;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -367,11 +367,31 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
         final Path file = tempDir.resolve("block-nodes.json");
         final List<BlockNodeConfig> availableNodes = new ArrayList<>();
-        availableNodes.add(new BlockNodeConfig(PBJ_UNIT_TEST_HOST, 8080, 1, null, null));
-        availableNodes.add(new BlockNodeConfig(PBJ_UNIT_TEST_HOST, 8081, 1, null, null));
-        availableNodes.add(new BlockNodeConfig(PBJ_UNIT_TEST_HOST, 8082, 2, null, null));
-        availableNodes.add(new BlockNodeConfig(PBJ_UNIT_TEST_HOST, 8083, 3, null, null));
-        availableNodes.add(new BlockNodeConfig(PBJ_UNIT_TEST_HOST, 8084, 3, null, null));
+        availableNodes.add(BlockNodeConfig.newBuilder()
+                .address(PBJ_UNIT_TEST_HOST)
+                .port(8080)
+                .priority(1)
+                .build());
+        availableNodes.add(BlockNodeConfig.newBuilder()
+                .address(PBJ_UNIT_TEST_HOST)
+                .port(8081)
+                .priority(1)
+                .build());
+        availableNodes.add(BlockNodeConfig.newBuilder()
+                .address(PBJ_UNIT_TEST_HOST)
+                .port(8082)
+                .priority(2)
+                .build());
+        availableNodes.add(BlockNodeConfig.newBuilder()
+                .address(PBJ_UNIT_TEST_HOST)
+                .port(8083)
+                .priority(3)
+                .build());
+        availableNodes.add(BlockNodeConfig.newBuilder()
+                .address(PBJ_UNIT_TEST_HOST)
+                .port(8084)
+                .priority(3)
+                .build());
         final BlockNodeConnectionInfo connectionInfo = new BlockNodeConnectionInfo(availableNodes);
         final String valid = BlockNodeConnectionInfo.JSON.toJSON(connectionInfo);
         Files.writeString(
@@ -1362,14 +1382,14 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         Files.deleteIfExists(file);
         awaitCondition(() -> availableNodes().isEmpty(), 3_000);
 
-        // Exercise unchanged path: write back same content and ensure no restart occurs
+        // Exercise unchanged path: write back the same content and ensure no restart occurs
         Files.writeString(
                 file, valid, StandardCharsets.UTF_8, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
         awaitCondition(() -> !availableNodes().isEmpty(), 5_000);
-        final Map<BlockNodeConfiguration, BlockNodeConnection> before = new HashMap<>(connections());
+        final List<BlockNodeConfiguration> before = availableNodes();
         invoke_refreshAvailableBlockNodes();
-        final Map<BlockNodeConfiguration, BlockNodeConnection> after = new HashMap<>(connections());
-        assertThat(after.keySet()).isEqualTo(before.keySet());
+        final List<BlockNodeConfiguration> after = availableNodes();
+        assertThat(after).isEqualTo(before);
     }
 
     @Test
@@ -1507,7 +1527,13 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
         // Start with valid config
         final List<BlockNodeConfig> configs = new ArrayList<>();
-        configs.add(new BlockNodeConfig(PBJ_UNIT_TEST_HOST, 8080, 1, 1_000_000L, 2_000_000L));
+        configs.add(BlockNodeConfig.newBuilder()
+                .address(PBJ_UNIT_TEST_HOST)
+                .port(8080)
+                .priority(1)
+                .messageSizeSoftLimitBytes(1_000_000L)
+                .messageSizeHardLimitBytes(2_000_000L)
+                .build());
         final BlockNodeConnectionInfo connectionInfo = new BlockNodeConnectionInfo(configs);
         final String valid = BlockNodeConnectionInfo.JSON.toJSON(connectionInfo);
         Files.writeString(
@@ -1557,7 +1583,11 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     void testConfigWatcher_handlesInterruptedException() throws Exception {
         final Path file = tempDir.resolve("block-nodes.json");
         final List<BlockNodeConfig> configs = new ArrayList<>();
-        configs.add(new BlockNodeConfig(PBJ_UNIT_TEST_HOST, 8080, 1, null, null));
+        configs.add(BlockNodeConfig.newBuilder()
+                .address(PBJ_UNIT_TEST_HOST)
+                .port(8080)
+                .priority(1)
+                .build());
         final BlockNodeConnectionInfo connectionInfo = new BlockNodeConnectionInfo(configs);
         final String valid = BlockNodeConnectionInfo.JSON.toJSON(connectionInfo);
         Files.writeString(
