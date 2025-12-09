@@ -37,6 +37,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Random;
 import org.hiero.consensus.crypto.DefaultEventHasher;
 import org.hiero.consensus.model.event.PlatformEvent;
@@ -384,7 +385,10 @@ public class StandardGraphGenerator implements GraphGenerator {
      *
      * @param source The node that is creating the event.
      */
-    private EventSource getNextOtherParentSource(final long eventIndex, final EventSource source) {
+    private @Nullable EventSource getNextOtherParentSource(final long eventIndex, final EventSource source) {
+        if(roster.rosterEntries().size() == 1){
+            return null;
+        }
         final List<Double> affinityVector = getOtherParentAffinityVector(
                 eventIndex, RosterUtils.getIndex(roster, source.getNodeId().id()));
         final int nodeIndex = weightedChoice(getRandom(), affinityVector);
@@ -394,7 +398,7 @@ public class StandardGraphGenerator implements GraphGenerator {
     /**
      * Get the next timestamp for the next event.
      */
-    private Instant getNextTimestamp(final EventSource source, final NodeId otherParentId) {
+    private Instant getNextTimestamp(@NonNull final EventSource source, @Nullable final NodeId otherParentId) {
         if (previousTimestamp == null) {
             previousTimestamp = DEFAULT_FIRST_EVENT_TIME_CREATED;
             previousCreatorId = source.getNodeId();
@@ -442,7 +446,7 @@ public class StandardGraphGenerator implements GraphGenerator {
                 getRandom(),
                 eventIndex,
                 otherParentSource,
-                getNextTimestamp(source, otherParentSource.getNodeId()),
+                getNextTimestamp(source, Optional.ofNullable(otherParentSource).map(EventSource::getNodeId).orElse(null)),
                 birthRound);
 
         new DefaultEventHasher().hashEvent(next.getBaseEvent());
