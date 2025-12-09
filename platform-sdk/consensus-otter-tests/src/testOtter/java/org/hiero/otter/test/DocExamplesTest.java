@@ -7,11 +7,11 @@ import static org.hiero.otter.fixtures.Capability.DETERMINISTIC_EXECUTION;
 import static org.hiero.otter.fixtures.OtterAssertions.assertContinuouslyThat;
 import static org.hiero.otter.fixtures.OtterAssertions.assertThat;
 
-import com.swirlds.platform.consensus.ConsensusConfig_;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.util.List;
 import java.util.stream.Stream;
+import org.hiero.consensus.hashgraph.ConsensusConfig_;
 import org.hiero.otter.fixtures.Capability;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.Node;
