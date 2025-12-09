@@ -391,10 +391,8 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
                                 sourcing(() ->
                                         reconnectNode(byNodeId(nodeId.get()), configVersionOf(currentVersion.get()))),
 
-                                // validate the node is using the initial node account for the records and blocks output
-                                // paths and the content of the node_accoun_id.txt
-                                validatePathsAfterUpdate(
-                                        String.valueOf(nodeId.get()), initialNodeAccount, newNodeAccount));
+                                // validate the node is using the initial node account for the records and blocks paths
+                                validatePathsDoesntExist(String.valueOf(nodeId.get()), newNodeAccount));
                     }));
         }
 
@@ -415,7 +413,7 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
                     // 2. validate the new record path is empty after update.
                     validatePathsDoesntExist(nodeToUpdate, accountId),
 
-                    // 3. Update the node_account_id.txt on startup after the upgrade
+                    // 3. The output paths should update on startup after the upgrade
                     prepareFakeUpgrade(),
                     upgradeToNextConfigVersion(),
                     // create record
@@ -431,7 +429,7 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
                     sourcing(() ->
                             reconnectNode(byNodeId(Long.parseLong(nodeToUpdate)), configVersionOf(startVersion.get()))),
                     // 6. validate the new record paths are empty even after reconnect
-                    validatePathsAfterUpdate(nodeToUpdate, accountId, newAccountId),
+                    validatePathsDoesntExist(nodeToUpdate, newAccountId),
 
                     // 7. upgrade and validate the new records and blocks paths exist
                     prepareFakeUpgrade(),
@@ -481,21 +479,6 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
 
     private static String blocksPath(String nodeId) {
         return "build/hapi-test/node%s/data/blockStreams/".formatted(nodeId);
-    }
-
-    private static ContextualActionOp validatePathsAfterUpdate(
-            String nodeId, AtomicReference<AccountID> oldAccountId, AtomicReference<AccountID> updatedAccountId) {
-        return doingContextual((spec) -> {
-            final var newRecordPath =
-                    Paths.get(recordsPath(nodeId) + "record" + asAccountString(updatedAccountId.get()));
-            final var newBlocksPath =
-                    Paths.get(blocksPath(nodeId) + "block-" + asAccountString(updatedAccountId.get()));
-
-            // new record path doesn't exist
-            assertThat(newRecordPath.toFile().exists()).isFalse();
-            // new blocks path doesn't exist
-            assertThat(newBlocksPath.toFile().exists()).isFalse();
-        });
     }
 
     private static ContextualActionOp validatePathsDoesntExist(String nodeId, AtomicReference<AccountID> accountId) {
