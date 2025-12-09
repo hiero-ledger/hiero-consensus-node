@@ -195,50 +195,38 @@ public class HashgraphPicture extends JPanel {
         final Graphics2D g2d = (Graphics2D) g;
         Stroke savedStroke = null;
         g.setColor(HashgraphGuiUtils.eventColor(event, options));
-        boolean selectedLines = selector.isSelected(event);
+        final boolean selectedLines = selector.isSelected(event);
         if (selectedLines) {
             g.setColor(Color.MAGENTA);
             savedStroke = g2d.getStroke();
             g2d.setStroke(new BasicStroke(3));
         }
 
-        final EventImpl e1 = event.getSelfParent();
-        EventImpl e2 = event.getOtherParent();
         final Roster roster = hashgraphSource.getRoster();
-        if (e2 != null
-                && (RosterUtils.getIndex(roster, e2.getCreatorId().id()) == -1
-                        || RosterUtils.getIndex(roster, e2.getCreatorId().id())
-                                >= roster.rosterEntries().size())) {
-            // if the creator of the other parent has been removed,
-            // treat it as if there is no other parent
-            e2 = null;
-        }
-
-        if (e1 != null && e1.getNGen() >= pictureMetadata.getMinGen()) {
-            g.drawLine(
-                    pictureMetadata.xpos(e2, event),
-                    pictureMetadata.ypos(event),
-                    pictureMetadata.xpos(e2, e1),
-                    pictureMetadata.ypos(e1));
-
-            if (selectedLines) {
-                final Color currentColor = g.getColor();
-                drawBorderAroundEvent(g, d, e1, Color.MAGENTA);
-                drawEventCircle(g, e1, options, d);
-                g.setColor(currentColor);
+        for (final EventImpl parent : event.getAllParents()) {
+            final long id = parent.getCreatorId().id();
+            if ((RosterUtils.getIndex(roster, id) == -1
+                    || RosterUtils.getIndex(roster, id)
+                    >= roster.rosterEntries().size())) {
+                // if the creator of the other parent has been removed,
+                // treat it as if there is no other parent
+                continue;
             }
-        }
-        if (e2 != null && e2.getNGen() >= pictureMetadata.getMinGen()) {
+            if (parent.getNGen() < pictureMetadata.getMinGen()) {
+                // parent is out of range, don't draw line to it
+                continue;
+            }
+
             g.drawLine(
-                    pictureMetadata.xpos(e2, event),
+                    pictureMetadata.xpos(null, event),
                     pictureMetadata.ypos(event),
-                    pictureMetadata.xpos(event, e2),
-                    pictureMetadata.ypos(e2));
+                    pictureMetadata.xpos(null, parent),
+                    pictureMetadata.ypos(parent));
 
             if (selectedLines) {
                 final Color currentColor = g.getColor();
-                drawBorderAroundEvent(g, d, e2, Color.MAGENTA);
-                drawEventCircle(g, e2, options, d);
+                drawBorderAroundEvent(g, d, parent, Color.MAGENTA);
+                drawEventCircle(g, parent, options, d);
                 g.setColor(currentColor);
             }
         }
@@ -250,7 +238,6 @@ public class HashgraphPicture extends JPanel {
 
     private void drawEventCircle(
             final Graphics g, final EventImpl event, final HashgraphPictureOptions options, final int d) {
-        final Consensus consensus = hashgraphSource.getEventStorage().getConsensus();
         final FontMetrics fm = g.getFontMetrics();
         final int fa = fm.getMaxAscent();
         final int fd = fm.getMaxDescent();
