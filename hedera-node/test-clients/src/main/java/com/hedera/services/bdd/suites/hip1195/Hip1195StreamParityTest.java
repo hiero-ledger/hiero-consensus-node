@@ -2,7 +2,6 @@
 package com.hedera.services.bdd.suites.hip1195;
 
 import static com.google.protobuf.ByteString.copyFromUtf8;
-import static com.hedera.services.bdd.junit.TestTags.ADHOC;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.accountWith;
 import static com.hedera.services.bdd.spec.assertions.AutoAssocAsserts.accountTokenPairs;
@@ -17,6 +16,7 @@ import static com.hedera.services.bdd.spec.queries.crypto.ExpectedTokenRel.relat
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.accountAllowanceHook;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoUpdateAliased;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.mintToken;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenAssociate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
@@ -25,7 +25,9 @@ import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movi
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movingUnique;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
+import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SHAPE;
@@ -35,12 +37,16 @@ import static com.hedera.services.bdd.suites.HapiSuite.flattened;
 import static com.hedera.services.bdd.suites.crypto.AutoAccountCreationSuite.AUTO_MEMO;
 import static com.hedera.services.bdd.suites.crypto.AutoAccountCreationSuite.LAZY_MEMO;
 import static com.hedera.services.bdd.suites.crypto.AutoCreateUtils.createHollowAccountFrom;
+import static com.hedera.services.bdd.suites.crypto.AutoCreateUtils.updateSpecFor;
+import static com.hedera.services.bdd.suites.crypto.CryptoApproveAllowanceSuite.OWNER;
+import static com.hedera.services.bdd.suites.token.TokenTransactSpecs.PAYER;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.TokenSupplyType.FINITE;
 import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
 import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.esaulpaugh.headlong.abi.Single;
 import com.esaulpaugh.headlong.abi.Tuple;
@@ -70,11 +76,9 @@ import java.util.stream.Stream;
 import org.apache.commons.lang3.tuple.Pair;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
-import org.junit.jupiter.api.Tag;
 
 @HapiTestLifecycle
 @SuppressWarnings({"rawtypes", "unchecked"})
-@Tag(ADHOC)
 public class Hip1195StreamParityTest {
     public static final String HOOK_CONTRACT_NUM = "365";
 
@@ -92,13 +96,44 @@ public class Hip1195StreamParityTest {
     @Contract(contract = "TruePrePostHook", creationGas = 5_000_000)
     static SpecContract TRUE_PRE_POST_ALLOWANCE_HOOK;
 
+    @Contract(contract = "CreateOpHook", creationGas = 5_000_000)
+    static SpecContract CREATE_OP_HOOK;
+
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
         testLifecycle.overrideInClass(Map.of("hooks.hooksEnabled", "true"));
         testLifecycle.doAdhoc(MULTIPURPOSE.getInfo());
+        testLifecycle.doAdhoc(CREATE_OP_HOOK.getInfo());
         testLifecycle.doAdhoc(SET_AND_PASS_HOOK.getInfo());
         testLifecycle.doAdhoc(THREE_PASSES_HOOK.getInfo());
         testLifecycle.doAdhoc(TRUE_PRE_POST_ALLOWANCE_HOOK.getInfo());
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> hookChildCreationPassesParity(
+            @FungibleToken SpecFungibleToken aToken, @NonFungibleToken(numPreMints = 1) SpecNonFungibleToken bToken) {
+        return hapiTest(
+                aToken.getInfo(),
+                bToken.getInfo(),
+                cryptoCreate(PAYER),
+                cryptoCreate(OWNER)
+                        .maxAutomaticTokenAssociations(2)
+                        .withHooks(accountAllowanceHook(210L, CREATE_OP_HOOK.name())),
+                cryptoTransfer(
+                        moving(1, aToken.name()).between(aToken.treasury().name(), OWNER),
+                        movingUnique(bToken.name(), 1L)
+                                .between(bToken.treasury().name(), OWNER)),
+                cryptoTransfer(
+                                movingHbar(1).between(OWNER, GENESIS),
+                                moving(1, aToken.name())
+                                        .between(OWNER, aToken.treasury().name()),
+                                movingUnique(bToken.name(), 1L)
+                                        .between(OWNER, bToken.treasury().name()))
+                        .withPreHookFor(OWNER, 210L, 5_000_000L, "")
+                        .withNftSenderPreHookFor(OWNER, 210L, 5_000_000L, "")
+                        .payingWith(PAYER)
+                        .signedBy(PAYER),
+                getAccountInfo(OWNER).exposingEthereumNonceTo(nonce -> assertEquals(3, nonce)));
     }
 
     @HapiTest
@@ -288,7 +323,15 @@ public class Hip1195StreamParityTest {
                                         .status(SUCCESS)
                                         .contractCallResult(resultWith().contract(HOOK_CONTRACT_NUM)))
                         .logged(),
-                getAliasedAccountInfo("alias").has(accountWith().balance(10L)).hasToken(relationshipWith("tokenA")));
+                getAliasedAccountInfo("alias").has(accountWith().balance(10L)).hasToken(relationshipWith("tokenA")),
+                cryptoTransfer(
+                                movingHbar(10L).between("civilian", "alias"),
+                                moving(1, "tokenA").between("civilian", "alias"))
+                        .withPrePostHookFor("civilian", 1L, 25_000L, "")
+                        .signedBy(DEFAULT_PAYER, "civilian")
+                        .via("aliasTransfer"),
+                getTxnRecord("transfer").andAllChildRecords().logged(),
+                getAliasedAccountInfo("alias").has(accountWith().balance(20L)));
     }
 
     @HapiTest
@@ -390,5 +433,52 @@ public class Hip1195StreamParityTest {
                                 recordWith()
                                         .status(SUCCESS)
                                         .contractCallResult(resultWith().contract(HOOK_CONTRACT_NUM)))));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> hookExecutionsWithAliases() {
+        final var args = TupleType.parse("(uint32)");
+        return hapiTest(
+                newKeyNamed("alias"),
+                cryptoCreate("party").withHooks(accountAllowanceHook(1L, THREE_PASSES_HOOK.name())),
+                cryptoCreate("counterparty"),
+                cryptoTransfer(movingHbar(10L).between("party", "alias"))
+                        .signedBy(DEFAULT_PAYER, "party")
+                        .via("aliasCreation"),
+                getTxnRecord("aliasCreation")
+                        .hasChildRecords(recordWith().status(SUCCESS).memo(AUTO_MEMO)),
+                cryptoTransfer((spec, b) -> b.setTransfers(TransferList.newBuilder()
+                                .addAccountAmounts(AccountAmount.newBuilder()
+                                        .setAccountID(spec.registry().getAccountID("party"))
+                                        .setAmount(-123L)
+                                        .setPreTxAllowanceHook(HookCall.newBuilder()
+                                                .setHookId(1L)
+                                                .setEvmHookCall(EvmHookCall.newBuilder()
+                                                        .setGasLimit(42_000L)
+                                                        .setData(ByteString.copyFrom(args.encode(Single.of(1L)))))))
+                                .addAccountAmounts(AccountAmount.newBuilder()
+                                        .setAccountID(spec.registry().getKeyAlias("alias"))
+                                        .setAmount(+123L))))
+                        .signedBy(DEFAULT_PAYER),
+                withOpContext((spec, opLog) -> updateSpecFor(spec, "alias")),
+                // Update aliased account with hook and use alias with hook invocation
+                cryptoUpdateAliased("alias")
+                        .withHook(accountAllowanceHook(1L, THREE_PASSES_HOOK.name()))
+                        .signedBy(DEFAULT_PAYER, "alias"),
+                cryptoTransfer((spec, b) -> b.setTransfers(TransferList.newBuilder()
+                                .addAccountAmounts(AccountAmount.newBuilder()
+                                        .setAccountID(spec.registry().getKeyAlias("alias"))
+                                        .setAmount(-123L)
+                                        .setPreTxAllowanceHook(HookCall.newBuilder()
+                                                .setHookId(1L)
+                                                .setEvmHookCall(EvmHookCall.newBuilder()
+                                                        .setGasLimit(42_000L)
+                                                        .setData(ByteString.copyFrom(args.encode(Single.of(1L)))))))
+                                .addAccountAmounts(AccountAmount.newBuilder()
+                                        .setAccountID(spec.registry().getAccountID("party"))
+                                        .setAmount(+123L))))
+                        .signedBy(DEFAULT_PAYER)
+                        .via("aliasTransfer"),
+                getTxnRecord("aliasTransfer").andAllChildRecords().logged());
     }
 }

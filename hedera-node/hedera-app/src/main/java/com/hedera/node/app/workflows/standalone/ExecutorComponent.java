@@ -8,9 +8,11 @@ import com.hedera.node.app.fees.AppFeeCharging;
 import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.hints.HintsService;
 import com.hedera.node.app.history.HistoryService;
+import com.hedera.node.app.service.consensus.impl.ConsensusServiceImpl;
 import com.hedera.node.app.service.contract.impl.ContractServiceImpl;
 import com.hedera.node.app.service.file.impl.FileServiceImpl;
 import com.hedera.node.app.service.schedule.impl.ScheduleServiceImpl;
+import com.hedera.node.app.service.token.impl.TokenServiceImpl;
 import com.hedera.node.app.service.util.impl.UtilServiceImpl;
 import com.hedera.node.app.services.ServicesInjectionModule;
 import com.hedera.node.app.spi.AppContext;
@@ -51,6 +53,12 @@ import javax.inject.Singleton;
 public interface ExecutorComponent {
     @Component.Builder
     interface Builder {
+        @BindsInstance
+        Builder tokenServiceImpl(TokenServiceImpl tokenService);
+
+        @BindsInstance
+        Builder consensusServiceImpl(ConsensusServiceImpl consensusServiceImpl);
+
         @BindsInstance
         Builder fileServiceImpl(FileServiceImpl fileService);
 

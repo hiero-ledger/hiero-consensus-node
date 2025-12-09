@@ -2,7 +2,6 @@
 package com.swirlds.demo.consistency;
 
 import static com.swirlds.demo.consistency.ConsistencyTestingToolMain.CONFIGURATION;
-import static com.swirlds.platform.state.service.PlatformStateFacade.DEFAULT_PLATFORM_STATE_FACADE;
 import static org.assertj.core.api.AssertionsForInterfaceTypes.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
@@ -12,7 +11,6 @@ import static org.mockito.Mockito.when;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.base.time.Time;
 import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.metrics.noop.NoOpMetrics;
@@ -67,8 +65,8 @@ public class ConsistencyTestingToolStateTest {
         final VirtualDataSourceBuilder dsBuilder = new MerkleDbDataSourceBuilder(
                 CONFIGURATION, merkleDbConfig.initialCapacity(), merkleDbConfig.hashesRamToDiskThreshold());
         final VirtualMap virtualMap = new VirtualMap("ConsistencyTestingToolStateTest", dsBuilder, CONFIGURATION);
-        state = new ConsistencyTestingToolState(virtualMap, new NoOpMetrics(), Time.getCurrent());
-        stateLifecycle = new ConsistencyTestingToolConsensusStateEventHandler(DEFAULT_PLATFORM_STATE_FACADE);
+        state = new ConsistencyTestingToolState(virtualMap, new NoOpMetrics());
+        stateLifecycle = new ConsistencyTestingToolConsensusStateEventHandler();
         TestingAppStateInitializer.initConsensusModuleStates(state, CONFIGURATION);
     }
 

@@ -62,20 +62,6 @@ public class VirtualMapMetadata {
     }
 
     /**
-     * Create a new {@link VirtualMapMetadata} base on an {@link ExternalVirtualMapMetadata} instance.
-     * To be removed with ExternalVirtualMapMetadata.
-     *
-     * @param virtualMapMetadata The map state to copy. Cannot be null.
-     */
-    @Deprecated(forRemoval = true)
-    public VirtualMapMetadata(@NonNull final ExternalVirtualMapMetadata virtualMapMetadata) {
-        requireNonNull(virtualMapMetadata);
-        firstLeafPath = virtualMapMetadata.getFirstLeafPath();
-        lastLeafPath = virtualMapMetadata.getLastLeafPath();
-        label = virtualMapMetadata.getLabel();
-    }
-
-    /**
      * Copy constructor.
      */
     private VirtualMapMetadata(final VirtualMapMetadata virtualMapMetadata) {

@@ -13,6 +13,7 @@ import com.hedera.node.app.history.HistoryService;
 import com.hedera.node.app.history.WritableHistoryStore;
 import com.hedera.node.app.history.handlers.HistoryHandlers;
 import com.hedera.node.app.history.schemas.V059HistorySchema;
+import com.hedera.node.app.history.schemas.V069HistorySchema;
 import com.hedera.node.app.service.roster.impl.ActiveRosters;
 import com.hedera.node.app.spi.AppContext;
 import com.hedera.node.config.data.TssConfig;
@@ -73,7 +74,7 @@ public class HistoryServiceImpl implements HistoryService {
             @NonNull final Instant now,
             @NonNull final TssConfig tssConfig,
             final boolean isActive,
-            @Nullable final HintsConstruction activeConstruction) {
+            @Nullable final HintsConstruction activeHintsConstruction) {
         requireNonNull(activeRosters);
         requireNonNull(historyStore);
         requireNonNull(now);
@@ -88,9 +89,9 @@ public class HistoryServiceImpl implements HistoryService {
                                     activeRosters,
                                     construction,
                                     historyStore,
-                                    activeConstruction,
-                                    tssConfig.wrapsEnabled());
-                    controller.advanceConstruction(now, metadata, historyStore, isActive);
+                                    activeHintsConstruction,
+                                    historyStore.getActiveConstruction());
+                    controller.advanceConstruction(now, metadata, historyStore, isActive, tssConfig);
                 }
             }
             case HANDOFF -> {
@@ -143,6 +144,7 @@ public class HistoryServiceImpl implements HistoryService {
         final var tssConfig = bootstrapConfig.getConfigData(TssConfig.class);
         if (tssConfig.historyEnabled()) {
             registry.register(new V059HistorySchema(this));
+            registry.register(new V069HistorySchema());
         }
     }
 }

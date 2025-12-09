@@ -180,7 +180,6 @@ class AdjustHbarChangesStepTest extends StepsBase {
                 .transfers(TransferList.newBuilder()
                         .accountAmounts(aaWithAllowance(ownerId, -1_0000), aaWith(unknownAliasedId, +1_000))
                         .build())
-                .tokenTransfers()
                 .build();
         givenTxn(body, spenderId);
         ensureAliasesStep = new EnsureAliasesStep(body);
@@ -212,7 +211,6 @@ class AdjustHbarChangesStepTest extends StepsBase {
                 .transfers(TransferList.newBuilder()
                         .accountAmounts(aaWith(ownerId, -1_0001), aaWith(unknownAliasedId, +1_000))
                         .build())
-                .tokenTransfers()
                 .build();
         givenTxn(body, spenderId);
         ensureAliasesStep = new EnsureAliasesStep(body);

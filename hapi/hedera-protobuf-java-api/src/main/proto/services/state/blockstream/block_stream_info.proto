@@ -152,39 +152,21 @@ message BlockStreamInfo {
 
     /**
      * A SHA2-384 hash value.<br/>
-     * This is the hash of the "consensus headers" subtree for this block.
+     * This is the final hash of the "consensus headers" subtree for this block.
      */
-    bytes consensus_header_tree_root_hash = 14 [deprecated = true];
+    bytes consensus_header_root_hash = 14;
 
     /**
      * A SHA2-384 hash value.<br/>
-     * This is the hash of the "trace data" subtree for this block.
+       * This is the final hash of the "output" subtree for this block.
      */
-    bytes trace_data_tree_root_hash = 15 [deprecated = true];
-
-    /**
-     * A SHA2-384 hash value.<br/>
-     * This is the hash of the "output" subtree for this block.
-     */
-    bytes output_tree_root_hash = 16 [deprecated = true];
-
-    /**
-     * A SHA2-384 hash value.<br/>
-     * This is the final hash of the "consensus" subtree for this block.
-     */
-    bytes consensus_header_root_hash = 17;
-
-    /**
-     * A SHA2-384 hash value.<br/>
-     * This is the final hash of the "output" subtree for this block.
-     */
-    bytes output_item_root_hash = 18;
+    bytes output_item_root_hash = 15;
 
     /**
      * A SHA2-384 hash value.<br/>
      * This is the final hash of the "trace data" subtree for this block.
      */
-    bytes trace_data_root_hash = 19;
+    bytes trace_data_root_hash = 16;
 
     /**
      * The intermediate hashes needed for subroot 2 in the block merkle
@@ -192,5 +174,10 @@ message BlockStreamInfo {
      * block root hashes needed to construct subroot 2's final state at
      * the end of the previous block.
      */
-    repeated bytes intermediate_previous_block_root_hashes = 20;
+    repeated bytes intermediate_previous_block_root_hashes = 17;
+
+    /**
+     * The number of leaves in the intermediate block roots subtree.
+     */
+    uint64 intermediate_block_roots_leaf_count = 18;
 }

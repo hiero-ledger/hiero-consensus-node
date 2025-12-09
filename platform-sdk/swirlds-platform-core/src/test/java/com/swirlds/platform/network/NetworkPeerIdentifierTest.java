@@ -34,6 +34,7 @@ import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.hiero.base.crypto.internal.DetRandomProvider;
+import org.hiero.consensus.crypto.SigningSchema;
 import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
@@ -139,13 +140,13 @@ class NetworkPeerIdentifierTest {
 
         final SecureRandom secureRandom = DetRandomProvider.getDetRandom();
 
-        final KeyPairGenerator rsaKeyGen = KeyPairGenerator.getInstance("RSA");
-        rsaKeyGen.initialize(3072, secureRandom);
+        final KeyPairGenerator rsaKeyGen = KeyPairGenerator.getInstance(SigningSchema.RSA.getKeyType());
+        rsaKeyGen.initialize(SigningSchema.RSA.getKeySizeBits(), secureRandom);
         final KeyPair rsaKeyPair1 = rsaKeyGen.generateKeyPair();
 
         final String name = "CN=Bob";
-        final X509Certificate rsaCert =
-                CryptoStatic.generateCertificate(name, rsaKeyPair1, name, rsaKeyPair1, secureRandom);
+        final X509Certificate rsaCert = CryptoStatic.generateCertificate(
+                name, rsaKeyPair1, name, rsaKeyPair1, secureRandom, SigningSchema.RSA.getSigningAlgorithm());
         final Certificate[] certificates = new Certificate[] {rsaCert};
 
         final PeerInfo matchedPeer =

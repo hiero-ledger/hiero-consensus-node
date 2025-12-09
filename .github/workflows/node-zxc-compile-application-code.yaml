@@ -43,6 +43,11 @@ on:
         type: boolean
         required: false
         default: false
+      enable-hapi-tests-simplefees:
+        description: "HAPI Testing (simplefees) Enabled"
+        type: boolean
+        required: false
+        default: false
       enable-hapi-tests-token:
         description: "HAPI Testing (token) Enabled"
         type: boolean
@@ -343,8 +348,7 @@ jobs:
         if: ${{ inputs.enable-integration-tests && inputs.enable-network-log-capture && steps.gradle-integration-tests.conclusion == 'failure' && !cancelled() }}
         with:
           name: Otter Integration Tests Turtle Logs
-          path: |
-            platform-sdk/consensus-otter-tests/build/turtle/**
+          path: platform-sdk/consensus-otter-tests/build/turtle
           retention-days: 7
 
       - name: Upload Otter Integration Tests Container Logs
@@ -352,8 +356,7 @@ jobs:
         if: ${{ inputs.enable-integration-tests && inputs.enable-network-log-capture && steps.gradle-integration-tests.conclusion == 'failure' && !cancelled() }}
         with:
           name: Otter Integration Tests Container Logs
-          path: |
-            platform-sdk/consensus-otter-tests/build/container/**
+          path: platform-sdk/consensus-otter-tests/build/container
           retention-days: 7
 
       - name: HAPI Testing (Misc)
@@ -459,6 +462,42 @@ jobs:
         if: ${{ inputs.enable-hapi-tests-crypto && inputs.enable-network-log-capture && steps.gradle-hapi-crypto.conclusion == 'failure' && !cancelled() }}
         with:
           name: HAPI Test (Crypto) Network Logs
+          path: |
+            hedera-node/test-clients/build/hapi-test/**/output/**
+            hedera-node/test-clients/build/hapi-test/*.log
+            hedera-node/test-clients/output/**
+          retention-days: 7
+
+      - name: HAPI Testing (Simple Fees)
+        id: gradle-hapi-simplefees
+        if: ${{ inputs.enable-hapi-tests-simplefees && steps.gradle-build.conclusion == 'success' && !cancelled() }}
+        env:
+          LC_ALL: en.UTF-8
+          LANG: en_US.UTF-8
+        run: ${GRADLE_EXEC} hapiTestSimpleFees${{ inputs.mats-suffix || '' }}
+
+      - name: Publish HAPI Test (Simple Fees) Report
+        uses: step-security/publish-unit-test-result-action@5d195d4dec0b9fa7b51a3dbc4298362a021247c7 # v2.20.4
+        if: ${{ inputs.enable-hapi-tests-simplefees && steps.gradle-build.conclusion == 'success' && !cancelled() }}
+        with:
+          check_name: "Node: HAPI Test (Simple Fees) Results"
+          json_thousands_separator: ","
+          junit_files: "**/test-clients/build/test-results/testSubprocess/TEST-*.xml"
+          comment_mode: errors # only comment if we could not find or parse the JUnit XML files
+
+      - name: Upload HAPI Test (Simple Fees) Report Artifacts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: ${{ inputs.enable-hapi-tests-simplefees && steps.gradle-build.conclusion == 'success' && !cancelled() }}
+        with:
+          name: HAPI Test (Simple Fees) Report
+          path: "**/test-clients/build/test-results/testSubprocess/TEST-*.xml"
+          retention-days: 7
+
+      - name: Upload HAPI Test (Simple Fees) Network Logs
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: ${{ inputs.enable-hapi-tests-simplefees && inputs.enable-network-log-capture && steps.gradle-hapi-simplefees.conclusion == 'failure' && !cancelled() }}
+        with:
+          name: HAPI Test (Simple Fees) Network Logs
           path: |
             hedera-node/test-clients/build/hapi-test/**/output/**
             hedera-node/test-clients/build/hapi-test/*.log

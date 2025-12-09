@@ -123,10 +123,8 @@ public class V0560BlockStreamSchemaTest {
                 Bytes.EMPTY,
                 Bytes.EMPTY,
                 Bytes.EMPTY,
-                null,
-                null,
-                null,
-                null);
+                List.of(),
+                0);
         verify(state).put(expectedInfo);
     }
 

@@ -4,6 +4,7 @@ package com.swirlds.platform.reconnect;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
 import static com.swirlds.logging.legacy.LogMarker.STATE_HASH;
+import static com.swirlds.platform.state.service.PlatformStateUtils.creationSoftwareVersionOf;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.SemanticVersion;
@@ -18,8 +19,6 @@ import com.swirlds.platform.components.SavedStateController;
 import com.swirlds.platform.network.protocol.ReservedSignedStateResultPromise;
 import com.swirlds.platform.network.protocol.ReservedSignedStateResultPromise.ReservedSignedStateResult;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
-import com.swirlds.platform.state.SwirldStateManager;
-import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.state.signed.SignedStateValidationData;
 import com.swirlds.platform.state.signed.SignedStateValidator;
@@ -32,6 +31,7 @@ import com.swirlds.platform.system.status.actions.FallenBehindAction;
 import com.swirlds.platform.system.status.actions.ReconnectCompleteAction;
 import com.swirlds.platform.wiring.PlatformCoordinator;
 import com.swirlds.state.MerkleNodeState;
+import com.swirlds.state.StateLifecycleManager;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
@@ -65,14 +65,13 @@ public class ReconnectController implements Runnable {
 
     private static final Logger logger = LogManager.getLogger(ReconnectController.class);
 
-    private final PlatformStateFacade platformStateFacade;
     private final Roster roster;
     private final SignedStateValidator signedStateValidator;
     private final MerkleCryptography merkleCryptography;
     private final Platform platform;
     private final PlatformContext platformContext;
     private final PlatformCoordinator platformCoordinator;
-    private final SwirldStateManager swirldStateManager;
+    private final StateLifecycleManager stateLifecycleManager;
     private final SavedStateController savedStateController;
     private final ConsensusStateEventHandler<MerkleNodeState> consensusStateEventHandler;
     private final ReservedSignedStateResultPromise peerReservedSignedStateResultPromise;
@@ -84,20 +83,18 @@ public class ReconnectController implements Runnable {
     private final AtomicBoolean run = new AtomicBoolean(true);
 
     public ReconnectController(
-            @NonNull final PlatformStateFacade platformStateFacade,
             @NonNull final Roster roster,
             @NonNull final MerkleCryptography merkleCryptography,
             @NonNull final Platform platform,
             @NonNull final PlatformContext platformContext,
             @NonNull final PlatformCoordinator platformCoordinator,
-            @NonNull final SwirldStateManager swirldStateManager,
+            @NonNull final StateLifecycleManager stateLifecycleManager,
             @NonNull final SavedStateController savedStateController,
             @NonNull final ConsensusStateEventHandler<MerkleNodeState> consensusStateEventHandler,
             @NonNull final ReservedSignedStateResultPromise peerReservedSignedStateResultPromise,
             @NonNull final NodeId selfId,
             @NonNull final FallenBehindMonitor fallenBehindMonitor,
             @NonNull final SignedStateValidator signedStateValidator) {
-        this.platformStateFacade = requireNonNull(platformStateFacade);
         this.roster = requireNonNull(roster);
         this.platformCoordinator = requireNonNull(platformCoordinator);
         this.peerReservedSignedStateResultPromise = requireNonNull(peerReservedSignedStateResultPromise);
@@ -107,7 +104,7 @@ public class ReconnectController implements Runnable {
         this.reconnectConfig = platformContext.getConfiguration().getConfigData(ReconnectConfig.class);
         this.platform = requireNonNull(platform);
         this.platformContext = requireNonNull(platformContext);
-        this.swirldStateManager = requireNonNull(swirldStateManager);
+        this.stateLifecycleManager = requireNonNull(stateLifecycleManager);
         this.savedStateController = requireNonNull(savedStateController);
         this.consensusStateEventHandler = requireNonNull(consensusStateEventHandler);
         this.time = platformContext.getTime();
@@ -157,11 +154,12 @@ public class ReconnectController implements Runnable {
                 platformCoordinator.submitStatusAction(new FallenBehindAction());
                 logger.info(RECONNECT.getMarker(), "Preparing for reconnect, stopping gossip");
                 platformCoordinator.pauseGossip();
+                fallenBehindMonitor.awaitGossipPaused();
                 logger.info(RECONNECT.getMarker(), "Preparing for reconnect, start clearing queues");
                 platformCoordinator.clear();
                 logger.info(RECONNECT.getMarker(), "Queues have been cleared");
 
-                final MerkleNodeState currentState = swirldStateManager.getConsensusState();
+                final MerkleNodeState currentState = stateLifecycleManager.getMutableState();
                 hashStateForReconnect(merkleCryptography, currentState);
                 int failedReconnectsInARow = 0;
                 do {
@@ -216,9 +214,7 @@ public class ReconnectController implements Runnable {
 
             logger.info(RECONNECT.getMarker(), "A state was obtained from a peer");
             signedStateValidator.validate(
-                    result.reservedSignedState().get(),
-                    roster,
-                    new SignedStateValidationData(currentState, roster, platformStateFacade));
+                    result.reservedSignedState().get(), roster, new SignedStateValidationData(currentState, roster));
             logger.info(RECONNECT.getMarker(), "The state obtained from a peer was validated");
 
             SignedStateFileReader.registerServiceStates(
@@ -242,7 +238,7 @@ public class ReconnectController implements Runnable {
         logger.debug(RECONNECT.getMarker(), "`loadState` : reloading state");
         final Hash reconnectHash = signedState.getState().getHash();
         final MerkleNodeState state = signedState.getState();
-        final SemanticVersion creationSoftwareVersion = platformStateFacade.creationSoftwareVersionOf(state);
+        final SemanticVersion creationSoftwareVersion = creationSoftwareVersionOf(state);
         consensusStateEventHandler.onStateInitialized(state, platform, InitTrigger.RECONNECT, creationSoftwareVersion);
 
         if (!Objects.equals(signedState.getState().getHash(), reconnectHash)) {
@@ -261,7 +257,7 @@ public class ReconnectController implements Runnable {
                     + Roster.JSON.toJSON(stateRoster) + ")");
         }
 
-        swirldStateManager.setState(signedState.getState(), false);
+        stateLifecycleManager.initState(signedState.getState(), false);
         // kick off transition to RECONNECT_COMPLETE before beginning to save the reconnect state to disk
         // this guarantees that the platform status will be RECONNECT_COMPLETE before the state is saved
         platformCoordinator.submitStatusAction(new ReconnectCompleteAction(signedState.getRound()));

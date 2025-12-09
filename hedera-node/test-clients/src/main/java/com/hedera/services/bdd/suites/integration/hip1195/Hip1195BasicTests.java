@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.integration.hip1195;
 
+import static com.hedera.node.app.hapi.utils.CommonPbjConverters.toPbj;
+import static com.hedera.node.app.service.contract.impl.schemas.V065ContractSchema.EVM_HOOK_STATES_STATE_ID;
+import static com.hedera.services.bdd.junit.EmbeddedReason.NEEDS_STATE_ACCESS;
 import static com.hedera.services.bdd.junit.TestTags.INTEGRATION;
 import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
 import static com.hedera.services.bdd.junit.hedera.embedded.EmbeddedMode.CONCURRENT;
@@ -12,6 +15,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnUtils.accountAllowanc
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.atomicBatch;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractUpdate;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.createDefaultContract;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoDelete;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
@@ -22,11 +26,13 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenAssociate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fixedHbarFee;
-import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.viewAccount;
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.viewContract;
 import static com.hedera.services.bdd.spec.utilops.SidecarVerbs.GLOBAL_WATCHER;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.blockingOrder;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.noOp;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
@@ -45,25 +51,35 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACT
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_HOOK_CREATION_SPEC;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TRANSACTION_REQUIRES_ZERO_HOOKS;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TRANSFER_LIST_SIZE_LIMIT_EXCEEDED;
 import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
+import static java.util.Objects.requireNonNull;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 
 import com.google.protobuf.ByteString;
+import com.hedera.hapi.node.base.HookEntityId;
+import com.hedera.hapi.node.base.HookId;
 import com.hedera.hapi.node.hooks.EvmHookSpec;
 import com.hedera.hapi.node.hooks.HookCreationDetails;
 import com.hedera.hapi.node.hooks.HookExtensionPoint;
 import com.hedera.hapi.node.hooks.LambdaEvmHook;
+import com.hedera.hapi.node.state.hooks.EvmHookState;
 import com.hedera.hapi.node.state.token.Account;
+import com.hedera.node.app.service.contract.ContractService;
+import com.hedera.services.bdd.junit.EmbeddedHapiTest;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.TargetEmbeddedMode;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
+import com.hedera.services.bdd.spec.SpecOperation;
 import com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts;
 import com.hedera.services.bdd.spec.dsl.annotations.Contract;
 import com.hedera.services.bdd.spec.dsl.entities.SpecContract;
 import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
+import com.hedera.services.bdd.spec.utilops.EmbeddedVerbs;
 import com.hedera.services.bdd.spec.verification.traceability.SidecarWatcher;
+import com.hederahashgraph.api.proto.java.TokenSupplyType;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.Map;
@@ -79,6 +95,11 @@ import org.junit.jupiter.api.Tag;
 @TargetEmbeddedMode(CONCURRENT)
 public class Hip1195BasicTests {
     private static final String BATCH_OPERATOR = "batchOperator";
+    private static final double HOOK_INVOCATION_USD = 0.005;
+    private static final long HOOK_GAS_LIMIT = 25000;
+    private static final double HBAR_TRANSFER_BASE_USD = 0.0001;
+    private static final double NFT_TRANSFER_BASE_USD = 0.001;
+    private static final double NFT_TRANSFER_WITH_CUSTOM_BASE_USD = 0.002;
 
     @Contract(contract = "FalsePreHook", creationGas = 5_000_000)
     static SpecContract FALSE_ALLOWANCE_HOOK;
@@ -95,12 +116,6 @@ public class Hip1195BasicTests {
     @Contract(contract = "FalseTruePrePostHook", creationGas = 5_000_000)
     static SpecContract FALSE_TRUE_ALLOWANCE_HOOK;
 
-    @Contract(contract = "CreateOpHook", creationGas = 5_000_000)
-    static SpecContract CREATE_HOOK;
-
-    @Contract(contract = "Create2OpHook", creationGas = 5_000_000)
-    static SpecContract CREATE2_HOOK;
-
     @Contract(contract = "SelfDestructOpHook", creationGas = 5_000_000)
     static SpecContract SELF_DESTRUCT_HOOK;
 
@@ -111,8 +126,6 @@ public class Hip1195BasicTests {
         testLifecycle.doAdhoc(TRUE_ALLOWANCE_HOOK.getInfo());
         testLifecycle.doAdhoc(TRUE_PRE_POST_ALLOWANCE_HOOK.getInfo());
         testLifecycle.doAdhoc(FALSE_PRE_POST_ALLOWANCE_HOOK.getInfo());
-        testLifecycle.doAdhoc(CREATE_HOOK.getInfo());
-        testLifecycle.doAdhoc(CREATE2_HOOK.getInfo());
         testLifecycle.doAdhoc(SELF_DESTRUCT_HOOK.getInfo());
         testLifecycle.doAdhoc(FALSE_TRUE_ALLOWANCE_HOOK.getInfo());
 
@@ -265,7 +278,7 @@ public class Hip1195BasicTests {
                         .withHooks(accountAllowanceHook(224L, TRUE_ALLOWANCE_HOOK.name())),
                 cryptoCreate("receiverAccount").balance(ONE_HUNDRED_HBARS),
                 cryptoTransfer(TokenMovement.movingHbar(10 * ONE_HBAR).between("senderWithHook", "receiverAccount"))
-                        .withPreHookFor("senderWithHook", 224L, 25_000L, "")
+                        .withPreHookFor("senderWithHook", 224L, HOOK_GAS_LIMIT, "")
                         .payingWith("payer"),
                 getAccountBalance("receiverAccount").hasTinyBars(ONE_HUNDRED_HBARS + (10 * ONE_HBAR)));
     }
@@ -279,7 +292,7 @@ public class Hip1195BasicTests {
                 cryptoCreate("receiverAccount").balance(ONE_HUNDRED_HBARS),
                 // Transfer should fail because there's no allowance approved
                 cryptoTransfer(TokenMovement.movingHbar(10 * ONE_HBAR).between("senderWithHook", "receiverAccount"))
-                        .withPreHookFor("senderWithHook", 225L, 25_000L, "")
+                        .withPreHookFor("senderWithHook", 225L, HOOK_GAS_LIMIT, "")
                         .payingWith("receiverAccount")
                         .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK));
     }
@@ -293,7 +306,7 @@ public class Hip1195BasicTests {
                 cryptoCreate("receiverAccount").balance(0L),
                 cryptoTransfer(TokenMovement.movingHbar(10 * ONE_HBAR)
                                 .between("senderWithFalseHook", "receiverAccount"))
-                        .withPreHookFor("senderWithFalseHook", 226L, 25_000L, "")
+                        .withPreHookFor("senderWithFalseHook", 226L, HOOK_GAS_LIMIT, "")
                         .payingWith(DEFAULT_PAYER)
                         .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK));
     }
@@ -307,7 +320,7 @@ public class Hip1195BasicTests {
                 cryptoCreate("receiverAccount").balance(0L),
                 cryptoTransfer(TokenMovement.movingHbar(10 * ONE_HBAR)
                                 .between("senderWithPrePostHook", "receiverAccount"))
-                        .withPrePostHookFor("senderWithPrePostHook", 227L, 25_000L, "")
+                        .withPrePostHookFor("senderWithPrePostHook", 227L, HOOK_GAS_LIMIT, "")
                         .payingWith(DEFAULT_PAYER),
                 getAccountBalance("receiverAccount").hasTinyBars(10 * ONE_HBAR));
     }
@@ -321,7 +334,7 @@ public class Hip1195BasicTests {
                 cryptoCreate("receiverAccount").balance(0L),
                 cryptoTransfer(TokenMovement.movingHbar(10 * ONE_HBAR)
                                 .between("senderWithPrePostHook", "receiverAccount"))
-                        .withPrePostHookFor("senderWithPrePostHook", 228L, 25_000L, "")
+                        .withPrePostHookFor("senderWithPrePostHook", 228L, HOOK_GAS_LIMIT, "")
                         .payingWith(DEFAULT_PAYER)
                         .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK));
     }
@@ -335,7 +348,7 @@ public class Hip1195BasicTests {
                 cryptoCreate("receiverAccount").balance(0L),
                 cryptoTransfer(TokenMovement.movingHbar(10 * ONE_HBAR)
                                 .between("senderWithPrePostHook", "receiverAccount"))
-                        .withPrePostHookFor("senderWithPrePostHook", 228L, 25_000L, "")
+                        .withPrePostHookFor("senderWithPrePostHook", 228L, HOOK_GAS_LIMIT, "")
                         .payingWith(DEFAULT_PAYER)
                         .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK));
     }
@@ -484,7 +497,7 @@ public class Hip1195BasicTests {
                 cryptoCreate("receiverAccount").balance(0L),
                 cryptoTransfer(TokenMovement.movingHbar(10 * ONE_HBAR)
                                 .between("senderWithFalsePreHook", "receiverAccount"))
-                        .withPrePostHookFor("senderWithFalsePreHook", 230L, 25_000L, "")
+                        .withPrePostHookFor("senderWithFalsePreHook", 230L, HOOK_GAS_LIMIT, "")
                         .payingWith(DEFAULT_PAYER)
                         .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK));
     }
@@ -498,7 +511,7 @@ public class Hip1195BasicTests {
                 cryptoCreate("receiverAccount").balance(0L),
                 cryptoTransfer(TokenMovement.movingHbar(10 * ONE_HBAR)
                                 .between("senderWithTruePrePostHook", "receiverAccount"))
-                        .withPrePostHookFor("senderWithTruePrePostHook", 231L, 25_000L, "")
+                        .withPrePostHookFor("senderWithTruePrePostHook", 231L, HOOK_GAS_LIMIT, "")
                         .payingWith(DEFAULT_PAYER),
                 getAccountBalance("receiverAccount").hasTinyBars(10 * ONE_HBAR));
     }
@@ -509,7 +522,7 @@ public class Hip1195BasicTests {
                 cryptoCreate("senderAccount").balance(ONE_HUNDRED_HBARS),
                 cryptoCreate("receiverAccount").balance(0L),
                 cryptoTransfer(TokenMovement.movingHbar(10 * ONE_HBAR).between("senderAccount", "receiverAccount"))
-                        .withPreHookFor("senderAccount", 999L, 25_000L, "")
+                        .withPreHookFor("senderAccount", 999L, HOOK_GAS_LIMIT, "")
                         .payingWith(DEFAULT_PAYER)
                         .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK)
                         .via("txWithNonExistentHook"),
@@ -533,7 +546,7 @@ public class Hip1195BasicTests {
                 tokenAssociate("senderWithHook", "tokenWithFees"),
                 cryptoTransfer(TokenMovement.moving(100, "tokenWithFees").between("treasury", "senderWithHook")),
                 cryptoTransfer(TokenMovement.moving(10, "tokenWithFees").between("senderWithHook", "treasury"))
-                        .withPreHookFor("senderWithHook", 232L, 25_000L, "")
+                        .withPreHookFor("senderWithHook", 232L, HOOK_GAS_LIMIT, "")
                         .payingWith(DEFAULT_PAYER)
                         .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK));
     }
@@ -551,7 +564,7 @@ public class Hip1195BasicTests {
                 tokenAssociate("senderWithHook", "tokenWithoutFees"),
                 cryptoTransfer(TokenMovement.moving(100, "tokenWithoutFees").between("treasury", "senderWithHook")),
                 cryptoTransfer(TokenMovement.moving(10, "tokenWithoutFees").between("senderWithHook", "treasury"))
-                        .withPreHookFor("senderWithHook", 233L, 25_000L, "")
+                        .withPreHookFor("senderWithHook", 233L, HOOK_GAS_LIMIT, "")
                         .payingWith(DEFAULT_PAYER));
     }
 
@@ -577,7 +590,7 @@ public class Hip1195BasicTests {
                 cryptoTransfer(TokenMovement.movingUnique("nft", 1L).between("treasury", "sender")),
                 // Transfer without receiver signature but with hook that returns true
                 cryptoTransfer(TokenMovement.movingUnique("nft", 1L).between("sender", "receiverWithHook"))
-                        .withNftReceiverPreHookFor("receiverWithHook", 240L, 25_000L, "")
+                        .withNftReceiverPreHookFor("receiverWithHook", 240L, HOOK_GAS_LIMIT, "")
                         .payingWith(DEFAULT_PAYER)
                         .signedBy(DEFAULT_PAYER, "sender"));
     }
@@ -604,10 +617,66 @@ public class Hip1195BasicTests {
                 cryptoTransfer(TokenMovement.movingUnique("nft", 1L).between("treasury", "sender")),
                 // Transfer without receiver signature and hook returns false
                 cryptoTransfer(TokenMovement.movingUnique("nft", 1L).between("sender", "receiverWithFalseHook"))
-                        .withNftReceiverPreHookFor("receiverWithFalseHook", 241L, 25_000L, "")
-                        .payingWith(DEFAULT_PAYER)
-                        .signedBy(DEFAULT_PAYER, "sender")
-                        .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK));
+                        .withNftReceiverPreHookFor("receiverWithFalseHook", 241L, HOOK_GAS_LIMIT, "")
+                        .payingWith("sender")
+                        .signedBy("sender")
+                        .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK)
+                        .via("nftTransferFails"),
+                sourcingContextual(spec -> {
+                    final long tinybarGasCost =
+                            HOOK_GAS_LIMIT * spec.ratesProvider().currentTinybarGasPrice();
+                    final double usdGasCost = spec.ratesProvider().toUsdWithActiveRates(tinybarGasCost);
+                    return validateChargedUsd(
+                            "nftTransferFails", NFT_TRANSFER_BASE_USD + HOOK_INVOCATION_USD + usdGasCost);
+                }));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> nftTransferWithCustomFeesAndHooksFees() {
+        return hapiTest(
+                newKeyNamed("supplyKey"),
+                newKeyNamed("receiverKey"),
+                cryptoCreate("treasury").withHooks(accountAllowanceHook(241L, FALSE_TRUE_ALLOWANCE_HOOK.name())),
+                cryptoCreate("feeCollector"),
+                cryptoCreate("sender").withHooks(accountAllowanceHook(242L, TRUE_ALLOWANCE_HOOK.name())),
+                cryptoCreate("receiver")
+                        .receiverSigRequired(true)
+                        .key("receiverKey")
+                        .withHooks(accountAllowanceHook(243L, TRUE_PRE_POST_ALLOWANCE_HOOK.name())),
+                tokenCreate("nft")
+                        .tokenType(NON_FUNGIBLE_UNIQUE)
+                        .treasury("treasury")
+                        .supplyKey("supplyKey")
+                        .initialSupply(0L)
+                        .supplyType(TokenSupplyType.INFINITE)
+                        .withCustom(fixedHbarFee(1L, "feeCollector")),
+                tokenAssociate("sender", "nft"),
+                tokenAssociate("receiver", "nft"),
+                mintToken("nft", List.of(ByteString.copyFromUtf8("metadata1"))),
+                cryptoTransfer(TokenMovement.movingUnique("nft", 1L).between("treasury", "sender")),
+                cryptoTransfer(
+                                TokenMovement.movingUnique("nft", 1L).between("sender", "receiver"),
+                                TokenMovement.movingHbar(1L).between("sender", "treasury"))
+                        .withNftReceiverPrePostHookFor("receiver", 243L, 2 * HOOK_GAS_LIMIT, "")
+                        .withNftSenderPreHookFor("sender", 242L, 2 * HOOK_GAS_LIMIT, "")
+                        .withPreHookFor("sender", 242L, 3 * HOOK_GAS_LIMIT, "")
+                        .withPrePostHookFor("treasury", 241L, 2 * HOOK_GAS_LIMIT, "")
+                        .payingWith("sender")
+                        .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK)
+                        .via("nftTransferFails"),
+                sourcingContextual(spec -> {
+                    // There are 4 hooks - 2 pre and 2 pre-post.
+                    // 2 pre hooks succeed and third pre hook call fails
+                    // so we should refund the gas and hook invocation cost of other treasury post hook = 2 *
+                    // HOOK_GAS_LIMIT
+                    //  and also the receiver pre-post hook = 2 (2 * HOOK_GAS_LIMIT)
+                    final long tinybarGasCost =
+                            (7 * HOOK_GAS_LIMIT) * spec.ratesProvider().currentTinybarGasPrice();
+                    final double usdGasCost = spec.ratesProvider().toUsdWithActiveRates(tinybarGasCost);
+                    return validateChargedUsd(
+                            "nftTransferFails",
+                            NFT_TRANSFER_WITH_CUSTOM_BASE_USD + (3 * HOOK_INVOCATION_USD) + usdGasCost);
+                }));
     }
 
     @HapiTest
@@ -630,7 +699,7 @@ public class Hip1195BasicTests {
                 cryptoTransfer(TokenMovement.movingUnique("nft", 1L).between("treasury", "sender")),
                 // Transfer with receiver signature even though not required
                 cryptoTransfer(TokenMovement.movingUnique("nft", 1L).between("sender", "receiverWithHook"))
-                        .withNftReceiverPreHookFor("receiverWithHook", 242L, 25_000L, "")
+                        .withNftReceiverPreHookFor("receiverWithHook", 242L, HOOK_GAS_LIMIT, "")
                         .payingWith(DEFAULT_PAYER)
                         .signedBy(DEFAULT_PAYER, "sender", "receiverWithHook"));
     }
@@ -655,7 +724,7 @@ public class Hip1195BasicTests {
                 cryptoTransfer(TokenMovement.movingUnique("nft", 1L).between("treasury", "sender")),
                 // Transfer without receiver signature and hook returns true
                 cryptoTransfer(TokenMovement.movingUnique("nft", 1L).between("sender", "receiverWithHook"))
-                        .withNftReceiverPreHookFor("receiverWithHook", 243L, 25_000L, "")
+                        .withNftReceiverPreHookFor("receiverWithHook", 243L, HOOK_GAS_LIMIT, "")
                         .payingWith(DEFAULT_PAYER)
                         .signedBy(DEFAULT_PAYER, "sender"));
     }
@@ -680,7 +749,7 @@ public class Hip1195BasicTests {
                 cryptoTransfer(TokenMovement.movingUnique("nft", 1L).between("treasury", "sender")),
                 // Transfer without receiver signature and hook returns false
                 cryptoTransfer(TokenMovement.movingUnique("nft", 1L).between("sender", "receiverWithFalseHook"))
-                        .withNftReceiverPreHookFor("receiverWithFalseHook", 244L, 25_000L, "")
+                        .withNftReceiverPreHookFor("receiverWithFalseHook", 244L, HOOK_GAS_LIMIT, "")
                         .payingWith(DEFAULT_PAYER)
                         .signedBy(DEFAULT_PAYER, "sender")
                         .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK));
@@ -714,7 +783,7 @@ public class Hip1195BasicTests {
                 cryptoTransfer(
                                 TokenMovement.moving(10, "ft").between("senderWithHook", "rcvFungible"),
                                 TokenMovement.movingUnique("nft", 1L).between("senderWithHook", "rcvNft"))
-                        .withPreHookFor("senderWithHook", 260L, 25_000L, "")
+                        .withPreHookFor("senderWithHook", 260L, HOOK_GAS_LIMIT, "")
                         .payingWith(DEFAULT_PAYER)
                         .signedBy(DEFAULT_PAYER)
                         .hasKnownStatus(com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE));
@@ -953,29 +1022,73 @@ public class Hip1195BasicTests {
     }
 
     @HapiTest
-    final Stream<DynamicTest> hookExecutionFeeDoesntScaleWithMultipleHooks() {
+    final Stream<DynamicTest> hookExecutionFeeScalesWithMultipleHooks() {
         return hapiTest(
                 newKeyNamed("supplyKey"),
                 cryptoCreate(OWNER)
                         .withHooks(
                                 accountAllowanceHook(123L, TRUE_ALLOWANCE_HOOK.name()),
-                                accountAllowanceHook(124L, TRUE_ALLOWANCE_HOOK.name())),
+                                accountAllowanceHook(124L, TRUE_ALLOWANCE_HOOK.name()))
+                        .balance(ONE_MILLION_HBARS),
                 cryptoCreate(PAYER)
                         .receiverSigRequired(true)
                         .withHooks(
                                 accountAllowanceHook(123L, TRUE_PRE_POST_ALLOWANCE_HOOK.name()),
                                 accountAllowanceHook(124L, TRUE_ALLOWANCE_HOOK.name())),
                 cryptoTransfer(TokenMovement.movingHbar(10).between(OWNER, GENESIS))
-                        .withPreHookFor(OWNER, 124L, 25_000L, "")
+                        .withPreHookFor(OWNER, 124L, HOOK_GAS_LIMIT, "")
                         .payingWith(OWNER)
                         .via("feeTxn"),
-                validateChargedUsd("feeTxn", 0.05),
+                sourcingContextual(spec -> {
+                    final long tinybarGasCost =
+                            HOOK_GAS_LIMIT * spec.ratesProvider().currentTinybarGasPrice();
+                    final double usdGasCost = spec.ratesProvider().toUsdWithActiveRates(tinybarGasCost);
+                    return validateChargedUsd("feeTxn", HBAR_TRANSFER_BASE_USD + HOOK_INVOCATION_USD + usdGasCost);
+                }),
                 cryptoTransfer(TokenMovement.movingHbar(10).between(OWNER, PAYER))
-                        .withPreHookFor(OWNER, 123L, 25_000L, "")
-                        .withPrePostHookFor(PAYER, 123L, 25_000L, "")
+                        .withPreHookFor(OWNER, 123L, HOOK_GAS_LIMIT, "")
+                        .withPrePostHookFor(PAYER, 123L, HOOK_GAS_LIMIT, "")
                         .payingWith(OWNER)
                         .via("feeTxn2"),
-                validateChargedUsd("feeTxn2", 0.05));
+                sourcingContextual(spec -> {
+                    // Pre-post hook is called twice, so gas usage is double the given limit
+                    final long tinybarGasCost =
+                            (3 * HOOK_GAS_LIMIT) * spec.ratesProvider().currentTinybarGasPrice();
+                    final double usdGasCost = spec.ratesProvider().toUsdWithActiveRates(tinybarGasCost);
+                    return validateChargedUsd(
+                            "feeTxn2", HBAR_TRANSFER_BASE_USD + (3 * HOOK_INVOCATION_USD) + usdGasCost);
+                }));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> hookExecutionFeeRefundsOnFailure() {
+        return hapiTest(
+                newKeyNamed("supplyKey"),
+                cryptoCreate(OWNER)
+                        .withHooks(
+                                accountAllowanceHook(123L, TRUE_PRE_POST_ALLOWANCE_HOOK.name()),
+                                accountAllowanceHook(124L, TRUE_ALLOWANCE_HOOK.name()))
+                        .balance(ONE_MILLION_HBARS),
+                cryptoCreate(PAYER)
+                        .receiverSigRequired(true)
+                        .withHooks(
+                                accountAllowanceHook(123L, FALSE_TRUE_ALLOWANCE_HOOK.name()),
+                                accountAllowanceHook(124L, TRUE_ALLOWANCE_HOOK.name())),
+                cryptoTransfer(TokenMovement.movingHbar(10).between(OWNER, PAYER))
+                        .withPrePostHookFor(OWNER, 123L, HOOK_GAS_LIMIT, "")
+                        .withPrePostHookFor(PAYER, 123L, HOOK_GAS_LIMIT, "")
+                        .payingWith(OWNER)
+                        .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK)
+                        .via("feeTxn"),
+                sourcingContextual(spec -> {
+                    // There are two pre-post hooks, pre parts are run before and post are run after.
+                    // second pre hook fails, so we should refund the gas and hook invocation cost of two calls
+                    final long tinybarGasCost =
+                            (2 * HOOK_GAS_LIMIT) * spec.ratesProvider().currentTinybarGasPrice();
+                    final double usdGasCost = spec.ratesProvider().toUsdWithActiveRates(tinybarGasCost);
+                    return validateChargedUsd(
+                            "feeTxn", HBAR_TRANSFER_BASE_USD + (2 * HOOK_INVOCATION_USD) + usdGasCost);
+                }));
     }
 
     @HapiTest
@@ -992,7 +1105,7 @@ public class Hip1195BasicTests {
                                 accountAllowanceHook(123L, TRUE_ALLOWANCE_HOOK.name()),
                                 accountAllowanceHook(124L, TRUE_PRE_POST_ALLOWANCE_HOOK.name())),
                 cryptoTransfer(TokenMovement.movingHbar(10).between(OWNER, PAYER))
-                        .withPrePostHookFor(PAYER, 123L, 25_000L, "")
+                        .withPrePostHookFor(PAYER, 123L, HOOK_GAS_LIMIT, "")
                         .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK)
                         .payingWith(OWNER)
                         .via("failedTxn"),
@@ -1000,7 +1113,7 @@ public class Hip1195BasicTests {
                         .andAllChildRecords()
                         .hasChildRecords(TransactionRecordAsserts.recordWith().status(CONTRACT_REVERT_EXECUTED)),
                 cryptoTransfer(TokenMovement.movingHbar(10).between(OWNER, PAYER))
-                        .withPrePostHookFor(PAYER, 124L, 25_000L, "")
+                        .withPrePostHookFor(PAYER, 124L, HOOK_GAS_LIMIT, "")
                         .payingWith(OWNER));
     }
 
@@ -1018,7 +1131,7 @@ public class Hip1195BasicTests {
                                 accountAllowanceHook(123L, TRUE_ALLOWANCE_HOOK.name()),
                                 accountAllowanceHook(124L, TRUE_PRE_POST_ALLOWANCE_HOOK.name())),
                 atomicBatch(cryptoTransfer(TokenMovement.movingHbar(10).between(OWNER, PAYER))
-                                .withPreHookFor(PAYER, 123L, 25_000L, "")
+                                .withPreHookFor(PAYER, 123L, HOOK_GAS_LIMIT, "")
                                 .batchKey(BATCH_OPERATOR)
                                 .hasKnownStatus(HOOKS_EXECUTIONS_REQUIRE_TOP_LEVEL_CRYPTO_TRANSFER)
                                 .via("transferTxn"))
@@ -1042,7 +1155,7 @@ public class Hip1195BasicTests {
                 scheduleCreate(
                                 "schedule",
                                 cryptoTransfer(TokenMovement.movingHbar(10).between(OWNER, PAYER))
-                                        .withPreHookFor(PAYER, 123L, 25_000L, ""))
+                                        .withPreHookFor(PAYER, 123L, HOOK_GAS_LIMIT, ""))
                         .hasPrecheck(HOOKS_EXECUTIONS_REQUIRE_TOP_LEVEL_CRYPTO_TRANSFER)
                         .payingWith(PAYER));
     }
@@ -1076,110 +1189,195 @@ public class Hip1195BasicTests {
                 cryptoDelete(OWNER).payingWith(OWNER));
     }
 
-    @HapiTest
-    final Stream<DynamicTest> transfersWorkWithCryptoTransferLimit() {
-        final var receiverPrefix = "receiver";
+    /**
+     * Repetitive test to validate the linked list management of hooks is as expected for accounts.
+     */
+    @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
+    final Stream<DynamicTest> accountLinkedListManagementAsExpected() {
         return hapiTest(
-                withOpContext((spec, log) -> {
-                    for (int i = 0; i < 10; i++) {
-                        allRunFor(
-                                spec,
-                                cryptoCreate(receiverPrefix + i)
-                                        .withHook(accountAllowanceHook(123L, TRUE_ALLOWANCE_HOOK.name()))
-                                        .withHook(accountAllowanceHook(124L, TRUE_PRE_POST_ALLOWANCE_HOOK.name()))
-                                        .balance(ONE_HBAR));
-                    }
-                }),
-                cryptoCreate(OWNER)
+                // First accounts whose lists were constructed purely via cryptoCreate
+                cryptoCreate("zeroHooksToStart"),
+                assertHookIdList("zeroHooksToStart", List.of()),
+                cryptoCreate("oneHookToStartZ").withHooks(accountAllowanceHook(0L, TRUE_ALLOWANCE_HOOK.name())),
+                assertHookIdList("oneHookToStartZ", List.of(0L)),
+                cryptoCreate("oneHookToStartNZ").withHooks(accountAllowanceHook(-1L, TRUE_ALLOWANCE_HOOK.name())),
+                assertHookIdList("oneHookToStartNZ", List.of(-1L)),
+                cryptoCreate("twoHooksToStartZNZ")
                         .withHooks(
-                                accountAllowanceHook(123L, TRUE_ALLOWANCE_HOOK.name()),
-                                accountAllowanceHook(124L, TRUE_PRE_POST_ALLOWANCE_HOOK.name())),
-                cryptoTransfer(
-                                TokenMovement.movingHbar(10).between(OWNER, "receiver0"),
-                                TokenMovement.movingHbar(10).between(OWNER, "receiver1"),
-                                TokenMovement.movingHbar(10).between(OWNER, "receiver2"),
-                                TokenMovement.movingHbar(10).between(OWNER, "receiver3"),
-                                TokenMovement.movingHbar(10).between(OWNER, "receiver4"),
-                                TokenMovement.movingHbar(10).between(OWNER, "receiver5"),
-                                TokenMovement.movingHbar(10).between(OWNER, "receiver6"),
-                                TokenMovement.movingHbar(10).between(OWNER, "receiver7"),
-                                TokenMovement.movingHbar(10).between(OWNER, "receiver8"),
-                                TokenMovement.movingHbar(10).between(OWNER, "receiver9"))
-                        .withPreHookFor(OWNER, 123L, 25_000L, "")
-                        .withPreHookFor("receiver0", 123L, 25_000L, "")
-                        .withPreHookFor("receiver1", 123L, 25_000L, "")
-                        .withPreHookFor("receiver2", 123L, 25_000L, "")
-                        .withPreHookFor("receiver3", 123L, 25_000L, "")
-                        .withPreHookFor("receiver4", 123L, 25_000L, "")
-                        .withPreHookFor("receiver5", 123L, 25_000L, "")
-                        .withPreHookFor("receiver6", 123L, 25_000L, "")
-                        .withPreHookFor("receiver7", 123L, 25_000L, "")
-                        .withPreHookFor("receiver8", 123L, 25_000L, "")
-                        .withPreHookFor("receiver9", 123L, 25_000L, "")
-                        .hasKnownStatus(TRANSFER_LIST_SIZE_LIMIT_EXCEEDED),
-                cryptoTransfer(
-                                TokenMovement.movingHbar(10).between(OWNER, "receiver0"),
-                                TokenMovement.movingHbar(10).between(OWNER, "receiver1"),
-                                TokenMovement.movingHbar(10).between(OWNER, "receiver2"),
-                                TokenMovement.movingHbar(10).between(OWNER, "receiver3"),
-                                TokenMovement.movingHbar(10).between(OWNER, "receiver4"),
-                                TokenMovement.movingHbar(10).between(OWNER, "receiver5"),
-                                TokenMovement.movingHbar(10).between(OWNER, "receiver6"),
-                                TokenMovement.movingHbar(10).between(OWNER, "receiver7"),
-                                TokenMovement.movingHbar(10).between(OWNER, "receiver8"))
-                        .withPreHookFor(OWNER, 123L, 25_000L, "")
-                        .withPreHookFor("receiver0", 123L, 25_000L, "")
-                        .withPreHookFor("receiver1", 123L, 25_000L, "")
-                        .withPreHookFor("receiver2", 123L, 25_000L, "")
-                        .withPreHookFor("receiver3", 123L, 25_000L, "")
-                        .withPreHookFor("receiver4", 123L, 25_000L, "")
-                        .withPreHookFor("receiver5", 123L, 25_000L, "")
-                        .withPreHookFor("receiver6", 123L, 25_000L, "")
-                        .withPreHookFor("receiver7", 123L, 25_000L, "")
-                        .withPreHookFor("receiver8", 123L, 25_000L, "")
-                        .withPreHookFor("receiver9", 123L, 25_000L, "")
-                        .via("transferTxn"),
-                getTxnRecord("transferTxn")
-                        .andAllChildRecords()
-                        .hasNonStakingChildRecordCount(10)
-                        .logged(),
-                cryptoTransfer(
-                                TokenMovement.movingHbar(10).between(OWNER, "receiver0"),
-                                TokenMovement.movingHbar(10).between(OWNER, "receiver1"),
-                                TokenMovement.movingHbar(10).between(OWNER, "receiver2"),
-                                TokenMovement.movingHbar(10).between(OWNER, "receiver3"),
-                                TokenMovement.movingHbar(10).between(OWNER, "receiver4"),
-                                TokenMovement.movingHbar(10).between(OWNER, "receiver5"),
-                                TokenMovement.movingHbar(10).between(OWNER, "receiver6"),
-                                TokenMovement.movingHbar(10).between(OWNER, "receiver7"),
-                                TokenMovement.movingHbar(10).between(OWNER, "receiver8"))
-                        .withPrePostHookFor(OWNER, 124L, 25_000L, "")
-                        .withPrePostHookFor("receiver0", 124L, 25_000L, "")
-                        .withPrePostHookFor("receiver1", 124L, 25_000L, "")
-                        .withPrePostHookFor("receiver2", 124L, 25_000L, "")
-                        .withPrePostHookFor("receiver3", 124L, 25_000L, "")
-                        .withPrePostHookFor("receiver4", 124L, 25_000L, "")
-                        .withPrePostHookFor("receiver5", 124L, 25_000L, "")
-                        .withPrePostHookFor("receiver6", 124L, 25_000L, "")
-                        .withPrePostHookFor("receiver7", 124L, 25_000L, "")
-                        .withPrePostHookFor("receiver8", 124L, 25_000L, "")
-                        .withPrePostHookFor("receiver9", 124L, 25_000L, "")
-                        .via("transferPrePostTxn"),
-                getTxnRecord("transferPrePostTxn")
-                        .andAllChildRecords()
-                        .hasNonStakingChildRecordCount(20)
-                        .logged());
+                                accountAllowanceHook(0L, TRUE_ALLOWANCE_HOOK.name()),
+                                accountAllowanceHook(-1L, TRUE_ALLOWANCE_HOOK.name())),
+                assertHookIdList("twoHooksToStartZNZ", List.of(0L, -1L)),
+                cryptoCreate("twoHooksToStartNZZ")
+                        .withHooks(
+                                accountAllowanceHook(-1L, TRUE_ALLOWANCE_HOOK.name()),
+                                accountAllowanceHook(0L, TRUE_ALLOWANCE_HOOK.name())),
+                assertHookIdList("twoHooksToStartNZZ", List.of(-1L, 0L)),
+                cryptoCreate("threeHooksToStartZNZNZ")
+                        .withHooks(
+                                accountAllowanceHook(0L, TRUE_ALLOWANCE_HOOK.name()),
+                                accountAllowanceHook(-1L, TRUE_ALLOWANCE_HOOK.name()),
+                                accountAllowanceHook(1L, TRUE_ALLOWANCE_HOOK.name())),
+                assertHookIdList("threeHooksToStartZNZNZ", List.of(0L, -1L, 1L)),
+                cryptoCreate("threeHooksToStartNZZNZ")
+                        .withHooks(
+                                accountAllowanceHook(-1L, TRUE_ALLOWANCE_HOOK.name()),
+                                accountAllowanceHook(0L, TRUE_ALLOWANCE_HOOK.name()),
+                                accountAllowanceHook(1L, TRUE_ALLOWANCE_HOOK.name())),
+                assertHookIdList("threeHooksToStartNZZNZ", List.of(-1L, 0L, 1L)),
+                cryptoCreate("threeHooksToStartNZNZZ")
+                        .withHooks(
+                                accountAllowanceHook(-1L, TRUE_ALLOWANCE_HOOK.name()),
+                                accountAllowanceHook(1L, TRUE_ALLOWANCE_HOOK.name()),
+                                accountAllowanceHook(0L, TRUE_ALLOWANCE_HOOK.name())),
+                assertHookIdList("threeHooksToStartNZNZZ", List.of(-1L, 1L, 0L)),
+                // Now accounts with lists manipulated via cryptoUpdate
+                cryptoUpdate("zeroHooksToStart").withHook(accountAllowanceHook(0L, TRUE_ALLOWANCE_HOOK.name())),
+                assertHookIdList("zeroHooksToStart", List.of(0L)),
+                cryptoUpdate("zeroHooksToStart").removingHook(0L),
+                assertHookIdList("zeroHooksToStart", List.of()),
+                cryptoUpdate("oneHookToStartZ")
+                        .removingHook(0L)
+                        .withHook(accountAllowanceHook(0L, TRUE_ALLOWANCE_HOOK.name())),
+                assertHookIdList("oneHookToStartZ", List.of(0L)),
+                cryptoUpdate("oneHookToStartNZ").withHook(accountAllowanceHook(0L, TRUE_ALLOWANCE_HOOK.name())),
+                assertHookIdList("oneHookToStartNZ", List.of(0L, -1L)),
+                cryptoUpdate("twoHooksToStartZNZ")
+                        .removingHook(-1L)
+                        .withHook(accountAllowanceHook(-1L, TRUE_ALLOWANCE_HOOK.name())),
+                assertHookIdList("twoHooksToStartZNZ", List.of(-1L, 0L)),
+                cryptoUpdate("twoHooksToStartNZZ").withHook(accountAllowanceHook(-2L, TRUE_ALLOWANCE_HOOK.name())),
+                assertHookIdList("twoHooksToStartNZZ", List.of(-2L, -1L, 0L)),
+                cryptoUpdate("threeHooksToStartZNZNZ").removingHook(-1L),
+                assertHookIdList("threeHooksToStartZNZNZ", List.of(0L, 1L)),
+                cryptoUpdate("threeHooksToStartNZZNZ").removingHooks(1L, 0L, -1L),
+                assertHookIdList("threeHooksToStartNZZNZ", List.of()),
+                cryptoUpdate("threeHooksToStartNZNZZ").withHook(accountAllowanceHook(2L, TRUE_ALLOWANCE_HOOK.name())),
+                assertHookIdList("threeHooksToStartNZNZZ", List.of(2L, -1L, 1L, 0L)));
     }
 
-    @HapiTest
-    final Stream<DynamicTest> transfersExceedingChildTxnLimitFails() {
+    /**
+     * Repetitive test to validate the linked list management of hooks is as expected for accounts.
+     */
+    @EmbeddedHapiTest(NEEDS_STATE_ACCESS)
+    final Stream<DynamicTest> contractLinkedListManagementAsExpected() {
         return hapiTest(
-                cryptoCreate(OWNER).withHooks(accountAllowanceHook(123L, SELF_DESTRUCT_HOOK.name())),
-                cryptoDelete(OWNER)
-                        .hasKnownStatus(TRANSACTION_REQUIRES_ZERO_HOOKS)
-                        .payingWith(OWNER),
-                // after removing hook can delete successfully
-                cryptoUpdate(OWNER).removingHook(123L),
-                cryptoDelete(OWNER).payingWith(OWNER));
+                // First accounts whose lists were constructed purely via contractCreate
+                createDefaultContract("zeroHooksToStart"),
+                assertHookIdList("zeroHooksToStart", List.of()),
+                createDefaultContract("oneHookToStartZ")
+                        .withHooks(accountAllowanceHook(0L, TRUE_ALLOWANCE_HOOK.name())),
+                assertHookIdList("oneHookToStartZ", List.of(0L)),
+                createDefaultContract("oneHookToStartNZ")
+                        .withHooks(accountAllowanceHook(-1L, TRUE_ALLOWANCE_HOOK.name())),
+                assertHookIdList("oneHookToStartNZ", List.of(-1L)),
+                createDefaultContract("twoHooksToStartZNZ")
+                        .withHooks(
+                                accountAllowanceHook(0L, TRUE_ALLOWANCE_HOOK.name()),
+                                accountAllowanceHook(-1L, TRUE_ALLOWANCE_HOOK.name())),
+                assertHookIdList("twoHooksToStartZNZ", List.of(0L, -1L)),
+                createDefaultContract("twoHooksToStartNZZ")
+                        .withHooks(
+                                accountAllowanceHook(-1L, TRUE_ALLOWANCE_HOOK.name()),
+                                accountAllowanceHook(0L, TRUE_ALLOWANCE_HOOK.name())),
+                assertHookIdList("twoHooksToStartNZZ", List.of(-1L, 0L)),
+                createDefaultContract("threeHooksToStartZNZNZ")
+                        .withHooks(
+                                accountAllowanceHook(0L, TRUE_ALLOWANCE_HOOK.name()),
+                                accountAllowanceHook(-1L, TRUE_ALLOWANCE_HOOK.name()),
+                                accountAllowanceHook(1L, TRUE_ALLOWANCE_HOOK.name())),
+                assertHookIdList("threeHooksToStartZNZNZ", List.of(0L, -1L, 1L)),
+                createDefaultContract("threeHooksToStartNZZNZ")
+                        .withHooks(
+                                accountAllowanceHook(-1L, TRUE_ALLOWANCE_HOOK.name()),
+                                accountAllowanceHook(0L, TRUE_ALLOWANCE_HOOK.name()),
+                                accountAllowanceHook(1L, TRUE_ALLOWANCE_HOOK.name())),
+                assertHookIdList("threeHooksToStartNZZNZ", List.of(-1L, 0L, 1L)),
+                createDefaultContract("threeHooksToStartNZNZZ")
+                        .withHooks(
+                                accountAllowanceHook(-1L, TRUE_ALLOWANCE_HOOK.name()),
+                                accountAllowanceHook(1L, TRUE_ALLOWANCE_HOOK.name()),
+                                accountAllowanceHook(0L, TRUE_ALLOWANCE_HOOK.name())),
+                assertHookIdList("threeHooksToStartNZNZZ", List.of(-1L, 1L, 0L)),
+                // Now accounts with lists manipulated via cryptoUpdate
+                contractUpdate("zeroHooksToStart").withHook(accountAllowanceHook(0L, TRUE_ALLOWANCE_HOOK.name())),
+                assertHookIdList("zeroHooksToStart", List.of(0L)),
+                contractUpdate("zeroHooksToStart").removingHook(0L),
+                assertHookIdList("zeroHooksToStart", List.of()),
+                contractUpdate("oneHookToStartZ")
+                        .removingHook(0L)
+                        .withHook(accountAllowanceHook(0L, TRUE_ALLOWANCE_HOOK.name())),
+                assertHookIdList("oneHookToStartZ", List.of(0L)),
+                contractUpdate("oneHookToStartNZ").withHook(accountAllowanceHook(0L, TRUE_ALLOWANCE_HOOK.name())),
+                assertHookIdList("oneHookToStartNZ", List.of(0L, -1L)),
+                contractUpdate("twoHooksToStartZNZ")
+                        .removingHook(-1L)
+                        .withHook(accountAllowanceHook(-1L, TRUE_ALLOWANCE_HOOK.name())),
+                assertHookIdList("twoHooksToStartZNZ", List.of(-1L, 0L)),
+                contractUpdate("twoHooksToStartNZZ").withHook(accountAllowanceHook(-2L, TRUE_ALLOWANCE_HOOK.name())),
+                assertHookIdList("twoHooksToStartNZZ", List.of(-2L, -1L, 0L)),
+                contractUpdate("threeHooksToStartZNZNZ").removingHook(-1L),
+                assertHookIdList("threeHooksToStartZNZNZ", List.of(0L, 1L)),
+                contractUpdate("threeHooksToStartNZZNZ").removingHooks(1L, 0L, -1L),
+                assertHookIdList("threeHooksToStartNZZNZ", List.of()),
+                contractUpdate("threeHooksToStartNZNZZ").withHook(accountAllowanceHook(2L, TRUE_ALLOWANCE_HOOK.name())),
+                assertHookIdList("threeHooksToStartNZNZZ", List.of(2L, -1L, 1L, 0L)));
+    }
+
+    private SpecOperation assertHookIdList(@NonNull final String account, @NonNull final List<Long> expectedHookIds) {
+        return blockingOrder(
+                viewAccount(account, a -> {
+                    if (expectedHookIds.isEmpty()) {
+                        assertEquals(0L, a.firstHookId());
+                        assertEquals(0, a.numberHooksInUse());
+                    } else {
+                        assertEquals(expectedHookIds.getFirst(), a.firstHookId());
+                        assertEquals(expectedHookIds.size(), a.numberHooksInUse());
+                    }
+                }),
+                sourcingContextual(spec -> {
+                    if (expectedHookIds.isEmpty()) {
+                        return noOp();
+                    }
+                    return EmbeddedVerbs.<HookId, EvmHookState>viewKVState(
+                            ContractService.NAME, EVM_HOOK_STATES_STATE_ID, state -> {
+                                final var hookEntityId = HookEntityId.newBuilder()
+                                        .accountId(toPbj(spec.registry().getAccountID(account)))
+                                        .build();
+                                for (int i = 0, n = expectedHookIds.size(); i < n; i++) {
+                                    final var hookId = idWith(hookEntityId, requireNonNull(expectedHookIds.get(i)));
+                                    final var evmHookState = state.get(hookId);
+                                    assertNotNull(evmHookState, "Missing expected hook state for " + hookId);
+                                    // Check prev/next hook IDs
+                                    final var actualPrevHookId = evmHookState.previousHookId();
+                                    if (i == 0) {
+                                        assertNull(
+                                                actualPrevHookId,
+                                                "Expected no previous hook for initial " + hookId + " for account "
+                                                        + account);
+                                    } else {
+                                        assertEquals(
+                                                expectedHookIds.get(i - 1),
+                                                actualPrevHookId,
+                                                "Wrong previous hook for " + hookId + " for account " + account);
+                                    }
+                                    final var actualNextHookId = evmHookState.nextHookId();
+                                    if (i == n - 1) {
+                                        assertNull(
+                                                actualNextHookId,
+                                                "Expected no next hook for final " + hookId + " for account "
+                                                        + account);
+                                    } else {
+                                        assertEquals(
+                                                expectedHookIds.get(i + 1),
+                                                actualNextHookId,
+                                                "Wrong next hook for " + hookId + " for account " + account);
+                                    }
+                                }
+                            });
+                }));
+    }
+
+    private static HookId idWith(@NonNull final HookEntityId entityId, final long hookId) {
+        return HookId.newBuilder().entityId(entityId).hookId(hookId).build();
     }
 }

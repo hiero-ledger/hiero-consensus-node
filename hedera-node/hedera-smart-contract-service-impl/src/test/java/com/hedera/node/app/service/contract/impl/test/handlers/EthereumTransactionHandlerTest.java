@@ -246,7 +246,10 @@ class EthereumTransactionHandlerTest {
                 List.of(),
                 List.of(),
                 SUCCESS_RESULT_WITH_SIGNER_NONCE.asEvmTxResultOf(
-                        ETH_DATA_WITH_TO_ADDRESS, Bytes.wrap(ETH_DATA_WITH_TO_ADDRESS.callData())),
+                        ETH_DATA_WITH_TO_ADDRESS,
+                        baseProxyWorldUpdater,
+                        Bytes.wrap(ETH_DATA_WITH_TO_ADDRESS.callData()),
+                        null),
                 SUCCESS_RESULT_WITH_SIGNER_NONCE.signerNonce(),
                 null,
                 null);
@@ -300,7 +303,10 @@ class EthereumTransactionHandlerTest {
                 List.of(),
                 List.of(CALLED_CONTRACT_ID),
                 SUCCESS_RESULT_WITH_SIGNER_NONCE.asEvmTxResultOf(
-                        ETH_DATA_WITHOUT_TO_ADDRESS, Bytes.wrap(ETH_DATA_WITHOUT_TO_ADDRESS.callData())),
+                        ETH_DATA_WITHOUT_TO_ADDRESS,
+                        baseProxyWorldUpdater,
+                        Bytes.wrap(ETH_DATA_WITHOUT_TO_ADDRESS.callData()),
+                        null),
                 SUCCESS_RESULT_WITH_SIGNER_NONCE.signerNonce(),
                 SUCCESS_RESULT_WITH_SIGNER_NONCE.evmAddressIfCreatedIn(baseProxyWorldUpdater),
                 null);
@@ -399,10 +405,29 @@ class EthereumTransactionHandlerTest {
     }
 
     @Test
+    void validatePureChecksHappyPath() {
+        // check bad to evm address
+        try (MockedStatic<EthTxData> ethTxData = Mockito.mockStatic(EthTxData.class)) {
+            ethTxData.when(() -> EthTxData.populateEthTxData(any())).thenReturn(ethTxDataReturned);
+            given(pureChecksContext.body()).willReturn(ethTxWithTx());
+            given(ethTxDataReturned.value()).willReturn(BigInteger.ONE);
+            given(ethTxDataReturned.hasToAddress()).willReturn(true);
+            final var toAddress = RECEIVER_ADDRESS.toByteArray();
+            given(ethTxDataReturned.to()).willReturn(toAddress);
+            GasCharges gasCharges = TestHelpers.gasChargesFromIntrinsicGas(INTRINSIC_GAS_FOR_0_ARG_METHOD);
+            given(gasCalculator.transactionGasRequirements(org.apache.tuweni.bytes.Bytes.wrap(new byte[0]), false, 0L))
+                    .willReturn(gasCharges);
+            given(ethTxDataReturned.gasLimit()).willReturn(INTRINSIC_GAS_FOR_0_ARG_METHOD);
+            assertDoesNotThrow(() -> subject.pureChecks(pureChecksContext));
+        }
+    }
+
+    @Test
     void validatePureChecksCheckBadEthTxnBody() {
         // check bad eth txn body
         final var txn1 = ethTxWithNoTx();
         given(pureChecksContext.body()).willReturn(txn1);
+        assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
         PreCheckException exception =
                 assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
         assertEquals(INVALID_ETHEREUM_TRANSACTION, exception.responseCode());
@@ -464,9 +489,11 @@ class EthereumTransactionHandlerTest {
             ethTxData.when(() -> EthTxData.populateEthTxData(any())).thenReturn(ethTxDataReturned);
             given(pureChecksContext.body()).willReturn(ethTxWithTx());
             given(ethTxDataReturned.value()).willReturn(BigInteger.ZERO);
-            given(ethTxDataReturned.hasToAddress()).willReturn(false);
+            given(ethTxDataReturned.hasToAddress()).willReturn(true);
+            final var toAddress = RECEIVER_ADDRESS.toByteArray();
+            given(ethTxDataReturned.to()).willReturn(toAddress);
             GasCharges gasCharges = TestHelpers.gasChargesFromIntrinsicGas(INTRINSIC_GAS_FOR_0_ARG_METHOD);
-            given(gasCalculator.transactionGasRequirements(org.apache.tuweni.bytes.Bytes.wrap(new byte[0]), true, 0L))
+            given(gasCalculator.transactionGasRequirements(org.apache.tuweni.bytes.Bytes.wrap(new byte[0]), false, 0L))
                     .willReturn(gasCharges);
             PreCheckException exception =
                     assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
@@ -501,7 +528,10 @@ class EthereumTransactionHandlerTest {
                 List.of(),
                 List.of(CALLED_CONTRACT_ID),
                 SUCCESS_RESULT_WITH_SIGNER_NONCE.asEvmTxResultOf(
-                        ETH_DATA_WITHOUT_TO_ADDRESS, Bytes.wrap(ETH_DATA_WITHOUT_TO_ADDRESS.callData())),
+                        ETH_DATA_WITHOUT_TO_ADDRESS,
+                        baseProxyWorldUpdater,
+                        Bytes.wrap(ETH_DATA_WITHOUT_TO_ADDRESS.callData()),
+                        null),
                 SUCCESS_RESULT_WITH_SIGNER_NONCE.signerNonce(),
                 SUCCESS_RESULT_WITH_SIGNER_NONCE.evmAddressIfCreatedIn(baseProxyWorldUpdater),
                 null);

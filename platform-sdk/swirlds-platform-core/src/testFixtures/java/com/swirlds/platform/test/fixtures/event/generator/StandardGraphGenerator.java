@@ -12,8 +12,9 @@ import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.platform.ConsensusImpl;
 import com.swirlds.platform.consensus.ConsensusConfig;
-import com.swirlds.platform.consensus.RoundCalculationUtils;
-import com.swirlds.platform.event.linking.SimpleLinker;
+import com.swirlds.platform.consensus.EventWindowUtils;
+import com.swirlds.platform.event.linking.ConsensusLinker;
+import com.swirlds.platform.event.linking.NoOpLinkerLogsAndMetrics;
 import com.swirlds.platform.event.orphan.DefaultOrphanBuffer;
 import com.swirlds.platform.event.orphan.OrphanBuffer;
 import com.swirlds.platform.gossip.IntakeEventCounter;
@@ -104,7 +105,7 @@ public class StandardGraphGenerator extends AbstractGraphGenerator {
     /**
      * The linker for events to use with the internal consensus.
      */
-    private SimpleLinker linker;
+    private ConsensusLinker linker;
 
     /**
      * Construct a new StandardEventGenerator.
@@ -195,9 +196,8 @@ public class StandardGraphGenerator extends AbstractGraphGenerator {
 
     private void initializeInternalConsensus() {
         consensus = new ConsensusImpl(platformContext, new NoOpConsensusMetrics(), roster);
-        linker = new SimpleLinker();
-        orphanBuffer = new DefaultOrphanBuffer(
-                platformContext.getConfiguration(), platformContext.getMetrics(), mock(IntakeEventCounter.class));
+        linker = new ConsensusLinker(NoOpLinkerLogsAndMetrics.getInstance());
+        orphanBuffer = new DefaultOrphanBuffer(platformContext.getMetrics(), mock(IntakeEventCounter.class));
     }
 
     /**
@@ -449,8 +449,7 @@ public class StandardGraphGenerator extends AbstractGraphGenerator {
             }
             // if we reach consensus, save the snapshot for future use
             consensusSnapshot = consensusRounds.getLast().getSnapshot();
-            linker.setNonAncientThreshold(
-                    consensusRounds.getLast().getEventWindow().ancientThreshold());
+            linker.setEventWindow(consensusRounds.getLast().getEventWindow());
         }
     }
 
@@ -473,12 +472,18 @@ public class StandardGraphGenerator extends AbstractGraphGenerator {
         // reinitialize the internal consensus with the last snapshot
         initializeInternalConsensus();
         consensus.loadSnapshot(consensusSnapshot);
-        linker.setNonAncientThreshold(RoundCalculationUtils.getAncientThreshold(
+        EventWindowUtils.createEventWindow(
+                consensusSnapshot,
                 platformContext
                         .getConfiguration()
                         .getConfigData(ConsensusConfig.class)
-                        .roundsNonAncient(),
-                consensusSnapshot));
+                        .roundsNonAncient());
+        linker.setEventWindow(EventWindowUtils.createEventWindow(
+                consensusSnapshot,
+                platformContext
+                        .getConfiguration()
+                        .getConfigData(ConsensusConfig.class)
+                        .roundsNonAncient()));
         // re-add all non-ancient events
         for (final EventImpl event : nonAncientEvents) {
             updateConsensus(event);
