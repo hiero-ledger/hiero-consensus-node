@@ -216,7 +216,8 @@ public class StandardGraphGenerator implements GraphGenerator {
         this.random = new Random(seed);
         this.maxBirthRoundPerCreator = new HashMap<>();
         this.platformContext = Objects.requireNonNull(platformContext);
-        this.sources = Objects.requireNonNull(eventSources);
+        // we create a new list because we need to be able to remove sources later if nodes are removed
+        this.sources = new ArrayList<>(Objects.requireNonNull(eventSources));
 
         if (eventSources.isEmpty()) {
             throw new IllegalArgumentException("At least one event source is required");
