@@ -122,7 +122,7 @@ jobs:
             n="$(echo "${namespace}" | perl -ne 'print "$1\n" if /^solo\-.*d.*t\-n(\d+)$/')"
             env | grep ${clusterZone}_n${n}
             isChecked=$(env | grep ${clusterZone}_n${n} | awk -F= '{print $NF}')
-            if [ "${isChecked}" = "true" ]
+            if [[ "${isChecked}" = "true" ]]
             then
               echo "Deleting ${namespace}"
               sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt delete namespace ${namespace}
@@ -149,7 +149,7 @@ jobs:
             n="$(echo "${namespace}" | perl -ne 'print "$1\n" if /^solo\-.*d.*t\-n(\d+)$/')"
             env | grep ${clusterZone}_n${n}
             isChecked=$(env | grep ${clusterZone}_n${n} | awk -F= '{print $NF}')
-            if [ "${isChecked}" = "true" ]
+            if [[ "${isChecked}" = "true" ]]
             then
               echo "Deleting ${namespace}"
               sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt delete namespace ${namespace}
