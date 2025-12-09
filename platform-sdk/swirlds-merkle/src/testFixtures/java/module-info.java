@@ -9,7 +9,6 @@ open module com.swirlds.merkle.test.fixtures {
     exports com.swirlds.merkle.test.fixtures.map.pta;
     exports com.swirlds.merkle.test.fixtures.map.util;
 
-    requires transitive com.swirlds.common.test.fixtures;
     requires transitive com.swirlds.common;
     requires transitive com.swirlds.config.api;
     requires transitive com.swirlds.merkle;
