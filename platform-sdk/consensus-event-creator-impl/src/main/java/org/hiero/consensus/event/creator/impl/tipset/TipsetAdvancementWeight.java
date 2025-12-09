@@ -69,9 +69,7 @@ public record TipsetAdvancementWeight(long advancementWeight, long zeroWeightAdv
      * @return true if this weight is greater than the given weight
      */
     public boolean isGreaterThan(@NonNull final TipsetAdvancementWeight that) {
-        return advancementWeight > that.advancementWeight
-                || (advancementWeight == that.advancementWeight
-                        && zeroWeightAdvancementCount > that.zeroWeightAdvancementCount);
+        return compareTo(that) > 0;
     }
 
     /**
