@@ -23,6 +23,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -282,7 +283,7 @@ public class TipsetEventCreator implements EventCreator {
                 .filter(p -> p.right().isNonZero())
                 .sorted(Comparator.comparing(Pair::right))
                 .map(Pair::left)
-                .toList();
+                .collect(Collectors.toList());
 
         final List<PlatformEvent> chosenBestParents;
         if (bestParents.size() > maxOtherParents) {
