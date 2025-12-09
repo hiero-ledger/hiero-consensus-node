@@ -461,17 +461,11 @@ public class TransactionChecker {
         final boolean isJumboEnabled = jumboTransactionsConfig().isEnabled();
         final boolean isGovernanceEnabled = governanceTransactionsConfig().isEnabled();
 
-        // If governance is enabled but payer is unknown (early check), use governance max
-        // to allow the transaction through for later payer-based validation
-        if (isGovernanceEnabled && payerAccountId == null) {
+        // If governance is enabled, allow governance max size when:
+        // - payer is unknown (preliminary check, be permissive for later validation), OR
+        // - payer is a governance account
+        if (isGovernanceEnabled && (payerAccountId == null || isGovernanceAccount(payerAccountId))) {
             return governanceTransactionsConfig().maxTxnSize();
-        }
-
-        // If governance is enabled, and we have a payer, check if they're a governance account
-        if (isGovernanceEnabled) {
-            if (isGovernanceAccount(payerAccountId)) {
-                return governanceTransactionsConfig().maxTxnSize();
-            }
         }
 
         // If jumbo is enabled, check if this functionality is allowed for jumbo
