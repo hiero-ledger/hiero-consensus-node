@@ -18,8 +18,10 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.statevalidation.poc.listener.ValidationExecutionListener;
 import com.hedera.statevalidation.poc.listener.ValidationListener;
 import com.hedera.statevalidation.poc.model.DataStats;
-import com.hedera.statevalidation.poc.model.ItemData;
-import com.hedera.statevalidation.poc.model.ItemData.Type;
+import com.hedera.statevalidation.poc.model.DiskDataItem;
+import com.hedera.statevalidation.poc.model.DiskDataItem.Type;
+import com.hedera.statevalidation.poc.model.MemoryHashItem;
+import com.hedera.statevalidation.poc.model.ValidationItem;
 import com.hedera.statevalidation.poc.pipeline.ChunkedFileIterator;
 import com.hedera.statevalidation.poc.pipeline.ProcessorTask;
 import com.hedera.statevalidation.poc.util.ValidationException;
@@ -33,11 +35,13 @@ import com.hedera.statevalidation.poc.validator.TokenRelationsIntegrityValidator
 import com.hedera.statevalidation.poc.validator.api.Validator;
 import com.hedera.statevalidation.util.StateUtils;
 import com.swirlds.merkledb.MerkleDbDataSource;
+import com.swirlds.merkledb.collections.HashList;
 import com.swirlds.merkledb.files.DataFileCollection;
 import com.swirlds.merkledb.files.DataFileReader;
 import com.swirlds.platform.state.snapshot.DeserializedSignedState;
 import com.swirlds.state.MerkleNodeState;
 import com.swirlds.virtualmap.VirtualMap;
+import com.swirlds.virtualmap.datasource.VirtualHashRecord;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -56,6 +60,7 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicLong;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.crypto.Hash;
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
@@ -161,6 +166,9 @@ public class Validate2Command implements Callable<Integer> {
                 //noinspection DataFlowIssue
                 final DataFileCollection pathToHashDfc = vds.getHashStoreDisk().getFileCollection();
                 final DataFileCollection keyToPathDfc = vds.getKeyToPath().getFileCollection();
+                // Get in-memory hash store (may be null)
+                final HashList pathToHashRam = vds.getHashStoreRam();
+                final long inMemoryHashThreshold = pathToHashRam != null ? vds.getHashesRamToDiskThreshold() : 0;
 
                 // Initialize validators and listeners
                 final var validationExecutionListener = new ValidationExecutionListener();
@@ -171,7 +179,6 @@ public class Validate2Command implements Callable<Integer> {
                 // Calculate file count and total size
                 int dataFileCount = 0;
                 long dataTotalSizeBytes = 0L;
-                final var fileReadTasks = new ArrayList<FileReadTask>();
 
                 if (validators.containsKey(Type.P2KV)) {
                     dataFileCount += pathToKeyValueDfc.getAllCompletedFiles().size();
@@ -201,15 +208,31 @@ public class Validate2Command implements Callable<Integer> {
                             keyToPathDfc.getAllCompletedFiles().size());
                 }
 
-                // Plan all file read tasks (calculate chunks for each file)
+                final var fileReadTasks = new ArrayList<FileReadTask>();
+                final var memoryReadTasks = new ArrayList<MemoryReadTask>();
+
+                // Plan all read tasks
                 if (validators.containsKey(Type.P2KV)) {
-                    fileReadTasks.addAll(planTasksFor(pathToKeyValueDfc, Type.P2KV, ioThreads));
+                    fileReadTasks.addAll(planFileReadTasks(pathToKeyValueDfc, Type.P2KV, ioThreads));
                 }
                 if (validators.containsKey(Type.P2H)) {
-                    fileReadTasks.addAll(planTasksFor(pathToHashDfc, Type.P2H, ioThreads));
+                    fileReadTasks.addAll(planFileReadTasks(pathToHashDfc, Type.P2H, ioThreads));
+
+                    // Submit in-memory hash read tasks if memory store is available
+                    if (pathToHashRam != null) {
+                        final long lastLeafPath = vds.getLastLeafPath();
+                        final long memoryEndPath = Math.min(inMemoryHashThreshold, lastLeafPath);
+                        if (memoryEndPath > 0) {
+                            memoryReadTasks.addAll(planP2HMemoryReadTasks(memoryEndPath, ioThreads));
+                            log.debug(
+                                    "In-memory P2H read tasks: {}, range: [0, {})",
+                                    memoryReadTasks.size(),
+                                    memoryEndPath);
+                        }
+                    }
                 }
                 if (validators.containsKey(Type.K2P)) {
-                    fileReadTasks.addAll(planTasksFor(keyToPathDfc, Type.K2P, ioThreads));
+                    fileReadTasks.addAll(planFileReadTasks(keyToPathDfc, Type.K2P, ioThreads));
                 }
 
                 log.debug("Total file count: {}", dataFileCount);
@@ -219,11 +242,11 @@ public class Validate2Command implements Callable<Integer> {
                 // Sort tasks: largest chunks first (better thread utilization)
                 fileReadTasks.sort((a, b) -> Long.compare(b.endByte - b.startByte, a.endByte - a.startByte));
 
-                // Initialize data structures for file chunks processing
+                // Initialize data structures for processing
                 final var dataStats = new DataStats();
                 final var totalBoundarySearchNanos = new AtomicLong(0L);
 
-                final var dataQueue = new LinkedBlockingQueue<List<ItemData>>(queueCapacity);
+                final var dataQueue = new LinkedBlockingQueue<List<ValidationItem>>(queueCapacity);
                 final var processorFutures = new ArrayList<Future<Void>>();
                 final var ioFutures = new ArrayList<Future<Void>>();
 
@@ -233,7 +256,13 @@ public class Validate2Command implements Callable<Integer> {
                             new ProcessorTask(validators, validationListeners, dataQueue, vds, dataStats)));
                 }
 
-                // Submit file read tasks
+                // Submit read tasks
+                for (final MemoryReadTask task : memoryReadTasks) {
+                    ioFutures.add(ioPool.submit(() -> {
+                        readInMemoryHashes(pathToHashRam, dataQueue, task.startPath, task.endPath);
+                        return null;
+                    }));
+                }
                 for (final FileReadTask task : fileReadTasks) {
                     ioFutures.add(ioPool.submit(() -> {
                         readFileChunk(
@@ -260,7 +289,7 @@ public class Validate2Command implements Callable<Integer> {
 
                 // Send one poison pill per processor
                 for (int i = 0; i < processThreads; i++) {
-                    dataQueue.put(List.of(ItemData.poisonPill()));
+                    dataQueue.put(List.of(DiskDataItem.poisonPill()));
                 }
 
                 // Wait for all processor tasks to complete
@@ -299,6 +328,11 @@ public class Validate2Command implements Callable<Integer> {
                     log.info(
                             "P2H (Path -> Hash) Data Stats: \n {}",
                             dataStats.getP2h().toStringContent());
+                    if (pathToHashRam != null && dataStats.getP2hMemory().getItemCount() > 0) {
+                        log.info(
+                                "P2H (Path -> Hash) Memory Data Stats: \n  Items: {}",
+                                dataStats.getP2hMemory().getItemCount());
+                    }
                 }
                 if (validators.containsKey(Type.K2P)) {
                     log.info(
@@ -420,7 +454,7 @@ public class Validate2Command implements Callable<Integer> {
     }
 
     // Helper: Plan tasks for one collection
-    private List<FileReadTask> planTasksFor(
+    private List<FileReadTask> planFileReadTasks(
             @NonNull final DataFileCollection dfc, @NonNull final Type dataType, final int ioThreads) {
         final List<FileReadTask> tasks = new ArrayList<>();
 
@@ -461,6 +495,57 @@ public class Validate2Command implements Callable<Integer> {
         return tasks;
     }
 
+    // Helper: Plan in-memory read tasks (chunk the path range)
+    private List<MemoryReadTask> planP2HMemoryReadTasks(final long totalPaths, final int ioThreads) {
+        final List<MemoryReadTask> tasks = new ArrayList<>();
+
+        // Use a reasonable chunk size
+        final long minPathsPerChunk = 100_000L;
+        final int targetChunks = Math.max(1, ioThreads * chunkMultiplier);
+        final long pathsPerChunk = Math.max(minPathsPerChunk, (totalPaths + targetChunks - 1) / targetChunks);
+
+        for (long start = 0; start < totalPaths; start += pathsPerChunk) {
+            final long end = Math.min(start + pathsPerChunk, totalPaths);
+            tasks.add(new MemoryReadTask(start, end));
+        }
+
+        return tasks;
+    }
+
+    // Helper: Read in-memory hashes and put into the queue
+    private void readInMemoryHashes(
+            @NonNull final HashList pathToHashRam,
+            @NonNull final BlockingQueue<List<ValidationItem>> dataQueue,
+            final long startPath,
+            final long endPath)
+            throws InterruptedException {
+
+        List<ValidationItem> batch = new ArrayList<>(batchSize);
+
+        for (long path = startPath; path < endPath; path++) {
+            try {
+                final Hash hash = pathToHashRam.get(path);
+                if (hash == null) {
+                    continue;
+                }
+
+                final VirtualHashRecord record = new VirtualHashRecord(path, hash);
+                batch.add(new MemoryHashItem(record));
+
+                if (batch.size() >= batchSize) {
+                    dataQueue.put(batch);
+                    batch = new ArrayList<>(batchSize);
+                }
+            } catch (final Exception e) {
+                log.warn("Failed to read hash at path {}: {}", path, e.getMessage());
+            }
+        }
+
+        if (!batch.isEmpty()) {
+            dataQueue.put(batch);
+        }
+    }
+
     // Helper: Calculate the optimal number of chunks for the file
     private int calculateOptimalChunks(
             @NonNull final DataFileReader reader, final long collectionTotalSize, final int ioThreads) {
@@ -484,7 +569,7 @@ public class Validate2Command implements Callable<Integer> {
     // Helper: Read the file chunk and put data into the queue
     private void readFileChunk(
             @NonNull final DataFileReader reader,
-            @NonNull final BlockingQueue<List<ItemData>> dataQueue,
+            @NonNull final BlockingQueue<List<ValidationItem>> dataQueue,
             @NonNull final Type dataType,
             final long startByte,
             final long endByte,
@@ -501,13 +586,14 @@ public class Validate2Command implements Callable<Integer> {
                 bufferSizeBytes,
                 totalBoundarySearchNanos)) {
 
-            List<ItemData> batch = new ArrayList<>(batchSize);
+            List<ValidationItem> batch = new ArrayList<>(batchSize);
             while (iterator.next()) {
                 final BufferedData originalData = iterator.getDataItemData();
                 final Bytes dataCopy = originalData.getBytes(0, originalData.remaining());
 
-                final ItemData itemData = new ItemData(dataType, dataCopy, iterator.getDataItemDataLocation());
-                batch.add(itemData);
+                final DiskDataItem diskDataItem =
+                        new DiskDataItem(dataType, dataCopy, iterator.getDataItemDataLocation());
+                batch.add(diskDataItem);
 
                 if (batch.size() >= batchSize) {
                     dataQueue.put(batch);
@@ -521,6 +607,9 @@ public class Validate2Command implements Callable<Integer> {
         }
     }
 
-    // Helper record to hold task information
-    private record FileReadTask(DataFileReader reader, ItemData.Type type, long startByte, long endByte) {}
+    // Helper record for file read tasks
+    private record FileReadTask(DataFileReader reader, DiskDataItem.Type type, long startByte, long endByte) {}
+
+    // Helper record for memory read tasks
+    private record MemoryReadTask(long startPath, long endPath) {}
 }

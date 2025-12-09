@@ -11,6 +11,7 @@ public final class DataStats {
     private final StatGroup p2kv = new StatGroup();
     private final StatGroup p2h = new StatGroup();
     private final StatGroup k2p = new StatGroup();
+    private final StatGroup p2hMemory = new StatGroup();
 
     public StatGroup getP2kv() {
         return p2kv;
@@ -24,14 +25,19 @@ public final class DataStats {
         return k2p;
     }
 
+    public StatGroup getP2hMemory() {
+        return p2hMemory;
+    }
+
     // --- Aggregations ---
 
     public long getTotalSpaceSize() {
+        // Note: memory items don't track space (no disk footprint)
         return p2h.getSpaceSize() + p2kv.getSpaceSize() + k2p.getSpaceSize();
     }
 
     public long getTotalItemCount() {
-        return p2h.getItemCount() + p2kv.getItemCount() + k2p.getItemCount();
+        return p2h.getItemCount() + p2kv.getItemCount() + k2p.getItemCount() + p2hMemory.getItemCount();
     }
 
     public long getObsoleteSpaceSize() {
@@ -43,7 +49,7 @@ public final class DataStats {
     }
 
     public boolean hasErrorReads() {
-        return p2kv.hasErrors() || p2h.hasErrors() || k2p.hasErrors();
+        return p2kv.hasErrors() || p2h.hasErrors() || k2p.hasErrors() || p2hMemory.hasErrors();
     }
 
     @Override

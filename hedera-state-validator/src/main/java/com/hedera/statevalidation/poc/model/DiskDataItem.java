@@ -10,7 +10,7 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
  * @param bytes the serialized data content
  * @param location the packed data location (file index + byte offset), or -1 for terminators
  */
-public record ItemData(Type type, Bytes bytes, long location) {
+public record DiskDataItem(Type type, Bytes bytes, long location) implements ValidationItem {
 
     /**
      * MerkleDB data file types used in the validation pipeline.
@@ -31,8 +31,8 @@ public record ItemData(Type type, Bytes bytes, long location) {
      *
      * @return a poison pill item
      */
-    public static ItemData poisonPill() {
-        return new ItemData(Type.TERMINATOR, Bytes.EMPTY, -1L);
+    public static DiskDataItem poisonPill() {
+        return new DiskDataItem(Type.TERMINATOR, Bytes.EMPTY, -1L);
     }
 
     /**

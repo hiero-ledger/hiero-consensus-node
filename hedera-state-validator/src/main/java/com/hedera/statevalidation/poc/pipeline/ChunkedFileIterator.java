@@ -9,8 +9,8 @@ import com.hedera.pbj.runtime.ProtoConstants;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
-import com.hedera.statevalidation.poc.model.ItemData;
-import com.hedera.statevalidation.poc.model.ItemData.Type;
+import com.hedera.statevalidation.poc.model.DiskDataItem;
+import com.hedera.statevalidation.poc.model.DiskDataItem.Type;
 import com.swirlds.merkledb.files.DataFileCommon;
 import com.swirlds.merkledb.files.DataFileMetadata;
 import com.swirlds.merkledb.files.hashmap.Bucket;
@@ -61,7 +61,7 @@ public class ChunkedFileIterator implements AutoCloseable {
     private final long endByte;
 
     /** The type of data items in this file, used for boundary validation when starting mid-file */
-    private final ItemData.Type dataType;
+    private final DiskDataItem.Type dataType;
 
     /** Buffer size in bytes for both boundary scanning and stream reading operations */
     private final int bufferSizeBytes;

@@ -3,8 +3,10 @@ package com.hedera.statevalidation.poc.pipeline;
 
 import com.hedera.statevalidation.poc.listener.ValidationListener;
 import com.hedera.statevalidation.poc.model.DataStats;
-import com.hedera.statevalidation.poc.model.ItemData;
-import com.hedera.statevalidation.poc.model.ItemData.Type;
+import com.hedera.statevalidation.poc.model.DiskDataItem;
+import com.hedera.statevalidation.poc.model.DiskDataItem.Type;
+import com.hedera.statevalidation.poc.model.MemoryHashItem;
+import com.hedera.statevalidation.poc.model.ValidationItem;
 import com.hedera.statevalidation.poc.util.ValidationException;
 import com.hedera.statevalidation.poc.validator.api.HashRecordValidator;
 import com.hedera.statevalidation.poc.validator.api.HdhmBucketValidator;
@@ -66,8 +68,8 @@ public class ProcessorTask implements Callable<Void> {
     /** The MerkleDB data source providing access to file collections for error logging */
     private final MerkleDbDataSource vds;
 
-    /** Blocking queue from which batches of data items are consumed for processing */
-    private final BlockingQueue<List<ItemData>> dataQueue;
+    /** Blocking queue from which batches of validation items are consumed for processing */
+    private final BlockingQueue<List<ValidationItem>> dataQueue;
 
     /** Index mapping leaf node paths to their disk locations, used to determine if P2KV items are live */
     private final LongList pathToDiskLocationLeafNodes;
@@ -92,7 +94,7 @@ public class ProcessorTask implements Callable<Void> {
     public ProcessorTask(
             @NonNull final Map<Type, CopyOnWriteArraySet<Validator>> validators,
             @NonNull final List<ValidationListener> validationListeners,
-            @NonNull final BlockingQueue<List<ItemData>> dataQueue,
+            @NonNull final BlockingQueue<List<ValidationItem>> dataQueue,
             @NonNull final MerkleDbDataSource vds,
             @NonNull final DataStats dataStats) {
         this.validationListeners = validationListeners;
@@ -126,16 +128,16 @@ public class ProcessorTask implements Callable<Void> {
     public Void call() {
         try {
             while (true) {
-                final List<ItemData> batch = dataQueue.take();
+                final List<ValidationItem> batch = dataQueue.take();
                 boolean stop = false;
 
-                for (final ItemData chunk : batch) {
-                    if (chunk.isPoisonPill()) {
+                for (final ValidationItem item : batch) {
+                    if (item.isPoisonPill()) {
                         stop = true;
                         break;
                     }
 
-                    processChunk(chunk);
+                    processItem(item);
                 }
 
                 if (stop) {
@@ -150,16 +152,63 @@ public class ProcessorTask implements Callable<Void> {
     }
 
     /**
-     * Dispatches a single data item to the appropriate processing method based on its type.
+     * Dispatches a single validation item to the appropriate processing method based on its type.
      *
-     * @param data the data item to process
+     * <p>Uses pattern matching on the sealed {@link ValidationItem} interface to route items:
+     * <ul>
+     *     <li>{@link MemoryHashItem} - routed to {@link #processMemoryHashRecord(VirtualHashRecord)}</li>
+     *     <li>{@link DiskDataItem} - routed based on {@link DiskDataItem.Type} to the corresponding processor</li>
+     * </ul>
+     *
+     * @param item the validation item to process; must not be a poison pill (checked before calling)
      */
-    private void processChunk(@NonNull final ItemData data) {
-        switch (data.type()) {
-            case P2KV -> processVirtualLeafBytes(data);
-            case P2H -> processVirtualHashRecord(data);
-            case K2P -> processBucket(data);
+    private void processItem(@NonNull final ValidationItem item) {
+        switch (item) {
+            case MemoryHashItem mem -> processMemoryHashRecord(mem.hashRecord());
+            case DiskDataItem data -> {
+                switch (data.type()) {
+                    case P2KV -> processVirtualLeafBytes(data);
+                    case P2H -> processVirtualHashRecord(data);
+                    case K2P -> processBucket(data);
+                    case TERMINATOR -> {} // handled before this point
+                }
+            }
         }
+    }
+
+    /**
+     * Processes a P2H (Path to Hash) record sourced from in-memory storage.
+     *
+     * <p>Memory-sourced items are always considered live—no liveness check against the disk location
+     * index is performed.
+     *
+     * <p>If a validator throws an exception during processing, it is removed from the validator set
+     * and listeners are notified of the failure, ensuring that a failing validator does not block
+     * processing of subsequent items.
+     *
+     * @param hashRecord the pre-parsed hash record containing path and hash data from memory
+     */
+    private void processMemoryHashRecord(@NonNull final VirtualHashRecord hashRecord) {
+        dataStats.getP2hMemory().incrementItemCount();
+
+        if (p2hValidators == null || p2hValidators.isEmpty()) {
+            return;
+        }
+
+        p2hValidators.forEach(validator -> {
+            try {
+                ((HashRecordValidator) validator).processHashRecord(hashRecord);
+            } catch (final ValidationException e) {
+                if (p2hValidators.removeIf(v -> v.getTag().equals(validator.getTag()))) {
+                    validationListeners.forEach(listener -> listener.onValidationFailed(e));
+                }
+            } catch (final Exception e) {
+                if (p2hValidators.removeIf(v -> v.getTag().equals(validator.getTag()))) {
+                    validationListeners.forEach(listener -> listener.onValidationFailed(
+                            new ValidationException(validator.getTag(), "Unexpected exception: " + e.getMessage(), e)));
+                }
+            }
+        });
     }
 
     /**
@@ -177,7 +226,7 @@ public class ProcessorTask implements Callable<Void> {
      *
      * @param data the P2KV data item to process
      */
-    private void processVirtualLeafBytes(@NonNull final ItemData data) {
+    private void processVirtualLeafBytes(@NonNull final DiskDataItem data) {
         try {
             dataStats.getP2kv().addSpaceSize(data.bytes().length());
             dataStats.getP2kv().incrementItemCount();
@@ -241,7 +290,7 @@ public class ProcessorTask implements Callable<Void> {
      *
      * @param data the P2H data item to process
      */
-    private void processVirtualHashRecord(@NonNull final ItemData data) {
+    private void processVirtualHashRecord(@NonNull final DiskDataItem data) {
         try {
             dataStats.getP2h().addSpaceSize(data.bytes().length());
             dataStats.getP2h().incrementItemCount();
@@ -305,7 +354,7 @@ public class ProcessorTask implements Callable<Void> {
      *
      * @param data the K2P data item to process
      */
-    private void processBucket(@NonNull final ItemData data) {
+    private void processBucket(@NonNull final DiskDataItem data) {
         try {
             dataStats.getK2p().addSpaceSize(data.bytes().length());
             dataStats.getK2p().incrementItemCount();
