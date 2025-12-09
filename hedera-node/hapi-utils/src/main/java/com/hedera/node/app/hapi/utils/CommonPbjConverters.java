@@ -2,6 +2,7 @@
 package com.hedera.node.app.hapi.utils;
 
 import static com.hedera.node.app.hapi.utils.ByteStringUtils.unwrapUnsafelyIfPossible;
+import static com.hedera.pbj.runtime.Codec.DEFAULT_MAX_DEPTH;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.*;
 import static java.util.Objects.requireNonNull;
 
@@ -430,7 +431,7 @@ public class CommonPbjConverters {
         try {
             final var bytes = txBody.toByteArray();
             return TransactionBody.PROTOBUF.parse(
-                    BufferedData.wrap(bytes), false, false, Integer.MAX_VALUE, MAX_PBJ_RECORD_SIZE);
+                    BufferedData.wrap(bytes), false, false, DEFAULT_MAX_DEPTH, MAX_PBJ_RECORD_SIZE);
         } catch (ParseException e) {
             throw new RuntimeException(e);
         }
