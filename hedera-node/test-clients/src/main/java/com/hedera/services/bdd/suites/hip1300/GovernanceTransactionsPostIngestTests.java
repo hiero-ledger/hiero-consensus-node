@@ -17,6 +17,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.SYSTEM_ADMIN;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INNER_TRANSACTION_FAILED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TRANSACTION_OVERSIZE;
 
@@ -74,11 +75,11 @@ public class GovernanceTransactionsPostIngestTests {
                 cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS).hasKnownStatus(SUCCESS),
                 cryptoCreate(PAYER2).key(PAYER_KEY2).balance(ONE_HUNDRED_HBARS).hasKnownStatus(SUCCESS),
                 createTopic(TOPIC)
-                        .setNode("4")
+                        .setNode(4)
                         .submitKeyName(SUBMIT_KEY)
                         .payingWith(PAYER)
                         .signedBy(PAYER, PAYER2)
-                        .hasPrecheck(TRANSACTION_OVERSIZE));
+                        .hasKnownStatus(TRANSACTION_OVERSIZE));
     }
 
     @EmbeddedHapiTest(MUST_SKIP_INGEST)
@@ -91,7 +92,7 @@ public class GovernanceTransactionsPostIngestTests {
                 cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS).hasKnownStatus(SUCCESS),
                 cryptoCreate(PAYER2).key(PAYER_KEY2).balance(ONE_HUNDRED_HBARS).hasKnownStatus(SUCCESS),
                 createTopic(TOPIC)
-                        .setNode("4")
+                        .setNode(4)
                         .submitKeyName(SUBMIT_KEY)
                         .payingWith(SYSTEM_ADMIN)
                         .signedBy(SYSTEM_ADMIN, PAYER, PAYER2)
@@ -105,11 +106,11 @@ public class GovernanceTransactionsPostIngestTests {
                 cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                 newKeyNamed(SUBMIT_KEY),
                 createTopic(TOPIC)
-                        .setNode("4")
+                        .setNode(4)
                         .submitKeyName(SUBMIT_KEY)
                         .payingWith(PAYER)
                         .memo(LARGE_SIZE_MEMO)
-                        .hasPrecheck(TRANSACTION_OVERSIZE));
+                        .hasKnownStatus(TRANSACTION_OVERSIZE));
     }
 
     @EmbeddedHapiTest(MUST_SKIP_INGEST)
@@ -124,7 +125,11 @@ public class GovernanceTransactionsPostIngestTests {
         return hapiTest(
                 cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                 newKeyNamed(SUBMIT_KEY),
-                atomicBatch(innerTxn).setNode("4").payingWith(GENESIS).hasPrecheck(TRANSACTION_OVERSIZE));
+                atomicBatch(innerTxn.hasKnownStatus(TRANSACTION_OVERSIZE))
+                        .setNode(4)
+                        .payingWith(GENESIS)
+                        // in AtomicBatch handle, inner transaction failures are mapped to INNER_TRANSACTION_FAILED
+                        .hasKnownStatus(INNER_TRANSACTION_FAILED));
     }
 
     @EmbeddedHapiTest(MUST_SKIP_INGEST)
@@ -132,6 +137,7 @@ public class GovernanceTransactionsPostIngestTests {
             "Governance account cannot submit more than 6KB batch transactions when only the inner transaction is paid")
     public Stream<DynamicTest> governanceAccountCannotSubmitWhenPaidOnlyInnerIfEnabled() {
         final HapiTopicCreate innerTxn = createTopic(TOPIC)
+                .setNode(4)
                 .submitKeyName(SUBMIT_KEY)
                 .payingWith(GENESIS)
                 .memo(LARGE_SIZE_MEMO)
@@ -140,7 +146,10 @@ public class GovernanceTransactionsPostIngestTests {
         return hapiTest(
                 cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                 newKeyNamed(SUBMIT_KEY),
-                atomicBatch(innerTxn).setNode("4").payingWith(PAYER).hasPrecheck(TRANSACTION_OVERSIZE));
+                atomicBatch(innerTxn.hasKnownStatus(SUCCESS))
+                        .setNode(4)
+                        .payingWith(PAYER)
+                        .hasKnownStatus(TRANSACTION_OVERSIZE));
     }
 
     @EmbeddedHapiTest(MUST_SKIP_INGEST)
@@ -155,7 +164,10 @@ public class GovernanceTransactionsPostIngestTests {
 
         return hapiTest(
                 newKeyNamed(SUBMIT_KEY),
-                atomicBatch(innerTxn).setNode("4").payingWith(GENESIS).hasKnownStatus(SUCCESS));
+                atomicBatch(innerTxn.hasKnownStatus(SUCCESS))
+                        .setNode(4)
+                        .payingWith(GENESIS)
+                        .hasKnownStatus(SUCCESS));
     }
 
     @EmbeddedHapiTest(MUST_SKIP_INGEST)
@@ -165,13 +177,13 @@ public class GovernanceTransactionsPostIngestTests {
                 newKeyNamed(SUBMIT_KEY),
                 newKeyNamed(SUBMIT_KEY2),
                 createTopic(TOPIC)
-                        .setNode("4")
+                        .setNode(4)
                         .submitKeyName(SUBMIT_KEY)
                         .payingWith(GENESIS)
                         .memo(LARGE_SIZE_MEMO)
                         .hasKnownStatus(SUCCESS),
                 createTopic(TOPIC2)
-                        .setNode("4")
+                        .setNode(4)
                         .submitKeyName(SUBMIT_KEY2)
                         .payingWith(SYSTEM_ADMIN)
                         .memo(LARGE_SIZE_MEMO)
@@ -185,10 +197,10 @@ public class GovernanceTransactionsPostIngestTests {
                 cryptoCreate(PAYER).balance(ONE_MILLION_HBARS),
                 cryptoCreate(RECEIVER),
                 cryptoTransfer(tinyBarsFromTo(PAYER, RECEIVER, ONE_HUNDRED_HBARS))
-                        .setNode("4")
+                        .setNode(4)
                         .memo(LARGE_SIZE_MEMO)
                         .payingWith(PAYER)
-                        .hasPrecheck(TRANSACTION_OVERSIZE));
+                        .hasKnownStatus(TRANSACTION_OVERSIZE));
     }
 
     // --- Test the behavior if the feature is disabled and verify nothing has changed ---
@@ -204,17 +216,17 @@ public class GovernanceTransactionsPostIngestTests {
                 newKeyNamed(SUBMIT_KEY),
                 newKeyNamed(SUBMIT_KEY2),
                 createTopic(TOPIC)
-                        .setNode("4")
+                        .setNode(4)
                         .submitKeyName(SUBMIT_KEY)
                         .payingWith(GENESIS)
                         .memo(LARGE_SIZE_MEMO)
-                        .hasPrecheck(TRANSACTION_OVERSIZE),
+                        .hasKnownStatus(TRANSACTION_OVERSIZE),
                 createTopic(TOPIC2)
-                        .setNode("4")
+                        .setNode(4)
                         .submitKeyName(SUBMIT_KEY2)
                         .payingWith(SYSTEM_ADMIN)
                         .memo(LARGE_SIZE_MEMO)
-                        .hasPrecheck(TRANSACTION_OVERSIZE));
+                        .hasKnownStatus(TRANSACTION_OVERSIZE));
     }
 
     @LeakyEmbeddedHapiTest(
@@ -230,11 +242,11 @@ public class GovernanceTransactionsPostIngestTests {
                 cryptoCreate(PAYER).key(PAYER_KEY).balance(ONE_HUNDRED_HBARS).hasKnownStatus(SUCCESS),
                 cryptoCreate(PAYER2).key(PAYER_KEY2).balance(ONE_HUNDRED_HBARS).hasKnownStatus(SUCCESS),
                 createTopic(TOPIC)
-                        .setNode("4")
+                        .setNode(4)
                         .submitKeyName(SUBMIT_KEY)
                         .payingWith(SYSTEM_ADMIN)
                         .signedBy(SYSTEM_ADMIN, PAYER, PAYER2)
-                        .hasPrecheck(TRANSACTION_OVERSIZE));
+                        .hasKnownStatus(TRANSACTION_OVERSIZE));
     }
 
     @LeakyEmbeddedHapiTest(
@@ -247,11 +259,11 @@ public class GovernanceTransactionsPostIngestTests {
                 cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                 newKeyNamed(SUBMIT_KEY),
                 createTopic(TOPIC)
-                        .setNode("4")
+                        .setNode(4)
                         .submitKeyName(SUBMIT_KEY)
                         .payingWith(PAYER)
                         .memo(LARGE_SIZE_MEMO)
-                        .hasPrecheck(TRANSACTION_OVERSIZE));
+                        .hasKnownStatus(TRANSACTION_OVERSIZE));
     }
 
     @LeakyEmbeddedHapiTest(
@@ -261,6 +273,7 @@ public class GovernanceTransactionsPostIngestTests {
             "Governance account cannot submit more than 6KB batch transactions when only the batch transaction is paid and feature disabled")
     public Stream<DynamicTest> governanceAccountCannotSubmitWhenPaidOnlyBatchIfDisabled() {
         final HapiTopicCreate innerTxn = createTopic(TOPIC)
+                .setNode(4)
                 .submitKeyName(SUBMIT_KEY)
                 .payingWith(PAYER)
                 .memo(LARGE_SIZE_MEMO)
@@ -270,7 +283,10 @@ public class GovernanceTransactionsPostIngestTests {
                 overriding("governanceTransactions.isEnabled", "false"),
                 cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                 newKeyNamed(SUBMIT_KEY),
-                atomicBatch(innerTxn).setNode("4").payingWith(GENESIS).hasPrecheck(TRANSACTION_OVERSIZE));
+                atomicBatch(innerTxn.hasKnownStatus(TRANSACTION_OVERSIZE))
+                        .setNode(4)
+                        .payingWith(GENESIS)
+                        .hasKnownStatus(TRANSACTION_OVERSIZE));
     }
 
     @LeakyEmbeddedHapiTest(
@@ -280,6 +296,7 @@ public class GovernanceTransactionsPostIngestTests {
             "Governance account cannot submit more than 6KB batch transactions when only the inner transaction is paid and feature disabled")
     public Stream<DynamicTest> governanceAccountCannotSubmitWhenPaidOnlyInnerIfDisabled() {
         final HapiTopicCreate innerTxn = createTopic(TOPIC)
+                .setNode(4)
                 .submitKeyName(SUBMIT_KEY)
                 .payingWith(GENESIS)
                 .memo(LARGE_SIZE_MEMO)
@@ -289,7 +306,10 @@ public class GovernanceTransactionsPostIngestTests {
                 overriding("governanceTransactions.isEnabled", "false"),
                 cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                 newKeyNamed(SUBMIT_KEY),
-                atomicBatch(innerTxn).setNode("4").payingWith(PAYER).hasPrecheck(TRANSACTION_OVERSIZE));
+                atomicBatch(innerTxn.hasKnownStatus(TRANSACTION_OVERSIZE))
+                        .setNode(4)
+                        .payingWith(PAYER)
+                        .hasKnownStatus(TRANSACTION_OVERSIZE));
     }
 
     @LeakyEmbeddedHapiTest(
@@ -299,6 +319,7 @@ public class GovernanceTransactionsPostIngestTests {
             "Governance account cannot submit more than 6KB batch transactions when both the batch and the inner transactions are paid")
     public Stream<DynamicTest> governanceAccountCannotSubmitWhenBothArePaidIfDisabled() {
         final HapiTopicCreate innerTxn = createTopic(TOPIC)
+                .setNode(4)
                 .submitKeyName(SUBMIT_KEY)
                 .payingWith(SYSTEM_ADMIN)
                 .memo(LARGE_SIZE_MEMO)
@@ -307,7 +328,10 @@ public class GovernanceTransactionsPostIngestTests {
         return hapiTest(
                 overriding("governanceTransactions.isEnabled", "false"),
                 newKeyNamed(SUBMIT_KEY),
-                atomicBatch(innerTxn).setNode("4").payingWith(SYSTEM_ADMIN).hasPrecheck(TRANSACTION_OVERSIZE));
+                atomicBatch(innerTxn.hasKnownStatus(TRANSACTION_OVERSIZE))
+                        .setNode(4)
+                        .payingWith(SYSTEM_ADMIN)
+                        .hasKnownStatus(TRANSACTION_OVERSIZE));
     }
 
     @LeakyEmbeddedHapiTest(
@@ -321,16 +345,16 @@ public class GovernanceTransactionsPostIngestTests {
                 newKeyNamed(SUBMIT_KEY),
                 newKeyNamed(SUBMIT_KEY2),
                 createTopic(TOPIC)
-                        .setNode("4")
+                        .setNode(4)
                         .submitKeyName(SUBMIT_KEY)
                         .payingWith(GENESIS)
                         .memo(LARGE_SIZE_MEMO)
-                        .hasPrecheck(TRANSACTION_OVERSIZE),
+                        .hasKnownStatus(TRANSACTION_OVERSIZE),
                 createTopic(TOPIC2)
-                        .setNode("4")
+                        .setNode(4)
                         .submitKeyName(SUBMIT_KEY2)
                         .payingWith(SYSTEM_ADMIN)
                         .memo(LARGE_SIZE_MEMO)
-                        .hasPrecheck(TRANSACTION_OVERSIZE));
+                        .hasKnownStatus(TRANSACTION_OVERSIZE));
     }
 }

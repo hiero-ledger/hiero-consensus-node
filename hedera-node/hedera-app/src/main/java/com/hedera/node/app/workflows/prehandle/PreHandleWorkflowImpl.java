@@ -200,12 +200,6 @@ public class PreHandleWorkflowImpl implements PreHandleWorkflow {
                 return PreHandleResult.shortCircuitingTransaction(txInfo);
             }
 
-            // But we still re-check for node diligence failures
-            transactionChecker.checkParsed(txInfo);
-
-            // Check the transaction size based on enabled features and functionalities
-            transactionChecker.checkTransactionSize(txInfo);
-
             // The transaction account ID MUST have matched the creator!
             if (innerTransaction == InnerTransaction.NO
                     && !creatorInfo.accountId().equals(txInfo.txBody().nodeAccountID())) {
@@ -225,6 +219,20 @@ public class PreHandleWorkflowImpl implements PreHandleWorkflow {
                     creatorInfo.accountId(),
                     e.responseCode(),
                     null,
+                    configProvider.getConfiguration().getVersion());
+        }
+
+        try {
+            // But we still re-check for node diligence failures
+            transactionChecker.checkParsed(txInfo);
+
+            // Check the transaction size based on enabled features and functionalities
+            transactionChecker.checkTransactionSize(txInfo);
+        } catch (PreCheckException e) {
+            return nodeDueDiligenceFailure(
+                    creatorInfo.accountId(),
+                    e.responseCode(),
+                    txInfo,
                     configProvider.getConfiguration().getVersion());
         }
 
