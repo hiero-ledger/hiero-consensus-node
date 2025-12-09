@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.stats;
+package com.swirlds.common.metrics.statistics;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 

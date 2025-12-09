@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.stats.simple;
+package com.swirlds.common.metrics.statistics.simple;
 
 import com.swirlds.base.units.UnitConstants;
 import com.swirlds.common.metrics.IntegerPairAccumulator;

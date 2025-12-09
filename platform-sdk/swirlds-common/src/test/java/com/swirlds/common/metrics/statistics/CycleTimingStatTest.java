@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.stats;
+package com.swirlds.common.metrics.statistics;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.swirlds.common.metrics.noop.NoOpMetrics;
+import com.swirlds.common.metrics.statistics.cycle.CycleDefinition;
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.platform.stats.cycle.CycleDefinition;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.stream.Stream;
