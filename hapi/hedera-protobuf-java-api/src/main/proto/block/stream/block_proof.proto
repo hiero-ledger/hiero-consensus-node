@@ -109,7 +109,7 @@ message BlockProof {
      */
     uint64 block = 1;
 
-    /** // TODO Why do we need this field, replaced by StateProof type proof?
+    /**
      * A set of hash values along with ordering information.<br/>
      * This list of hash values form the set of sibling hash values needed to
      * correctly reconstruct the parent hash, and all hash values "above" that
@@ -138,13 +138,13 @@ message BlockProof {
      */
     repeated MerkleSiblingHash sibling_hashes = 2;
 
-    /** // TODO Why do we need this field, should be part of TssSignedBlockProof if needed?
+    /**
      * The hinTS key that this signature verifies under; a stream consumer should
      * only use this key after first checking the chain of trust proof.
      */
     bytes verification_key = 3;
 
-    /** // TODO Why do we need this field, should be part of TssSignedBlockProof if needed?
+    /**
      * Proof the hinTS verification key is in the chain of trust extending
      * from the network's ledger id.
      */

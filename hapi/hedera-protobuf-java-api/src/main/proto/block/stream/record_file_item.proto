@@ -102,9 +102,11 @@ message RecordFileItem {
     proto.Timestamp creation_time = 1;
 
     /**
-     * The contents of a record file. Record files were originally stored in
-     * different binary formats, this is the content converted to V6 format
-     * RecordStreamFile.
+     * The contents of a record file.<br/>
+     * Record files were originally stored in different binary formats,
+     * this is the content converted to V6 format RecordStreamFile. That
+     * conversion is lossless and reversible. It will need to be reversed to
+     * validate the block with a `SignedRecordFileProof`.
      */
     proto.RecordStreamFile record_file_contents = 2;
 
