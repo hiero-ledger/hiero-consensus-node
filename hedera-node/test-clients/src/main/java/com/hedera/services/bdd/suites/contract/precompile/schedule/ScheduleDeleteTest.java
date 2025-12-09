@@ -12,6 +12,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.ethereumCallWit
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.scheduleCreate;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromAccountToAlias;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.exposeSpecSecondTo;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
@@ -159,12 +160,13 @@ public class ScheduleDeleteTest {
     @HapiTest
     final Stream<DynamicTest> tryScheduleDeleteViaFacade() {
         var deleteFacade = "deleteFacade";
+        var lastSecond = new AtomicReference<Long>();
         var schedule = "scheduledTransfer";
         var scheduleId = new AtomicReference<ScheduleID>();
-
         return hapiTest(withOpContext((spec, opLog) -> {
             allRunFor(
                     spec,
+                    exposeSpecSecondTo(lastSecond::set),
                     newKeyNamed(SECP_256K1_SOURCE_KEY).shape(SECP_256K1_SHAPE),
                     cryptoCreate(RECEIVER).balance(0L),
                     cryptoCreate(RELAYER).balance(6 * ONE_MILLION_HBARS),
@@ -174,7 +176,7 @@ public class ScheduleDeleteTest {
                             .adminKey(SECP_256K1_SOURCE_KEY)
                             .waitForExpiry(true)
                             .hasKnownStatus(ResponseCodeEnum.SUCCESS)
-                            .expiringAt(1765948321L)
+                            .expiringAt(lastSecond.get() + 60)
                             .exposingCreatedIdTo(scheduleId::set)));
             allRunFor(
                     spec,
