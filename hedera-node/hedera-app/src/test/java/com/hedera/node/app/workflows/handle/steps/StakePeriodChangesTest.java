@@ -28,7 +28,7 @@ import com.hedera.node.app.records.ReadableBlockRecordStore;
 import com.hedera.node.app.service.addressbook.AddressBookService;
 import com.hedera.node.app.service.entityid.EntityIdService;
 import com.hedera.node.app.service.token.impl.handlers.staking.EndOfStakingPeriodUpdater;
-import com.hedera.node.app.services.FeeDistributor;
+import com.hedera.node.app.services.NodeFeeDistributor;
 import com.hedera.node.app.workflows.handle.record.TokenContextImpl;
 import com.hedera.node.app.workflows.handle.stack.SavepointStackImpl;
 import com.hedera.node.config.ConfigProvider;
@@ -95,7 +95,7 @@ public class StakePeriodChangesTest {
     private ConfigProvider configProvider;
 
     @Mock
-    private FeeDistributor feeDistributor;
+    private NodeFeeDistributor feeDistributor;
 
     private StakePeriodChanges subject;
 

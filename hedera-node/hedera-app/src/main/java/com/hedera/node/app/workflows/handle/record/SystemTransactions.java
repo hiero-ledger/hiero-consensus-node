@@ -33,11 +33,13 @@ import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.base.TransactionID;
+import com.hedera.hapi.node.base.TransferList;
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.entity.EntityCounts;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.node.state.token.StakingNodeInfo;
 import com.hedera.hapi.node.token.CryptoCreateTransactionBody;
+import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.blocks.impl.ImmediateStateChangeListener;
@@ -83,6 +85,7 @@ import com.hedera.node.config.data.StakingConfig;
 import com.hedera.node.config.types.StreamMode;
 import com.hedera.node.internal.network.NodeMetadata;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.hederahashgraph.api.proto.java.CryptoCreate;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.state.State;
@@ -419,7 +422,27 @@ public class SystemTransactions {
         autoNodeAdminKeyUpdates.tryIfPresent(adminConfig.upgradeSysFilesLoc(), systemContext);
     }
 
-    /**
+    public void dispatchNodePayments(@NonNull final State state,
+                                     @NonNull final Instant now,
+                                     @NonNull final TransferList transfers) {
+        requireNonNull(state);
+        requireNonNull(now);
+        requireNonNull(transfers);
+
+        if(transfers.accountAmounts().isEmpty()) {
+            log.info("No fees to distribute for nodes");
+            return;
+        }
+
+        final var systemContext = newSystemContext(
+                now, state, dispatch -> {}, UseReservedConsensusTimes.NO, TriggerStakePeriodSideEffects.YES);
+        systemContext.dispatchAdmin(b -> b.memo("Synthetic node fees payment")
+                .cryptoTransfer(CryptoTransferTransactionBody.newBuilder()
+                        .transfers(transfers).build())
+                .build());
+    }
+
+     /**
      * Dispatches a synthetic node reward crypto transfer for the given active node accounts.
      * If the {@link NodesConfig#minPerPeriodNodeRewardUsd()} is greater than zero, inactive nodes will receive the minimum node
      * reward.
@@ -435,13 +458,13 @@ public class SystemTransactions {
      */
     public void dispatchNodeRewards(
             @NonNull final State state,
-            @NonNull final Instant now,
-            @NonNull final List<Long> activeNodeIds,
-            final long perNodeReward,
-            @NonNull final AccountID nodeRewardsAccountId,
-            final long rewardAccountBalance,
-            final long minNodeReward,
-            @NonNull final List<RosterEntry> rosterEntries) {
+                                     @NonNull final Instant now,
+                                     @NonNull final List<Long> activeNodeIds,
+                                     final long perNodeReward,
+                                     @NonNull final AccountID nodeRewardsAccountId,
+                                     final long rewardAccountBalance,
+                                     final long minNodeReward,
+                                     @NonNull final List<RosterEntry> rosterEntries) {
         requireNonNull(state);
         requireNonNull(now);
         requireNonNull(activeNodeIds);

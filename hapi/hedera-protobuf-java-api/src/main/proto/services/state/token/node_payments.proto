@@ -25,6 +25,8 @@ option java_package = "com.hederahashgraph.api.proto.java";
 // <<<pbj.java_package = "com.hedera.hapi.node.state.token">>> This comment is special code for setting PBJ Compiler java package
 option java_multiple_files = true;
 
+import "services/timestamp.proto";TokenServiceApiImpl.java
+
 /**
  * A singleton state object that accumulates node fees for distribution<br/>
  * This is used to record the total amount of fees due to each node for distribution in current staking period
@@ -33,7 +35,13 @@ message NodePayments {
   /**
    * A map of node account number to the total amount of fees due to each node
    */
-  map<uint64, NodePayment> payments = 1;
+  repeated NodePayment payments = 1;
+  map<uint64, uint64> payments_map = 3;
+
+  /**
+   * The time when the last node fees were distributed
+   */
+  proto.Timestamp last_node_fee_distribution_time = 2;
 }
 
 /**

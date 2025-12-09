@@ -58,6 +58,7 @@ import com.hedera.node.app.service.token.impl.WritableNetworkStakingRewardsStore
 import com.hedera.node.app.service.token.impl.WritableStakingInfoStore;
 import com.hedera.node.app.service.token.impl.handlers.staking.StakeInfoHelper;
 import com.hedera.node.app.service.token.impl.handlers.staking.StakePeriodManager;
+import com.hedera.node.app.services.NodeFeeDistributor;
 import com.hedera.node.app.services.NodeRewardManager;
 import com.hedera.node.app.spi.api.ServiceApiProvider;
 import com.hedera.node.app.spi.info.NetworkInfo;
@@ -93,6 +94,7 @@ import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -104,6 +106,7 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.event.ConsensusEvent;
@@ -163,6 +166,7 @@ public class HandleWorkflow {
     // The last second for which this workflow has confirmed all scheduled transactions are executed
     private long lastExecutedSecond;
     private final NodeRewardManager nodeRewardManager;
+    private final NodeFeeDistributor feeDistributor;
     // Flag to indicate whether we have checked for transplant updates after JVM started
     private boolean checkedForTransplant;
 
@@ -197,7 +201,8 @@ public class HandleWorkflow {
             @NonNull final NodeRewardManager nodeRewardManager,
             @NonNull final BlockBufferService blockBufferService,
             @NonNull final Map<Class<?>, ServiceApiProvider<?>> apiProviders,
-            @NonNull final QuiescenceController quiescenceController) {
+            @NonNull final QuiescenceController quiescenceController,
+            @NonNull final NodeFeeDistributor feeDistributor) {
         this.networkInfo = requireNonNull(networkInfo);
         this.stakePeriodChanges = requireNonNull(stakePeriodChanges);
         this.dispatchProcessor = requireNonNull(dispatchProcessor);
@@ -230,6 +235,7 @@ public class HandleWorkflow {
         this.systemEntitiesCreatedFlag = systemEntitiesCreatedFlag;
         this.blockBufferService = requireNonNull(blockBufferService);
         this.apiProviders = requireNonNull(apiProviders);
+        this.feeDistributor = requireNonNull(feeDistributor);
     }
 
     /**
@@ -307,13 +313,20 @@ public class HandleWorkflow {
                     .getConfigData(BlockStreamConfig.class)
                     .receiptEntriesBatchSize();
             transactionsDispatched |= handleEvents(state, round, receiptEntriesBatchSize, stateSignatureTxnCallback);
+            final var lastConsTime = streamMode == RECORDS
+                    ? blockRecordManager.lastUsedConsensusTime()
+                    : blockStreamManager.lastUsedConsensusTime();
+
             try {
-                final var lastConsTime = streamMode == RECORDS
-                        ? blockRecordManager.lastUsedConsensusTime()
-                        : blockStreamManager.lastUsedConsensusTime();
                 if (lastConsTime.isAfter(EPOCH)) {
-                    transactionsDispatched |= nodeRewardManager.maybeRewardActiveNodes(
-                            state, lastConsTime.plusNanos(1), systemTransactions);
+                    transactionsDispatched |= feeDistributor.distributeFees(state, lastConsTime.plusNanos(1), systemTransactions);
+                }
+            } catch (Exception e) {
+                logger.warn("Failed to pay node fees to nodes", e);
+            }
+            try {
+                if (lastConsTime.isAfter(EPOCH)) {
+                    transactionsDispatched |= nodeRewardManager.maybeRewardActiveNodes(state, lastConsTime.plusNanos(1), systemTransactions);
                 }
             } catch (Exception e) {
                 logger.warn("Failed to reward active nodes", e);
@@ -412,8 +425,7 @@ public class HandleWorkflow {
         }
         final boolean isGenesis =
                 switch (streamMode) {
-                    case RECORDS ->
-                        blockRecordManager.consTimeOfLastHandledTxn().equals(EPOCH);
+                    case RECORDS -> blockRecordManager.consTimeOfLastHandledTxn().equals(EPOCH);
                     case BLOCKS, BOTH -> blockStreamManager.pendingWork() == GENESIS_WORK;
                 };
         if (isGenesis) {
@@ -478,7 +490,7 @@ public class HandleWorkflow {
      * @param txn the {@link ConsensusTransaction} to be handled
      * @param eventBirthRound the birth round of the event that this transaction belongs to
      * @param shortCircuitTxnCallback A callback to be called when encountering any short-circuiting
-     *                                transaction type
+     * transaction type
      * @return {@code true} if the transaction was a user transaction, {@code false} if a system transaction
      */
     private boolean handlePlatformTransaction(
@@ -563,6 +575,7 @@ public class HandleWorkflow {
     /**
      * Executes all scheduled transactions that are due to expire in the interval
      * {@code [lastIntervalProcessTime, consensusNow]} and returns whether any were executed.
+     *
      * @param state the state to execute scheduled transactions from
      * @param consensusNow the current consensus time
      * @param proximalCreatorInfo the node info of the "closest" event creator
@@ -1011,13 +1024,13 @@ public class HandleWorkflow {
                     // can still make progress on publishing proof keys as needed
                     final var vk = Optional.ofNullable(
                                     (historyStore.getLedgerId() == null
-                                                    || (tssConfig.wrapsEnabled()
-                                                            && historyStore
-                                                                    .getActiveConstruction()
-                                                                    .hasTargetProof()
-                                                            && !isWrapsExtensible(historyStore
-                                                                    .getActiveConstruction()
-                                                                    .targetProof())))
+                                            || (tssConfig.wrapsEnabled()
+                                            && historyStore
+                                            .getActiveConstruction()
+                                            .hasTargetProof()
+                                            && !isWrapsExtensible(historyStore
+                                            .getActiveConstruction()
+                                            .targetProof())))
                                             ? hintsStore.getActiveConstruction().hintsScheme()
                                             : hintsStore.getNextConstruction().hintsScheme())
                             .map(s -> s.preprocessedKeysOrThrow().verificationKey())

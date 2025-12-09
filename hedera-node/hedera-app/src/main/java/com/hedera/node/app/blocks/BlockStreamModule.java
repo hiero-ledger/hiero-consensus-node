@@ -9,6 +9,7 @@ import com.hedera.node.app.blocks.impl.streaming.FileAndGrpcBlockItemWriter;
 import com.hedera.node.app.blocks.impl.streaming.FileBlockItemWriter;
 import com.hedera.node.app.blocks.impl.streaming.GrpcBlockItemWriter;
 import com.hedera.node.app.metrics.BlockStreamMetrics;
+import com.hedera.node.app.services.NodeFeeDistributor;
 import com.hedera.node.app.services.NodeRewardManager;
 import com.hedera.node.app.spi.records.SelfNodeAccountIdManager;
 import com.hedera.node.config.ConfigProvider;
@@ -18,6 +19,7 @@ import com.swirlds.state.State;
 import dagger.Module;
 import dagger.Provides;
 import edu.umd.cs.findbugs.annotations.NonNull;
+
 import java.nio.file.FileSystem;
 import java.util.function.Supplier;
 import javax.inject.Singleton;
@@ -84,16 +86,20 @@ public interface BlockStreamModule {
     @Provides
     @Singleton
     static BlockStreamManager.Lifecycle provideBlockStreamManagerLifecycle(
-            @NonNull final NodeRewardManager nodeRewardManager, @NonNull final BoundaryStateChangeListener listener) {
+            @NonNull final NodeRewardManager nodeRewardManager,
+            @NonNull final BoundaryStateChangeListener listener,
+            @NonNull final NodeFeeDistributor feeDistributor) {
         return new BlockStreamManager.Lifecycle() {
             @Override
             public void onOpenBlock(@NonNull final State state) {
+                feeDistributor.onOpenBlock(state);
                 listener.resetCollectedNodeFees();
                 nodeRewardManager.onOpenBlock(state);
             }
 
             @Override
             public void onCloseBlock(@NonNull final State state) {
+                feeDistributor.onCloseBlock(state);
                 nodeRewardManager.onCloseBlock(state, listener.nodeFeesCollected());
             }
         };

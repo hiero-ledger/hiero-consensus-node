@@ -4,12 +4,16 @@ package com.hedera.node.app.service.token.impl;
 import static com.hedera.node.app.service.token.impl.schemas.V0700TokenSchema.NODE_PAYMENTS_STATE_ID;
 import static java.util.Objects.requireNonNull;
 
+import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.token.NodePayment;
 import com.hedera.hapi.node.state.token.NodePayments;
+import com.hedera.hapi.node.state.token.NodeRewards;
 import com.swirlds.state.spi.WritableSingletonState;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
+
 import java.util.HashMap;
+import java.util.List;
 
 /**
  * Default writable implementation for node payments.
@@ -42,23 +46,12 @@ public class WritableNodePaymentsStore extends ReadableNodePaymentsStoreImpl {
     }
 
     /**
-     * Resets the node payments state for a new staking period.
+     * Resets the node rewards state for a new payment period.
      */
-    public void resetForNewStakingPeriod() {
-        nodePaymentsState.put(
-                NodePayments.newBuilder().payments(new HashMap<>()).build());
-    }
-
-    public void addNodePayments(final long accountNumber, final long amount) {
-        final var nodePayments = requireNonNull(nodePaymentsState.get());
-        final var oldPayment = nodePayments.payments().get(accountNumber);
-        final var oldFees = oldPayment == null ? 0 : oldPayment.fees();
-        final var payment = NodePayment.newBuilder()
-                .accountNumber(accountNumber)
-                .fees(oldFees + amount)
-                .build();
-        final var payments = new HashMap<>(nodePayments.payments());
-        payments.put(accountNumber, payment);
-        nodePaymentsState.put(NodePayments.newBuilder().payments(payments).build());
+    public void resetForNewStakingPeriod(Timestamp lastNodeFeeDistributionTime) {
+        nodePaymentsState.put(NodePayments.newBuilder()
+                .payments(List.of())
+                .lastNodeFeeDistributionTime(lastNodeFeeDistributionTime)
+                .build());
     }
 }
