@@ -202,7 +202,7 @@ public class HashgraphPicture extends JPanel {
             final long id = parent.getCreatorId().id();
             if ((RosterUtils.getIndex(roster, id) == -1
                     || RosterUtils.getIndex(roster, id)
-                    >= roster.rosterEntries().size())) {
+                            >= roster.rosterEntries().size())) {
                 // if the creator of the other parent has been removed,
                 // treat it as if there is no other parent
                 continue;

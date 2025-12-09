@@ -170,9 +170,14 @@ public class StandardGraphGenerator implements GraphGenerator {
             final long seed,
             final int maxOtherParents,
             @NonNull final List<EventSource> eventSources) {
-        this(platformContext, seed, maxOtherParents, eventSources, RandomRosterBuilder.create(new Random(seed))
-                .withSize(eventSources.size())
-                .build());
+        this(
+                platformContext,
+                seed,
+                maxOtherParents,
+                eventSources,
+                RandomRosterBuilder.create(new Random(seed))
+                        .withSize(eventSources.size())
+                        .build());
     }
 
     /**
@@ -392,8 +397,8 @@ public class StandardGraphGenerator implements GraphGenerator {
     }
 
     /**
-         * Child classes should reset internal metadata in this method.
-         */
+     * Child classes should reset internal metadata in this method.
+     */
     protected void resetInternalData() {
         for (final EventSource source : sources) {
             source.reset();
@@ -417,7 +422,7 @@ public class StandardGraphGenerator implements GraphGenerator {
      * @param source The node that is creating the event.
      */
     private @Nullable EventSource getNextOtherParentSource(final long eventIndex, final EventSource source) {
-        if(roster.rosterEntries().size() == 1){
+        if (roster.rosterEntries().size() == 1) {
             return null;
         }
         final List<Double> affinityVector = getOtherParentAffinityVector(
@@ -429,7 +434,8 @@ public class StandardGraphGenerator implements GraphGenerator {
     /**
      * Get the next timestamp for the next event.
      */
-    private Instant getNextTimestamp(@NonNull final EventSource source, @NonNull final Collection<NodeId> otherParentIds) {
+    private Instant getNextTimestamp(
+            @NonNull final EventSource source, @NonNull final Collection<NodeId> otherParentIds) {
         if (previousTimestamp == null) {
             previousTimestamp = DEFAULT_FIRST_EVENT_TIME_CREATED;
             previousCreatorId = source.getNodeId();
@@ -463,10 +469,10 @@ public class StandardGraphGenerator implements GraphGenerator {
     }
 
     /**
-         * Build the event that will be returned by getNextEvent.
-         *
-         * @param eventIndex the index of the event to build
-         */
+     * Build the event that will be returned by getNextEvent.
+     *
+     * @param eventIndex the index of the event to build
+     */
     public EventImpl buildNextEvent(final long eventIndex) {
         final EventSource source = getNextEventSource(eventIndex);
         // using map for parents in case of duplicate sources
@@ -477,7 +483,6 @@ public class StandardGraphGenerator implements GraphGenerator {
                 otherParentSources.put(otherParentSource.getNodeId(), otherParentSource);
             }
         }
-
 
         final long birthRound = consensus.getLastRoundDecided() + 1;
 
