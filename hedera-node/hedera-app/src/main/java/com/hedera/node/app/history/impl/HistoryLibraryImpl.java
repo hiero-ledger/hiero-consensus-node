@@ -12,14 +12,19 @@ import com.hedera.cryptography.wraps.Proof;
 import com.hedera.cryptography.wraps.WRAPSLibraryBridge;
 import com.hedera.node.app.history.HistoryLibrary;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.Arrays;
 import java.util.Set;
 import java.util.SplittableRandom;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.hiero.base.utility.CommonUtils;
 
 /**
  * Default implementation of the {@link HistoryLibrary}.
  */
 public class HistoryLibraryImpl implements HistoryLibrary {
-    private static final byte[] DUMMY_HINTS_KEY = new byte[1280];
+    private static final Logger logger = LogManager.getLogger(HistoryLibraryImpl.class);
+
     public static final SplittableRandom RANDOM = new SplittableRandom();
     public static final WRAPSLibraryBridge WRAPS = WRAPSLibraryBridge.getInstance();
 
@@ -124,6 +129,45 @@ public class HistoryLibraryImpl implements HistoryLibrary {
         requireNonNull(aggregatedSignature);
         requireNonNull(signers);
         requireNonNull(addressBook);
+
+        final var prevSchnorrPublicKeys = addressBook.publicKeys();
+        final var prevWeights = addressBook.weights();
+        final var nextSchnorrPublicKeys = addressBook.publicKeys();
+        final var nextWeights = addressBook.weights();
+        final var mask = addressBook.signersMask(signers);
+        final var tssVerificationKey = GENESIS_WRAPS_METADATA;
+        logger.info(" genesisAddressBookHash == null ? {}", genesisAddressBookHash == null);
+        logger.info(" genesisAddressBookHash.length == 0 ? {}", genesisAddressBookHash.length == 0);
+        logger.info(" prevSchnorrPublicKeys == null ? {}", prevSchnorrPublicKeys == null);
+        logger.info(" prevWeights == null ? {}", prevWeights == null);
+        logger.info(" prevSchnorrPublicKeys.length == 0 ? {}", prevSchnorrPublicKeys.length == 0);
+        logger.info(
+                " prevSchnorrPublicKeys.length != prevWeights.length ? {}",
+                prevSchnorrPublicKeys.length != prevWeights.length);
+        logger.info(" !WRAPSLibraryBridge.validateWeightsSum(prevWeights) ? {}", !validateWeightsSum(prevWeights));
+        logger.info(" nextSchnorrPublicKeys == null ? {}", nextSchnorrPublicKeys == null);
+        logger.info(" nextWeights == null ? {}", nextWeights == null);
+        logger.info(" nextSchnorrPublicKeys.length == 0 ? {}", nextSchnorrPublicKeys.length == 0);
+        logger.info(
+                " nextSchnorrPublicKeys.length != nextWeights.length ? {}",
+                nextSchnorrPublicKeys.length != nextWeights.length);
+        logger.info(" !WRAPSLibraryBridge.validateWeightsSum(nextWeights) ? {}", !validateWeightsSum(nextWeights));
+        logger.info(" tssVerificationKey == null ? {}", tssVerificationKey == null);
+        logger.info(" tssVerificationKey.length == 0 ? {}", tssVerificationKey.length == 0);
+        logger.info(" aggregateSignature == null ? {}", aggregatedSignature == null);
+        logger.info(" aggregateSignature.length == 0 ? {}", aggregatedSignature.length == 0);
+        logger.info(" signers == null ? {}", mask == null);
+        logger.info(
+                " signers.length != prevSchnorrPublicKeys.length ? {}", mask.length != prevSchnorrPublicKeys.length);
+        logger.info(
+                " !WRAPSLibraryBridge.validateSchnorrPublicKeys(prevSchnorrPublicKeys) ? {}",
+                !validateSchnorrPublicKeys(prevSchnorrPublicKeys));
+        logger.info(
+                ") !WRAPSLibraryBridge.validateSchnorrPublicKeys(nextSchnorrPublicKeys) ? {}",
+                !validateSchnorrPublicKeys(nextSchnorrPublicKeys));
+        logger.info("Is proof supported? {}", WRAPSLibraryBridge.isProofSupported());
+        logger.info("Genesis hash: " + CommonUtils.hex(genesisAddressBookHash));
+        logger.info("Signers: " + Arrays.toString(mask));
         return WRAPS.constructWrapsProof(
                 genesisAddressBookHash,
                 addressBook.publicKeys(),
@@ -131,7 +175,7 @@ public class HistoryLibraryImpl implements HistoryLibrary {
                 addressBook.publicKeys(),
                 addressBook.weights(),
                 null,
-                DUMMY_HINTS_KEY,
+                GENESIS_WRAPS_METADATA,
                 aggregatedSignature,
                 addressBook.signersMask(signers));
     }
@@ -173,5 +217,31 @@ public class HistoryLibraryImpl implements HistoryLibrary {
     @Override
     public boolean wrapsProverReady() {
         return WRAPSLibraryBridge.isProofSupported();
+    }
+
+    // TEMP
+    private static boolean validateWeightsSum(final long weights[]) {
+        try {
+            long sum = 0;
+            for (int i = 0; i < weights.length; i++) {
+                if (weights[i] < 0) {
+                    return false;
+                }
+                // Math.addExact() throws ArithmeticException if the sum overflows
+                sum = Math.addExact(sum, weights[i]);
+            }
+            return sum <= Long.MAX_VALUE;
+        } catch (final ArithmeticException e) {
+            return false;
+        }
+    }
+
+    private static boolean validateSchnorrPublicKeys(final byte[][] schnorrPublicKeys) {
+        for (int i = 0; i < schnorrPublicKeys.length; i++) {
+            if (schnorrPublicKeys[i] == null || schnorrPublicKeys[i].length == 0) {
+                return false;
+            }
+        }
+        return true;
     }
 }

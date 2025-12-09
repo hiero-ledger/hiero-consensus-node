@@ -8,6 +8,7 @@ import static com.hedera.hapi.node.state.history.WrapsPhase.R3;
 import static com.hedera.hapi.util.HapiUtils.asInstant;
 import static com.hedera.node.app.hapi.utils.CommonUtils.noThrowSha384HashOf;
 import static com.hedera.node.app.history.HistoryLibrary.EMPTY_PUBLIC_KEY;
+import static com.hedera.node.app.history.HistoryLibrary.GENESIS_WRAPS_METADATA;
 import static com.hedera.node.app.history.impl.ProofControllers.isWrapsExtensible;
 import static com.hedera.node.app.service.roster.impl.RosterTransitionWeights.moreThanHalfOfTotal;
 import static java.util.Collections.emptySortedMap;
@@ -40,8 +41,10 @@ import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
+import java.util.TreeSet;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.function.Consumer;
@@ -219,7 +222,11 @@ public class WrapsHistoryProver implements HistoryProver {
                 targetAddressBook = AddressBook.from(weights.targetNodeWeights(), nodeId -> targetProofKeys
                         .getOrDefault(nodeId, EMPTY_PUBLIC_KEY)
                         .toByteArray());
-                wrapsMessage = historyLibrary.computeWrapsMessage(targetAddressBook, targetMetadata.toByteArray());
+                // In general the metadata in the WRAPS message is the target metadata (which is the hinTS verification
+                // key in the current TSS scheme); but for the special case of a source proof with a non-recursive
+                // proof, the additional signing work we need to do is actually over certain placeholder metadata
+                final var metadata = proofIsWrapsGenesis() ? GENESIS_WRAPS_METADATA : targetMetadata.toByteArray();
+                wrapsMessage = historyLibrary.computeWrapsMessage(targetAddressBook, metadata);
                 targetAddressBookHash = historyLibrary.hashAddressBook(targetAddressBook);
             }
             publishIfNeeded(
@@ -559,40 +566,64 @@ public class WrapsHistoryProver implements HistoryProver {
                                     signature,
                                     phaseMessages.get(R1).keySet().stream().toList());
                         } else {
-                            if (true) {
-                                yield new ProofPhaseOutput(new byte[704], new byte[30331352]);
-                            } else {
-                                if (!historyLibrary.wrapsProverReady()) {
-                                    yield new NoopOutput("WRAPS library is not ready");
-                                }
-                                Proof proof;
-                                if (!isWrapsExtensible(sourceProof)) {
-                                    proof = historyLibrary.constructGenesisWrapsProof(
-                                            requireNonNull(ledgerId).toByteArray(),
-                                            signature,
-                                            phaseMessages.get(R1).keySet(),
-                                            targetBook);
-                                } else {
-                                    proof = new Proof(
-                                            sourceProof.uncompressedWrapsProof().toByteArray(),
-                                            sourceProof
-                                                    .chainOfTrustProofOrThrow()
-                                                    .wrapsProofOrThrow()
-                                                    .toByteArray());
-                                }
-                                final var sourceBook = AddressBook.from(weights.sourceNodeWeights(), nodeId -> proofKeys
-                                        .getOrDefault(nodeId, EMPTY_PUBLIC_KEY)
-                                        .toByteArray());
-                                proof = historyLibrary.constructIncrementalWrapsProof(
-                                        requireNonNull(ledgerId).toByteArray(),
-                                        proof.uncompressed(),
-                                        sourceBook,
-                                        targetBook,
-                                        targetMetadata.toByteArray(),
-                                        signature,
-                                        phaseMessages.get(R1).keySet());
-                                yield new ProofPhaseOutput(proof.compressed(), proof.uncompressed());
+                            if (!historyLibrary.wrapsProverReady()) {
+                                yield new NoopOutput("WRAPS library is not ready");
                             }
+                            final var isValid =
+                                    historyLibrary.verifyAggregateSignature(message, publicKeysForR1(), signature);
+                            log.info("Aggregate signature is {}", isValid ? "valid" : "invalid");
+                            Proof proof;
+                            if (!isWrapsExtensible(sourceProof)) {
+                                final long now = System.nanoTime();
+                                log.info("Constructing genesis WRAPS proof...");
+                                proof = historyLibrary.constructGenesisWrapsProof(
+                                        requireNonNull(ledgerId).toByteArray(),
+                                        signature,
+                                        phaseMessages.get(R1).keySet(),
+                                        targetBook);
+                                log.info(
+                                        "Constructed genesis WRAPS proof in {}ms",
+                                        (System.nanoTime() - now) / 1_000_000);
+                            } else {
+                                proof = new Proof(
+                                        sourceProof.uncompressedWrapsProof().toByteArray(),
+                                        sourceProof
+                                                .chainOfTrustProofOrThrow()
+                                                .wrapsProofOrThrow()
+                                                .toByteArray());
+                            }
+                            final var sourceBook = AddressBook.from(weights.sourceNodeWeights(), nodeId -> proofKeys
+                                    .getOrDefault(nodeId, EMPTY_PUBLIC_KEY)
+                                    .toByteArray());
+                            final long now = System.nanoTime();
+                            log.info(
+                                    "Constructing incremental WRAPS proof (WRAPS genesis? {})...",
+                                    proofIsWrapsGenesis());
+                            final var effectiveSignature = proofIsWrapsGenesis()
+                                    ? sourceProof
+                                            .chainOfTrustProofOrThrow()
+                                            .aggregatedNodeSignaturesOrThrow()
+                                            .aggregatedSignature()
+                                            .toByteArray()
+                                    : signature;
+                            final Set<Long> effectiveSigners = proofIsWrapsGenesis()
+                                    ? new TreeSet<>(sourceProof
+                                            .chainOfTrustProofOrThrow()
+                                            .aggregatedNodeSignaturesOrThrow()
+                                            .signingNodeIds())
+                                    : phaseMessages.get(R1).keySet();
+                            proof = historyLibrary.constructIncrementalWrapsProof(
+                                    requireNonNull(ledgerId).toByteArray(),
+                                    proof.uncompressed(),
+                                    sourceBook,
+                                    targetBook,
+                                    targetMetadata.toByteArray(),
+                                    effectiveSignature,
+                                    effectiveSigners);
+                            log.info(
+                                    "Constructed incremental WRAPS proof in {}ms",
+                                    (System.nanoTime() - now) / 1_000_000);
+                            yield new ProofPhaseOutput(proof.compressed(), proof.uncompressed());
                         }
                     }
                 },
@@ -632,6 +663,10 @@ public class WrapsHistoryProver implements HistoryProver {
 
     private Bytes selfProofHashOrThrow() {
         return explicitHistoryProofHashes.computeIfAbsent(selfId, k -> hashOf(requireNonNull(historyProof)));
+    }
+
+    private boolean proofIsWrapsGenesis() {
+        return sourceProof != null && !isWrapsExtensible(sourceProof);
     }
 
     private static Bytes hashOf(@NonNull final HistoryProof proof) {

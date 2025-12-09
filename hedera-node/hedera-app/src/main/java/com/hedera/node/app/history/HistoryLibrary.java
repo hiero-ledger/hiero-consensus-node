@@ -26,6 +26,11 @@ public interface HistoryLibrary {
     Bytes EMPTY_PUBLIC_KEY = Bytes.wrap(new byte[32]);
 
     /**
+     * A placeholder metadata for the genesis WRAPS proof.
+     */
+    byte[] GENESIS_WRAPS_METADATA = new byte[1280];
+
+    /**
      * An address book for use in the history library.
      * @param weights the weights of the nodes in the address book
      * @param publicKeys the public keys of the nodes in the address book

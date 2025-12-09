@@ -44,7 +44,10 @@ public record TransactionParts(
         try {
             final var signedTx = SignedTransaction.PROTOBUF.parse(
                     serializedSignedTx.toReadableSequentialData(),
-                    false, false, Integer.MAX_VALUE, MAX_PBJ_RECORD_SIZE);
+                    false,
+                    false,
+                    Integer.MAX_VALUE,
+                    MAX_PBJ_RECORD_SIZE);
             final Transaction wrapper;
             if (signedTx.useSerializedTxMessageHashAlgorithm()) {
                 wrapper = Transaction.newBuilder()
@@ -58,7 +61,10 @@ public record TransactionParts(
             }
             final var body = TransactionBody.PROTOBUF.parse(
                     signedTx.bodyBytes().toReadableSequentialData(),
-                    false, false, Integer.MAX_VALUE, MAX_PBJ_RECORD_SIZE);
+                    false,
+                    false,
+                    Integer.MAX_VALUE,
+                    MAX_PBJ_RECORD_SIZE);
             return new TransactionParts(wrapper, body, functionOf(body));
         } catch (ParseException | UnknownHederaFunctionality e) {
             // Fail immediately with invalid transactions that should not be in any production record stream
