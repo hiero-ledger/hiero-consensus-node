@@ -252,7 +252,6 @@ jobs:
       helm-release-name: ${{ needs.parameters.outputs.helm-release-name }}
       custom-job-label: "XTS (main):"
       enable-extended-test-suite: "true"
-      enable-abbreviated-panel: "true"
       enable-hedera-node-jrs-panel: "true"
       enable-sdk-tck-regression-panel: "true"
     secrets:
