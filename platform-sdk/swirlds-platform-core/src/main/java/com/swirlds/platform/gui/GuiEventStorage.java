@@ -10,7 +10,6 @@ import com.swirlds.common.context.PlatformContext;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.Consensus;
 import com.swirlds.platform.ConsensusImpl;
-import com.swirlds.platform.config.PathsConfig;
 import com.swirlds.platform.consensus.EventWindowUtils;
 import com.swirlds.platform.event.linking.ConsensusLinker;
 import com.swirlds.platform.event.linking.NoOpLinkerLogsAndMetrics;
@@ -55,14 +54,8 @@ public class GuiEventStorage {
 
         final ConsensusConfig consensusConfig =
                 platformContext.getConfiguration().getConfigData(ConsensusConfig.class);
-        final PathsConfig pathsConfig = platformContext.getConfiguration().getConfigData(PathsConfig.class);
-        this.consensus = new ConsensusImpl(
-                consensusConfig,
-                platformContext.getTime(),
-                new NoOpConsensusMetrics(),
-                roster,
-                pathsConfig.writePlatformMarkerFiles(),
-                pathsConfig.getMarkerFilesDir());
+        this.consensus =
+                new ConsensusImpl(consensusConfig, platformContext.getTime(), new NoOpConsensusMetrics(), roster);
         this.linker = new ConsensusLinker(NoOpLinkerLogsAndMetrics.getInstance());
     }
 

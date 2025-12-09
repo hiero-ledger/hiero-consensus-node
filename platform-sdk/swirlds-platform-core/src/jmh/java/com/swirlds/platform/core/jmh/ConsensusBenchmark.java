@@ -59,9 +59,7 @@ public class ConsensusBenchmark {
                 platformContext.getConfiguration().getConfigData(ConsensusConfig.class),
                 platformContext.getTime(),
                 new NoOpConsensusMetrics(),
-                emitter.getGraphGenerator().getRoster(),
-                false,
-                null);
+                emitter.getGraphGenerator().getRoster());
     }
 
     @Benchmark

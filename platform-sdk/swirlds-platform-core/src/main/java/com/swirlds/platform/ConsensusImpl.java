@@ -2,6 +2,7 @@
 package com.swirlds.platform;
 
 import static com.swirlds.logging.legacy.LogMarker.CONSENSUS_VOTING;
+import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static java.util.stream.Collectors.toSet;
 import static org.hiero.consensus.model.hashgraph.ConsensusConstants.FIRST_CONSENSUS_NUMBER;
@@ -29,7 +30,6 @@ import com.swirlds.platform.internal.EventImpl;
 import com.swirlds.platform.metrics.ConsensusMetrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -43,7 +43,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.utility.CommonUtils;
-import org.hiero.consensus.file.MarkerFileWriter;
 import org.hiero.consensus.hashgraph.ConsensusConfig;
 import org.hiero.consensus.model.event.NonDeterministicGeneration;
 import org.hiero.consensus.model.event.PlatformEvent;
@@ -188,8 +187,6 @@ public class ConsensusImpl implements Consensus {
      * round for events
      */
     private InitJudges initJudges = null;
-    /** The marker file writer */
-    private final MarkerFileWriter markerFileWriter;
     /** The rate limited logger for rounds without a super majority of weight on judges */
     private final RateLimitedLogger noSuperMajorityLogger;
     /** The rate limited logger for rounds with no judge */
@@ -209,19 +206,14 @@ public class ConsensusImpl implements Consensus {
      * @param time the time source
      * @param consensusMetrics metrics related to consensus
      * @param roster the global address book, which never changes
-     * @param markerFilesEnabled whether marker files are enabled
-     * @param markerFilesDir the directory to write marker files to, if enabled
      */
     public ConsensusImpl(
             @NonNull final ConsensusConfig consensusConfig,
             @NonNull final Time time,
             @NonNull final ConsensusMetrics consensusMetrics,
-            @NonNull final Roster roster,
-            final boolean markerFilesEnabled,
-            @Nullable final Path markerFilesDir) {
+            @NonNull final Roster roster) {
         this.config = consensusConfig;
         this.time = time;
-        this.markerFileWriter = new MarkerFileWriter(time, markerFilesEnabled, markerFilesDir);
         this.consensusMetrics = consensusMetrics;
 
         // until we implement roster changes, we will just use the use this roster
@@ -328,7 +320,7 @@ public class ConsensusImpl implements Consensus {
             }
             return rounds;
         } catch (final Exception e) {
-            markerFileWriter.writeMarkerFile(CONSENSUS_EXCEPTION_MARKER_FILE);
+            logger.error(EXCEPTION.getMarker(), "Exception occurred while trying to add event", e);
             throw e;
         }
     }
@@ -554,7 +546,6 @@ public class ConsensusImpl implements Consensus {
                         candidateWitness,
                         "coin-" + (countingVote.isSupermajority() ? "counting" : "sig"),
                         diff);
-                markerFileWriter.writeMarkerFile(COIN_ROUND_MARKER_FILE);
                 coinRoundLogger.warn(
                         LogMarker.ERROR.getMarker(),
                         "Coin round {}, voting witness: {}",
@@ -791,11 +782,9 @@ public class ConsensusImpl implements Consensus {
                 .sum();
         consensusMetrics.judgeWeights(judgeWeights);
         if (judges.isEmpty()) {
-            markerFileWriter.writeMarkerFile(NO_JUDGES_MARKER_FILE);
             noJudgeLogger.error(LogMarker.ERROR.getMarker(), "no judges in round = {}", decidedRoundNumber);
         } else {
             if (!Threshold.SUPER_MAJORITY.isSatisfiedBy(judgeWeights, rosterTotalWeight)) {
-                markerFileWriter.writeMarkerFile(NO_SUPER_MAJORITY_MARKER_FILE);
                 noSuperMajorityLogger.error(
                         LogMarker.ERROR.getMarker(),
                         "less than a super majority of weight on judges.  round = {}, judgesWeight = {}, percentage = {}",

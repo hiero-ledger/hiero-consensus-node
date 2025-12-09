@@ -31,7 +31,6 @@ import java.util.Objects;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Hash;
-import org.hiero.consensus.file.MarkerFileWriter;
 import org.hiero.consensus.hashgraph.ConsensusConfig;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.notification.IssNotification;
@@ -97,11 +96,6 @@ public class DefaultIssDetector implements IssDetector {
     private final IssMetrics issMetrics;
 
     /**
-     * Writes marker files to disk.
-     */
-    private final MarkerFileWriter markerFileWriter;
-
-    /**
      * The last round that was frozen. This is used to ignore signatures from previous software versions. If null, then
      * no signatures are ignored.
      */
@@ -125,8 +119,6 @@ public class DefaultIssDetector implements IssDetector {
             final long latestFreezeRound) {
         Objects.requireNonNull(platformContext);
         final PathsConfig pathsConfig = platformContext.getConfiguration().getConfigData(PathsConfig.class);
-        markerFileWriter = new MarkerFileWriter(
-                platformContext.getTime(), pathsConfig.writePlatformMarkerFiles(), pathsConfig.getMarkerFilesDir());
 
         final ConsensusConfig consensusConfig =
                 platformContext.getConfiguration().getConfigData(ConsensusConfig.class);
@@ -177,7 +169,6 @@ public class DefaultIssDetector implements IssDetector {
         if (roundNumber == ignoredRound) {
             return null;
         }
-        markerFileWriter.writeMarkerFile(issType.toString());
         return new IssNotification(roundNumber, issType);
     }
 

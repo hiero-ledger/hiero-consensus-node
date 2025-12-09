@@ -11,7 +11,6 @@ import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.platform.ConsensusImpl;
-import com.swirlds.platform.config.PathsConfig;
 import com.swirlds.platform.consensus.EventWindowUtils;
 import com.swirlds.platform.event.linking.ConsensusLinker;
 import com.swirlds.platform.event.linking.NoOpLinkerLogsAndMetrics;
@@ -198,14 +197,7 @@ public class StandardGraphGenerator extends AbstractGraphGenerator {
     private void initializeInternalConsensus() {
         final ConsensusConfig consensusConfig =
                 platformContext.getConfiguration().getConfigData(ConsensusConfig.class);
-        final PathsConfig pathsConfig = platformContext.getConfiguration().getConfigData(PathsConfig.class);
-        consensus = new ConsensusImpl(
-                consensusConfig,
-                platformContext.getTime(),
-                new NoOpConsensusMetrics(),
-                roster,
-                pathsConfig.writePlatformMarkerFiles(),
-                pathsConfig.getMarkerFilesDir());
+        consensus = new ConsensusImpl(consensusConfig, platformContext.getTime(), new NoOpConsensusMetrics(), roster);
         linker = new ConsensusLinker(NoOpLinkerLogsAndMetrics.getInstance());
         orphanBuffer = new DefaultOrphanBuffer(platformContext.getMetrics(), mock(IntakeEventCounter.class));
     }
