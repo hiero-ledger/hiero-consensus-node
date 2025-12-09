@@ -3,6 +3,7 @@ package com.hedera.services.bdd.junit.support.translators.inputs;
 
 import static com.hedera.hapi.util.HapiUtils.functionOf;
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.MAX_PBJ_RECORD_SIZE;
+import static com.hedera.pbj.runtime.Codec.DEFAULT_MAX_DEPTH;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.HederaFunctionality;
@@ -46,7 +47,7 @@ public record TransactionParts(
                     serializedSignedTx.toReadableSequentialData(),
                     false,
                     false,
-                    Integer.MAX_VALUE,
+                    DEFAULT_MAX_DEPTH,
                     MAX_PBJ_RECORD_SIZE);
             final Transaction wrapper;
             if (signedTx.useSerializedTxMessageHashAlgorithm()) {
@@ -63,7 +64,7 @@ public record TransactionParts(
                     signedTx.bodyBytes().toReadableSequentialData(),
                     false,
                     false,
-                    Integer.MAX_VALUE,
+                    DEFAULT_MAX_DEPTH,
                     MAX_PBJ_RECORD_SIZE);
             return new TransactionParts(wrapper, body, functionOf(body));
         } catch (ParseException | UnknownHederaFunctionality e) {

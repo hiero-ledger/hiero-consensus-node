@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.virtualmap;
 
+import static com.hedera.pbj.runtime.Codec.DEFAULT_MAX_DEPTH;
 import static com.swirlds.common.io.streams.StreamDebugUtils.deserializeAndDebugOnFailure;
 import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticThreadManager;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
@@ -692,7 +693,7 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
                             removedValueBytes.toReadableSequentialData(),
                             false,
                             false,
-                            Integer.MAX_VALUE,
+                            DEFAULT_MAX_DEPTH,
                             MAX_PBJ_RECORD_SIZE);
         } catch (final ParseException e) {
             throw new RuntimeException("Failed to deserialize a value from bytes", e);

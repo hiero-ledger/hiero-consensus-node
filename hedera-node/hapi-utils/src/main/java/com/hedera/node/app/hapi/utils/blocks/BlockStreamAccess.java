@@ -3,6 +3,7 @@ package com.hedera.node.app.hapi.utils.blocks;
 
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.MAX_PBJ_RECORD_SIZE;
 import static com.hedera.node.app.hapi.utils.exports.recordstreaming.RecordStreamingUtils.SIDECAR_ONLY_TOKEN;
+import static com.hedera.pbj.runtime.Codec.DEFAULT_MAX_DEPTH;
 import static java.util.Comparator.comparing;
 
 import com.hedera.hapi.block.stream.Block;
@@ -164,7 +165,7 @@ public enum BlockStreamAccess {
                             Bytes.wrap(in.readAllBytes()).toReadableSequentialData(),
                             false,
                             false,
-                            Integer.MAX_VALUE,
+                            DEFAULT_MAX_DEPTH,
                             MAX_PBJ_RECORD_SIZE);
                 }
             } else {
@@ -172,7 +173,7 @@ public enum BlockStreamAccess {
                         Bytes.wrap(Files.readAllBytes(path)).toReadableSequentialData(),
                         false,
                         false,
-                        Integer.MAX_VALUE,
+                        DEFAULT_MAX_DEPTH,
                         MAX_PBJ_RECORD_SIZE);
             }
         } catch (IOException | ParseException e) {

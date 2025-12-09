@@ -21,6 +21,7 @@ import static com.hedera.node.app.spi.validation.PreCheckValidator.checkMaxCusto
 import static com.hedera.node.app.spi.validation.PreCheckValidator.checkMemo;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateFalsePreCheck;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
+import static com.hedera.pbj.runtime.Codec.DEFAULT_MAX_DEPTH;
 import static java.util.Objects.requireNonNull;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -628,7 +629,7 @@ public class TransactionChecker {
             final int maxSize)
             throws PreCheckException {
         try {
-            return codec.parse(data, true, false, Integer.MAX_VALUE, maxSize);
+            return codec.parse(data, true, false, DEFAULT_MAX_DEPTH, maxSize);
         } catch (ParseException e) {
             if (e.getCause() instanceof UnknownFieldException) {
                 // We do not allow newer clients to send transactions to older networks.
