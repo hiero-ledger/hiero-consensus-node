@@ -144,7 +144,7 @@ public class ProcessUtils {
         environment.put("RUST_BACKTRACE", "full");
         environment.put("TSS_LIB_NUM_OF_CORES", Integer.toString(1));
         // Use non-blank path to enable WRAPS prover
-        environment.put("TSS_LIB_WRAPS_ARTIFACTS_PATH", "/Users/michaeltinker/misc/wraps-v0.1.0");
+        environment.put("TSS_LIB_WRAPS_ARTIFACTS_PATH", "");
         environment.put("hedera.shard", String.valueOf(metadata.accountId().shardNum()));
         environment.put("hedera.realm", String.valueOf(metadata.accountId().realmNum()));
         // Include an PR check overrides from build.gradle.kts

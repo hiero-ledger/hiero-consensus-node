@@ -173,30 +173,4 @@ public class HistoryLibraryImpl implements HistoryLibrary {
     public boolean wrapsProverReady() {
         return WRAPSLibraryBridge.isProofSupported();
     }
-
-    // TEMP
-    private static boolean validateWeightsSum(final long weights[]) {
-        try {
-            long sum = 0;
-            for (int i = 0; i < weights.length; i++) {
-                if (weights[i] < 0) {
-                    return false;
-                }
-                // Math.addExact() throws ArithmeticException if the sum overflows
-                sum = Math.addExact(sum, weights[i]);
-            }
-            return sum <= Long.MAX_VALUE;
-        } catch (final ArithmeticException e) {
-            return false;
-        }
-    }
-
-    private static boolean validateSchnorrPublicKeys(final byte[][] schnorrPublicKeys) {
-        for (int i = 0; i < schnorrPublicKeys.length; i++) {
-            if (schnorrPublicKeys[i] == null || schnorrPublicKeys[i].length == 0) {
-                return false;
-            }
-        }
-        return true;
-    }
 }
