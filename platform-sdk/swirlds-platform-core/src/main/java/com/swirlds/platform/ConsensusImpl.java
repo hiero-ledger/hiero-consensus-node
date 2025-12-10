@@ -343,7 +343,7 @@ public class ConsensusImpl implements Consensus {
             final EventImpl insertedEvent = iterator.next();
 
             if (rounds.isLastDecidedJudge(insertedEvent)
-                    && insertedEvent.getParents().stream().mapToLong(this::round).max()
+                    && insertedEvent.getAllParents().stream().mapToLong(this::round).max()
                     .orElse(ConsensusConstants.ROUND_NEGATIVE_INFINITY) == ConsensusConstants.ROUND_NEGATIVE_INFINITY) {
                 // If an event was a judge in the last round decided AND is not a descendant of any other judge in
                 // this round, we leave all of its metadata intact. We know that it is not a descendant of any other
@@ -941,7 +941,7 @@ public class ConsensusImpl implements Consensus {
 //    }
 
     private @NonNull List<EventImpl> parents(@NonNull final EventImpl x) {
-        return x.getParents().stream().filter(Predicate.not(this::ancient)).toList();
+        return x.getAllParents().stream().filter(Predicate.not(this::ancient)).toList();
     }
 
     /**
@@ -967,7 +967,7 @@ public class ConsensusImpl implements Consensus {
         }
 
         long maxRound = ConsensusConstants.ROUND_NEGATIVE_INFINITY;
-        for (final EventImpl parent : x.getParents()) {
+        for (final EventImpl parent : x.getAllParents()) {
             if (ancient(parent)) {
                 continue;
             }
@@ -1171,7 +1171,7 @@ public class ConsensusImpl implements Consensus {
         //
         // if this event has no parents, then it's the first round
         //
-        if (x.getParents().isEmpty()) {
+        if (x.getAllParents().isEmpty()) {
             x.setRoundCreated(ConsensusConstants.ROUND_FIRST);
             return x.getRoundCreated();
         }
@@ -1296,7 +1296,7 @@ public class ConsensusImpl implements Consensus {
         // Find the first parent that is in the same round as x. The first witness of that parent
         // is the first witness of x. If there are no parents with the same round as x, then the
         // first witness of x is x.
-        for (final EventImpl parent : x.getParents()) {
+        for (final EventImpl parent : x.getAllParents()) {
             if (round(parent) == round(x)) {
                 x.setFirstWitnessS(firstWitnessS(parent));
                 return x.getFirstWitnessS();
