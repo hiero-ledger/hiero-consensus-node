@@ -482,7 +482,7 @@ public class TokenAirdropHandler extends TransferExecutor implements Transaction
      * Gets the airdrop fee for the token airdrop transaction when a pending airdrop is created. It will be
      * the sum of the association fee and the airdrop fee.
      * @param feeContext the fee context
-     * @return the airdrop fee
+     * @return the total airdrop fee (pending airdrop fee + association fee)
      */
     private long airdropFeeForPendingAirdrop(@NonNull final HandleContext feeContext) {
         return airdropFeeForPendingAirdrop(feeContext, true);
@@ -493,7 +493,7 @@ public class TokenAirdropHandler extends TransferExecutor implements Transaction
      * the sum of the association fee and the airdrop fee.
      * @param feeContext the fee context
      * @param includeAssociationFee if association fee should be added
-     * @return the airdrop fee
+     * @return the total airdrop fee (pending airdrop fee + association fee)
      */
     private long airdropFeeForPendingAirdrop(@NonNull final HandleContext feeContext, boolean includeAssociationFee) {
         var airdropFee = airdropFee(feeContext);
@@ -508,7 +508,7 @@ public class TokenAirdropHandler extends TransferExecutor implements Transaction
      * Gets the fee for a token airdrop that results in a pending airdrop.
      * This fee is charged when a pending airdrop is created for the receiver.
      * @param feeContext the fee context
-     * @return the total fee for a pending airdrop (airdrop fee + association fee)
+     * @return the fee for an airdrop that ends up in pending state
      */
     private long airdropFee(final HandleContext feeContext) {
         final var context = ((FeeContext) feeContext);
