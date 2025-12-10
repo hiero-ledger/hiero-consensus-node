@@ -1034,7 +1034,7 @@ public final class MerkleTestUtils {
 
             final VirtualMap newRoot = startingMap.newReconnectRoot();
             final ReconnectMapStats mapStats = new ReconnectMapMetrics(metrics, null, null);
-            final LearnerTreeView<?> learnerView = newRoot.buildLearnerView(mapStats);
+            final LearnerTreeView<?> learnerView = newRoot.buildLearnerView(reconnectConfig, mapStats);
 
             if (latencyMilliseconds == 0) {
                 learner =
@@ -1067,7 +1067,7 @@ public final class MerkleTestUtils {
                                 getStaticThreadManager(),
                                 streams.getTeacherInput(),
                                 streams.getTeacherOutput(),
-                                desiredMap.buildTeacherView(),
+                                desiredMap.buildTeacherView(reconnectConfig),
                                 streams::disconnect,
                                 reconnectConfig) {
                             @Override
@@ -1111,7 +1111,7 @@ public final class MerkleTestUtils {
                         new LaggingTeachingSynchronizer(
                                 streams.getTeacherInput(),
                                 streams.getTeacherOutput(),
-                                desiredMap.buildTeacherView(),
+                                desiredMap.buildTeacherView(reconnectConfig),
                                 latencyMilliseconds,
                                 streams::disconnect,
                                 reconnectConfig) {

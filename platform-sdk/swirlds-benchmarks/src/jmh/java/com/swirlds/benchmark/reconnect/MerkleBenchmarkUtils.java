@@ -92,7 +92,7 @@ public class MerkleBenchmarkUtils {
 
             final VirtualMap newRoot = startingTree.newReconnectRoot();
             final ReconnectMapStats mapStats = new ReconnectMapMetrics(metrics, null, null);
-            final LearnerTreeView<?> learnerView = newRoot.buildLearnerView(mapStats);
+            final LearnerTreeView<?> learnerView = newRoot.buildLearnerView(reconnectConfig, mapStats);
 
             if (delayStorageMicroseconds == 0 && delayNetworkMicroseconds == 0) {
                 learner = new LearningSynchronizer(
@@ -116,7 +116,7 @@ public class MerkleBenchmarkUtils {
                         getStaticThreadManager(),
                         streams.getTeacherInput(),
                         streams.getTeacherOutput(),
-                        desiredTree.buildTeacherView(),
+                        desiredTree.buildTeacherView(reconnectConfig),
                         () -> {
                             try {
                                 streams.disconnect();
@@ -149,7 +149,7 @@ public class MerkleBenchmarkUtils {
                 teacher = new BenchmarkSlowTeachingSynchronizer(
                         streams.getTeacherInput(),
                         streams.getTeacherOutput(),
-                        desiredTree.buildTeacherView(),
+                        desiredTree.buildTeacherView(reconnectConfig),
                         randomSeed,
                         delayStorageMicroseconds,
                         delayStorageFuzzRangePercent,

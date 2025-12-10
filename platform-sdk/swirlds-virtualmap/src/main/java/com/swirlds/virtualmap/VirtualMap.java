@@ -1167,8 +1167,7 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
      *
      * <p>The view will be closed by reconnect teacher, when reconnect is complete or failed.
      */
-    public TeacherTreeView<Long> buildTeacherView() {
-        final ReconnectConfig reconnectConfig = configuration.getConfigData(ReconnectConfig.class);
+    public TeacherTreeView<Long> buildTeacherView(@NonNull final ReconnectConfig reconnectConfig) {
         return switch (virtualMapConfig.reconnectMode()) {
             case VirtualMapReconnectMode.PUSH ->
                 new TeacherPushVirtualTreeView(getStaticThreadManager(), reconnectConfig, this, metadata, pipeline);
@@ -1253,8 +1252,8 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
      *
      * <p>The view will be closed by reconnect learner, when reconnect is complete or failed.
      */
-    public LearnerTreeView<Long> buildLearnerView(@NonNull final ReconnectMapStats mapStats) {
-        final ReconnectConfig reconnectConfig = configuration.getConfigData(ReconnectConfig.class);
+    public LearnerTreeView<Long> buildLearnerView(
+            @NonNull final ReconnectConfig reconnectConfig, @NonNull final ReconnectMapStats mapStats) {
         assert originalMap != null;
         // During reconnect we want to look up state from the original records
         final VirtualMapMetadata originalState = originalMap.getMetadata();

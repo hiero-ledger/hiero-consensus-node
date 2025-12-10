@@ -108,8 +108,9 @@ public class ReconnectStateTeacher {
         if (!(signedState.getState() instanceof VirtualMapState virtualMapState)) {
             throw new UnsupportedOperationException("Reconnects are only supported for VirtualMap states");
         }
+        final ReconnectConfig reconnectConfig = configuration.getConfigData(ReconnectConfig.class);
         // The teacher view will be closed by TeacherSynchronizer in reconnect() below
-        teacherView = virtualMapState.getRoot().buildTeacherView();
+        teacherView = virtualMapState.getRoot().buildTeacherView(reconnectConfig);
 
         logReconnectStart(signedState);
     }
