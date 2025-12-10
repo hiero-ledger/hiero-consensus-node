@@ -118,7 +118,7 @@ public abstract class AbstractBlockNodeConnection {
 
         if (!latestState.canTransitionTo(newState)) {
             logger.warn(
-                    "{} Attempted to downgrade state from {} to {}, but this is not allowed; this is not allowed",
+                    "{} Attempted to downgrade state from {} to {}, but this is not allowed",
                     this,
                     latestState,
                     newState);
