@@ -128,8 +128,6 @@ class HistoryProofKeyPublicationHandlerTest {
         given(context.storeFactory()).willReturn(factory);
         given(factory.writableStore(WritableHistoryStore.class)).willReturn(store);
         given(context.consensusNow()).willReturn(CONSENSUS_NOW);
-        given(context.configuration()).willReturn(configuration);
-        given(configuration.getConfigData(TssConfig.class)).willReturn(tssConfig);
         given(controllers.getAnyInProgress()).willReturn(Optional.of(controller));
         given(controller.addWrapsMessagePublication(any(ReadableHistoryStore.WrapsMessagePublication.class), eq(store)))
                 .willReturn(true);
@@ -155,8 +153,6 @@ class HistoryProofKeyPublicationHandlerTest {
         given(context.storeFactory()).willReturn(factory);
         given(factory.writableStore(WritableHistoryStore.class)).willReturn(store);
         given(context.consensusNow()).willReturn(CONSENSUS_NOW);
-        given(context.configuration()).willReturn(configuration);
-        given(configuration.getConfigData(TssConfig.class)).willReturn(tssConfig);
         given(controllers.getAnyInProgress()).willReturn(Optional.of(controller));
         given(controller.addWrapsMessagePublication(any(ReadableHistoryStore.WrapsMessagePublication.class), eq(store)))
                 .willReturn(false);

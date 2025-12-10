@@ -59,21 +59,6 @@ public class WrapsMpcStateMachine {
                 @NonNull final WrapsPhase currentPhase, @Nullable final Instant gracePeriodEndTimeUpdate) {
             return new Transition(true, currentPhase, gracePeriodEndTimeUpdate);
         }
-
-        /**
-         * Returns whether this transition updates the grace period end time.
-         */
-        public boolean updatesGracePeriodEndTime() {
-            return gracePeriodEndTimeUpdate != null;
-        }
-
-        /**
-         * Returns the new grace period end time, if applicable.
-         * @throws NullPointerException if this transition does not update the grace period end time
-         */
-        public @NonNull Instant newGracePeriodEndTimeOrThrow() {
-            return requireNonNull(gracePeriodEndTimeUpdate);
-        }
     }
 
     /**

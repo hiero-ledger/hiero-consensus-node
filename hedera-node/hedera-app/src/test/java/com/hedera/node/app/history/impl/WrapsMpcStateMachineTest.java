@@ -53,7 +53,6 @@ class WrapsMpcStateMachineTest {
             assertFalse(transition.publicationAccepted());
             assertEquals(R1, transition.newCurrentPhase());
             assertNull(transition.gracePeriodEndTimeUpdate());
-            assertFalse(transition.updatesGracePeriodEndTime());
         }
 
         @Test
@@ -63,7 +62,6 @@ class WrapsMpcStateMachineTest {
             assertTrue(transition.publicationAccepted());
             assertEquals(R2, transition.newCurrentPhase());
             assertNull(transition.gracePeriodEndTimeUpdate());
-            assertFalse(transition.updatesGracePeriodEndTime());
         }
 
         @Test
@@ -74,24 +72,11 @@ class WrapsMpcStateMachineTest {
             assertTrue(transition.publicationAccepted());
             assertEquals(R3, transition.newCurrentPhase());
             assertEquals(endTime, transition.gracePeriodEndTimeUpdate());
-            assertTrue(transition.updatesGracePeriodEndTime());
-            assertEquals(endTime, transition.newGracePeriodEndTimeOrThrow());
         }
 
         @Test
         void transitionRequiresNonNullPhase() {
             assertThrows(NullPointerException.class, () -> new Transition(true, null, null));
-        }
-
-        @Test
-        void advanceToRequiresNonNullGracePeriodEndTime() {
-            assertThrows(NullPointerException.class, () -> Transition.advanceTo(R2, null));
-        }
-
-        @Test
-        void newGracePeriodEndTimeOrThrowThrowsWhenNull() {
-            final var transition = Transition.rejectedAt(R1);
-            assertThrows(NullPointerException.class, transition::newGracePeriodEndTimeOrThrow);
         }
     }
 
@@ -157,7 +142,6 @@ class WrapsMpcStateMachineTest {
 
             assertTrue(transition.publicationAccepted());
             assertEquals(R1, transition.newCurrentPhase());
-            assertFalse(transition.updatesGracePeriodEndTime());
             assertTrue(phaseMessages.get(R1).containsKey(NODE_1));
         }
 
@@ -185,7 +169,6 @@ class WrapsMpcStateMachineTest {
 
             assertTrue(transition.publicationAccepted());
             assertEquals(R2, transition.newCurrentPhase());
-            assertTrue(transition.updatesGracePeriodEndTime());
             assertEquals(BASE_TIME.plusSeconds(1).plus(GRACE_PERIOD), transition.gracePeriodEndTimeUpdate());
         }
 
@@ -198,7 +181,6 @@ class WrapsMpcStateMachineTest {
 
             assertTrue(transition.publicationAccepted());
             assertEquals(R1, transition.newCurrentPhase());
-            assertFalse(transition.updatesGracePeriodEndTime());
         }
 
         @Test
@@ -243,7 +225,6 @@ class WrapsMpcStateMachineTest {
 
             assertTrue(transition.publicationAccepted());
             assertEquals(R2, transition.newCurrentPhase());
-            assertFalse(transition.updatesGracePeriodEndTime());
         }
 
         @Test
@@ -268,7 +249,6 @@ class WrapsMpcStateMachineTest {
 
             assertTrue(transition.publicationAccepted());
             assertEquals(R3, transition.newCurrentPhase());
-            assertTrue(transition.updatesGracePeriodEndTime());
             assertEquals(BASE_TIME.plusSeconds(1).plus(GRACE_PERIOD), transition.gracePeriodEndTimeUpdate());
         }
     }
@@ -304,7 +284,6 @@ class WrapsMpcStateMachineTest {
 
             assertTrue(transition.publicationAccepted());
             assertEquals(R3, transition.newCurrentPhase());
-            assertFalse(transition.updatesGracePeriodEndTime());
         }
 
         @Test
@@ -329,8 +308,7 @@ class WrapsMpcStateMachineTest {
 
             assertTrue(transition.publicationAccepted());
             assertEquals(AGGREGATE, transition.newCurrentPhase());
-            assertTrue(transition.updatesGracePeriodEndTime());
-            assertEquals(Instant.EPOCH, transition.gracePeriodEndTimeUpdate());
+            assertNull(transition.gracePeriodEndTimeUpdate());
         }
     }
 
