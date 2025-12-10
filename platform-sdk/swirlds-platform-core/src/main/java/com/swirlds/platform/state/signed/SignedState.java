@@ -112,13 +112,6 @@ public class SignedState {
     private boolean hasBeenSavedToDisk;
 
     /**
-     * Indicates if this state is a special state used to jumpstart emergency recovery. This will only be true for a
-     * state that has a root hash that exactly matches the current epoch hash. A recovery state is considered to be
-     * "completely signed" regardless of its actual signatures.
-     */
-    private boolean recoveryState;
-
-    /**
      * Used to track the lifespan of this signed state.
      */
     private final RuntimeObjectRecord registryRecord;
@@ -284,15 +277,6 @@ public class SignedState {
      */
     public boolean isPcesRound() {
         return pcesRound;
-    }
-
-    /**
-     * Mark this state as a recovery state. A recovery state is a state with a root hash that exactly matches the
-     * current hash epoch. Recovery states are always considered to be "completely signed" regardless of their actual
-     * signatures.
-     */
-    public void markAsRecoveryState() {
-        recoveryState = true;
     }
 
     /**
@@ -530,21 +514,18 @@ public class SignedState {
 
     /**
      * Check if this object contains a complete set of signatures with respect to an address book.
-     * <p>
-     * Note that there is a special edge case during emergency state recovery. A state with a root hash that matches the
-     * current epoch hash is considered to be complete regardless of the signatures it has collected.
      *
      * @return does this contain signatures from members with greater than 2/3 of the total weight?
      */
     public boolean isComplete() {
-        return recoveryState | signedBy(SUPER_MAJORITY);
+        return signedBy(SUPER_MAJORITY);
     }
 
     /**
      * @return true if the state has enough signatures so that it can be trusted to be valid
      */
     public boolean isVerifiable() {
-        return recoveryState | signedBy(MAJORITY);
+        return signedBy(MAJORITY);
     }
 
     /**
