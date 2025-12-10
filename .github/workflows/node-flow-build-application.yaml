@@ -118,9 +118,7 @@ jobs:
       - code
       - spotless
     if: ${{ (needs.code.result != 'success' ||
-      needs.dependency-check.result != 'success' ||
-      needs.spotless.result == 'success' ||
-      needs.mats-tests.result != 'success' ) &&
+      needs.spotless.result == 'success' ) &&
       !cancelled() && always() }}
 
     steps:
