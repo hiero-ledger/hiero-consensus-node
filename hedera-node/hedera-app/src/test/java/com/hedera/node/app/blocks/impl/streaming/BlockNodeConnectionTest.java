@@ -620,15 +620,14 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
     @Test
     void testOnNext_endOfStream_blockNodeBehind_blockExists() {
         openConnectionAndResetMocks();
-        final PublishStreamResponse response = createEndOfStreamResponse(Code.BEHIND, 10L);
-        when(bufferService.getHighestAckedBlockNumber()).thenReturn(10L);
+        final PublishStreamResponse response = createBlockNodeBehindResponse(10L);
         when(bufferService.getBlockState(11L)).thenReturn(new BlockState(11L));
         connection.updateConnectionState(ConnectionState.ACTIVE);
 
         connection.onNext(response);
 
-        verify(metrics).recordLatestBlockEndOfStream(10L);
-        verify(metrics).recordResponseEndOfStreamReceived(Code.BEHIND);
+        verify(metrics).recordLatestBlockNodeBehindPublisher(10L);
+        verify(metrics).recordResponseReceived(ResponseOneOfType.NODE_BEHIND_PUBLISHER);
         verify(metrics).recordConnectionClosed();
         verify(metrics).recordActiveConnectionIp(-1L);
         verify(requestPipeline).onComplete();
@@ -641,15 +640,15 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
     @Test
     void testOnNext_endOfStream_blockNodeBehind_blockDoesNotExist() {
         openConnectionAndResetMocks();
-        final PublishStreamResponse response = createEndOfStreamResponse(Code.BEHIND, 10L);
+        final PublishStreamResponse response = createBlockNodeBehindResponse(10L);
         when(bufferService.getHighestAckedBlockNumber()).thenReturn(10L);
         when(bufferService.getBlockState(11L)).thenReturn(null);
 
         connection.updateConnectionState(ConnectionState.ACTIVE);
         connection.onNext(response);
 
-        verify(metrics).recordLatestBlockEndOfStream(10L);
-        verify(metrics).recordResponseEndOfStreamReceived(Code.BEHIND);
+        verify(metrics).recordLatestBlockNodeBehindPublisher(10L);
+        verify(metrics).recordResponseReceived(ResponseOneOfType.NODE_BEHIND_PUBLISHER);
         verify(metrics).recordConnectionClosed();
         verify(metrics).recordActiveConnectionIp(-1L);
         verify(metrics).recordRequestEndStreamSent(EndStream.Code.TOO_FAR_BEHIND);
@@ -1608,14 +1607,14 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
     @Test
     void testOnNext_endOfStream_blockNodeBehind_maxValueBlockNumber() {
         openConnectionAndResetMocks();
-        final PublishStreamResponse response = createEndOfStreamResponse(Code.BEHIND, Long.MAX_VALUE);
+        final PublishStreamResponse response = createBlockNodeBehindResponse(Long.MAX_VALUE);
         when(bufferService.getBlockState(0L)).thenReturn(new BlockState(0L));
         connection.updateConnectionState(ConnectionState.ACTIVE);
 
         connection.onNext(response);
 
-        verify(metrics).recordLatestBlockEndOfStream(Long.MAX_VALUE);
-        verify(metrics).recordResponseEndOfStreamReceived(Code.BEHIND);
+        verify(metrics).recordLatestBlockNodeBehindPublisher(Long.MAX_VALUE);
+        verify(metrics).recordResponseReceived(ResponseOneOfType.NODE_BEHIND_PUBLISHER);
         verify(requestPipeline).onComplete();
         verify(connectionManager)
                 .rescheduleConnection(connection, null, 0L, false); // Should restart at 0 for MAX_VALUE

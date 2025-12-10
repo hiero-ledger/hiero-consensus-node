@@ -48,6 +48,7 @@ import org.hiero.block.api.BlockStreamPublishServiceInterface.BlockStreamPublish
 import org.hiero.block.api.PublishStreamRequest;
 import org.hiero.block.api.PublishStreamRequest.EndStream;
 import org.hiero.block.api.PublishStreamResponse;
+import org.hiero.block.api.PublishStreamResponse.BehindPublisher;
 import org.hiero.block.api.PublishStreamResponse.BlockAcknowledgement;
 import org.hiero.block.api.PublishStreamResponse.EndOfStream;
 import org.hiero.block.api.PublishStreamResponse.EndOfStream.Code;
@@ -631,26 +632,6 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                 logger.info("{} Block node orderly ended the stream at block {}.", this, blockNumber);
                 closeAndReschedule(THIRTY_SECONDS, true);
             }
-            case Code.BEHIND -> {
-                // The block node is behind us, check if we have the last verified block still available in order to
-                // restart the stream from there
-                final long restartBlockNumber = blockNumber == Long.MAX_VALUE ? 0 : blockNumber + 1;
-                if (blockBufferService.getBlockState(restartBlockNumber) != null) {
-                    logger.info(
-                            "{} Block node reported it is behind. Will restart stream at block {}.",
-                            this,
-                            restartBlockNumber);
-
-                    closeAndRestart(restartBlockNumber);
-                } else {
-                    // If we don't have the block state, we schedule retry for this connection and establish new one
-                    // with different block node
-                    logger.info("{} Block node is behind and block state is not available. Ending the stream.", this);
-
-                    // Indicate that the block node should recover and catch up from another trustworthy block node
-                    endStreamAndReschedule(TOO_FAR_BEHIND);
-                }
-            }
             case Code.UNKNOWN -> {
                 // This should never happen, but if it does, schedule this connection for a retry attempt
                 // and in the meantime select a new node to stream to
@@ -715,6 +696,35 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
             } else if (resendBlockNumber > blockBufferService.getLastBlockNumberProduced()) {
                 endStreamAndReschedule(ERROR);
             }
+        }
+    }
+
+    /**
+     * Handles the {@link BehindPublisher} response received from the block node.
+     * If the consensus node has the requested block state available, it will start streaming it.
+     * Otherwise, it will close the connection and retry with a different block node.
+     *
+     * @param nodeBehind the BehindPublisher response received from the block node
+     */
+    private void handleBlockNodeBehind(@NonNull final BehindPublisher nodeBehind) {
+        requireNonNull(nodeBehind, "nodeBehind must not be null");
+        final long blockNumber = nodeBehind.blockNumber();
+
+        // The block node is behind us, check if we have the last verified block still available
+        // in order to restart the stream from there
+        final long restartBlockNumber = blockNumber == Long.MAX_VALUE ? 0 : blockNumber + 1;
+        if (blockBufferService.getBlockState(restartBlockNumber) != null) {
+            logger.info(
+                    "{} Block node reported it is behind. Will restart stream at block {}.", this, restartBlockNumber);
+
+            closeAndRestart(restartBlockNumber);
+        } else {
+            // If we don't have the block state, we schedule retry for this connection and establish new one
+            // with different block node
+            logger.info("{} Block node is behind and block state is not available. Ending the stream.", this);
+
+            // Indicate that the block node should recover and catch up from another trustworthy block node
+            endStreamAndReschedule(TOO_FAR_BEHIND);
         }
     }
 
@@ -1010,6 +1020,11 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
             blockStreamMetrics.recordLatestBlockResendBlock(
                     response.resendBlock().blockNumber());
             handleResendBlock(response.resendBlock());
+        } else if (response.hasNodeBehindPublisher()) {
+            blockStreamMetrics.recordResponseReceived(response.response().kind());
+            blockStreamMetrics.recordLatestBlockNodeBehindPublisher(
+                    response.nodeBehindPublisher().blockNumber());
+            handleBlockNodeBehind(response.nodeBehindPublisher());
         } else {
             blockStreamMetrics.recordUnknownResponseReceived();
             logger.debug("{} Unexpected response received: {}.", this, response);
