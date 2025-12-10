@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.event.creator.impl;
 
+import static com.swirlds.component.framework.wires.SolderType.OFFER;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.state.roster.Roster;
@@ -19,6 +20,7 @@ import java.time.Instant;
 import org.hiero.base.crypto.BytesSigner;
 import org.hiero.consensus.crypto.PlatformSigner;
 import org.hiero.consensus.event.creator.EventCreatorModule;
+import org.hiero.consensus.event.creator.config.EventCreationConfig;
 import org.hiero.consensus.event.creator.config.EventCreationWiringConfig;
 import org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreator;
 import org.hiero.consensus.model.event.PlatformEvent;
@@ -59,11 +61,17 @@ public class DefaultEventCreatorModule implements EventCreatorModule {
             throw new IllegalStateException("Already initialized");
         }
 
-        // Set up wiring
+        // Read module configuration
+        final EventCreationConfig eventCreationConfig = configuration.getConfigData(EventCreationConfig.class);
         final EventCreationWiringConfig wiringConfig = configuration.getConfigData(EventCreationWiringConfig.class);
 
+        // Set up component wiring
         this.eventCreationManagerWiring =
                 new ComponentWiring<>(model, EventCreationManager.class, wiringConfig.eventCreationManager());
+
+        // Set up heartbeat wire
+        model.buildHeartbeatWire(eventCreationConfig.creationAttemptRate())
+                .solderTo(eventCreationManagerWiring.getInputWire(EventCreationManager::maybeCreateEvent), OFFER);
 
         // Force not soldered wires to be built
         eventCreationManagerWiring.getInputWire(EventCreationManager::clear);
