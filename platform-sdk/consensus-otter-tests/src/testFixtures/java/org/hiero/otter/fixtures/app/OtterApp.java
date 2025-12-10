@@ -9,7 +9,6 @@ import static org.hiero.otter.fixtures.app.OtterStateUtils.commitState;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
-import com.swirlds.common.context.PlatformContext;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.system.InitTrigger;
@@ -30,7 +29,6 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.event.ConsensusEvent;
 import org.hiero.consensus.model.event.Event;
 import org.hiero.consensus.model.hashgraph.Round;
-import org.hiero.consensus.model.roster.AddressBook;
 import org.hiero.consensus.model.transaction.ConsensusTransaction;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 import org.hiero.consensus.model.transaction.Transaction;
@@ -43,7 +41,6 @@ import org.hiero.otter.fixtures.network.transactions.OtterTransaction;
  * The main entry point for the Otter application. This class is instantiated by the platform when the application is
  * started. It creates the services that make up the application and routes events and rounds to those services.
  */
-@SuppressWarnings("removal")
 public class OtterApp implements ConsensusStateEventHandler<VirtualMapState> {
 
     public static final String UPGRADE_DETECTED_LOG_PAYLOAD = "OtterAppUpgradeDetectedPayload";
@@ -260,16 +257,6 @@ public class OtterApp implements ConsensusStateEventHandler<VirtualMapState> {
         for (final OtterService service : allServices) {
             service.initialize(trigger, platform.getSelfId(), configuration, state);
         }
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    private void onUpdateWeight(
-            @NonNull final VirtualMapState state,
-            @NonNull final AddressBook configAddressBook,
-            @NonNull final PlatformContext context) {
-        // No weight update required yet
     }
 
     /**

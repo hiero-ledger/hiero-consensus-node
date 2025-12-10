@@ -6,7 +6,6 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.node.app.Hedera;
-import com.swirlds.common.context.PlatformContext;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
@@ -16,7 +15,6 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.function.Consumer;
 import org.hiero.consensus.model.event.Event;
 import org.hiero.consensus.model.hashgraph.Round;
-import org.hiero.consensus.model.roster.AddressBook;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 
 /**
@@ -59,13 +57,6 @@ public class ConsensusStateEventHandlerImpl implements ConsensusStateEventHandle
             @NonNull final InitTrigger trigger,
             @Nullable final SemanticVersion previousVersion) {
         hedera.onStateInitialized(state, platform, trigger);
-    }
-
-    public void onUpdateWeight(
-            @NonNull final MerkleNodeState stateRoot,
-            @NonNull final AddressBook configAddressBook,
-            @NonNull final PlatformContext context) {
-        // No-op
     }
 
     @Override
