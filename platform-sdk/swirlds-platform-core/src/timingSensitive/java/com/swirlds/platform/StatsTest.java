@@ -16,7 +16,7 @@ class StatsTest {
      */
     private static final double DEFAULT_HALF_LIFE = 10;
     /**
-     * avg time taken to execute the FCQueue getHash method, including locks (in microseconds)
+     * avg time taken to execute the getHash method, including locks (in microseconds)
      */
     @SuppressWarnings("removal")
     private static final StatsRunningAverage stats = new StatsRunningAverage(DEFAULT_HALF_LIFE);

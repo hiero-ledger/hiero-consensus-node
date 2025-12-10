@@ -3,6 +3,8 @@ package com.hedera.services.bdd.suites.fees;
 
 import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SIMPLE_FEES;
+import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTopicInfo;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.createTopic;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.deleteTopic;
@@ -11,10 +13,12 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.updateTopic;
 import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fixedConsensusHbarFee;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.compareSimpleToOld;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdForQueries;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 
+import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
 import java.util.Arrays;
@@ -28,6 +32,9 @@ import org.junit.jupiter.api.Tag;
 @Tag(MATS)
 @HapiTestLifecycle
 public class ConsensusServiceSimpleFeesSuite {
+    private static final double EXPECTED_CRYPTO_TRANSFER_FEE = 0.0001;
+    private static final String PAYER = "payer";
+    private static final String ADMIN = "admin";
 
     @Nested
     class TopicFeesComparison {
@@ -262,30 +269,17 @@ public class ConsensusServiceSimpleFeesSuite {
                     0.05,
                     1);
         }
-        // TODO: support queries
-        //        @HapiTest()
-        //        @DisplayName("compare get topic info")
-        //        final Stream<DynamicTest> getTopicInfoComparison() {
-        //            return compare(() -> Arrays.asList(
-        //                    newKeyNamed(PAYER),
-        //                    cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
-        //                    // create topic. provide up to 1 hbar to pay for it
-        //                    createTopic("testTopic")
-        //                            .blankMemo()
-        //                            .payingWith(PAYER)
-        //                            .adminKeyName(PAYER)
-        //                            .fee(ONE_HBAR)
-        //                            .via("create-topic-txn"),
-        //                    // the extra 10 is for the admin key
-        //                    validateChargedUsd("create-topic-txn", 0.01022),
-        //                    // get topic info, provide up to 1 hbar to pay for it
-        //                    getTopicInfo("testTopic")
-        //                            .payingWith(PAYER)
-        //                            .fee(ONE_HBAR)
-        //                            .via("get-topic-txn")
-        //                            .logged(),
-        //                    validateChargedUsd("get-topic-txn", 0.000101)));
-        //        }
+
+        @HapiTest
+        @DisplayName("compare get topic info")
+        final Stream<DynamicTest> getTopicInfoComparison() {
+            return hapiTest(
+                    cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
+                    createTopic("testTopic"),
+                    getTopicInfo("testTopic").payingWith(PAYER).via("getInfo"),
+                    // we are paying with the crypto transfer fee
+                    validateChargedUsdForQueries("getInfo", EXPECTED_CRYPTO_TRANSFER_FEE, 1));
+        }
 
         @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
         @DisplayName("compare delete topic with admin key")

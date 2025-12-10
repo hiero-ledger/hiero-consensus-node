@@ -133,17 +133,13 @@ public class MerkleTestBase extends StateTestBase {
 
     /** Sets up the {@link #registry}, ready to be used for serialization tests */
     protected void setupConstructableRegistry() {
-        // Unfortunately, we need to configure the ConstructableRegistry for serialization tests and
-        // even for basic usage of the MerkleMap (it uses it internally to make copies of internal
-        // nodes).
+        // Unfortunately, we need to configure the ConstructableRegistry for serialization tests
         try {
             registry = ConstructableRegistry.getInstance();
 
             // It may have been configured during some other test, so we reset it
             registry.reset();
-            registry.registerConstructables("com.swirlds.merklemap");
             registry.registerConstructables("com.swirlds.merkledb");
-            registry.registerConstructables("com.swirlds.fcqueue");
             registry.registerConstructables("com.swirlds.virtualmap");
             registry.registerConstructables("com.swirlds.common.merkle");
             registry.registerConstructables("com.swirlds.common");
