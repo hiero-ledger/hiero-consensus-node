@@ -217,9 +217,7 @@ public class AddressBookInitializer {
                     STARTUP.getMarker(),
                     "The address book weight may be updated by the application using data from the state snapshot.");
 
-            AddressBook configAddressBookCopy = configAddressBook.copy();
-            consensusStateEventHandler.onUpdateWeight(initialState.getState(), configAddressBookCopy, platformContext);
-            candidateAddressBook = configAddressBookCopy;
+            candidateAddressBook = configAddressBook.copy();
             candidateAddressBook = checkCandidateAddressBookValidity(candidateAddressBook);
             previousAddressBook = stateAddressBook;
             copyCertsIfAbsent(configAddressBook, stateAddressBook);

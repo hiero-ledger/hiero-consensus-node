@@ -14,9 +14,6 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.argThat;
-import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static org.mockito.MockitoAnnotations.openMocks;
@@ -48,7 +45,6 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Objects;
 import java.util.Random;
-import java.util.concurrent.atomic.AtomicReference;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.roster.Address;
 import org.hiero.consensus.model.roster.AddressBook;
@@ -58,7 +54,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.mockito.Mock;
-import org.mockito.stubbing.Stubber;
 
 class AddressBookInitializerTest {
 
@@ -393,7 +388,6 @@ class AddressBookInitializerTest {
             boolean fromGenesis) {
         final SignedState signedState = mock(SignedState.class);
         final SemanticVersion softwareVersion = getMockSoftwareVersion(2);
-        configureUpdateWeightForStateEventHandler(weightValue);
         final MerkleNodeState state = mock(MerkleNodeState.class);
         final ReadableStates readableStates = mock(ReadableStates.class);
         final PlatformStateAccessor platformState = mock(PlatformStateAccessor.class);
@@ -405,55 +399,6 @@ class AddressBookInitializerTest {
         when(signedState.isGenesisState()).thenReturn(fromGenesis);
         when(signedState.getRoster()).thenReturn(currentRoster);
         return signedState;
-    }
-
-    /**
-     * Creates a mock swirld state with the given scenario.
-     *
-     * @param scenario The scenario to load.
-     */
-    private void configureUpdateWeightForStateEventHandler(int scenario) {
-
-        final AtomicReference<AddressBook> configAddressBook = new AtomicReference<>();
-
-        final Stubber stubber;
-
-        switch (scenario) {
-            case 0:
-                stubber = doAnswer(foo -> {
-                    updateWithWeightChanges(configAddressBook.get(), 0);
-                    return null;
-                });
-                break;
-            case 1:
-                stubber = doAnswer(foo -> configAddressBook.get());
-                break;
-            case 2:
-                stubber = doAnswer(foo -> configAddressBook
-                        .get()
-                        .add(configAddressBook
-                                .get()
-                                .getAddress(configAddressBook.get().getNodeId(0))
-                                .copySetNodeId(configAddressBook.get().getNextAvailableNodeId())));
-                break;
-            case 7:
-                stubber = doAnswer(foo -> {
-                    updateWithWeightChanges(configAddressBook.get(), 7);
-                    return null;
-                });
-                break;
-            default:
-                stubber = doAnswer(foo -> copyWithWeightChanges(configAddressBook.get(), 10));
-        }
-
-        stubber.when(consensusStateEventHandler)
-                .onUpdateWeight(
-                        any(),
-                        argThat(confAB -> {
-                            configAddressBook.set(confAB);
-                            return true;
-                        }),
-                        argThat(context -> true));
     }
 
     /**

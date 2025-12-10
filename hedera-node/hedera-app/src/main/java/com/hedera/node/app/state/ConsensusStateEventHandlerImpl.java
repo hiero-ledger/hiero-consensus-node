@@ -61,7 +61,6 @@ public class ConsensusStateEventHandlerImpl implements ConsensusStateEventHandle
         hedera.onStateInitialized(state, platform, trigger);
     }
 
-    @Override
     public void onUpdateWeight(
             @NonNull final MerkleNodeState stateRoot,
             @NonNull final AddressBook configAddressBook,

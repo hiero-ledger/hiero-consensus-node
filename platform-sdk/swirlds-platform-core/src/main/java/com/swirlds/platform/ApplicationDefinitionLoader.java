@@ -20,7 +20,7 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.roster.AddressBook;
 
 /**
- * This class only contains one method that was extracted from the {@link Browser} class.
+ * This class only contains one method that was extracted from the Browser class.
  *
  * @deprecated will be replaced by the {@link com.swirlds.config.api.Configuration} API in near future once the
  * config.txt has been migrated to the regular config API. If you need to use this class please try to do as less static

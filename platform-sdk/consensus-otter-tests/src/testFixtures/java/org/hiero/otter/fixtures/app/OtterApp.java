@@ -265,8 +265,7 @@ public class OtterApp implements ConsensusStateEventHandler<VirtualMapState> {
     /**
      * {@inheritDoc}
      */
-    @Override
-    public void onUpdateWeight(
+    private void onUpdateWeight(
             @NonNull final VirtualMapState state,
             @NonNull final AddressBook configAddressBook,
             @NonNull final PlatformContext context) {

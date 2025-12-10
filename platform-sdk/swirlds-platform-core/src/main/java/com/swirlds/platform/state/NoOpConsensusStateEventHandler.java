@@ -53,8 +53,7 @@ public enum NoOpConsensusStateEventHandler implements ConsensusStateEventHandler
         // no-op
     }
 
-    @Override
-    public void onUpdateWeight(
+    private void onUpdateWeight(
             @NonNull MerkleNodeState state, @NonNull AddressBook configAddressBook, @NonNull PlatformContext context) {
         // no-op
     }
