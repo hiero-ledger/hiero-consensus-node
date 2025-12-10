@@ -20,17 +20,17 @@ permissions:
   contents: read
 
 jobs:
-  code:
-    name: Compile Code
-    uses: ./.github/workflows/node-zxc-compile-application-code.yaml
-    with:
-      java-version: "21.0.6"
-      java-distribution: "temurin"
-      enable-spotless-check: false
-    secrets:
-      access-token: ${{ secrets.GITHUB_TOKEN }}
-      gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
-      gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
+  #  code:
+  #    name: Compile Code
+  #    uses: ./.github/workflows/node-zxc-compile-application-code.yaml
+  #    with:
+  #      java-version: "21.0.6"
+  #      java-distribution: "temurin"
+  #      enable-spotless-check: false
+  #    secrets:
+  #      access-token: ${{ secrets.GITHUB_TOKEN }}
+  #      gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
+  #      gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
   #
   #  dependency-check:
   #    name: Dependency (Module Info)
@@ -115,10 +115,8 @@ jobs:
     name: Report MATS execution failure
     runs-on: hiero-citr-linux-medium
     needs:
-      - code
       - spotless
-    if: ${{ (needs.code.result != 'success' ||
-      needs.spotless.result == 'success' ) &&
+    if: ${{ ( needs.spotless.result == 'success' ) &&
       !cancelled() && always() }}
 
     steps:
