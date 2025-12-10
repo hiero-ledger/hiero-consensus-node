@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.exec.systemcontracts.has;
 
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.HasSystemContract.HAS_EVM_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.isLongZero;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.numberOfLongZero;
 import static java.util.Objects.requireNonNull;
@@ -13,12 +14,11 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.Abs
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.AbstractCallAttempt;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.Call;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.CallAttemptOptions;
-import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethod;
-import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethod.SystemContract;
 import com.hedera.node.app.spi.signatures.SignatureVerifier;
 import com.hedera.node.config.data.HederaConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.util.Set;
 import org.apache.tuweni.bytes.Bytes;
 import org.hyperledger.besu.datatypes.Address;
 
@@ -28,8 +28,9 @@ import org.hyperledger.besu.datatypes.Address;
  * everything it will need to execute.
  */
 public class HasCallAttempt extends AbstractCallAttempt<HasCallAttempt> {
-    /** Selector for redirectForAccount(address,bytes) method. */
-    public static final Function REDIRECT_FOR_ACCOUNT = new Function("redirectForAccount(address,bytes)");
+    private static final Set<Address> HAS_ADDRESSES = Set.of(Address.fromHexString(HAS_EVM_ADDRESS));
+
+    public static final Function LEGACY_REDIRECT_FOR_ACCOUNT = new Function("redirectForAccount(address,bytes)");
 
     @Nullable
     private final Account redirectAccount;
@@ -41,18 +42,12 @@ public class HasCallAttempt extends AbstractCallAttempt<HasCallAttempt> {
             @NonNull final Bytes input,
             @NonNull final CallAttemptOptions<HasCallAttempt> options,
             @NonNull final SignatureVerifier signatureVerifier) {
-        super(input, options, REDIRECT_FOR_ACCOUNT);
-        if (isRedirect()) {
-            this.redirectAccount = linkedAccount(requireNonNull(redirectAddress));
-        } else {
-            this.redirectAccount = null;
-        }
-        this.signatureVerifier = requireNonNull(signatureVerifier);
-    }
+        super(input, options, HAS_ADDRESSES, LEGACY_REDIRECT_FOR_ACCOUNT);
 
-    @Override
-    protected SystemContract systemContractKind() {
-        return SystemContractMethod.SystemContract.HAS;
+        this.redirectAccount =
+                this.maybeRedirectAddress.map(this::linkedAccount).orElse(null);
+
+        this.signatureVerifier = requireNonNull(signatureVerifier);
     }
 
     @Override

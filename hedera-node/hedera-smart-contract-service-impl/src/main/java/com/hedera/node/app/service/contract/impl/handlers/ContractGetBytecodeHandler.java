@@ -6,6 +6,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_CONTRACT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
 import static com.hedera.hapi.node.base.ResponseType.ANSWER_ONLY;
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbjResponseType;
+import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.tuweniToPbjBytes;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.ContractID;
@@ -21,8 +22,8 @@ import com.hedera.hapi.node.transaction.Query;
 import com.hedera.hapi.node.transaction.Response;
 import com.hedera.node.app.hapi.utils.fee.SmartContractFeeBuilder;
 import com.hedera.node.app.service.contract.impl.state.ContractStateStore;
-import com.hedera.node.app.service.contract.impl.utils.ConversionUtils;
-import com.hedera.node.app.service.contract.impl.utils.RedirectBytecodeUtils;
+import com.hedera.node.app.service.contract.impl.state.ScheduleEvmAccount;
+import com.hedera.node.app.service.contract.impl.state.TokenEvmAccount;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.workflows.PreCheckException;
@@ -130,38 +131,43 @@ public class ContractGetBytecodeHandler extends AbstractContractPaidQueryHandler
      * @return Bytecode
      */
     private Bytes bytecodeFrom(@NonNull final QueryContext context) {
-        final ContractID contractId;
-        final Account account;
-        final Token token;
-        final Schedule schedule;
-        if ((contractId = getContractId(context)) == null) {
+        final ContractID contractId = getContractId(context);
+        if (contractId == null) {
             return null;
-        } else if ((account = accountFrom(context, contractId)) != null) {
+        }
+
+        // Try resolving as an account
+        final Account account = accountFrom(context, contractId);
+        if (account != null) {
             if (account.deleted()) {
                 return null;
-            } else if (account.smartContract()) {
-                return bytecodeFrom(context, account);
             } else {
-                return RedirectBytecodeUtils.accountProxyBytecodePjb(
-                        ConversionUtils.contractIDToBesuAddress(entityIdFactory, contractId));
+                return bytecodeFrom(context, account);
             }
-        } else if ((token = tokenFrom(context, contractId)) != null) {
+        }
+
+        // Try resolving as a token
+        final Token token = tokenFrom(context, contractId);
+        if (token != null) {
             if (token.deleted()) {
                 return null;
             } else {
-                return RedirectBytecodeUtils.tokenProxyBytecodePjb(
-                        ConversionUtils.contractIDToBesuAddress(entityIdFactory, contractId));
+                return tuweniToPbjBytes(TokenEvmAccount.CODE);
             }
-        } else if ((schedule = scheduleFrom(context, contractId)) != null) {
+        }
+
+        // Try resolving as a schedule
+        final Schedule schedule = scheduleFrom(context, contractId);
+        if (schedule != null) {
             if (schedule.deleted()) {
                 return null;
             } else {
-                return RedirectBytecodeUtils.scheduleProxyBytecodePjb(
-                        ConversionUtils.contractIDToBesuAddress(entityIdFactory, contractId));
+                return tuweniToPbjBytes(ScheduleEvmAccount.CODE);
             }
-        } else {
-            return null;
         }
+
+        // Fallback to null
+        return null;
     }
 
     /**

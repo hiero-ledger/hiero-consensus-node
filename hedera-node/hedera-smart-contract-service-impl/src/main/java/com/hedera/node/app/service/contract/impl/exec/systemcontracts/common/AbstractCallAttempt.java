@@ -12,7 +12,6 @@ import com.hedera.node.app.service.contract.impl.exec.scope.HederaNativeOperatio
 import com.hedera.node.app.service.contract.impl.exec.scope.VerificationStrategy;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.AddressIdConverter;
 import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethod;
-import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethod.SystemContract;
 import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethodRegistry;
 import com.hedera.node.app.service.contract.impl.hevm.HederaWorldUpdater;
 import com.swirlds.config.api.Configuration;
@@ -21,6 +20,7 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.BufferUnderflowException;
 import java.util.Arrays;
 import java.util.Optional;
+import java.util.Set;
 import org.apache.tuweni.bytes.Bytes;
 import org.hyperledger.besu.datatypes.Address;
 
@@ -35,50 +35,57 @@ public abstract class AbstractCallAttempt<T extends AbstractCallAttempt<T>> {
     protected final AccountID senderId;
     protected final Bytes input;
     protected final byte[] selector;
-    // If non-null, the address of a non-contract entity (e.g., account or token) whose
-    // "bytecode" redirects all calls to a system contract address, and was determined
-    // to be the redirecting entity for this call attempt
-    protected @Nullable final Address redirectAddress;
+    protected final Optional<Address> maybeRedirectAddress;
+
+    private boolean matchesFnSelector(Function fn, Bytes input) {
+        final var selector = fn.selector();
+        return Arrays.equals(input.toArrayUnsafe(), 0, selector.length, selector, 0, selector.length);
+    }
 
     /**
      * @param input the input in bytes
      * @param options the AbstractCallAttempt parameters and options
-     * @param redirectFunction the redirect function
      */
     public AbstractCallAttempt(
             // we are keeping the 'input' out of the 'options' for not duplicate and keep close to related params
             @NonNull final Bytes input,
             @NonNull final CallAttemptOptions<T> options,
-            @NonNull final Function redirectFunction) {
+            Set<Address> systemContractAddresses,
+            Function legacyRedirectFunction) {
         requireNonNull(input);
-        requireNonNull(redirectFunction);
         this.options = requireNonNull(options);
         this.senderId = options.addressIdConverter().convertSender(options.senderAddress());
 
-        if (isRedirectSelector(redirectFunction.selector(), input.toArrayUnsafe())) {
+        // If the recipient address of this call doesn't match the system contract address
+        // it means we're running an EIP-7702 delegation (i.e. a facade/redirect call).
+        final var isDelegationRedirect = !systemContractAddresses.contains(options.recipientAddress());
+        if (isDelegationRedirect) {
+            this.maybeRedirectAddress = Optional.of(options.recipientAddress());
+            this.input = input;
+        } else if (matchesFnSelector(legacyRedirectFunction, input)) {
             Tuple abiCall = null;
             try {
-                // First try to decode the redirect with standard ABI encoding using a 32-byte address
-                abiCall = redirectFunction.decodeCall(input.toArrayUnsafe());
+                abiCall = legacyRedirectFunction.decodeCall(input.toArrayUnsafe());
             } catch (IllegalArgumentException | BufferUnderflowException | IndexOutOfBoundsException ignore) {
-                // Otherwise use the "packed" encoding with a 20-byte address
+                // no-op
             }
             if (abiCall != null) {
-                this.redirectAddress = Address.fromHexString(abiCall.get(0).toString());
+                this.maybeRedirectAddress =
+                        Optional.of(Address.fromHexString(abiCall.get(0).toString()));
                 this.input = Bytes.wrap((byte[]) abiCall.get(1));
             } else {
-                this.redirectAddress = Address.wrap(input.slice(4, 20));
+                // TODO(Pectra): consider dropping support for proxy calls that don't confirm to ABI
+                this.maybeRedirectAddress = Optional.of(Address.wrap(input.slice(4, 20)));
                 this.input = input.slice(24);
             }
         } else {
-            this.redirectAddress = null;
+            // A regular call; neither EIP-7702 redirect nor legacy redirect function. Process as-is.
+            this.maybeRedirectAddress = Optional.empty();
             this.input = input;
         }
 
         this.selector = this.input.slice(0, 4).toArrayUnsafe();
     }
-
-    protected abstract SystemContract systemContractKind();
 
     protected abstract T self();
 
@@ -216,7 +223,7 @@ public abstract class AbstractCallAttempt<T extends AbstractCallAttempt<T>> {
      * @return whether the current call attempt is redirected to a system contract address
      */
     public boolean isRedirect() {
-        return redirectAddress != null;
+        return this.maybeRedirectAddress.isPresent();
     }
 
     /**
@@ -260,16 +267,6 @@ public abstract class AbstractCallAttempt<T extends AbstractCallAttempt<T>> {
     public boolean isSelectorIfConfigEnabled(
             final boolean configEnabled, @NonNull final SystemContractMethod... methods) {
         return configEnabled && isSelector(methods);
-    }
-
-    /**
-     * Returns whether this call attempt is a selector for any of the given functions.
-     * @param functionSelector bytes of the function selector
-     * @param input input bytes
-     * @return true if the function selector at the start of the input bytes
-     */
-    private boolean isRedirectSelector(@NonNull final byte[] functionSelector, @NonNull final byte[] input) {
-        return Arrays.equals(input, 0, functionSelector.length, functionSelector, 0, functionSelector.length);
     }
 
     /**

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.exec.systemcontracts.hss;
 
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.HssSystemContract.HSS_EVM_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.isLongZero;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.maybeMissingNumberOf;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.numberOfLongZero;
@@ -15,8 +16,6 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.Abs
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.AbstractCallAttempt;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.Call;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.CallAttemptOptions;
-import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethod;
-import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethod.SystemContract;
 import com.hedera.node.app.spi.signatures.SignatureVerifier;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -30,8 +29,10 @@ import org.hyperledger.besu.datatypes.Address;
  * everything it will need to execute.
  */
 public class HssCallAttempt extends AbstractCallAttempt<HssCallAttempt> {
-    /** Selector for redirectForScheduleTxn(address,bytes) method. */
-    public static final Function REDIRECT_FOR_SCHEDULE_TXN = new Function("redirectForScheduleTxn(address,bytes)");
+    private static final Set<Address> HSS_ADDRESSES = Set.of(Address.fromHexString(HSS_EVM_ADDRESS));
+
+    public static final Function LEGACY_REDIRECT_FOR_SCHEDULE_TXN =
+            new Function("redirectForScheduleTxn(address,bytes)");
 
     @Nullable
     private final Schedule redirectScheduleTxn;
@@ -43,18 +44,12 @@ public class HssCallAttempt extends AbstractCallAttempt<HssCallAttempt> {
             @NonNull final Bytes input,
             @NonNull final CallAttemptOptions<HssCallAttempt> options,
             @NonNull final SignatureVerifier signatureVerifier) {
-        super(input, options, REDIRECT_FOR_SCHEDULE_TXN);
-        if (isRedirect()) {
-            this.redirectScheduleTxn = linkedSchedule(requireNonNull(redirectAddress));
-        } else {
-            this.redirectScheduleTxn = null;
-        }
-        this.signatureVerifier = signatureVerifier;
-    }
+        super(input, options, HSS_ADDRESSES, LEGACY_REDIRECT_FOR_SCHEDULE_TXN);
 
-    @Override
-    protected SystemContract systemContractKind() {
-        return SystemContractMethod.SystemContract.HSS;
+        this.redirectScheduleTxn =
+                this.maybeRedirectAddress.map(this::linkedSchedule).orElse(null);
+
+        this.signatureVerifier = signatureVerifier;
     }
 
     @Override
