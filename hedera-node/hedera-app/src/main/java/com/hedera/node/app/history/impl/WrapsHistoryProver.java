@@ -240,7 +240,9 @@ public class WrapsHistoryProver implements HistoryProver {
                 // In general the metadata in the WRAPS message is the target metadata (which is the hinTS verification
                 // key in the current TSS scheme); but for the special case of a source proof with a non-recursive
                 // proof, the additional signing work we need to do is actually over certain placeholder metadata
-                final var metadata = proofIsWrapsGenesis() ? GENESIS_WRAPS_METADATA : targetMetadata.toByteArray();
+                final var metadata = (tssConfig.wrapsEnabled() && proofIsWrapsGenesis())
+                        ? GENESIS_WRAPS_METADATA
+                        : targetMetadata.toByteArray();
                 wrapsMessage = historyLibrary.computeWrapsMessage(targetAddressBook, metadata);
                 targetAddressBookHash = historyLibrary.hashAddressBook(targetAddressBook);
             }
@@ -536,6 +538,12 @@ public class WrapsHistoryProver implements HistoryProver {
                                 message, rawMessagesFor(R1), rawMessagesFor(R2), rawMessagesFor(R3), publicKeysForR1());
                         // Sans source proof, we are at genesis and need an aggregate signature proof right away
                         if (sourceProof == null || !tssConfig.wrapsEnabled()) {
+                            final var isValid =
+                                    historyLibrary.verifyAggregateSignature(message, publicKeysForR1(), signature);
+                            if (!isValid) {
+                                throw new IllegalStateException("Invalid aggregate signature using nodes "
+                                        + phaseMessages.get(R1).keySet());
+                            }
                             yield new AggregatePhaseOutput(
                                     signature,
                                     phaseMessages.get(R1).keySet().stream().toList());

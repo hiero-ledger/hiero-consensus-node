@@ -349,6 +349,7 @@ class WrapsHistoryProverTest {
                 .willReturn(AGG_SIG.toByteArray());
         given(submissions.submitExplicitProofVote(eq(CONSTRUCTION_ID), any()))
                 .willReturn(CompletableFuture.completedFuture(null));
+        given(historyLibrary.verifyAggregateSignature(any(), any(), any())).willReturn(true);
 
         setField("entropy", new byte[32]);
         subject.replayWrapsSigningMessage(CONSTRUCTION_ID, new WrapsMessagePublication(SELF_ID, R1_MESSAGE, R1, EPOCH));
