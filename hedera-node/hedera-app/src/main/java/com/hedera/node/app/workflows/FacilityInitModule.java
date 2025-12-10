@@ -104,6 +104,13 @@ public interface FacilityInitModule {
     @Provides
     @ElementsIntoSet
     @Singleton
+    static Set<QueryFeeCalculator> provideTokenQueryFeeCalculators(TokenServiceImpl tokenService) {
+        return tokenService.queryFeeCalculators();
+    }
+
+    @Provides
+    @ElementsIntoSet
+    @Singleton
     static Set<ServiceFeeCalculator> provideScheduleServiceFeeCalculators(ScheduleServiceImpl scheduleService) {
         return scheduleService.serviceFeeCalculators();
     }
