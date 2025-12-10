@@ -86,30 +86,30 @@ jobs:
       gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
       snyk-token: ${{ secrets.SNYK_TOKEN }}
 
-#  deploy-ci-trigger:
-#    name: Trigger CI Flows
-#    runs-on: hiero-citr-linux-medium
-#    needs:
-#      - mats-tests
-#    if: ${{ needs.mats-tests.result == 'success' }}
-#    steps:
-#      - name: Harden Runner
-#        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
-#        with:
-#          egress-policy: audit
-#
-#      - name: Trigger ZXF Deploy Production Release
-#        uses: step-security/workflow-dispatch@b4c1dc0afa074d0b4f0e653d3b80d4b2798599aa # v1.2.7
-#        with:
-#          workflow: .github/workflows/node-flow-deploy-release-artifact.yaml
-#          repo: hiero-ledger/hiero-consensus-node # ensure we are executing in the hiero-ledger org
-#          ref: main # ensure we are always using the workflow definition from the main branch
-#          token: ${{ secrets.GH_ACCESS_TOKEN }}
-#          inputs: '{
-#            "ref": "${{ github.sha }}",
-#            "ref-name": "${{ github.ref_name }}",
-#            "dry-run-enabled": false
-#            }'
+  #  deploy-ci-trigger:
+  #    name: Trigger CI Flows
+  #    runs-on: hiero-citr-linux-medium
+  #    needs:
+  #      - mats-tests
+  #    if: ${{ needs.mats-tests.result == 'success' }}
+  #    steps:
+  #      - name: Harden Runner
+  #        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+  #        with:
+  #          egress-policy: audit
+  #
+  #      - name: Trigger ZXF Deploy Production Release
+  #        uses: step-security/workflow-dispatch@b4c1dc0afa074d0b4f0e653d3b80d4b2798599aa # v1.2.7
+  #        with:
+  #          workflow: .github/workflows/node-flow-deploy-release-artifact.yaml
+  #          repo: hiero-ledger/hiero-consensus-node # ensure we are executing in the hiero-ledger org
+  #          ref: main # ensure we are always using the workflow definition from the main branch
+  #          token: ${{ secrets.GH_ACCESS_TOKEN }}
+  #          inputs: '{
+  #            "ref": "${{ github.sha }}",
+  #            "ref-name": "${{ github.ref_name }}",
+  #            "dry-run-enabled": false
+  #            }'
 
   report-failure:
     name: Report MATS execution failure
@@ -119,7 +119,7 @@ jobs:
       - dependency-check
       - spotless
       - mats-tests
-#      - deploy-ci-trigger
+    #      - deploy-ci-trigger
     if: ${{ (needs.code.result == 'success' ||
       needs.dependency-check.result != 'success' ||
       needs.spotless.result != 'success' ||
