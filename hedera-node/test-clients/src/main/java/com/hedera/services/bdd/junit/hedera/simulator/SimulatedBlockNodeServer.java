@@ -233,6 +233,17 @@ public class SimulatedBlockNodeServer {
     }
 
     /**
+     * Send a NodeBehindPublisher response immediately to all active streams.
+     * This indicates that the block node is behind the publisher and needs to catch up.
+     *
+     * @param blockNumber the last verified block number to include in the response
+     */
+    public void sendNodeBehindPublisherImmediately(final long blockNumber) {
+        serviceImpl.sendNodeBehindPublisherToAllStreams(blockNumber);
+        log.info("Sent immediate NodeBehindPublisher response for block {} on port {}", blockNumber, port);
+    }
+
+    /**
      * Gets the last verified block number.
      *
      * @return the last verified block number, initially -1 if no blocks have been verified
@@ -625,6 +636,37 @@ public class SimulatedBlockNodeServer {
             }
         }
 
+        /**
+         * Sends a NodeBehindPublisher response to all active streams.
+         * This indicates that the block node is behind the publisher and needs to catch up.
+         *
+         * @param blockNumber the last verified block number
+         */
+        public void sendNodeBehindPublisherToAllStreams(final long blockNumber) {
+            log.info(
+                    "Sending NodeBehindPublisher for block {} to {} active streams on port {}",
+                    blockNumber,
+                    activeStreams.size(),
+                    port);
+            // Use lock for consistent locking strategy with other methods
+            blockTrackingLock.readLock().lock(); // Read lock is sufficient for iteration
+            try {
+                for (final Pipeline<? super PublishStreamResponse> pipeline : activeStreams) {
+                    try {
+                        sendNodeBehindPublisher(pipeline, blockNumber);
+                    } catch (final Exception e) {
+                        log.error(
+                                "Failed to send NodeBehindPublisher to stream {} on port {}",
+                                pipeline.hashCode(),
+                                port,
+                                e);
+                    }
+                }
+            } finally {
+                blockTrackingLock.readLock().unlock();
+            }
+        }
+
         // Helper methods for sending specific responses
 
         /**
@@ -691,6 +733,29 @@ public class SimulatedBlockNodeServer {
                     PublishStreamResponse.newBuilder().resendBlock(resendBlock).build();
             pipeline.onNext(response);
             log.debug("Sent ResendBlock for block {} to stream {} on port {}", blockNumber, pipeline.hashCode(), port);
+        }
+
+        /**
+         * Sends a NodeBehindPublisher response to a specific pipeline.
+         *
+         * @param pipeline the pipeline to send the response to, must not be null
+         * @param blockNumber the last verified block number
+         * @throws NullPointerException if the pipeline is null
+         */
+        private void sendNodeBehindPublisher(
+                @NonNull final Pipeline<? super PublishStreamResponse> pipeline, final long blockNumber) {
+            requireNonNull(pipeline, "pipeline cannot be null");
+            final BehindPublisher behindPublisher =
+                    BehindPublisher.newBuilder().blockNumber(blockNumber).build();
+            final PublishStreamResponse response = PublishStreamResponse.newBuilder()
+                    .nodeBehindPublisher(behindPublisher)
+                    .build();
+            pipeline.onNext(response);
+            log.debug(
+                    "Sent NodeBehindPublisher for block {} to stream {} on port {}",
+                    blockNumber,
+                    pipeline.hashCode(),
+                    port);
         }
 
         /**
