@@ -32,6 +32,7 @@ import com.hedera.node.app.service.token.api.TokenServiceApi;
 import com.hedera.node.app.service.token.impl.WritableAccountStore;
 import com.hedera.node.app.service.token.impl.validators.StakingValidator;
 import com.hedera.node.app.spi.fees.Fees;
+import com.hedera.node.app.spi.fees.NodeFeeAccumulator;
 import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.validation.ExpiryValidator;
 import com.hedera.node.app.spi.workflows.HandleException;
@@ -60,15 +61,18 @@ public class TokenServiceApiImpl implements TokenServiceApi {
     private static final Logger logger = LogManager.getLogger(TokenServiceApiImpl.class);
 
     private final WritableAccountStore accountStore;
-    private final AccountID fundingAccountID;
-    private final AccountID stakingRewardAccountID;
+    private final NodeFeeAccumulator nodeFeeAccumulator;
     private final AccountID nodeRewardAccountID;
+    private final AccountID feeCollectionAccountID;
     private final NodesConfig nodesConfig;
-    private final StakingConfig stakingConfig;
     private final Predicate<CryptoTransferTransactionBody> customFeeTest;
 
+    private final StakingConfig stakingConfig;
+    private final AccountID fundingAccountID;
+    private final AccountID stakingRewardAccountID;
+
     /**
-     * Constructs a {@link TokenServiceApiImpl}.
+     * Constructs a {@link TokenServiceApiImpl}.Used only in tests
      *
      * @param config the configuration
      * @param writableStates the writable states
@@ -80,9 +84,28 @@ public class TokenServiceApiImpl implements TokenServiceApi {
             @NonNull final WritableStates writableStates,
             @NonNull final Predicate<CryptoTransferTransactionBody> customFeeTest,
             @NonNull final WritableEntityCounters entityCounters) {
+        this(config, writableStates, customFeeTest, entityCounters, NodeFeeAccumulator.NOOP);
+    }
+
+    /**
+     * Constructs a {@link TokenServiceApiImpl} with a node fee accumulator.
+     *
+     * @param config the configuration
+     * @param writableStates the writable states
+     * @param customFeeTest a predicate for determining if a transfer has custom fees
+     * @param entityCounters the entity counters
+     * @param nodeFeeAccumulator the accumulator for node fees (used for in-memory fee accumulation)
+     */
+    public TokenServiceApiImpl(
+            @NonNull final Configuration config,
+            @NonNull final WritableStates writableStates,
+            @NonNull final Predicate<CryptoTransferTransactionBody> customFeeTest,
+            @NonNull final WritableEntityCounters entityCounters,
+            @NonNull final NodeFeeAccumulator nodeFeeAccumulator) {
         this.customFeeTest = customFeeTest;
         requireNonNull(config);
         this.accountStore = new WritableAccountStore(writableStates, entityCounters);
+        this.nodeFeeAccumulator = requireNonNull(nodeFeeAccumulator);
 
         nodesConfig = config.getConfigData(NodesConfig.class);
         // Determine whether staking is enabled
@@ -104,6 +127,11 @@ public class TokenServiceApiImpl implements TokenServiceApi {
                 .shardNum(hederaConfig.shard())
                 .realmNum(hederaConfig.realm())
                 .accountNum(config.getConfigData(AccountsConfig.class).nodeRewardAccount())
+                .build();
+        feeCollectionAccountID = AccountID.newBuilder()
+                .shardNum(hederaConfig.shard())
+                .realmNum(hederaConfig.realm())
+                .accountNum(config.getConfigData(AccountsConfig.class).feeCollectionAccount())
                 .build();
     }
 
@@ -365,7 +393,12 @@ public class TokenServiceApiImpl implements TokenServiceApi {
         if (cb == null) {
             feeBuilder.transactionFee(feeBuilder.transactionFee() + amountToCharge);
         }
-        distributeToNetworkFundingAccounts(amountToCharge, cb);
+        if (nodesConfig.feeCollectionAccountEnabled()) {
+            payFeeCollectionAccount(amountToCharge, cb);
+        } else {
+            distributeToNetworkFundingAccounts(amountToCharge, cb);
+        }
+
         return new Fees(0, amountToCharge, 0);
     }
 
@@ -373,7 +406,9 @@ public class TokenServiceApiImpl implements TokenServiceApi {
     public void refundFee(@NonNull final AccountID payerId, final long amount, @NonNull final FeeStreamBuilder rb) {
         requireNonNull(payerId);
         requireNonNull(rb);
-        final long retractedAmount = retractFromNetworkFundingAccounts(amount);
+        final long retractedAmount = nodesConfig.feeCollectionAccountEnabled()
+                ? retractFromFeeCollectionAccount(amount)
+                : retractFromNetworkFundingAccounts(amount);
         final var payerAccount = lookupAccount("Payer", payerId);
         refundPayer(payerAccount, retractedAmount);
         rb.transactionFee(Math.max(0, rb.transactionFee() - retractedAmount));
@@ -415,17 +450,30 @@ public class TokenServiceApiImpl implements TokenServiceApi {
         chargePayer(payerAccount, amountToCharge, cb);
         // Record the amount charged into the record builder
         rb.transactionFee(amountToCharge);
-        distributeToNetworkFundingAccounts(amountToDistributeToFundingAccounts, cb);
+        if (nodesConfig.feeCollectionAccountEnabled()) {
+            payFeeCollectionAccount(amountToDistributeToFundingAccounts, cb);
+        } else {
+            distributeToNetworkFundingAccounts(amountToDistributeToFundingAccounts, cb);
+        }
 
         if (chargeableNodeFee > 0) {
-            final var nodeAccount = lookupAccount("Node account", nodeAccountId);
-            accountStore.put(nodeAccount
-                    .copyBuilder()
-                    .tinybarBalance(nodeAccount.tinybarBalance() + chargeableNodeFee)
-                    .build());
-            if (cb != null) {
-                cb.accept(nodeAccountId, chargeableNodeFee);
+            if (nodesConfig.feeCollectionAccountEnabled()) {
+                // Update node payments map with this amount and send this payment to fee collection account.
+                // This will be distributed to node accounts at the end of the day
+                payFeeCollectionAccount(chargeableNodeFee, cb);
+                // Accumulate node fees in memory - will be written to state at block boundaries
+                nodeFeeAccumulator.accumulate(nodeAccountId, chargeableNodeFee);
+            } else {
+                final var nodeAccount = lookupAccount("Node account", nodeAccountId);
+                accountStore.put(nodeAccount
+                        .copyBuilder()
+                        .tinybarBalance(nodeAccount.tinybarBalance() + chargeableNodeFee)
+                        .build());
+                if (cb != null) {
+                    cb.accept(nodeAccountId, chargeableNodeFee);
+                }
             }
+            // onNodeFee is used for node rewards, so still update this callback
             onNodeFee.accept(chargeableNodeFee);
         }
         if (amountToCharge == fees.totalFee()) {
@@ -460,7 +508,9 @@ public class TokenServiceApiImpl implements TokenServiceApi {
             onNodeRefund.accept(amountToRetract);
             amountRetracted += amountToRetract;
         }
-        amountRetracted += retractFromNetworkFundingAccounts(fees.totalWithoutNodeFee());
+        amountRetracted += nodesConfig.feeCollectionAccountEnabled()
+                ? retractFromFeeCollectionAccount(fees.totalWithoutNodeFee())
+                : retractFromNetworkFundingAccounts(fees.totalWithoutNodeFee());
         final var payerAccount = lookupAccount("Payer", payerId);
         refundPayer(payerAccount, amountRetracted);
         rb.transactionFee(Math.max(0, rb.transactionFee() - amountRetracted));
@@ -708,6 +758,45 @@ public class TokenServiceApiImpl implements TokenServiceApi {
 
     private EntityType getEntityType(@NonNull final Account account) {
         return account.smartContract() ? EntityType.CONTRACT_BYTECODE : EntityType.ACCOUNT;
+    }
+
+    private void payFeeCollectionAccount(final long amount) {
+        if (amount == 0) return;
+        final var feeCollection = lookupAccount("Fee collection", feeCollectionAccountID);
+        accountStore.put(feeCollection
+                .copyBuilder()
+                .tinybarBalance(feeCollection.tinybarBalance() + amount)
+                .build());
+    }
+
+    private long retractFeeCollectionAccount(final long amount) {
+        if (amount == 0) return 0L;
+        final var feeCollectionAccount = lookupAccount("Fee collection", feeCollectionAccountID);
+        final long balance = feeCollectionAccount.tinybarBalance();
+        final long amountToRetract = Math.min(amount, balance);
+        accountStore.put(feeCollectionAccount
+                .copyBuilder()
+                .tinybarBalance(balance - amountToRetract)
+                .build());
+        return amountToRetract;
+    }
+
+    private void payFeeCollectionAccount(final long amount, @Nullable final ObjLongConsumer<AccountID> cb) {
+        payFeeCollectionAccount(amount);
+        if (cb != null) {
+            cb.accept(feeCollectionAccountID, amount);
+        }
+    }
+
+    private long retractFromFeeCollectionAccount(final long amount) {
+        final var nodeRewardAccount = lookupAccount("Node rewards", nodeRewardAccountID);
+        final boolean preservingRewardBalance =
+                nodesConfig.nodeRewardsEnabled() && nodesConfig.preserveMinNodeRewardBalance();
+        if (!preservingRewardBalance || nodeRewardAccount.tinybarBalance() > nodesConfig.minNodeRewardBalance()) {
+            return retractFeeCollectionAccount(amount);
+        } else {
+            return retractNodeRewardAccount(amount);
+        }
     }
 
     private void distributeToNetworkFundingAccounts(final long amount, @Nullable final ObjLongConsumer<AccountID> cb) {

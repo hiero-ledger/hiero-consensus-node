@@ -38,6 +38,7 @@ import com.hedera.node.app.records.impl.BlockRecordManagerImpl;
 import com.hedera.node.app.service.schedule.ScheduleService;
 import com.hedera.node.app.service.token.impl.handlers.staking.StakeInfoHelper;
 import com.hedera.node.app.service.token.impl.handlers.staking.StakePeriodManager;
+import com.hedera.node.app.services.NodeFeeDistributor;
 import com.hedera.node.app.services.NodeRewardManager;
 import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.info.NodeInfo;
@@ -178,6 +179,9 @@ class HandleWorkflowTest {
 
     @Mock
     private PlatformState platformState;
+
+    @Mock
+    private NodeFeeDistributor nodeFeeDistributor;
 
     private HandleWorkflow subject;
 
@@ -512,7 +516,8 @@ class HandleWorkflowTest {
                 nodeRewardManager,
                 blockBufferService,
                 Map.of(),
-                quiescenceController);
+                quiescenceController,
+                nodeFeeDistributor);
     }
 
     @Test

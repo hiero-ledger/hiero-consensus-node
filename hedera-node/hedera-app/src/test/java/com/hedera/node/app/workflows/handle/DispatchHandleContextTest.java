@@ -84,6 +84,7 @@ import com.hedera.node.app.spi.fees.FeeCalculator;
 import com.hedera.node.app.spi.fees.FeeCharging;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
+import com.hedera.node.app.spi.fees.NodeFeeAccumulator;
 import com.hedera.node.app.spi.fees.ResourcePriceCalculator;
 import com.hedera.node.app.spi.fixtures.Scenarios;
 import com.hedera.node.app.spi.info.NetworkInfo;
@@ -312,7 +313,7 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
     void setup() {
         when(serviceScopeLookup.getServiceName(any())).thenReturn(TokenService.NAME);
         readableStoreFactory = new ReadableStoreFactory(baseState);
-        apiFactory = new ServiceApiFactory(stack, configuration, Map.of());
+        apiFactory = new ServiceApiFactory(stack, configuration, Map.of(), NodeFeeAccumulator.NOOP);
         storeFactory = new StoreFactoryImpl(readableStoreFactory, writableStoreFactory, apiFactory);
         subject = createContext(txBody);
 

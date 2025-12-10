@@ -33,11 +33,13 @@ import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.base.TransactionID;
+import com.hedera.hapi.node.base.TransferList;
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.entity.EntityCounts;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.node.state.token.StakingNodeInfo;
 import com.hedera.hapi.node.token.CryptoCreateTransactionBody;
+import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.blocks.BlockStreamManager;
 import com.hedera.node.app.blocks.impl.ImmediateStateChangeListener;
@@ -262,6 +264,15 @@ public class SystemTransactions {
                             .build(),
                     i);
         }
+        // Create fee collection account
+        systemContext.dispatchCreation(
+                b -> b.memo("Fee collection account creation record")
+                        .cryptoCreateAccount(CryptoCreateTransactionBody.newBuilder()
+                                .key(IMMUTABILITY_SENTINEL_KEY)
+                                .autoRenewPeriod(systemAutoRenewPeriod)
+                                .build())
+                        .build(),
+                accountsConfig.feeCollectionAccount());
         // Create the miscellaneous accounts
         final var hederaConfig = config.getConfigData(HederaConfig.class);
         for (long i : LongStream.range(FIRST_MISC_ACCOUNT_NUM, hederaConfig.firstUserEntity())
@@ -408,6 +419,26 @@ public class SystemTransactions {
                 adminConfig.upgradeNodeAdminKeysFile(),
                 SystemTransactions::parseNodeAdminKeys);
         autoNodeAdminKeyUpdates.tryIfPresent(adminConfig.upgradeSysFilesLoc(), systemContext);
+    }
+
+    public void dispatchNodePayments(
+            @NonNull final State state, @NonNull final Instant now, @NonNull final TransferList transfers) {
+        requireNonNull(state);
+        requireNonNull(now);
+        requireNonNull(transfers);
+
+        if (transfers.accountAmounts().isEmpty()) {
+            log.info("No fees to distribute for nodes");
+            return;
+        }
+
+        final var systemContext = newSystemContext(
+                now, state, dispatch -> {}, UseReservedConsensusTimes.NO, TriggerStakePeriodSideEffects.YES);
+        systemContext.dispatchAdmin(b -> b.memo("Synthetic node fees payment")
+                .cryptoTransfer(CryptoTransferTransactionBody.newBuilder()
+                        .transfers(transfers)
+                        .build())
+                .build());
     }
 
     /**

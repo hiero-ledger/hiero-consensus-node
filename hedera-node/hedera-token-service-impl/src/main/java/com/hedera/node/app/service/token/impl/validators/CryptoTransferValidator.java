@@ -19,6 +19,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_ID_REPEATED_IN_TO
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TOKEN_TRANSFER_LIST_SIZE_LIMIT_EXCEEDED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TRANSFERS_NOT_ZERO_SUM_FOR_TOKEN;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TRANSFER_LIST_SIZE_LIMIT_EXCEEDED;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.TRANSFER_TO_FEE_COLLECTION_ACCOUNT_NOT_ALLOWED;
 import static com.hedera.node.app.hapi.utils.contracts.HookUtils.hasHookExecutions;
 import static com.hedera.node.app.spi.validation.Validations.validateAccountID;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
@@ -124,6 +125,12 @@ public class CryptoTransferValidator {
                     TRANSFER_LIST_SIZE_LIMIT_EXCEEDED);
         }
 
+        final var feeCollectionAccount = entityIdFactory.newAccountId(accountsConfig.feeCollectionAccount());
+        validateTrue(
+                hbarTransfers.stream()
+                        .noneMatch(aa -> aa.amount() > 0 && aa.accountID().equals(feeCollectionAccount)),
+                TRANSFER_TO_FEE_COLLECTION_ACCOUNT_NOT_ALLOWED);
+
         // Validate that allowances are enabled, or that no hbar transfers are an allowance transfer
 
         // The loop below will validate the counts for token transfers (both fungible and non-fungible)
@@ -145,7 +152,22 @@ public class CryptoTransferValidator {
                     TOKEN_TRANSFER_LIST_SIZE_LIMIT_EXCEEDED);
             // Verify that the current total number of (counted) nft transfers does not exceed the limit
             validateTrue(totalNftTransfers <= ledgerConfig.nftTransfersMaxLen(), BATCH_SIZE_LIMIT_EXCEEDED);
+            //  Verify that no credits are going to the fee collection account
+            validateNoCreditsToFeeCollectionAccount(tokenTransfer, feeCollectionAccount);
         }
+    }
+
+    private void validateNoCreditsToFeeCollectionAccount(
+            final TokenTransferList transferList, final AccountID feeCollectionAccount) {
+        validateTrue(
+                transferList.transfers().stream()
+                        .noneMatch(aa -> (aa.amount() > 0 && aa.accountID().equals(feeCollectionAccount))),
+                TRANSFER_TO_FEE_COLLECTION_ACCOUNT_NOT_ALLOWED);
+        validateTrue(
+                transferList.nftTransfers().stream()
+                        .noneMatch(
+                                nftTransfer -> nftTransfer.receiverAccountID().equals(feeCollectionAccount)),
+                TRANSFER_TO_FEE_COLLECTION_ACCOUNT_NOT_ALLOWED);
     }
 
     private void validateHookGasLimit(final CryptoTransferTransactionBody op, final HooksConfig hooksConfig) {

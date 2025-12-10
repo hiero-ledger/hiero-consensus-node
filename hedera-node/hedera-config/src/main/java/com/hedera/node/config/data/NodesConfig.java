@@ -45,4 +45,6 @@ public record NodesConfig(
         @ConfigProperty(defaultValue = "true") @NetworkProperty boolean webProxyEndpointsEnabled,
         /* Node account id update */
         @ConfigProperty(defaultValue = "data/generated/") @NodeProperty String nodeGeneratedDir,
-        @ConfigProperty(defaultValue = "node_account_id.txt") @NodeProperty String nodeAccountIdFile) {}
+        @ConfigProperty(defaultValue = "node_account_id.txt") @NodeProperty String nodeAccountIdFile,
+        /* Fee collection account enabled */
+        @ConfigProperty(defaultValue = "true") @NetworkProperty boolean feeCollectionAccountEnabled) {}

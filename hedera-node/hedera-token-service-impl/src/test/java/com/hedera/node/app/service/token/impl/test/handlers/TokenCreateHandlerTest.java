@@ -62,6 +62,7 @@ import com.hedera.node.app.service.token.impl.validators.CustomFeesValidator;
 import com.hedera.node.app.service.token.impl.validators.TokenAttributesValidator;
 import com.hedera.node.app.service.token.impl.validators.TokenCreateValidator;
 import com.hedera.node.app.service.token.records.TokenCreateStreamBuilder;
+import com.hedera.node.app.spi.fixtures.ids.FakeEntityIdFactoryImpl;
 import com.hedera.node.app.spi.validation.AttributeValidator;
 import com.hedera.node.app.spi.validation.ExpiryMeta;
 import com.hedera.node.app.spi.validation.ExpiryValidator;
@@ -121,7 +122,7 @@ class TokenCreateHandlerTest extends CryptoTokenHandlerTestBase {
         refreshWritableStores();
         recordBuilder = new RecordStreamBuilder(REVERSIBLE, NOOP_SIGNED_TX_CUSTOMIZER, USER);
         tokenFieldsValidator = new TokenAttributesValidator();
-        customFeesValidator = new CustomFeesValidator();
+        customFeesValidator = new CustomFeesValidator(new FakeEntityIdFactoryImpl(SHARD, REALM), configProvider);
         tokenCreateValidator = new TokenCreateValidator(tokenFieldsValidator);
         subject = new TokenCreateHandler(idFactory, customFeesValidator, tokenCreateValidator);
         givenStoresAndConfig(handleContext);
