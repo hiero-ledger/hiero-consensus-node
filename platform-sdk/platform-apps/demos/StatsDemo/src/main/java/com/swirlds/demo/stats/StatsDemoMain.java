@@ -14,36 +14,32 @@ package com.swirlds.demo.stats;
 import static com.swirlds.base.units.UnitConstants.NANOSECONDS_TO_SECONDS;
 import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticThreadManager;
 import static com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer.registerConstructablesForStorage;
-import static com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer.registerMerkleStateRootClassIds;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.common.threading.framework.StoppableThread;
 import com.swirlds.common.threading.framework.config.StoppableThreadConfiguration;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
-import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.ParameterProvider;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.state.NoOpConsensusStateEventHandler;
 import com.swirlds.platform.system.DefaultSwirldMain;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.platform.test.fixtures.state.TestingAppStateInitializer;
-import com.swirlds.virtualmap.VirtualMap;
+import com.swirlds.state.StateLifecycleManager;
+import com.swirlds.state.merkle.VirtualMapState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Random;
-import java.util.function.Function;
-import org.hiero.base.constructable.ClassConstructorPair;
-import org.hiero.base.constructable.ConstructableRegistry;
-import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.consensus.model.node.NodeId;
 
 /**
  * This demo collects statistics on the running of the network and consensus systems. It writes them to the
  * screen, and also saves them to disk in a comma separated value (.csv) file. Each transaction is 100
- * random bytes. So StatsDemoState.handleTransaction doesn't actually do anything.
+ * random bytes.
  */
-public class StatsDemoMain extends DefaultSwirldMain<StatsDemoState> {
+public class StatsDemoMain extends DefaultSwirldMain<VirtualMapState> {
     // the first four come from the parameters in the config.txt file
 
     static final Configuration CONFIGURATION =
@@ -63,17 +59,7 @@ public class StatsDemoMain extends DefaultSwirldMain<StatsDemoState> {
             SemanticVersion.newBuilder().major(1).build();
 
     static {
-        try {
-            final ConstructableRegistry constructableRegistry = ConstructableRegistry.getInstance();
-            constructableRegistry.registerConstructable(new ClassConstructorPair(StatsDemoState.class, () -> {
-                final StatsDemoState statsDemoState = new StatsDemoState();
-                return statsDemoState;
-            }));
-            registerMerkleStateRootClassIds();
-            registerConstructablesForStorage(CONFIGURATION);
-        } catch (final ConstructableRegistryException e) {
-            throw new RuntimeException(e);
-        }
+        registerConstructablesForStorage(CONFIGURATION);
     }
 
     private final StoppableThread transactionGenerator;
@@ -133,23 +119,10 @@ public class StatsDemoMain extends DefaultSwirldMain<StatsDemoState> {
 
     @NonNull
     @Override
-    public StatsDemoState newStateRoot() {
-        final StatsDemoState state = new StatsDemoState();
+    public VirtualMapState newStateRoot() {
+        final VirtualMapState state = new VirtualMapState(CONFIGURATION, new NoOpMetrics());
         TestingAppStateInitializer.initConsensusModuleStates(state, CONFIGURATION);
         return state;
-    }
-
-    /**
-     * {@inheritDoc}
-     * <p>
-     * FUTURE WORK: https://github.com/hiero-ledger/hiero-consensus-node/issues/19004
-     * </p>
-     */
-    @Override
-    public Function<VirtualMap, StatsDemoState> stateRootFromVirtualMap(@NonNull final Metrics metrics) {
-        return (virtualMap) -> {
-            throw new UnsupportedOperationException();
-        };
     }
 
     @NonNull
@@ -164,5 +137,14 @@ public class StatsDemoMain extends DefaultSwirldMain<StatsDemoState> {
     @Override
     public SemanticVersion getSemanticVersion() {
         return semanticVersion;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @NonNull
+    @Override
+    public StateLifecycleManager getStateLifecycleManager() {
+        throw new UnsupportedOperationException();
     }
 }

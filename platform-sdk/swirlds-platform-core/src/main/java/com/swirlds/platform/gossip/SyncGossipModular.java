@@ -29,7 +29,7 @@ import com.swirlds.platform.network.protocol.HeartbeatProtocol;
 import com.swirlds.platform.network.protocol.Protocol;
 import com.swirlds.platform.network.protocol.ProtocolRunnable;
 import com.swirlds.platform.network.protocol.ReconnectStateSyncProtocol;
-import com.swirlds.platform.network.protocol.ReservedSignedStateResultPromise;
+import com.swirlds.platform.network.protocol.ReservedSignedStateResult;
 import com.swirlds.platform.network.protocol.SyncProtocol;
 import com.swirlds.platform.network.protocol.rpc.RpcProtocol;
 import com.swirlds.platform.reconnect.FallenBehindMonitor;
@@ -37,19 +37,17 @@ import com.swirlds.platform.reconnect.ReconnectStateTeacherThrottle;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.wiring.NoInput;
 import com.swirlds.platform.wiring.components.Gossip;
-import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.StateLifecycleManager;
-import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.security.cert.X509Certificate;
 import java.time.Duration;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.Consumer;
-import java.util.function.Function;
 import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.concurrent.BlockingResourceProvider;
 import org.hiero.base.crypto.CryptoUtils;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.gossip.SyncProgress;
@@ -73,7 +71,6 @@ public class SyncGossipModular implements Gossip {
     private final FallenBehindMonitor fallenBehindMonitor;
     private final AbstractShadowgraphSynchronizer synchronizer;
     private final StateLifecycleManager stateLifecycleManager;
-    private final Function<VirtualMap, MerkleNodeState> createStateFromVirtualMap;
 
     // this is not a nice dependency, should be removed as well as the sharedState
     private Consumer<PlatformEvent> receivedEventHandler;
@@ -91,7 +88,6 @@ public class SyncGossipModular implements Gossip {
      * @param stateLifecycleManager            manages the mutable state
      * @param latestCompleteState           holds the latest signed state that has enough signatures to be verifiable
      * @param intakeEventCounter            keeps track of the number of events in the intake pipeline from each peer
-     * @param createStateFromVirtualMap     a function to instantiate the state object from a Virtual Map
      * @param fallenBehindMonitor           an instance of the fallenBehind Monitor which tracks if the node has fallen behind
      * @param reservedSignedStateResultPromise a mechanism to get a SignedState or block while it is not available
      */
@@ -105,9 +101,8 @@ public class SyncGossipModular implements Gossip {
             @NonNull final StateLifecycleManager stateLifecycleManager,
             @NonNull final Supplier<ReservedSignedState> latestCompleteState,
             @NonNull final IntakeEventCounter intakeEventCounter,
-            @NonNull final Function<VirtualMap, MerkleNodeState> createStateFromVirtualMap,
             @NonNull final FallenBehindMonitor fallenBehindMonitor,
-            @NonNull final ReservedSignedStateResultPromise reservedSignedStateResultPromise) {
+            @NonNull final BlockingResourceProvider<ReservedSignedStateResult> reservedSignedStateResultPromise) {
 
         final RosterEntry selfEntry = RosterUtils.getRosterEntry(roster, selfId.id());
         final X509Certificate selfCert = RosterUtils.fetchGossipCaCertificate(selfEntry);
@@ -130,7 +125,6 @@ public class SyncGossipModular implements Gossip {
 
         this.fallenBehindMonitor = fallenBehindMonitor;
         this.stateLifecycleManager = stateLifecycleManager;
-        this.createStateFromVirtualMap = createStateFromVirtualMap;
 
         final ProtocolConfig protocolConfig = platformContext.getConfiguration().getConfigData(ProtocolConfig.class);
 
@@ -211,7 +205,7 @@ public class SyncGossipModular implements Gossip {
             @NonNull final PlatformContext platformContext,
             @NonNull final ThreadManager threadManager,
             @NonNull final Supplier<ReservedSignedState> latestCompleteState,
-            @NonNull final ReservedSignedStateResultPromise reservedSignedStateResultPromise) {
+            @NonNull final BlockingResourceProvider<ReservedSignedStateResult> reservedSignedStateResultPromise) {
 
         final ReconnectConfig reconnectConfig =
                 platformContext.getConfiguration().getConfigData(ReconnectConfig.class);
@@ -230,8 +224,7 @@ public class SyncGossipModular implements Gossip {
                 reconnectMetrics,
                 fallenBehindMonitor,
                 reservedSignedStateResultPromise,
-                stateLifecycleManager,
-                createStateFromVirtualMap);
+                stateLifecycleManager);
     }
 
     /**
@@ -290,6 +283,7 @@ public class SyncGossipModular implements Gossip {
         });
         pauseGossip.bindConsumer(ignored -> {
             syncProtocol.pause();
+            fallenBehindMonitor.notifySyncProtocolPaused();
         });
         resumeGossip.bindConsumer(ignored -> {
             syncProtocol.resume();

@@ -3,7 +3,7 @@ package com.hedera.node.app.service.token.impl.calculator;
 
 import static com.hedera.node.app.spi.fees.SimpleFeeCalculatorImpl.countKeys;
 import static org.hiero.hapi.fees.FeeScheduleUtils.lookupServiceFee;
-import static org.hiero.hapi.support.fees.Extra.HOOKS;
+import static org.hiero.hapi.support.fees.Extra.HOOK_UPDATES;
 import static org.hiero.hapi.support.fees.Extra.KEYS;
 
 import com.hedera.hapi.node.base.HederaFunctionality;
@@ -33,7 +33,7 @@ public class CryptoUpdateFeeCalculator implements ServiceFeeCalculator {
         final int hookOperations =
                 op.hookCreationDetails().size() + op.hookIdsToDelete().size();
         if (hookOperations > 0) {
-            addExtraFee(feeResult, serviceDef, HOOKS, feeSchedule, hookOperations);
+            addExtraFee(feeResult, serviceDef, HOOK_UPDATES, feeSchedule, hookOperations);
         }
     }
 

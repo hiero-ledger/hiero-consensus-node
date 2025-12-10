@@ -70,8 +70,8 @@ import com.swirlds.platform.system.SwirldMain;
 import com.swirlds.platform.util.BootstrapUtils;
 import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.State;
+import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.VirtualMapState;
-import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.time.InstantSource;
@@ -80,7 +80,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
@@ -157,15 +156,6 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
 
     /**
      * {@inheritDoc}
-     * Specifically, {@link VirtualMapState}.
-     */
-    @Override
-    public Function<VirtualMap, MerkleNodeState> stateRootFromVirtualMap(@NonNull final Metrics metrics) {
-        return hederaOrThrow().stateRootFromVirtualMap(metrics);
-    }
-
-    /**
-     * {@inheritDoc}
      */
     @Override
     public ConsensusStateEventHandler<MerkleNodeState> newConsensusStateEvenHandler() {
@@ -185,29 +175,53 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
         hederaOrThrow().submitStateSignature(transaction);
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public boolean hasBufferedSignatureTransactions() {
         return hederaOrThrow().hasBufferedSignatureTransactions();
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public @NonNull List<TimestampedTransaction> getTransactionsForEvent() {
         return hederaOrThrow().getTransactionsForEvent();
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void reportUnhealthyDuration(@NonNull final Duration duration) {
         hederaOrThrow().reportUnhealthyDuration(duration);
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void newPlatformStatus(@NonNull final PlatformStatus platformStatus) {
         hederaOrThrow().newPlatformStatus(platformStatus);
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public @NonNull TransactionLimits getTransactionLimits() {
         return hederaOrThrow().getTransactionLimits();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @NonNull
+    @Override
+    public StateLifecycleManager getStateLifecycleManager() {
+        return hederaOrThrow().getStateLifecycleManager();
     }
 
     /**
@@ -343,7 +357,7 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
                 Hedera.SWIRLD_NAME,
                 selfId,
                 platformContext,
-                hedera.stateRootFromVirtualMap(metrics));
+                hedera.getStateLifecycleManager());
         final ReservedSignedState initialState = reservedState.state();
         final MerkleNodeState state = initialState.get().getState();
         if (genesisNetwork.get() == null) {
@@ -377,7 +391,7 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
                                 // Otherwise derive if from the node's id in state or
                                 .orElseGet(() -> canonicalEventStreamLoc(selfId.id(), state)),
                         rosterHistory,
-                        hedera.stateRootFromVirtualMap(metrics))
+                        hedera.getStateLifecycleManager())
                 .withPlatformContext(platformContext)
                 .withConfiguration(platformConfig)
                 .withKeysAndCerts(keysAndCerts)
@@ -466,7 +480,9 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
                 (appContext, bootstrapConfig) -> new HistoryServiceImpl(
                         metrics, ForkJoinPool.commonPool(), appContext, new HistoryLibraryImpl(), bootstrapConfig),
                 TssBlockHashSigner::new,
+                configuration,
                 metrics,
+                time,
                 () -> new VirtualMapState(configuration, metrics));
     }
 

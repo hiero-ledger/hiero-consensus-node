@@ -8,6 +8,7 @@ import static org.hiero.block.api.PublishStreamRequest.EndStream.Code.TIMEOUT;
 import static org.hiero.block.api.PublishStreamRequest.EndStream.Code.TOO_FAR_BEHIND;
 
 import com.hedera.hapi.block.stream.BlockItem;
+import com.hedera.node.app.blocks.impl.streaming.config.BlockNodeConfiguration;
 import com.hedera.node.app.metrics.BlockStreamMetrics;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockNodeConnectionConfig;
@@ -19,7 +20,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import io.helidon.common.tls.Tls;
 import io.helidon.webclient.api.WebClient;
-import io.helidon.webclient.grpc.GrpcClientProtocolConfig;
+import io.helidon.webclient.spi.ProtocolConfig;
 import java.io.UncheckedIOException;
 import java.time.Duration;
 import java.time.Instant;
@@ -302,22 +303,25 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
                 .grpcOverallTimeout();
 
         final Tls tls = Tls.builder().enabled(false).build();
-        final PbjGrpcClientConfig grpcConfig =
+        final PbjGrpcClientConfig pbjGrpcClientConfig =
                 new PbjGrpcClientConfig(timeoutDuration, tls, Optional.of(""), "application/grpc");
+
+        final ProtocolConfig httpConfig = nodeConfig.clientHttpConfig().toHttp2ClientProtocolConfig();
+        final ProtocolConfig grpcConfig = nodeConfig.clientGrpcConfig().toGrpcClientProtocolConfig();
 
         final WebClient webClient = WebClient.builder()
                 .baseUri("http://" + nodeConfig.address() + ":" + nodeConfig.port())
                 .tls(tls)
-                .protocolConfigs(List.of(GrpcClientProtocolConfig.builder()
-                        .abortPollTimeExpired(false)
-                        .pollWaitTime(timeoutDuration)
-                        .build()))
+                .addProtocolConfig(httpConfig)
+                .addProtocolConfig(grpcConfig)
                 .connectTimeout(timeoutDuration)
                 .build();
 
+        final BlockStreamPublishServiceClient client =
+                clientFactory.createClient(webClient, pbjGrpcClientConfig, OPTIONS);
         logger.debug(
                 "{} Created BlockStreamPublishServiceClient for {}:{}.", this, nodeConfig.address(), nodeConfig.port());
-        return clientFactory.createClient(webClient, grpcConfig, OPTIONS);
+        return client;
     }
 
     /**
@@ -1392,6 +1396,11 @@ public class BlockNodeConnection implements Pipeline<PublishStreamResponse> {
          * @return true if request was successfully sent, else false
          */
         private boolean trySendPendingRequest() {
+            if (pendingRequestItems.isEmpty()) {
+                // there are no items to send, consider this invocation successful and exit early
+                return true;
+            }
+
             final BlockItemSet itemSet = BlockItemSet.newBuilder()
                     .blockItems(List.copyOf(pendingRequestItems))
                     .build();

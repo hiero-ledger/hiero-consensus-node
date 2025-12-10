@@ -4,6 +4,7 @@ package com.swirlds.platform.consensus;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import org.hiero.consensus.hashgraph.ConsensusConfig;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 
 /**

@@ -326,7 +326,7 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
     @Test
     void delegatesFeeChargingForPayer() {
         given(creatorInfo.accountId()).willReturn(AccountID.DEFAULT);
-        given(feeCharging.charge(eq(subject.payer()), eq(subject), any(), eq(new Fees(0, 123L, 0))))
+        given(feeCharging.charge(eq(subject.payer()), eq(subject), any(), eq(new Fees(0, 0L, 123L))))
                 .willReturn(new Fees(0, 123L, 0));
         assertTrue(subject.tryToChargePayer(123L));
     }
@@ -341,7 +341,7 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
     void delegatesFeeChargingForOtherAccount() {
         final var overridePayerId = AccountID.newBuilder().accountNum(12345).build();
         given(creatorInfo.accountId()).willReturn(AccountID.DEFAULT);
-        given(feeCharging.charge(eq(overridePayerId), eq(subject), any(), eq(new Fees(0, 123L, 0))))
+        given(feeCharging.charge(eq(overridePayerId), eq(subject), any(), eq(new Fees(0, 0, 123L))))
                 .willReturn(new Fees(0, 122L, 0));
         assertFalse(subject.tryToCharge(overridePayerId, 123L));
     }

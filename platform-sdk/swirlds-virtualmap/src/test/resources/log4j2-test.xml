@@ -34,7 +34,6 @@
 	</Appenders>
 	<Loggers>
 		<!-- To suppress a lot of expected exceptions in the output -->
-		<Logger name="com.swirlds.virtualmap.internal.merkle.VirtualRootNode" level="OFF"/>
 		<Logger name="com.swirlds.virtualmap.internal.pipeline.VirtualPipeline" level="OFF"/>
 		<Logger name="com.swirlds.virtualmap.internal.hash.VirtualHasher" level="OFF"/>
 		<Logger name="com.swirlds.common.merkle.synchronization.task.LearnerPushTask" level="OFF"/>

@@ -198,7 +198,7 @@ public class VirtualMapBench extends VirtualMapBaseBench {
         if (virtualMapP != null) {
             return;
         }
-        virtualMapP = createMap();
+        virtualMapP = createEmptyMap();
 
         long start = System.currentTimeMillis();
         int count = 0;
