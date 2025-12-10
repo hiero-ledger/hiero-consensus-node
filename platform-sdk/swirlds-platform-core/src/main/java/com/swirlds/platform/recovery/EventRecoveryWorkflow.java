@@ -2,7 +2,6 @@
 package com.swirlds.platform.recovery;
 
 import static com.swirlds.common.io.utility.FileUtils.getAbsolutePath;
-import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static com.swirlds.platform.builder.PlatformBuildConstants.DEFAULT_CONFIG_FILE_NAME;
 import static com.swirlds.platform.eventhandling.DefaultTransactionPrehandler.NO_OP_CONSUMER;
@@ -28,14 +27,12 @@ import com.swirlds.platform.ParameterProvider;
 import com.swirlds.platform.cli.utils.HederaUtils;
 import com.swirlds.platform.config.PathsConfig;
 import com.swirlds.platform.config.StateConfig;
-import com.swirlds.platform.consensus.ConsensusConfig;
 import com.swirlds.platform.consensus.SyntheticSnapshot;
 import com.swirlds.platform.crypto.CryptoStatic;
 import com.swirlds.platform.event.preconsensus.PcesConfig;
 import com.swirlds.platform.event.preconsensus.PcesFile;
 import com.swirlds.platform.event.preconsensus.PcesFileWriterType;
 import com.swirlds.platform.event.preconsensus.PcesMutableFile;
-import com.swirlds.platform.recovery.emergencyfile.EmergencyRecoveryFile;
 import com.swirlds.platform.recovery.internal.EventStreamRoundIterator;
 import com.swirlds.platform.recovery.internal.RecoveredState;
 import com.swirlds.platform.recovery.internal.RecoveryPlatform;
@@ -67,6 +64,7 @@ import org.hiero.base.CompareTo;
 import org.hiero.base.constructable.ConstructableRegistryException;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.crypto.DefaultEventHasher;
+import org.hiero.consensus.hashgraph.ConsensusConfig;
 import org.hiero.consensus.model.event.CesEvent;
 import org.hiero.consensus.model.event.ConsensusEvent;
 import org.hiero.consensus.model.event.PlatformEvent;
@@ -193,8 +191,6 @@ public final class EventRecoveryWorkflow {
                     recoveredState.state().get(),
                     hederaApp.getStateLifecycleManager());
             final StateConfig stateConfig = platformContext.getConfiguration().getConfigData(StateConfig.class);
-            updateEmergencyRecoveryFile(
-                    stateConfig, resultingStateDirectory, initialState.get().getConsensusTimestamp());
 
             logger.info(STARTUP.getMarker(), "Signed state written to disk");
 
@@ -217,41 +213,6 @@ public final class EventRecoveryWorkflow {
             mutableStateCopy.release();
 
             logger.info(STARTUP.getMarker(), "Recovery process completed");
-        }
-    }
-
-    /**
-     * Update the resulting emergency recovery file to contain the bootstrap timestamp.
-     *
-     * @param stateConfig     the state configuration for the platform
-     * @param recoveryFileDir the directory containing the emergency recovery file
-     * @param bootstrapTime   the consensus timestamp of the bootstrap state
-     */
-    public static void updateEmergencyRecoveryFile(
-            @NonNull final StateConfig stateConfig,
-            @NonNull final Path recoveryFileDir,
-            @NonNull final Instant bootstrapTime) {
-        try {
-            // Read the existing recovery file and write it to a backup directory
-            final EmergencyRecoveryFile oldRecoveryFile = EmergencyRecoveryFile.read(stateConfig, recoveryFileDir);
-            if (oldRecoveryFile == null) {
-                logger.error(EXCEPTION.getMarker(), "Recovery file does not exist at {}", recoveryFileDir);
-                return;
-            }
-            final Path backupDir = recoveryFileDir.resolve("backup");
-            if (!Files.exists(backupDir)) {
-                Files.createDirectories(backupDir);
-            }
-            oldRecoveryFile.write(backupDir);
-
-            // Create a new recovery file with the bootstrap time, overwriting the original
-            final EmergencyRecoveryFile newRecoveryFile =
-                    new EmergencyRecoveryFile(oldRecoveryFile.recovery().state(), bootstrapTime);
-            newRecoveryFile.write(recoveryFileDir);
-        } catch (final IOException e) {
-            logger.error(
-                    EXCEPTION.getMarker(),
-                    "Exception occurred when updating the emergency recovery file with the bootstrap time");
         }
     }
 
