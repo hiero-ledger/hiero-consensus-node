@@ -51,7 +51,6 @@ import java.time.Duration;
  * @param debugStackTracesEnabled       if true and stateHistoryEnabled is true, then stack traces are captured each
  *                                      time a signed state reference count is changed, and logged if a signed state
  *                                      reference count bug is detected.
- * @param emergencyStateFileName        The name of the file that contains the emergency state.
  * @param deleteInvalidStateFiles       At startup time, if a state can not be deserialized without errors, should we
  *                                      delete that state from disk and try another? If true then states that can't be
  *                                      parsed are deleted. If false then a node will crash if it can't parse a state
@@ -81,7 +80,6 @@ public record StateConfig(
         @ConfigProperty(defaultValue = "10m") Duration signedStateAgeNotifyRateLimit,
         @ConfigProperty(defaultValue = "false") boolean stateHistoryEnabled,
         @ConfigProperty(defaultValue = "false") boolean debugStackTracesEnabled,
-        @ConfigProperty(defaultValue = "emergencyRecovery.yaml") String emergencyStateFileName,
         @ConfigProperty(defaultValue = "false") boolean deleteInvalidStateFiles,
         @ConfigProperty(defaultValue = "true") boolean validateInitialState) {
 

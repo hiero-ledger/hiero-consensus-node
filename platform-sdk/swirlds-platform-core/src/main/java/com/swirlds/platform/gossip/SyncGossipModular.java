@@ -29,7 +29,7 @@ import com.swirlds.platform.network.protocol.HeartbeatProtocol;
 import com.swirlds.platform.network.protocol.Protocol;
 import com.swirlds.platform.network.protocol.ProtocolRunnable;
 import com.swirlds.platform.network.protocol.ReconnectStateSyncProtocol;
-import com.swirlds.platform.network.protocol.ReservedSignedStateResultPromise;
+import com.swirlds.platform.network.protocol.ReservedSignedStateResult;
 import com.swirlds.platform.network.protocol.SyncProtocol;
 import com.swirlds.platform.network.protocol.rpc.RpcProtocol;
 import com.swirlds.platform.reconnect.FallenBehindMonitor;
@@ -47,6 +47,7 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.concurrent.BlockingResourceProvider;
 import org.hiero.base.crypto.CryptoUtils;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.gossip.SyncProgress;
@@ -101,7 +102,7 @@ public class SyncGossipModular implements Gossip {
             @NonNull final Supplier<ReservedSignedState> latestCompleteState,
             @NonNull final IntakeEventCounter intakeEventCounter,
             @NonNull final FallenBehindMonitor fallenBehindMonitor,
-            @NonNull final ReservedSignedStateResultPromise reservedSignedStateResultPromise) {
+            @NonNull final BlockingResourceProvider<ReservedSignedStateResult> reservedSignedStateResultPromise) {
 
         final RosterEntry selfEntry = RosterUtils.getRosterEntry(roster, selfId.id());
         final X509Certificate selfCert = RosterUtils.fetchGossipCaCertificate(selfEntry);
@@ -204,7 +205,7 @@ public class SyncGossipModular implements Gossip {
             @NonNull final PlatformContext platformContext,
             @NonNull final ThreadManager threadManager,
             @NonNull final Supplier<ReservedSignedState> latestCompleteState,
-            @NonNull final ReservedSignedStateResultPromise reservedSignedStateResultPromise) {
+            @NonNull final BlockingResourceProvider<ReservedSignedStateResult> reservedSignedStateResultPromise) {
 
         final ReconnectConfig reconnectConfig =
                 platformContext.getConfiguration().getConfigData(ReconnectConfig.class);

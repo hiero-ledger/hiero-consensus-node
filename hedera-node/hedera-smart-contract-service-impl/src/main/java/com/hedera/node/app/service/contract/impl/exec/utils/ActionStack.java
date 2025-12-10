@@ -266,6 +266,10 @@ public class ActionStack {
         completePush(builder, requireNonNull(frame.getMessageFrameStack().peek()));
     }
 
+    public boolean isEmpty() {
+        return actionsStack.isEmpty();
+    }
+
     private void completePush(@NonNull ContractAction.Builder builder, @NonNull final MessageFrame frame) {
         builder.callType(asActionType(frame.getType()))
                 .gas(frame.getRemainingGas())
