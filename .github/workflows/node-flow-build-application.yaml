@@ -48,6 +48,8 @@ jobs:
   spotless:
     name: Spotless
     uses: ./.github/workflows/node-zxc-compile-application-code.yaml
+    needs:
+      - code
     with:
       custom-job-label: "Check"
       enable-unit-tests: false
@@ -57,73 +59,73 @@ jobs:
       gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
       gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
 
-    mats-tests:
-      name: MATS Tests
-      uses: ./.github/workflows/zxc-mats-tests.yaml
-      needs:
-        - dependency-check
-        - spotless
-      with:
-        ref: ${{ github.ref }}
-        enable-unit-tests: "true"
-        enable-integration-tests: "true"
-        enable-hapi-tests: "true"
-        enable-otter-tests: "true"
-        enable-spotless-check: "true"
-        enable-snyk-scan: "true"
-        enable-gradle-determinism: "true"
-        enable-docker-determinism: "true"
-        java-version: "21.0.6"
-        java-distribution: "temurin"
-        custom-job-label: "MATS (main):"
-      secrets:
-        access-token: ${{ secrets.GITHUB_TOKEN }}
-        codacy-project-token: ${{ secrets.CODACY_PROJECT_TOKEN }}
-        codecov-token: ${{ secrets.CODECOV_TOKEN }}
-        gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
-        gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
-        snyk-token: ${{ secrets.SNYK_TOKEN }}
+  mats-tests:
+    name: MATS Tests
+    uses: ./.github/workflows/zxc-mats-tests.yaml
+    needs:
+      - dependency-check
+      - spotless
+    with:
+      ref: ${{ github.ref }}
+      enable-unit-tests: "true"
+      enable-integration-tests: "true"
+      enable-hapi-tests: "true"
+      enable-otter-tests: "true"
+      enable-spotless-check: "true"
+      enable-snyk-scan: "true"
+      enable-gradle-determinism: "true"
+      enable-docker-determinism: "true"
+      java-version: "21.0.6"
+      java-distribution: "temurin"
+      custom-job-label: "MATS (main):"
+    secrets:
+      access-token: ${{ secrets.GITHUB_TOKEN }}
+      codacy-project-token: ${{ secrets.CODACY_PROJECT_TOKEN }}
+      codecov-token: ${{ secrets.CODECOV_TOKEN }}
+      gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
+      gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
+      snyk-token: ${{ secrets.SNYK_TOKEN }}
 
-    deploy-ci-trigger:
-      name: Trigger CI Flows
-      runs-on: hiero-citr-linux-medium
-      needs:
-        - mats-tests
-      if: ${{ needs.mats-tests.result == 'success' }}
-      steps:
-        - name: Harden Runner
-          uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
-          with:
-            egress-policy: audit
+  deploy-ci-trigger:
+    name: Trigger CI Flows
+    runs-on: hiero-citr-linux-medium
+    needs:
+      - mats-tests
+    if: ${{ needs.mats-tests.result == 'success' }}
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
+        with:
+          egress-policy: audit
 
-        - name: Trigger ZXF Deploy Production Release
-          uses: step-security/workflow-dispatch@b4c1dc0afa074d0b4f0e653d3b80d4b2798599aa # v1.2.7
-          with:
-            workflow: .github/workflows/node-flow-deploy-release-artifact.yaml
-            repo: hiero-ledger/hiero-consensus-node # ensure we are executing in the hiero-ledger org
-            ref: main # ensure we are always using the workflow definition from the main branch
-            token: ${{ secrets.GH_ACCESS_TOKEN }}
-            inputs: '{
-              "ref": "${{ github.sha }}",
-              "ref-name": "${{ github.ref_name }}",
-              "dry-run-enabled": false
-              }'
+      - name: Trigger ZXF Deploy Production Release
+        uses: step-security/workflow-dispatch@b4c1dc0afa074d0b4f0e653d3b80d4b2798599aa # v1.2.7
+        with:
+          workflow: .github/workflows/node-flow-deploy-release-artifact.yaml
+          repo: hiero-ledger/hiero-consensus-node # ensure we are executing in the hiero-ledger org
+          ref: main # ensure we are always using the workflow definition from the main branch
+          token: ${{ secrets.GH_ACCESS_TOKEN }}
+          inputs: '{
+            "ref": "${{ github.sha }}",
+            "ref-name": "${{ github.ref_name }}",
+            "dry-run-enabled": false
+            }'
 
-    report-failure:
-      name: Report MATS execution failure
-      runs-on: hiero-citr-linux-medium
-      needs:
-        - code
-        - dependency-check
-        - spotless
-        - mats-tests
-        - deploy-ci-trigger
-      if: ${{ (needs.code.result != 'success' ||
-        needs.dependency-check.result != 'success' ||
-        needs.spotless.result != 'success' ||
-        needs.mats-tests.result != 'success' ||
-        needs.deploy-ci-trigger.result != 'success') &&
-        !cancelled() && always() }}
+  report-failure:
+    name: Report MATS execution failure
+    runs-on: hiero-citr-linux-medium
+    needs:
+      - code
+      - dependency-check
+      - spotless
+      - mats-tests
+      - deploy-ci-trigger
+    if: ${{ (needs.code.result != 'success' ||
+      needs.dependency-check.result != 'success' ||
+      needs.spotless.result != 'success' ||
+      needs.mats-tests.result != 'success' ||
+      needs.deploy-ci-trigger.result != 'success') &&
+      !cancelled() && always() }}
 
     steps:
       - name: Harden Runner
