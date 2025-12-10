@@ -58,23 +58,19 @@ public class SimpleFeesMirrorNodeExample {
 
     static class SimpleFeesCalculatorProvider {
         SimpleFeeCalculator make(FeeSchedule feeSchedule) {
-            var services = Arrays.asList(
-                    new ConsensusServiceImpl()
-                    ,new FileServiceImpl()
-//                    ,new UtilServiceImpl()
-//                    ,new ContractServiceImpl()
-//                    ,new ScheduleServiceImpl()
-//                    ,new TokenServiceImpl()
-//                    ,new HintsServiceImpl()
-//                    ,new HistoryServiceImpl()
-            );
-
             Set<ServiceFeeCalculator> serviceFeeCalculators = new HashSet<>();
             Set<QueryFeeCalculator> queryFeeCalculators = new HashSet<>();
-            for(var service : services) {
-                serviceFeeCalculators.addAll(service.serviceFeeCalculators());
-                queryFeeCalculators.addAll(service.queryFeeCalculators());
-            }
+
+            serviceFeeCalculators.addAll(ConsensusServiceImpl.getServiceFeeCalculators());
+            serviceFeeCalculators.addAll(FileServiceImpl.getServiceFeeCalculators());
+            serviceFeeCalculators.addAll(TokenServiceImpl.getServiceFeeCalculators());
+            serviceFeeCalculators.addAll(ScheduleServiceImpl.getServiceFeeCalculators());
+//            serviceFeeCalculators.addAll(CryptoServiceImpl.getServiceFeeCalculators());
+//            serviceFeeCalculators.addAll(NetworkServiceImpl.getServiceFeeCalculators());
+//            serviceFeeCalculators.addAll(UtilServiceImpl.getServiceFeeCalculators());
+
+            queryFeeCalculators.addAll(ConsensusServiceImpl.getQueryFeeCalculators());
+
             return new SimpleFeeCalculatorImpl(feeSchedule, serviceFeeCalculators, queryFeeCalculators);
         }
     }
