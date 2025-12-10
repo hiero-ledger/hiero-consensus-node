@@ -234,11 +234,6 @@
           ]
         },
         {
-          "name": "TokenAirdrop",
-          "baseFee": 499000000,
-          "extras": []
-        },
-        {
           "name": "TokenClaimAirdrop",
           "baseFee": 9000000,
           "extras": []

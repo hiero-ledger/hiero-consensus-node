@@ -150,7 +150,6 @@ class TokenAirdropFeeCalculatorsTest {
                         makeExtraDef(Extra.AIRDROPS, 5000000L))
                 .services(makeService(
                         "Token",
-                        makeServiceFee(HederaFunctionality.TOKEN_AIRDROP, 499000000),
                         makeServiceFee(HederaFunctionality.TOKEN_CLAIM_AIRDROP, 299000000),
                         makeServiceFee(HederaFunctionality.TOKEN_CANCEL_AIRDROP, 199000000),
                         makeServiceFee(

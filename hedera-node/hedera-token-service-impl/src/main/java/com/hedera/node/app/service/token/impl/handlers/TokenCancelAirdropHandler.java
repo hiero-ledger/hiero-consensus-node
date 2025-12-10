@@ -38,14 +38,9 @@ import com.hedera.node.config.data.TokensConfig;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.EnumSet;
-import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Map;
 import javax.inject.Inject;
 import javax.inject.Singleton;
-import org.hiero.hapi.fees.FeeModelRegistry;
-import org.hiero.hapi.fees.FeeResult;
-import org.hiero.hapi.support.fees.Extra;
 
 /**
  * This class contains all workflow-related functionality regarding {@link HederaFunctionality#TOKEN_CANCEL_AIRDROP}.
@@ -142,18 +137,5 @@ public class TokenCancelAirdropHandler extends BaseTokenHandler implements Trans
         return feeCalculator
                 .addVerificationsPerTransaction(Math.max(0, feeContext.numTxnSignatures() - 1))
                 .calculate();
-    }
-
-    @NonNull
-    @Override
-    public FeeResult calculateFeeResult(@NonNull FeeContext feeContext) {
-        final var feeModel = FeeModelRegistry.lookupModel(HederaFunctionality.TOKEN_CANCEL_AIRDROP);
-
-        final Map<Extra, Long> params = new HashMap<>();
-        params.put(Extra.SIGNATURES, (long) feeContext.numTxnSignatures());
-
-        return feeModel.computeFee(
-                params,
-                feeContext.feeCalculatorFactory().feeCalculator(SubType.DEFAULT).getSimpleFeesSchedule());
     }
 }

@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.test.handlers;
 
-import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_CANCEL_AIRDROP;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_PENDING_AIRDROP_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.NOT_SUPPORTED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.PENDING_AIRDROP_ID_LIST_TOO_LONG;
@@ -20,7 +19,6 @@ import static org.mockito.Mockito.when;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.NftID;
 import com.hedera.hapi.node.base.PendingAirdropId;
-import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.state.token.Token;
@@ -31,8 +29,6 @@ import com.hedera.node.app.service.token.impl.WritableAirdropStore;
 import com.hedera.node.app.service.token.impl.handlers.TokenCancelAirdropHandler;
 import com.hedera.node.app.service.token.impl.test.handlers.util.TokenHandlerTestBase;
 import com.hedera.node.app.service.token.impl.util.PendingAirdropUpdater;
-import com.hedera.node.app.spi.fees.FeeCalculator;
-import com.hedera.node.app.spi.fees.FeeCalculatorFactory;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.workflows.HandleContext;
@@ -42,14 +38,7 @@ import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.swirlds.config.api.Configuration;
 import java.util.Collections;
-import java.util.List;
 import java.util.stream.Stream;
-import org.hiero.hapi.fees.FeeResult;
-import org.hiero.hapi.support.fees.FeeSchedule;
-import org.hiero.hapi.support.fees.NetworkFee;
-import org.hiero.hapi.support.fees.NodeFee;
-import org.hiero.hapi.support.fees.ServiceFeeDefinition;
-import org.hiero.hapi.support.fees.ServiceFeeSchedule;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -287,31 +276,6 @@ class TokenCancelAirdropHandlerTest extends TokenHandlerTestBase {
         when(feeContext.configuration()).thenReturn(testConfig);
 
         assertThrows(HandleException.class, () -> subject.calculateFees(feeContext));
-    }
-
-    @Test
-    void airdropFeeCalculatesCorrectly() {
-        final var feeContext = mock(FeeContext.class);
-        final var feeCalculatorFactory = mock(FeeCalculatorFactory.class);
-        final var feeCalculator = mock(FeeCalculator.class);
-        final var feeSchedule = mock(FeeSchedule.class);
-        when(feeSchedule.node()).thenReturn(new NodeFee(100, null));
-        when(feeSchedule.network())
-                .thenReturn(NetworkFee.newBuilder().multiplier(2).build());
-        when(feeSchedule.services())
-                .thenReturn(List.of(ServiceFeeSchedule.newBuilder()
-                        .schedule(ServiceFeeDefinition.newBuilder()
-                                .name(TOKEN_CANCEL_AIRDROP)
-                                .baseFee(300)
-                                .build())
-                        .build()));
-        when(feeCalculator.getSimpleFeesSchedule()).thenReturn(feeSchedule);
-        when(feeCalculatorFactory.feeCalculator(SubType.DEFAULT)).thenReturn(feeCalculator);
-        when(feeContext.feeCalculatorFactory()).thenReturn(feeCalculatorFactory);
-
-        FeeResult result = subject.calculateFeeResult(feeContext);
-
-        assertEquals(600L, result.total());
     }
 
     private void mockHandleContext() {

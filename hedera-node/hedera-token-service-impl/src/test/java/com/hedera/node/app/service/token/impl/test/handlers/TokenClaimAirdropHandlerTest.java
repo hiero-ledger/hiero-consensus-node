@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.test.handlers;
 
-import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_CLAIM_AIRDROP;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
 import static com.hedera.node.app.service.token.impl.handlers.BaseTokenHandler.asToken;
@@ -15,21 +14,15 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mock.Strictness.LENIENT;
 import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.PendingAirdropId;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
-import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.state.token.TokenRelation;
 import com.hedera.hapi.node.token.TokenClaimAirdropTransactionBody;
-import com.hedera.node.app.fees.FeeContextImpl;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.records.CryptoTransferStreamBuilder;
-import com.hedera.node.app.spi.fees.FeeCalculator;
-import com.hedera.node.app.spi.fees.FeeCalculatorFactory;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
@@ -37,12 +30,6 @@ import com.hedera.node.app.spi.workflows.PureChecksContext;
 import java.util.ArrayList;
 import java.util.List;
 import org.assertj.core.api.Assertions;
-import org.hiero.hapi.fees.FeeResult;
-import org.hiero.hapi.support.fees.FeeSchedule;
-import org.hiero.hapi.support.fees.NetworkFee;
-import org.hiero.hapi.support.fees.NodeFee;
-import org.hiero.hapi.support.fees.ServiceFeeDefinition;
-import org.hiero.hapi.support.fees.ServiceFeeSchedule;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mock;
 
@@ -503,38 +490,6 @@ class TokenClaimAirdropHandlerTest extends CryptoTransferHandlerTestBase {
         // check sender's pending airdrops head id and count
         assertThat(writableAccountStore.get(spenderId).headPendingAirdropId()).isEqualTo(thirdPendingAirdropId);
         assertThat(writableAccountStore.get(spenderId).numberPendingAirdrops()).isEqualTo(2);
-    }
-
-    @Test
-    void airdropFeeCalculatesCorrectly() {
-        var airdrops = new ArrayList<PendingAirdropId>();
-        airdrops.add(firstPendingAirdropId);
-        claimAirdropBody = TokenClaimAirdropTransactionBody.newBuilder()
-                .pendingAirdrops(airdrops)
-                .build();
-        txn = asClaimAirdropTxn(claimAirdropBody, payerId);
-
-        final var feeContext = mock(FeeContextImpl.class);
-        final var feeCalculatorFactory = mock(FeeCalculatorFactory.class);
-        final var feeCalculator = mock(FeeCalculator.class);
-        final var feeSchedule = mock(FeeSchedule.class);
-        when(feeSchedule.node()).thenReturn(new NodeFee(100, null));
-        when(feeSchedule.network())
-                .thenReturn(NetworkFee.newBuilder().multiplier(2).build());
-        when(feeSchedule.services())
-                .thenReturn(List.of(ServiceFeeSchedule.newBuilder()
-                        .schedule(ServiceFeeDefinition.newBuilder()
-                                .name(TOKEN_CLAIM_AIRDROP)
-                                .baseFee(300)
-                                .build())
-                        .build()));
-        when(feeCalculator.getSimpleFeesSchedule()).thenReturn(feeSchedule);
-        when(feeCalculatorFactory.feeCalculator(SubType.DEFAULT)).thenReturn(feeCalculator);
-        when(feeContext.feeCalculatorFactory()).thenReturn(feeCalculatorFactory);
-
-        FeeResult result = tokenClaimAirdropHandler.calculateFeeResult(feeContext);
-
-        assertEquals(600L, result.total());
     }
 
     private PendingAirdropId setUpFourthPendingAirdrop() {

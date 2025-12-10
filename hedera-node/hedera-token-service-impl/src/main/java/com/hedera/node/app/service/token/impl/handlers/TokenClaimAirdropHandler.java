@@ -60,9 +60,6 @@ import java.util.Map;
 import java.util.Set;
 import javax.inject.Inject;
 import javax.inject.Singleton;
-import org.hiero.hapi.fees.FeeModelRegistry;
-import org.hiero.hapi.fees.FeeResult;
-import org.hiero.hapi.support.fees.Extra;
 
 /**
  * This class contains all workflow-related functionality regarding {@link
@@ -208,19 +205,6 @@ public class TokenClaimAirdropHandler extends TransferExecutor implements Transa
         return feeCalculator
                 .addVerificationsPerTransaction(Math.max(0, feeContext.numTxnSignatures() - 1))
                 .calculate();
-    }
-
-    @NonNull
-    @Override
-    public FeeResult calculateFeeResult(@NonNull FeeContext feeContext) {
-        final var feeModel = FeeModelRegistry.lookupModel(HederaFunctionality.TOKEN_CLAIM_AIRDROP);
-
-        final Map<Extra, Long> params = new HashMap<>();
-        params.put(Extra.SIGNATURES, (long) feeContext.numTxnSignatures());
-
-        return feeModel.computeFee(
-                params,
-                feeContext.feeCalculatorFactory().feeCalculator(SubType.DEFAULT).getSimpleFeesSchedule());
     }
 
     private void createOrUpdateTransfers(
