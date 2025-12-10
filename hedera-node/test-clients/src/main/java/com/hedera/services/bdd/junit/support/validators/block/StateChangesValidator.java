@@ -674,7 +674,7 @@ public class StateChangesValidator implements BlockStreamValidator {
         final var depth3Node2 = BlockImplUtils.combine(depth4Node3, depth4Node4);
 
         // Compute depth two hashes (timestamp + last right sibling)
-        final var depth2Node1 = Timestamp.PROTOBUF.toBytes(blockTimestamp);
+        final var depth2Node1 = noThrowSha384HashOf(Timestamp.PROTOBUF.toBytes(blockTimestamp));
         final var depth2Node2 = BlockImplUtils.combine(depth3Node1, depth3Node2);
 
         // Compute the block's root hash (depth 1)
