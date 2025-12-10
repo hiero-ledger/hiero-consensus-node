@@ -23,6 +23,7 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.HederaSyst
 import com.hedera.node.app.service.contract.impl.exec.utils.FrameBuilder;
 import com.hedera.node.app.service.contract.impl.exec.v038.Version038AddressChecks;
 import com.hedera.node.app.service.contract.impl.exec.v067.Version067FeatureFlags;
+import com.hedera.node.app.service.contract.impl.hevm.HEVM;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEVM;
 import dagger.Binds;
 import dagger.Module;
@@ -81,7 +82,7 @@ public interface VXXXModule {
     @Singleton
     @ServicesVXXX
     static ContractCreationProcessor provideContractCreationProcessor(
-            @ServicesVXXX EVM evm, Set<ContractValidationRule> validationRules) {
+            @ServicesVXXX HEVM evm, Set<ContractValidationRule> validationRules) {
         return new CustomContractCreationProcessor(
                 evm, REQUIRE_CODE_DEPOSIT_TO_SUCCEED, List.copyOf(validationRules), INITIAL_CONTRACT_NONCE);
     }
@@ -90,7 +91,7 @@ public interface VXXXModule {
     @Singleton
     @ServicesVXXX
     static CustomMessageCallProcessor provideMessageCallProcessor(
-            @ServicesVXXX EVM evm,
+            @ServicesVXXX HEVM evm,
             @ServicesVXXX FeatureFlags featureFlags,
             @ServicesVXXX AddressChecks addressChecks,
             @ServicesVXXX PrecompileContractRegistry registry,
@@ -103,7 +104,7 @@ public interface VXXXModule {
     @Provides
     @Singleton
     @ServicesVXXX
-    static EVM provideEVM(
+    static HEVM provideEVM(
             @ServicesVXXX Set<Operation> customOperations,
             EvmConfiguration evmConfiguration,
             GasCalculator gasCalculator,

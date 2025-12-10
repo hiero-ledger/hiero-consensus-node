@@ -3,13 +3,16 @@ package com.hedera.node.app.service.contract.impl.hevm;
 
 import com.hedera.node.app.service.contract.impl.bonneville.SB;
 import com.hedera.node.app.service.contract.impl.bonneville.BonnevilleEVM;
-
 import com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils;
 import com.hedera.node.app.service.contract.impl.exec.utils.OpsDurationCounter;
+
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.io.FileDescriptor;
+import java.io.FileOutputStream;
+import java.io.PrintStream;
 import java.util.Optional;
+
 import org.apache.tuweni.bytes.Bytes;
-import org.hyperledger.besu.evm.EVM;
 import org.hyperledger.besu.evm.EvmSpecVersion;
 import org.hyperledger.besu.evm.frame.ExceptionalHaltReason;
 import org.hyperledger.besu.evm.frame.MessageFrame;
@@ -59,7 +62,7 @@ import org.slf4j.LoggerFactory;
 /**
  * Adds support for calculating an alternate ops gas schedule tracking.
  */
-public class HederaEVM extends EVM {
+public class HederaEVM extends HEVM {
     private static final Logger LOG = LoggerFactory.getLogger(HederaEVM.class);
 
     private final OperationRegistry operations;
@@ -104,7 +107,11 @@ public class HederaEVM extends EVM {
         final OpsDurationSchedule opsDurationSchedule = opsDurationCounter.schedule();
         final long opsDurationMultiplier = opsDurationSchedule.opsGasBasedDurationMultiplier();
         final long opsDurationDenominator = opsDurationSchedule.multipliersDenominator();
+
         final SB trace = new SB();
+        PrintStream oldSysOut = System.out;
+        if( trace != null )
+            System.setOut(new PrintStream(new FileOutputStream( FileDescriptor.out)));
 
         while (frame.getState() == State.CODE_EXECUTING) {
             int pc = frame.getPC();
@@ -123,8 +130,11 @@ public class HederaEVM extends EVM {
             if (operationTracer != null) {
                 operationTracer.tracePreExecution(frame);
             }
-            if( trace !=null )
-                trace.p("0x").hex2(pc).p(" ").p(BonnevilleEVM.OPNAME(opcode)).p(" ").hex4((int)frame.getRemainingGas()).p(" ").hex2(frame.stackSize()).p(" -> ");
+            preTrace(frame,trace,pc,opcode);
+            // Nested contract call; so print the post-trace before the
+            // nested call, and reload the pre-trace state after call.
+            if( opcode==0xF0 )
+                System.out.println(postTrace(frame,trace).nl().nl().p("CONTRACT CALL").nl());
 
             Operation.OperationResult result;
             try {
@@ -227,14 +237,9 @@ public class HederaEVM extends EVM {
             }
 
             if( trace != null ) {
-                trace.hex2(frame.stackSize());
-                if( frame.stackSize() > 0 ) {
-                    trace.p(" 0x");
-                    Bytes bs = frame.getStackItem(0);
-                    int len = bs.size();
-                    for( int i=0; i<len; i++ )
-                        trace.hex1(bs.get(i));
-                }
+                if( opcode==0xF0 )
+                    preTrace(frame,trace.clear().p("CONTRACT RETURN").nl().nl(),pc,opcode);
+                postTrace(frame,trace);
                 if( haltReason!=null )
                     trace.p(" ").p(haltReason.toString());
                 System.out.println(trace);
@@ -251,8 +256,29 @@ public class HederaEVM extends EVM {
                 operationTracer.tracePostExecution(frame, result);
             }
         }
-        if( trace != null )
+
+        if( trace != null ) {
             System.out.println();
-        System.err.println("HEVM HALT ");
+            System.out.println("HEVM HALT "+frame.getExceptionalHaltReason());
+            System.setOut(oldSysOut);
+        }
     }
+
+    private void preTrace(MessageFrame frame, SB trace, int pc, int op) {
+        if( trace !=null )
+            trace.p("0x").hex2(pc).p(" ").p(BonnevilleEVM.OPNAME(op)).p(" ").hex4((int)frame.getRemainingGas()).p(" ").hex2(frame.stackSize()).p(" -> ");
+    }
+
+    private SB postTrace(MessageFrame frame, SB trace) {
+        trace.hex2(frame.stackSize());
+        if( frame.stackSize() > 0 ) {
+            trace.p(" 0x");
+            Bytes bs = frame.getStackItem(0);
+            int len = bs.size();
+            for( int i=0; i<len; i++ )
+                trace.hex1(bs.get(i));
+        }
+        return trace;
+    }
+
 }

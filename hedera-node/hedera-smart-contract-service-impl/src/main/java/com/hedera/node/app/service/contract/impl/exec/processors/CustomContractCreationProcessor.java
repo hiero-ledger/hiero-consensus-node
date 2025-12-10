@@ -37,7 +37,7 @@ import org.hyperledger.besu.evm.tracing.OperationTracer;
  * to the {@link HederaWorldUpdater#tryTransfer(Address, Address, long, boolean)}
  * dispatch method.
  */
-public class CustomContractCreationProcessor extends ContractCreationProcessor {
+public class CustomContractCreationProcessor extends ContractCreationProcessor implements MessageProcessorImpl {
     // By convention, the halt reason should be INSUFFICIENT_GAS when the contract already exists
     private static final Optional<ExceptionalHaltReason> COLLISION_HALT_REASON =
             Optional.of(ExceptionalHaltReason.INSUFFICIENT_GAS);

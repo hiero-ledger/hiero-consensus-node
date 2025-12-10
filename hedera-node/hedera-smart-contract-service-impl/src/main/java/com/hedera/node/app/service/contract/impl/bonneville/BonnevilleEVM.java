@@ -5,15 +5,24 @@ import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.streams.SidecarType;
 import com.hedera.node.app.service.contract.impl.exec.AddressChecks;
 import com.hedera.node.app.service.contract.impl.exec.FeatureFlags;
+import com.hedera.node.app.service.contract.impl.exec.operations.CustomCreateOperation;
 import com.hedera.node.app.service.contract.impl.exec.operations.CustomExtCodeSizeOperation;
+import com.hedera.node.app.service.contract.impl.exec.processors.CustomContractCreationProcessor;
+import com.hedera.node.app.service.contract.impl.exec.systemcontracts.HtsSystemContract;
 import com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils;
+import com.hedera.node.app.service.contract.impl.hevm.HEVM;
 import com.hedera.node.app.service.contract.impl.infra.StorageAccessTracker;
+import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
 import com.hedera.node.app.service.contract.impl.utils.ConversionUtils;
 import com.hedera.node.app.service.contract.impl.utils.TODO;
 
 import com.google.common.collect.ImmutableList;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import org.jetbrains.annotations.NotNull;
 
+import java.io.FileDescriptor;
+import java.io.FileOutputStream;
+import java.io.PrintStream;
 import java.util.*;
 
 // BESU imports
@@ -21,7 +30,8 @@ import org.apache.tuweni.bytes.Bytes;
 import org.apache.tuweni.units.bigints.UInt256;
 import org.hyperledger.besu.crypto.Hash;
 import org.hyperledger.besu.datatypes.Address;
-import org.hyperledger.besu.evm.EVM;
+import org.hyperledger.besu.datatypes.Wei;
+import org.hyperledger.besu.evm.Code;
 import org.hyperledger.besu.evm.EvmSpecVersion;
 import org.hyperledger.besu.evm.account.Account;
 import org.hyperledger.besu.evm.account.MutableAccount;
@@ -31,31 +41,26 @@ import org.hyperledger.besu.evm.gascalculator.GasCalculator;
 import org.hyperledger.besu.evm.internal.EvmConfiguration;
 import org.hyperledger.besu.evm.log.Log;
 import org.hyperledger.besu.evm.log.LogTopic;
+import org.hyperledger.besu.evm.operation.Operation;
 import org.hyperledger.besu.evm.operation.OperationRegistry;
 import org.hyperledger.besu.evm.tracing.OperationTracer;
-import org.jetbrains.annotations.NotNull;
 
+public class BonnevilleEVM extends HEVM {
+    @NonNull final FeatureFlags _flags;
 
-public class BonnevilleEVM extends EVM {
-    private final FeatureFlags _flags;
-    private final AddressChecks _adrChk;
     public BonnevilleEVM(
-            @NonNull final OperationRegistry operations,
-            @NonNull final GasCalculator gasCalc,
-            @NonNull final EvmConfiguration evmConfiguration,
-            @NonNull final EvmSpecVersion evmSpecVersion,
-            @NonNull final FeatureFlags featureFlags) {
+            @NonNull OperationRegistry operations,
+            @NonNull GasCalculator gasCalc,
+            @NonNull EvmConfiguration evmConfiguration,
+            @NonNull EvmSpecVersion evmSpecVersion,
+            @NonNull FeatureFlags featureFlags) {
         super(operations, gasCalc, evmConfiguration, evmSpecVersion );
         _flags = featureFlags;
-        CustomExtCodeSizeOperation cust = (CustomExtCodeSizeOperation)operations.get((byte)0x3B);
-        //if( cust.enableEIP3540 )
-        //    throw new TODO();   // Assumed never in customExtCodeSize
-        _adrChk = cust.addressChecks;
     }
 
     @Override
-    public void runToHalt(MessageFrame frame, OperationTracer tracing) {
-        new BEVM(getGasCalculator(), frame, _flags, _adrChk).run();
+    public void runToHalt(@NotNull MessageFrame frame, @NotNull OperationTracer tracing) {
+        new BEVM(this,frame,tracing,getOperationsUnsafe()).run();
     }
 
 
@@ -70,6 +75,7 @@ public class BonnevilleEVM extends EVM {
         if( op == 0xA2 ) return "log2";
         if( op == 0xA3 ) return "log3";
         if( op == 0xA4 ) return "log4";
+        if( op == 0xF0 ) return "cCrt";
         if( op == 0xF3 ) return "ret ";
         if( op == 0xFD ) return "revert ";
         return String.format("%x",op);
@@ -94,8 +100,10 @@ public class BonnevilleEVM extends EVM {
  * BonnevilleEVM so it can be changed without impacting anything else.
  */
 class BEVM {
-    @NonNull final GasCalculator _gasCalc;
+    @NotNull BonnevilleEVM _bevm;
     @NonNull final MessageFrame _frame;
+
+    @NonNull final GasCalculator _gasCalc;
 
     // Contract bytecodes
     final byte[] _codes;
@@ -122,6 +130,9 @@ class BEVM {
     final FeatureFlags _flags;
     final AddressChecks _adrChk;
 
+    // Custom Create needs this
+    final CustomCreateOperation _cccp;
+
     // Wrap a UInt256 in a Supplier for short-term usage, without allocating
     // per-bytecode.
     final UI256.Wrap _wrap0 = new UI256.Wrap(), _wrap1 = new UI256.Wrap();
@@ -132,19 +143,29 @@ class BEVM {
     // Input data
     byte[] _callData;
 
-    BEVM( @NotNull GasCalculator gasCalc, @NotNull MessageFrame frame, FeatureFlags flags, AddressChecks adrChk ) {
-        SB trace = new SB(); // = null;
-        _gasCalc = gasCalc;
-        if( _gasCalc.getVeryLowTierGasCost() > 10 )
-            throw new TODO("Need to restructure how gas is computed");
-        // If SSTore minimum gas is ever not-zero, will need to check in sStore
+    @NotNull final OperationTracer _tracing;
+
+    BEVM( @NotNull BonnevilleEVM bevm, @NotNull MessageFrame frame, @NotNull OperationTracer tracing, @NotNull Operation[] operations ) {
+        _bevm = bevm;
 
         _frame = frame;
+
+        _flags = bevm._flags;   // Feature Flags
+
         // Bytecodes
         _codes = frame.getCode().getBytes().toArrayUnsafe();
+        if( frame.getCode().getEofVersion() != 0 )
+            throw new TODO("Expect eofVersion==0");
+
+        _gasCalc = bevm.getGasCalculator();
+        // If SSTore minimum gas is ever not-zero, will need to check in sStore
+        if( _gasCalc.getVeryLowTierGasCost() > 10 )
+            throw new TODO("Need to restructure how gas is computed");
+
         // Starting and current gas
         _startGas = frame.getRemainingGas();
         _gas = _startGas;
+
         // Account receiver
         _recv        = frame.getWorldUpdater().get       (frame.getRecipientAddress());
         _recvMutable = frame.getWorldUpdater().getAccount(frame.getRecipientAddress());
@@ -154,18 +175,27 @@ class BEVM {
         _mem = new Memory();
 
         // Hedera custom sidecar
-        _isSidecarEnabled = flags.isSidecarEnabled(frame, SidecarType.CONTRACT_STATE_CHANGE);
+        _isSidecarEnabled = _flags.isSidecarEnabled(frame, SidecarType.CONTRACT_STATE_CHANGE);
         // Hedera optional tracking first SLOAD
         _tracker = FrameUtils.accessTrackerFor(frame);
 
-        _flags = flags;         // Feature Flags
-        _adrChk = adrChk;       // Address check
+        // Address Check
+        CustomExtCodeSizeOperation cExt = (CustomExtCodeSizeOperation)operations[0x3B];
+        _adrChk = cExt.addressChecks;
+        //if( cExt.enableEIP3540 )
+        //    throw new TODO();   // Assumed never in customExtCodeSize
+
+        // Custom Contract Creation Processor
+        _cccp = (CustomCreateOperation)operations[0xF0];
+
 
         // Preload input data
         _callData = _frame.getInputData().toArrayUnsafe();
 
         var worldUpdater = FrameUtils.proxyUpdaterFor(_frame);
         _contractId = worldUpdater.getHederaContractId(_frame.getRecipientAddress());
+
+        _tracing = tracing;
     }
 
     public BEVM run() {
@@ -175,7 +205,6 @@ class BEVM {
             _frame.setExceptionalHaltReason(Optional.of(halt));
             _frame.setState(MessageFrame.State.EXCEPTIONAL_HALT);
         }
-        System.err.println("BEVM HALT "+halt);
         return this;
     }
 
@@ -223,7 +252,7 @@ class BEVM {
                     UI256.getLong(val,0));
     }
 
-    // Push a byte array
+    // Push a byte array little-endian; short arrays are zero-filled high.
     private ExceptionalHaltReason push( byte[] src, int off, int len ) {
         // Caller range-checked already
         assert src != null && off >= 0 && len>=0 && off+len <= src.length;
@@ -300,13 +329,17 @@ class BEVM {
     // Execute bytecodes until done
     ExceptionalHaltReason _run() {
         SB trace = new SB(); // = null;
+        PrintStream oldSysOut = System.out;
+        if( trace != null )
+            System.setOut(new PrintStream(new FileOutputStream( FileDescriptor.out)));
+
+
         int pc = 0;
         ExceptionalHaltReason halt = null;
 
         while( halt==null ) {
             int op = _codes[pc] & 0xFF;
-            if( trace !=null )
-                trace.p("0x").hex2(pc).p(" ").p(BonnevilleEVM.OPNAME(op)).p(" ").hex4((int)_gas).p(" ").hex2(_sp).p(" -> ");
+            preTrace(trace,pc,op);
             pc++;
 
             halt = switch( op ) {
@@ -379,6 +412,15 @@ class BEVM {
                  -> swap(op-0x90+1);
 
             case 0xA0, 0xA1, 0xA2, 0xA3, 0xA4 -> customLog(op-0xA0);
+
+            case 0xF0 -> {
+                // Nested contract call; so print the post-trace before the
+                // nested call, and reload the pre-trace state after call.
+                System.out.println(postTrace(trace).nl().nl().p("CONTRACT CALL").nl());
+                var halt0 = customCreate();
+                preTrace(trace.clear().p("CONTRACT RETURN").nl().nl(),pc,op);
+                yield halt0;
+            }
             case 0xF3 -> ret();
             case 0xFD -> revert();
 
@@ -387,9 +429,7 @@ class BEVM {
             };
 
             if( trace != null ) {
-                trace.hex2(_sp);
-                if( _sp > 0 )
-                    trace.p(" 0x").hex8(STK3[_sp-1]).hex8(STK2[_sp-1]).hex8(STK1[_sp-1]).hex8(STK0[_sp-1]);
+                postTrace(trace);
                 if( halt!=null )
                     trace.p(" ").p(halt.toString());
                 System.out.println(trace);
@@ -397,17 +437,32 @@ class BEVM {
             }
         }
 
-        if( trace != null )
+        if( trace != null ) {
             System.out.println();
+            System.out.println("BEVM HALT "+halt);
+            System.setOut(oldSysOut);
+        }
 
         // Set state into Frame
         _frame.setPC(pc);
         _frame.setGasRemaining(_gas);
         if( _lastSKey != null )
             _frame.storageWasUpdated(_lastSKey, _lastSVal );
+
         return halt;
     }
 
+    private void preTrace(SB trace, int pc, int op) {
+        if( trace !=null )
+            trace.p("0x").hex2(pc).p(" ").p(BonnevilleEVM.OPNAME(op)).p(" ").hex4((int)_gas).p(" ").hex2(_sp).p(" -> ");
+    }
+
+    private SB postTrace(SB trace) {
+        trace.hex2(_sp);
+        if( _sp > 0 )
+            trace.p(" 0x").hex8(STK3[_sp-1]).hex8(STK2[_sp-1]).hex8(STK1[_sp-1]).hex8(STK0[_sp-1]);
+        return trace;
+    }
 
     // ---------------------
     // Arithmetic
@@ -708,7 +763,16 @@ class BEVM {
         // If start is negative, or very large return a zero word
         if( off > _callData.length )
             return push0();
-        return push(_callData,off,Math.min(_callData.length-off,32));
+
+        // BUG: if len<32, this pushes little-endian but needs to push big-endian
+        int len = Math.min(_callData.length-off,32);
+        if( len == 32 )
+            return push(_callData,off,len);
+        long x3 = getLong(_callData, off, len);  if( 0 < len && len < 8 ) x3 <<= ((len+24)<<3); len -= 8;
+        long x2 = getLong(_callData, off, len);  if( 0 < len && len < 8 ) x2 <<= ((len+24)<<3); len -= 8;
+        long x1 = getLong(_callData, off, len);  if( 0 < len && len < 8 ) x1 <<= ((len+24)<<3); len -= 8;
+        long x0 = getLong(_callData, off, len);  if( 0 < len && len < 8 ) x0 <<= ((len+24)<<3); len -= 8;
+        return push(x0,x1,x2,x3);
     }
 
     // Push size of call data
@@ -1022,7 +1086,7 @@ class BEVM {
         if( halt!=null ) return halt;
 
         // Increment the refund counter.
-        _gas += _gasCalc.calculateStorageRefundAmount(val, _wrap0, _wrap1);
+        _frame.incrementGasRefund(_gasCalc.calculateStorageRefundAmount(val, _wrap0, _wrap1));
         // Do the store
         _recvMutable.setStorageValue(key, val);
         _lastSKey = key;
@@ -1114,4 +1178,102 @@ class BEVM {
 
         return null;
     }
+
+    private ExceptionalHaltReason customCreate() {
+        if( _sp < 3 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
+        if( _frame.isStatic() ) return ExceptionalHaltReason.ILLEGAL_STATE_CHANGE;
+        long val0 = STK0[--_sp], val1 = STK1[_sp], val2 = STK2[_sp], val3 = STK3[_sp];
+        Wei value = Wei.wrap(UI256.intern(val0,val1,val2,val3));
+        // Memory size for code and gas
+        int off = popInt();
+        int len = popInt();
+
+        ProxyWorldUpdater updater = (ProxyWorldUpdater) _frame.getWorldUpdater();
+        var senderAddress = _frame.getRecipientAddress().equals(HtsSystemContract.HTS_HOOKS_CONTRACT_ADDRESS)
+            ? FrameUtils.hookOwnerAddress(_frame)
+            : _frame.getRecipientAddress();
+        var sender = updater.getAccount(senderAddress);
+
+        _frame.clearReturnData();
+
+        if( value.compareTo(sender.getBalance()) > 0 || _frame.getDepth() >= 1024/*AbstractCustomCreateOperation.MAX_STACK_DEPTH*/)
+            return push0();
+
+        // since the sender address should be the hook owner for HTS hook executions,
+        // we need to explicitly pass in the senderAddress and not use sender.getAddress()
+        sender.incrementNonce();
+        Code code = _bevm.getCodeUncached(_mem.asBytes(off,len));
+
+
+        long senderAddressNonce = sender.getNonce();
+        // Decrement nonce by 1 to normalize the effect of transaction execution
+        Address contractAddress = Address.contractAddress(senderAddress, senderAddressNonce - 1);
+        assert contractAddress != null;
+
+        updater.setupInternalAliasedCreate(senderAddress, contractAddress);
+        _frame.warmUpAddress(contractAddress);
+
+        // gas cost (not charged yet) for making the contract
+        long gas = _gasCalc.txCreateCost() +
+            _gasCalc.initcodeCost(len) +
+            memoryExpansionGasCost(off,len);
+        long childGasStipend = _gasCalc.gasAvailableForChildCreate(_gas - gas);
+
+        // child frame is added to frame stack via build method
+        _frame.setGasRemaining(_gas - gas - childGasStipend);
+        MessageFrame child = MessageFrame.builder()
+                .parentMessageFrame(_frame)
+                .type(MessageFrame.Type.CONTRACT_CREATION)
+                .initialGas(childGasStipend)
+                .address(contractAddress)
+                .contract(contractAddress)
+                .inputData(Bytes.EMPTY)
+                .sender(senderAddress)
+                .value(value)
+                .apparentValue(value)
+                .code(code)
+                .completer(child0 -> complete(_frame, child0))
+                .build();
+        // Only charged the gas stipend
+        _gas = _gas - childGasStipend;
+        _frame.setGasRemaining(_gas);
+        _frame.setState(MessageFrame.State.CODE_SUSPENDED);
+
+        // ----------------------------
+        // Frame lifetime management
+        CustomContractCreationProcessor msg = (CustomContractCreationProcessor)_bevm._create;
+        assert child.getState() == MessageFrame.State.NOT_STARTED;
+        _tracing.traceContextEnter(child);
+        msg.start(child, _tracing);
+        assert child.getState() == MessageFrame.State.CODE_EXECUTING;
+
+        // Recursively call
+        _bevm.runToHalt(child,_tracing);
+
+        switch( child.getState() ) {
+        case MessageFrame.State.CODE_SUSPENDED:    throw new TODO("Should not reach here");
+        case MessageFrame.State.CODE_SUCCESS:      msg.codeSuccess(child, _tracing);  break; // Sets COMPLETED_SUCCESS
+        case MessageFrame.State.EXCEPTIONAL_HALT:  throw new TODO(); // msg.exceptionalHalt(child); break;
+        case MessageFrame.State.REVERT:            throw new TODO(); // msg.revert(child);  break;
+        case MessageFrame.State.COMPLETED_SUCCESS: throw new TODO("cant find who sets this");
+        case MessageFrame.State.COMPLETED_FAILED:  throw new TODO("cant find who sets this");
+        };
+
+        // See AbstractCustomCreateOperation.complete
+        _gas += child.getRemainingGas();
+        _frame.addLogs(child.getLogs());
+        _frame.addCreates(child.getCreates());
+        _frame.addSelfDestructs(child.getSelfDestructs());
+        _frame.incrementGasRefund(child.getGasRefund());
+        if (child.getState() == MessageFrame.State.COMPLETED_SUCCESS) {
+            final Address creation = child.getContractAddress();
+            push(creation.toArrayUnsafe(),0,20);
+        } else {
+            _frame.setReturnData(child.getOutputData());
+            push0();
+        }
+        return null;
+    }
+
+    public void complete( MessageFrame frame, MessageFrame child ) {/*nothing*/}
 }
