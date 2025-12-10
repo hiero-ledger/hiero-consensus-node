@@ -375,6 +375,7 @@ class BlockNodeServiceConnectionTest extends BlockNodeCommunicationTestBase {
         assertThat(thread.isInterrupted()).isFalse();
         thread.start();
         assertThat(latch.await(2, TimeUnit.SECONDS)).isTrue();
+        assertThat(thread.join(Duration.ofSeconds(2))).isTrue();
 
         assertThat(errorRef).hasNullValue(); // error should not be propagated
         assertThat(thread.isInterrupted()).isTrue();
