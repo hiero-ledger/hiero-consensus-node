@@ -16,7 +16,6 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.security.SecureRandom;
 import java.time.Duration;
-import java.time.Instant;
 import org.hiero.base.crypto.BytesSigner;
 import org.hiero.consensus.crypto.PlatformSigner;
 import org.hiero.consensus.event.creator.EventCreatorModule;
@@ -84,16 +83,6 @@ public class DefaultEventCreatorModule implements EventCreatorModule {
         final DefaultEventCreationManager eventCreationManager = new DefaultEventCreationManager(
                 configuration, metrics, time, signatureTransactionCheck, eventCreator, roster, selfId);
         eventCreationManagerWiring.bind(eventCreationManager);
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    @NonNull
-    public InputWire<Instant> heartbeatInputWire() {
-        return requireNonNull(eventCreationManagerWiring, "Not initialized")
-                .getInputWire(EventCreationManager::maybeCreateEvent);
     }
 
     /**

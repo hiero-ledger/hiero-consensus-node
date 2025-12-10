@@ -12,7 +12,6 @@ import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.security.SecureRandom;
 import java.time.Duration;
-import java.time.Instant;
 import org.hiero.consensus.event.creator.EventCreatorModule;
 import org.hiero.consensus.event.creator.config.EventCreationWiringConfig;
 import org.hiero.consensus.model.event.PlatformEvent;
@@ -56,12 +55,6 @@ public class NoOpEventCreatorModule implements EventCreatorModule {
             @NonNull final NodeId selfId,
             @NonNull final EventTransactionSupplier transactionSupplier,
             @NonNull final SignatureTransactionCheck signatureTransactionCheck) {}
-
-    @NonNull
-    @Override
-    public InputWire<Instant> heartbeatInputWire() {
-        return componentWiring.getInputWire(EventCreatorModule::heartbeatInputWire);
-    }
 
     @NonNull
     @Override

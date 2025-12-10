@@ -12,7 +12,6 @@ import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.security.SecureRandom;
 import java.time.Duration;
-import java.time.Instant;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.gossip.SyncProgress;
 import org.hiero.consensus.model.hashgraph.EventWindow;
@@ -53,16 +52,6 @@ public interface EventCreatorModule {
             @NonNull NodeId selfId,
             @NonNull EventTransactionSupplier transactionSupplier,
             @NonNull SignatureTransactionCheck signatureTransactionCheck);
-
-    /**
-     * {@link InputWire} for the heartbeat signal received from the {@code HeartbeatGenerator}. The
-     * heartbeat signal is sent at regular intervals to trigger the creation of new events.
-     *
-     * @return the {@link InputWire} for the heartbeat signal
-     */
-    @InputWireLabel("heartbeat")
-    @NonNull
-    InputWire<Instant> heartbeatInputWire();
 
     /**
      * {@link OutputWire} for new self events created by this component.
