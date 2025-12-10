@@ -9,7 +9,7 @@ import java.io.IOException;
 import java.io.Serializable;
 import java.nio.ByteOrder;
 import java.util.Objects;
-import org.hiero.base.io.SerializableWithKnownLength;
+import org.hiero.base.io.SelfSerializable;
 import org.hiero.base.io.exceptions.BadIOException;
 import org.hiero.base.io.streams.SerializableDataInputStream;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
@@ -18,7 +18,7 @@ import org.hiero.base.utility.CommonUtils;
 /**
  * A cryptographic hash of some data.
  */
-public class Hash implements Comparable<Hash>, SerializableWithKnownLength, Serializable {
+public class Hash implements Comparable<Hash>, SelfSerializable, Serializable {
     public static final long CLASS_ID = 0xf422da83a251741eL;
     public static final int CLASS_VERSION = 1;
 
@@ -145,13 +145,6 @@ public class Hash implements Comparable<Hash>, SerializableWithKnownLength, Seri
         out.writeInt(digestType.id());
         out.writeInt((int) bytes.length());
         bytes.writeTo(out);
-    }
-
-    @Override
-    public int getSerializedLength() {
-        return Integer.BYTES // digest type
-                + Integer.BYTES // length of the hash
-                + (int) bytes.length();
     }
 
     /**

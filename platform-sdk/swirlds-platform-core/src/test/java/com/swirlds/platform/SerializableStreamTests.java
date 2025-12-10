@@ -628,24 +628,6 @@ public class SerializableStreamTests {
                 AugmentedDataOutputStream.getArraySerializedLength(new byte[num], true));
     }
 
-    @Test
-    @Tag(TestComponentTags.IO)
-    @DisplayName("serializedLengthNullArray")
-    void serializedLengthNullArray() throws IOException {
-        final int length = SerializableDataOutputStream.getSerializedLength(null, true, false);
-
-        try (final ByteArrayOutputStream bos = new ByteArrayOutputStream()) {
-            try (final SerializableDataOutputStream dos = new SerializableDataOutputStream(bos)) {
-                dos.writeSerializableArray(null, true, false);
-                checkExpectedSize(dos.size(), length);
-            }
-        }
-    }
-
-    private void checkExpectedSize(int actualWrittenBytes, int calculatedBytes) {
-        assertEquals(actualWrittenBytes, calculatedBytes, "length mismatch");
-    }
-
     /**
      * Tests class ID restrictions for {@link SerializableDataInputStream#readSerializable(Set)}
      */
