@@ -20,6 +20,7 @@ import com.hedera.hapi.block.stream.ChainOfTrustProof;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.state.history.HistoryProof;
 import com.hedera.hapi.node.state.history.HistoryProofConstruction;
+import com.hedera.hapi.node.state.history.HistoryProofVote;
 import com.hedera.hapi.node.state.history.WrapsPhase;
 import com.hedera.hapi.node.state.history.WrapsSigningState;
 import com.hedera.node.app.history.HistoryLibrary;
@@ -615,6 +616,121 @@ class WrapsHistoryProverTest {
     @Test
     void cancelPendingWorkReturnsFalseWhenNothingToCancel() {
         assertFalse(subject.cancelPendingWork());
+    }
+
+    @Test
+    void observeProofVoteDoesNothingWhenVoteDecisionFutureIsNull() {
+        final var vote =
+                HistoryProofVote.newBuilder().proof(HistoryProof.DEFAULT).build();
+
+        // voteDecisionFuture is null by default, so this should return early
+        subject.observeProofVote(OTHER_NODE_ID, vote, false);
+
+        // No exception thrown, and no interactions with submissions
+        verifyNoInteractions(submissions);
+    }
+
+    @Test
+    void observeProofVoteDoesNothingWhenVoteDecisionFutureIsDone() {
+        final var completedFuture = CompletableFuture.completedFuture(null);
+        setField("voteDecisionFuture", completedFuture);
+
+        final var vote =
+                HistoryProofVote.newBuilder().proof(HistoryProof.DEFAULT).build();
+
+        subject.observeProofVote(OTHER_NODE_ID, vote, false);
+
+        // No exception thrown, and no interactions with submissions
+        verifyNoInteractions(submissions);
+    }
+
+    @Test
+    void observeProofVoteSkipsVoteWhenProofFinalized() {
+        final var pendingFuture = new CompletableFuture<>();
+        setField("voteDecisionFuture", pendingFuture);
+
+        final var vote =
+                HistoryProofVote.newBuilder().proof(HistoryProof.DEFAULT).build();
+
+        subject.observeProofVote(OTHER_NODE_ID, vote, true);
+
+        // The vote decision future should be completed
+        assertTrue(pendingFuture.isDone());
+    }
+
+    @Test
+    void observeProofVoteStoresHashWhenVoteHasProofButHistoryProofIsNull() {
+        final var pendingFuture = new CompletableFuture<>();
+        setField("voteDecisionFuture", pendingFuture);
+
+        final var proof = HistoryProof.newBuilder()
+                .chainOfTrustProof(ChainOfTrustProof.DEFAULT)
+                .build();
+        final var vote = HistoryProofVote.newBuilder().proof(proof).build();
+
+        subject.observeProofVote(OTHER_NODE_ID, vote, false);
+
+        // The vote decision future should NOT be completed since historyProof is null
+        assertFalse(pendingFuture.isDone());
+    }
+
+    @Test
+    void observeProofVoteCompletesWithCongruentWhenProofMatches() {
+        final var pendingFuture = new CompletableFuture<>();
+        setField("voteDecisionFuture", pendingFuture);
+
+        // Create a proof and set it as the historyProof
+        final var proof = HistoryProof.newBuilder()
+                .chainOfTrustProof(ChainOfTrustProof.DEFAULT)
+                .build();
+        setField("historyProof", proof);
+
+        // Create a vote with the same proof
+        final var vote = HistoryProofVote.newBuilder().proof(proof).build();
+
+        subject.observeProofVote(OTHER_NODE_ID, vote, false);
+
+        // The vote decision future should be completed since the proofs match
+        assertTrue(pendingFuture.isDone());
+    }
+
+    @Test
+    void observeProofVoteDoesNotCompleteWhenProofDoesNotMatch() {
+        final var pendingFuture = new CompletableFuture<>();
+        setField("voteDecisionFuture", pendingFuture);
+
+        // Create a proof and set it as the historyProof
+        final var selfProof = HistoryProof.newBuilder()
+                .chainOfTrustProof(ChainOfTrustProof.DEFAULT)
+                .uncompressedWrapsProof(Bytes.wrap("selfProofData"))
+                .build();
+        setField("historyProof", selfProof);
+
+        // Create a vote with a different proof
+        final var otherProof = HistoryProof.newBuilder()
+                .chainOfTrustProof(ChainOfTrustProof.DEFAULT)
+                .uncompressedWrapsProof(Bytes.wrap("otherProofData"))
+                .build();
+        final var vote = HistoryProofVote.newBuilder().proof(otherProof).build();
+
+        subject.observeProofVote(OTHER_NODE_ID, vote, false);
+
+        // The vote decision future should NOT be completed since the proofs don't match
+        assertFalse(pendingFuture.isDone());
+    }
+
+    @Test
+    void observeProofVoteDoesNothingWhenVoteHasNoProof() {
+        final var pendingFuture = new CompletableFuture<>();
+        setField("voteDecisionFuture", pendingFuture);
+
+        // Create a vote with congruent_node_id instead of proof
+        final var vote = HistoryProofVote.newBuilder().congruentNodeId(999L).build();
+
+        subject.observeProofVote(OTHER_NODE_ID, vote, false);
+
+        // The vote decision future should NOT be completed
+        assertFalse(pendingFuture.isDone());
     }
 
     private void setField(String name, Object value) {
