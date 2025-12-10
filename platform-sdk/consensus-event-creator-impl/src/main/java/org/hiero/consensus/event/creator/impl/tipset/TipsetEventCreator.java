@@ -23,7 +23,6 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -283,16 +282,18 @@ public class TipsetEventCreator implements EventCreator {
                 .filter(p -> p.right().isNonZero())
                 .sorted(Comparator.comparing(Pair::right))
                 .map(Pair::left)
-                .collect(Collectors.toList());
+                .toList();
 
-        final List<PlatformEvent> chosenBestParents;
+        final PlatformEvent[] chosenBestParents;
         if (bestParents.size() > maxOtherParents) {
-            chosenBestParents = bestParents.subList(bestParents.size() - maxOtherParents, bestParents.size());
+            chosenBestParents = bestParents
+                    .subList(bestParents.size() - maxOtherParents, bestParents.size())
+                    .toArray(new PlatformEvent[0]);
         } else {
-            chosenBestParents = bestParents;
+            chosenBestParents = bestParents.toArray(new PlatformEvent[0]);
         }
 
-        if (chosenBestParents.isEmpty()) {
+        if (chosenBestParents.length == 0) {
             // If there are no available other parents, it is only legal to create a new event if we are
             // creating a genesis event. In order to create a genesis event, we must have never created
             // an event before and the current event window must have never been advanced.
@@ -318,27 +319,42 @@ public class TipsetEventCreator implements EventCreator {
             // replace one of the best parents with the one chosen to reduce selfishness
             final PlatformEvent selflessParent = selectParentToReduceSelfishness();
             // if we already contain that event, everything is good
-            if (!chosenBestParents.contains(selflessParent)) {
+            if (!contains(chosenBestParents, selflessParent)) {
                 // otherwise, replace the least important parent with one we have chosen to reduce selfishness
                 // please note in case of single-parent events, this will replace the only parent
-                chosenBestParents.set(chosenBestParents.size() - 1, selflessParent);
+                chosenBestParents[chosenBestParents.length - 1] = selflessParent;
                 replacedBestParentForSelfishness = true;
             }
         }
 
-        for (int i = 0; i < chosenBestParents.size(); i++) {
-            if (replacedBestParentForSelfishness && i == chosenBestParents.size() - 1) {
+        for (int i = 0; i < chosenBestParents.length; i++) {
+            if (replacedBestParentForSelfishness && i == chosenBestParents.length - 1) {
                 tipsetMetrics
-                        .getPityParentMetric(chosenBestParents.get(i).getCreatorId())
+                        .getPityParentMetric(chosenBestParents[i].getCreatorId())
                         .cycle();
             } else {
                 tipsetMetrics
-                        .getTipsetParentMetric(chosenBestParents.get(i).getCreatorId())
+                        .getTipsetParentMetric(chosenBestParents[i].getCreatorId())
                         .cycle();
             }
         }
 
-        return buildAndProcessEvent(chosenBestParents.toArray(new PlatformEvent[chosenBestParents.size()]));
+        return buildAndProcessEvent(chosenBestParents);
+    }
+
+    /**
+     * Check if given element is present inside the array
+     * @param array collection to check
+     * @param element element to look for
+     * @return true if element is contained in array, false otherwise
+     */
+    private static <T> boolean contains(@NonNull final T[] array, @NonNull final T element) {
+        for (final T entry : array) {
+            if (element.equals(entry)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -346,7 +362,7 @@ public class TipsetEventCreator implements EventCreator {
      *
      * @return parent to reduce selfishness
      */
-    private PlatformEvent selectParentToReduceSelfishness() {
+    private @NonNull PlatformEvent selectParentToReduceSelfishness() {
         final Collection<PlatformEvent> possibleOtherParents = childlessOtherEventTracker.getChildlessEvents();
         final List<PlatformEvent> ignoredNodes = new ArrayList<>(possibleOtherParents.size());
 
