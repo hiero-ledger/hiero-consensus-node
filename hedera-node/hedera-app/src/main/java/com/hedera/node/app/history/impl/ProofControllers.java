@@ -12,10 +12,12 @@ import com.hedera.node.app.history.HistoryService;
 import com.hedera.node.app.history.ReadableHistoryStore;
 import com.hedera.node.app.service.roster.impl.ActiveRosters;
 import com.hedera.node.app.spi.info.NodeInfo;
+import com.hedera.node.config.data.TssConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.function.Supplier;
 import javax.inject.Inject;
@@ -66,6 +68,7 @@ public class ProofControllers {
      * @param historyStore the history store
      * @param activeHintsConstruction the active hinTS construction, if any
      * @param activeProofConstruction the active proof construction, if any
+     * @param tssConfig the TSS configuration
      * @return the result of the operation
      */
     public @NonNull ProofController getOrCreateFor(
@@ -73,7 +76,8 @@ public class ProofControllers {
             @NonNull final HistoryProofConstruction construction,
             @NonNull final ReadableHistoryStore historyStore,
             @Nullable final HintsConstruction activeHintsConstruction,
-            @NonNull final HistoryProofConstruction activeProofConstruction) {
+            @NonNull final HistoryProofConstruction activeProofConstruction,
+            @NonNull final TssConfig tssConfig) {
         requireNonNull(activeRosters);
         requireNonNull(construction);
         requireNonNull(historyStore);
@@ -83,7 +87,12 @@ public class ProofControllers {
                 controller.cancelPendingWork();
             }
             controller = newControllerFor(
-                    activeRosters, construction, historyStore, activeHintsConstruction, activeProofConstruction);
+                    activeRosters,
+                    construction,
+                    historyStore,
+                    activeHintsConstruction,
+                    activeProofConstruction,
+                    tssConfig);
         }
         return requireNonNull(controller);
     }
@@ -117,6 +126,7 @@ public class ProofControllers {
      * @param historyStore the history store
      * @param activeHintsConstruction the active hinTS construction, if any
      * @param activeProofConstruction the active proof construction
+     * @param tssConfig the TSS configuration
      * @return the controller
      */
     private ProofController newControllerFor(
@@ -124,7 +134,8 @@ public class ProofControllers {
             @NonNull final HistoryProofConstruction construction,
             @NonNull final ReadableHistoryStore historyStore,
             @Nullable final HintsConstruction activeHintsConstruction,
-            @NonNull final HistoryProofConstruction activeProofConstruction) {
+            @NonNull final HistoryProofConstruction activeProofConstruction,
+            @NonNull final TssConfig tssConfig) {
         final var weights = activeRosters.transitionWeights(maybeWeightsFrom(activeHintsConstruction));
         if (!weights.sourceNodesHaveTargetThreshold()) {
             return new InertProofController(construction.constructionId());
@@ -136,6 +147,8 @@ public class ProofControllers {
             final var selfId = selfNodeInfoSupplier.get().nodeId();
             final var schnorrKeyPair = keyAccessor.getOrCreateSchnorrKeyPair(construction.constructionId());
             final var sourceProof = activeProofConstruction.targetProof();
+            final HistoryProver.Factory proverFactory = (s, t, k, p, w, r, x, l, m) -> new WrapsHistoryProver(
+                    s, t.wrapsMessageGracePeriod(), k, p, w, r, CompletableFuture::delayedExecutor, x, l, m, machine);
             return new ProofControllerImpl(
                     selfId,
                     schnorrKeyPair,
@@ -149,8 +162,9 @@ public class ProofControllers {
                     votes,
                     historyService,
                     historyLibrary,
-                    WrapsHistoryProver::new,
-                    sourceProof);
+                    proverFactory,
+                    sourceProof,
+                    tssConfig);
         }
     }
 

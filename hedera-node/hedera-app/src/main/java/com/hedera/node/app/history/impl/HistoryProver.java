@@ -43,14 +43,14 @@ public interface HistoryProver {
     interface Factory {
         HistoryProver create(
                 long selfId,
+                @NonNull TssConfig tssConfig,
                 @NonNull SchnorrKeyPair schnorrKeyPair,
                 @Nullable HistoryProof sourceProof,
                 @NonNull RosterTransitionWeights weights,
                 @NonNull Map<Long, Bytes> proofKeys,
                 @NonNull Executor executor,
                 @NonNull HistoryLibrary library,
-                @NonNull HistorySubmissions submissions,
-                @NonNull WrapsMpcStateMachine machine);
+                @NonNull HistorySubmissions submissions);
     }
 
     /**
@@ -119,14 +119,12 @@ public interface HistoryProver {
      * @param constructionId the construction ID
      * @param publication the WRAPS message publication
      * @param writableHistoryStore the writable history store
-     * @param tssConfig the TSS configuration
      * @return true if the publication was needed by this prover, false otherwise
      */
     boolean addWrapsSigningMessage(
             long constructionId,
             @NonNull WrapsMessagePublication publication,
-            @NonNull WritableHistoryStore writableHistoryStore,
-            @NonNull TssConfig tssConfig);
+            @NonNull WritableHistoryStore writableHistoryStore);
 
     /**
      * Replays a WRAPS message publication that previously reached consensus.

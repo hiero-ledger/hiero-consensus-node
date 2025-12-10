@@ -53,12 +53,15 @@ class WrapsHistoryProverTest {
     private static final Bytes R1_MESSAGE = Bytes.wrap("r1");
     private static final Bytes R2_MESSAGE = Bytes.wrap("r2");
     private static final Bytes R3_MESSAGE = Bytes.wrap("r3");
+    private static final Duration GRACE_PERIOD = Duration.ofSeconds(5);
 
     private static final ProofKeysAccessorImpl.SchnorrKeyPair KEY_PAIR =
             new ProofKeysAccessorImpl.SchnorrKeyPair(Bytes.wrap("priv"), Bytes.wrap("pub"));
 
     @Mock
     private Executor executor;
+
+    private final WrapsHistoryProver.Delayer delayer = (delay, unit, executor) -> executor;
 
     @Mock
     private HistoryLibrary historyLibrary;
@@ -99,10 +102,12 @@ class WrapsHistoryProverTest {
 
         subject = new WrapsHistoryProver(
                 SELF_ID,
+                GRACE_PERIOD,
                 KEY_PAIR,
                 null,
                 weights,
                 proofKeys,
+                delayer,
                 executor,
                 historyLibrary,
                 submissions,
@@ -127,10 +132,12 @@ class WrapsHistoryProverTest {
                 .build();
         subject = new WrapsHistoryProver(
                 SELF_ID,
+                GRACE_PERIOD,
                 KEY_PAIR,
                 nonGenesisSourceProof,
                 weights,
                 proofKeys,
+                delayer,
                 executor,
                 historyLibrary,
                 submissions,
@@ -153,20 +160,19 @@ class WrapsHistoryProverTest {
 
         subject = new WrapsHistoryProver(
                 SELF_ID,
+                GRACE_PERIOD,
                 KEY_PAIR,
                 HistoryProof.DEFAULT,
                 weights,
                 proofKeys,
+                delayer,
                 executor,
                 historyLibrary,
                 submissions,
                 new WrapsMpcStateMachine());
 
         subject.addWrapsSigningMessage(
-                CONSTRUCTION_ID,
-                new WrapsMessagePublication(SELF_ID, R1_MESSAGE, R1, EPOCH),
-                writableHistoryStore,
-                tssConfig);
+                CONSTRUCTION_ID, new WrapsMessagePublication(SELF_ID, R1_MESSAGE, R1, EPOCH), writableHistoryStore);
 
         final var outcome = subject.advance(now, construction, TARGET_METADATA, targetProofKeys, tssConfig, LEDGER_ID);
 
@@ -179,11 +185,13 @@ class WrapsHistoryProverTest {
     void advanceInitializesWrapsMessageAndPublishesR1() {
         subject = new WrapsHistoryProver(
                 SELF_ID,
+                GRACE_PERIOD,
                 KEY_PAIR,
                 null,
                 weights,
                 proofKeys,
-                runnable -> runnable.run(),
+                delayer,
+                Runnable::run,
                 historyLibrary,
                 submissions,
                 new WrapsMpcStateMachine());
@@ -207,11 +215,13 @@ class WrapsHistoryProverTest {
     void advancePublishesR3WhenEligible() {
         subject = new WrapsHistoryProver(
                 SELF_ID,
+                GRACE_PERIOD,
                 KEY_PAIR,
                 null,
                 weights,
                 proofKeys,
-                runnable -> runnable.run(),
+                delayer,
+                Runnable::run,
                 historyLibrary,
                 submissions,
                 new WrapsMpcStateMachine());
@@ -224,26 +234,18 @@ class WrapsHistoryProverTest {
 
         setField("entropy", new byte[32]);
         subject.addWrapsSigningMessage(
-                CONSTRUCTION_ID,
-                new WrapsMessagePublication(SELF_ID, R1_MESSAGE, R1, EPOCH),
-                writableHistoryStore,
-                tssConfig);
+                CONSTRUCTION_ID, new WrapsMessagePublication(SELF_ID, R1_MESSAGE, R1, EPOCH), writableHistoryStore);
         subject.addWrapsSigningMessage(
                 CONSTRUCTION_ID,
                 new WrapsMessagePublication(OTHER_NODE_ID, R1_MESSAGE, R1, EPOCH),
-                writableHistoryStore,
-                tssConfig);
+                writableHistoryStore);
 
         subject.addWrapsSigningMessage(
-                CONSTRUCTION_ID,
-                new WrapsMessagePublication(SELF_ID, R2_MESSAGE, R2, EPOCH),
-                writableHistoryStore,
-                tssConfig);
+                CONSTRUCTION_ID, new WrapsMessagePublication(SELF_ID, R2_MESSAGE, R2, EPOCH), writableHistoryStore);
         subject.addWrapsSigningMessage(
                 CONSTRUCTION_ID,
                 new WrapsMessagePublication(OTHER_NODE_ID, R2_MESSAGE, R2, EPOCH),
-                writableHistoryStore,
-                tssConfig);
+                writableHistoryStore);
 
         final var construction = constructionWithPhase(R3, null);
         final var outcome =
@@ -259,11 +261,13 @@ class WrapsHistoryProverTest {
     void advancePublishesR2WhenEligible() {
         subject = new WrapsHistoryProver(
                 SELF_ID,
+                GRACE_PERIOD,
                 KEY_PAIR,
                 null,
                 weights,
                 proofKeys,
-                runnable -> runnable.run(),
+                delayer,
+                Runnable::run,
                 historyLibrary,
                 submissions,
                 new WrapsMpcStateMachine());
@@ -275,15 +279,11 @@ class WrapsHistoryProverTest {
 
         setField("entropy", new byte[32]);
         subject.addWrapsSigningMessage(
-                CONSTRUCTION_ID,
-                new WrapsMessagePublication(SELF_ID, R1_MESSAGE, R1, EPOCH),
-                writableHistoryStore,
-                tssConfig);
+                CONSTRUCTION_ID, new WrapsMessagePublication(SELF_ID, R1_MESSAGE, R1, EPOCH), writableHistoryStore);
         subject.addWrapsSigningMessage(
                 CONSTRUCTION_ID,
                 new WrapsMessagePublication(OTHER_NODE_ID, R1_MESSAGE, R1, EPOCH),
-                writableHistoryStore,
-                tssConfig);
+                writableHistoryStore);
 
         final var construction = constructionWithPhase(R2, null);
         final var outcome =
@@ -299,26 +299,23 @@ class WrapsHistoryProverTest {
     void addWrapsSigningMessageRejectsWrongPhase() {
         final var publication = new WrapsMessagePublication(SELF_ID, R1_MESSAGE, R2, EPOCH);
 
-        assertFalse(subject.addWrapsSigningMessage(CONSTRUCTION_ID, publication, writableHistoryStore, tssConfig));
+        assertFalse(subject.addWrapsSigningMessage(CONSTRUCTION_ID, publication, writableHistoryStore));
         verifyNoInteractions(writableHistoryStore);
     }
 
     @Test
     void r1PhaseAdvancesToR2WhenEnoughWeight() {
-        given(tssConfig.wrapsMessageGracePeriod()).willReturn(Duration.ofSeconds(5));
-
         final var first = new WrapsMessagePublication(SELF_ID, R1_MESSAGE, R1, EPOCH);
         final var second = new WrapsMessagePublication(OTHER_NODE_ID, R1_MESSAGE, R1, EPOCH.plusSeconds(1));
 
-        assertTrue(subject.addWrapsSigningMessage(CONSTRUCTION_ID, first, writableHistoryStore, tssConfig));
-        assertTrue(subject.addWrapsSigningMessage(CONSTRUCTION_ID, second, writableHistoryStore, tssConfig));
+        assertTrue(subject.addWrapsSigningMessage(CONSTRUCTION_ID, first, writableHistoryStore));
+        assertTrue(subject.addWrapsSigningMessage(CONSTRUCTION_ID, second, writableHistoryStore));
 
         // A third R1 message from any node should be rejected since only R1 messages from two nodes are allowed
         assertFalse(subject.addWrapsSigningMessage(
                 CONSTRUCTION_ID,
                 new WrapsMessagePublication(999L, R1_MESSAGE, R1, EPOCH.plusSeconds(2)),
-                writableHistoryStore,
-                tssConfig));
+                writableHistoryStore));
 
         verify(writableHistoryStore).advanceWrapsSigningPhase(eq(CONSTRUCTION_ID), eq(R2), any());
     }
@@ -328,19 +325,21 @@ class WrapsHistoryProverTest {
         final var first = new WrapsMessagePublication(SELF_ID, R1_MESSAGE, R1, EPOCH);
         final var duplicate = new WrapsMessagePublication(SELF_ID, R1_MESSAGE, R1, EPOCH.plusSeconds(1));
 
-        assertTrue(subject.addWrapsSigningMessage(CONSTRUCTION_ID, first, writableHistoryStore, tssConfig));
-        assertFalse(subject.addWrapsSigningMessage(CONSTRUCTION_ID, duplicate, writableHistoryStore, tssConfig));
+        assertTrue(subject.addWrapsSigningMessage(CONSTRUCTION_ID, first, writableHistoryStore));
+        assertFalse(subject.addWrapsSigningMessage(CONSTRUCTION_ID, duplicate, writableHistoryStore));
     }
 
     @Test
     void aggregatePhasePublishesAggregateVoteWhenWrapsDisabledOrNoSourceProof() {
         subject = new WrapsHistoryProver(
                 SELF_ID,
+                GRACE_PERIOD,
                 KEY_PAIR,
                 null,
                 weights,
                 proofKeys,
-                runnable -> runnable.run(),
+                delayer,
+                Runnable::run,
                 historyLibrary,
                 submissions,
                 new WrapsMpcStateMachine());
@@ -386,10 +385,12 @@ class WrapsHistoryProverTest {
 
         subject = new WrapsHistoryProver(
                 SELF_ID,
+                GRACE_PERIOD,
                 KEY_PAIR,
                 sourceProof,
                 weights,
                 proofKeys,
+                delayer,
                 Runnable::run,
                 historyLibrary,
                 submissions,
@@ -411,37 +412,25 @@ class WrapsHistoryProverTest {
 
         setField("entropy", new byte[32]);
         subject.addWrapsSigningMessage(
-                CONSTRUCTION_ID,
-                new WrapsMessagePublication(SELF_ID, R1_MESSAGE, R1, EPOCH),
-                writableHistoryStore,
-                tssConfig);
+                CONSTRUCTION_ID, new WrapsMessagePublication(SELF_ID, R1_MESSAGE, R1, EPOCH), writableHistoryStore);
         subject.addWrapsSigningMessage(
                 CONSTRUCTION_ID,
                 new WrapsMessagePublication(OTHER_NODE_ID, R1_MESSAGE, R1, EPOCH),
-                writableHistoryStore,
-                tssConfig);
+                writableHistoryStore);
 
         subject.addWrapsSigningMessage(
-                CONSTRUCTION_ID,
-                new WrapsMessagePublication(SELF_ID, R2_MESSAGE, R2, EPOCH),
-                writableHistoryStore,
-                tssConfig);
+                CONSTRUCTION_ID, new WrapsMessagePublication(SELF_ID, R2_MESSAGE, R2, EPOCH), writableHistoryStore);
         subject.addWrapsSigningMessage(
                 CONSTRUCTION_ID,
                 new WrapsMessagePublication(OTHER_NODE_ID, R2_MESSAGE, R2, EPOCH),
-                writableHistoryStore,
-                tssConfig);
+                writableHistoryStore);
 
         subject.addWrapsSigningMessage(
-                CONSTRUCTION_ID,
-                new WrapsMessagePublication(SELF_ID, R3_MESSAGE, R3, EPOCH),
-                writableHistoryStore,
-                tssConfig);
+                CONSTRUCTION_ID, new WrapsMessagePublication(SELF_ID, R3_MESSAGE, R3, EPOCH), writableHistoryStore);
         subject.addWrapsSigningMessage(
                 CONSTRUCTION_ID,
                 new WrapsMessagePublication(OTHER_NODE_ID, R3_MESSAGE, R3, EPOCH),
-                writableHistoryStore,
-                tssConfig);
+                writableHistoryStore);
 
         final var construction = constructionWithPhase(AGGREGATE, null);
         final var outcome =
@@ -466,11 +455,13 @@ class WrapsHistoryProverTest {
 
         subject = new WrapsHistoryProver(
                 SELF_ID,
+                GRACE_PERIOD,
                 KEY_PAIR,
                 sourceProof,
                 weights,
                 proofKeys,
-                runnable -> runnable.run(),
+                delayer,
+                Runnable::run,
                 historyLibrary,
                 submissions,
                 new WrapsMpcStateMachine());
@@ -493,37 +484,25 @@ class WrapsHistoryProverTest {
 
         setField("entropy", new byte[32]);
         subject.addWrapsSigningMessage(
-                CONSTRUCTION_ID,
-                new WrapsMessagePublication(SELF_ID, R1_MESSAGE, R1, EPOCH),
-                writableHistoryStore,
-                tssConfig);
+                CONSTRUCTION_ID, new WrapsMessagePublication(SELF_ID, R1_MESSAGE, R1, EPOCH), writableHistoryStore);
         subject.addWrapsSigningMessage(
                 CONSTRUCTION_ID,
                 new WrapsMessagePublication(OTHER_NODE_ID, R1_MESSAGE, R1, EPOCH),
-                writableHistoryStore,
-                tssConfig);
+                writableHistoryStore);
 
         subject.addWrapsSigningMessage(
-                CONSTRUCTION_ID,
-                new WrapsMessagePublication(SELF_ID, R2_MESSAGE, R2, EPOCH),
-                writableHistoryStore,
-                tssConfig);
+                CONSTRUCTION_ID, new WrapsMessagePublication(SELF_ID, R2_MESSAGE, R2, EPOCH), writableHistoryStore);
         subject.addWrapsSigningMessage(
                 CONSTRUCTION_ID,
                 new WrapsMessagePublication(OTHER_NODE_ID, R2_MESSAGE, R2, EPOCH),
-                writableHistoryStore,
-                tssConfig);
+                writableHistoryStore);
 
         subject.addWrapsSigningMessage(
-                CONSTRUCTION_ID,
-                new WrapsMessagePublication(SELF_ID, R3_MESSAGE, R3, EPOCH),
-                writableHistoryStore,
-                tssConfig);
+                CONSTRUCTION_ID, new WrapsMessagePublication(SELF_ID, R3_MESSAGE, R3, EPOCH), writableHistoryStore);
         subject.addWrapsSigningMessage(
                 CONSTRUCTION_ID,
                 new WrapsMessagePublication(OTHER_NODE_ID, R3_MESSAGE, R3, EPOCH),
-                writableHistoryStore,
-                tssConfig);
+                writableHistoryStore);
 
         final var construction = constructionWithPhase(AGGREGATE, null);
         final var outcome =
@@ -540,83 +519,53 @@ class WrapsHistoryProverTest {
 
     @Test
     void r2PhaseRequiresR1ParticipationAndAdvancesToR3() {
-        given(tssConfig.wrapsMessageGracePeriod()).willReturn(Duration.ofSeconds(5));
-
         subject.addWrapsSigningMessage(
-                CONSTRUCTION_ID,
-                new WrapsMessagePublication(SELF_ID, R1_MESSAGE, R1, EPOCH),
-                writableHistoryStore,
-                tssConfig);
+                CONSTRUCTION_ID, new WrapsMessagePublication(SELF_ID, R1_MESSAGE, R1, EPOCH), writableHistoryStore);
         subject.addWrapsSigningMessage(
                 CONSTRUCTION_ID,
                 new WrapsMessagePublication(OTHER_NODE_ID, R1_MESSAGE, R1, EPOCH),
-                writableHistoryStore,
-                tssConfig);
+                writableHistoryStore);
 
         assertFalse(subject.addWrapsSigningMessage(
-                CONSTRUCTION_ID,
-                new WrapsMessagePublication(999L, R2_MESSAGE, R2, EPOCH),
-                writableHistoryStore,
-                tssConfig));
+                CONSTRUCTION_ID, new WrapsMessagePublication(999L, R2_MESSAGE, R2, EPOCH), writableHistoryStore));
 
         assertTrue(subject.addWrapsSigningMessage(
-                CONSTRUCTION_ID,
-                new WrapsMessagePublication(SELF_ID, R2_MESSAGE, R2, EPOCH),
-                writableHistoryStore,
-                tssConfig));
+                CONSTRUCTION_ID, new WrapsMessagePublication(SELF_ID, R2_MESSAGE, R2, EPOCH), writableHistoryStore));
         // Second R2 from OTHER_NODE_ID is accepted and is what triggers the phase change
         assertTrue(subject.addWrapsSigningMessage(
                 CONSTRUCTION_ID,
                 new WrapsMessagePublication(OTHER_NODE_ID, R2_MESSAGE, R2, EPOCH),
-                writableHistoryStore,
-                tssConfig));
+                writableHistoryStore));
 
         verify(writableHistoryStore).advanceWrapsSigningPhase(eq(CONSTRUCTION_ID), eq(R3), any());
     }
 
     @Test
     void r3PhaseRequiresR1ParticipationAndAdvancesToAggregate() {
-        given(tssConfig.wrapsMessageGracePeriod()).willReturn(Duration.ofSeconds(5));
-
         subject.addWrapsSigningMessage(
-                CONSTRUCTION_ID,
-                new WrapsMessagePublication(SELF_ID, R1_MESSAGE, R1, EPOCH),
-                writableHistoryStore,
-                tssConfig);
+                CONSTRUCTION_ID, new WrapsMessagePublication(SELF_ID, R1_MESSAGE, R1, EPOCH), writableHistoryStore);
         subject.addWrapsSigningMessage(
                 CONSTRUCTION_ID,
                 new WrapsMessagePublication(OTHER_NODE_ID, R1_MESSAGE, R1, EPOCH),
-                writableHistoryStore,
-                tssConfig);
+                writableHistoryStore);
 
         subject.addWrapsSigningMessage(
-                CONSTRUCTION_ID,
-                new WrapsMessagePublication(SELF_ID, R2_MESSAGE, R2, EPOCH),
-                writableHistoryStore,
-                tssConfig);
+                CONSTRUCTION_ID, new WrapsMessagePublication(SELF_ID, R2_MESSAGE, R2, EPOCH), writableHistoryStore);
         subject.addWrapsSigningMessage(
                 CONSTRUCTION_ID,
                 new WrapsMessagePublication(OTHER_NODE_ID, R2_MESSAGE, R2, EPOCH),
-                writableHistoryStore,
-                tssConfig);
+                writableHistoryStore);
 
         assertFalse(subject.addWrapsSigningMessage(
-                CONSTRUCTION_ID,
-                new WrapsMessagePublication(999L, R3_MESSAGE, R3, EPOCH),
-                writableHistoryStore,
-                tssConfig));
+                CONSTRUCTION_ID, new WrapsMessagePublication(999L, R3_MESSAGE, R3, EPOCH), writableHistoryStore));
 
         assertTrue(subject.addWrapsSigningMessage(
-                CONSTRUCTION_ID,
-                new WrapsMessagePublication(SELF_ID, R3_MESSAGE, R3, EPOCH),
-                writableHistoryStore,
-                tssConfig));
+                CONSTRUCTION_ID, new WrapsMessagePublication(SELF_ID, R3_MESSAGE, R3, EPOCH), writableHistoryStore));
         // Second R3 from OTHER_NODE_ID is accepted and is what triggers the phase change
         assertTrue(subject.addWrapsSigningMessage(
                 CONSTRUCTION_ID,
                 new WrapsMessagePublication(OTHER_NODE_ID, R3_MESSAGE, R3, EPOCH),
-                writableHistoryStore,
-                tssConfig));
+                writableHistoryStore));
 
         verify(writableHistoryStore).advanceWrapsSigningPhase(eq(CONSTRUCTION_ID), eq(AGGREGATE), isNull());
     }
@@ -639,11 +588,13 @@ class WrapsHistoryProverTest {
 
         subject = new WrapsHistoryProver(
                 SELF_ID,
+                GRACE_PERIOD,
                 KEY_PAIR,
                 null,
                 weights,
                 proofKeys,
-                runnable -> runnable.run(),
+                delayer,
+                Runnable::run,
                 historyLibrary,
                 submissions,
                 new WrapsMpcStateMachine());

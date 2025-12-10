@@ -83,8 +83,10 @@ public class ProofControllerImpl implements ProofController {
             @NonNull final HistoryService historyService,
             @NonNull final HistoryLibrary historyLibrary,
             @NonNull final HistoryProver.Factory proverFactory,
-            @Nullable final HistoryProof sourceProof) {
+            @Nullable final HistoryProof sourceProof,
+            @NonNull final TssConfig tssConfig) {
         requireNonNull(machine);
+        requireNonNull(tssConfig);
         this.selfId = selfId;
         this.executor = requireNonNull(executor);
         this.submissions = requireNonNull(submissions);
@@ -109,14 +111,14 @@ public class ProofControllerImpl implements ProofController {
                     : sourceProof.targetProofKeys().stream().collect(toMap(ProofKey::nodeId, ProofKey::key));
             this.prover = proverFactory.create(
                     selfId,
+                    tssConfig,
                     schnorrKeyPair,
                     sourceProof,
                     weights,
                     sourceProofKeys,
                     executor,
                     historyLibrary,
-                    submissions,
-                    machine);
+                    submissions);
             wrapsMessagePublications.stream().sorted().forEach(publication -> requireNonNull(prover)
                     .replayWrapsSigningMessage(constructionId(), publication));
         } else {
@@ -194,16 +196,13 @@ public class ProofControllerImpl implements ProofController {
     @Override
     public boolean addWrapsMessagePublication(
             @NonNull final WrapsMessagePublication publication,
-            @NonNull final WritableHistoryStore writableHistoryStore,
-            @NonNull final TssConfig tssConfig) {
+            @NonNull final WritableHistoryStore writableHistoryStore) {
         requireNonNull(publication);
         requireNonNull(writableHistoryStore);
-        requireNonNull(tssConfig);
         if (construction.hasTargetProof()) {
             return false;
         }
-        return requireNonNull(prover)
-                .addWrapsSigningMessage(constructionId(), publication, writableHistoryStore, tssConfig);
+        return requireNonNull(prover).addWrapsSigningMessage(constructionId(), publication, writableHistoryStore);
     }
 
     @Override

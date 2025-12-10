@@ -48,6 +48,7 @@ import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -62,9 +63,11 @@ public class WrapsHistoryProver implements HistoryProver {
     private static final Logger log = LogManager.getLogger(WrapsHistoryProver.class);
 
     private final long selfId;
+    private final Duration wrapsMessageGracePeriod;
     private final SchnorrKeyPair schnorrKeyPair;
     private final Map<Long, Bytes> proofKeys;
     private final RosterTransitionWeights weights;
+    private final Delayer delayer;
     private final Executor executor;
 
     @Nullable
@@ -174,21 +177,30 @@ public class WrapsHistoryProver implements HistoryProver {
         }
     }
 
+    public interface Delayer {
+        @NonNull
+        Executor delayedExecutor(long delay, @NonNull TimeUnit unit, @NonNull Executor executor);
+    }
+
     public WrapsHistoryProver(
             final long selfId,
+            @NonNull final Duration wrapsMessageGracePeriod,
             @NonNull final SchnorrKeyPair schnorrKeyPair,
             @Nullable final HistoryProof sourceProof,
             @NonNull final RosterTransitionWeights weights,
             @NonNull final Map<Long, Bytes> proofKeys,
+            @NonNull final Delayer delayer,
             @NonNull final Executor executor,
             @NonNull final HistoryLibrary historyLibrary,
             @NonNull final HistorySubmissions submissions,
             @NonNull final WrapsMpcStateMachine machine) {
         this.selfId = selfId;
         this.sourceProof = sourceProof;
+        this.wrapsMessageGracePeriod = requireNonNull(wrapsMessageGracePeriod);
         this.schnorrKeyPair = requireNonNull(schnorrKeyPair);
         this.weights = requireNonNull(weights);
         this.proofKeys = requireNonNull(proofKeys);
+        this.delayer = requireNonNull(delayer);
         this.executor = requireNonNull(executor);
         this.historyLibrary = requireNonNull(historyLibrary);
         this.submissions = requireNonNull(submissions);
@@ -244,17 +256,15 @@ public class WrapsHistoryProver implements HistoryProver {
     public boolean addWrapsSigningMessage(
             final long constructionId,
             @NonNull final WrapsMessagePublication publication,
-            @NonNull final WritableHistoryStore writableHistoryStore,
-            @NonNull final TssConfig tssConfig) {
+            @NonNull final WritableHistoryStore writableHistoryStore) {
         requireNonNull(publication);
         requireNonNull(writableHistoryStore);
-        requireNonNull(tssConfig);
-        return receiveWrapsSigningMessage(constructionId, publication, writableHistoryStore, tssConfig);
+        return receiveWrapsSigningMessage(constructionId, publication, writableHistoryStore);
     }
 
     @Override
     public void replayWrapsSigningMessage(long constructionId, @NonNull WrapsMessagePublication publication) {
-        receiveWrapsSigningMessage(constructionId, publication, null, null);
+        receiveWrapsSigningMessage(constructionId, publication, null);
     }
 
     @Override
@@ -317,8 +327,7 @@ public class WrapsHistoryProver implements HistoryProver {
     private boolean receiveWrapsSigningMessage(
             final long constructionId,
             @NonNull final WrapsMessagePublication publication,
-            @Nullable final WritableHistoryStore writableHistoryStore,
-            @Nullable final TssConfig tssConfig) {
+            @Nullable final WritableHistoryStore writableHistoryStore) {
         log.info(
                 "Received {} message from node{} for construction #{} (current phase={})",
                 publication.phase(),
@@ -338,9 +347,9 @@ public class WrapsHistoryProver implements HistoryProver {
                     .mapToLong(p -> weights.sourceWeightOf(p.nodeId()))
                     .sum();
             if (r1Weight >= moreThanHalfOfTotal(weights.sourceNodeWeights())) {
-                if (writableHistoryStore != null && tssConfig != null) {
+                if (writableHistoryStore != null) {
                     writableHistoryStore.advanceWrapsSigningPhase(
-                            constructionId, R2, publication.receiptTime().plus(tssConfig.wrapsMessageGracePeriod()));
+                            constructionId, R2, publication.receiptTime().plus(wrapsMessageGracePeriod));
                 }
                 wrapsPhase = R2;
             }
@@ -353,9 +362,9 @@ public class WrapsHistoryProver implements HistoryProver {
                 return false;
             }
             if (messages.keySet().containsAll(r1Nodes)) {
-                if (writableHistoryStore != null && tssConfig != null) {
+                if (writableHistoryStore != null) {
                     writableHistoryStore.advanceWrapsSigningPhase(
-                            constructionId, R3, publication.receiptTime().plus(tssConfig.wrapsMessageGracePeriod()));
+                            constructionId, R3, publication.receiptTime().plus(wrapsMessageGracePeriod));
                 }
                 wrapsPhase = R3;
             }
@@ -368,7 +377,7 @@ public class WrapsHistoryProver implements HistoryProver {
                 return false;
             }
             if (messages.keySet().containsAll(r1Nodes)) {
-                if (writableHistoryStore != null && tssConfig != null) {
+                if (writableHistoryStore != null) {
                     writableHistoryStore.advanceWrapsSigningPhase(constructionId, AGGREGATE, null);
                 }
                 wrapsPhase = AGGREGATE;
@@ -480,7 +489,7 @@ public class WrapsHistoryProver implements HistoryProver {
         this.voteDecisionFuture = new CompletableFuture<>();
 
         final long jitterMs = computeJitterMs(tssConfig, constructionId);
-        final var delayed = CompletableFuture.delayedExecutor(jitterMs, MILLISECONDS, executor);
+        final var delayed = delayer.delayedExecutor(jitterMs, MILLISECONDS, executor);
 
         // If this is the first thread to complete the vote decision, we submit an explicit vote
         CompletableFuture.runAsync(() -> tryCompleteVoteDecision(VoteDecision.explicit()), delayed);

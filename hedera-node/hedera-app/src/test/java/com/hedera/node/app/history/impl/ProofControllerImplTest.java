@@ -2,6 +2,7 @@
 package com.hedera.node.app.history.impl;
 
 import static com.hedera.hapi.node.state.history.WrapsPhase.R1;
+import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -42,9 +43,9 @@ class ProofControllerImplTest {
     private static final long SELF_ID = 1L;
     private static final long OTHER_NODE_ID = 2L;
     private static final long CONSTRUCTION_ID = 100L;
-
     private static final Bytes METADATA = Bytes.wrap("meta");
     private static final Bytes PROOF_KEY_1 = Bytes.wrap("pk1");
+    private static final TssConfig DEFAULT_TSS_CONFIG = DEFAULT_CONFIG.getConfigData(TssConfig.class);
 
     private Executor executor;
 
@@ -96,14 +97,14 @@ class ProofControllerImplTest {
 
         given(proverFactory.create(
                         eq(SELF_ID),
+                        eq(DEFAULT_TSS_CONFIG),
                         eq(keyPair),
                         any(),
                         eq(weights),
                         any(),
                         any(),
                         eq(historyLibrary),
-                        eq(submissions),
-                        eq(machine)))
+                        eq(submissions)))
                 .willReturn(prover);
 
         subject = new ProofControllerImpl(
@@ -120,7 +121,8 @@ class ProofControllerImplTest {
                 historyService,
                 historyLibrary,
                 proverFactory,
-                null);
+                null,
+                DEFAULT_TSS_CONFIG);
     }
 
     @Test
@@ -154,7 +156,8 @@ class ProofControllerImplTest {
                 historyService,
                 historyLibrary,
                 proverFactory,
-                null);
+                null,
+                DEFAULT_TSS_CONFIG);
 
         assertFalse(subject.isStillInProgress());
     }
@@ -180,7 +183,8 @@ class ProofControllerImplTest {
                 historyService,
                 historyLibrary,
                 proverFactory,
-                null);
+                null,
+                DEFAULT_TSS_CONFIG);
 
         assertFalse(subject.isStillInProgress());
     }
@@ -206,7 +210,8 @@ class ProofControllerImplTest {
                 historyService,
                 historyLibrary,
                 proverFactory,
-                null);
+                null,
+                DEFAULT_TSS_CONFIG);
 
         subject.advanceConstruction(Instant.EPOCH, METADATA, writableHistoryStore, true, tssConfig);
 
@@ -253,7 +258,8 @@ class ProofControllerImplTest {
                 historyService,
                 historyLibrary,
                 proverFactory,
-                null);
+                null,
+                DEFAULT_TSS_CONFIG);
 
         subject.advanceConstruction(Instant.EPOCH.plusSeconds(1), METADATA, writableHistoryStore, false, tssConfig);
 
@@ -281,7 +287,8 @@ class ProofControllerImplTest {
                 historyService,
                 historyLibrary,
                 proverFactory,
-                null);
+                null,
+                DEFAULT_TSS_CONFIG);
 
         given(writableHistoryStore.getLedgerId()).willReturn(Bytes.EMPTY);
         given(prover.advance(any(), any(), any(), any(), eq(tssConfig), any()))
@@ -317,7 +324,8 @@ class ProofControllerImplTest {
                 historyService,
                 historyLibrary,
                 proverFactory,
-                null);
+                null,
+                DEFAULT_TSS_CONFIG);
 
         final var proof = HistoryProof.newBuilder().build();
 
@@ -356,7 +364,8 @@ class ProofControllerImplTest {
                 historyService,
                 historyLibrary,
                 proverFactory,
-                null);
+                null,
+                DEFAULT_TSS_CONFIG);
 
         final var reason = "test-failure";
 
@@ -394,7 +403,8 @@ class ProofControllerImplTest {
                 historyService,
                 historyLibrary,
                 proverFactory,
-                null);
+                null,
+                DEFAULT_TSS_CONFIG);
 
         final var publication = new ProofKeyPublication(SELF_ID, PROOF_KEY_1, Instant.EPOCH);
 
@@ -443,29 +453,28 @@ class ProofControllerImplTest {
                 historyService,
                 historyLibrary,
                 proverFactory,
-                null);
+                null,
+                DEFAULT_TSS_CONFIG);
 
         final var publication = new WrapsMessagePublication(SELF_ID, Bytes.EMPTY, R1, Instant.EPOCH);
 
-        final var result = subject.addWrapsMessagePublication(publication, writableHistoryStore, tssConfig);
+        final var result = subject.addWrapsMessagePublication(publication, writableHistoryStore);
 
         assertFalse(result);
-        verify(prover, never()).addWrapsSigningMessage(anyLong(), any(), any(), any());
+        verify(prover, never()).addWrapsSigningMessage(anyLong(), any(), any());
     }
 
     @Test
     void addWrapsMessagePublicationDelegatesToProverOtherwise() {
         final var publication = new WrapsMessagePublication(SELF_ID, Bytes.EMPTY, R1, Instant.EPOCH);
 
-        given(prover.addWrapsSigningMessage(
-                        eq(CONSTRUCTION_ID), eq(publication), eq(writableHistoryStore), eq(tssConfig)))
+        given(prover.addWrapsSigningMessage(eq(CONSTRUCTION_ID), eq(publication), eq(writableHistoryStore)))
                 .willReturn(true);
 
-        final var result = subject.addWrapsMessagePublication(publication, writableHistoryStore, tssConfig);
+        final var result = subject.addWrapsMessagePublication(publication, writableHistoryStore);
 
         assertTrue(result);
-        verify(prover)
-                .addWrapsSigningMessage(eq(CONSTRUCTION_ID), eq(publication), eq(writableHistoryStore), eq(tssConfig));
+        verify(prover).addWrapsSigningMessage(eq(CONSTRUCTION_ID), eq(publication), eq(writableHistoryStore));
     }
 
     @Test
@@ -489,7 +498,8 @@ class ProofControllerImplTest {
                 historyService,
                 historyLibrary,
                 proverFactory,
-                null);
+                null,
+                DEFAULT_TSS_CONFIG);
 
         final var vote = HistoryProofVote.newBuilder()
                 .proof(HistoryProof.newBuilder().build())
@@ -537,7 +547,8 @@ class ProofControllerImplTest {
                 historyService,
                 historyLibrary,
                 proverFactory,
-                null);
+                null,
+                DEFAULT_TSS_CONFIG);
 
         final var congruentVote =
                 HistoryProofVote.newBuilder().congruentNodeId(OTHER_NODE_ID).build();
