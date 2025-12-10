@@ -46,7 +46,9 @@ import java.util.Map;
 import org.hiero.consensus.roster.WritableRosterStore;
 import org.hiero.interledger.clpr.ClprService;
 import org.hiero.interledger.clpr.WritableClprLedgerConfigurationStore;
+import org.hiero.interledger.clpr.WritableClprMetadataStore;
 import org.hiero.interledger.clpr.impl.WritableClprLedgerConfigurationStoreImpl;
+import org.hiero.interledger.clpr.impl.WritableClprMetadataStoreImpl;
 
 /**
  * Factory for all writable stores. It creates new writable stores based on the {@link State}.
@@ -118,6 +120,10 @@ public class WritableStoreFactory {
                 new StoreEntry(
                         ClprService.NAME,
                         (states, entityCounters) -> new WritableClprLedgerConfigurationStoreImpl(states)));
+        newMap.put(
+                WritableClprMetadataStore.class,
+                new StoreEntry(
+                        ClprService.NAME, (states, entityCounters) -> new WritableClprMetadataStoreImpl(states)));
         return Collections.unmodifiableMap(newMap);
     }
 

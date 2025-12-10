@@ -69,7 +69,9 @@ import org.hiero.consensus.roster.ReadableRosterStore;
 import org.hiero.consensus.roster.ReadableRosterStoreImpl;
 import org.hiero.interledger.clpr.ClprService;
 import org.hiero.interledger.clpr.ReadableClprLedgerConfigurationStore;
+import org.hiero.interledger.clpr.ReadableClprMetadataStore;
 import org.hiero.interledger.clpr.impl.ReadableClprLedgerConfigurationStoreImpl;
+import org.hiero.interledger.clpr.impl.ReadableClprMetadataStoreImpl;
 
 /**
  * Factory for all readable stores. It creates new readable stores based on the {@link State}.
@@ -158,6 +160,10 @@ public class ReadableStoreFactory {
                 new StoreEntry(
                         ClprService.NAME,
                         (states, entityCounters) -> new ReadableClprLedgerConfigurationStoreImpl(states)));
+        newMap.put(
+                ReadableClprMetadataStore.class,
+                new StoreEntry(
+                        ClprService.NAME, (states, entityCounters) -> new ReadableClprMetadataStoreImpl(states)));
         return Collections.unmodifiableMap(newMap);
     }
 

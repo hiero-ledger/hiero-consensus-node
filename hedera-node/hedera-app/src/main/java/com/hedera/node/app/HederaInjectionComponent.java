@@ -75,7 +75,6 @@ import java.util.function.Supplier;
 import javax.inject.Provider;
 import javax.inject.Singleton;
 import org.hiero.consensus.transaction.TransactionPoolNexus;
-import org.hiero.interledger.clpr.ClprService;
 import org.hiero.interledger.clpr.impl.ClprEndpoint;
 import org.hiero.interledger.clpr.impl.ClprModule;
 
@@ -251,9 +250,6 @@ public interface HederaInjectionComponent {
 
         @BindsInstance
         Builder appContext(AppContext appContext);
-
-        @BindsInstance
-        Builder clprService(ClprService clprService);
 
         HederaInjectionComponent build();
     }

@@ -18,7 +18,7 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import org.hiero.hapi.interledger.clpr.ClprServiceInterface;
 import org.hiero.hapi.interledger.state.clpr.ClprLedgerConfiguration;
 import org.hiero.hapi.interledger.state.clpr.ClprLedgerId;
-import org.hiero.interledger.clpr.impl.ClprStateProofUtils;
+import org.hiero.interledger.clpr.ClprStateProofUtils;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;

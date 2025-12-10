@@ -168,8 +168,8 @@ public class ProcessUtils {
     private static List<String> javaCommandLineFor(@NonNull final NodeMetadata metadata) {
         final List<String> commandLine = new ArrayList<>();
         commandLine.add(ProcessHandle.current().info().command().orElseThrow());
-        // Only activate JDWP if not in CI
-        if (System.getenv("CI") == null) {
+        // Only activate JDWP if not in CI and not explicitly disabled
+        if (System.getenv("CI") == null && !Boolean.getBoolean("hapi.disable.jdwp")) {
             commandLine.add("-agentlib:jdwp=transport=dt_socket,server=y,suspend="
                     + (metadata.nodeId() == NODE_ID_TO_SUSPEND ? "y" : "n") + ",address=*:"
                     + (FIRST_AGENT_PORT + metadata.nodeId()));

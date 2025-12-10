@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.interledger.clpr.impl;
+package org.hiero.interledger.clpr;
 
 import static java.util.Objects.requireNonNull;
 
@@ -89,13 +89,15 @@ public final class ClprStateProofUtils {
     }
 
     /**
-     * Builds a development-mode state proof that contains the supplied configuration as the single leaf.
+     * Builds a local synthetic state proof that contains the supplied configuration as the single leaf.
+     * <p>This is a convenience for dev/local bootstrap; it does not produce a fully validated,
+     * network-signed proof.</p>
      *
      * @param configuration the configuration to embed
      * @return a state proof for the configuration
      */
     @NonNull
-    public static StateProof buildStateProof(@NonNull final ClprLedgerConfiguration configuration) {
+    public static StateProof buildLocalClprStateProofWrapper(@NonNull final ClprLedgerConfiguration configuration) {
         requireNonNull(configuration, "configuration must not be null");
         final var ledgerId = requireNonNull(configuration.ledgerId(), "configuration must include a ledger ID");
         final var stateKey = com.hedera.hapi.platform.state.StateKey.newBuilder()

@@ -112,9 +112,13 @@ public class WorkingDirUtils {
      * @param configTxt the contents of the <i>config.txt</i> file
      */
     public static void recreateWorkingDir(
-            @NonNull final Path workingDir, @NonNull final String configTxt, final long nodeId) {
+            @NonNull final Path workingDir,
+            @NonNull final String configTxt,
+            final long nodeId,
+            @NonNull final Map<Long, ServiceEndpoint> serviceEndpoints) {
         requireNonNull(workingDir);
         requireNonNull(configTxt);
+        requireNonNull(serviceEndpoints);
 
         // Clean up any existing directory structure
         rm(workingDir);
@@ -126,7 +130,7 @@ public class WorkingDirUtils {
                 workingDir.resolve(DATA_DIR).resolve(UPGRADE_DIR).resolve(CURRENT_DIR));
         // Write the address book (config.txt) and genesis network (genesis-network.json) files
         writeStringUnchecked(workingDir.resolve(CONFIG_TXT), configTxt);
-        final var network = networkFrom(configTxt, OnlyRoster.NO);
+        final var network = networkFrom(configTxt, OnlyRoster.NO, serviceEndpoints);
         writeStringUnchecked(
                 workingDir.resolve(DATA_DIR).resolve(CONFIG_FOLDER).resolve(GENESIS_NETWORK_JSON),
                 Network.JSON.toJSON(network));
@@ -134,6 +138,11 @@ public class WorkingDirUtils {
         copyBootstrapAssets(bootstrapAssetsLoc(), workingDir);
         // Update the log4j2.xml file with the correct output directory
         updateLog4j2XmlOutputDir(workingDir, nodeId);
+    }
+
+    public static void recreateWorkingDir(
+            @NonNull final Path workingDir, @NonNull final String configTxt, final long nodeId) {
+        recreateWorkingDir(workingDir, configTxt, nodeId, Map.of());
     }
 
     /**
@@ -406,12 +415,18 @@ public class WorkingDirUtils {
      * @param onlyRoster if true, only the roster entries will be set in the network
      * @return the network
      */
-    public static Network networkFrom(@NonNull final String configTxt, @NonNull final OnlyRoster onlyRoster) {
+    public static Network networkFrom(
+            @NonNull final String configTxt,
+            @NonNull final OnlyRoster onlyRoster,
+            @NonNull final Map<Long, ServiceEndpoint> serviceEndpoints) {
         requireNonNull(configTxt);
         requireNonNull(onlyRoster);
+        requireNonNull(serviceEndpoints);
         final var certs = AddressBookUtils.certsFor(configTxt);
-        final var nodeMetadata = Arrays.stream(configTxt.split("\n"))
+        final var lines = Arrays.stream(configTxt.split("\n"))
                 .filter(line -> line.contains("address, "))
+                .toList();
+        final var nodeMetadata = lines.stream()
                 .map(line -> {
                     final var parts = line.split(", ");
                     final long nodeId = Long.parseLong(parts[1]);
@@ -423,12 +438,14 @@ public class WorkingDirUtils {
                             .rosterEntry(new RosterEntry(nodeId, weight, cert, gossipEndpoints));
                     final var nodeAccount = toPbj(HapiPropertySource.asAccount(parts[9]));
                     if (onlyRoster == OnlyRoster.NO) {
+                        final ServiceEndpoint serviceEndpoint =
+                                serviceEndpoints.getOrDefault(nodeId, endpointFrom(parts[5], parts[6]));
                         metadata.node(new Node(
                                 nodeId,
                                 nodeAccount,
                                 "node" + (nodeId + 1),
                                 gossipEndpoints,
-                                List.of(endpointFrom(parts[5], parts[6])),
+                                List.of(serviceEndpoint),
                                 cert,
                                 // The gRPC certificate hash is irrelevant for PR checks
                                 Bytes.EMPTY,
@@ -442,6 +459,10 @@ public class WorkingDirUtils {
                 })
                 .toList();
         return Network.newBuilder().nodeMetadata(nodeMetadata).build();
+    }
+
+    public static Network networkFrom(@NonNull final String configTxt, @NonNull final OnlyRoster onlyRoster) {
+        return networkFrom(configTxt, onlyRoster, Map.of());
     }
 
     private static ServiceEndpoint endpointFrom(@NonNull final String hostLiteral, @NonNull final String portLiteral) {

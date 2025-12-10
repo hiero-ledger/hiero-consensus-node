@@ -18,6 +18,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Comparator;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 
@@ -40,8 +41,16 @@ public abstract class AbstractLocalNode<T extends AbstractLocalNode<T>> extends 
 
     @Override
     public @NonNull T initWorkingDir(@NonNull final String configTxt) {
+        return initWorkingDir(configTxt, Map.of());
+    }
+
+    @Override
+    public @NonNull T initWorkingDir(
+            @NonNull final String configTxt,
+            @NonNull final Map<Long, com.hedera.hapi.node.base.ServiceEndpoint> serviceEndpoints) {
         requireNonNull(configTxt);
-        recreateWorkingDir(requireNonNull(metadata.workingDir()), configTxt, metadata.nodeId());
+        requireNonNull(serviceEndpoints);
+        recreateWorkingDir(requireNonNull(metadata.workingDir()), configTxt, metadata.nodeId(), serviceEndpoints);
         workingDirInitialized = true;
         return self();
     }

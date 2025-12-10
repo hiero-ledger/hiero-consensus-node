@@ -9,15 +9,22 @@ import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.workflows.*;
+import com.hedera.node.config.ConfigProvider;
+import com.hedera.node.config.data.ClprConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import javax.inject.Inject;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.roster.ReadableRosterStore;
 import org.hiero.hapi.interledger.clpr.ClprSetLedgerConfigurationTransactionBody;
 import org.hiero.hapi.interledger.state.clpr.ClprLedgerConfiguration;
+import org.hiero.hapi.interledger.state.clpr.ClprLocalLedgerMetadata;
+import org.hiero.interledger.clpr.ClprStateProofUtils;
 import org.hiero.interledger.clpr.WritableClprLedgerConfigurationStore;
+import org.hiero.interledger.clpr.WritableClprMetadataStore;
 import org.hiero.interledger.clpr.impl.ClprStateProofManager;
-import org.hiero.interledger.clpr.impl.ClprStateProofUtils;
 
 /**
  * Handles the {@link  org.hiero.hapi.interledger.clpr.ClprSetLedgerConfigurationTransactionBody} to set the
@@ -25,18 +32,22 @@ import org.hiero.interledger.clpr.impl.ClprStateProofUtils;
  * This handler uses the {@link ClprStateProofManager} to validate the state proof and manage ledger configurations.
  */
 public class ClprSetLedgerConfigurationHandler implements TransactionHandler {
-
+    private static final Logger log = LogManager.getLogger(ClprSetLedgerConfigurationHandler.class);
     private final ClprStateProofManager stateProofManager;
     private final NetworkInfo networkInfo;
+    private final ConfigProvider configProvider;
 
     /**
      * Default constructor for injection.
      */
     @Inject
     public ClprSetLedgerConfigurationHandler(
-            @NonNull final ClprStateProofManager stateProofManager, @NonNull final NetworkInfo networkInfo) {
+            @NonNull final ClprStateProofManager stateProofManager,
+            @NonNull final NetworkInfo networkInfo,
+            @NonNull final ConfigProvider configProvider) {
         this.stateProofManager = requireNonNull(stateProofManager);
         this.networkInfo = requireNonNull(networkInfo);
+        this.configProvider = requireNonNull(configProvider);
     }
 
     @Override
@@ -59,13 +70,20 @@ public class ClprSetLedgerConfigurationHandler implements TransactionHandler {
      * @throws PreCheckException If any of the checks fail, indicating an invalid transaction.
      */
     private void pureChecks(@NonNull final TransactionBody txn) throws PreCheckException {
+        pureChecks(txn, true);
+    }
+
+    private void pureChecks(@NonNull final TransactionBody txn, final boolean validateStateProof)
+            throws PreCheckException {
+        final var clprConfig = configProvider.getConfiguration().getConfigData(ClprConfig.class);
+        validateTruePreCheck(clprConfig.clprEnabled(), ResponseCodeEnum.NOT_SUPPORTED);
         final var configTxnBdy = txn.clprSetLedgerConfiguration();
         validateTruePreCheck(configTxnBdy != null, ResponseCodeEnum.INVALID_TRANSACTION_BODY);
 
         validateTruePreCheck(configTxnBdy.hasLedgerConfigurationProof(), ResponseCodeEnum.INVALID_TRANSACTION);
 
         // Extract and validate the configuration from the state proof
-        final ClprLedgerConfiguration ledgerConfig = extractConfigurationOrThrow(configTxnBdy);
+        final ClprLedgerConfiguration ledgerConfig = extractConfigurationOrThrow(configTxnBdy, validateStateProof);
 
         final var ledgerId = ledgerConfig.ledgerIdOrThrow();
         // ledgerId must exist.
@@ -108,6 +126,11 @@ public class ClprSetLedgerConfigurationHandler implements TransactionHandler {
      */
     public void preHandle(@NonNull final PreHandleContext context) throws PreCheckException {
         requireNonNull(context);
+        // System-generated bootstrap dispatches should not fail due to state proof validation;
+        // allow handle() to perform minimal checks and update local metadata.
+        if (!context.isUserTransaction()) {
+            return;
+        }
         // All nodes need to check that the ledger configuration is an update and that the state proof is valid.
         // If any of the pure checks fail, the transaction will not be processed and the submitting nodes will need
         // to be held accountable for the failure.
@@ -117,7 +140,7 @@ public class ClprSetLedgerConfigurationHandler implements TransactionHandler {
         try {
             // TODO: This call needs to make sure that if it fails, it will always fail in the future.
             //       Anything that can fail temporarily must pass and then fail on the handle thread.
-            pureChecks(txn);
+            pureChecks(txn, context.isUserTransaction());
         } catch (PreCheckException e) {
             // TODO: The submitting nodes should be held accountable for the failure.
 
@@ -140,6 +163,30 @@ public class ClprSetLedgerConfigurationHandler implements TransactionHandler {
             // This should not happen as the state proof was already validated in pureChecks
             throw new HandleException(ResponseCodeEnum.CLPR_INVALID_STATE_PROOF);
         }
+
+        // Persist local metadata alongside the configuration update. LedgerId is set once (if unset) to the
+        // active roster hash; roster hash must always advance on each local configuration update.
+        final var storeFactory = context.storeFactory();
+        final var rosterStore = storeFactory.readableStore(ReadableRosterStore.class);
+        final var metadataStore = storeFactory.writableStore(WritableClprMetadataStore.class);
+        final var activeRosterHash = requireNonNull(
+                rosterStore.getCurrentRosterHash(), "active roster hash must be present for CLPR updates");
+        final var existingMetadata = metadataStore.get();
+        final var metadataLedgerId = existingMetadata != null && existingMetadata.ledgerId() != null
+                ? existingMetadata.ledgerId()
+                : newConfig.ledgerId();
+        if (existingMetadata != null
+                && existingMetadata.ledgerId() != null
+                && existingMetadata.rosterHash() != null
+                && existingMetadata.ledgerId().equals(newConfig.ledgerId())
+                && existingMetadata.rosterHash().equals(activeRosterHash)) {
+            return;
+        }
+        metadataStore.put(ClprLocalLedgerMetadata.newBuilder()
+                .ledgerId(metadataLedgerId)
+                .rosterHash(activeRosterHash)
+                .build());
+
         final var ledgerId = newConfig.ledgerIdOrThrow();
         final var configStore = context.storeFactory().writableStore(WritableClprLedgerConfigurationStore.class);
         final var existingConfig = configStore.get(ledgerId);
@@ -171,13 +218,14 @@ public class ClprSetLedgerConfigurationHandler implements TransactionHandler {
 
     @NonNull
     private static ClprLedgerConfiguration extractConfigurationOrThrow(
-            @NonNull final ClprSetLedgerConfigurationTransactionBody txn) throws PreCheckException {
+            @NonNull final ClprSetLedgerConfigurationTransactionBody txn, final boolean validateStateProof)
+            throws PreCheckException {
         try {
             final var stateProof = txn.ledgerConfigurationProofOrThrow();
-            if (!ClprStateProofUtils.validateStateProof(stateProof)) {
+            if (validateStateProof && !ClprStateProofUtils.validateStateProof(stateProof)) {
                 throw new PreCheckException(ResponseCodeEnum.CLPR_INVALID_STATE_PROOF);
             }
-            return ClprStateProofUtils.extractConfiguration(txn.ledgerConfigurationProofOrThrow());
+            return ClprStateProofUtils.extractConfiguration(stateProof);
         } catch (final IllegalArgumentException | IllegalStateException e) {
             throw new PreCheckException(ResponseCodeEnum.CLPR_INVALID_STATE_PROOF);
         }

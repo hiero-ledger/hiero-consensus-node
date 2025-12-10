@@ -199,6 +199,21 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
     }
 
     /**
+     * Creates an isolated subprocess network that is not registered as the shared network.
+     *
+     * @param networkName the name of the network
+     * @param size the number of nodes
+     * @param shard the shard id
+     * @param realm the realm id
+     * @return the isolated subprocess network
+     */
+    public static synchronized SubProcessNetwork newIsolatedNetwork(
+            @NonNull final String networkName, final int size, final long shard, final long realm) {
+        requireNonNull(networkName);
+        return (SubProcessNetwork) liveNetwork(networkName, size, shard, realm);
+    }
+
+    /**
      * Returns the network type; for now this is always
      * {@link TargetNetworkType#SUBPROCESS_NETWORK}.
      *
@@ -214,8 +229,9 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
      */
     @Override
     public void start() {
+        final var serviceEndpoints = currentGrpcServiceEndpoints();
         nodes.forEach(node -> {
-            node.initWorkingDir(configTxt);
+            node.initWorkingDir(configTxt, serviceEndpoints);
             executePostInitWorkingDirActions(node);
             node.start();
         });
@@ -400,7 +416,7 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
         nodes.add(insertionPoint, node);
         configTxt = configTxtForLocal(
                 networkName, nodes, nextInternalGossipPort, nextExternalGossipPort, latestCandidateWeights());
-        nodes.get(insertionPoint).initWorkingDir(configTxt);
+        nodes.get(insertionPoint).initWorkingDir(configTxt, currentGrpcServiceEndpoints());
         if (blockNodeMode.equals(BlockNodeMode.SIMULATOR)) {
             executePostInitWorkingDirActions(node);
         }
@@ -485,7 +501,7 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
     private void refreshOverrideNetworks(@NonNull final ReassignPorts reassignPorts) {
         log.info("Refreshing override networks for '{}' - \n{}", name(), configTxt);
         nodes.forEach(node -> {
-            var overrideNetwork = WorkingDirUtils.networkFrom(configTxt, OnlyRoster.NO);
+            var overrideNetwork = WorkingDirUtils.networkFrom(configTxt, OnlyRoster.NO, currentGrpcServiceEndpoints());
             if (overrideCustomizer != null) {
                 // Apply the override customizer to the network
                 overrideNetwork = overrideCustomizer.apply(overrideNetwork);
@@ -555,6 +571,13 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
                 .setIpAddressV4(SUBPROCESS_ENDPOINT)
                 .setPort(port)
                 .build();
+    }
+
+    private Map<Long, com.hedera.hapi.node.base.ServiceEndpoint> currentGrpcServiceEndpoints() {
+        return nodes().stream()
+                .collect(toMap(
+                        HederaNode::getNodeId,
+                        node -> HapiPropertySource.asServiceEndpoint(node.getHost() + ":" + node.getGrpcPort())));
     }
 
     private static void initializeNextPortsForNetwork(final int size) {
@@ -635,9 +658,21 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
     public void configureApplicationProperties(HederaNode node) {
         // Update bootstrap properties for the node from bootstrapPropertyOverrides if there are any
         final var nodeId = node.getNodeId();
+        final List<String> mergedProperties;
         if (applicationPropertyOverrides.containsKey(nodeId)) {
-            final var properties = applicationPropertyOverrides.get(nodeId);
-            log.info("Configuring application properties for node {}: {}", nodeId, properties);
+            mergedProperties = new ArrayList<>(applicationPropertyOverrides.get(nodeId));
+        } else if (Boolean.getBoolean("clpr.clprEnabled")) {
+            mergedProperties = new ArrayList<>(List.of(
+                    "clpr.clprEnabled", System.getProperty("clpr.clprEnabled", "true"),
+                    "clpr.devModeEnabled", System.getProperty("clpr.devModeEnabled", "true"),
+                    "clpr.publicizeNetworkAddresses", System.getProperty("clpr.publicizeNetworkAddresses", "true"),
+                    "clpr.connectionFrequency", System.getProperty("clpr.connectionFrequency", "500")));
+        } else {
+            mergedProperties = List.of();
+        }
+
+        if (!mergedProperties.isEmpty()) {
+            log.info("Configuring application properties for node {}: {}", nodeId, mergedProperties);
             Path appPropertiesPath = node.getExternalPath(APPLICATION_PROPERTIES);
             log.info(
                     "Attempting to update application.properties at path {} for node {}",
@@ -658,9 +693,9 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
 
                 // Prepare the block stream config string
                 StringBuilder propertyBuilder = new StringBuilder();
-                for (int i = 0; i < properties.size(); i += 2) {
-                    propertyBuilder.append(properties.get(i)).append("=").append(properties.get(i + 1));
-                    if (i < properties.size() - 1) {
+                for (int i = 0; i < mergedProperties.size(); i += 2) {
+                    propertyBuilder.append(mergedProperties.get(i)).append("=").append(mergedProperties.get(i + 1));
+                    if (i < mergedProperties.size() - 1) {
                         propertyBuilder.append(System.lineSeparator());
                     }
                 }

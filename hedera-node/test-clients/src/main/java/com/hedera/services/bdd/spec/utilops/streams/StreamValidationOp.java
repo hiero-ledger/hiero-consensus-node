@@ -158,7 +158,6 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
                                             dataRef::set, () -> Assertions.fail("No record stream data found"));
                             final var data = requireNonNull(dataRef.get());
                             final var maybeErrors = BLOCK_STREAM_VALIDATOR_FACTORIES.stream()
-                                    .filter(factory -> factory.appliesTo(spec))
                                     .map(factory -> factory.create(spec))
                                     .flatMap(v -> v.validationErrorsIn(blocks, data))
                                     .peek(t -> log.error("Block stream validation error", t))

@@ -80,6 +80,8 @@ val prCheckTags =
         put("hapiTestMisc", miscTags)
         put("hapiTestMiscRecords", miscTags)
         put("hapiTestSimpleFees", "SIMPLE_FEES")
+        put("hapiTestClpr", "CLPR")
+        put("hapiTestMultiNetwork", "MULTINETWORK")
 
         // Copy vals to the MATS variants
         val originalEntries = toMap() // Create a snapshot of current entries
@@ -206,8 +208,17 @@ tasks.register<Test>("testSubprocess") {
             // cases
             else if (ciTagExpression.contains("ISS") || ciTagExpression.contains("BLOCK_NODE"))
                 "(${ciTagExpression})&!(EMBEDDED|REPEATABLE)"
+            else if (ciTagExpression.contains("CLPR")) "(CLPR)"
+            else if (ciTagExpression.contains("MULTINETWORK")) "MULTINETWORK"
             else "(${ciTagExpression}|STREAM_VALIDATION|LOG_VALIDATION)&!(EMBEDDED|REPEATABLE|ISS)"
         )
+    }
+
+    if (ciTagExpression.contains("CLPR")) {
+        systemProperty("clpr.clprEnabled", "true")
+        systemProperty("clpr.devModeEnabled", "true")
+        systemProperty("clpr.publicizeNetworkAddresses", "true")
+        systemProperty("clpr.connectionFrequency", "500")
     }
 
     // Choose a different initial port for each test task if running as PR check
