@@ -191,6 +191,20 @@ public abstract class BlockNodeCommunicationTestBase {
         return items;
     }
 
+    protected static List<BlockItem> newFixedBlockItems(
+            final long blockNumber, final int bytesPerItem, final int numItems) {
+        final List<BlockItem> items = new ArrayList<>();
+
+        items.add(newBlockHeaderItem(blockNumber));
+
+        for (int i = 0; i < numItems; ++i) {
+            items.add(newBlockTxItem(bytesPerItem));
+        }
+
+        items.add(newBlockProofItem(blockNumber, bytesPerItem));
+        return items;
+    }
+
     protected static BlockNodeConfiguration newBlockNodeConfig(final int port, final int priority) {
         return newBlockNodeConfig("localhost", port, priority);
     }
