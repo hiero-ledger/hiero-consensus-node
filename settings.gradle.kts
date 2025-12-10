@@ -55,6 +55,4 @@ javaModules {
 
     module("hedera-state-validator") { group = "com.hedera.hashgraph" }
 
-    // Platform demo applications
-    directory("platform-sdk/platform-apps/demos") { group = "com.hedera.hashgraph" }
 }
