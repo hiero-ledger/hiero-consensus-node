@@ -12,7 +12,6 @@ open module com.swirlds.common.test.fixtures {
     exports com.swirlds.common.test.fixtures.threading;
     exports com.swirlds.common.test.fixtures.set;
     exports com.swirlds.common.test.fixtures.stream;
-    exports com.swirlds.common.test.fixtures.fcqueue;
     exports com.swirlds.common.test.fixtures.platform;
 
     requires transitive com.hedera.pbj.runtime;

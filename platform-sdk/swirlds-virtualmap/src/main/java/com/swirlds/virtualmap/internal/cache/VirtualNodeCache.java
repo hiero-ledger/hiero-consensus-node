@@ -880,7 +880,7 @@ public final class VirtualNodeCache implements FastCopyable, SelfSerializable {
      * 		Node path
      * @param hash
      * 		Node hash. Null values are accepted, although observed in tests only. In real scenarios
-     * 	    this method is only called by VirtualHasher (via VirtualRootNode), and it never puts
+     * 	    this method is only called by VirtualHasher (via VirtualMap), and it never puts
      * 	    null hashes to the cache
      * @throws MutabilityException
      * 		if the instance has been sealed
