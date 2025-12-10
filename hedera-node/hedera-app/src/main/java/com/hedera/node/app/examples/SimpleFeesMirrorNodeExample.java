@@ -1,11 +1,8 @@
 package com.hedera.node.app.examples;
 
-import com.hedera.node.app.hints.impl.HintsServiceImpl;
-import com.hedera.node.app.history.impl.HistoryServiceImpl;
 import com.hedera.node.app.service.consensus.impl.ConsensusServiceImpl;
 import com.hedera.node.app.service.schedule.impl.ScheduleServiceImpl;
 import com.hedera.node.app.service.token.impl.TokenServiceImpl;
-import com.hedera.node.app.service.util.impl.UtilServiceImpl;
 import org.hiero.hapi.support.fees.FeeSchedule;
 import com.hedera.hapi.node.consensus.ConsensusCreateTopicTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
@@ -15,14 +12,12 @@ import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
 import com.hedera.node.app.spi.fees.SimpleFeeCalculator;
 import com.hedera.node.app.spi.fees.SimpleFeeCalculatorImpl;
 import com.hedera.node.app.service.file.impl.FileServiceImpl;
-import com.hedera.node.app.service.contract.impl.ContractServiceImpl;
 
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import org.hiero.hapi.fees.FeeResult;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -30,17 +25,13 @@ import static org.hiero.hapi.fees.FeeScheduleUtils.isValid;
 
 /*
 
-Here's how calculating fees works.  Every service has a
-fee calculator class which implements the ServiceFeeCalculator interface.
+Here's how calculating fees works.  Every service has a fee calculator class which implements the ServiceFeeCalculator interface.
 
-
-First get an instance of the SimpleFeeCalculator and call the calculateTxFee or calculateQueryFee method.
-This will call the accumulateServiceFee method of the approprate ServiceFeeCalculator, as well as calculating the base fee and
-node and network fees. You pass in the transaction body and the fee context, which contains the simple fee's schedule
-and current exchange rate.
-
+There is a SimpleFeeCalculator interface with one implementation.  It needs a loaded fee schedule and a list of calculators
+for each service you want to calculate with. From this interface you can call calculateTxFee(body,feeContext).
 This will return a FeeResult object in USD, which you can convert to hbar using the FeeUtils.feeResultToFees() method
 and the current exchange rate.
+
 
 
 Questions:
@@ -48,7 +39,8 @@ Questions:
 Where is the best place to put this?
 
 How do we properly import the service impls? ConsensusServiceImpl seems to be exported already but
-others like CryptoServiceImpl are not. And some impls need a bunch of parameters to init.
+others like CryptoServiceImpl are not. And some impls need a bunch of parameters to init. Instead
+let's have static lists of fee calculators on each service impl.
 
 How do I call this main method from within gradle?
 
@@ -76,7 +68,7 @@ public class SimpleFeesMirrorNodeExample {
     }
 
     public static void main(String[] args) throws IOException, ParseException {
-        System.out.println("calculating a fee");
+        System.out.println("calculating a fee for a create topic transaction");
 
         // load up the fee schedule from JSON file
         var input = SimpleFeesMirrorNodeExample.class.getClassLoader().getResourceAsStream("test-schedule.json");
