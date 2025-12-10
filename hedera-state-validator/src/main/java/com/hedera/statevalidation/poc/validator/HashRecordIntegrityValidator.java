@@ -3,7 +3,7 @@ package com.hedera.statevalidation.poc.validator;
 
 import com.hedera.statevalidation.poc.util.ValidationAssertions;
 import com.hedera.statevalidation.poc.validator.api.HashRecordValidator;
-import com.swirlds.state.MerkleNodeState;
+import com.swirlds.platform.state.snapshot.DeserializedSignedState;
 import com.swirlds.virtualmap.datasource.VirtualHashRecord;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -33,7 +33,7 @@ public class HashRecordIntegrityValidator implements HashRecordValidator {
      * {@inheritDoc}
      */
     @Override
-    public void initialize(@NonNull final MerkleNodeState state) {}
+    public void initialize(@NonNull final DeserializedSignedState deserializedSignedState) {}
 
     /**
      * {@inheritDoc}

@@ -7,33 +7,30 @@ import static com.hedera.statevalidation.poc.validator.EntityIdUniquenessValidat
 import static com.hedera.statevalidation.poc.validator.HashRecordIntegrityValidator.INTERNAL_TAG;
 import static com.hedera.statevalidation.poc.validator.HdhmBucketIntegrityValidator.HDHM_TAG;
 import static com.hedera.statevalidation.poc.validator.LeafBytesIntegrityValidator.LEAF_TAG;
+import static com.hedera.statevalidation.poc.validator.MerkleTreeValidator.MERKLE_TREE_TAG;
+import static com.hedera.statevalidation.poc.validator.RehashValidator.REHASH_TAG;
 import static com.hedera.statevalidation.poc.validator.TokenRelationsIntegrityValidator.TOKEN_RELATIONS_TAG;
+import static com.hedera.statevalidation.poc.validator.ValidatorRegistry.createAndInitIndividualValidators;
+import static com.hedera.statevalidation.poc.validator.ValidatorRegistry.createAndInitValidators;
 import static com.hedera.statevalidation.poc.validator.api.Validator.ALL_TAG;
+import static com.swirlds.base.units.UnitConstants.NANOSECONDS_TO_MILLISECONDS;
 
 import com.hedera.statevalidation.poc.listener.ValidationExecutionListener;
 import com.hedera.statevalidation.poc.listener.ValidationListener;
 import com.hedera.statevalidation.poc.model.DiskDataItem.Type;
 import com.hedera.statevalidation.poc.pipeline.ValidationPipelineExecutor;
 import com.hedera.statevalidation.poc.util.ValidationException;
-import com.hedera.statevalidation.poc.validator.AccountAndSupplyValidator;
-import com.hedera.statevalidation.poc.validator.EntityIdCountValidator;
-import com.hedera.statevalidation.poc.validator.EntityIdUniquenessValidator;
-import com.hedera.statevalidation.poc.validator.HashRecordIntegrityValidator;
-import com.hedera.statevalidation.poc.validator.HdhmBucketIntegrityValidator;
-import com.hedera.statevalidation.poc.validator.LeafBytesIntegrityValidator;
-import com.hedera.statevalidation.poc.validator.TokenRelationsIntegrityValidator;
 import com.hedera.statevalidation.poc.validator.api.Validator;
 import com.hedera.statevalidation.util.StateUtils;
 import com.swirlds.merkledb.MerkleDbDataSource;
 import com.swirlds.state.MerkleNodeState;
 import com.swirlds.virtualmap.VirtualMap;
-import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CopyOnWriteArraySet;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
@@ -45,6 +42,8 @@ import picocli.CommandLine.ParentCommand;
         mixinStandardHelpOptions = true,
         description = "Validate command v2. Validates the state by running some of the validators in parallel.")
 public class Validate2Command implements Callable<Integer> {
+
+    private static final Logger log = LogManager.getLogger(Validate2Command.class);
 
     @ParentCommand
     private StateOperatorCommand parent;
@@ -103,6 +102,10 @@ public class Validate2Command implements Callable<Integer> {
                     + ENTITY_ID_COUNT_TAG
                     + ", "
                     + ENTITY_ID_UNIQUENESS_TAG
+                    + ", "
+                    + REHASH_TAG
+                    + ", "
+                    + MERKLE_TREE_TAG
                     + "]")
     private String[] tags = {
         ALL_TAG,
@@ -112,7 +115,9 @@ public class Validate2Command implements Callable<Integer> {
         ACCOUNT_TAG,
         TOKEN_RELATIONS_TAG,
         ENTITY_ID_COUNT_TAG,
-        ENTITY_ID_UNIQUENESS_TAG
+        ENTITY_ID_UNIQUENESS_TAG,
+        REHASH_TAG,
+        MERKLE_TREE_TAG
     };
 
     private Validate2Command() {}
@@ -132,10 +137,27 @@ public class Validate2Command implements Callable<Integer> {
             // Initialize validators and listeners
             final var validationExecutionListener = new ValidationExecutionListener();
             final List<ValidationListener> validationListeners = List.of(validationExecutionListener);
-            final Map<Type, CopyOnWriteArraySet<Validator>> validators =
-                    createAndInitValidators(state, tags, validationListeners);
+
+            final long startTime = System.nanoTime();
+
+            // Run individual validators (those that don't use the pipeline)
+            final List<Validator> individualValidators =
+                    createAndInitIndividualValidators(deserializedSignedState, tags, validationListeners);
+            for (final Validator validator : individualValidators) {
+                try {
+                    validator.validate();
+                    validationListeners.forEach(listener -> listener.onValidationCompleted(validator.getTag()));
+                } catch (final ValidationException e) {
+                    validationListeners.forEach(listener -> listener.onValidationFailed(e));
+                } catch (final Exception e) {
+                    validationListeners.forEach(listener -> listener.onValidationFailed(
+                            new ValidationException(validator.getTag(), "Unexpected exception: " + e.getMessage(), e)));
+                }
+            }
 
             // Run pipeline
+            final Map<Type, CopyOnWriteArraySet<Validator>> validators =
+                    createAndInitValidators(deserializedSignedState, tags, validationListeners);
             final boolean pipelineSuccess = ValidationPipelineExecutor.run(
                     vds,
                     validators,
@@ -148,10 +170,14 @@ public class Validate2Command implements Callable<Integer> {
                     chunkMultiplier,
                     bufferSizeKib);
 
+            log.debug(
+                    "Time spent for validation: {} ms", (System.nanoTime() - startTime) * NANOSECONDS_TO_MILLISECONDS);
+
             // Return result
             if (!pipelineSuccess) {
                 return 1;
             }
+
             return validationExecutionListener.isFailed() ? 1 : 0;
 
         } catch (final RuntimeException e) {
@@ -162,90 +188,5 @@ public class Validate2Command implements Callable<Integer> {
         } catch (final Exception e) {
             throw new IllegalStateException("Validation failed unexpectedly", e);
         }
-    }
-
-    private Map<Type, CopyOnWriteArraySet<Validator>> createAndInitValidators(
-            @NonNull final MerkleNodeState state,
-            @NonNull final String[] tags,
-            @NonNull final List<ValidationListener> validationListeners) {
-        final Set<String> tagSet = Set.of(tags);
-        final boolean runAll = tagSet.contains(ALL_TAG);
-
-        final Map<Type, CopyOnWriteArraySet<Validator>> validatorsMap = new HashMap<>();
-
-        // 1. Populate map with validators that match supplied tags
-        final var hashRecordValidators = new CopyOnWriteArraySet<Validator>();
-        final var hashRecordValidator = new HashRecordIntegrityValidator();
-        if (runAll || tagSet.contains(hashRecordValidator.getTag())) {
-            hashRecordValidators.add(hashRecordValidator);
-        }
-        if (!hashRecordValidators.isEmpty()) {
-            validatorsMap.put(Type.P2H, hashRecordValidators);
-        }
-        // hdhm
-        final var hdhmBucketValidators = new CopyOnWriteArraySet<Validator>();
-        final var hdhmBucketValidator = new HdhmBucketIntegrityValidator();
-        if (runAll || tagSet.contains(hdhmBucketValidator.getTag())) {
-            hdhmBucketValidators.add(hdhmBucketValidator);
-        }
-        if (!hdhmBucketValidators.isEmpty()) {
-            validatorsMap.put(Type.K2P, hdhmBucketValidators);
-        }
-        // leaf, etc.
-        final var leafBytesValidators = new CopyOnWriteArraySet<Validator>();
-        final var leafBytesValidator = new LeafBytesIntegrityValidator();
-        if (runAll || tagSet.contains(leafBytesValidator.getTag())) {
-            leafBytesValidators.add(leafBytesValidator);
-        }
-        final var accountValidator = new AccountAndSupplyValidator();
-        if (runAll || tagSet.contains(accountValidator.getTag())) {
-            leafBytesValidators.add(accountValidator);
-        }
-        if (!leafBytesValidators.isEmpty()) {
-            validatorsMap.put(Type.P2KV, leafBytesValidators);
-        }
-        final var tokenRelationsValidator = new TokenRelationsIntegrityValidator();
-        if (runAll || tagSet.contains(tokenRelationsValidator.getTag())) {
-            leafBytesValidators.add(tokenRelationsValidator);
-        }
-        if (!leafBytesValidators.isEmpty()) {
-            validatorsMap.put(Type.P2KV, leafBytesValidators);
-        }
-        final var entityIdCountValidator = new EntityIdCountValidator();
-        if (runAll || tagSet.contains(entityIdCountValidator.getTag())) {
-            leafBytesValidators.add(entityIdCountValidator);
-        }
-        if (!leafBytesValidators.isEmpty()) {
-            validatorsMap.put(Type.P2KV, leafBytesValidators);
-        }
-        final var entityIdUniquenessValidator = new EntityIdUniquenessValidator();
-        if (runAll || tagSet.contains(entityIdUniquenessValidator.getTag())) {
-            leafBytesValidators.add(entityIdUniquenessValidator);
-        }
-        if (!leafBytesValidators.isEmpty()) {
-            validatorsMap.put(Type.P2KV, leafBytesValidators);
-        }
-
-        // 2. Initialize validators and remove if initialization fails
-        validatorsMap.values().removeIf(validatorSet -> {
-            validatorSet.removeIf(validator -> {
-                validationListeners.forEach(listener -> listener.onValidationStarted(validator.getTag()));
-                try {
-                    validator.initialize(state);
-                    return false; // keep validator
-                } catch (final ValidationException e) {
-                    validationListeners.forEach(listener -> listener.onValidationFailed(e));
-                    return true; // remove validator
-                } catch (final Exception e) {
-                    validationListeners.forEach(listener -> listener.onValidationFailed(
-                            new ValidationException(validator.getTag(), "Unexpected exception: " + e.getMessage(), e)));
-                    return true; // remove validator
-                }
-            });
-            return validatorSet.isEmpty(); // remove entry if no validators remain
-        });
-
-        // 3. Return the fully initialized and cleaned map
-        return validatorsMap;
     }
 }

@@ -29,6 +29,7 @@ import com.hedera.node.app.service.token.TokenService;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.statevalidation.poc.util.ValidationAssertions;
 import com.hedera.statevalidation.poc.validator.api.LeafBytesValidator;
+import com.swirlds.platform.state.snapshot.DeserializedSignedState;
 import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.spi.ReadableKVState;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
@@ -69,7 +70,10 @@ public class EntityIdUniquenessValidator implements LeafBytesValidator {
      * {@inheritDoc}
      */
     @Override
-    public void initialize(@NonNull final MerkleNodeState state) {
+    public void initialize(@NonNull final DeserializedSignedState deserializedSignedState) {
+        //noinspection resource
+        final MerkleNodeState state =
+                deserializedSignedState.reservedSignedState().get().getState();
         this.tokensState = Objects.requireNonNull(
                 state.getReadableStates(TokenService.NAME).get(TOKENS_STATE_ID));
         this.accountState = Objects.requireNonNull(

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.statevalidation.poc.validator.api;
 
-import com.swirlds.state.MerkleNodeState;
+import com.swirlds.platform.state.snapshot.DeserializedSignedState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 
 /**
@@ -10,9 +10,9 @@ import edu.umd.cs.findbugs.annotations.NonNull;
  * <h2>Validator Lifecycle</h2>
  * <p>Each validator follows a three-phase lifecycle:
  * <ol>
- *     <li><b>Initialization</b> - {@link #initialize(MerkleNodeState)} is called once before any data
+ *     <li><b>Initialization</b> - {@link #initialize(DeserializedSignedState)} is called once before any data
  *         processing begins. Validators should extract required state references and initialize counters.</li>
- *     <li><b>Processing</b> - Data items are streamed to validators.</li>
+ *     <li><b>Processing</b> - Data items are streamed to validators (for pipeline validators).</li>
  *     <li><b>Validation</b> - {@link #validate()} is called once after all data processing is complete
  *         to perform final assertions and report results.</li>
  * </ol>
@@ -63,26 +63,27 @@ public interface Validator {
     String getTag();
 
     /**
-     * Initializes the validator with access to the Merkle node state.
+     * Initializes the validator with access to the deserialized signed state.
      *
      * <p>This method is called once before any data processing begins. Implementations should:
      * <ul>
      *     <li>Extract and store references to required state components (e.g., readable states,
-     *         virtual maps, entity stores)</li>
+     *         virtual maps, entity stores) via {@code deserializedSignedState.reservedSignedState().get().getState()}</li>
      *     <li>Initialize any atomic counters or thread-safe collections needed for tracking</li>
      *     <li>Perform any pre-validation setup or initial state queries</li>
+     *     <li>Access the original hash via {@code deserializedSignedState.originalHash()} if needed</li>
      * </ul>
      *
      * <p>If initialization fails, the validator should throw a
      * {@link com.hedera.statevalidation.poc.util.ValidationException} and will be excluded
      * from further processing.
      *
-     * @param state the Merkle node state providing read-only access to all service states,
-     *              virtual maps, and data sources; must not be null
+     * @param deserializedSignedState the deserialized signed state providing read-only access to all service states,
+     *              virtual maps, data sources, and the original hash; must not be null
      * @throws com.hedera.statevalidation.poc.util.ValidationException if initialization fails
      *         and the validator cannot proceed
      */
-    void initialize(@NonNull MerkleNodeState state);
+    void initialize(@NonNull DeserializedSignedState deserializedSignedState);
 
     /**
      * Finalizes validation and asserts results.

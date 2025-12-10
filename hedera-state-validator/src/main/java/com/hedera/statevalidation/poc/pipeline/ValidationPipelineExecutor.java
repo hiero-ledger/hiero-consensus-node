@@ -147,7 +147,6 @@ public final class ValidationPipelineExecutor {
     private boolean execute() throws InterruptedException {
         try (ExecutorService ioPool = Executors.newFixedThreadPool(ioThreads)) {
             try (ExecutorService processPool = Executors.newFixedThreadPool(processThreads)) {
-                final long startTime = System.nanoTime();
 
                 // Get data file collections
                 final DataFileCollection pathToKeyValueDfc =
@@ -290,8 +289,6 @@ public final class ValidationPipelineExecutor {
                 log.debug(
                         "Total boundary search time: {} ms",
                         totalBoundarySearchNanos.get() * NANOSECONDS_TO_MILLISECONDS);
-                log.debug(
-                        "Total processing time: {} ms", (System.nanoTime() - startTime) * NANOSECONDS_TO_MILLISECONDS);
 
                 return !dataStats.hasErrorReads();
             }
