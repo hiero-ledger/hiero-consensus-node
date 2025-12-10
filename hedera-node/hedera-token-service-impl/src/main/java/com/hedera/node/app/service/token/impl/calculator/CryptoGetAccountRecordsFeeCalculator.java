@@ -18,7 +18,7 @@ import org.hiero.hapi.support.fees.ServiceFeeDefinition;
  */
 public class CryptoGetAccountRecordsFeeCalculator implements QueryFeeCalculator {
     @Override
-    public void accumulateServiceFee(
+    public void accumulateNodePayment(
             @NonNull final Query query,
             @Nullable final QueryContext queryContext,
             @NonNull final FeeResult feeResult,
