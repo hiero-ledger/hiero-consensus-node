@@ -17,7 +17,6 @@ import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.utility.RecycleBin;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.logging.legacy.payload.SavedStateLoadedPayload;
-import com.swirlds.platform.config.BasicConfig;
 import com.swirlds.platform.config.StateConfig;
 import com.swirlds.platform.crypto.CryptoStatic;
 import com.swirlds.platform.internal.SignedStateLoadingException;
@@ -366,8 +365,6 @@ public final class StartupStateUtils {
             v.setRound(round);
             v.setLegacyRunningEventHash(null);
             v.setConsensusTimestamp(Instant.ofEpochSecond(0L));
-
-            final BasicConfig basicConfig = configuration.getConfigData(BasicConfig.class);
         });
 
         RosterUtils.setActiveRoster(state, RosterRetriever.buildRoster(addressBook), round);
