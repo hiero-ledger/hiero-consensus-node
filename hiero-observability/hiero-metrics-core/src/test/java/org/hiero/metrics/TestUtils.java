@@ -6,7 +6,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.util.List;
 import org.assertj.core.api.AbstractListAssert;
 import org.assertj.core.api.ObjectAssert;
-import org.hiero.metrics.api.core.MetricMetadata;
 import org.hiero.metrics.api.export.snapshot.MetricSnapshot;
 import org.hiero.metrics.api.export.snapshot.MetricsCollectionSnapshot;
 
@@ -234,6 +233,6 @@ public final class TestUtils {
 
     private static AbstractListAssert<?, List<? extends String>, String, ObjectAssert<String>>
             snapshotHasMetricsAssertion(MetricsCollectionSnapshot snapshot) {
-        return assertThat(snapshot).map(MetricSnapshot::metadata).map(MetricMetadata::name);
+        return assertThat(snapshot).map(MetricSnapshot::name);
     }
 }

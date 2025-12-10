@@ -20,6 +20,7 @@ module org.hiero.metrics.core {
     requires transitive com.swirlds.base;
     requires java.management;
     requires jdk.management;
+    requires jdk.sctp;
     requires org.apache.logging.log4j;
     requires static transitive com.swirlds.config.api;
     requires static transitive com.github.spotbugs.annotations;

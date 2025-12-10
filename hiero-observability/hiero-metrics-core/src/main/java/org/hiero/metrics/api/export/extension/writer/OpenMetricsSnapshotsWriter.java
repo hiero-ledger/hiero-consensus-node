@@ -10,7 +10,6 @@ import java.util.EnumMap;
 import java.util.Iterator;
 import java.util.List;
 import org.hiero.metrics.api.core.Label;
-import org.hiero.metrics.api.core.MetricMetadata;
 import org.hiero.metrics.api.core.MetricType;
 import org.hiero.metrics.api.export.snapshot.DoubleValueMeasurementSnapshot;
 import org.hiero.metrics.api.export.snapshot.LongValueMeasurementSnapshot;
@@ -216,11 +215,11 @@ public class OpenMetricsSnapshotsWriter
         protected MetricExportData(MetricSnapshot metricSnapshot) {
             super(metricSnapshot);
 
-            final MetricMetadata metadata = metricSnapshot.metadata();
-            String metricName = metadata.name();
-            String metricUnit = metadata.unit();
+            String metricName = metricSnapshot.name();
+            final String metricUnit = metricSnapshot.unit();
+            final boolean metricUnitAvailable = metricUnit != null && !metricUnit.isBlank();
 
-            if (!metricUnit.isEmpty() && metadata.metricType() != MetricType.STATE_SET) {
+            if (metricUnitAvailable && metricSnapshot.type() != MetricType.STATE_SET) {
                 metricName += '_' + metricUnit;
             }
 
@@ -230,21 +229,23 @@ public class OpenMetricsSnapshotsWriter
             metadataLine.write(TYPE);
             metadataLine.write(metricNameBytes);
             metadataLine.write(SPACE);
-            metadataLine.writeUtf8(getMetricTypeName(metadata.metricType()));
+            metadataLine.writeUtf8(getMetricTypeName(metricSnapshot.type()));
             metadataLine.write(NEW_LINE);
 
-            if (!metricUnit.isEmpty() && metadata.metricType() != MetricType.STATE_SET) {
+            if (metricUnitAvailable && metricSnapshot.type() != MetricType.STATE_SET) {
                 metadataLine.write(UNIT);
                 metadataLine.write(metricNameBytes);
                 metadataLine.write(SPACE);
                 metadataLine.writeUtf8(metricUnit);
                 metadataLine.write(NEW_LINE);
             }
-            if (!metadata.description().isEmpty()) {
+
+            String description = metricSnapshot.description();
+            if (description != null && !description.isBlank()) {
                 metadataLine.write(HELP);
                 metadataLine.writeUtf8(metricName);
                 metadataLine.write(SPACE);
-                metadataLine.writeUtf8(escape(metadata.description()));
+                metadataLine.writeUtf8(escape(description));
                 metadataLine.write(NEW_LINE);
             }
 
@@ -267,7 +268,7 @@ public class OpenMetricsSnapshotsWriter
             ByteArrayTemplate.Builder builder = ByteArrayTemplate.builder();
 
             builder.append(metricNameBytes);
-            if (metricSnapshot().metadata().metricType() == MetricType.COUNTER) {
+            if (metricSnapshot().type() == MetricType.COUNTER) {
                 builder.append(COUNTER_SUFFIX);
             }
 

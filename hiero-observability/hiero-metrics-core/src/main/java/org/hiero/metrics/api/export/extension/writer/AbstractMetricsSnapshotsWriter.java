@@ -8,7 +8,6 @@ import java.text.DecimalFormat;
 import java.time.Instant;
 import java.util.Objects;
 import java.util.function.Predicate;
-import org.hiero.metrics.api.core.MetricMetadata;
 import org.hiero.metrics.api.export.snapshot.MetricSnapshot;
 import org.hiero.metrics.api.export.snapshot.MetricsCollectionSnapshot;
 
@@ -21,7 +20,7 @@ import org.hiero.metrics.api.export.snapshot.MetricsCollectionSnapshot;
  */
 public abstract class AbstractMetricsSnapshotsWriter implements MetricsSnapshotsWriter {
 
-    private final Predicate<MetricMetadata> metricFilter;
+    private final Predicate<MetricSnapshot> metricFilter;
     private final DecimalFormat formatter;
 
     public AbstractMetricsSnapshotsWriter(Builder<?, ?> builder) {
@@ -46,7 +45,7 @@ public abstract class AbstractMetricsSnapshotsWriter implements MetricsSnapshots
         beforeSnapshotsWrite(snapshots, output);
 
         for (MetricSnapshot metricSnapshot : snapshots) {
-            if (shouldWrite(metricSnapshot.metadata())) {
+            if (shouldWrite(metricSnapshot)) {
                 writeMetricSnapshot(snapshots.createAt(), metricSnapshot, output);
             }
         }
@@ -98,8 +97,8 @@ public abstract class AbstractMetricsSnapshotsWriter implements MetricsSnapshots
         return formatter.format(value);
     }
 
-    private boolean shouldWrite(MetricMetadata metadata) {
-        return metricFilter.test(metadata);
+    private boolean shouldWrite(MetricSnapshot metricSnapshot) {
+        return metricFilter.test(metricSnapshot);
     }
 
     /**
@@ -112,9 +111,9 @@ public abstract class AbstractMetricsSnapshotsWriter implements MetricsSnapshots
     public abstract static class Builder<B extends Builder<B, W>, W extends AbstractMetricsSnapshotsWriter> {
 
         private static final DecimalFormat DEFAULT_DECIMAL_FORMAT = new DecimalFormat("#.###");
-        private static final Predicate<MetricMetadata> ALLOW_ALL = metadata -> true;
+        private static final Predicate<MetricSnapshot> ALLOW_ALL = metadata -> true;
 
-        private Predicate<MetricMetadata> metricFilter = ALLOW_ALL;
+        private Predicate<MetricSnapshot> metricFilter = ALLOW_ALL;
         private DecimalFormat formatter = DEFAULT_DECIMAL_FORMAT;
 
         /**
@@ -125,7 +124,7 @@ public abstract class AbstractMetricsSnapshotsWriter implements MetricsSnapshots
          * @return the builder instance
          */
         @NonNull
-        public B withMetricFilter(@NonNull Predicate<MetricMetadata> metricFilter) {
+        public B withMetricFilter(@NonNull Predicate<MetricSnapshot> metricFilter) {
             this.metricFilter = Objects.requireNonNull(metricFilter, "metric filter cannot be null");
             return self();
         }

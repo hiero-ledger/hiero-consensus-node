@@ -168,13 +168,10 @@ abstract class AbstractMetricBaseTest<M extends Metric, B extends Metric.Builder
             M metric = emptyMetricBuilder().build();
 
             // metadata
-            assertThat(metric.metadata()).isNotNull();
-            assertThat(metric.metadata().name()).isEqualTo(DEFAULT_NAME);
-            assertThat(metric.metadata().metricType()).isEqualTo(metricType());
-            assertThat(metric.metadata().unit()).isNotNull();
-            assertThat(metric.metadata().unit()).isEmpty();
-            assertThat(metric.metadata().description()).isNotNull();
-            assertThat(metric.metadata().description()).isEmpty();
+            assertThat(metric.name()).isEqualTo(DEFAULT_NAME);
+            assertThat(metric.type()).isEqualTo(metricType());
+            assertThat(metric.unit()).isNull();
+            assertThat(metric.description()).isNull();
 
             // labels are empty by default
             assertThat(metric.staticLabels())
@@ -183,13 +180,6 @@ abstract class AbstractMetricBaseTest<M extends Metric, B extends Metric.Builder
             assertThat(metric.dynamicLabelNames())
                     .as("Dynamic label names are empty by default")
                     .isEmpty();
-        }
-
-        @Test
-        void testMetadataIsSameInstance() {
-            M metric = emptyMetricBuilder().build();
-
-            assertThat(metric.metadata()).isSameAs(metric.metadata());
         }
 
         @Test
@@ -214,8 +204,8 @@ abstract class AbstractMetricBaseTest<M extends Metric, B extends Metric.Builder
                     .withDynamicLabelNames(dynamicLabelName + "_");
 
             // Metric metadata should remain unchanged
-            assertThat(metric.metadata().description()).isEqualTo(description);
-            assertThat(metric.metadata().unit()).isEqualTo(unit);
+            assertThat(metric.description()).isEqualTo(description);
+            assertThat(metric.unit()).isEqualTo(unit);
             assertThat(metric.staticLabels()).containsExactly(new Label(staticLabelName, "value"));
             assertThat(metric.dynamicLabelNames()).containsExactly(dynamicLabelName);
         }
@@ -224,8 +214,15 @@ abstract class AbstractMetricBaseTest<M extends Metric, B extends Metric.Builder
         void testWithNullDescription() {
             M metric = emptyMetricBuilder().withDescription(null).build();
 
-            assertThat(metric.metadata().description()).isNotNull();
-            assertThat(metric.metadata().description()).isEmpty();
+            assertThat(metric.description()).isNull();
+        }
+
+        @Test
+        void testWithEmptyDescription() {
+            M metric = emptyMetricBuilder().withDescription("").build();
+
+            assertThat(metric.description()).isNotNull();
+            assertThat(metric.description()).isEmpty();
         }
 
         @ParameterizedTest
@@ -233,9 +230,7 @@ abstract class AbstractMetricBaseTest<M extends Metric, B extends Metric.Builder
         void testWithDescriptionAsInvalidMetricName(String description) {
             M metric = emptyMetricBuilder().withDescription(description).build();
 
-            assertThat(metric.metadata().description())
-                    .as("Description could be anything")
-                    .isEqualTo(description);
+            assertThat(metric.description()).as("Description could be anything").isEqualTo(description);
         }
 
         @ParameterizedTest
@@ -243,9 +238,7 @@ abstract class AbstractMetricBaseTest<M extends Metric, B extends Metric.Builder
         void testWithValidDescription(String description) {
             M metric = emptyMetricBuilder().withDescription(description).build();
 
-            assertThat(metric.metadata().description())
-                    .as("Description could be anything")
-                    .isEqualTo(description);
+            assertThat(metric.description()).as("Description could be anything").isEqualTo(description);
         }
 
         @Test
@@ -255,7 +248,7 @@ abstract class AbstractMetricBaseTest<M extends Metric, B extends Metric.Builder
                     .withDescription("second description")
                     .build();
 
-            assertThat(metric.metadata().description()).isEqualTo("second description");
+            assertThat(metric.description()).isEqualTo("second description");
         }
 
         @Test
@@ -263,16 +256,14 @@ abstract class AbstractMetricBaseTest<M extends Metric, B extends Metric.Builder
             String nullUnit = null;
             M metric = emptyMetricBuilder().withUnit(nullUnit).build();
 
-            assertThat(metric.metadata().unit()).isNotNull();
-            assertThat(metric.metadata().unit()).isEmpty();
+            assertThat(metric.unit()).isNull();
         }
 
         @Test
-        void testWithBlankStringUnit() {
+        void testWithEmptyStringUnit() {
             M metric = emptyMetricBuilder().withUnit("").build();
 
-            assertThat(metric.metadata().unit()).isNotNull();
-            assertThat(metric.metadata().unit()).isEmpty();
+            assertThat(metric.unit()).isNull();
         }
 
         @ParameterizedTest
@@ -280,7 +271,7 @@ abstract class AbstractMetricBaseTest<M extends Metric, B extends Metric.Builder
         void testWithValidStringUnit(String validUnit) {
             M metric = emptyMetricBuilder().withUnit(validUnit).build();
 
-            assertThat(metric.metadata().unit()).isEqualTo(validUnit);
+            assertThat(metric.unit()).isEqualTo(validUnit);
         }
 
         @Test
@@ -290,7 +281,7 @@ abstract class AbstractMetricBaseTest<M extends Metric, B extends Metric.Builder
                     .withUnit(Unit.BYTE_UNIT)
                     .build();
 
-            assertThat(metric.metadata().unit()).isEqualTo(Unit.BYTE_UNIT.toString());
+            assertThat(metric.unit()).isEqualTo(Unit.BYTE_UNIT.toString());
         }
 
         @ParameterizedTest
@@ -298,7 +289,7 @@ abstract class AbstractMetricBaseTest<M extends Metric, B extends Metric.Builder
         void testWithValidEnumUnit(Unit unit) {
             M metric = emptyMetricBuilder().withUnit(unit).build();
 
-            assertThat(metric.metadata().unit()).isEqualTo(unit.toString());
+            assertThat(metric.unit()).isEqualTo(unit.toString());
         }
 
         @Test
@@ -309,7 +300,7 @@ abstract class AbstractMetricBaseTest<M extends Metric, B extends Metric.Builder
             builder.register(registry);
 
             M metric = registry.getMetric(builder.key());
-            assertThat(metric.metadata().name()).isEqualTo("test_metric");
+            assertThat(metric.name()).isEqualTo("test_metric");
         }
 
         @Test
@@ -459,6 +450,26 @@ abstract class AbstractMetricBaseTest<M extends Metric, B extends Metric.Builder
             assertThatThrownBy(builder::build)
                     .isInstanceOf(IllegalStateException.class)
                     .hasMessageContaining("conflicts with a static label");
+        }
+
+        @Test
+        void testToString() {
+            M metric = emptyMetricBuilder()
+                    .withDescription("desc")
+                    .withUnit(Unit.BYTE_UNIT)
+                    .withStaticLabel(new Label("static_label", "static_value"))
+                    .withDynamicLabelNames("dynamic_label")
+                    .build();
+
+            assertThat(metric.toString())
+                    .contains(
+                            metric.name(),
+                            metric.type().toString(),
+                            "desc",
+                            Unit.BYTE_UNIT.toString(),
+                            "static_label",
+                            "static_value",
+                            "dynamic_label");
         }
     }
 }

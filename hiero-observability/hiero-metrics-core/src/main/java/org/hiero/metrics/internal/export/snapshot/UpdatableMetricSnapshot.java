@@ -2,11 +2,12 @@
 package org.hiero.metrics.internal.export.snapshot;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
 import java.util.function.Consumer;
 import org.hiero.metrics.api.core.Label;
 import org.hiero.metrics.api.core.Metric;
-import org.hiero.metrics.api.core.MetricMetadata;
+import org.hiero.metrics.api.core.MetricType;
 import org.hiero.metrics.api.export.snapshot.MeasurementSnapshot;
 import org.hiero.metrics.api.export.snapshot.MetricSnapshot;
 import org.hiero.metrics.internal.core.AppendArray;
@@ -28,10 +29,28 @@ public final class UpdatableMetricSnapshot<D, S extends MeasurementSnapshot> imp
         measurementHolders.add(holder);
     }
 
-    @NonNull
     @Override
-    public MetricMetadata metadata() {
-        return metric.metadata();
+    @NonNull
+    public MetricType type() {
+        return metric.type();
+    }
+
+    @Override
+    @NonNull
+    public String name() {
+        return metric.name();
+    }
+
+    @Override
+    @Nullable
+    public String unit() {
+        return metric.unit();
+    }
+
+    @Override
+    @Nullable
+    public String description() {
+        return metric.description();
     }
 
     @NonNull

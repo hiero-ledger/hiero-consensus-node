@@ -11,6 +11,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Objects;
 import org.hiero.metrics.api.core.Label;
 import org.hiero.metrics.api.export.snapshot.DoubleValueMeasurementSnapshot;
 import org.hiero.metrics.api.export.snapshot.LongValueMeasurementSnapshot;
@@ -124,9 +125,9 @@ public class CsvMetricsSnapshotsWriter
             ByteArrayTemplate.Builder builder = ByteArrayTemplate.builder()
                     .addPlaceholder() // timestamp
                     .append(COMMA)
-                    .appendUtf8(metricSnapshot().metadata().name())
+                    .appendUtf8(metricSnapshot().name())
                     .append(COMMA)
-                    .appendUtf8(metricSnapshot().metadata().unit())
+                    .appendUtf8(Objects.toString(metricSnapshot().unit(), ""))
                     .append(COMMA)
                     .addPlaceholder() // value
                     .append(COMMA)
@@ -145,9 +146,7 @@ public class CsvMetricsSnapshotsWriter
             if (!firstLabel) {
                 builder.append(COMMA);
             }
-            builder.appendUtf8(metricSnapshot().metadata().name())
-                    .append(EQUALS)
-                    .addPlaceholder(); // Placeholder for state name
+            builder.appendUtf8(metricSnapshot().name()).append(EQUALS).addPlaceholder(); // Placeholder for state name
         }
 
         private void appendGenericMultiValueLabels(

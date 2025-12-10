@@ -48,13 +48,32 @@ public class StateSetTest
     @Nested
     class MetricTests extends AbstractMetricBaseTest.MetricTests {
 
+        @Test
+        void testToString() {
+            StateSet<TestEnum> metric = emptyMetricBuilder()
+                    .withDescription("desc")
+                    .withUnit(Unit.BYTE_UNIT)
+                    .withStaticLabel(new Label("static_label", "static_value"))
+                    .withDynamicLabelNames("dynamic_label")
+                    .build();
+
+            assertThat(metric.toString())
+                    .contains(
+                            metric.name(),
+                            metric.type().toString(),
+                            "desc",
+                            "static_label",
+                            "static_value",
+                            "dynamic_label");
+        }
+
         @ParameterizedTest
         @MethodSource("org.hiero.metrics.TestUtils#validUnitNames")
         @Override
         void testWithValidStringUnit(String validUnit) {
             StateSet<TestEnum> metric = emptyMetricBuilder().withUnit(validUnit).build();
 
-            assertThat(metric.metadata().unit()).isEmpty();
+            assertThat(metric.unit()).isNull();
         }
 
         @Test
@@ -65,7 +84,7 @@ public class StateSetTest
                     .withUnit(Unit.BYTE_UNIT)
                     .build();
 
-            assertThat(metric.metadata().unit()).isEmpty();
+            assertThat(metric.unit()).isNull();
         }
 
         @ParameterizedTest
@@ -74,7 +93,7 @@ public class StateSetTest
         void testWithValidEnumUnit(Unit unit) {
             StateSet<TestEnum> metric = emptyMetricBuilder().withUnit(unit).build();
 
-            assertThat(metric.metadata().unit()).isEmpty();
+            assertThat(metric.unit()).isNull();
         }
 
         @Test
@@ -100,8 +119,8 @@ public class StateSetTest
                     .withDynamicLabelNames(dynamicLabelName + "_");
 
             // Metric metadata should remain unchanged
-            assertThat(metric.metadata().description()).isEqualTo(description);
-            assertThat(metric.metadata().unit()).isEmpty();
+            assertThat(metric.description()).isEqualTo(description);
+            assertThat(metric.unit()).isNull();
             assertThat(metric.staticLabels()).containsExactly(new Label(staticLabelName, "value"));
             assertThat(metric.dynamicLabelNames()).containsExactly(dynamicLabelName);
         }

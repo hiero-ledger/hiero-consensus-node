@@ -62,11 +62,11 @@ public final class MetricRegistryImpl implements SnapshotableMetricsRegistry {
         return metricKey.type().cast(metrics.compute(metricKey.name(), (name, existingMetric) -> {
             if (existingMetric != null) {
                 throw new IllegalArgumentException(
-                        "Duplicate metric name: " + metricKey + ". Existing metric: " + existingMetric.metadata());
+                        "Duplicate metric name: " + metricKey + ". Existing metric: " + existingMetric.name());
             }
 
             M metric = builder.withStaticLabels(globalLabels).build();
-            logger.info("Registered metric: {} with global labels: {}", metric.metadata(), globalLabels);
+            logger.info("Registered metric: {} with global labels: {}", metric.name(), globalLabels);
 
             if (metric instanceof SnapshotableMetric<? extends MeasurementSnapshot> snapshotableMetric) {
                 snapshot.add(snapshotableMetric);

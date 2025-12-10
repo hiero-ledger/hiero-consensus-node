@@ -342,7 +342,7 @@ public class MetricRegistryTest {
                 config -> List.of(LongCounter.builder("counter2"), LongCounter.builder("counter3")));
 
         assertThat(registry.metrics().size()).isEqualTo(3);
-        assertThat(registry.metrics().stream().map(Metric::metadata).map(MetricMetadata::name))
+        assertThat(registry.metrics().stream().map(Metric::name))
                 .containsExactlyInAnyOrder("counter1", "counter2", "counter3");
     }
 
@@ -356,7 +356,7 @@ public class MetricRegistryTest {
         registry.register(LongCounter.builder("counter5"));
 
         assertThat(registry.metrics().size()).isEqualTo(5);
-        assertThat(registry.metrics().stream().map(Metric::metadata).map(MetricMetadata::name))
+        assertThat(registry.metrics().stream().map(Metric::name))
                 .containsExactlyInAnyOrder("counter1", "counter2", "counter3", "counter4", "counter5");
     }
 
@@ -380,7 +380,7 @@ public class MetricRegistryTest {
 
         LongCounter metric = registry.getMetric(LongCounter.key(metricName));
         assertThat(metric).isNotNull();
-        assertThat(metric.metadata().name()).isEqualTo(metricName);
+        assertThat(metric.name()).isEqualTo(metricName);
     }
 
     @Test
@@ -432,9 +432,8 @@ public class MetricRegistryTest {
 
         assertThat(registry.metrics().size()).isEqualTo(threadCount * metricsPerThread);
 
-        List<String> actualMetricNames = registry.metrics().stream()
-                .map(metric -> metric.metadata().name())
-                .toList();
+        List<String> actualMetricNames =
+                registry.metrics().stream().map(Metric::name).toList();
         List<String> expectedMetricNames = IntStream.range(0, threadCount * metricsPerThread)
                 .mapToObj(i -> "counter_" + i)
                 .toList();

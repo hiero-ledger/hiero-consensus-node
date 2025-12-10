@@ -2,11 +2,12 @@
 package org.hiero.metrics.internal.core;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
 import java.util.Objects;
 import org.hiero.metrics.api.core.Label;
 import org.hiero.metrics.api.core.Metric;
-import org.hiero.metrics.api.core.MetricMetadata;
+import org.hiero.metrics.api.core.MetricType;
 import org.hiero.metrics.api.export.snapshot.MeasurementSnapshot;
 import org.hiero.metrics.internal.export.SnapshotableMetric;
 import org.hiero.metrics.internal.export.snapshot.UpdatableMetricSnapshot;
@@ -27,15 +28,28 @@ import org.hiero.metrics.internal.measurement.MeasurementHolder;
  */
 public abstract class AbstractMetric<D, S extends MeasurementSnapshot> implements SnapshotableMetric<S> {
 
-    private final MetricMetadata metadata;
+    @NonNull
+    private final MetricType type;
+
+    @NonNull
+    private final String name;
+
+    @Nullable
+    private final String unit;
+
+    @Nullable
+    private final String description;
+
     private final List<Label> staticLabels;
     private final List<String> dynamicLabelNames;
 
     private final UpdatableMetricSnapshot<D, S> metricSnapshot;
 
     protected AbstractMetric(Builder<?, ?> builder) {
-        metadata =
-                new MetricMetadata(builder.type(), builder.key().name(), builder.getDescription(), builder.getUnit());
+        type = builder.type();
+        name = builder.key().name();
+        unit = builder.getUnit();
+        description = builder.getDescription();
 
         staticLabels = builder.getStaticLabels().stream().sorted().toList();
         dynamicLabelNames = builder.getDynamicLabelNames().stream().sorted().toList();
@@ -108,9 +122,28 @@ public abstract class AbstractMetric<D, S extends MeasurementSnapshot> implement
         return new LabelNamesAndValues(nv);
     }
 
+    @Override
     @NonNull
-    public final MetricMetadata metadata() {
-        return metadata;
+    public final MetricType type() {
+        return type;
+    }
+
+    @Override
+    @NonNull
+    public final String name() {
+        return name;
+    }
+
+    @Override
+    @Nullable
+    public final String unit() {
+        return unit;
+    }
+
+    @Override
+    @Nullable
+    public final String description() {
+        return description;
     }
 
     @NonNull
@@ -128,5 +161,23 @@ public abstract class AbstractMetric<D, S extends MeasurementSnapshot> implement
     @Override
     public final UpdatableMetricSnapshot<D, S> snapshot() {
         return metricSnapshot;
+    }
+
+    @Override
+    public String toString() {
+        StringBuilder sb = new StringBuilder();
+
+        sb.append("type=").append(type);
+        sb.append(", name='").append(name).append('\'');
+        if (unit != null) {
+            sb.append(", unit='").append(unit).append('\'');
+        }
+        if (description != null) {
+            sb.append(", description='").append(description).append('\'');
+        }
+        sb.append(", staticLabels=").append(staticLabels);
+        sb.append(", dynamicLabelNames=").append(dynamicLabelNames);
+
+        return sb.toString();
     }
 }

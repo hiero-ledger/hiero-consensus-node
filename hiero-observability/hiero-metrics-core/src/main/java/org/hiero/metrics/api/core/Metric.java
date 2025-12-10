@@ -7,7 +7,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -18,7 +17,7 @@ import org.hiero.metrics.api.utils.Unit;
 /**
  * Base interface for all metrics.
  * <p>
- * A metric is defined by its {@link MetricMetadata}, a {@link Label} set of
+ * A metric is defined by its metadata like type, name, unit, description, a {@link Label} set of
  * static labels and a set of dynamic label names (may have no labels at all). Metric cannot have duplicate
  * label names, and dynamic label names must not conflict with static label names. Labels are used to differentiate
  * different measurements associated with the metric.
@@ -31,28 +30,7 @@ import org.hiero.metrics.api.utils.Unit;
  * export or snapshot functionality - {@link org.hiero.metrics.api.export.MetricsExportManager} should be used
  * to export metrics to different destinations.
  */
-public interface Metric {
-
-    /**
-     * @return the immutable metadata associated with this metric, never {@code null}
-     */
-    @NonNull
-    MetricMetadata metadata();
-
-    /**
-     * @return the immutable alphabetically ordered list of static labels associated with this metric
-     * and any of its measurement, may be empty but never {@code null}
-     */
-    @NonNull
-    List<Label> staticLabels();
-
-    /**
-     * @return the immutable alphabetically ordered list of dynamic label names associated with this metric,
-     * may be empty but never {@code null}.
-     * It is used to distinguish different measurements associated with this metric.
-     */
-    @NonNull
-    List<String> dynamicLabelNames();
+public interface Metric extends MetricInfo {
 
     /**
      * Allows to reset the metric and all it's measurements to its initial state.
@@ -157,6 +135,7 @@ public interface Metric {
          * Sets the metric unit. <br>
          * Unit, if not null or empty, must only contain valid characters
          * - see {@link MetricUtils#validateUnitNameCharacters(String)}.
+         * Black or empty unit will be treated as no unit (null).
          *
          * @param unit the metric unit, may be {@code null}
          * @return the builder instance
