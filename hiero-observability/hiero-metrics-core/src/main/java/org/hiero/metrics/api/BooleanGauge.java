@@ -9,7 +9,7 @@ import org.hiero.metrics.api.core.SettableMetric;
 import org.hiero.metrics.api.measurement.BooleanGaugeMeasurement;
 import org.hiero.metrics.api.stat.StatUtils;
 import org.hiero.metrics.internal.BooleanGaugeImpl;
-import org.hiero.metrics.internal.measurement.AtomicBooleanGaugeMeasurement;
+import org.hiero.metrics.internal.measurement.DefaultBooleanGaugeMeasurement;
 
 /**
  * A metric of type {@link MetricType#GAUGE} that holds {@link BooleanGaugeMeasurement} per label set. <br>
@@ -61,7 +61,7 @@ public interface BooleanGauge extends SettableMetric<BooleanSupplier, BooleanGau
             extends SettableMetric.Builder<BooleanSupplier, BooleanGaugeMeasurement, Builder, BooleanGauge> {
 
         private Builder(@NonNull MetricKey<BooleanGauge> key) {
-            super(MetricType.GAUGE, key, StatUtils.BOOL_INIT_FALSE, AtomicBooleanGaugeMeasurement::new);
+            super(MetricType.GAUGE, key, StatUtils.BOOL_INIT_FALSE, DefaultBooleanGaugeMeasurement::new);
         }
 
         /**

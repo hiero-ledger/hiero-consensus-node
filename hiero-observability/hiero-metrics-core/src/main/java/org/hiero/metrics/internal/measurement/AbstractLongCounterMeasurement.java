@@ -7,17 +7,17 @@ public abstract class AbstractLongCounterMeasurement implements LongCounterMeasu
 
     @Override
     public void increment(long value) {
-        if (value < 0) {
+        if (value < 0L) {
             throw new IllegalArgumentException("Increment value must be non-negative, but was: " + value);
         }
-        if (value != 0) {
+        if (value != 0L) {
             safeIncrement(value);
         }
     }
 
     @Override
     public void increment() {
-        safeIncrement(1);
+        safeIncrement(1L);
     }
 
     protected abstract void safeIncrement(long value);

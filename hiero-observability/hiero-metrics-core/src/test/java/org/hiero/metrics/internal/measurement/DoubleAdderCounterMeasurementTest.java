@@ -94,4 +94,14 @@ public class DoubleAdderCounterMeasurementTest {
 
         assertThat(measurement.getAsDouble()).isEqualTo(threadCount * incrementsPerThread);
     }
+
+    @Test
+    void incrementNaN() {
+        DoubleAdderCounterMeasurement measurement = new DoubleAdderCounterMeasurement();
+
+        measurement.increment(1.5);
+        measurement.increment(Double.NaN);
+
+        assertThat(measurement.getAsDouble()).isNaN();
+    }
 }

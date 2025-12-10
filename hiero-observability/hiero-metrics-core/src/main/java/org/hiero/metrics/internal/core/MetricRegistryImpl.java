@@ -5,6 +5,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
@@ -24,7 +25,7 @@ public final class MetricRegistryImpl implements SnapshotableMetricsRegistry {
 
     private final String name;
     private final List<Label> globalLabels;
-    private final ConcurrentHashMap<String, Metric> metrics = new ConcurrentHashMap<>();
+    private final Map<String, Metric> metrics = new ConcurrentHashMap<>();
     private final Collection<Metric> metricsView = Collections.unmodifiableCollection(metrics.values());
 
     private final UpdatableMetricRegistrySnapshot snapshot = new UpdatableMetricRegistrySnapshot();

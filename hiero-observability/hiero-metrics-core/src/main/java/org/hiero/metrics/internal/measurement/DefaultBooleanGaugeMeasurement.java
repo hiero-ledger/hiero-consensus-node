@@ -7,16 +7,16 @@ import java.util.function.BooleanSupplier;
 import org.hiero.metrics.api.measurement.BooleanGaugeMeasurement;
 import org.hiero.metrics.api.stat.StatUtils;
 
-public final class AtomicBooleanGaugeMeasurement implements BooleanGaugeMeasurement {
+public final class DefaultBooleanGaugeMeasurement implements BooleanGaugeMeasurement {
 
     private final BooleanSupplier initializer;
     private volatile boolean value;
 
-    public AtomicBooleanGaugeMeasurement() {
+    public DefaultBooleanGaugeMeasurement() {
         this(StatUtils.BOOL_INIT_FALSE);
     }
 
-    public AtomicBooleanGaugeMeasurement(@NonNull BooleanSupplier initializer) {
+    public DefaultBooleanGaugeMeasurement(@NonNull BooleanSupplier initializer) {
         this.initializer = Objects.requireNonNull(initializer, "initializer must not be null");
         reset();
     }

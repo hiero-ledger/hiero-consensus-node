@@ -5,11 +5,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import org.junit.jupiter.api.Test;
 
-public class AtomicBooleanGaugeMeasurementTest {
+public class DefaultBooleanGaugeMeasurementTest {
 
     @Test
     void testWithDefaultInitializer() {
-        AtomicBooleanGaugeMeasurement gauge = new AtomicBooleanGaugeMeasurement();
+        DefaultBooleanGaugeMeasurement gauge = new DefaultBooleanGaugeMeasurement();
 
         assertThat(gauge.getAsBoolean()).isFalse();
 
@@ -28,7 +28,7 @@ public class AtomicBooleanGaugeMeasurementTest {
 
     @Test
     void testWithCustomInitializer() {
-        AtomicBooleanGaugeMeasurement gauge = new AtomicBooleanGaugeMeasurement(() -> true);
+        DefaultBooleanGaugeMeasurement gauge = new DefaultBooleanGaugeMeasurement(() -> true);
 
         assertThat(gauge.getAsBoolean()).isTrue();
 
@@ -47,7 +47,7 @@ public class AtomicBooleanGaugeMeasurementTest {
 
     @Test
     void testAsLong() {
-        AtomicBooleanGaugeMeasurement gauge = new AtomicBooleanGaugeMeasurement();
+        DefaultBooleanGaugeMeasurement gauge = new DefaultBooleanGaugeMeasurement();
 
         assertThat(gauge.getAsLong()).isEqualTo(0L);
 

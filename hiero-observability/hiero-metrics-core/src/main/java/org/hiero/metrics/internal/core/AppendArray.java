@@ -2,6 +2,7 @@
 package org.hiero.metrics.internal.core;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.hiero.metrics.api.core.ArrayAccessor;
 
@@ -45,16 +46,13 @@ public class AppendArray<T> implements ArrayAccessor<T> {
      *
      * @param value the value to add
      */
-    @SuppressWarnings("unchecked")
     public void add(T value) {
         int idx = size.getAndIncrement();
 
         if (idx >= items.length) {
             synchronized (this) {
                 if (idx >= items.length) {
-                    T[] newArray = (T[]) new Object[size.get() * 2];
-                    System.arraycopy(items, 0, newArray, 0, items.length);
-                    items = newArray;
+                    items = Arrays.copyOf(items, size.get() * 2);
                 }
             }
         }
