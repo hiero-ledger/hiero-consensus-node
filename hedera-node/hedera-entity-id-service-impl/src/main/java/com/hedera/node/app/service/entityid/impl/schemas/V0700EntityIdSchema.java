@@ -19,16 +19,16 @@ import java.util.Set;
 /**
  * Minor schema v0.68.0 that introduces a singleton to track the highest node ID ever used.
  */
-public class V0690EntityIdSchema extends Schema<SemanticVersion> {
+public class V0700EntityIdSchema extends Schema<SemanticVersion> {
 
     private static final SemanticVersion VERSION =
-            SemanticVersion.newBuilder().major(0).minor(69).patch(0).build();
+            SemanticVersion.newBuilder().major(0).minor(70).patch(0).build();
 
     public static final String NODE_ID_KEY = "NODE_ID";
     public static final int NODE_ID_STATE_ID = SingletonType.ENTITYIDSERVICE_I_NODE_ID.protoOrdinal();
     public static final String NODE_ID_STATE_LABEL = computeLabel(EntityIdService.NAME, NODE_ID_KEY);
 
-    public V0690EntityIdSchema() {
+    public V0700EntityIdSchema() {
         super(VERSION, SEMANTIC_VERSION_COMPARATOR);
     }
 
