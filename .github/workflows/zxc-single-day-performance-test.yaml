@@ -127,7 +127,7 @@ jobs:
         env:
           GITHUB_PAGES_URL: ${{ secrets.perf_ghp }}
         run: |
-          git clone https://"${GITHUB_PAGES_URL}"@github.com/hashgraph/private-hedera-services.git target_consensus_node
+          git clone https://"${GITHUB_PAGES_URL}"@github.com/hiero-ledger/hiero-consensus-node.git target_consensus_node
           cd target_consensus_node
           git checkout ${{ inputs.ref }}
           cd "${{ github.workspace }}"
