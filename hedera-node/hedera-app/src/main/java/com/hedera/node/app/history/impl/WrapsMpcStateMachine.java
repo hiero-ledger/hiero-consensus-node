@@ -56,8 +56,7 @@ public class WrapsMpcStateMachine {
         }
 
         public static Transition advanceTo(
-                @NonNull final WrapsPhase currentPhase, @NonNull final Instant gracePeriodEndTimeUpdate) {
-            requireNonNull(gracePeriodEndTimeUpdate);
+                @NonNull final WrapsPhase currentPhase, @Nullable final Instant gracePeriodEndTimeUpdate) {
             return new Transition(true, currentPhase, gracePeriodEndTimeUpdate);
         }
 
@@ -129,7 +128,7 @@ public class WrapsMpcStateMachine {
             if (messages.keySet().containsAll(r1Nodes)) {
                 final var nextPhase = currentPhase == R2 ? R3 : AGGREGATE;
                 final var nextGracePeriodEndTime =
-                        currentPhase == R2 ? publication.receiptTime().plus(gracePeriod) : Instant.EPOCH;
+                        currentPhase == R2 ? publication.receiptTime().plus(gracePeriod) : null;
                 return Transition.advanceTo(nextPhase, nextGracePeriodEndTime);
             }
         }

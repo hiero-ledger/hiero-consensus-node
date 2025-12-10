@@ -10,7 +10,6 @@ import static com.hedera.node.app.hapi.utils.CommonUtils.noThrowSha384HashOf;
 import static com.hedera.node.app.history.HistoryLibrary.EMPTY_PUBLIC_KEY;
 import static com.hedera.node.app.history.HistoryLibrary.GENESIS_WRAPS_METADATA;
 import static com.hedera.node.app.history.impl.ProofControllers.isWrapsExtensible;
-import static com.hedera.node.app.service.roster.impl.RosterTransitionWeights.moreThanHalfOfTotal;
 import static java.util.Collections.emptySortedMap;
 import static java.util.Objects.requireNonNull;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
@@ -44,7 +43,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.SortedMap;
-import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
@@ -328,65 +326,27 @@ public class WrapsHistoryProver implements HistoryProver {
             final long constructionId,
             @NonNull final WrapsMessagePublication publication,
             @Nullable final WritableHistoryStore writableHistoryStore) {
+        final var transition = machine.onNext(publication, wrapsPhase, weights, wrapsMessageGracePeriod, phaseMessages);
         log.info(
-                "Received {} message from node{} for construction #{} (current phase={})",
+                "Received {} message from node{} for construction #{} in phase={}) -> {} (new phase={})",
                 publication.phase(),
                 publication.nodeId(),
                 constructionId,
-                wrapsPhase);
-        if (publication.phase() != wrapsPhase) {
-            return false;
-        }
-        final var startPhase = wrapsPhase;
-        final var messages = phaseMessages.computeIfAbsent(wrapsPhase, p -> new TreeMap<>());
-        if (wrapsPhase == R1) {
-            if (messages.putIfAbsent(publication.nodeId(), publication) != null) {
-                return false;
-            }
-            final long r1Weight = messages.values().stream()
-                    .mapToLong(p -> weights.sourceWeightOf(p.nodeId()))
-                    .sum();
-            if (r1Weight >= moreThanHalfOfTotal(weights.sourceNodeWeights())) {
+                wrapsPhase,
+                transition.publicationAccepted() ? "accepted" : "rejected",
+                transition.newCurrentPhase());
+        if (transition.publicationAccepted()) {
+            if (transition.newCurrentPhase() != wrapsPhase) {
+                wrapsPhase = transition.newCurrentPhase();
+                log.info("Advanced to {} for construction #{}", wrapsPhase, constructionId);
                 if (writableHistoryStore != null) {
                     writableHistoryStore.advanceWrapsSigningPhase(
-                            constructionId, R2, publication.receiptTime().plus(wrapsMessageGracePeriod));
+                            constructionId, wrapsPhase, transition.gracePeriodEndTimeUpdate());
                 }
-                wrapsPhase = R2;
             }
-        } else if (wrapsPhase == R2) {
-            final var r1Nodes = phaseMessages.get(R1).keySet();
-            if (!r1Nodes.contains(publication.nodeId())) {
-                return false;
-            }
-            if (messages.putIfAbsent(publication.nodeId(), publication) != null) {
-                return false;
-            }
-            if (messages.keySet().containsAll(r1Nodes)) {
-                if (writableHistoryStore != null) {
-                    writableHistoryStore.advanceWrapsSigningPhase(
-                            constructionId, R3, publication.receiptTime().plus(wrapsMessageGracePeriod));
-                }
-                wrapsPhase = R3;
-            }
-        } else {
-            final var r1Nodes = phaseMessages.get(R1).keySet();
-            if (!r1Nodes.contains(publication.nodeId())) {
-                return false;
-            }
-            if (messages.putIfAbsent(publication.nodeId(), publication) != null) {
-                return false;
-            }
-            if (messages.keySet().containsAll(r1Nodes)) {
-                if (writableHistoryStore != null) {
-                    writableHistoryStore.advanceWrapsSigningPhase(constructionId, AGGREGATE, null);
-                }
-                wrapsPhase = AGGREGATE;
-            }
+            return true;
         }
-        if (wrapsPhase != startPhase) {
-            log.info("Advanced to {} for construction #{}", wrapsPhase, constructionId);
-        }
-        return true;
+        return false;
     }
 
     /**
