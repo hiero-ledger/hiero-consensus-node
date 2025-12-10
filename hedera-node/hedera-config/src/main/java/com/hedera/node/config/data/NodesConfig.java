@@ -2,7 +2,6 @@
 package com.hedera.node.config.data;
 
 import com.hedera.node.config.NetworkProperty;
-import com.hedera.node.config.NodeProperty;
 import com.swirlds.config.api.ConfigData;
 import com.swirlds.config.api.ConfigProperty;
 
@@ -42,7 +41,4 @@ public record NodesConfig(
         @ConfigProperty(defaultValue = "true") @NetworkProperty boolean adjustNodeFees,
         @ConfigProperty(defaultValue = "10") @NetworkProperty int activeRoundsPercent,
         @ConfigProperty(defaultValue = "true") @NetworkProperty boolean preserveMinNodeRewardBalance,
-        @ConfigProperty(defaultValue = "true") @NetworkProperty boolean webProxyEndpointsEnabled,
-        /* Node account id update */
-        @ConfigProperty(defaultValue = "data/generated/") @NodeProperty String nodeGeneratedDir,
-        @ConfigProperty(defaultValue = "node_account_id.txt") @NodeProperty String nodeAccountIdFile) {}
+        @ConfigProperty(defaultValue = "true") @NetworkProperty boolean webProxyEndpointsEnabled) {}
