@@ -239,7 +239,6 @@ jobs:
 
   state-validator-uberjar:
     name: Build & Publish Hedera State Validator Uber JAR
-    runs-on: hiero-citr-linux-medium
     needs:
       - fetch-xts-candidate
     if: ${{ needs.fetch-xts-candidate.result == 'success' && needs.fetch-xts-candidate.outputs.xts-tag-exists == 'true' }}
