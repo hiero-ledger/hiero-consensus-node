@@ -374,22 +374,6 @@ public class WorkingDirUtils {
     }
 
     /**
-     * Load the address book from the given path, using {@link RandomAddressBookBuilder} to
-     * set a {@code sigCert} for each address.
-     *
-     * @param path the path to the address book file
-     * @return the loaded address book
-     */
-    public static AddressBook loadAddressBook(@NonNull final Path path) {
-        requireNonNull(path);
-        final var configFile = LegacyConfigPropertiesLoader.loadConfigFile(path.toAbsolutePath());
-        final var addressBook = configFile.getAddressBook();
-        return new AddressBook(stream(spliteratorUnknownSize(addressBook.iterator(), 0), false)
-                .map(address -> address.copySetSigCert(SIG_CERT))
-                .toList());
-    }
-
-    /**
      * Whether only the {@link RosterEntry} entries should be set in a network resource.
      */
     public enum OnlyRoster {
