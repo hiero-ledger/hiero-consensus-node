@@ -47,34 +47,9 @@ public interface ServiceFeeCalculator {
             @NonNull FeeSchedule feeSchedule);
     /**
      * Returns the transaction type this calculator is for.
-     * @return the transaction type, or null if this is a query-only calculator
+     * @return the transaction type
      */
     TransactionBody.DataOneOfType getTransactionType();
-
-    /**
-     * Accumulates query fees into the given fee result. Override this method for query fee calculators.
-     *
-     * @param query the query
-     * @param feeContext the fee context (may be null for approximate calculations)
-     * @param feeResult the fee result to accumulate into
-     * @param feeSchedule the fee schedule
-     */
-    default void accumulateQueryFee(
-            @NonNull Query query,
-            @Nullable FeeContext feeContext,
-            @NonNull FeeResult feeResult,
-            @NonNull FeeSchedule feeSchedule) {
-        throw new UnsupportedOperationException(
-                "Query fee calculation not supported by " + getClass().getSimpleName());
-    }
-
-    /**
-     * Returns the query type this calculator is for.
-     * @return the query type, or null if this is a transaction-only calculator
-     */
-    default Query.QueryOneOfType getQueryType() {
-        return null;
-    }
 
     /**
      * Adds an extra fee to the result.
