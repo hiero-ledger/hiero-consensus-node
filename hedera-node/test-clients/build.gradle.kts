@@ -417,7 +417,10 @@ tasks.register<Test>("testEmbedded") {
     systemProperty("hapi.spec.default.shard", 0)
     systemProperty("hapi.spec.default.realm", 0)
 
-    if (gradle.startParameter.taskNames.contains("hapiEmbeddedSimpleFees")) {
+    if (
+        ciTagExpression.contains("hapiEmbeddedSimpleFees") ||
+            ciTagExpression.contains("hapiEmbeddedSimpleFeesMats")
+    ) {
         systemProperty("fees.createSimpleFeeSchedule", "true")
         systemProperty("fees.simpleFeesEnabled", "true")
     }
