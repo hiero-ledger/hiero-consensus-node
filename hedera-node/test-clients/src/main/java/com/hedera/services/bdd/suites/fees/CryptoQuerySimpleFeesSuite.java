@@ -1,6 +1,18 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.fees;
 
+import com.hedera.services.bdd.junit.HapiTest;
+import com.hedera.services.bdd.junit.HapiTestLifecycle;
+import com.hedera.services.bdd.junit.support.TestLifecycle;
+import edu.umd.cs.findbugs.annotations.NonNull;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Tag;
+
+import java.util.Map;
+import java.util.stream.Stream;
+
 import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SIMPLE_FEES;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
@@ -12,18 +24,6 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.OK;
-
-import com.hedera.services.bdd.junit.HapiTestLifecycle;
-import com.hedera.services.bdd.junit.LeakyHapiTest;
-import com.hedera.services.bdd.junit.support.TestLifecycle;
-import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.Map;
-import java.util.stream.Stream;
-import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.DynamicTest;
-import org.junit.jupiter.api.Tag;
 
 /**
  * Test suite for Crypto Query operations with simple fees (CryptoGetInfo, CryptoGetAccountRecords).
@@ -43,7 +43,7 @@ public class CryptoQuerySimpleFeesSuite {
         testLifecycle.overrideInClass(Map.of("fees.simpleFeesEnabled", "true"));
     }
 
-    @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+    @HapiTest
     @DisplayName("crypto get info simple fee")
     final Stream<DynamicTest> cryptoGetInfoSimpleFee() {
         return hapiTest(
@@ -53,7 +53,7 @@ public class CryptoQuerySimpleFeesSuite {
                 validateChargedUsd("getInfoQuery", CRYPTO_GET_INFO_USD));
     }
 
-    @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+    @HapiTest
     @DisplayName("crypto get info with token associations")
     final Stream<DynamicTest> cryptoGetInfoWithTokenAssociations() {
         return hapiTest(
@@ -63,7 +63,7 @@ public class CryptoQuerySimpleFeesSuite {
                 validateChargedUsd("getInfoWithTokensQuery", CRYPTO_GET_INFO_USD));
     }
 
-    @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+    @HapiTest
     @DisplayName("crypto get account records simple fee")
     final Stream<DynamicTest> cryptoGetAccountRecordsSimpleFee() {
         return hapiTest(
@@ -74,16 +74,15 @@ public class CryptoQuerySimpleFeesSuite {
                 validateChargedUsd("getRecordsQuery", CRYPTO_GET_ACCOUNT_RECORDS_USD));
     }
 
-    @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+    @HapiTest
     @DisplayName("crypto get account balance is free")
     final Stream<DynamicTest> cryptoGetAccountBalanceIsFree() {
         return hapiTest(
-                cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
-                cryptoCreate(TEST_ACCOUNT).payingWith(PAYER),
-                getAccountBalance(TEST_ACCOUNT).hasCostAnswerPrecheckFrom(OK).hasAnswerOnlyPrecheck(OK));
+                getAccountBalance(TEST_ACCOUNT).via("accountBalanceQuery"),
+                validateChargedUsd("accountBalanceQuery", 0));
     }
 
-    @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+    @HapiTest
     @DisplayName("crypto get info multiple queries")
     final Stream<DynamicTest> cryptoGetInfoMultipleQueries() {
         return hapiTest(
