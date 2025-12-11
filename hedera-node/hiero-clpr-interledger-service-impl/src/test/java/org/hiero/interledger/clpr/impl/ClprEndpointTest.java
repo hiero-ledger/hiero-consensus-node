@@ -104,8 +104,8 @@ class ClprEndpointTest extends ClprTestBase {
     }
 
     @Test
-    void runOnceSkipsWhenDevModeDisabled() {
-        when(configuration.getConfigData(ClprConfig.class)).thenReturn(new ClprConfig(true, 5000, true, false));
+    void runOnceSkipsWhenClprDisabled() {
+        when(configuration.getConfigData(ClprConfig.class)).thenReturn(new ClprConfig(false, 5000, true, true));
 
         subject.runOnce();
 

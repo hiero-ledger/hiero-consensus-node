@@ -79,7 +79,8 @@ public class ClprEndpoint {
      */
     void runOnce() {
         final var clprConfig = configProvider.getConfiguration().getConfigData(ClprConfig.class);
-        if (!clprConfig.devModeEnabled()) {
+        if (!clprConfig.clprEnabled()) {
+            log.debug("CLPR endpoint maintenance skipped; feature disabled");
             return;
         }
 
@@ -118,8 +119,8 @@ public class ClprEndpoint {
 
     public synchronized void start() {
         final var clprConfig = configProvider.getConfiguration().getConfigData(ClprConfig.class);
-        if (!clprConfig.devModeEnabled()) {
-            log.info("CLPR is not enabled, ClprEndpoint Client not started.");
+        if (!clprConfig.clprEnabled()) {
+            log.info("CLPR is disabled, ClprEndpoint Client not started.");
             return;
         }
         if (!started) {
