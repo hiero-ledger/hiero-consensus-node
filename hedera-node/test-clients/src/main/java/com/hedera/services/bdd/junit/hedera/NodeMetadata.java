@@ -18,6 +18,7 @@ public record NodeMetadata(
         int internalGossipPort,
         int externalGossipPort,
         int prometheusPort,
+        int debugPort,
         @Nullable Path workingDir) {
     public static final int UNKNOWN_PORT = -1;
 
@@ -36,7 +37,8 @@ public record NodeMetadata(
             final int grpcNodeOperatorPort,
             final int internalGossipPort,
             final int externalGossipPort,
-            final int prometheusPort) {
+            final int prometheusPort,
+            final int debugPort) {
         return new NodeMetadata(
                 nodeId,
                 name,
@@ -47,6 +49,7 @@ public record NodeMetadata(
                 internalGossipPort,
                 externalGossipPort,
                 prometheusPort,
+                debugPort,
                 workingDir);
     }
 
@@ -67,6 +70,7 @@ public record NodeMetadata(
                 internalGossipPort,
                 externalGossipPort,
                 prometheusPort,
+                debugPort,
                 workingDir);
     }
 

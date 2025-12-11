@@ -78,11 +78,12 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
     public static final String SHARED_NETWORK_NAME = "SHARED_NETWORK";
     private static final Logger log = LogManager.getLogger(SubProcessNetwork.class);
 
-    // 3 gRPC ports, 2 gossip ports, 1 Prometheus
-    private static final int PORTS_PER_NODE = 6;
+    // 3 gRPC ports, 2 gossip ports, 1 Prometheus, 1 reserved for JDWP/debug
+    private static final int PORTS_PER_NODE = 7;
     private static final SplittableRandom RANDOM = new SplittableRandom();
     private static final int FIRST_CANDIDATE_PORT = 30000;
     private static final int LAST_CANDIDATE_PORT = 40000;
+    private static final int MAX_NODES_PER_NETWORK = 10;
 
     private static final String SUBPROCESS_HOST = "127.0.0.1";
     private static final ByteString SUBPROCESS_ENDPOINT = asOctets(SUBPROCESS_HOST);
@@ -94,6 +95,7 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
     private static int nextInternalGossipPort;
     private static int nextExternalGossipPort;
     private static int nextPrometheusPort;
+    private static int nextDebugPort;
     private static boolean nextPortsInitialized = false;
 
     private final Map<Long, AccountID> pendingNodeAccounts = new HashMap<>();
@@ -349,7 +351,8 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
                             nextNodeOperatorPort + nodeId,
                             nextInternalGossipPort + nodeId * 2,
                             nextExternalGossipPort + nodeId * 2,
-                            nextPrometheusPort + nodeId);
+                            nextPrometheusPort + nodeId,
+                            nextDebugPort + nodeId);
         });
         final var weights = maybeLatestCandidateWeights();
         configTxt = configTxtForLocal(networkName, nodes, nextInternalGossipPort, nextExternalGossipPort, weights);
@@ -360,7 +363,6 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
      * Refreshes the clients for the network, e.g. after reassigning metadata.
      */
     public void refreshClients() {
-        HapiClients.tearDown();
         this.clients = HapiClients.clientsFor(this);
     }
 
@@ -405,6 +407,7 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
                         nextInternalGossipPort + (int) nodeId * 2,
                         nextExternalGossipPort + (int) nodeId * 2,
                         nextPrometheusPort + (int) nodeId,
+                        nextDebugPort + (int) nodeId,
                         shard,
                         realm),
                 GRPC_PINGER,
@@ -463,30 +466,50 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
      */
     private static synchronized HederaNetwork liveNetwork(
             @NonNull final String name, final int size, final long shard, final long realm) {
+        final int blockSize = Math.max(size, MAX_NODES_PER_NETWORK);
         if (!nextPortsInitialized) {
-            initializeNextPortsForNetwork(size);
+            initializeNextPortsForNetwork(blockSize);
         }
+        final int currentFirstGrpcPort = nextGrpcPort;
         final var network = new SubProcessNetwork(
                 name,
                 IntStream.range(0, size)
                         .mapToObj(nodeId -> new SubProcessNode(
-                                classicMetadataFor(
-                                        nodeId,
-                                        name,
-                                        SUBPROCESS_HOST,
-                                        SHARED_NETWORK_NAME.equals(name) ? null : name,
-                                        nextGrpcPort,
-                                        nextNodeOperatorPort,
-                                        nextInternalGossipPort,
-                                        nextExternalGossipPort,
-                                        nextPrometheusPort,
-                                        shard,
-                                        realm),
+                        classicMetadataFor(
+                                nodeId,
+                                name,
+                                SUBPROCESS_HOST,
+                                SHARED_NETWORK_NAME.equals(name) ? null : name,
+                                nextGrpcPort,
+                                nextNodeOperatorPort,
+                                nextInternalGossipPort,
+                                nextExternalGossipPort,
+                                nextPrometheusPort,
+                                nextDebugPort,
+                                shard,
+                                realm),
                                 GRPC_PINGER,
                                 PROMETHEUS_CLIENT))
                         .toList(),
                 shard,
                 realm);
+        if (!network.nodes().isEmpty()) {
+            final var firstNode = (SubProcessNode) network.nodes().getFirst();
+            final var metadata = firstNode.metadata();
+            // TODO: Remove temporary logging once multi-network startup flake is diagnosed
+            log.info(
+                    "TEMP-DEBUG Ports for network '{}' node{} grpc={} nodeOp={} gossip={} gossipTls={} prometheus={} debug={}",
+                    name,
+                    metadata.nodeId(),
+                    metadata.grpcPort(),
+                    metadata.grpcNodeOperatorPort(),
+                    metadata.internalGossipPort(),
+                    metadata.externalGossipPort(),
+                    metadata.prometheusPort(),
+                    metadata.debugPort());
+        }
+        final int nextFirstGrpcPort = currentFirstGrpcPort + blockSize * PORTS_PER_NODE;
+        initializeNextPortsForNetwork(blockSize, nextFirstGrpcPort);
         Runtime.getRuntime().addShutdownHook(new Thread(network::terminate));
         return network;
     }
@@ -580,28 +603,40 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
                         node -> HapiPropertySource.asServiceEndpoint(node.getHost() + ":" + node.getGrpcPort())));
     }
 
-    private static void initializeNextPortsForNetwork(final int size) {
-        initializeNextPortsForNetwork(size, randomPortAfter(FIRST_CANDIDATE_PORT, size * PORTS_PER_NODE));
+    private static synchronized void initializeNextPortsForNetwork(final int size) {
+        final int configuredPort = Integer.getInteger("hapi.spec.initial.port", -1);
+        final int firstGrpcPort =
+                configuredPort > 0 ? configuredPort : randomPortAfter(FIRST_CANDIDATE_PORT, size * PORTS_PER_NODE);
+        initializeNextPortsForNetwork(size, firstGrpcPort);
     }
 
     /**
      * Initializes the next ports for the network with the given size and first gRPC port.
      *
-     * @param size the number of nodes in the network
+     * Layout for size = N:
+     *   - grpcPort:            firstGrpcPort + 2*i
+     *   - nodeOperatorPort:    firstGrpcPort + 2*N + i
+     *   - gossipPort:          firstGrpcPort + 3*N + 2*i
+     *   - gossipTlsPort:       firstGrpcPort + 3*N + 2*i + 1
+     *   - prometheusPort:      firstGrpcPort + 5*N + i
+     *
+     * Example: Suppose {@code firstGrpcPort} is 10000 with four nodes in the network. Then
+     *   - grpcPort = 10000, 10002, 10004, 10006
+     *   - nodeOperatorPort = 10008, 10009, 10010, 10011
+     *   - gossipPort = 10012, 10014, 10016, 10018
+     *   - gossipTlsPort = 10013, 10015, 10017, 10019
+     *   - prometheusPort = 10020, 10021, 10022, 10023
+     *
+     * @param size the number of nodes (or reserved port slots) in the network
      * @param firstGrpcPort the first gRPC port
      */
-    public static void initializeNextPortsForNetwork(final int size, final int firstGrpcPort) {
-        // Suppose firstGrpcPort is 10000 with 4 nodes in the network, then the port assignments are,
-        //   - grpcPort = 10000, 10002, 10004, 10006
-        //   - nodeOperatorPort = 10008, 10009, 10010, 10011
-        //   - gossipPort = 10012, 10014, 10016, 10018
-        //   - gossipTlsPort = 10013, 10015, 10017, 10019
-        //   - prometheusPort = 10020, 10021, 10022, 10023
+    public static synchronized void initializeNextPortsForNetwork(final int size, final int firstGrpcPort) {
         nextGrpcPort = firstGrpcPort;
         nextNodeOperatorPort = nextGrpcPort + 2 * size;
         nextInternalGossipPort = nextNodeOperatorPort + size;
         nextExternalGossipPort = nextInternalGossipPort + 1;
         nextPrometheusPort = nextInternalGossipPort + 2 * size;
+        nextDebugPort = nextPrometheusPort + size;
         nextPortsInitialized = true;
     }
 
@@ -658,12 +693,9 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
     public void configureApplicationProperties(HederaNode node) {
         // Update bootstrap properties for the node from bootstrapPropertyOverrides if there are any
         final var nodeId = node.getNodeId();
-        final List<String> mergedProperties = applicationPropertyOverrides.containsKey(nodeId)
-                ? new ArrayList<>(applicationPropertyOverrides.get(nodeId))
-                : List.of();
-
-        if (!mergedProperties.isEmpty()) {
-            log.info("Configuring application properties for node {}: {}", nodeId, mergedProperties);
+        if (applicationPropertyOverrides.containsKey(nodeId)) {
+            final var properties = applicationPropertyOverrides.get(nodeId);
+            log.info("Configuring application properties for node {}: {}", nodeId, properties);
             Path appPropertiesPath = node.getExternalPath(APPLICATION_PROPERTIES);
             log.info(
                     "Attempting to update application.properties at path {} for node {}",
@@ -684,9 +716,9 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
 
                 // Prepare the block stream config string
                 StringBuilder propertyBuilder = new StringBuilder();
-                for (int i = 0; i < mergedProperties.size(); i += 2) {
-                    propertyBuilder.append(mergedProperties.get(i)).append("=").append(mergedProperties.get(i + 1));
-                    if (i < mergedProperties.size() - 1) {
+                for (int i = 0; i < properties.size(); i += 2) {
+                    propertyBuilder.append(properties.get(i)).append("=").append(properties.get(i + 1));
+                    if (i < properties.size() - 1) {
                         propertyBuilder.append(System.lineSeparator());
                     }
                 }

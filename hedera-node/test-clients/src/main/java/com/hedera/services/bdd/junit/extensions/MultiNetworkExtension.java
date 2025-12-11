@@ -40,12 +40,6 @@ public class MultiNetworkExtension implements BeforeEachCallback, AfterEachCallb
     @Override
     public void beforeEach(@NonNull final ExtensionContext extensionContext) {
         findAnnotation(extensionContext).ifPresent(annotation -> {
-            // Ensure any prior single-network defaults (e.g., from other tasks) don't leak into multi-network runs.
-            System.clearProperty("hapi.spec.default.shard");
-            System.clearProperty("hapi.spec.default.realm");
-            System.clearProperty("hapi.spec.initial.port");
-            // Disable JDWP agents for subprocess nodes to avoid port conflicts when starting multiple networks.
-            System.setProperty("hapi.disable.jdwp", "true");
             final var networks = startNetworks(annotation.networks());
             store(extensionContext).put(RESOURCES_KEY, networks);
             store(extensionContext)

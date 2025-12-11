@@ -8,6 +8,9 @@ import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.ERROR_R
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.OUTPUT_DIR;
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.guaranteedExtantFile;
 import static java.lang.ProcessBuilder.Redirect.DISCARD;
+import static java.nio.charset.StandardCharsets.UTF_8;
+import static java.nio.file.StandardOpenOption.CREATE;
+import static java.nio.file.StandardOpenOption.TRUNCATE_EXISTING;
 import static java.util.Objects.requireNonNull;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 
@@ -49,6 +52,7 @@ public class ProcessUtils {
     public static final String SAVED_STATES_DIR = "saved";
     public static final String RECORD_STREAMS_DIR = "recordStreams";
     public static final String BLOCK_STREAMS_DIR = "blockStreams";
+    private static final String NODE_PID_FILE = "node.pid";
     private static final long WAIT_SLEEP_MILLIS = 100L;
 
     public static final Executor EXECUTOR = Executors.newCachedThreadPool();
@@ -159,20 +163,91 @@ public class ProcessUtils {
             } else {
                 builder.inheritIO();
             }
-            return builder.start().toHandle();
+            final var handle = builder.start().toHandle();
+            persistPid(metadata, handle);
+            return handle;
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
     }
 
+    /**
+     * Best-effort shutdown scoped to a node's working directory. This avoids killing nodes
+     * in other networks that share the same numeric node id (e.g., multi-network suites).
+     * Falls back to the legacy nodeId-based kill only for the default shared-network scope.
+     *
+     * @param metadata the metadata of the node to stop
+     */
+    public static void destroySubProcessNodeFor(@NonNull final NodeMetadata metadata) {
+        requireNonNull(metadata);
+        final var pidFile = pidFilePath(metadata);
+        boolean stoppedFromPid = false;
+        if (Files.exists(pidFile)) {
+            try {
+                final var pidText = Files.readString(pidFile, UTF_8).trim();
+                if (!pidText.isEmpty()) {
+                    final var pid = Long.parseLong(pidText);
+                    final var handleOpt = ProcessHandle.of(pid);
+                    if (handleOpt.isPresent()) {
+                        final var handle = handleOpt.get();
+                        if (handle.isAlive()) {
+                            log.info("Destroying node{} with PID '{}' from {}", metadata.nodeId(), pid, pidFile);
+                            handle.destroy();
+                            if (handle.isAlive()) {
+                                handle.destroyForcibly();
+                            }
+                            stoppedFromPid = true;
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                log.warn("Failed to stop node{} using pid file {}: {}", metadata.nodeId(), pidFile, e.toString());
+            }
+        }
+        // Retain legacy behavior for the default shared-network scope only.
+        if (!stoppedFromPid && isDefaultScope(metadata)) {
+            destroyAnySubProcessNodeWithId(metadata.nodeId());
+        }
+        try {
+            Files.deleteIfExists(pidFile);
+        } catch (IOException e) {
+            log.warn("Failed to delete pid file {} after shutdown: {}", pidFile, e.toString());
+        }
+    }
+
+    private static boolean isDefaultScope(@NonNull final NodeMetadata metadata) {
+        // Default shared-network working dirs use the "hapi-test" scope folder.
+        final var workingDir = metadata.workingDirOrThrow();
+        final var parent = workingDir.getParent();
+        return parent != null
+                && parent.getFileName() != null
+                && "hapi-test".equals(parent.getFileName().toString());
+    }
+
+    private static void persistPid(@NonNull final NodeMetadata metadata, @NonNull final ProcessHandle handle) {
+        requireNonNull(metadata);
+        requireNonNull(handle);
+        final var pidFile = pidFilePath(metadata);
+        try {
+            Files.createDirectories(pidFile.getParent());
+            Files.writeString(pidFile, Long.toString(handle.pid()), UTF_8, CREATE, TRUNCATE_EXISTING);
+        } catch (IOException e) {
+            log.warn("Unable to write pid file for node{} at {}: {}", metadata.nodeId(), pidFile, e.toString());
+        }
+    }
+
+    private static Path pidFilePath(@NonNull final NodeMetadata metadata) {
+        return metadata.workingDirOrThrow().resolve(OUTPUT_DIR).resolve(NODE_PID_FILE);
+    }
+
     private static List<String> javaCommandLineFor(@NonNull final NodeMetadata metadata) {
         final List<String> commandLine = new ArrayList<>();
         commandLine.add(ProcessHandle.current().info().command().orElseThrow());
-        // Only activate JDWP if not in CI and not explicitly disabled
-        if (System.getenv("CI") == null && !Boolean.getBoolean("hapi.disable.jdwp")) {
+        // Only activate JDWP if not in CI
+        if (System.getenv("CI") == null) {
             commandLine.add("-agentlib:jdwp=transport=dt_socket,server=y,suspend="
                     + (metadata.nodeId() == NODE_ID_TO_SUSPEND ? "y" : "n") + ",address=*:"
-                    + (FIRST_AGENT_PORT + metadata.nodeId()));
+                    + jdwpPort(metadata));
         }
         commandLine.addAll(List.of(
                 "--module-path",
@@ -188,6 +263,12 @@ public class ProcessUtils {
                 "-local",
                 Long.toString(metadata.nodeId())));
         return commandLine;
+    }
+
+    private static int jdwpPort(@NonNull final NodeMetadata metadata) {
+        return metadata.debugPort() != NodeMetadata.UNKNOWN_PORT
+                ? metadata.debugPort()
+                : (int) (FIRST_AGENT_PORT + metadata.nodeId());
     }
 
     /**

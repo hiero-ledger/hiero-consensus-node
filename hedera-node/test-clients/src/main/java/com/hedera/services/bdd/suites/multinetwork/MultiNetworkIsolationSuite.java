@@ -13,6 +13,7 @@ import com.hedera.services.bdd.spec.transactions.TxnVerbs;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
@@ -26,7 +27,11 @@ import org.junit.jupiter.api.Tag;
  * and independent ledger counters across distinct networks.
  */
 @Tag(TestTags.MULTINETWORK)
-public class MultiNetworkIsolationSuite {
+public class MultiNetworkIsolationSuite extends AbstractMultiNetworkSuite {
+    @BeforeEach
+    void initDefaults() {
+        setConfigDefaults();
+    }
 
     static {
         // Use a distinct shard/realm for NET_C to prove isolation is insensitive to shard/realm overlap
