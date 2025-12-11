@@ -277,6 +277,30 @@ jobs:
           path: "**/build/test-results/timingSensitive/TEST-*.xml"
           retention-days: 7
 
+      - name: List the files to upload as artifact
+        if: ${{ !cancelled() && always() }}
+        run: |
+          echo "Contents of current directory:"
+          ls -lh .
+          echo "Contents of hedera-node/:"
+          ls -lh hedera-node/
+          echo Contents of hedera-node/test-clients/:
+          ls -lh hedera-node/test-clients/
+          echo "Contents of hedera-node/test-clients/build/:"
+          ls -lh hedera-node/test-clients/build/
+
+      - name: Upload Unit Test (Timing Sensitive) Failure Artifacts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        # change this check to "failure" before merging
+        if: ${{ inputs.enable-timing-sensitive-tests && steps.gradle-timing-sensitive.conclusion == 'success' && !cancelled() }}
+        with:
+          name: Unit Test (Timing Sensitive) Failure Artifacts
+          path: |
+            hedera-node/test-clients/build/*.log
+            hedera-node/test-clients/build/*.blk.gz
+            hedera-node/test-clients/build/*.rcd.gz
+          retention-days: 7
+
       - name: Time Consuming Tests
         id: gradle-time-consuming
         if: ${{ inputs.enable-time-consuming-tests && steps.gradle-build.conclusion == 'success' && !cancelled() }}
