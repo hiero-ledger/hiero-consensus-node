@@ -1,8 +1,4 @@
 // SPDX-License-Identifier: Apache-2.0
-import org.hiero.consensus.hashgraph.HashgraphModule;
-import org.hiero.consensus.hashgraph.impl.DefaultHashgraphModule;
-
-// SPDX-License-Identifier: Apache-2.0
 module org.hiero.consensus.hashgraph.impl {
     requires transitive com.hedera.node.hapi;
     requires transitive com.swirlds.base;
@@ -13,6 +9,6 @@ module org.hiero.consensus.hashgraph.impl {
     requires transitive org.hiero.consensus.model;
     requires static com.github.spotbugs.annotations;
 
-    provides HashgraphModule with
-            DefaultHashgraphModule;
+    provides org.hiero.consensus.hashgraph.HashgraphModule with
+            org.hiero.consensus.hashgraph.impl.DefaultHashgraphModule;
 }

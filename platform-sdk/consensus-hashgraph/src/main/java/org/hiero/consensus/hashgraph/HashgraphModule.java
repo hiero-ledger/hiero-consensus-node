@@ -4,6 +4,7 @@ package org.hiero.consensus.hashgraph;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.base.time.Time;
+import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.component.framework.wires.input.InputWire;
 import com.swirlds.component.framework.wires.output.OutputWire;
 import com.swirlds.config.api.Configuration;
@@ -24,6 +25,7 @@ public interface HashgraphModule {
     /**
      * Initialize the Hashgraph module.
      *
+     * @param model the wiring model
      * @param configuration the configuration
      * @param metrics the metrics registry
      * @param time the time source
@@ -32,6 +34,7 @@ public interface HashgraphModule {
      * @param freezeChecker the freeze checker used to determine when a freeze is in progress
      */
     void initialize(
+            @NonNull WiringModel model,
             @NonNull Configuration configuration,
             @NonNull Metrics metrics,
             @NonNull Time time,
@@ -49,6 +52,7 @@ public interface HashgraphModule {
      * @see #preconsensusEventOutputWire()
      * @see #staleEventOutputWire()
      */
+    @NonNull
     InputWire<PlatformEvent> eventInputWire();
 
     /**
@@ -57,6 +61,7 @@ public interface HashgraphModule {
      * @return the consensus engine output wire
      * @see #eventInputWire()
      */
+    @NonNull
     OutputWire<ConsensusRound> consensusRoundOutputWire();
 
     /**
@@ -64,6 +69,7 @@ public interface HashgraphModule {
      *
      * @return the pre-consensus events output wire
      */
+    @NonNull
     OutputWire<PlatformEvent> preconsensusEventOutputWire();
 
     /**
@@ -71,6 +77,7 @@ public interface HashgraphModule {
      *
      * @return the stale events output wire
      */
+    @NonNull
     OutputWire<PlatformEvent> staleEventOutputWire();
 
     /**
@@ -78,6 +85,7 @@ public interface HashgraphModule {
      *
      * @return the platform status input wire
      */
+    @NonNull
     InputWire<PlatformStatus> platformStatusInputWire();
 
     /**
@@ -86,5 +94,6 @@ public interface HashgraphModule {
      *
      * @return the consensus snapshot input wire
      */
+    @NonNull
     InputWire<ConsensusSnapshot> consensusSnapshotInputWire();
 }

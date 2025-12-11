@@ -58,5 +58,3 @@ javaModules {
     // Platform demo applications
     directory("platform-sdk/platform-apps/demos") { group = "com.hedera.hashgraph" }
 }
-
-include("platform-sdk:consensus-hashgraph-impl")
