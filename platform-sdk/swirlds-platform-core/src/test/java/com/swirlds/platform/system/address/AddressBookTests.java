@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.system.address;
 
-import static com.swirlds.platform.system.address.AddressBookUtils.addressBookConfigText;
 import static com.swirlds.platform.system.address.AddressBookUtils.parseAddressBookText;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -380,48 +379,6 @@ class AddressBookTests {
                 IllegalStateException.class,
                 () -> addressBook.add(buildNextAddress(randotron, addressBook)),
                 "shouldn't be able to exceed max address book size");
-    }
-
-    @Test
-    @DisplayName("Roundtrip address book serialization and deserialization compatible with config.txt")
-    void roundTripSerializeAndDeserializeCompatibleWithConfigTxt() throws ParseException {
-        final RandomAddressBookBuilder generator = RandomAddressBookBuilder.create(getRandomPrintSeed());
-        final AddressBook addressBook = generator.build();
-        // FQDN Support: modify address in address book to have a text based host name.
-        addressBook.add(addressBook
-                .getAddress(addressBook.getNodeId(0))
-                .copySetHostnameInternal("localhost")
-                .copySetHostnameExternal("localhost"));
-
-        // make one of the memo fields an empty string
-        final NodeId firstNode = addressBook.getNodeId(0);
-        addressBook.add(addressBook.getAddress(firstNode).copySetMemo(""));
-        final NodeId secondNode = addressBook.getNodeId(1);
-        addressBook.add(addressBook.getAddress(secondNode).copySetMemo("has a memo"));
-
-        final String addressBookText = addressBookConfigText(addressBook);
-        final AddressBook parsedAddressBook = parseAddressBookText(addressBookText);
-        // Equality done on toConfigText() strings since the randomly generated address book has public key data.
-        assertEquals(addressBookText, addressBookConfigText(parsedAddressBook), "The AddressBooks are not equal.");
-        assertTrue(parsedAddressBook.getAddress(firstNode).getMemo().isEmpty(), "memo is empty");
-        assertEquals(parsedAddressBook.getAddress(secondNode).getMemo(), "has a memo", "memo matches");
-
-        for (int i = 0; i < addressBook.getSize(); i++) {
-            final Address address = addressBook.getAddress(addressBook.getNodeId(i));
-            final Address parsedAddress = parsedAddressBook.getAddress(parsedAddressBook.getNodeId(i));
-            assertEquals(address.getNodeId(), parsedAddress.getNodeId(), "node id matches");
-            // these are the 8 fields of the config.txt address book.
-            assertEquals(address.getSelfName(), parsedAddress.getSelfName(), "self name matches");
-            assertEquals(address.getNickname(), parsedAddress.getNickname(), "nickname matches");
-            assertEquals(address.getWeight(), parsedAddress.getWeight(), "weight matches");
-            assertEquals(
-                    address.getHostnameInternal(), parsedAddress.getHostnameInternal(), "internal hostname matches");
-            assertEquals(address.getPortInternal(), parsedAddress.getPortInternal(), "internal port matches");
-            assertEquals(
-                    address.getHostnameExternal(), parsedAddress.getHostnameExternal(), "external hostname matches");
-            assertEquals(address.getPortExternal(), parsedAddress.getPortExternal(), "external port matches");
-            assertEquals(address.getMemo(), parsedAddress.getMemo(), "memo matches");
-        }
     }
 
     @Test

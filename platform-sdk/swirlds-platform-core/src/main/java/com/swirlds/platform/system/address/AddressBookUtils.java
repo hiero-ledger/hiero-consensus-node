@@ -33,41 +33,11 @@ import org.hiero.consensus.model.roster.AddressBook;
  */
 public class AddressBookUtils {
 
-    public static final String ADDRESS_KEYWORD = "address";
+    private static final String ADDRESS_KEYWORD = "address";
     private static final Pattern IPV4_ADDRESS_PATTERN =
             Pattern.compile("^((25[0-5]|(2[0-4]|1\\d|[1-9]|)\\d)\\.?\\b){4}$");
 
     private AddressBookUtils() {}
-
-    /**
-     * Serializes an AddressBook to text in the form used by config.txt.
-     *
-     * @param addressBook the address book to serialize.
-     * @return the config.txt compatible text representation of the address book.
-     */
-    @NonNull
-    public static String addressBookConfigText(@NonNull final AddressBook addressBook) {
-        Objects.requireNonNull(addressBook, "The addressBook must not be null.");
-        final TextTable table = new TextTable().setBordersEnabled(false);
-        for (final Address address : addressBook) {
-            final String memo = address.getMemo();
-            final boolean hasMemo = !memo.trim().isEmpty();
-            final boolean hasInternalIpv4 = address.getHostnameInternal() != null;
-            final boolean hasExternalIpv4 = address.getHostnameExternal() != null;
-            table.addRow(
-                    "address,",
-                    address.getNodeId() + ",",
-                    address.getNickname() + ",",
-                    address.getSelfName() + ",",
-                    address.getWeight() + ",",
-                    (hasInternalIpv4 ? address.getHostnameInternal() : "") + ",",
-                    address.getPortInternal() + ",",
-                    (hasExternalIpv4 ? address.getHostnameExternal() : "") + ",",
-                    address.getPortExternal() + (hasMemo ? "," : ""),
-                    memo);
-        }
-        return table.render();
-    }
 
     /**
      * Parses an address book from text in the form described by config.txt.  Comments are ignored.
@@ -128,7 +98,7 @@ public class AddressBookUtils {
                 || textAndComment[0].trim().isEmpty()) {
             return null;
         }
-        final String[] parts = addressText.split(",");
+        final String[] parts = textAndComment[0].split(",");
         if (parts.length < 9 || parts.length > 10) {
             throw new ParseException("Incorrect number of parts in the address line to parse correctly.", parts.length);
         }
