@@ -384,7 +384,9 @@ public class ReconnectStatePeerProtocol implements PeerProtocol {
                         state,
                         reconnectMetrics);
             } finally {
-                // The teacher now has all the information needed to teach. Time to release the original state
+                // The teacher now has all the information needed to teach. In particular, teacher view
+                // object initialized by the teacher is a snapshot of all data in the state. It's time to
+                // release the original state
                 teacherState.close();
             }
             teacher.execute();

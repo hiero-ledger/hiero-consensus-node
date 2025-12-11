@@ -151,7 +151,6 @@ public class TeachingSynchronizer {
         try {
             while (!subtrees.isEmpty()) {
                 try (final TeacherSubtree subtree = subtrees.remove()) {
-                    subtree.getView().waitUntilReady();
                     sendTree(subtree.getRoot(), subtree.getView());
                 }
             }
