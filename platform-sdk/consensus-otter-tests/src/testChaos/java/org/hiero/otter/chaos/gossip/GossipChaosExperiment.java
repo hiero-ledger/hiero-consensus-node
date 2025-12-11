@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.otter.fixtures.chaosbot;
+package org.hiero.otter.chaos.gossip;
 
 import com.swirlds.common.test.fixtures.Randotron;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -11,6 +11,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.Node;
+import org.hiero.otter.fixtures.chaosbot.Experiment;
+import org.hiero.otter.fixtures.network.LatencyRange;
 
 /**
  * An experiment that isolates a target node from the network for a duration, turning connectivity on and off in short
@@ -23,37 +25,40 @@ import org.hiero.otter.fixtures.Node;
  * @param minConnectedDuration  the minimum duration of pause between disconnect, when connectivity works correctly
  * @param maxConnectedDuration  the maximum duration of pause between disconnect, when connectivity works correctly
  */
-public record FlickeringIsolationExperiment(
+public record GossipChaosExperiment(
         @NonNull Duration minDuration,
         @NonNull Duration maxDuration,
         @NonNull Duration minDisconnectDuration,
         @NonNull Duration maxDisconnectDuration,
         @NonNull Duration minConnectedDuration,
-        @NonNull Duration maxConnectedDuration)
+        @NonNull Duration maxConnectedDuration,
+        @NonNull LatencyRange latencyRange)
         implements Experiment {
 
     private static final Logger log = LogManager.getLogger();
 
     private static final Duration DEFAULT_MIN_DURATION = Duration.ofMinutes(2L);
-    private static final Duration DEFAULT_MAX_DURATION = Duration.ofMinutes(5L);
+    private static final Duration DEFAULT_MAX_DURATION = Duration.ofMinutes(2L);
     private static final Duration DEFAULT_MIN_DISCONNECT_DURATION = Duration.ofSeconds(1);
     private static final Duration DEFAULT_MAX_DISCONNECT_DURATION = Duration.ofSeconds(2);
     private static final Duration DEFAULT_MIN_CONNECTED_DURATION = Duration.ofSeconds(1);
     private static final Duration DEFAULT_MAX_CONNECTED_DURATION = Duration.ofSeconds(2);
+    private static final LatencyRange DEFAULT_LATENCY_RANGE = LatencyRange.of(Duration.ofMillis(1234));
 
     /**
      * Creates a new NodeIsolationExperiment with a default configuration.
      *
      * <p>The default duration range is 2 to 5 minutes.
      */
-    public FlickeringIsolationExperiment() {
+    public GossipChaosExperiment() {
         this(
                 DEFAULT_MIN_DURATION,
                 DEFAULT_MAX_DURATION,
                 DEFAULT_MIN_DISCONNECT_DURATION,
                 DEFAULT_MAX_DISCONNECT_DURATION,
                 DEFAULT_MIN_CONNECTED_DURATION,
-                DEFAULT_MAX_CONNECTED_DURATION);
+                DEFAULT_MAX_CONNECTED_DURATION,
+                DEFAULT_LATENCY_RANGE);
     }
 
     /**
@@ -86,6 +91,7 @@ public record FlickeringIsolationExperiment(
                 "Starting flickering node isolation experiment for node {} with totalDuration {}.",
                 targetNode.selfId(),
                 totalDuration);
+        network.setLatencyForAllConnections(targetNode, latencyRange);
         network.isolate(targetNode);
 
         final List<Step> steps = new ArrayList<>();
@@ -99,11 +105,13 @@ public record FlickeringIsolationExperiment(
                 steps.add(new Step(endOfExperiment, () -> {
                     log.info("Ending flickering node isolation experiment for node {}.", targetNode.selfId());
                     network.rejoin(targetNode);
+                    network.restoreLatencyForAllConnections(targetNode);
                 }));
                 break;
             } else {
                 steps.add(new Step(stepNow, () -> {
                     network.rejoin(targetNode);
+                    network.setLatencyForAllConnections(targetNode, LatencyRange.of(Duration.ofMillis(1234)));
                 }));
             }
 
