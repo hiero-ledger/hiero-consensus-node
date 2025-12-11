@@ -5,15 +5,23 @@ import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SIMPLE_FEES;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.burnToken;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.grantTokenKyc;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.mintToken;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.revokeTokenKyc;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenAssociate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenDelete;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenDissociate;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenFeeScheduleUpdate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenFreeze;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenPause;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenReject;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenUnfreeze;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenUnpause;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenUpdateNfts;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.wipeTokenAccount;
 import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fixedHbarFee;
+import static com.hedera.services.bdd.spec.transactions.token.HapiTokenReject.rejectingToken;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.compareSimpleToOld;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_BILLION_HBARS;
@@ -41,6 +49,9 @@ public class TokenServiceSimpleFeesSuite {
     private static final String NFT_TOKEN = "nonFungibleToken";
     private static final String METADATA_KEY = "metadata-key";
     private static final String SUPPLY_KEY = "supplyKey";
+    private static final String KYC_KEY = "kycKey";
+    private static final String WIPE_KEY = "kycKey";
+    private static final String FEE_SCHEDULE_KEY = "feeScheduleKey";
     private static final String PAUSE_KEY = "pauseKey";
     private static final String FREEZE_KEY = "freezeKey";
     private static final String PAYER = "payer";
@@ -475,4 +486,262 @@ public class TokenServiceSimpleFeesSuite {
                 0.002,
                 1);
     }
+
+    @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+    @DisplayName("compare associate a token")
+    final Stream<DynamicTest> compareAssociateToken() {
+        return compareSimpleToOld(
+                () -> Arrays.asList(
+                        newKeyNamed(SUPPLY_KEY),
+                        cryptoCreate(ADMIN).balance(ONE_BILLION_HBARS),
+                        cryptoCreate(PAYER).balance(ONE_BILLION_HBARS).key(SUPPLY_KEY),
+                        cryptoCreate(OTHER).balance(ONE_BILLION_HBARS),
+                        tokenCreate(FUNGIBLE_TOKEN)
+                                .tokenType(FUNGIBLE_COMMON)
+                                .initialSupply(0L)
+                                .payingWith(PAYER)
+                                .adminKey(ADMIN)
+                                .supplyKey(SUPPLY_KEY)
+                                .fee(ONE_HUNDRED_HBARS)
+                                .hasKnownStatus(SUCCESS),
+                        tokenAssociate(OTHER, FUNGIBLE_TOKEN)
+                                .payingWith(OTHER)
+                                .via("token-associate-txn")),
+                "token-associate-txn",
+                0.05,
+                1,
+                0.05,
+                1);
+    }
+
+    @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+    @DisplayName("compare dissociate a token")
+    final Stream<DynamicTest> compareDissociateToken() {
+        return compareSimpleToOld(
+                () -> Arrays.asList(
+                        newKeyNamed(SUPPLY_KEY),
+                        cryptoCreate(ADMIN).balance(ONE_BILLION_HBARS),
+                        cryptoCreate(PAYER).balance(ONE_BILLION_HBARS).key(SUPPLY_KEY),
+                        cryptoCreate(OTHER).balance(ONE_BILLION_HBARS),
+                        tokenCreate(FUNGIBLE_TOKEN)
+                                .tokenType(FUNGIBLE_COMMON)
+                                .initialSupply(0L)
+                                .payingWith(PAYER)
+                                .adminKey(ADMIN)
+                                .supplyKey(SUPPLY_KEY)
+                                .fee(ONE_HUNDRED_HBARS)
+                                .hasKnownStatus(SUCCESS),
+                        tokenAssociate(OTHER, FUNGIBLE_TOKEN),
+                        tokenDissociate(OTHER,FUNGIBLE_TOKEN)
+                                .payingWith(OTHER)
+                                .via("token-dissociate-txn")
+                ),
+                "token-dissociate-txn",
+                0.05,
+                1,
+                0.05,
+                1);
+    }
+
+    @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+    @DisplayName("compare grant kyc")
+    final Stream<DynamicTest> compareGrantKyc() {
+        return compareSimpleToOld(
+                () -> Arrays.asList(
+                        newKeyNamed(SUPPLY_KEY),
+                        newKeyNamed(KYC_KEY),
+                        cryptoCreate(ADMIN).balance(ONE_BILLION_HBARS),
+                        cryptoCreate(PAYER).balance(ONE_BILLION_HBARS).key(SUPPLY_KEY),
+                        cryptoCreate(OTHER).balance(ONE_BILLION_HBARS),
+                        tokenCreate(FUNGIBLE_TOKEN)
+                                .tokenType(FUNGIBLE_COMMON)
+                                .initialSupply(0L)
+                                .payingWith(PAYER)
+                                .adminKey(ADMIN)
+                                .supplyKey(SUPPLY_KEY)
+                                .kycKey(KYC_KEY)
+                                .fee(ONE_HUNDRED_HBARS)
+                                .hasKnownStatus(SUCCESS),
+                        tokenAssociate(OTHER, FUNGIBLE_TOKEN),
+                        grantTokenKyc(FUNGIBLE_TOKEN, OTHER)
+                                .fee(ONE_HUNDRED_HBARS)
+                                .payingWith(OTHER)
+                                .via("token-grant-kyc-txn")
+                ),
+                "token-grant-kyc-txn",
+                0.001,
+                1,
+                0.001,
+                1);
+    }
+
+    @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+    @DisplayName("compare revoke kyc")
+    final Stream<DynamicTest> compareRevokeKyc() {
+        return compareSimpleToOld(
+                () -> Arrays.asList(
+                        newKeyNamed(SUPPLY_KEY),
+                        newKeyNamed(KYC_KEY),
+                        cryptoCreate(ADMIN).balance(ONE_BILLION_HBARS),
+                        cryptoCreate(PAYER).balance(ONE_BILLION_HBARS).key(SUPPLY_KEY),
+                        cryptoCreate(OTHER).balance(ONE_BILLION_HBARS),
+                        tokenCreate(FUNGIBLE_TOKEN)
+                                .tokenType(FUNGIBLE_COMMON)
+                                .initialSupply(0L)
+                                .payingWith(PAYER)
+                                .adminKey(ADMIN)
+                                .supplyKey(SUPPLY_KEY)
+                                .kycKey(KYC_KEY)
+                                .fee(ONE_HUNDRED_HBARS)
+                                .hasKnownStatus(SUCCESS),
+                        tokenAssociate(OTHER, FUNGIBLE_TOKEN),
+                        grantTokenKyc(FUNGIBLE_TOKEN, OTHER)
+                                .fee(ONE_HUNDRED_HBARS)
+                                .payingWith(OTHER),
+                        revokeTokenKyc(FUNGIBLE_TOKEN, OTHER)
+                                .fee(ONE_HUNDRED_HBARS)
+                                .payingWith(OTHER)
+                                .via("token-revoke-kyc-txn")
+                ),
+                "token-revoke-kyc-txn",
+                0.001,
+                1,
+                0.001,
+                1);
+    }
+
+    @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+    @DisplayName("compare reject")
+    final Stream<DynamicTest> compareReject() {
+        return compareSimpleToOld(
+                () -> Arrays.asList(
+                        newKeyNamed(SUPPLY_KEY),
+                        newKeyNamed(KYC_KEY),
+                        cryptoCreate(ADMIN).balance(ONE_BILLION_HBARS),
+                        cryptoCreate(PAYER).balance(ONE_BILLION_HBARS).key(SUPPLY_KEY),
+                        cryptoCreate(OTHER).balance(ONE_BILLION_HBARS),
+                        tokenCreate(FUNGIBLE_TOKEN)
+                                .tokenType(FUNGIBLE_COMMON)
+                                .initialSupply(0L)
+                                .payingWith(PAYER)
+                                .adminKey(ADMIN)
+                                .supplyKey(SUPPLY_KEY)
+                                .kycKey(KYC_KEY)
+                                .fee(ONE_HUNDRED_HBARS)
+                                .hasKnownStatus(SUCCESS),
+                        tokenAssociate(OTHER, FUNGIBLE_TOKEN),
+                        tokenReject(rejectingToken(FUNGIBLE_TOKEN))
+                                .payingWith(OTHER)
+                                .via("token-reject-txn")
+                ),
+                "token-reject-txn",
+                0.001,
+                1,
+                0.001,
+                1);
+    }
+
+    @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+    @DisplayName("compare token account wipe")
+    final Stream<DynamicTest> compareTokenAccountWipe() {
+        return compareSimpleToOld(
+                () -> Arrays.asList(
+                        newKeyNamed(SUPPLY_KEY),
+                        newKeyNamed(WIPE_KEY),
+                        cryptoCreate(ADMIN).balance(ONE_BILLION_HBARS),
+                        cryptoCreate(PAYER).balance(ONE_BILLION_HBARS).key(SUPPLY_KEY),
+                        cryptoCreate(OTHER).balance(ONE_BILLION_HBARS),
+                        tokenCreate(FUNGIBLE_TOKEN)
+                                .tokenType(FUNGIBLE_COMMON)
+                                .initialSupply(0L)
+                                .payingWith(PAYER)
+                                .adminKey(ADMIN)
+                                .wipeKey(WIPE_KEY)
+                                .supplyKey(SUPPLY_KEY)
+                                .fee(ONE_HUNDRED_HBARS)
+                                .hasKnownStatus(SUCCESS),
+                        tokenAssociate(OTHER, FUNGIBLE_TOKEN),
+                        mintToken(FUNGIBLE_TOKEN, 100)
+                                .payingWith(PAYER)
+                                .signedBy(SUPPLY_KEY)
+                                .fee(ONE_HUNDRED_HBARS)
+                                .hasKnownStatus(SUCCESS),
+                        wipeTokenAccount(FUNGIBLE_TOKEN, OTHER,80)
+                                .payingWith(OTHER)
+                                .fee(ONE_HUNDRED_HBARS)
+                                .via("token-wipe-txn")
+                ),
+                "token-wipe-txn",
+                0.001,
+                1,
+                0.001,
+                1);
+    }
+
+    @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+    @DisplayName("compare token fee schedule update")
+    final Stream<DynamicTest> compareTokenFeeScheduleUpdate() {
+        return compareSimpleToOld(
+                () -> Arrays.asList(
+                        newKeyNamed(SUPPLY_KEY),
+                        newKeyNamed(WIPE_KEY),
+                        newKeyNamed(FEE_SCHEDULE_KEY),
+                        cryptoCreate(ADMIN).balance(ONE_BILLION_HBARS),
+                        cryptoCreate(PAYER).balance(ONE_BILLION_HBARS).key(SUPPLY_KEY),
+                        cryptoCreate(OTHER).balance(ONE_BILLION_HBARS),
+                        tokenCreate(FUNGIBLE_TOKEN)
+                                .tokenType(FUNGIBLE_COMMON)
+                                .initialSupply(0L)
+                                .payingWith(PAYER)
+                                .adminKey(ADMIN)
+                                .wipeKey(WIPE_KEY)
+                                .supplyKey(SUPPLY_KEY)
+                                .feeScheduleKey(FEE_SCHEDULE_KEY)
+                                .fee(ONE_HUNDRED_HBARS)
+                                .hasKnownStatus(SUCCESS),
+                        tokenFeeScheduleUpdate(FUNGIBLE_TOKEN)
+                                .payingWith(OTHER)
+                                .fee(ONE_HUNDRED_HBARS)
+                                .via("token-fee-schedule-update-txn")
+                ),
+                "token-fee-schedule-update-txn",
+                0.001,
+                1,
+                0.001,
+                1);
+    }
+
+    @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+    @DisplayName("compare token update nfts")
+    final Stream<DynamicTest> compareTokenUpdateNFTs() {
+        final String NFT_TEST_METADATA = " test metadata";
+        return compareSimpleToOld(
+                () -> Arrays.asList(
+                        newKeyNamed(SUPPLY_KEY),
+                        newKeyNamed(WIPE_KEY),
+                        newKeyNamed(FEE_SCHEDULE_KEY),
+                        cryptoCreate(ADMIN).balance(ONE_BILLION_HBARS),
+                        cryptoCreate(PAYER).balance(ONE_BILLION_HBARS).key(SUPPLY_KEY),
+                        cryptoCreate(OTHER).balance(ONE_BILLION_HBARS),
+                        tokenCreate(NFT_TOKEN)
+                                .tokenType(NON_FUNGIBLE_UNIQUE)
+                                .initialSupply(0L)
+                                .payingWith(PAYER)
+                                .supplyKey(SUPPLY_KEY)
+                                .fee(ONE_HUNDRED_HBARS)
+                                .hasKnownStatus(SUCCESS),
+                        tokenUpdateNfts(NFT_TOKEN, NFT_TEST_METADATA,List.of(7L))
+                                .payingWith(PAYER)
+                                .fee(ONE_HUNDRED_HBARS)
+                                .via("token-update-nfts-txn")
+                ),
+                "token-update-nfts-txn",
+                0.001,
+                1,
+                0.001,
+                1);
+    }
+
+    //TODO: token get info
+    //TODO: get NFT info or infos
 }

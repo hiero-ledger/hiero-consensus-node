@@ -11,18 +11,29 @@ import com.hedera.node.app.service.token.impl.calculator.CryptoDeleteAllowanceFe
 import com.hedera.node.app.service.token.impl.calculator.CryptoDeleteFeeCalculator;
 import com.hedera.node.app.service.token.impl.calculator.CryptoTransferFeeCalculator;
 import com.hedera.node.app.service.token.impl.calculator.CryptoUpdateFeeCalculator;
+import com.hedera.node.app.service.token.impl.calculator.TokenAssociateFeeCalculator;
 import com.hedera.node.app.service.token.impl.calculator.TokenBurnFeeCalculator;
 import com.hedera.node.app.service.token.impl.calculator.TokenCreateFeeCalculator;
 import com.hedera.node.app.service.token.impl.calculator.TokenDeleteFeeCalculator;
+import com.hedera.node.app.service.token.impl.calculator.TokenDissociateFeeCalculator;
+import com.hedera.node.app.service.token.impl.calculator.TokenFeeScheduleUpdateFeeCalculator;
 import com.hedera.node.app.service.token.impl.calculator.TokenFreezeAccountFeeCalculator;
+import com.hedera.node.app.service.token.impl.calculator.TokenGetInfoFeeCalculator;
+import com.hedera.node.app.service.token.impl.calculator.TokenGetNftInfoFeeCalculator;
+import com.hedera.node.app.service.token.impl.calculator.TokenGrantKycFeeCalculator;
 import com.hedera.node.app.service.token.impl.calculator.TokenMintFeeCalculator;
 import com.hedera.node.app.service.token.impl.calculator.TokenPauseFeeCalculator;
+import com.hedera.node.app.service.token.impl.calculator.TokenRejectFeeCalculator;
+import com.hedera.node.app.service.token.impl.calculator.TokenRevokeKycFeeCalculator;
 import com.hedera.node.app.service.token.impl.calculator.TokenUnfreezeAccountFeeCalculator;
 import com.hedera.node.app.service.token.impl.calculator.TokenUnpauseFeeCalculator;
+import com.hedera.node.app.service.token.impl.calculator.TokenUpdateNftsFeeCalculator;
+import com.hedera.node.app.service.token.impl.calculator.TokenWipeFeeCalculator;
 import com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema;
 import com.hedera.node.app.service.token.impl.schemas.V0530TokenSchema;
 import com.hedera.node.app.service.token.impl.schemas.V0610TokenSchema;
 import com.hedera.node.app.spi.AppContext;
+import com.hedera.node.app.spi.fees.QueryFeeCalculator;
 import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
 import com.swirlds.state.lifecycle.SchemaRegistry;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -60,13 +71,29 @@ public class TokenServiceImpl implements TokenService {
                 new CryptoDeleteFeeCalculator(),
                 new CryptoUpdateFeeCalculator(),
                 new CryptoTransferFeeCalculator(),
+                new TokenAssociateFeeCalculator(),
+                new TokenBurnFeeCalculator(),
                 new TokenCreateFeeCalculator(),
+                new TokenDeleteFeeCalculator(),
+                new TokenDissociateFeeCalculator(),
+                new TokenFeeScheduleUpdateFeeCalculator(),
+                new TokenFreezeAccountFeeCalculator(),
+                new TokenGrantKycFeeCalculator(),
                 new TokenMintFeeCalculator(),
                 new TokenPauseFeeCalculator(),
+                new TokenRejectFeeCalculator(),
+                new TokenRevokeKycFeeCalculator(),
                 new TokenUnpauseFeeCalculator(),
-                new TokenFreezeAccountFeeCalculator(),
                 new TokenUnfreezeAccountFeeCalculator(),
-                new TokenBurnFeeCalculator(),
-                new TokenDeleteFeeCalculator());
+                new TokenUpdateNftsFeeCalculator(),
+                new TokenWipeFeeCalculator()
+        );
+    }
+    @Override
+    public  Set<QueryFeeCalculator> queryFeeCalculators() {
+        return Set.of(
+                new TokenGetInfoFeeCalculator(),
+                new TokenGetNftInfoFeeCalculator()
+        );
     }
 }
