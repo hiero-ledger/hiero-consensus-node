@@ -360,19 +360,12 @@ val prEmbeddedCheckTags =
     buildMap<String, String> {
         put("hapiEmbeddedMisc", "EMBEDDED&!(SIMPLE_FEES)")
         put("hapiEmbeddedSimpleFees", "EMBEDDED&SIMPLE_FEES")
-
-        // Copy vals to the MATS variants
-        val originalEntries = toMap() // Create a snapshot of current entries
-        originalEntries.forEach { (taskName: String, size: String) ->
-            put("$taskName$matsSuffix", size)
-        }
     }
 
 tasks {
     prEmbeddedCheckTags.forEach { (taskName, _) ->
         register(taskName) {
-            getByName(taskName).group =
-                "hapi-test-embedded${if (taskName.endsWith(matsSuffix)) "-mats" else ""}"
+            getByName(taskName).group = "hapi-test-embedded"
             dependsOn("testEmbedded")
         }
     }
@@ -417,10 +410,7 @@ tasks.register<Test>("testEmbedded") {
     systemProperty("hapi.spec.default.shard", 0)
     systemProperty("hapi.spec.default.realm", 0)
 
-    if (
-        ciTagExpression.contains("hapiEmbeddedSimpleFees") ||
-            ciTagExpression.contains("hapiEmbeddedSimpleFeesMats")
-    ) {
+    if (ciTagExpression.contains("hapiEmbeddedSimpleFees")) {
         systemProperty("fees.createSimpleFeeSchedule", "true")
         systemProperty("fees.simpleFeesEnabled", "true")
     }
