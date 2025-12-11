@@ -168,7 +168,6 @@ jobs:
           ls -lh hedera-node/test-clients/
           echo "Contents of hedera-node/test-clients/build/:"
           ls -lh hedera-node/test-clients/build/
-          
 
       - name: Upload log as artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
