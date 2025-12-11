@@ -79,12 +79,12 @@
         },
         {
           "name": "CryptoGetInfo",
-          "baseFee": 0,
+          "baseFee": 10000,
           "extras": []
         },
         {
           "name": "CryptoGetAccountRecords",
-          "baseFee": 0,
+          "baseFee": 10000,
           "extras": []
         }
       ]
