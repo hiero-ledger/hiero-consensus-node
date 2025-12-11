@@ -501,7 +501,7 @@ class BlockNodeConnectionComponentTest extends BlockNodeCommunicationTestBase {
         workerThreadRef.set(null);
         final AtomicLong streamingBlockNumber = streamingBlockNumber();
 
-        final BlockNodeConfiguration config = connection.getNodeConfig();
+        final BlockNodeConfiguration config = connection.configuration();
         // Sanity check to make sure the sizes we are about to use are within the scope of the soft and hard limits
         assertThat(config.messageSizeSoftLimitBytes()).isEqualTo(2_097_152L); // soft limit = 2 MB
         assertThat(config.messageSizeHardLimitBytes()).isEqualTo(6_292_480L); // hard limit = 6 MB + 1 KB
