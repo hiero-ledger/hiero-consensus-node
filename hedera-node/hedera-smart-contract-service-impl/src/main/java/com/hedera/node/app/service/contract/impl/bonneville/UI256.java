@@ -68,7 +68,7 @@ public class UI256 {
     static long getLong( UInt256 u, int idx ) {
         long x = 0;
         for( int i=0; i<8; i++ )
-            x |= (u.get( (idx<<3)+i )&0xFF) << ((7-i)<<3);
+            x |= ((long)(u.get( (idx<<3)+i )&0xFF)) << ((7-i)<<3);
         return x;
     }
 

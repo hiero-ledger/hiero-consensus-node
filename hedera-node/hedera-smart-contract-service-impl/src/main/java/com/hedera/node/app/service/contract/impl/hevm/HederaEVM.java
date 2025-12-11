@@ -133,8 +133,8 @@ public class HederaEVM extends HEVM {
             preTrace(frame,trace,pc,opcode);
             // Nested contract call; so print the post-trace before the
             // nested call, and reload the pre-trace state after call.
-            if( opcode==0xF0 )
-                System.out.println(postTrace(frame,trace).nl().nl().p("CONTRACT CALL").nl());
+            if( opcode==0xF0 || opcode==0xF1 )
+                System.out.println(postTrace(frame,trace).nl().nl().p("CONTRACT ").p(opcode==0xF0 ? "CREATE" : "CALL").nl());
 
             Operation.OperationResult result;
             try {
@@ -237,7 +237,7 @@ public class HederaEVM extends HEVM {
             }
 
             if( trace != null ) {
-                if( opcode==0xF0 )
+                if( opcode==0xF0 || opcode==0xF1 )
                     preTrace(frame,trace.clear().p("CONTRACT RETURN").nl().nl(),pc,opcode);
                 postTrace(frame,trace);
                 if( haltReason!=null )

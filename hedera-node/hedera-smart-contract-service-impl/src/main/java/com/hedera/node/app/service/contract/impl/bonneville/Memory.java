@@ -25,7 +25,7 @@ public class Memory {
 
 
     // Grow to handle len bytes
-    private void growMem( int len ) {
+    void growMem( int len ) {
         len = (len+31) & -32;   // Round up to nearest 32
         // Grow in-use bytes
         if( len < _len ) return;
