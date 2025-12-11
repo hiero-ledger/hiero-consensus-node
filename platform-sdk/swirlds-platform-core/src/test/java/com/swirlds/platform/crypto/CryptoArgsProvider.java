@@ -91,7 +91,7 @@ public class CryptoArgsProvider {
                     KeyGeneratingException, NoSuchProviderException {
         final AddressBook createdAB = createAddressBook(size);
         final Map<NodeId, KeysAndCerts> loadedC = EnhancedKeyStoreLoader.using(
-                        createdAB,
+                        createdAB.getNodeIdSet(),
                         configure(ResourceLoader.getFile("preGeneratedPEMKeysAndCerts/")),
                         createdAB.getNodeIdSet())
                 .scan()

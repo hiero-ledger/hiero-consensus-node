@@ -438,7 +438,7 @@ public final class CryptoStatic {
 
                 logger.debug(STARTUP.getMarker(), "About to start loading keys");
                 logger.debug(STARTUP.getMarker(), "Reading keys using the enhanced key loader");
-                keysAndCerts = EnhancedKeyStoreLoader.using(addressBook, configuration, localNodes)
+                keysAndCerts = EnhancedKeyStoreLoader.using(addressBook.getNodeIdSet(), configuration, localNodes)
                         .migrate()
                         .scan()
                         .generate()
