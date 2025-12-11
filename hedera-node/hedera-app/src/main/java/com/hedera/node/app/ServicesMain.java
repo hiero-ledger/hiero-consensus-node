@@ -54,7 +54,6 @@ import com.swirlds.config.extensions.sources.SystemEnvironmentConfigSource;
 import com.swirlds.config.extensions.sources.SystemPropertiesConfigSource;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.CommandLineArgs;
-import com.swirlds.platform.ParameterProvider;
 import com.swirlds.platform.builder.PlatformBuilder;
 import com.swirlds.platform.config.BasicConfig;
 import com.swirlds.platform.config.legacy.ConfigurationException;
@@ -545,7 +544,6 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
         try {
             final LegacyConfigProperties props =
                     LegacyConfigPropertiesLoader.loadConfigFile(getAbsolutePath(DEFAULT_CONFIG_FILE_NAME));
-            props.appConfig().ifPresent(c -> ParameterProvider.getInstance().setParameters(c.params()));
             return Optional.of(props.getAddressBook());
         } catch (final Exception ignore) {
             return Optional.empty();

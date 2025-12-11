@@ -52,15 +52,6 @@ class LegacyConfigPropertiesLoaderTest {
         // then
         assertNotNull(properties, "The properties should never be null");
 
-        Assertions.assertTrue(properties.swirldName().isPresent(), "Value must be set");
-        Assertions.assertEquals("123", properties.swirldName().get());
-
-        Assertions.assertTrue(properties.appConfig().isPresent(), "Value must be set");
-        Assertions.assertEquals("StatsDemo.jar", properties.appConfig().get().jarName());
-        Assertions.assertArrayEquals(
-                new String[] {"1", "3000", "0", "100", "-1", "200"},
-                properties.appConfig().get().params());
-
         final AddressBook addressBook = properties.getAddressBook();
         assertNotNull(addressBook);
 

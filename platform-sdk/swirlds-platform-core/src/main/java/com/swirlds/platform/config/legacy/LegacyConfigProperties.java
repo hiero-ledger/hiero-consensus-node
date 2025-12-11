@@ -3,7 +3,6 @@ package com.swirlds.platform.config.legacy;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
-import java.util.Optional;
 import org.hiero.consensus.model.roster.AddressBook;
 
 /**
@@ -15,10 +14,6 @@ import org.hiero.consensus.model.roster.AddressBook;
  */
 @Deprecated(forRemoval = true)
 public class LegacyConfigProperties {
-
-    private String swirldName = null;
-
-    private JarAppConfig appConfig = null;
 
     private AddressBook addressBook = null;
 
@@ -45,25 +40,4 @@ public class LegacyConfigProperties {
         return addressBook.copy();
     }
 
-    /**
-     * @throws NullPointerException in case {@code appConfig} parameter is {@code null}
-     */
-    public void setAppConfig(final JarAppConfig appConfig) {
-        this.appConfig = Objects.requireNonNull(appConfig, "appConfig must not be null");
-    }
-
-    /**
-     * @throws NullPointerException in case {@code swirldName} parameter is {@code null}
-     */
-    public void setSwirldName(final String swirldName) {
-        this.swirldName = Objects.requireNonNull(swirldName, "swirldName must not be null");
-    }
-
-    public Optional<String> swirldName() {
-        return Optional.ofNullable(swirldName);
-    }
-
-    public Optional<JarAppConfig> appConfig() {
-        return Optional.ofNullable(appConfig);
-    }
 }

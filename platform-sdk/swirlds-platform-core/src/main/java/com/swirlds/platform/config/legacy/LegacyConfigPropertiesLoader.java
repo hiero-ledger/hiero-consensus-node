@@ -13,7 +13,6 @@ import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.text.ParseException;
-import java.util.Arrays;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.Scanner;
@@ -32,9 +31,7 @@ import org.hiero.consensus.model.roster.AddressBook;
 @Deprecated(forRemoval = true)
 public final class LegacyConfigPropertiesLoader {
 
-    private static final String APP_PROPERTY_NAME = "app";
     private static final String ADDRESS_PROPERTY_NAME = "address";
-    private static final String SWIRLD_PROPERTY_NAME = "swirld";
 
     public static final String ERROR_CONFIG_TXT_NOT_FOUND_BUT_EXISTS =
             "Config.txt file was not found but File#exists() claimed the file does exist";
@@ -83,16 +80,6 @@ public final class LegacyConfigPropertiesLoader {
                         pars[i] = parsOriginalCase[i].toLowerCase(Locale.ENGLISH);
                     }
                     switch (pars[0]) {
-                        case SWIRLD_PROPERTY_NAME ->
-                            setSwirldName(configurationProperties, lineParameters.length, parsOriginalCase[1]);
-                        case APP_PROPERTY_NAME -> {
-                            if (configurationProperties.appConfig().isPresent()) {
-                                onError(ERROR_MORE_THAN_ONE_APP);
-                            }
-                            final String[] appParams = Arrays.copyOfRange(lineParameters, 2, lineParameters.length);
-                            final JarAppConfig appConfig = new JarAppConfig(lineParameters[1], appParams);
-                            configurationProperties.setAppConfig(appConfig);
-                        }
                         case ADDRESS_PROPERTY_NAME -> {
                             try {
                                 final Address address = AddressBookUtils.parseAddressText(line);
@@ -109,10 +96,16 @@ public final class LegacyConfigPropertiesLoader {
                                         ex);
                             }
                         }
+                        // CI/CD pipelines need to be updated to remove this field from files.
+                        // Future Work: remove this case when the values are no longer present in CI/CD pipelines.
+                        case "swirld" -> {
+                            // As of release 0.70, swirld is not used and ignored.
+                        }
+                        case "app" -> {
+                            // As of release 0.70, app is not used and ignored.
+                        }
                         case "nextnodeid" -> {
                             // As of release 0.56, nextNodeId is not used and ignored.
-                            // CI/CD pipelines need to be updated to remove this field from files.
-                            // Future Work: remove this case when nextNodeId is no longer present in CI/CD pipelines.
                         }
                         default -> onError(ERROR_PROPERTY_NOT_KNOWN.formatted(pars[0]));
                     }
@@ -138,19 +131,6 @@ public final class LegacyConfigPropertiesLoader {
             return line.substring(0, pos).trim();
         }
         return line.trim();
-    }
-
-    private static void handleParam(final String propertyName, final int paramLength, final Runnable action) {
-        if (paramLength >= 2) {
-            action.run();
-        } else {
-            onError(ERROR_NO_PARAMETER.formatted(propertyName));
-        }
-    }
-
-    private static void setSwirldName(
-            final LegacyConfigProperties configurationProperties, final int paramLength, final String value) {
-        handleParam(SWIRLD_PROPERTY_NAME, paramLength, () -> configurationProperties.setSwirldName(value));
     }
 
     private static void onError(String message) {
