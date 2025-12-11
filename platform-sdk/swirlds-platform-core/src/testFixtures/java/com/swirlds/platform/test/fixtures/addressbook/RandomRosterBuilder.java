@@ -221,17 +221,14 @@ public class RandomRosterBuilder {
     private void generateKeys(@NonNull final NodeId nodeId, @NonNull final RandomRosterEntryBuilder addressBuilder) {
         if (realKeys) {
             try {
-                final PublicStores publicStores = new PublicStores();
-
                 final byte[] masterKey = new byte[64];
                 random.nextBytes(masterKey);
 
-                final KeysAndCerts keysAndCerts =
-                        KeysAndCertsGenerator.generate(nodeId, new byte[] {}, masterKey, new byte[] {}, publicStores);
+                final KeysAndCerts keysAndCerts = KeysAndCertsGenerator.generate(nodeId);
                 privateKeys.put(nodeId, keysAndCerts);
 
                 final SerializableX509Certificate sigCert =
-                        new SerializableX509Certificate(publicStores.getCertificate(SIGNING, nodeId));
+                        new SerializableX509Certificate(keysAndCerts.sigCert());
 
                 addressBuilder.withSigCert(sigCert);
 
