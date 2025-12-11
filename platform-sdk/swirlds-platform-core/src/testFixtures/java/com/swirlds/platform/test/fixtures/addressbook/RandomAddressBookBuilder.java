@@ -269,21 +269,16 @@ public class RandomAddressBookBuilder {
     private void generateKeys(@NonNull final NodeId nodeId, @NonNull final RandomAddressBuilder addressBuilder) {
         if (realKeys) {
             try {
-                final PublicStores publicStores = new PublicStores();
-
                 final byte[] masterKey = new byte[64];
                 random.nextBytes(masterKey);
 
                 final KeysAndCerts keysAndCerts =
-                        KeysAndCertsGenerator.generate(nodeId, new byte[] {}, masterKey, new byte[] {}, publicStores);
+                        KeysAndCertsGenerator.generate(nodeId);
                 privateKeys.put(nodeId, keysAndCerts);
 
-                final SerializableX509Certificate sigCert =
-                        new SerializableX509Certificate(publicStores.getCertificate(SIGNING, nodeId));
-                final SerializableX509Certificate agrCert =
-                        new SerializableX509Certificate(publicStores.getCertificate(AGREEMENT, nodeId));
-
-                addressBuilder.withSigCert(sigCert).withAgreeCert(agrCert);
+                addressBuilder
+                        .withSigCert(new SerializableX509Certificate(keysAndCerts.sigCert()))
+                        .withAgreeCert(new SerializableX509Certificate(keysAndCerts.agrCert()));
 
             } catch (final Exception e) {
                 throw new RuntimeException();

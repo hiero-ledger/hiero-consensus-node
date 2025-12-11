@@ -22,7 +22,7 @@ import org.hiero.consensus.model.node.NodeId;
  * @param sigTrustStore
  * 		the trust store for all the enc certs (encryption cert, signed by signing key)
  */
-public record PublicStores(KeyStore sigTrustStore, KeyStore agrTrustStore) {
+public record PublicStores(KeyStore sigTrustStore, KeyStore agrTrustStore) {//TODO remove
     public PublicStores() throws KeyStoreException {
         this(CryptoStatic.createEmptyTrustStore(), CryptoStatic.createEmptyTrustStore());
     }

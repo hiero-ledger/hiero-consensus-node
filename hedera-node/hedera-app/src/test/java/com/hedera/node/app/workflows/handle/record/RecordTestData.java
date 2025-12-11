@@ -45,8 +45,6 @@ import org.hiero.consensus.model.node.NodeId;
  */
 @SuppressWarnings("DataFlowIssue")
 public class RecordTestData {
-    /** Empty byte array */
-    private static final byte[] EMPTY_ARRAY = new byte[] {};
     /** Random with fixed seed for reproducibility of test data generated */
     private static final Random RANDOM = new Random(123456789L);
 
@@ -79,8 +77,7 @@ public class RecordTestData {
     static {
         try {
             // generate node keys and signer
-            final var keysAndCerts = KeysAndCertsGenerator.generate(
-                    NodeId.FIRST_NODE_ID, EMPTY_ARRAY, EMPTY_ARRAY, EMPTY_ARRAY, new PublicStores());
+            final var keysAndCerts = KeysAndCertsGenerator.generate(NodeId.FIRST_NODE_ID);
             // get public key that was generated for the user
             USER_PUBLIC_KEY = keysAndCerts.sigKeyPair().getPublic();
             // create signer

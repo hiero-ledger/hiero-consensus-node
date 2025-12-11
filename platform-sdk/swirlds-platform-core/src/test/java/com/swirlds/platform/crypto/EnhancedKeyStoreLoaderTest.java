@@ -114,7 +114,6 @@ class EnhancedKeyStoreLoaderTest {
         assertThatCode(loader::scan).doesNotThrowAnyException();
         assertThatCode(loader::generate).doesNotThrowAnyException();
         assertThatCode(loader::verify).doesNotThrowAnyException();
-        assertThatCode(loader::injectInAddressBook).doesNotThrowAnyException();
 
         final Map<NodeId, KeysAndCerts> kc = loader.keysAndCerts();
         for (int i = 0; i < addressBook.getSize(); i++) {
@@ -161,7 +160,6 @@ class EnhancedKeyStoreLoaderTest {
         assertThatCode(loader::migrate).doesNotThrowAnyException();
         assertThatCode(loader::scan).doesNotThrowAnyException();
         assertThatCode(loader::verify).isInstanceOf(KeyLoadingException.class);
-        assertThatCode(loader::injectInAddressBook).isInstanceOf(KeyLoadingException.class);
         assertThatCode(loader::keysAndCerts).isInstanceOf(KeyLoadingException.class);
     }
 
@@ -188,7 +186,6 @@ class EnhancedKeyStoreLoaderTest {
         assertThatCode(loader::scan).doesNotThrowAnyException();
         assertThatCode(loader::generate).doesNotThrowAnyException();
         assertThatCode(loader::verify).isInstanceOf(KeyLoadingException.class);
-        assertThatCode(loader::injectInAddressBook).isInstanceOf(KeyLoadingException.class);
         assertThatCode(loader::keysAndCerts).isInstanceOf(KeyLoadingException.class);
     }
 

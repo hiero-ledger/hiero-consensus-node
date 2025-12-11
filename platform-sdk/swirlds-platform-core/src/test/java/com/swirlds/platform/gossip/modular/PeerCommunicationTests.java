@@ -88,7 +88,7 @@ public class PeerCommunicationTests {
         for (int i = 0; i < nodeCount; i++) {
             NodeId nodeId = NodeId.of(i);
             KeysAndCerts keysAndCerts =
-                    KeysAndCertsGenerator.generate(nodeId, EMPTY_ARRAY, EMPTY_ARRAY, EMPTY_ARRAY, new PublicStores());
+                    KeysAndCertsGenerator.generate(nodeId);
             perNodeCerts.put(nodeId, keysAndCerts);
             allPeers.add(new PeerInfo(nodeId, "127.0.0.1", portBase + i, keysAndCerts.sigCert()));
         }

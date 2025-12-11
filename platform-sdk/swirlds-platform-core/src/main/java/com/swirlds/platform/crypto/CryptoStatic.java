@@ -17,7 +17,6 @@ import com.swirlds.platform.network.PeerInfo;
 import com.swirlds.platform.system.SystemExitCode;
 import com.swirlds.platform.system.SystemExitUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.math.BigInteger;
@@ -30,19 +29,15 @@ import java.security.NoSuchAlgorithmException;
 import java.security.NoSuchProviderException;
 import java.security.SecureRandom;
 import java.security.Security;
-import java.security.UnrecoverableKeyException;
 import java.security.cert.Certificate;
 import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Date;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -64,9 +59,7 @@ import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
 import org.hiero.consensus.crypto.CryptoConstants;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.model.roster.Address;
 import org.hiero.consensus.model.roster.AddressBook;
-import org.hiero.consensus.roster.RosterUtils;
 
 /**
  * A collection of various static crypto methods
@@ -74,9 +67,6 @@ import org.hiero.consensus.roster.RosterUtils;
 public final class CryptoStatic {
     private static final Logger logger = LogManager.getLogger(CryptoStatic.class);
     private static final int SERIAL_NUMBER_BITS = 64;
-    private static final int MASTER_KEY_MULTIPLIER = 157;
-    private static final int SWIRLD_ID_MULTIPLIER = 163;
-    private static final int BITS_IN_BYTE = 8;
     private static final String ADDRESS_BOOK_MUST_NOT_BE_NULL = "addressBook must not be null";
     private static final String LOCAL_NODES_MUST_NOT_BE_NULL = "the local nodes must not be null";
 
@@ -98,8 +88,8 @@ public final class CryptoStatic {
      * @param attributeValue the value, such as "John Smith"
      * @return the RDN (if any), possibly preceded by a comma (if not first)
      */
-    private static String rdn(String[] commaSeparator, String attributeType, String attributeValue) {
-        if (attributeValue == null || attributeValue.equals("")) {
+    private static String rdn(final String[] commaSeparator, final String attributeType, String attributeValue) {
+        if (attributeValue == null || attributeValue.isEmpty()) {
             return "";
         }
         // need to escape the 6 characters: \ " , ; < >
@@ -113,10 +103,10 @@ public final class CryptoStatic {
         attributeValue = attributeValue.replace(";", "\\;");
         attributeValue = attributeValue.replace("<", "\\<");
         attributeValue = attributeValue.replace(">", "\\>");
-        attributeValue = attributeValue.replaceAll(" $", "\\ ");
-        attributeValue = attributeValue.replaceAll("^ ", "\\ ");
-        attributeValue = attributeValue.replaceAll("^#", "\\#");
-        String s = commaSeparator[0] + attributeType + "=" + attributeValue;
+        attributeValue = attributeValue.replaceAll(" $", " ");
+        attributeValue = attributeValue.replaceAll("^ ", " ");
+        attributeValue = attributeValue.replaceAll("^#", "#");
+        final String s = commaSeparator[0] + attributeType + "=" + attributeValue;
         commaSeparator[0] = ",";
         return s;
     }
@@ -155,8 +145,8 @@ public final class CryptoStatic {
      * @param commonName name such as "John Smith" or "Acme Inc"
      * @return the distinguished name, suitable for passing to generateCertificate()
      */
-    static String distinguishedName(String commonName) {
-        String[] commaSeparator = new String[] {""};
+    static String distinguishedName(final String commonName) {
+        final String[] commaSeparator = new String[] {""};
         return rdn(commaSeparator, "CN", commonName)
                 + rdn(commaSeparator, "O", null)
                 + rdn(commaSeparator, "STREET", null)
@@ -193,15 +183,15 @@ public final class CryptoStatic {
      * @throws KeyGeneratingException in any issue occurs
      */
     public static X509Certificate generateCertificate(
-            String distinguishedName,
-            KeyPair pair,
-            String caDistinguishedName,
-            KeyPair caPair,
-            SecureRandom secureRandom,
-            String signatureAlgorithm)
+            final String distinguishedName,
+            final KeyPair pair,
+            final String caDistinguishedName,
+            final KeyPair caPair,
+            final SecureRandom secureRandom,
+            final String signatureAlgorithm)
             throws KeyGeneratingException {
         try {
-            X509v3CertificateBuilder v3CertBldr = new JcaX509v3CertificateBuilder(
+            final X509v3CertificateBuilder v3CertBldr = new JcaX509v3CertificateBuilder(
                     new X500Principal(caDistinguishedName), // issuer
                     new BigInteger(SERIAL_NUMBER_BITS, secureRandom), // serial number
                     Date.from(CryptoConstants.DEFAULT_VALID_FROM), // start time
@@ -209,12 +199,12 @@ public final class CryptoStatic {
                     new X500Principal(distinguishedName), // subject
                     pair.getPublic()); // subject public key
 
-            JcaContentSignerBuilder signerBuilder =
+            final JcaContentSignerBuilder signerBuilder =
                     new JcaContentSignerBuilder(signatureAlgorithm).setProvider(BouncyCastleProvider.PROVIDER_NAME);
             return new JcaX509CertificateConverter()
                     .setProvider(BouncyCastleProvider.PROVIDER_NAME)
                     .getCertificate(v3CertBldr.build(signerBuilder.build(caPair.getPrivate())));
-        } catch (CertificateException | OperatorCreationException e) {
+        } catch (final CertificateException | OperatorCreationException e) {
             throw new KeyGeneratingException("Could not generate certificate!", e);
         }
     }
@@ -231,7 +221,7 @@ public final class CryptoStatic {
         try {
             trustStore = KeyStore.getInstance(CryptoConstants.KEYSTORE_TYPE);
             trustStore.load(null);
-        } catch (CertificateException | IOException | NoSuchAlgorithmException e) {
+        } catch (final CertificateException | IOException | NoSuchAlgorithmException e) {
             // cannot be thrown when calling load(null)
             throw new CryptographyException(e);
         }
@@ -264,77 +254,6 @@ public final class CryptoStatic {
     }
 
     /**
-     * @param nodeId the node identifier
-     * @return the file name that is supposed to store the private key for the supplied member
-     */
-    private static String getPrivateKeysFileName(final NodeId nodeId) {
-        return "private-" + RosterUtils.formatNodeName(nodeId) + ".pfx";
-    }
-
-    /**
-     * Try to load the public.pfx and private-*.pfx key stores from disk. If successful, it will return an array
-     * containing the public.pfx followed by each private-*.pfx in the order that the ids are given in the input. If
-     * public.pfx is missing, or even one of the private-*.pfx files is missing, or one of those files fails to load
-     * properly, then it returns null. It does NOT return a partial list with the ones that worked.
-     *
-     * @param addressBook the address book of the network
-     * @param keysDirPath the key directory, such as /user/test/sdk/data/key/
-     * @param password    the password used to protect the PKCS12 key stores containing the node RSA public/private key
-     *                    pairs
-     * @param localNodes the nodes that need private keys loaded.
-     * @return map of key stores
-     * @throws KeyStoreException   if there is no provider that supports {@link CryptoConstants#KEYSTORE_TYPE}
-     * @throws KeyLoadingException in an issue occurs while loading keys and certificates
-     * @deprecated use {@link EnhancedKeyStoreLoader} instead.
-     */
-    @NonNull
-    @Deprecated(since = "0.47.0", forRemoval = false)
-    static Map<NodeId, KeysAndCerts> loadKeysAndCerts(
-            @NonNull final AddressBook addressBook,
-            @NonNull final Path keysDirPath,
-            @NonNull final char[] password,
-            @NonNull final Set<NodeId> localNodes)
-            throws KeyStoreException, KeyLoadingException, UnrecoverableKeyException, NoSuchAlgorithmException,
-                    KeyGeneratingException, NoSuchProviderException {
-        Objects.requireNonNull(addressBook, ADDRESS_BOOK_MUST_NOT_BE_NULL);
-        Objects.requireNonNull(keysDirPath, "keysDirPath must not be null");
-        Objects.requireNonNull(password, "password must not be null");
-        Objects.requireNonNull(localNodes, LOCAL_NODES_MUST_NOT_BE_NULL);
-        final int n = addressBook.getSize();
-
-        final List<NodeId> ids = new ArrayList<>();
-
-        for (int i = 0; i < addressBook.getSize(); i++) {
-            final NodeId nodeId = addressBook.getNodeId(i);
-            ids.add(nodeId);
-        }
-
-        final KeyStore allPublic = loadKeys(keysDirPath.resolve(PUBLIC_KEYS_FILE), password);
-
-        final PublicStores publicStores = PublicStores.fromAllPublic(allPublic, ids);
-
-        final Map<NodeId, KeysAndCerts> keysAndCerts = new HashMap<>();
-        for (int i = 0; i < n; i++) {
-            final NodeId nodeId = addressBook.getNodeId(i);
-            final Address address = addressBook.getAddress(nodeId);
-            if (!localNodes.contains(address.getNodeId())) {
-                // in case we are not creating keys but loading them from disk, we do not need to create
-                // a KeysAndCerts object for every node, just the ones that are started.
-                continue;
-            }
-            final KeyStore privateKS = loadKeys(keysDirPath.resolve(getPrivateKeysFileName(nodeId)), password);
-
-            keysAndCerts.put(
-                    nodeId,
-                    KeysAndCertsGenerator.loadExistingAndCreateAgrKeyIfMissing(
-                            nodeId, password, privateKS, publicStores));
-        }
-        copyPublicKeys(publicStores, addressBook);
-
-        return keysAndCerts;
-    }
-
-    /**
      * This method is designed to generate all a user's keys from their master key, to help with key recovery if their
      * computer is erased.
      * <p>
@@ -350,8 +269,7 @@ public final class CryptoStatic {
      * know).
      *
      * @param addressBook the address book of the network
-     * @throws ExecutionException   if {@link KeysAndCertsGenerator#generate(NodeId, byte[], byte[], byte[], PublicStores)}
-     *                              throws an exception, it will be wrapped in an ExecutionException
+     * @throws ExecutionException   aaaaaaaa
      * @throws InterruptedException if this thread is interrupted
      * @throws KeyStoreException    if there is no provider that supports {@link CryptoConstants#KEYSTORE_TYPE}
      */
@@ -360,14 +278,11 @@ public final class CryptoStatic {
             throws ExecutionException, InterruptedException, KeyStoreException {
         Objects.requireNonNull(addressBook, ADDRESS_BOOK_MUST_NOT_BE_NULL);
 
-        final PublicStores publicStores = new PublicStores();
-
-        final Map<NodeId, KeysAndCerts> keysAndCerts =
-                CryptoStatic.generateKeysAndCerts(addressBook.getNodeIdSet(), publicStores);
+        final Map<NodeId, KeysAndCerts> keysAndCerts = CryptoStatic.generateKeysAndCerts(addressBook.getNodeIdSet());
         // After the keys have been generated or loaded, they are then copied to the address book
         try {
-            copyPublicKeys(publicStores, addressBook);
-        } catch (KeyLoadingException e) {
+            copyPublicKeys(keysAndCerts, addressBook);
+        } catch (final KeyLoadingException e) {
             // this should not be possible since we just generated the certificates
             throw new CryptographyException(e);
         }
@@ -390,20 +305,14 @@ public final class CryptoStatic {
      * know).
      *
      * @param nodeIds The nodeIds to generate keys for
-     * @param pStores Optional of Public Stores
      * @throws ExecutionException   if key generation throws an exception, it will be wrapped in an ExecutionException
      * @throws InterruptedException if this thread is interrupted
      * @throws KeyStoreException    if there is no provider that supports {@link CryptoConstants#KEYSTORE_TYPE}
      */
     @NonNull
     public static Map<NodeId, KeysAndCerts> generateKeysAndCerts(
-            final @NonNull Collection<NodeId> nodeIds, @Nullable final PublicStores pStores)
+            final @NonNull Collection<NodeId> nodeIds)
             throws ExecutionException, InterruptedException, KeyStoreException {
-
-        final PublicStores publicStores = Optional.ofNullable(pStores).orElse(new PublicStores());
-        final byte[] masterKey = new byte[CryptoConstants.SYM_KEY_SIZE_BYTES];
-        final byte[] swirldId = new byte[CryptoConstants.HASH_SIZE_BYTES];
-
         final Map<NodeId, Future<KeysAndCerts>> futures = HashMap.newHashMap(nodeIds.size());
         try (final ExecutorService threadPool =
                 Executors.newCachedThreadPool(new ThreadConfiguration(getStaticThreadManager())
@@ -412,26 +321,12 @@ public final class CryptoStatic {
                         .setDaemon(false)
                         .buildFactory())) {
             for (final NodeId nodeId : nodeIds) {
-                int i = (int) nodeId.id();
-                for (int j = 0; j < masterKey.length; j++) {
-                    masterKey[j] = (byte) (j * MASTER_KEY_MULTIPLIER);
-                }
-                for (int j = 0; j < swirldId.length; j++) {
-                    swirldId[j] = (byte) (j * SWIRLD_ID_MULTIPLIER);
-                }
-                masterKey[0] = (byte) i;
-                masterKey[1] = (byte) (i >> BITS_IN_BYTE);
-
                 // Crypto objects will be created in parallel. The process of creating a Crypto object is
                 // very CPU intensive even if the keys are loaded from the hard drive, so making it parallel
                 // greatly reduces the time it takes to create them all.
-                byte[] masterKeyClone = masterKey.clone();
-                byte[] swirldIdClone = swirldId.clone();
-                final int memId = i;
                 futures.put(
                         nodeId,
-                        threadPool.submit(() -> KeysAndCertsGenerator.generate(
-                                nodeId, masterKeyClone, swirldIdClone, CommonUtils.intToBytes(memId), publicStores)));
+                        threadPool.submit(() -> KeysAndCertsGenerator.generate(nodeId)));
             }
             final Map<NodeId, KeysAndCerts> keysAndCerts = futuresToMap(futures);
             threadPool.shutdown();
@@ -443,15 +338,19 @@ public final class CryptoStatic {
     /**
      * Copies public keys from the stores provided to the address book
      *
-     * @param publicStores the stores to read the keys from
+     * @param keysAndCerts aaaaaaaa
      * @param addressBook  the address book to modify
-     * @throws KeyLoadingException if {@link PublicStores#getCertificate(KeyCertPurpose, NodeId)} throws
+     * @throws KeyLoadingException if the key is not found
      */
-    static void copyPublicKeys(final PublicStores publicStores, final AddressBook addressBook)
+    static void copyPublicKeys(final Map<NodeId, KeysAndCerts> keysAndCerts, final AddressBook addressBook)
             throws KeyLoadingException {
         for (int i = 0; i < addressBook.getSize(); i++) {
             final NodeId nodeId = addressBook.getNodeId(i);
-            final X509Certificate sigCert = publicStores.getCertificate(SIGNING, nodeId);
+            final KeysAndCerts kac = keysAndCerts.get(nodeId);
+            if(kac == null) {
+                throw new KeyLoadingException(String.format("Key %s not found", nodeId));
+            }
+            final X509Certificate sigCert = kac.sigCert();
             // the agreement key is never used from the address book anymore and is left null.
             addressBook.add(addressBook.getAddress(nodeId).copySetSigCert(sigCert));
         }
@@ -470,7 +369,7 @@ public final class CryptoStatic {
     private static <T> Map<NodeId, T> futuresToMap(@NonNull final Map<NodeId, Future<T>> futures)
             throws ExecutionException, InterruptedException {
         final Map<NodeId, T> map = new HashMap<>();
-        for (Map.Entry<NodeId, Future<T>> entry : futures.entrySet()) {
+        for (final Map.Entry<NodeId, Future<T>> entry : futures.entrySet()) {
             map.put(entry.getKey(), entry.getValue().get());
         }
         return map;
@@ -497,6 +396,17 @@ public final class CryptoStatic {
         return nonDetRandom;
     }
 
+//    public static KeysAndCerts initNodeSecurity(
+//            @NonNull final Configuration configuration,
+//            @NonNull final NodeId nodeId) {
+//        final BasicConfig basicConfig = configuration.getConfigData(BasicConfig.class);
+//        if (basicConfig.loadKeysFromPfxFiles()) {
+//
+//        }else{
+//
+//        }
+//    }
+
     /**
      * Create {@link KeysAndCerts} objects for all nodes in the address book.
      *
@@ -514,7 +424,6 @@ public final class CryptoStatic {
         Objects.requireNonNull(localNodes, LOCAL_NODES_MUST_NOT_BE_NULL);
 
         final PathsConfig pathsConfig = configuration.getConfigData(PathsConfig.class);
-        final CryptoConfig cryptoConfig = configuration.getConfigData(CryptoConfig.class);
         final BasicConfig basicConfig = configuration.getConfigData(BasicConfig.class);
 
         final Map<NodeId, KeysAndCerts> keysAndCerts;
@@ -528,23 +437,14 @@ public final class CryptoStatic {
                 }
 
                 logger.debug(STARTUP.getMarker(), "About to start loading keys");
-                if (cryptoConfig.enableNewKeyStoreModel()) {
-                    logger.debug(STARTUP.getMarker(), "Reading keys using the enhanced key loader");
-                    keysAndCerts = EnhancedKeyStoreLoader.using(addressBook, configuration, localNodes)
-                            .migrate()
-                            .scan()
-                            .generate()
-                            .verify()
-                            .injectInAddressBook()
-                            .keysAndCerts();
-                } else {
-                    logger.debug(STARTUP.getMarker(), "Reading keys using the legacy key loader");
-                    keysAndCerts = loadKeysAndCerts(
-                            addressBook,
-                            pathsConfig.getKeysDirPath(),
-                            cryptoConfig.keystorePassword().toCharArray(),
-                            localNodes);
-                }
+                logger.debug(STARTUP.getMarker(), "Reading keys using the enhanced key loader");
+                keysAndCerts = EnhancedKeyStoreLoader.using(addressBook, configuration, localNodes)
+                        .migrate()
+                        .scan()
+                        .generate()
+                        .verify()
+                        .keysAndCerts();
+
                 logger.debug(STARTUP.getMarker(), "Done loading keys");
             } else {
                 // if there are no keys on the disk, then create our own keys
@@ -561,7 +461,6 @@ public final class CryptoStatic {
                 | ExecutionException
                 | KeyStoreException
                 | KeyLoadingException
-                | UnrecoverableKeyException
                 | NoSuchAlgorithmException
                 | IOException
                 | KeyGeneratingException

@@ -97,7 +97,6 @@ public class CryptoArgsProvider {
                 .scan()
                 .generate()
                 .verify()
-                .injectInAddressBook()
                 .keysAndCerts();
         return new RosterAndCerts(RosterRetriever.buildRoster(createdAB), loadedC);
     }
