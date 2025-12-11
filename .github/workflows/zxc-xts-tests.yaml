@@ -177,6 +177,90 @@ jobs:
       gradle-cache-username: ${{ secrets.gradle-cache-username }}
       gradle-cache-password: ${{ secrets.gradle-cache-password }}
 
+  xts-hapi-misc-tests:
+    name: XTS HAPI Tests (Misc)
+    if: ${{ inputs.enable-extended-test-suite == 'true' }}
+    uses: ./.github/workflows/node-zxc-compile-application-code.yaml
+    with:
+      custom-job-label: "${{ inputs.custom-job-label }} HAPI Misc"
+      enable-hapi-tests-misc: true
+      enable-network-log-capture: true
+      ref: ${{ inputs.commit_sha }}
+    secrets:
+      access-token: ${{ secrets.access-token }}
+      gradle-cache-username: ${{ secrets.gradle-cache-username }}
+      gradle-cache-password: ${{ secrets.gradle-cache-password }}
+
+  xts-hapi-misc-records-tests:
+    name: XTS HAPI Tests (Misc Records)
+    if: ${{ inputs.enable-extended-test-suite == 'true' }}
+    uses: ./.github/workflows/node-zxc-compile-application-code.yaml
+    with:
+      custom-job-label: "${{ inputs.custom-job-label }} HAPI Misc Records"
+      enable-hapi-tests-misc-records: true
+      enable-network-log-capture: true
+      ref: ${{ inputs.commit_sha }}
+    secrets:
+      access-token: ${{ secrets.access-token }}
+      gradle-cache-username: ${{ secrets.gradle-cache-username }}
+      gradle-cache-password: ${{ secrets.gradle-cache-password }}
+
+  xts-hapi-crypto-tests:
+    name: XTS HAPI Tests (Crypto)
+    if: ${{ inputs.enable-extended-test-suite == 'true' }}
+    uses: ./.github/workflows/node-zxc-compile-application-code.yaml
+    with:
+      custom-job-label: "${{ inputs.custom-job-label }} HAPI Crypto"
+      enable-hapi-tests-crypto: true
+      enable-network-log-capture: true
+      ref: ${{ inputs.commit_sha }}
+    secrets:
+      access-token: ${{ secrets.access-token }}
+      gradle-cache-username: ${{ secrets.gradle-cache-username }}
+      gradle-cache-password: ${{ secrets.gradle-cache-password }}
+
+  xts-hapi-simplefees-tests:
+    name: XTS HAPI Tests (Simple Fees)
+    if: ${{ inputs.enable-extended-test-suite == 'true' }}
+    uses: ./.github/workflows/node-zxc-compile-application-code.yaml
+    with:
+      custom-job-label: "${{ inputs.custom-job-label }} HAPI Simple Fees"
+      enable-hapi-tests-simplefees: true
+      enable-network-log-capture: true
+      ref: ${{ inputs.commit_sha }}
+    secrets:
+      access-token: ${{ secrets.access-token }}
+      gradle-cache-username: ${{ secrets.gradle-cache-username }}
+      gradle-cache-password: ${{ secrets.gradle-cache-password }}
+
+  xts-hapi-token-tests:
+    name: XTS HAPI Tests (Token)
+    if: ${{ inputs.enable-extended-test-suite == 'true' }}
+    uses: ./.github/workflows/node-zxc-compile-application-code.yaml
+    with:
+      custom-job-label: "${{ inputs.custom-job-label }} HAPI Token"
+      enable-hapi-tests-token: true
+      enable-network-log-capture: true
+      ref: ${{ inputs.commit_sha }}
+    secrets:
+      access-token: ${{ secrets.access-token }}
+      gradle-cache-username: ${{ secrets.gradle-cache-username }}
+      gradle-cache-password: ${{ secrets.gradle-cache-password }}
+
+  xts-hapi-smart-contract-tests:
+    name: XTS HAPI Tests (Smart Contract)
+    if: ${{ inputs.enable-extended-test-suite == 'true' }}
+    uses: ./.github/workflows/node-zxc-compile-application-code.yaml
+    with:
+      custom-job-label: "${{ inputs.custom-job-label }} HAPI Smart Contract"
+      enable-hapi-tests-smart-contract: true
+      enable-network-log-capture: true
+      ref: ${{ inputs.commit_sha }}
+    secrets:
+      access-token: ${{ secrets.access-token }}
+      gradle-cache-username: ${{ secrets.gradle-cache-username }}
+      gradle-cache-password: ${{ secrets.gradle-cache-password }}
+
   xts-hapi-block-node-comms-tests:
     name: XTS HAPI Tests (Block Node Communication)
     if: ${{ inputs.enable-extended-test-suite == 'true' }}
@@ -314,6 +398,12 @@ jobs:
       - xts-timing-sensitive-tests
       - xts-time-consuming-tests
       - xts-hammer-tests
+      - xts-hapi-misc-tests
+      - xts-hapi-misc-records-tests
+      - xts-hapi-crypto-tests
+      - xts-hapi-simplefees-tests
+      - xts-hapi-token-tests
+      - xts-hapi-smart-contract-tests
       - xts-hapi-time-consuming-tests
       - xts-hapi-block-node-comms-tests
       - xts-otter-tests
@@ -337,6 +427,12 @@ jobs:
             ${{ needs.xts-timing-sensitive-tests.result || 'skipped' }}
             ${{ needs.xts-time-consuming-tests.result || 'skipped' }}
             ${{ needs.xts-hammer-tests.result || 'skipped' }}
+            ${{ needs.xts-hapi-misc-tests.result || 'skipped' }}
+            ${{ needs.xts-hapi-misc-records-tests.result || 'skipped' }}
+            ${{ needs.xts-hapi-crypto-tests.result || 'skipped' }}
+            ${{ needs.xts-hapi-simplefees-tests.result || 'skipped' }}
+            ${{ needs.xts-hapi-token-tests.result || 'skipped' }}
+            ${{ needs.xts-hapi-smart-contract-tests.result || 'skipped' }}
             ${{ needs.xts-hapi-time-consuming-tests.result || 'skipped' }}
             ${{ needs.xts-hapi-block-node-comms-tests.result || 'skipped' }}
             ${{ needs.xts-otter-tests.result || 'skipped' }}
@@ -345,6 +441,12 @@ jobs:
             ${{ needs.xts-timing-sensitive-tests.outputs.failure-mode || 'none' }}
             ${{ needs.xts-time-consuming-tests.outputs.failure-mode || 'none' }}
             ${{ needs.xts-hammer-tests.outputs.failure-mode || 'none' }}
+            ${{ needs.xts-hapi-misc-tests.outputs.failure-mode || 'none' }}
+            ${{ needs.xts-hapi-misc-records-tests.outputs.failure-mode || 'none' }}
+            ${{ needs.xts-hapi-crypto-tests.outputs.failure-mode || 'none' }}
+            ${{ needs.xts-hapi-simplefees-tests.outputs.failure-mode || 'none' }}
+            ${{ needs.xts-hapi-token-tests.outputs.failure-mode || 'none' }}
+            ${{ needs.xts-hapi-smart-contract-tests.outputs.failure-mode || 'none' }}
             ${{ needs.xts-hapi-time-consuming-tests.outputs.failure-mode || 'none' }}
             ${{ needs.xts-hapi-block-node-comms-tests.outputs.failure-mode || 'none' }}
             ${{ needs.xts-otter-tests.outputs.failure-mode || 'none' }}
@@ -353,6 +455,12 @@ jobs:
             "xts-timing-sensitive-tests"
             "xts-time-consuming-tests"
             "xts-hammer-tests"
+            "xts-hapi-misc-tests"
+            "xts-hapi-misc-records-tests"
+            "xts-hapi-crypto-tests"
+            "xts-hapi-simplefees-tests"
+            "xts-hapi-token-tests"
+            "xts-hapi-smart-contract-tests"
             "xts-hapi-time-consuming-tests"
             "xts-hapi-block-node-comms-tests"
             "xts-otter-tests"

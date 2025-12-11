@@ -105,6 +105,33 @@ public class Hip1195StreamParityTest {
     }
 
     @HapiTest
+    final Stream<DynamicTest> hookChildCreationPassesParity(
+            @FungibleToken SpecFungibleToken aToken, @NonFungibleToken(numPreMints = 1) SpecNonFungibleToken bToken) {
+        return hapiTest(
+                aToken.getInfo(),
+                bToken.getInfo(),
+                cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
+                cryptoCreate(OWNER)
+                        .maxAutomaticTokenAssociations(2)
+                        .withHooks(accountAllowanceHook(210L, CREATE_OP_HOOK.name())),
+                cryptoTransfer(
+                        moving(1, aToken.name()).between(aToken.treasury().name(), OWNER),
+                        movingUnique(bToken.name(), 1L)
+                                .between(bToken.treasury().name(), OWNER)),
+                cryptoTransfer(
+                                movingHbar(1).between(OWNER, GENESIS),
+                                moving(1, aToken.name())
+                                        .between(OWNER, aToken.treasury().name()),
+                                movingUnique(bToken.name(), 1L)
+                                        .between(OWNER, bToken.treasury().name()))
+                        .withPreHookFor(OWNER, 210L, 5_000_000L, "")
+                        .withNftSenderPreHookFor(OWNER, 210L, 5_000_000L, "")
+                        .payingWith(PAYER)
+                        .signedBy(PAYER),
+                getAccountInfo(OWNER).exposingEthereumNonceTo(nonce -> assertEquals(3, nonce)));
+    }
+
+    @HapiTest
     final Stream<DynamicTest> isolatedExecutionWithNonHookStorageSideEffectsPassesParity() {
         return hapiTest(
                 cryptoCreate("party").withHooks(accountAllowanceHook(1L, SET_AND_PASS_HOOK.name())),
