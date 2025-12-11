@@ -184,7 +184,6 @@ public record PlatformComponents(
                 new ComponentWiring<>(model, EventSignatureValidator.class, config.eventSignatureValidator()),
                 new ComponentWiring<>(model, OrphanBuffer.class, config.orphanBuffer()),
                 ConsensusWiring.create(model, config.consensusEngine()),
-                new ComponentWiring<>(model, EventCreatorModule.class, config.eventCreationManager()),
                 new ComponentWiring<>(model, TransactionPrehandler.class, config.applicationTransactionPrehandler()),
                 new ComponentWiring<>(model, StateSignatureCollector.class, config.stateSignatureCollector()),
                 new ComponentWiring<>(model, StateSnapshotManager.class, config.stateSnapshotManager()),
