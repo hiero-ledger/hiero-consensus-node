@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.history.impl;
 
+import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.BDDMockito.given;
 
@@ -12,6 +13,7 @@ import com.hedera.node.app.history.ReadableHistoryStore;
 import com.hedera.node.app.service.roster.impl.ActiveRosters;
 import com.hedera.node.app.service.roster.impl.RosterTransitionWeights;
 import com.hedera.node.app.spi.info.NodeInfo;
+import com.hedera.node.config.data.TssConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.util.concurrent.Executor;
 import java.util.function.Supplier;
@@ -47,6 +49,9 @@ class ProofControllersTest {
     private HistorySubmissions submissions;
 
     @Mock
+    private WrapsMpcStateMachine machine;
+
+    @Mock
     private Supplier<NodeInfo> selfNodeInfoSupplier;
 
     @Mock
@@ -62,8 +67,8 @@ class ProofControllersTest {
 
     @BeforeEach
     void setUp() {
-        subject =
-                new ProofControllers(executor, keyAccessor, library, submissions, selfNodeInfoSupplier, historyService);
+        subject = new ProofControllers(
+                executor, keyAccessor, library, submissions, selfNodeInfoSupplier, historyService, machine);
     }
 
     @Test
@@ -79,7 +84,8 @@ class ProofControllersTest {
                 ONE_CONSTRUCTION,
                 historyStore,
                 HintsConstruction.DEFAULT,
-                HistoryProofConstruction.DEFAULT);
+                HistoryProofConstruction.DEFAULT,
+                DEFAULT_CONFIG.getConfigData(TssConfig.class));
         assertTrue(subject.getAnyInProgress().isEmpty());
         assertTrue(subject.getInProgressById(1L).isEmpty());
         assertTrue(subject.getInProgressById(2L).isEmpty());
@@ -89,7 +95,8 @@ class ProofControllersTest {
                 twoConstruction,
                 historyStore,
                 HintsConstruction.DEFAULT,
-                HistoryProofConstruction.DEFAULT);
+                HistoryProofConstruction.DEFAULT,
+                DEFAULT_CONFIG.getConfigData(TssConfig.class));
         assertNotSame(firstController, secondController);
         assertInstanceOf(InertProofController.class, secondController);
     }
@@ -106,7 +113,8 @@ class ProofControllersTest {
                 ONE_CONSTRUCTION,
                 historyStore,
                 HintsConstruction.DEFAULT,
-                HistoryProofConstruction.DEFAULT);
+                HistoryProofConstruction.DEFAULT,
+                DEFAULT_CONFIG.getConfigData(TssConfig.class));
 
         assertInstanceOf(ProofControllerImpl.class, controller);
     }

@@ -2,6 +2,8 @@
 package com.hedera.services.bdd.junit.support.translators.inputs;
 
 import static com.hedera.hapi.util.HapiUtils.functionOf;
+import static com.hedera.node.app.hapi.utils.CommonPbjConverters.MAX_PBJ_RECORD_SIZE;
+import static com.hedera.pbj.runtime.Codec.DEFAULT_MAX_DEPTH;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.HederaFunctionality;
@@ -41,7 +43,12 @@ public record TransactionParts(
      */
     public static TransactionParts from(@NonNull final Bytes serializedSignedTx) {
         try {
-            final var signedTx = SignedTransaction.PROTOBUF.parse(serializedSignedTx);
+            final var signedTx = SignedTransaction.PROTOBUF.parse(
+                    serializedSignedTx.toReadableSequentialData(),
+                    false,
+                    false,
+                    DEFAULT_MAX_DEPTH,
+                    MAX_PBJ_RECORD_SIZE);
             final Transaction wrapper;
             if (signedTx.useSerializedTxMessageHashAlgorithm()) {
                 wrapper = Transaction.newBuilder()
@@ -53,7 +60,12 @@ public record TransactionParts(
                         .signedTransactionBytes(serializedSignedTx)
                         .build();
             }
-            final var body = TransactionBody.PROTOBUF.parse(signedTx.bodyBytes());
+            final var body = TransactionBody.PROTOBUF.parse(
+                    signedTx.bodyBytes().toReadableSequentialData(),
+                    false,
+                    false,
+                    DEFAULT_MAX_DEPTH,
+                    MAX_PBJ_RECORD_SIZE);
             return new TransactionParts(wrapper, body, functionOf(body));
         } catch (ParseException | UnknownHederaFunctionality e) {
             // Fail immediately with invalid transactions that should not be in any production record stream
