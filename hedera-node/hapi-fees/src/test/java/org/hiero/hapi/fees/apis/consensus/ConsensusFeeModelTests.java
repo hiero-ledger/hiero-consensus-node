@@ -35,8 +35,7 @@ class ConsensusFeeModelTests {
                 .extras(
                         makeExtraDef(Extra.BYTES, 1),
                         makeExtraDef(Extra.KEYS, 2),
-                        makeExtraDef(Extra.SIGNATURES, 3),
-                        makeExtraDef(Extra.CUSTOM_FEE, 500))
+                        makeExtraDef(Extra.SIGNATURES, 3))
                 .node(NodeFee.DEFAULT
                         .copyBuilder()
                         .baseFee(1)
@@ -53,8 +52,7 @@ class ConsensusFeeModelTests {
                                 33,
                                 makeExtraIncluded(Extra.SIGNATURES, 1),
                                 makeExtraIncluded(Extra.KEYS, 1),
-                                makeExtraIncluded(Extra.BYTES, 100),
-                                makeExtraIncluded(Extra.CUSTOM_FEE, 0))))
+                                makeExtraIncluded(Extra.BYTES, 100))))
                 .build();
     }
 
@@ -101,7 +99,6 @@ class ConsensusFeeModelTests {
         params.put(Extra.SIGNATURES, 1L);
         params.put(Extra.KEYS, 1L);
         params.put(Extra.BYTES, 100L);
-        params.put(Extra.CUSTOM_FEE, 0L);
         FeeResult fee = model.computeFee(params, feeSchedule);
         // base fee for submit = 33
         // node + network = (90+1)*3
@@ -115,7 +112,6 @@ class ConsensusFeeModelTests {
         params.put(Extra.SIGNATURES, 1L);
         params.put(Extra.KEYS, 1L);
         params.put(Extra.BYTES, 500L);
-        params.put(Extra.CUSTOM_FEE, 0L);
         FeeResult fee = model.computeFee(params, feeSchedule);
         // base fee for submit = 33
         // extra bytes = (500-100)*1 = 400
@@ -130,7 +126,6 @@ class ConsensusFeeModelTests {
         params.put(Extra.SIGNATURES, 1L);
         params.put(Extra.KEYS, 1L);
         params.put(Extra.BYTES, 10L);
-        params.put(Extra.CUSTOM_FEE, 1L);
         FeeResult fee = model.computeFee(params, feeSchedule);
         // base fee for submit = 33
         // custom fee surcharge = 500
