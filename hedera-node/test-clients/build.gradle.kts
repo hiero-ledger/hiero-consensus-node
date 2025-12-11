@@ -358,7 +358,8 @@ tasks.register<Test>("testRemote") {
 
 val prEmbeddedCheckTags =
     buildMap<String, String> {
-        put("hapiEmbeddedMisc", "EMBEDDED")
+        put("hapiEmbeddedMisc", "EMBEDDED&!(SIMPLE_FEES)")
+        put("hapiEmbeddedSimpleFees", "EMBEDDED&SIMPLE_FEES")
 
         // Copy vals to the MATS variants
         val originalEntries = toMap() // Create a snapshot of current entries
@@ -369,7 +370,11 @@ val prEmbeddedCheckTags =
 
 tasks {
     prEmbeddedCheckTags.forEach { (taskName, _) ->
-        register(taskName) { dependsOn("testEmbedded") }
+        register(taskName) {
+            getByName(taskName).group =
+                "hapi-test-embedded${if (taskName.endsWith(matsSuffix)) "-mats" else ""}"
+            dependsOn("testEmbedded")
+        }
     }
 }
 
@@ -411,6 +416,11 @@ tasks.register<Test>("testEmbedded") {
     // so we can maintain confidence that there are no regressions in the code.
     systemProperty("hapi.spec.default.shard", 0)
     systemProperty("hapi.spec.default.realm", 0)
+
+    if (gradle.startParameter.taskNames.contains("hapiEmbeddedSimpleFees")) {
+        systemProperty("fees.createSimpleFeeSchedule", "true")
+        systemProperty("fees.simpleFeesEnabled", "true")
+    }
 
     // Limit heap and number of processors
     maxHeapSize = "8g"
