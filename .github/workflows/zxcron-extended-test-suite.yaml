@@ -63,6 +63,16 @@ jobs:
           echo "solo-ge-0440=${SOLO_GE_0440}" >> "${GITHUB_OUTPUT}"
           echo "solo-version=${{ vars.CITR_SOLO_VERSION }}" >> "${GITHUB_OUTPUT}"
 
+  state-validator-uberjar:
+    name: Build & Publish Hedera State Validator Uber JAR
+    runs-on: hiero-citr-linux-medium
+    needs:
+      - fetch-xts-candidate
+    if: ${{ needs.fetch-xts-candidate.result == 'success' && needs.fetch-xts-candidate.outputs.xts-tag-exists == 'true' }}
+    uses: ./.github/workflows/zxc-build-publish-state-validator.yaml
+    with:
+      ref: ${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }}
+
   fetch-xts-candidate:
     name: Fetch XTS Candidate Tag
     runs-on: hiero-citr-linux-medium
@@ -242,6 +252,7 @@ jobs:
     needs:
       - fetch-xts-candidate
       - parameters
+      - state-validator-uberjar
     if: ${{ needs.fetch-xts-candidate.result == 'success' && needs.fetch-xts-candidate.outputs.xts-tag-exists == 'true' }}
     uses: ./.github/workflows/zxc-xts-tests.yaml
     with:
@@ -252,7 +263,6 @@ jobs:
       helm-release-name: ${{ needs.parameters.outputs.helm-release-name }}
       custom-job-label: "XTS (main):"
       enable-extended-test-suite: "true"
-      enable-abbreviated-panel: "true"
       enable-hedera-node-jrs-panel: "true"
       enable-sdk-tck-regression-panel: "true"
     secrets:
@@ -276,6 +286,7 @@ jobs:
     needs:
       - fetch-xts-candidate
       - parameters
+      - state-validator-uberjar
     if: ${{ needs.fetch-xts-candidate.result == 'success' && needs.fetch-xts-candidate.outputs.xts-tag-exists == 'true' }}
     uses: ./.github/workflows/zxc-xts-tests.yaml
     with:

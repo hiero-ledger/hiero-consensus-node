@@ -399,75 +399,6 @@ class VirtualMapTests extends VirtualTestBase {
         vm.release();
     }
 
-    // FUTURE WORK test deleting the same key two times in a row.
-    // FUTURE WORK Test that a deleted node's value cannot be subsequently read.
-
-    //    @Test
-    //    @Tag(TestComponentTags.FCMAP)
-    //    @DisplayName("Remove all leaves by always removing the first leaf")
-    //    void removeFirstLeaf() {
-    //        var fcm = createMap();
-    //        fcm.put(A_KEY, APPLE);
-    //        fcm.put(B_KEY, BANANA);
-    //        fcm.put(C_KEY, CHERRY);
-    //        fcm.put(D_KEY, DATE);
-    //        fcm.put(E_KEY, EGGPLANT);
-    //        fcm.put(F_KEY, FIG);
-    //        fcm.put(G_KEY, GRAPE);
-    //
-    //        var original = fcm;
-    //        fcm = fcm.copy();
-    //        CRYPTO.digestTreeSync(original);
-    //        original.release();
-    //
-    //        assertEquals(DATE, fcm.remove(D_KEY));
-    //        assertLeafOrder(fcm, A_KEY, E_KEY, C_KEY, F_KEY, B_KEY, G_KEY);
-    //        assertEquals(BANANA, fcm.remove(B_KEY));
-    //        assertLeafOrder(fcm, A_KEY, E_KEY, C_KEY, F_KEY, G_KEY);
-    //        assertEquals(CHERRY, fcm.remove(C_KEY));
-    //        assertLeafOrder(fcm, A_KEY, E_KEY, F_KEY, G_KEY);
-    //        assertEquals(APPLE, fcm.remove(A_KEY));
-    //        assertLeafOrder(fcm, G_KEY, E_KEY, F_KEY);
-    //        assertEquals(FIG, fcm.remove(F_KEY));
-    //        assertLeafOrder(fcm, G_KEY, E_KEY);
-    //        assertEquals(GRAPE, fcm.remove(G_KEY));
-    //        assertLeafOrder(fcm, E_KEY);
-    //        assertEquals(EGGPLANT, fcm.remove(E_KEY));
-    //
-    //        // FUTURE WORK validate hashing works as expected
-    //
-    //    }
-
-    //    @Test
-    //    @Tag(TestComponentTags.FCMAP)
-    //    @DisplayName("Remove a middle leaf")
-    //    void removeMiddleLeaf() {
-    //        var fcm = createMap();
-    //        fcm.put(A_KEY, APPLE);
-    //        fcm.put(B_KEY, BANANA);
-    //        fcm.put(C_KEY, CHERRY);
-    //        fcm.put(D_KEY, DATE);
-    //        fcm.put(E_KEY, EGGPLANT);
-    //        fcm.put(F_KEY, FIG);
-    //        fcm.put(G_KEY, GRAPE);
-    //
-    //        var original = fcm;
-    //        fcm = fcm.copy();
-    //        CRYPTO.digestTreeSync(original);
-    //        original.release();
-    //
-    //        assertEquals(FIG, fcm.remove(F_KEY));
-    //        assertEquals(DATE, fcm.remove(D_KEY));
-    //        assertEquals(APPLE, fcm.remove(A_KEY));
-    //        assertEquals(BANANA, fcm.remove(B_KEY));
-    //        assertEquals(EGGPLANT, fcm.remove(E_KEY));
-    //        assertEquals(CHERRY, fcm.remove(C_KEY));
-    //        assertEquals(GRAPE, fcm.remove(G_KEY));
-    //
-    //        // FUTURE WORK validate hashing works as expected
-    //
-    //    }
-
     @Test
     @DisplayName("Add a value and then remove it immediately")
     void removeValueJustAdded() {
@@ -568,33 +499,6 @@ class VirtualMapTests extends VirtualTestBase {
         assertTrue(copy2.getPipeline().awaitTermination(5, SECONDS), "Timed out");
         assertTrue(ds.isClosed(), "Should now be released");
     }
-
-    /*
-     * Test iteration and hashing
-     **/
-
-    //    @Test
-    //    @Tag(TestComponentTags.FCMAP)
-    //    @DisplayName("Newly created maps have null hashes for everything")
-    //    void nullHashesOnNewMap() throws ExecutionException, InterruptedException {
-    //        var fcm = createMap();
-    //        fcm.put(A_KEY, APPLE);
-    //        fcm.put(B_KEY, BANANA);
-    //        fcm.put(C_KEY, CHERRY);
-    //        fcm.put(D_KEY, DATE);
-    //        fcm.put(E_KEY, EGGPLANT);
-    //        fcm.put(F_KEY, FIG);
-    //        fcm.put(G_KEY, GRAPE);
-    //
-    // FUTURE WORK Cannot iterate until after hashing, which invalidates the test
-    //        var completed = fcm;
-    //        fcm = fcm.copy();
-    //        completed.hash().get();
-    //        final var breadthItr = new MerkleBreadthFirstIterator<MerkleNode, MerkleNode>(completed);
-    //        while (breadthItr.hasNext()) {
-    //            assertNull(breadthItr.next().getHash());
-    //        }
-    //    }
 
     @Test
     @DisplayName("Hashed maps have non-null hashes on everything")
@@ -746,10 +650,6 @@ class VirtualMapTests extends VirtualTestBase {
 
     /**
      * This test validates that for the basic tree below, the routes are set correctly.
-     * When the tests are moved to the swirlds-test module, we should use a MerkleMap
-     * and insert one million elements, and insert the same elements into a
-     * {@link VirtualMap}. Then, we iterate over the routes of both maps and their
-     * routes should match.
      *
      * <pre>
      *                      VirtualMap
