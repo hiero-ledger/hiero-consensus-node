@@ -115,7 +115,7 @@ public class DeterministicTaskScheduler<OUT> extends TaskScheduler<OUT> {
         submitWork.accept(() -> doWork(handler, data));
     }
 
-    private void doWork(final @NonNull Consumer<Object> handler, final @NonNull Object data) {
+    private void doWork(@NonNull final Consumer<Object> handler, @NonNull final Object data) {
         try {
             handler.accept(data);
         } catch (Exception e) {
