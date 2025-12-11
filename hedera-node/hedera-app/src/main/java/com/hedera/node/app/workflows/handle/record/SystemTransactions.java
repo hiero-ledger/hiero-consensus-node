@@ -433,7 +433,7 @@ public class SystemTransactions {
         }
 
         final var systemContext = newSystemContext(
-                now, state, dispatch -> {}, UseReservedConsensusTimes.NO, TriggerStakePeriodSideEffects.YES);
+                now, state, dispatch -> {}, UseReservedConsensusTimes.YES, TriggerStakePeriodSideEffects.YES);
         systemContext.dispatchAdmin(b -> b.memo("Synthetic node fees payment")
                 .cryptoTransfer(CryptoTransferTransactionBody.newBuilder()
                         .transfers(transfers)
@@ -469,7 +469,7 @@ public class SystemTransactions {
         requireNonNull(activeNodeIds);
         requireNonNull(nodeRewardsAccountId);
         final var systemContext = newSystemContext(
-                now, state, dispatch -> {}, UseReservedConsensusTimes.NO, TriggerStakePeriodSideEffects.YES);
+                now, state, dispatch -> {}, UseReservedConsensusTimes.YES, TriggerStakePeriodSideEffects.YES);
         final var activeNodeAccountIds = activeNodeIds.stream()
                 .map(id -> systemContext.networkInfo().nodeInfo(id))
                 .filter(nodeInfo -> nodeInfo != null && !nodeInfo.declineReward())

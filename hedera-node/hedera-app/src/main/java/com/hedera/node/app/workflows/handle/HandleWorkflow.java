@@ -305,32 +305,24 @@ public class HandleWorkflow {
                 logger.error("{} trying to reconcile TSS state", ALERT_MESSAGE, e);
             }
         }
+        final var roundConsTime = round.getConsensusTimestamp();
+        try {
+            transactionsDispatched |= feeDistributor.distributeFees(state, roundConsTime.plusNanos(1), systemTransactions);
+        } catch (Exception e) {
+            logger.warn("Failed to pay node fees to nodes", e);
+        }
+        try {
+            transactionsDispatched |= nodeRewardManager.maybeRewardActiveNodes(state, roundConsTime.plusNanos(2), systemTransactions);
+        } catch (Exception e) {
+            logger.warn("Failed to reward active nodes", e);
+        }
         try {
             final int receiptEntriesBatchSize = configProvider
                     .getConfiguration()
                     .getConfigData(BlockStreamConfig.class)
                     .receiptEntriesBatchSize();
             transactionsDispatched |= handleEvents(state, round, receiptEntriesBatchSize, stateSignatureTxnCallback);
-            final var lastConsTime = streamMode == RECORDS
-                    ? blockRecordManager.lastUsedConsensusTime()
-                    : blockStreamManager.lastUsedConsensusTime();
 
-            try {
-                if (lastConsTime.isAfter(EPOCH)) {
-                    transactionsDispatched |=
-                            feeDistributor.distributeFees(state, lastConsTime.plusNanos(1), systemTransactions);
-                }
-            } catch (Exception e) {
-                logger.warn("Failed to pay node fees to nodes", e);
-            }
-            try {
-                if (lastConsTime.isAfter(EPOCH)) {
-                    transactionsDispatched |= nodeRewardManager.maybeRewardActiveNodes(
-                            state, lastConsTime.plusNanos(1), systemTransactions);
-                }
-            } catch (Exception e) {
-                logger.warn("Failed to reward active nodes", e);
-            }
             // Inform the BlockRecordManager that the round is complete, so it can update running hashes in state
             // from results computed in background threads. The running hash has to be included in state, but we want
             // to synchronize with background threads as infrequently as possible; per round is the best we can do
@@ -425,8 +417,7 @@ public class HandleWorkflow {
         }
         final boolean isGenesis =
                 switch (streamMode) {
-                    case RECORDS ->
-                        blockRecordManager.consTimeOfLastHandledTxn().equals(EPOCH);
+                    case RECORDS -> blockRecordManager.consTimeOfLastHandledTxn().equals(EPOCH);
                     case BLOCKS, BOTH -> blockStreamManager.pendingWork() == GENESIS_WORK;
                 };
         if (isGenesis) {
@@ -1026,13 +1017,13 @@ public class HandleWorkflow {
                     // can still make progress on publishing proof keys as needed
                     final var vk = Optional.ofNullable(
                                     (historyStore.getLedgerId() == null
-                                                    || (tssConfig.wrapsEnabled()
-                                                            && historyStore
-                                                                    .getActiveConstruction()
-                                                                    .hasTargetProof()
-                                                            && !isWrapsExtensible(historyStore
-                                                                    .getActiveConstruction()
-                                                                    .targetProof())))
+                                            || (tssConfig.wrapsEnabled()
+                                            && historyStore
+                                            .getActiveConstruction()
+                                            .hasTargetProof()
+                                            && !isWrapsExtensible(historyStore
+                                            .getActiveConstruction()
+                                            .targetProof())))
                                             ? hintsStore.getActiveConstruction().hintsScheme()
                                             : hintsStore.getNextConstruction().hintsScheme())
                             .map(s -> s.preprocessedKeysOrThrow().verificationKey())

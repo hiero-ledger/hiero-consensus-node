@@ -132,7 +132,7 @@ public class NodeFeeDistributor implements NodeFeeAccumulator {
      */
     enum LastNodeFeesPaymentTime {
         /**
-         * Node fees have never been paid. In the genesis edge case, we don't need to pay rewards.
+         * Node fees have never been paid. In the genesis edge case, we don't need to pay fees.
          */
         NEVER,
         /**
@@ -196,7 +196,9 @@ public class NodeFeeDistributor implements NodeFeeAccumulator {
         final var nodePaymentsStore = new WritableNodePaymentsStore(writableTokenStates);
         final var accountStore = new WritableAccountStore(writableTokenStates, entityIdStore);
         if (lastNodeFeesPaymentTime == LastNodeFeesPaymentTime.PREVIOUS_PERIOD) {
-            log.info("Distributing accumulated fees for the just-finished staking period @ {}", asTimestamp(now));
+            log.info("Calculating if there are distributions for staking period @ {}", asTimestamp(now));
+            // commit the node fees accumulated in the previous period from nodeFees to nodePaymentsStore
+            updateNodePaymentsState(state);
 
             final var feeCollectionAccountId = entityIdFactory.newAccountId(accountsConfig.feeCollectionAccount());
             final var feeCollectionAccount = requireNonNull(accountStore.getAccountById(feeCollectionAccountId));
@@ -268,6 +270,7 @@ public class NodeFeeDistributor implements NodeFeeAccumulator {
         }
         nodePaymentsStore.resetForNewStakingPeriod(asTimestamp(now));
         resetNodeFees();
+        ((CommittableWritableStates) writableTokenStates).commit();
         return true;
     }
 
@@ -283,13 +286,12 @@ public class NodeFeeDistributor implements NodeFeeAccumulator {
             @NonNull final ArrayList<AccountAmount> transferAmounts) {
         long balance = amount;
 
-        final var nodeRewardAccount = accountStore.getAccountById(nodeRewardAccountId);
+        final var nodeRewardAccount = requireNonNull(accountStore.getAccountById(nodeRewardAccountId));
         final boolean preservingRewardBalance =
                 nodesConfig.nodeRewardsEnabled() && nodesConfig.preserveMinNodeRewardBalance();
 
         // If 0.0.801 is low, route fees fully there until it reaches the configured minimum
         if (preservingRewardBalance
-                && nodeRewardAccount != null
                 && nodeRewardAccount.tinybarBalance() <= nodesConfig.minNodeRewardBalance()) {
             // Route all fees to node reward account
             transferAmounts.add(AccountAmount.newBuilder()
@@ -355,11 +357,13 @@ public class NodeFeeDistributor implements NodeFeeAccumulator {
                         .build())
                 .toList();
 
-        nodePaymentsState.put(NodePayments.newBuilder()
+        // We don't update the lastNodeFeeDistributionTime because it is updated only once we distribute fees
+        nodePaymentsState.put(currentPayments.copyBuilder()
                 .payments(updatedPayments)
-                .lastNodeFeeDistributionTime(currentPayments.lastNodeFeeDistributionTime())
                 .build());
         ((CommittableWritableStates) writableTokenState).commit();
-        log.info("Updated node payments state with {} entries", updatedPayments.size());
+        log.info("Committed node payments state with {}", updatedPayments);
+
+        nodeFees.clear();
     }
 }

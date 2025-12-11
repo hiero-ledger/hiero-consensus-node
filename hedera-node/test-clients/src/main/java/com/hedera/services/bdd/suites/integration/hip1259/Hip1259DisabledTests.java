@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.hedera.services.bdd.suites.hip1259;
+package com.hedera.services.bdd.suites.integration.hip1259;
 
 import static com.hedera.hapi.util.HapiUtils.asInstant;
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.toPbj;
@@ -15,12 +15,12 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.fileCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeUpdate;
+import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.mutateSingleton;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.recordStreamMustIncludePassWithoutBackgroundTrafficFrom;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.selectedItems;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepForBlockPeriod;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitUntilStartOfNextStakingPeriod;
 import static com.hedera.services.bdd.spec.utilops.streams.assertions.SelectedItemsAssertion.SELECTED_ITEMS_KEY;
 import static com.hedera.services.bdd.suites.HapiSuite.CIVILIAN_PAYER;
@@ -29,11 +29,10 @@ import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.NODE_REWARD;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
-import static com.hedera.services.bdd.suites.hip1259.Hip1259DisabledTests.validateRecordContains;
-import static com.hedera.services.bdd.suites.hip1259.Hip1259DisabledTests.validateRecordNotContains;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.CryptoTransfer;
 import static java.util.stream.Collectors.toMap;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -45,9 +44,11 @@ import com.hedera.services.bdd.junit.LeakyRepeatableHapiTest;
 import com.hedera.services.bdd.junit.RepeatableHapiTest;
 import com.hedera.services.bdd.junit.TargetEmbeddedMode;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
+import com.hedera.services.bdd.spec.SpecOperation;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
 import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
 import com.hedera.services.bdd.spec.utilops.EmbeddedVerbs;
+import com.hedera.services.bdd.spec.utilops.UtilVerbs;
 import com.hedera.services.bdd.spec.utilops.streams.assertions.VisibleItemsValidator;
 import com.hederahashgraph.api.proto.java.AccountAmount;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -68,27 +69,26 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.TestMethodOrder;
 
 /**
- * Tests for HIP-1259 Fee Collection Account when the feature is enabled.
+ * Tests for HIP-1259 Fee Collection Account when the feature is disabled.
  * These tests verify:
- * 1. All fees go to the fee collection account (0.0.802) instead of being distributed immediately
- * 2. Fees are accumulated in the NodePayments state during the staking period
- * 3. At staking period boundary, fees are distributed from 0.0.802 to node accounts and system accounts
- * 4. Node rewards interact correctly with the fee collection mechanism
+ * 1. Fees are distributed immediately to node accounts (0.0.3) and system accounts (0.0.801)
+ * 2. The fee collection account (0.0.802) is NOT used
+ * 3. Node rewards work correctly with the legacy fee distribution mechanism
  */
-@Order(8)
+@Order(9)
 @Tag(INTEGRATION)
 @HapiTestLifecycle
 @TargetEmbeddedMode(REPEATABLE)
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
-public class Hip1259EnabledTests {
+public class Hip1259DisabledTests {
 
-    private static final List<Long> EXPECTED_FEE_ACCOUNTS = List.of(802L);
-    private static final List<Long> UNEXPECTED_FEE_ACCOUNTS = List.of(3L, 98L, 800L, 801L);
+    private static final List<Long> EXPECTED_FEE_ACCOUNTS = List.of(3L, 801L);
+    private static final List<Long> UNEXPECTED_FEE_ACCOUNTS = List.of(802L);
 
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
         testLifecycle.overrideInClass(Map.of(
-                "nodes.feeCollectionAccountEnabled", "true",
+                "nodes.feeCollectionAccountEnabled", "false",
                 "nodes.nodeRewardsEnabled", "true",
                 "nodes.preserveMinNodeRewardBalance", "true"));
         testLifecycle.doAdhoc(
@@ -99,140 +99,67 @@ public class Hip1259EnabledTests {
     }
 
     /**
-     * Verifies that when HIP-1259 is enabled, all transaction fees go to the fee collection
-     * account (0.0.802) instead of being distributed to individual node and system accounts.
+     * Verifies that when HIP-1259 is disabled, transaction fees go to the node account (0.0.3)
+     * and system accounts (0.0.801) instead of the fee collection account (0.0.802).
      */
     @Order(1)
     @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
-    final Stream<DynamicTest> feesGoToFeeCollectionAccount() {
+    final Stream<DynamicTest> feesGoToLegacyAccounts() {
         return hapiTest(
                 cryptoCreate(CIVILIAN_PAYER),
                 fileCreate("testFile")
-                        .contents("Test content for fee collection")
+                        .contents("Test content for legacy fee distribution")
                         .payingWith(CIVILIAN_PAYER)
-                        .via("feeCollectionTxn"),
-                getTxnRecord("feeCollectionTxn").logged(),
-                validateRecordContains("feeCollectionTxn", EXPECTED_FEE_ACCOUNTS),
-                validateRecordNotContains("feeCollectionTxn", UNEXPECTED_FEE_ACCOUNTS));
+                        .via("legacyFeeTxn"),
+                getTxnRecord("legacyFeeTxn").logged(),
+                validateRecordContains("legacyFeeTxn", EXPECTED_FEE_ACCOUNTS),
+                validateRecordNotContains("legacyFeeTxn", UNEXPECTED_FEE_ACCOUNTS));
     }
 
     /**
-     * Verifies that fees are accumulated in the NodeRewards state during the staking period
-     * and the fee collection account balance increases accordingly.
+     * Verifies that the fee collection account (0.0.802) does not receive any fees
+     * when HIP-1259 is disabled.
      */
     @Order(2)
     @RepeatableHapiTest({NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION, NEEDS_STATE_ACCESS})
-    final Stream<DynamicTest> feesAccumulateInNodeRewardsState() {
+    final Stream<DynamicTest> feeCollectionAccountNotUsed() {
         final AtomicLong initialFeeCollectionBalance = new AtomicLong(0);
-        final AtomicLong initialNodeFeesCollected = new AtomicLong(0);
-        final AtomicLong txnFee = new AtomicLong(0);
         return hapiTest(
-                cryptoCreate(CIVILIAN_PAYER),
                 waitUntilStartOfNextStakingPeriod(1),
                 getAccountBalance(FEE_COLLECTOR).exposingBalanceTo(initialFeeCollectionBalance::set),
-                sleepForBlockPeriod(),
-                // initial node fees before transaction
-                EmbeddedVerbs.<NodeRewards>viewSingleton(
-                        TokenService.NAME,
-                        NODE_REWARDS_STATE_ID,
-                        nodeRewards -> initialNodeFeesCollected.set(nodeRewards.nodeFeesCollected())),
-                cryptoCreate("testAccount")
-                        .balance(ONE_HBAR)
+                cryptoCreate(CIVILIAN_PAYER),
+                fileCreate("testFile")
+                        .contents("Test content")
                         .payingWith(CIVILIAN_PAYER)
                         .via("feeTxn"),
-                getTxnRecord("feeTxn")
-                        .exposingTo(r -> txnFee.set(r.getTransferList().getAccountAmountsList().stream()
-                                .filter(aa -> aa.getAccountID().getAccountNum() == 802L)
-                                .findFirst()
-                                .orElseThrow()
-                                .getAmount())),
-                // Total fee charged shouldn't change
-                validateChargedUsd("feeTxn", 0.05, 1),
+                validateRecordNotContains("feeTxn", UNEXPECTED_FEE_ACCOUNTS),
                 sleepForBlockPeriod(),
-                EmbeddedVerbs.<NodeRewards>viewSingleton(
-                        TokenService.NAME,
-                        NODE_REWARDS_STATE_ID,
-                        nodeRewards -> assertTrue(
-                                nodeRewards.nodeFeesCollected() > initialNodeFeesCollected.get(),
-                                "Node fees collected should increase after transaction")),
-                getAccountBalance(FEE_COLLECTOR).hasTinyBars(spec -> actual -> {
-                    if (actual > initialFeeCollectionBalance.get()) {
-                        return Optional.empty();
-                    }
-                    return Optional.of("Fee collection balance should increase after transaction");
-                })
-        );
+                getAccountBalance(FEE_COLLECTOR)
+                        .hasTinyBars(spec -> actual -> {
+                            if (actual == initialFeeCollectionBalance.get()) {
+                                return Optional.empty();
+                            }
+                            return Optional.of("Fee collection balance should not change when HIP-1259 is disabled");
+                        })
+                        .logged());
     }
 
     /**
-     * Verifies that at the staking period boundary, fees accumulated in the fee collection account
-     * are distributed to node accounts via a synthetic transaction.
+     * Verifies that node rewards are correctly distributed at staking period boundary
+     * when HIP-1259 is disabled, using the legacy fee distribution mechanism.
      */
     @Order(3)
     @LeakyRepeatableHapiTest(
             value = {NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION, NEEDS_STATE_ACCESS},
             overrides = {"nodes.minPerPeriodNodeRewardUsd"})
-    final Stream<DynamicTest> feesDistributedAtStakingPeriodBoundary() {
-        final AtomicLong expectedNodeFees = new AtomicLong(0);
-        final AtomicReference<Instant> startConsensusTime = new AtomicReference<>();
-        return hapiTest(
-                doingContextual(spec -> startConsensusTime.set(spec.consensusTime())),
-                recordStreamMustIncludePassWithoutBackgroundTrafficFrom(
-                        selectedItems(
-                                feeDistributionValidator(expectedNodeFees::get),
-                                1,
-                                (spec, item) -> item.getRecord().getTransferList().getAccountAmountsList().stream()
-                                                .anyMatch(
-                                                        aa -> aa.getAccountID().getAccountNum() == 802L
-                                                                && aa.getAmount() < 0L)
-                                        && asInstant(toPbj(item.getRecord().getConsensusTimestamp()))
-                                                .isAfter(startConsensusTime.get())),
-                        Duration.ofSeconds(1)),
-                cryptoTransfer(TokenMovement.movingHbar(100000 * ONE_HBAR).between(GENESIS, NODE_REWARD)),
-                nodeUpdate("0").declineReward(true),
-                waitUntilStartOfNextStakingPeriod(1),
-                cryptoCreate(CIVILIAN_PAYER),
-                fileCreate("something")
-                        .contents("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
-                        .payingWith(CIVILIAN_PAYER)
-                        .via("notFree"),
-                validateRecordContains("notFree", EXPECTED_FEE_ACCOUNTS),
-                getTxnRecord("notFree")
-                        .exposingTo(r -> expectedNodeFees.set(r.getTransferList().getAccountAmountsList().stream()
-                                .filter(a -> a.getAccountID().getAccountNum() == 802L)
-                                .findFirst()
-                                .orElseThrow()
-                                .getAmount())),
-                sleepForBlockPeriod(),
-                EmbeddedVerbs.handleAnyRepeatableQueryPayment(),
-                mutateSingleton(TokenService.NAME, NODE_REWARDS_STATE_ID, (NodeRewards nodeRewards) -> nodeRewards
-                        .copyBuilder()
-                        .nodeActivities(NodeActivity.newBuilder()
-                                .nodeId(1)
-                                .numMissedJudgeRounds(3)
-                                .build())
-                        .build()),
-                waitUntilStartOfNextStakingPeriod(1),
-                cryptoCreate("nobody").payingWith(GENESIS),
-                doingContextual(TxnUtils::triggerAndCloseAtLeastOneFileIfNotInterrupted));
-    }
-
-    /**
-     * Verifies that node rewards are correctly calculated and distributed when HIP-1259 is enabled,
-     * taking into account the fees collected in the fee collection account.
-     */
-    @Order(4)
-    @LeakyRepeatableHapiTest(
-            value = {NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION, NEEDS_STATE_ACCESS},
-            overrides = {"nodes.minPerPeriodNodeRewardUsd"})
-    final Stream<DynamicTest> nodeRewardsWithFeeCollectionEnabled() {
+    final Stream<DynamicTest> nodeRewardsWithLegacyFeeDistribution() {
         final AtomicLong nodeRewardBalance = new AtomicLong(0);
         final AtomicReference<Instant> startConsensusTime = new AtomicReference<>();
         return hapiTest(
                 doingContextual(spec -> startConsensusTime.set(spec.consensusTime())),
                 recordStreamMustIncludePassWithoutBackgroundTrafficFrom(
                         selectedItems(
-                                nodeRewardsWithFeeCollectionValidator(nodeRewardBalance::get),
+                                legacyNodeRewardsValidator(nodeRewardBalance::get),
                                 1,
                                 (spec, item) -> item.getRecord().getTransferList().getAccountAmountsList().stream()
                                                 .anyMatch(
@@ -250,6 +177,7 @@ public class Hip1259EnabledTests {
                         .payingWith(CIVILIAN_PAYER)
                         .via("notFree"),
                 validateRecordContains("notFree", EXPECTED_FEE_ACCOUNTS),
+                validateRecordNotContains("notFree", UNEXPECTED_FEE_ACCOUNTS),
                 sleepForBlockPeriod(),
                 EmbeddedVerbs.handleAnyRepeatableQueryPayment(),
                 mutateSingleton(TokenService.NAME, NODE_REWARDS_STATE_ID, (NodeRewards nodeRewards) -> nodeRewards
@@ -268,13 +196,41 @@ public class Hip1259EnabledTests {
     }
 
     /**
-     * Verifies that the fee collection account balance is reset after fees are distributed
-     * at the staking period boundary.
+     * Verifies that node fees are tracked in NodeRewards state even when HIP-1259 is disabled,
+     * for the purpose of calculating node rewards.
+     */
+    @Order(4)
+    @RepeatableHapiTest({NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION, NEEDS_STATE_ACCESS})
+    final Stream<DynamicTest> nodeFeesTrackedForRewardsCalculation() {
+        final AtomicLong initialNodeFeesCollected = new AtomicLong(0);
+        return hapiTest(
+                waitUntilStartOfNextStakingPeriod(1),
+                sleepForBlockPeriod(),
+                EmbeddedVerbs.<NodeRewards>viewSingleton(
+                        TokenService.NAME,
+                        NODE_REWARDS_STATE_ID,
+                        nodeRewards -> initialNodeFeesCollected.set(nodeRewards.nodeFeesCollected())),
+                cryptoCreate(CIVILIAN_PAYER),
+                fileCreate("testFile")
+                        .contents("Test content")
+                        .payingWith(CIVILIAN_PAYER)
+                        .via("feeTxn"),
+                validateRecordContains("feeTxn", EXPECTED_FEE_ACCOUNTS),
+                sleepForBlockPeriod(),
+                EmbeddedVerbs.<NodeRewards>viewSingleton(
+                        TokenService.NAME,
+                        NODE_REWARDS_STATE_ID,
+                        nodeRewards -> assertTrue(
+                                nodeRewards.nodeFeesCollected() > initialNodeFeesCollected.get(),
+                                "Node fees should be tracked for rewards calculation even when HIP-1259 is disabled")));
+    }
+
+    /**
+     * Verifies that at staking period boundary, node fees are reset even when HIP-1259 is disabled.
      */
     @Order(5)
     @RepeatableHapiTest({NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION, NEEDS_STATE_ACCESS})
-    final Stream<DynamicTest> feeCollectionAccountResetAfterDistribution() {
-        final AtomicLong preDistributionBalance = new AtomicLong(0);
+    final Stream<DynamicTest> nodeFeesResetAtStakingPeriodBoundary() {
         return hapiTest(
                 cryptoTransfer(TokenMovement.movingHbar(ONE_MILLION_HBARS).between(GENESIS, NODE_REWARD)),
                 waitUntilStartOfNextStakingPeriod(1),
@@ -285,9 +241,6 @@ public class Hip1259EnabledTests {
                         .via("feeTxn"),
                 validateRecordContains("feeTxn", EXPECTED_FEE_ACCOUNTS),
                 sleepForBlockPeriod(),
-                getAccountBalance(FEE_COLLECTOR)
-                        .exposingBalanceTo(preDistributionBalance::set)
-                        .logged(),
                 EmbeddedVerbs.handleAnyRepeatableQueryPayment(),
                 mutateSingleton(TokenService.NAME, NODE_REWARDS_STATE_ID, (NodeRewards nodeRewards) -> nodeRewards
                         .copyBuilder()
@@ -316,33 +269,15 @@ public class Hip1259EnabledTests {
                         TokenService.NAME,
                         NODE_REWARDS_STATE_ID,
                         nodeRewards -> assertEquals(
-                                0L, nodeRewards.nodeFeesCollected(), "Node fees should be reset after distribution")));
+                                0L,
+                                nodeRewards.nodeFeesCollected(),
+                                "Node fees should be reset after staking period")));
     }
 
     /**
-     * Validator for fee distribution synthetic transaction.
+     * Validator for legacy node rewards (when HIP-1259 is disabled).
      */
-    static VisibleItemsValidator feeDistributionValidator(@NonNull final LongSupplier expectedFees) {
-        return (spec, records) -> {
-            final var items = records.get(SELECTED_ITEMS_KEY);
-            assertNotNull(items, "No fee distribution found");
-            assertEquals(1, items.size());
-            final var payment = items.getFirst();
-            assertEquals(CryptoTransfer, payment.function());
-            final var op = payment.body().getCryptoTransfer();
-            final Map<Long, Long> bodyAdjustments = op.getTransfers().getAccountAmountsList().stream()
-                    .collect(toMap(aa -> aa.getAccountID().getAccountNum(), AccountAmount::getAmount));
-            // Fee collection account should be debited
-            assertTrue(
-                    bodyAdjustments.containsKey(802L) && bodyAdjustments.get(802L) < 0,
-                    "Fee collection account should be debited");
-        };
-    }
-
-    /**
-     * Validator for node rewards with fee collection enabled.
-     */
-    static VisibleItemsValidator nodeRewardsWithFeeCollectionValidator(@NonNull final LongSupplier nodeRewardBalance) {
+    static VisibleItemsValidator legacyNodeRewardsValidator(@NonNull final LongSupplier nodeRewardBalance) {
         return (spec, records) -> {
             final var items = records.get(SELECTED_ITEMS_KEY);
             assertNotNull(items, "No reward payments found");
@@ -357,5 +292,36 @@ public class Hip1259EnabledTests {
                     bodyAdjustments.get(spec.startupProperties().getLong("accounts.nodeRewardAccount"));
             assertTrue(nodeRewardDebit < 0, "Node reward account should be debited");
         };
+    }
+
+    public static SpecOperation validateRecordContains(final String record, List<Long> expectedFeeAccounts) {
+        return UtilVerbs.withOpContext((spec, opLog) -> {
+            var txnRecord = getTxnRecord(record);
+            allRunFor(spec, txnRecord);
+            var response = txnRecord.getResponseRecord();
+            assertEquals(
+                    1,
+                    response.getTransferList().getAccountAmountsList().stream()
+                            .filter(aa -> aa.getAmount() < 0)
+                            .count());
+            assertTrue(response.getTransferList().getAccountAmountsList().stream()
+                    .filter(aa -> aa.getAmount() > 0)
+                    .map(aa -> aa.getAccountID().getAccountNum())
+                    .sorted()
+                    .toList()
+                    .containsAll(expectedFeeAccounts));
+        });
+    }
+
+    public static SpecOperation validateRecordNotContains(final String record, List<Long> expectedFeeAccounts) {
+        return UtilVerbs.withOpContext((spec, opLog) -> {
+            var txnRecord = getTxnRecord(record);
+            allRunFor(spec, txnRecord);
+            var response = txnRecord.getResponseRecord();
+            for (final var expectedFeeAccount : expectedFeeAccounts) {
+                assertFalse(response.getTransferList().getAccountAmountsList().stream()
+                        .anyMatch(aa -> aa.getAccountID().getAccountNum() == expectedFeeAccount));
+            }
+        });
     }
 }

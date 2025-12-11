@@ -17,6 +17,7 @@ import static com.hedera.node.app.spi.workflows.HandleException.validateFalse;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
 import static java.util.Objects.requireNonNull;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.Key;
@@ -79,6 +80,7 @@ public class TokenServiceApiImpl implements TokenServiceApi {
      * @param customFeeTest a predicate for determining if a transfer has custom fees
      * @param entityCounters the entity counters
      */
+    @VisibleForTesting
     public TokenServiceApiImpl(
             @NonNull final Configuration config,
             @NonNull final WritableStates writableStates,
