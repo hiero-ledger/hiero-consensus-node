@@ -1,71 +1,59 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.interledger;
 
+import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
+import static com.hedera.services.bdd.junit.hedera.utils.AddressBookUtils.CLASSIC_NODE_NAMES;
+import static com.hedera.services.bdd.junit.hedera.utils.AddressBookUtils.classicFeeCollectorIdFor;
+import static com.hedera.services.bdd.junit.hedera.utils.AddressBookUtils.nodeIdsFrom;
+import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.VALID_CERT;
 import static com.hedera.services.bdd.spec.HapiSpec.customizedHapiTest;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.blockingOrder;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeCreate;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeDelete;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateCandidateRoster;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
-import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
-import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static java.util.Objects.requireNonNull;
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.HapiTest;
+import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.TestTags;
 import com.hedera.services.bdd.junit.hedera.HederaNode;
-import com.hedera.services.bdd.junit.hedera.NodeSelector;
-import com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork;
-import com.hedera.services.bdd.spec.SpecOperation;
-import com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoCreate;
-import com.hedera.services.bdd.spec.transactions.node.HapiNodeCreate;
-import com.hedera.services.bdd.spec.transactions.node.HapiNodeDelete;
-import com.hedera.services.bdd.spec.utilops.upgrade.AddNodeOp;
-import com.hedera.services.bdd.spec.utilops.upgrade.RemoveNodeOp;
-import com.hedera.services.bdd.suites.hip869.NodeCreateTest;
+import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.suites.regression.system.LifecycleTest;
-import java.io.IOException;
+import com.hedera.services.bdd.spec.utilops.FakeNmt;
+import com.hedera.services.bdd.suites.HapiSuite;
+import com.hederahashgraph.api.proto.java.ServiceEndpoint;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
-import java.nio.file.Files;
-import java.security.cert.CertificateEncodingException;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Supplier;
 import java.util.stream.Stream;
-import org.hiero.hapi.interledger.state.clpr.ClprEndpoint;
-import org.hiero.hapi.interledger.state.clpr.ClprLedgerConfiguration;
-import org.hiero.hapi.interledger.state.clpr.ClprLedgerId;
+import org.hiero.hapi.interledger.state.clpr.protoc.ClprEndpoint;
+import org.hiero.hapi.interledger.state.clpr.protoc.ClprLedgerConfiguration;
 import org.hiero.interledger.clpr.impl.client.ClprClientImpl;
-import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
 @Tag(TestTags.CLPR)
-public class ClprSuite extends AbstractClprSuite implements LifecycleTest {
-    @org.junit.jupiter.api.BeforeAll
-    static void enableClprForSuite() {
-        // Ensure CLPR is enabled before subprocess networks are provisioned
-        System.setProperty("clpr.clprEnabled", "true");
-        System.setProperty("clpr.devModeEnabled", "true");
-        System.setProperty("clpr.publicizeNetworkAddresses", "true");
-        System.setProperty("clpr.connectionFrequency", "500");
+@HapiTestLifecycle
+public class ClprSuite implements LifecycleTest {
+    private static final Map<String, String> CLPR_OVERRIDES = Map.of("clpr.clprEnabled", "true");
+    private static final long NODE_ID_TO_REMOVE = 3L;
+    private static final long REPLACEMENT_NODE_ID = 4L;
+    private static final String REPLACEMENT_NODE_NAME = CLASSIC_NODE_NAMES[(int) REPLACEMENT_NODE_ID];
+    private static final Map<String, String> PUBLICIZE_DISABLED = Map.of("clpr.publicizeNetworkAddresses", "false");
+    private static final Map<String, String> PUBLICIZE_ENABLED = Map.of("clpr.publicizeNetworkAddresses", "true");
+
+    @BeforeAll
+    static void beforeAll(final TestLifecycle testLifecycle) {
+        testLifecycle.overrideInClass(CLPR_OVERRIDES);
     }
-
-    @org.junit.jupiter.api.BeforeEach
-    void initDefaults() {
-        setConfigDefaults();
-    }
-
-    private static final Duration CONFIG_APPLY_TIMEOUT = Duration.ofSeconds(150);
-    private static final Duration POLL_DELAY = Duration.ofMillis(200);
-
 
     @DisplayName("Roster change upgrade refreshes CLPR ledger configuration")
     @HapiTest
@@ -84,344 +72,182 @@ public class ClprSuite extends AbstractClprSuite implements LifecycleTest {
          *    unchanged, endpoints contain network addresses/ports matching the gRPC gateways for the
          *    current roster nodes, and certificates remain stable.
          */
-        final var initialRoster = new AtomicReference<List<Long>>();
-        final var baselineConfig = new AtomicReference<ClprLedgerConfiguration>();
-        final var postPublicizeOffConfig = new AtomicReference<ClprLedgerConfiguration>();
-        final var finalConfig = new AtomicReference<ClprLedgerConfiguration>();
-        System.setProperty("clpr.clprEnabled", "true");
-        final SpecOperation[] ops = new SpecOperation[] {
-            withOpContext((spec, log) -> {
-                final var network = spec.subProcessNetworkOrThrow();
-                network.refreshClients();
-                final var ids = network.nodes().stream()
-                        .map(HederaNode::getNodeId)
-                        .sorted()
-                        .toList();
-                if (ids.size() < 3) {
-                    throw new IllegalStateException("CLPR roster test expects at least 3 nodes, found " + ids);
-                }
-                initialRoster.set(ids);
-                log.info("Initial roster {}", ids);
-            }),
-            rosterShouldMatch(initialRoster::get),
-            withOpContext((spec, log) -> {
-                final var network = spec.subProcessNetworkOrThrow();
-                final var expectedEndpoints = expectedServiceEndpoints(network);
-                final var config = awaitConfiguration(network, null, null, null);
-                Assertions.assertNotNull(config.ledgerId(), "ledgerId should be set");
-                Assertions.assertFalse(config.endpoints().isEmpty(), "endpoints should be present");
-                Assertions.assertEquals(
-                        initialRoster.get().size(),
-                        config.endpoints().size(),
-                        "endpoint count should match roster size");
-                assertEndpointsMatchExpected(config.endpoints(), expectedEndpoints);
-                assertCertificatesPresentAndUnique(config.endpoints());
-                baselineConfig.set(config);
-            }),
-            // Single roster-change upgrade: expect CLPR state change and metadata refresh
-            rosterChangeUpgradeAndAssert(baselineConfig, postPublicizeOffConfig),
-            publicizeOnUpgradeAndAssert(postPublicizeOffConfig, finalConfig)
-        };
 
-        return customizedHapiTest(Map.of("clpr.connectionFrequency", "500", "hapi.spec.network.size", "3"), ops);
+        final AtomicReference<List<HederaNode>> activeNodes = new AtomicReference<>();
+        final AtomicReference<ClprLedgerConfiguration> baselineConfig = new AtomicReference<>();
+        final AtomicReference<ClprLedgerConfiguration> latestConfig = new AtomicReference<>();
+        return customizedHapiTest(
+                Map.of(),
+                withOpContext((spec, opLog) -> {
+                    final var nodes = List.copyOf(spec.subProcessNetworkOrThrow().nodes());
+                    assertThat(nodes)
+                            .as("Stage 1 expects a four-node subprocess network")
+                            .hasSize(4);
+                    activeNodes.set(nodes);
+                }),
+                withOpContext((spec, opLog) -> {
+                    final var nodes = requireNonNull(
+                            activeNodes.get(), "Active node metadata must be captured before querying CLPR state");
+                    final var config = fetchLedgerConfiguration(nodes);
+                    baselineConfig.set(config);
+                    latestConfig.set(config);
+                    final var endpoints = config.getEndpointsList();
+                    assertThat(endpoints)
+                            .as("CLPR ledger configuration should expose one endpoint per node")
+                            .hasSize(nodes.size());
+                    nodes.forEach(node -> assertThat(endpoints)
+                            .as("Expected CLPR endpoint for node {}", node.getNodeId())
+                            .anySatisfy(endpoint -> assertEndpointMatchesNode(endpoint, node)));
+                }),
+                nodeDelete(Long.toString(NODE_ID_TO_REMOVE)),
+                nodeCreate(REPLACEMENT_NODE_NAME, classicFeeCollectorIdFor(REPLACEMENT_NODE_ID))
+                        .adminKey(HapiSuite.DEFAULT_PAYER)
+                        .description(REPLACEMENT_NODE_NAME)
+                        .withAvailableSubProcessPorts()
+                        .gossipCaCertificate(VALID_CERT),
+                prepareFakeUpgrade(),
+                validateCandidateRoster(addressBook -> assertThat(nodeIdsFrom(addressBook))
+                        .as("Roster should replace node {}/{}", NODE_ID_TO_REMOVE, REPLACEMENT_NODE_ID)
+                        .contains(REPLACEMENT_NODE_ID)
+                        .contains(0L, 1L, 2L)
+                        .doesNotContain(NODE_ID_TO_REMOVE)),
+                upgradeToNextConfigVersion(
+                        PUBLICIZE_DISABLED,
+                        FakeNmt.removeNode(byNodeId(NODE_ID_TO_REMOVE)),
+                        FakeNmt.addNode(REPLACEMENT_NODE_ID)),
+                withOpContext((spec, opLog) -> {
+                    final var nodes = List.copyOf(spec.subProcessNetworkOrThrow().nodes());
+                    assertThat(nodes)
+                            .as("Roster change should keep a four-node network")
+                            .hasSize(4);
+                    assertThat(nodes.stream().map(HederaNode::getNodeId).toList())
+                            .as("Node {} should be replaced by {}", NODE_ID_TO_REMOVE, REPLACEMENT_NODE_ID)
+                            .doesNotContain(NODE_ID_TO_REMOVE)
+                            .contains(REPLACEMENT_NODE_ID);
+                    activeNodes.set(nodes);
+                    final var config = fetchLedgerConfiguration(nodes);
+                    final var baseline = requireNonNull(baselineConfig.get(), "Baseline configuration required");
+                    assertLedgerIdStable(baseline, config);
+                    assertTimestampAdvanced(baseline, config);
+                    assertThat(config.getEndpointsList())
+                            .as("CLPR endpoints should omit network addresses when publicize=false")
+                            .hasSize(nodes.size())
+                            .allSatisfy(endpoint -> {
+                                assertThat(endpoint.getSigningCertificate())
+                                        .as("CLPR endpoints must retain certificates")
+                                        .isNotEmpty();
+                                assertThat(endpoint.hasEndpoint())
+                                        .as("publicize=false should omit service endpoints")
+                                        .isFalse();
+                            });
+                    latestConfig.set(config);
+                }),
+                prepareFakeUpgrade(),
+                upgradeToNextConfigVersion(PUBLICIZE_ENABLED),
+                withOpContext((spec, opLog) -> {
+                    final var nodes = List.copyOf(spec.subProcessNetworkOrThrow().nodes());
+                    assertThat(nodes)
+                            .as("Publicize enablement should keep the four-node roster intact")
+                            .hasSize(4);
+                    assertThat(nodes.stream().map(HederaNode::getNodeId).toList())
+                            .as("Node {} should remain replaced by {}", NODE_ID_TO_REMOVE, REPLACEMENT_NODE_ID)
+                            .doesNotContain(NODE_ID_TO_REMOVE)
+                            .contains(REPLACEMENT_NODE_ID);
+                    activeNodes.set(nodes);
+                    final var config = fetchLedgerConfiguration(nodes);
+                    final var priorConfig = requireNonNull(latestConfig.get(), "Latest configuration required");
+                    assertLedgerIdStable(priorConfig, config);
+                    assertTimestampAdvanced(priorConfig, config);
+                    final var endpoints = config.getEndpointsList();
+                    assertThat(endpoints)
+                            .as("publicize=true should expose endpoint metadata for each node")
+                            .hasSize(nodes.size());
+                    nodes.forEach(node -> assertThat(endpoints)
+                            .as("Expected CLPR endpoint with network address for node {}", node.getNodeId())
+                            .anySatisfy(endpoint -> assertEndpointMatchesNode(endpoint, node)));
+                    latestConfig.set(config);
+                }));
     }
 
-    private static void setPublicizeFlag(final SubProcessNetwork network, final boolean enable) {
-        network.nodes().forEach(node -> {
-            final var path = node.metadata().workingDirOrThrow().resolve("data/config/application.properties");
-            try {
-                var content = Files.readString(path);
-                content = content.replaceAll(
-                        "clpr\\.publicizeNetworkAddresses\\s*=\\s*.*",
-                        "clpr.publicizeNetworkAddresses=" + Boolean.toString(enable));
-                if (!content.contains("clpr.publicizeNetworkAddresses")) {
-                    content = content + System.lineSeparator() + "clpr.publicizeNetworkAddresses="
-                            + Boolean.toString(enable) + System.lineSeparator();
+    private static ClprLedgerConfiguration fetchLedgerConfiguration(final List<HederaNode> nodes) {
+        final var deadline = Instant.now().plus(Duration.ofMinutes(1));
+        do {
+            for (final var node : nodes) {
+                final var config = tryFetchLedgerConfiguration(node);
+                if (config != null) {
+                    return config;
                 }
-                Files.writeString(path, content);
-            } catch (final IOException e) {
-                throw new IllegalStateException(
-                        "Failed to update application.properties for node " + node.getNodeId(), e);
             }
-        });
+            try {
+                Thread.sleep(1_000L);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                break;
+            }
+        } while (Instant.now().isBefore(deadline));
+        throw new IllegalStateException("Unable to fetch CLPR ledger configuration from any node");
     }
 
-    private SpecOperation rosterChangeUpgradeAndAssert(
-            final AtomicReference<ClprLedgerConfiguration> baselineConfig,
-            final AtomicReference<ClprLedgerConfiguration> postPublicizeOffConfig) {
-        final var nodeIdToRemove = new AtomicReference<Long>();
-        final var nodeIdToAdd = new AtomicReference<Long>();
-        final var newNodeAccount = new AtomicReference<com.hederahashgraph.api.proto.java.AccountID>();
-        final var gossipEndpoints = new AtomicReference<List<com.hederahashgraph.api.proto.java.ServiceEndpoint>>();
-        final var grpcEndpoint = new AtomicReference<com.hederahashgraph.api.proto.java.ServiceEndpoint>();
-        final var expectedRoster = new AtomicReference<List<Long>>();
-        final var newNodeCert = new AtomicReference<byte[]>();
-        return blockingOrder(
-                withOpContext((spec, log) -> {
-                    final var network = spec.subProcessNetworkOrThrow();
-                    final var ids = network.nodes().stream()
-                            .map(HederaNode::getNodeId)
-                            .sorted()
-                            .toList();
-                    final var chosenRemove = ids.stream()
-                            .filter(id -> id != 0L)
-                            .findFirst()
-                            .orElseThrow(() -> new IllegalStateException("No removable node found"));
-                    final var nextId =
-                            ids.stream().mapToLong(Long::longValue).max().orElse(0L) + 1;
-                    nodeIdToRemove.set(chosenRemove);
-                    nodeIdToAdd.set(nextId);
-                    gossipEndpoints.set(network.gossipEndpointsForNextNodeId());
-                    grpcEndpoint.set(network.grpcEndpointForNextNodeId());
-                    newNodeCert.set(encodeCert());
-                    expectedRoster.set(
-                            Stream.concat(ids.stream().filter(id -> !id.equals(chosenRemove)), Stream.of(nextId))
-                                    .sorted()
-                                    .toList());
-                }),
-                new HapiCryptoCreate("clprNewNodeAccount")
-                        .payingWith(GENESIS)
-                        .balance(ONE_HBAR)
-                        .exposingCreatedIdTo(newNodeAccount::set),
-                withOpContext((spec, log) -> {
-                    final var pbjId = com.hedera.node.app.hapi.utils.CommonPbjConverters.toPbj(newNodeAccount.get());
-                    spec.subProcessNetworkOrThrow().updateNodeAccount(nodeIdToAdd.get(), pbjId);
-                }),
-                sourcing(() -> new HapiNodeDelete(String.valueOf(nodeIdToRemove.get())).payingWith(GENESIS)),
-                sourcing(() -> new HapiNodeCreate("clpr-node-" + nodeIdToAdd.get(), "clprNewNodeAccount")
-                        .payingWith(GENESIS)
-                        .description("clpr-node-" + nodeIdToAdd.get())
-                        .serviceEndpoint(List.of(requireNonNull(grpcEndpoint.get(), "grpc endpoint not set")))
-                        .gossipEndpoint(requireNonNull(gossipEndpoints.get(), "gossip endpoints not set"))
-                        .adminKey(GENESIS)
-                        .gossipCaCertificate(requireNonNull(newNodeCert.get(), "new node cert not set"))),
-                withOpContext((spec, log) -> {
-                    setPublicizeFlag(spec.subProcessNetworkOrThrow(), false);
-                    log.info("Set clpr.publicizeNetworkAddresses=false for all nodes before roster-change upgrade");
-                }),
-                prepareFakeUpgrade(),
-                withOpContext((spec, log) -> upgradeToNextConfigVersion(
-                                Map.of(),
-                                new RemoveNodeOp(NodeSelector.byNodeId(nodeIdToRemove.get())),
-                                new AddNodeOp(nodeIdToAdd.get()))
-                        .execFor(spec)),
-                withOpContext((spec, log) -> {
-                    final var network = spec.subProcessNetworkOrThrow();
-                    network.refreshClients();
-                    final var updatedConfig = awaitConfiguration(
-                            network,
-                            baselineConfig.get().ledgerId(),
-                            null,
-                            toInstant(baselineConfig.get().timestampOrThrow()));
-                    Assertions.assertEquals(
-                            baselineConfig.get().ledgerId(),
-                            updatedConfig.ledgerId(),
-                            "ledgerId must remain stable after roster change");
-                    Assertions.assertTrue(
-                            toInstant(updatedConfig.timestampOrThrow())
-                                    .isAfter(toInstant(baselineConfig.get().timestampOrThrow())),
-                            "config timestamp should advance after roster change");
-                    Assertions.assertEquals(
-                            expectedRoster.get().size(),
-                            updatedConfig.endpoints().size(),
-                            "endpoint count should match new roster size");
-                    Assertions.assertTrue(
-                            updatedConfig.endpoints().stream()
-                                    .allMatch(ep -> ep.endpoint() == null
-                                            || (ep.endpoint().ipAddressV4().length() == 0
-                                                    && ep.endpoint().port() == 0)),
-                            "endpoints should omit network data when publicize is false");
-                    postPublicizeOffConfig.set(updatedConfig);
-                }));
+    private static void assertLedgerIdStable(
+            final ClprLedgerConfiguration baseline, final ClprLedgerConfiguration candidate) {
+        requireNonNull(candidate);
+        final var expectedLedgerId = baseline.getLedgerId().getLedgerId();
+        assertThat(candidate.getLedgerId().getLedgerId())
+                .as("LedgerId must remain stable across roster changes")
+                .isEqualTo(expectedLedgerId);
     }
 
-    private SpecOperation publicizeOnUpgradeAndAssert(
-            final AtomicReference<ClprLedgerConfiguration> postPublicizeOffConfig,
-            final AtomicReference<ClprLedgerConfiguration> finalConfig) {
-        return blockingOrder(
-                withOpContext((spec, log) -> {
-                    setPublicizeFlag(spec.subProcessNetworkOrThrow(), true);
-                    log.info("Set clpr.publicizeNetworkAddresses=true for all nodes before final upgrade");
-                }),
-                prepareFakeUpgrade(),
-                withOpContext(
-                        (spec, log) -> upgradeToNextConfigVersion(Map.of()).execFor(spec)),
-                withOpContext((spec, log) -> {
-                    final var network = spec.subProcessNetworkOrThrow();
-                    network.refreshClients();
-                    final var minTs = toInstant(postPublicizeOffConfig.get().timestampOrThrow());
-                    final var expectedEndpoints = expectedServiceEndpoints(network);
-                    final var updatedConfig = awaitConfiguration(
-                            network, postPublicizeOffConfig.get().ledgerId(), null, minTs.plusMillis(1));
-                    Assertions.assertEquals(
-                            postPublicizeOffConfig.get().ledgerId(),
-                            updatedConfig.ledgerId(),
-                            "ledgerId must remain stable across publicize toggle");
-                    Assertions.assertEquals(
-                            expectedEndpoints.size(),
-                            updatedConfig.endpoints().size(),
-                            "endpoint count should match roster size after publicize re-enable");
-                    assertEndpointsMatchExpected(updatedConfig.endpoints(), expectedEndpoints);
-                    Assertions.assertEquals(
-                            certSet(postPublicizeOffConfig.get().endpoints()),
-                            certSet(updatedConfig.endpoints()),
-                            "certificates must remain stable across publicize toggles");
-                    finalConfig.set(updatedConfig);
-                }));
+    private static void assertTimestampAdvanced(
+            final ClprLedgerConfiguration baseline, final ClprLedgerConfiguration candidate) {
+        final var baselineInstant = Instant.ofEpochSecond(
+                baseline.getTimestamp().getSeconds(), baseline.getTimestamp().getNanos());
+        final var candidateInstant = Instant.ofEpochSecond(
+                candidate.getTimestamp().getSeconds(), candidate.getTimestamp().getNanos());
+        assertThat(candidateInstant)
+                .as("Ledger configuration timestamp must advance after roster change")
+                .isAfter(baselineInstant);
     }
 
-    private static void assertStableConfig(
-            final ClprLedgerConfiguration baselineConfig, final ClprLedgerConfiguration fetched) {
-        Assertions.assertEquals(
-                baselineConfig.ledgerId(), fetched.ledgerId(), "ledgerId must remain stable across restart");
-        Assertions.assertFalse(
-                toInstant(fetched.timestamp()).isBefore(toInstant(baselineConfig.timestamp())),
-                "timestamp must not move backwards across restart");
-        Assertions.assertEquals(
-                certSet(baselineConfig.endpoints()),
-                certSet(fetched.endpoints()),
-                "endpoints/certificates must remain stable across restart");
-    }
-
-    private static byte[] encodeCert() {
+    private static ClprLedgerConfiguration tryFetchLedgerConfiguration(final HederaNode node) {
         try {
-            return NodeCreateTest.generateX509Certificates(1).getFirst().getEncoded();
-        } catch (final CertificateEncodingException e) {
-            throw new IllegalStateException("Failed to generate/encode X509 certificate for node create", e);
-        }
-    }
-
-    private SpecOperation rosterShouldMatch(final Supplier<List<Long>> expectedIds) {
-        return withOpContext((spec, opLog) -> {
-            final var actualIds = spec.subProcessNetworkOrThrow().nodes().stream()
-                    .map(HederaNode::getNodeId)
-                    .toList();
-            assertThat(actualIds).containsExactlyInAnyOrderElementsOf(expectedIds.get());
-        });
-    }
-
-    private static ServiceEndpoint serviceEndpointFor(final HederaNode node) {
-        try {
-            final var addressBytes = InetAddress.getByName(node.getHost()).getAddress();
-            return ServiceEndpoint.newBuilder()
-                    .ipAddressV4(Bytes.wrap(addressBytes))
+            final var pbjEndpoint = com.hedera.hapi.node.base.ServiceEndpoint.newBuilder()
+                    .ipAddressV4(Bytes.wrap(InetAddress.getByName(node.getHost()).getAddress()))
                     .port(node.getGrpcPort())
                     .build();
-        } catch (final UnknownHostException e) {
-            throw new IllegalStateException("Unable to resolve node host for CLPR endpoint", e);
-        }
-    }
-
-    private static List<ServiceEndpoint> expectedServiceEndpoints(final SubProcessNetwork network) {
-        return network.nodes().stream().map(ClprSuite::serviceEndpointFor).toList();
-    }
-
-    private static void assertEndpointsMatchExpected(
-            final List<ClprEndpoint> actual, final List<ServiceEndpoint> expected) {
-        Assertions.assertFalse(actual.isEmpty(), "CLPR endpoints must be present");
-        actual.forEach(ep -> {
-            Assertions.assertNotNull(ep.endpoint(), "endpoint should be present when publicize is enabled");
-            Assertions.assertTrue(ep.endpoint().ipAddressV4().length() > 0, "endpoint ip should be set");
-            Assertions.assertTrue(ep.endpoint().port() > 0, "endpoint port should be set");
-        });
-        final var actualSet = actual.stream().map(ClprEndpoint::endpoint).collect(java.util.stream.Collectors.toSet());
-        final var expectedSet = Set.copyOf(expected);
-        Assertions.assertEquals(expectedSet, actualSet, "endpoints must match expected gRPC gateways");
-    }
-
-    private static void assertCertificatesPresentAndUnique(final List<ClprEndpoint> endpoints) {
-        final var certs = certSet(endpoints);
-        Assertions.assertEquals(endpoints.size(), certs.size(), "Each endpoint should provide a unique certificate");
-        certs.forEach(cert -> Assertions.assertTrue(cert.length() > 0, "Certificates must be non-empty"));
-    }
-
-    private static ClprLedgerConfiguration awaitConfiguration(
-            final SubProcessNetwork network,
-            final ClprLedgerId expectedLedgerId,
-            final Set<Bytes> expectedCerts,
-            final Instant minTimestamp) {
-        return awaitConfiguration(network, expectedLedgerId, expectedCerts, minTimestamp, CONFIG_APPLY_TIMEOUT);
-    }
-
-    private static ClprLedgerConfiguration awaitConfiguration(
-            final SubProcessNetwork network,
-            final ClprLedgerId expectedLedgerId,
-            final Set<Bytes> expectedCerts,
-            final Instant minTimestamp,
-            final Duration timeout) {
-        try (var client = new ClprClientImpl(serviceEndpointFor(network.nodes().getFirst()))) {
-            final long deadlineNanos = System.nanoTime() + timeout.toNanos();
-            ClprLedgerConfiguration current;
-            String lastObserved = null;
-            while (true) {
-                current = expectedLedgerId == null
-                        ? client.getConfiguration()
-                        : client.getConfiguration(expectedLedgerId);
-                final String summary = current == null ? "null" : summarize(current);
-                if (!summary.equals(lastObserved)) {
-                    System.out.printf("CLPR await: observed %s%n", summary);
-                    lastObserved = summary;
-                }
-                if (isAcceptable(current, expectedLedgerId, expectedCerts, minTimestamp)) {
-                    return current;
-                }
-                if (System.nanoTime() >= deadlineNanos) {
-                    throw new IllegalStateException("Timed out waiting for CLPR configuration update");
-                }
-                Thread.sleep(POLL_DELAY.toMillis());
+            final var client = new ClprClientImpl(pbjEndpoint);
+            final var pbjConfig = client.getConfiguration();
+            if (pbjConfig == null) {
+                return null;
             }
-        } catch (final UnknownHostException e) {
-            throw new IllegalStateException("Unable to construct CLPR client", e);
-        } catch (final InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new IllegalStateException("Interrupted while awaiting CLPR configuration", e);
+            final var configBytes = org.hiero.hapi.interledger.state.clpr.ClprLedgerConfiguration.PROTOBUF
+                    .toBytes(pbjConfig);
+            return ClprLedgerConfiguration.parseFrom(configBytes.toByteArray());
+        } catch (UnknownHostException | com.google.protobuf.InvalidProtocolBufferException e) {
+            throw new IllegalStateException("Unable to fetch CLPR ledger configuration", e);
         }
     }
 
-    private static boolean isAcceptable(
-            final ClprLedgerConfiguration current,
-            final ClprLedgerId expectedLedgerId,
-            final Set<Bytes> expectedCerts,
-            final Instant minTimestamp) {
-        if (current == null) {
-            return false;
-        }
-        if (expectedLedgerId != null && !expectedLedgerId.equals(current.ledgerId())) {
-            return false;
-        }
-        if (expectedCerts != null) {
-            if (current.endpoints().isEmpty()) {
-                return false;
-            }
-            if (!expectedCerts.equals(certSet(current.endpoints()))) {
-                return false;
-            }
-        }
-        if (minTimestamp != null) {
-            final var ts = toInstant(current.timestamp());
-            if (ts.isBefore(minTimestamp)) {
-                return false;
-            }
-        }
-        return true;
+    private static void assertEndpointMatchesNode(final ClprEndpoint endpoint, final HederaNode node) {
+        assertThat(endpoint.hasEndpoint())
+                .as("Endpoint metadata should include a service endpoint")
+                .isTrue();
+        final var serviceEndpoint = endpoint.getEndpoint();
+        assertThat(endpoint.getSigningCertificate().isEmpty())
+                .as("CLPR endpoints must advertise a signing certificate for node {}", node.getNodeId())
+                .isFalse();
+        assertThat(serviceEndpoint.getPort())
+                .as("CLPR endpoint should use node {} gRPC port", node.getNodeId())
+                .isEqualTo(node.getGrpcPort());
+        assertThat(ipV4Of(serviceEndpoint))
+                .as("CLPR endpoint must advertise the node {} host", node.getNodeId())
+                .isEqualTo(node.getHost());
     }
 
-    private static String summarize(final ClprLedgerConfiguration config) {
-        return "ledger="
-                + config.ledgerId().ledgerId()
-                + " ts="
-                + config.timestamp().seconds()
-                + "."
-                + config.timestamp().nanos()
-                + " endpoints="
-                + config.endpoints();
-    }
-
-    private static Set<Bytes> certSet(final List<ClprEndpoint> endpoints) {
-        return endpoints.stream().map(ClprEndpoint::signingCertificate).collect(java.util.stream.Collectors.toSet());
-    }
-
-    private static Instant toInstant(final com.hedera.hapi.node.base.Timestamp timestamp) {
-        return Instant.ofEpochSecond(timestamp.seconds(), timestamp.nanos());
+    private static String ipV4Of(final ServiceEndpoint endpoint) {
+        try {
+            return InetAddress.getByAddress(endpoint.getIpAddressV4().toByteArray()).getHostAddress();
+        } catch (UnknownHostException e) {
+            throw new IllegalStateException("CLPR endpoint carried an invalid IPv4 address", e);
+        }
     }
 }

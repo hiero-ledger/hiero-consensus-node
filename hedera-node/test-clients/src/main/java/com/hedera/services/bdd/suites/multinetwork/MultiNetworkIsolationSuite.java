@@ -26,11 +26,7 @@ import org.junit.jupiter.api.Tag;
  * and independent ledger counters across distinct networks.
  */
 @Tag(TestTags.MULTINETWORK)
-public class MultiNetworkIsolationSuite extends AbstractMultiNetworkSuite {
-    @org.junit.jupiter.api.BeforeEach
-    void initDefaults() {
-        setConfigDefaults();
-    }
+public class MultiNetworkIsolationSuite {
 
     static {
         // Use a distinct shard/realm for NET_C to prove isolation is insensitive to shard/realm overlap

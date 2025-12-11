@@ -36,11 +36,7 @@ import org.junit.jupiter.api.Tag;
  * Exercises freeze-upgrade driven node removals across multiple networks and verifies roster changes.
  */
 @Tag(TestTags.MULTINETWORK)
-public class MultiNetworkNodeLifecycleSuite extends AbstractMultiNetworkSuite implements LifecycleTest {
-    @org.junit.jupiter.api.BeforeEach
-    void initDefaults() {
-        setConfigDefaults();
-    }
+public class MultiNetworkNodeLifecycleSuite implements LifecycleTest {
 
     @MultiNetworkHapiTest(
             networks = {

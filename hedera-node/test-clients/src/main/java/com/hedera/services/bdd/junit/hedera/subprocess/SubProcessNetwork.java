@@ -658,18 +658,9 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
     public void configureApplicationProperties(HederaNode node) {
         // Update bootstrap properties for the node from bootstrapPropertyOverrides if there are any
         final var nodeId = node.getNodeId();
-        final List<String> mergedProperties;
-        if (applicationPropertyOverrides.containsKey(nodeId)) {
-            mergedProperties = new ArrayList<>(applicationPropertyOverrides.get(nodeId));
-        } else if (Boolean.getBoolean("clpr.clprEnabled")) {
-            mergedProperties = new ArrayList<>(List.of(
-                    "clpr.clprEnabled", System.getProperty("clpr.clprEnabled", "true"),
-                    "clpr.devModeEnabled", System.getProperty("clpr.devModeEnabled", "true"),
-                    "clpr.publicizeNetworkAddresses", System.getProperty("clpr.publicizeNetworkAddresses", "true"),
-                    "clpr.connectionFrequency", System.getProperty("clpr.connectionFrequency", "500")));
-        } else {
-            mergedProperties = List.of();
-        }
+        final List<String> mergedProperties = applicationPropertyOverrides.containsKey(nodeId)
+                ? new ArrayList<>(applicationPropertyOverrides.get(nodeId))
+                : List.of();
 
         if (!mergedProperties.isEmpty()) {
             log.info("Configuring application properties for node {}: {}", nodeId, mergedProperties);

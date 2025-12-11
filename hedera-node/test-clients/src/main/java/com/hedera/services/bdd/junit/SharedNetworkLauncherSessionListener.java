@@ -91,6 +91,9 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
         public void testPlanExecutionStarted(@NonNull final TestPlan testPlan) {
             REPEATABLE_KEY_GENERATOR.set(new RepeatableKeyGenerator());
             final boolean hasClprTests = hasTaggedTestNode(testPlan, Set.of(TestTags.CLPR));
+            final boolean clprSystemPropertyEnabled =
+                    Boolean.parseBoolean(System.getProperty("clpr.clprEnabled", "false"));
+            final boolean enableClprOverrides = hasClprTests || clprSystemPropertyEnabled;
 
             // Skip standard setup if any test in the plan uses HapiBlockNode
             if (hasAnnotatedTestNode(testPlan, Set.of(HapiBlockNode.class))) {
@@ -137,27 +140,10 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
                         case REPEATABLE -> EmbeddedNetwork.newSharedNetwork(EmbeddedMode.REPEATABLE);
                     };
             if (network != null) {
-                if (hasClprTests) {
-                    // Ensure CLPR is enabled before nodes start so CLPR suites see NOT_SUPPORTED only when expected
-                    System.setProperty("clpr.clprEnabled", "true");
-                    System.setProperty("clpr.devModeEnabled", "true");
-                    System.setProperty("clpr.publicizeNetworkAddresses", "true");
-                    System.setProperty("clpr.connectionFrequency", System.getProperty("clpr.connectionFrequency", "500"));
-                    if (network instanceof SubProcessNetwork subProcessNetwork) {
-                        subProcessNetwork.nodes().forEach(node -> subProcessNetwork
-                                .getApplicationPropertyOverrides()
-                                .putIfAbsent(
-                                        node.getNodeId(),
-                                        List.of(
-                                                "clpr.clprEnabled",
-                                                "true",
-                                                "clpr.devModeEnabled",
-                                                "true",
-                                                "clpr.publicizeNetworkAddresses",
-                                                "true",
-                                                "clpr.connectionFrequency",
-                                                System.getProperty("clpr.connectionFrequency"))));
-                    }
+                if (enableClprOverrides && network instanceof SubProcessNetwork subProcessNetwork) {
+                    subProcessNetwork.nodes().forEach(node -> subProcessNetwork
+                            .getApplicationPropertyOverrides()
+                            .putIfAbsent(node.getNodeId(), List.of("clpr.clprEnabled", "true")));
                 }
                 checkPrOverridesForBlockNodeStreaming(network);
                 network.start();
