@@ -28,7 +28,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.BytesSigner;
 import org.hiero.consensus.crypto.PbjStreamHasher;
-import org.hiero.consensus.event.creator.EventCreationConfig;
+import org.hiero.consensus.event.creator.config.EventCreationConfig;
 import org.hiero.consensus.event.creator.impl.EventCreator;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;

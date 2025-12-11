@@ -70,7 +70,9 @@ public class DefaultConsensusEngine implements ConsensusEngine {
             @NonNull final FreezeCheckHolder freezeChecker) {
 
         final ConsensusMetrics consensusMetrics = new ConsensusMetricsImpl(selfId, platformContext.getMetrics());
-        consensus = new ConsensusImpl(platformContext, consensusMetrics, roster);
+        final ConsensusConfig consensusConfig =
+                platformContext.getConfiguration().getConfigData(ConsensusConfig.class);
+        consensus = new ConsensusImpl(consensusConfig, platformContext.getTime(), consensusMetrics, roster);
 
         linker = new ConsensusLinker(
                 new DefaultLinkerLogsAndMetrics(platformContext.getMetrics(), platformContext.getTime()));

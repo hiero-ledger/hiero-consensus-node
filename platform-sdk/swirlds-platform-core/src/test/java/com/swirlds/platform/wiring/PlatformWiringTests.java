@@ -17,6 +17,7 @@ import com.swirlds.platform.builder.ApplicationCallbacks;
 import com.swirlds.platform.builder.ExecutionLayer;
 import com.swirlds.platform.builder.PlatformBuildingBlocks;
 import com.swirlds.platform.builder.PlatformComponentBuilder;
+import com.swirlds.platform.cli.helper.NoOpEventCreatorModule;
 import com.swirlds.platform.components.AppNotifier;
 import com.swirlds.platform.components.EventWindowManager;
 import com.swirlds.platform.components.SavedStateController;
@@ -85,12 +86,14 @@ class PlatformWiringTests {
     @MethodSource("testContexts")
     @DisplayName("Assert that all input wires are bound to something")
     void testBindings(final PlatformContext platformContext) {
-        final ApplicationCallbacks applicationCallbacks = new ApplicationCallbacks(x -> {}, x -> {}, x -> {});
-
         final WiringModel model =
                 WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent()).build();
 
-        final PlatformComponents platformComponents = PlatformComponents.create(platformContext, model);
+        final EventCreatorModule eventCreatorModule =
+                new NoOpEventCreatorModule(platformContext.getConfiguration(), model);
+
+        final PlatformComponents platformComponents =
+                PlatformComponents.create(platformContext, model, eventCreatorModule);
         PlatformWiring.wire(
                 platformContext, mock(ExecutionLayer.class), platformComponents, ApplicationCallbacks.EMPTY);
 
@@ -105,7 +108,6 @@ class PlatformWiringTests {
                 .withEventSignatureValidator(mock(EventSignatureValidator.class))
                 .withStateGarbageCollector(mock(StateGarbageCollector.class))
                 .withOrphanBuffer(mock(OrphanBuffer.class))
-                .withEventCreator(mock(EventCreatorModule.class))
                 .withConsensusEngine(mock(ConsensusEngine.class))
                 .withConsensusEventStream(mock(ConsensusEventStream.class))
                 .withPlatformMonitor(mock(PlatformMonitor.class))
