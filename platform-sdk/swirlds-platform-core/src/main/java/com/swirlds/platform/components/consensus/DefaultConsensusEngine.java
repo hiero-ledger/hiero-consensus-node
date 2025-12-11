@@ -24,7 +24,7 @@ import java.util.Queue;
 import org.hiero.consensus.event.FutureEventBuffer;
 import org.hiero.consensus.event.FutureEventBufferingOption;
 import org.hiero.consensus.hashgraph.ConsensusConfig;
-import org.hiero.consensus.hashgraph.FreezeCheckHolder;
+import org.hiero.consensus.hashgraph.FreezePeriodChecker;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
@@ -67,7 +67,7 @@ public class DefaultConsensusEngine implements ConsensusEngine {
             @NonNull final PlatformContext platformContext,
             @NonNull final Roster roster,
             @NonNull final NodeId selfId,
-            @NonNull final FreezeCheckHolder freezeChecker) {
+            @NonNull final FreezePeriodChecker freezeChecker) {
 
         final ConsensusMetrics consensusMetrics = new ConsensusMetricsImpl(selfId, platformContext.getMetrics());
         final ConsensusConfig consensusConfig =
