@@ -24,6 +24,7 @@ import com.swirlds.platform.network.NetworkProtocolException;
 import com.swirlds.platform.network.protocol.PeerProtocol;
 import com.swirlds.platform.network.protocol.ReservedSignedStateResult;
 import com.swirlds.platform.state.signed.ReservedSignedState;
+import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.StateLifecycleManager;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -302,7 +303,6 @@ public class ReconnectStatePeerProtocol implements PeerProtocol {
      */
     private void learner(final Connection connection) {
         try {
-
             final MerkleNodeState consensusState = stateLifecycleManager.getMutableState();
             final ReconnectStateLearner learner = new ReconnectStateLearner(
                     platformContext,
@@ -367,18 +367,26 @@ public class ReconnectStatePeerProtocol implements PeerProtocol {
      * @param connection the connection to use for the reconnect
      */
     private void teacher(final Connection connection) {
-        try (final ReservedSignedState state = teacherState) {
-            new ReconnectStateTeacher(
-                            platformContext,
-                            time,
-                            threadManager,
-                            connection,
-                            reconnectSocketTimeout,
-                            connection.getSelfId(),
-                            connection.getOtherId(),
-                            state.get().getRound(),
-                            reconnectMetrics)
-                    .execute(state.get());
+        try {
+            final SignedState state = teacherState.get();
+            final ReconnectStateTeacher teacher;
+            try {
+                teacher = new ReconnectStateTeacher(
+                        platformContext,
+                        time,
+                        threadManager,
+                        connection,
+                        reconnectSocketTimeout,
+                        connection.getSelfId(),
+                        connection.getOtherId(),
+                        state.getRound(),
+                        state,
+                        reconnectMetrics);
+            } finally {
+                // The teacher now has all the information needed to teach. Time to release the original state
+                teacherState.close();
+            }
+            teacher.execute();
         } finally {
             teacherThrottle.reconnectAttemptFinished();
             teacherState = null;
