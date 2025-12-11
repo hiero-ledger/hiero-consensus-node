@@ -428,6 +428,7 @@ public class OpsDurationThrottleTest {
                     final double throttlePercentUsed = getOpsDurationThrottlePercentUsed(spec);
                     // We expect the throttle to be significantly overfilled with our test limits
                     allRunFor(spec, valueIsInRange(throttlePercentUsed, 1000.0, 6000.0));
+                    restoreDefaults(spec);
                 }));
     }
 }
