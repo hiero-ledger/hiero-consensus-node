@@ -55,7 +55,8 @@ public class AddressBookUtils {
             if (trimmedLine.isEmpty()
                     || trimmedLine.startsWith("#")
                     || trimmedLine.startsWith("swirld")
-                    || trimmedLine.startsWith("app")) {
+                    || trimmedLine.startsWith("app")
+                    || trimmedLine.startsWith("nextNodeId")) {
                 continue;
             }
             if (trimmedLine.startsWith(ADDRESS_KEYWORD)) {
@@ -63,10 +64,6 @@ public class AddressBookUtils {
                 if (address != null) {
                     addressBook.add(address);
                 }
-            } else if (trimmedLine.startsWith("nextNodeId")) {
-                // As of release 0.56, nextNodeId is not used and ignored.
-                // CI/CD pipelines need to be updated to remove this field from files.
-                // Future Work: remove this case and hard fail when nextNodeId is no longer present in CI/CD pipelines.
             } else {
                 throw new ParseException(
                         "The line [%s] does not start with `%s`."
@@ -89,7 +86,7 @@ public class AddressBookUtils {
      * @throws ParseException if there is any problem with parsing the address.
      */
     @Nullable
-    public static Address parseAddressText(@NonNull final String addressText) throws ParseException {
+    private static Address parseAddressText(@NonNull final String addressText) throws ParseException {
         Objects.requireNonNull(addressText, "The addressText must not be null.");
         // lines may have comments which start with the first # character.
         final String[] textAndComment = addressText.split("#");
