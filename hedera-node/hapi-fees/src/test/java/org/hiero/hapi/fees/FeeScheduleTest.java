@@ -39,7 +39,8 @@ public class FeeScheduleTest {
                         .build())
                 .network(NetworkFee.DEFAULT.copyBuilder().multiplier(1).build())
                 .services(makeService(
-                        "Crypto", makeServiceFee(HederaFunctionality.CRYPTO_CREATE, 100, makeExtraIncluded(Extra.KEYS, 1))))
+                        "Crypto",
+                        makeServiceFee(HederaFunctionality.CRYPTO_CREATE, 100, makeExtraIncluded(Extra.KEYS, 1))))
                 .build();
     }
 
@@ -102,7 +103,9 @@ public class FeeScheduleTest {
                 .copyBuilder()
                 .node(NodeFee.DEFAULT.copyBuilder().baseFee(-1).build())
                 .build();
-        assertFalse(FeeScheduleUtils.isValid(badSchedule), "Fee schedule with negative node baseFee should fail validation");
+        assertFalse(
+                FeeScheduleUtils.isValid(badSchedule),
+                "Fee schedule with negative node baseFee should fail validation");
     }
 
     @Test
@@ -112,7 +115,8 @@ public class FeeScheduleTest {
                 .services(makeService("Crypto", makeServiceFee(HederaFunctionality.CRYPTO_CREATE, -1)))
                 .build();
         assertFalse(
-                FeeScheduleUtils.isValid(badSchedule), "Fee schedule with negative service baseFee should fail validation");
+                FeeScheduleUtils.isValid(badSchedule),
+                "Fee schedule with negative service baseFee should fail validation");
     }
 
     @Test
@@ -130,7 +134,8 @@ public class FeeScheduleTest {
                 .copyBuilder()
                 .network(NetworkFee.DEFAULT.copyBuilder().multiplier(-1).build())
                 .build();
-        assertFalse(FeeScheduleUtils.isValid(badSchedule), "Fee schedule with negative multiplier should fail validation");
+        assertFalse(
+                FeeScheduleUtils.isValid(badSchedule), "Fee schedule with negative multiplier should fail validation");
     }
 
     @Test
@@ -138,7 +143,8 @@ public class FeeScheduleTest {
         FeeSchedule badSchedule = createMinimalValidSchedule()
                 .copyBuilder()
                 .services(makeService(
-                        "Crypto", makeServiceFee(HederaFunctionality.CRYPTO_CREATE, 100, makeExtraIncluded(Extra.KEYS, -1))))
+                        "Crypto",
+                        makeServiceFee(HederaFunctionality.CRYPTO_CREATE, 100, makeExtraIncluded(Extra.KEYS, -1))))
                 .build();
         assertFalse(
                 FeeScheduleUtils.isValid(badSchedule),
@@ -167,7 +173,8 @@ public class FeeScheduleTest {
                 .extras(makeExtraDef(Extra.KEYS, 1), makeExtraDef(Extra.KEYS, 2))
                 .build();
         assertFalse(
-                FeeScheduleUtils.isValid(badSchedule), "Fee schedule with duplicate extra names should fail validation");
+                FeeScheduleUtils.isValid(badSchedule),
+                "Fee schedule with duplicate extra names should fail validation");
     }
 
     @Test
@@ -179,7 +186,8 @@ public class FeeScheduleTest {
                         makeService("Crypto", makeServiceFee(HederaFunctionality.CRYPTO_DELETE, 100)))
                 .build();
         assertFalse(
-                FeeScheduleUtils.isValid(badSchedule), "Fee schedule with duplicate service names should fail validation");
+                FeeScheduleUtils.isValid(badSchedule),
+                "Fee schedule with duplicate service names should fail validation");
     }
 
     @Test
@@ -282,10 +290,12 @@ public class FeeScheduleTest {
     void catchEmptyServiceSchedule() {
         FeeSchedule badSchedule = createMinimalValidSchedule()
                 .copyBuilder()
-                .services(ServiceFeeSchedule.DEFAULT.copyBuilder().name("Crypto").build())
+                .services(
+                        ServiceFeeSchedule.DEFAULT.copyBuilder().name("Crypto").build())
                 .build();
         assertFalse(
-                FeeScheduleUtils.isValid(badSchedule), "Fee schedule with empty service schedule should fail validation");
+                FeeScheduleUtils.isValid(badSchedule),
+                "Fee schedule with empty service schedule should fail validation");
     }
 
     @Test
