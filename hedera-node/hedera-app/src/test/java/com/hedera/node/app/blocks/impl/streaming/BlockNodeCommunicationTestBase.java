@@ -234,7 +234,8 @@ public abstract class BlockNodeCommunicationTestBase {
             final BlockNodeHelidonGrpcConfiguration clientGrpcConfig) {
         return BlockNodeConfiguration.newBuilder()
                 .address(address)
-                .port(port)
+                .streamingPort(port)
+                .servicePort(port)
                 .priority(priority)
                 .messageSizeSoftLimitBytes(messageSoftLimitBytes)
                 .messageSizeHardLimitBytes(messageHardLimitBytes)

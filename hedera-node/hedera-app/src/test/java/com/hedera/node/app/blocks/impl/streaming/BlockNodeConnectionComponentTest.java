@@ -219,7 +219,8 @@ class BlockNodeConnectionComponentTest extends BlockNodeCommunicationTestBase {
 
         final BlockNodeConfiguration cfgWithMax = BlockNodeConfiguration.newBuilder()
                 .address(nodeConfig.address())
-                .port(nodeConfig.port())
+                .streamingPort(nodeConfig.streamingPort())
+                .servicePort(nodeConfig.servicePort())
                 .priority(nodeConfig.priority())
                 .messageSizeSoftLimitBytes(softLimitBytes)
                 .messageSizeHardLimitBytes(hardLimitBytes)

@@ -368,27 +368,32 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         final List<BlockNodeConfig> availableNodes = new ArrayList<>();
         availableNodes.add(BlockNodeConfig.newBuilder()
                 .address(PBJ_UNIT_TEST_HOST)
-                .port(8080)
+                .streamingPort(8080)
+                .servicePort(8081)
                 .priority(1)
                 .build());
         availableNodes.add(BlockNodeConfig.newBuilder()
                 .address(PBJ_UNIT_TEST_HOST)
-                .port(8081)
+                .streamingPort(8180)
+                .servicePort(8181)
                 .priority(1)
                 .build());
         availableNodes.add(BlockNodeConfig.newBuilder()
                 .address(PBJ_UNIT_TEST_HOST)
-                .port(8082)
+                .streamingPort(8280)
+                .servicePort(8281)
                 .priority(2)
                 .build());
         availableNodes.add(BlockNodeConfig.newBuilder()
                 .address(PBJ_UNIT_TEST_HOST)
-                .port(8083)
+                .streamingPort(8380)
+                .servicePort(8381)
                 .priority(3)
                 .build());
         availableNodes.add(BlockNodeConfig.newBuilder()
                 .address(PBJ_UNIT_TEST_HOST)
-                .port(8084)
+                .streamingPort(8480)
+                .servicePort(8481)
                 .priority(3)
                 .build());
         final BlockNodeConnectionInfo connectionInfo = new BlockNodeConnectionInfo(availableNodes);
@@ -525,7 +530,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
         // verify we are trying to connect to one of the priority 1 nodes
         assertThat(nodeConfig.priority()).isEqualTo(3);
-        assertThat(nodeConfig.port()).isEqualTo(8082);
+        assertThat(nodeConfig.streamingPort()).isEqualTo(8082);
         assertThat(connection.currentState()).isEqualTo(ConnectionState.UNINITIALIZED);
 
         verifyNoMoreInteractions(executorService);
@@ -569,7 +574,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
         // verify we are trying to connect to one of the priority 1 nodes
         assertThat(nodeConfig.priority()).isEqualTo(2);
-        assertThat(nodeConfig.port()).isEqualTo(8082);
+        assertThat(nodeConfig.streamingPort()).isEqualTo(8082);
         assertThat(connection.currentState()).isEqualTo(ConnectionState.UNINITIALIZED);
 
         verifyNoMoreInteractions(executorService);
@@ -1135,10 +1140,10 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
 
             // Verify only priority 0 nodes are selected
             assertThat(selectedConfig.priority()).isZero();
-            assertThat(selectedConfig.port()).isBetween(8080, 8089);
+            assertThat(selectedConfig.streamingPort()).isBetween(8080, 8089);
 
             // Track which node was selected
-            selectedNodes.add(selectedConfig.port());
+            selectedNodes.add(selectedConfig.streamingPort());
         }
 
         // Over 50 runs, we should see at least 2 different priority 0 nodes being selected.
@@ -1208,8 +1213,8 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         final BlockNodeConfiguration selectedConfig = connection.configuration();
 
         assertThat(selectedConfig.priority()).isZero();
-        assertThat(selectedConfig.port()).isIn(8081, 8082);
-        assertThat(selectedConfig.port()).isNotEqualTo(8080); // Should not select unavailable node
+        assertThat(selectedConfig.streamingPort()).isIn(8081, 8082);
+        assertThat(selectedConfig.streamingPort()).isNotEqualTo(8080); // Should not select unavailable node
     }
 
     @Test
@@ -1246,7 +1251,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         final BlockNodeConfiguration selectedConfig = connection.configuration();
 
         assertThat(selectedConfig.priority()).isEqualTo(1); // Should fall back to priority 1
-        assertThat(selectedConfig.port()).isIn(8082, 8083);
+        assertThat(selectedConfig.streamingPort()).isIn(8082, 8083);
     }
 
     @Test
@@ -1365,7 +1370,8 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         final List<BlockNodeConfig> configs = new ArrayList<>();
         final BlockNodeConfig config = BlockNodeConfig.newBuilder()
                 .address("localhost")
-                .port(8080)
+                .streamingPort(8080)
+                .servicePort(8081)
                 .priority(0)
                 .build();
         configs.add(config);
@@ -1431,7 +1437,8 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
                   "nodes": [
                     {
                       "address": "localhost",
-                      "port": 50051,
+                      "streamingPort": 50051,
+                      "servicePort": 50052,
                       "priority": 1,
                       "messageSizeSoftLimitBytes": 1500000,
                       "messageSizeHardLimitBytes": 8000000
@@ -1528,7 +1535,8 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         final List<BlockNodeConfig> configs = new ArrayList<>();
         configs.add(BlockNodeConfig.newBuilder()
                 .address(PBJ_UNIT_TEST_HOST)
-                .port(8080)
+                .streamingPort(8080)
+                .servicePort(8081)
                 .priority(1)
                 .messageSizeSoftLimitBytes(1_000_000L)
                 .messageSizeHardLimitBytes(2_000_000L)
@@ -1584,7 +1592,8 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
         final List<BlockNodeConfig> configs = new ArrayList<>();
         configs.add(BlockNodeConfig.newBuilder()
                 .address(PBJ_UNIT_TEST_HOST)
-                .port(8080)
+                .streamingPort(8080)
+                .servicePort(8081)
                 .priority(1)
                 .build());
         final BlockNodeConnectionInfo connectionInfo = new BlockNodeConnectionInfo(configs);

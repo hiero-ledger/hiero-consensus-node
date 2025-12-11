@@ -87,7 +87,8 @@ public class BlockNodeSuite {
                     final List<com.hedera.node.internal.network.BlockNodeConfig> blockNodes = new ArrayList<>();
                     blockNodes.add(com.hedera.node.internal.network.BlockNodeConfig.newBuilder()
                             .address("localhost")
-                            .port(node0Port)
+                            .streamingPort(node0Port)
+                            .servicePort(node0Port)
                             .priority(0)
                             .build());
                     final BlockNodeConnectionInfo connectionInfo = new BlockNodeConnectionInfo(blockNodes);
@@ -119,7 +120,8 @@ public class BlockNodeSuite {
                     final List<com.hedera.node.internal.network.BlockNodeConfig> blockNodes = new ArrayList<>();
                     blockNodes.add(com.hedera.node.internal.network.BlockNodeConfig.newBuilder()
                             .address("26dsfg2364")
-                            .port(1234)
+                            .streamingPort(1234)
+                            .servicePort(1234)
                             .priority(0)
                             .build());
                     final BlockNodeConnectionInfo connectionInfo = new BlockNodeConnectionInfo(blockNodes);
@@ -200,7 +202,8 @@ public class BlockNodeSuite {
                     final List<com.hedera.node.internal.network.BlockNodeConfig> blockNodes = new ArrayList<>();
                     blockNodes.add(com.hedera.node.internal.network.BlockNodeConfig.newBuilder()
                             .address("localhost")
-                            .port(node0Port)
+                            .streamingPort(node0Port)
+                            .servicePort(node0Port)
                             .priority(0)
                             .build());
                     final BlockNodeConnectionInfo connectionInfo = new BlockNodeConnectionInfo(blockNodes);

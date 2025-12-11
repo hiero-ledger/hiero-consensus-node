@@ -66,6 +66,10 @@ public abstract class AbstractBlockNodeConnection {
      * The current state of this connection.
      */
     private final AtomicReference<ConnectionState> stateRef;
+    /**
+     * The type of connection this instance represents.
+     */
+    private final ConnectionType type;
 
     /**
      * Initialize this connection.
@@ -80,7 +84,7 @@ public abstract class AbstractBlockNodeConnection {
             @NonNull final ConfigProvider configProvider) {
         this.configuration = requireNonNull(configuration, "configuration is required");
         this.configProvider = requireNonNull(configProvider, "configProvider is required");
-        requireNonNull(type, "type is required");
+        this.type = requireNonNull(type, "type is required");
 
         connectionId =
                 String.format("%s.%06d", type.key, connIdCtrByType.get(type).incrementAndGet());
@@ -210,8 +214,13 @@ public abstract class AbstractBlockNodeConnection {
 
     @Override
     public final String toString() {
-        return "[" + connectionId + "/" + configuration.address() + ":" + configuration.port() + "/" + stateRef.get()
-                + "]";
+        final int port =
+                switch (type) {
+                    case BLOCK_STREAMING -> configuration.streamingPort();
+                    case SERVER_STATUS -> configuration.servicePort();
+                };
+
+        return "[" + connectionId + "/" + configuration.address() + ":" + port + "/" + stateRef.get() + "]";
     }
 
     @Override
