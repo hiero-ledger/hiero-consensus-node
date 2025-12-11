@@ -125,6 +125,8 @@ public interface EventIntakeModule {
      * read from the preconsensus event stream on disk. The events from the stream on disk are not re-written to the
      * disk, and are considered to be durable immediately upon ingest.
      *
+     * <p>Please note that this method is a temporary workaround and will be removed in the future.
+     *
      * @return the {@link InputWire} to signal beginning of new event streaming
      */
     @InputWireLabel("done streaming pces")
@@ -134,6 +136,8 @@ public interface EventIntakeModule {
     /**
      * Inform the preconsensus event writer that a discontinuity has occurred in the preconsensus event stream.
      *
+     * <p>Please note that this method is a temporary workaround and will be removed in the future.
+     *
      * @return the {@link InputWire} for the round of the state that the new stream will be starting from
      */
     @InputWireLabel("discontinuity")
@@ -142,6 +146,8 @@ public interface EventIntakeModule {
 
     /**
      * Set the minimum ancient indicator needed to be kept on disk.
+     *
+     * <p>Please note that this method is a temporary workaround and will be removed in the future.
      *
      * @return the {@link InputWire} for the minimum ancient indicator required to be stored on disk
      */
