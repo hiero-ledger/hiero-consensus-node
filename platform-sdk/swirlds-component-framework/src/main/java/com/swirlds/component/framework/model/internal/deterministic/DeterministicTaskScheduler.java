@@ -43,7 +43,7 @@ public class DeterministicTaskScheduler<OUT> extends TaskScheduler<OUT> {
             @NonNull final TraceableWiringModel model,
             @NonNull final String name,
             @NonNull final TaskSchedulerType type,
-            final UncaughtExceptionHandler uncaughtExceptionHandler,
+            @NonNull final UncaughtExceptionHandler uncaughtExceptionHandler,
             @NonNull final ObjectCounter onRamp,
             @NonNull final ObjectCounter offRamp,
             final long capacity,

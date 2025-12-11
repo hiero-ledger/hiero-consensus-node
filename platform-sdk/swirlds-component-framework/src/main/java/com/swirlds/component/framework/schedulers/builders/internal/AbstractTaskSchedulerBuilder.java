@@ -273,7 +273,7 @@ public abstract class AbstractTaskSchedulerBuilder<OUT> implements TaskScheduler
      * @return the uncaught exception handler
      */
     @NonNull
-    protected UncaughtExceptionHandler uncaughtExceptionHandlerOr(@NonNull UncaughtExceptionHandler or) {
+    protected UncaughtExceptionHandler uncaughtExceptionHandlerOr(@NonNull final UncaughtExceptionHandler or) {
         return Objects.requireNonNullElse(uncaughtExceptionHandler, or);
     }
 
