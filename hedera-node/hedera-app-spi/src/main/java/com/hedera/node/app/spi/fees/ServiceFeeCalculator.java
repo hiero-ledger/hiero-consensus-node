@@ -19,7 +19,6 @@ package com.hedera.node.app.spi.fees;
 
 import static org.hiero.hapi.fees.FeeScheduleUtils.lookupExtraFee;
 
-import com.hedera.hapi.node.transaction.Query;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
