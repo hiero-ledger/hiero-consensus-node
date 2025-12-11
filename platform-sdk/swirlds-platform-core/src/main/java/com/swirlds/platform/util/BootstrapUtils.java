@@ -127,7 +127,7 @@ public final class BootstrapUtils {
      */
     public static void setupBrowserWindow()
             throws UnsupportedLookAndFeelException, ClassNotFoundException, InstantiationException,
-                    IllegalAccessException {
+            IllegalAccessException {
         // discover the inset size and set the look and feel
         UIManager.setLookAndFeel(UIManager.getCrossPlatformLookAndFeelClassName());
         final JFrame jframe = new JFrame();
