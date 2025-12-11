@@ -131,9 +131,8 @@
         },
         {
           "name": "ConsensusGetTopicInfo",
-          "baseFee": 0,
+          "baseFee": 10000,
           "extras": []
-          ]
         },
         {
           "name": "CryptoGetInfo",
