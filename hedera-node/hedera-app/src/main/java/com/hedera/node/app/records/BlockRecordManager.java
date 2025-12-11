@@ -4,6 +4,7 @@ package com.hedera.node.app.records;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
 import com.hedera.node.app.spi.records.BlockRecordInfo;
 import com.hedera.node.app.state.SingleTransactionRecord;
+import com.swirlds.platform.system.Round;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
@@ -122,6 +123,29 @@ public interface BlockRecordManager extends BlockRecordInfo, AutoCloseable {
      * @param state The state to update
      */
     void endRound(@NonNull State state);
+
+    /**
+     * Called at the end of a round with access to the round's consensus timestamp to make decisions
+     * about closing record files and to update running hashes in state. When round-boundary closing
+     * is enabled, this will close the record file if the period has completed.
+     *
+     * @param state the state to update
+     * @param roundConsensusTimestamp the consensus timestamp reported for the round
+     * @return true if a record file was closed during this round, false otherwise
+     */
+    boolean endRound(@NonNull State state, @NonNull Instant roundConsensusTimestamp);
+
+    /**
+     * Called at the start of a round to allow the record stream to open a new record file when
+     * operating in round-boundary closing mode.
+     *
+     * <p>In legacy mode this is a no-op; in round-boundary mode, this will open a new record file
+     * at the beginning of a round if one is not currently open.
+     *
+     * @param round the round being started
+     * @param state the state to update
+     */
+    void startRound(@NonNull Round round, @NonNull State state);
 
     /**
      * Closes this BlockRecordManager and wait for any threads to finish.

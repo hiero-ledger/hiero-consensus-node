@@ -47,6 +47,7 @@ import com.hedera.node.app.quiescence.QuiescenceController;
 import com.hedera.node.app.records.BlockRecordManager;
 import com.hedera.node.app.records.BlockRecordService;
 import com.hedera.node.app.records.impl.BlockRecordManagerImpl;
+import com.hedera.node.config.data.BlockRecordStreamConfig;
 import com.hedera.node.app.service.entityid.EntityIdService;
 import com.hedera.node.app.service.entityid.impl.WritableEntityIdStoreImpl;
 import com.hedera.node.app.service.roster.RosterService;
@@ -246,7 +247,14 @@ public class HandleWorkflow {
         logStartRound(round);
         blockBufferService.ensureNewBlocksPermitted();
         cacheWarmer.warm(state, round);
-        if (streamMode != RECORDS) {
+        if (streamMode == RECORDS) {
+            // In round-boundary mode, start the round (opens record file if needed)
+            final var recordStreamConfig =
+                    configProvider.getConfiguration().getConfigData(BlockRecordStreamConfig.class);
+            if (recordStreamConfig.roundBoundaryClosingEnabled()) {
+                blockRecordManager.startRound(round, state);
+            }
+        } else {
             blockStreamManager.startRound(round, state);
             blockStreamManager.writeItem(BlockItem.newBuilder()
                     .roundHeader(new RoundHeader(round.getRoundNum()))
@@ -322,7 +330,13 @@ public class HandleWorkflow {
             // from results computed in background threads. The running hash has to be included in state, but we want
             // to synchronize with background threads as infrequently as possible; per round is the best we can do
             // from the perspective of the legacy record stream.
-            if (transactionsDispatched && streamMode != BLOCKS) {
+            final var recordStreamConfig =
+                    configProvider.getConfiguration().getConfigData(BlockRecordStreamConfig.class);
+            // In round-boundary mode, endRound is called in Hedera.onSealConsensusRound (mirroring block streams).
+            // In legacy mode, we call it here as before.
+            if (!recordStreamConfig.roundBoundaryClosingEnabled()
+                    && transactionsDispatched
+                    && streamMode != BLOCKS) {
                 blockRecordManager.endRound(state);
             }
 

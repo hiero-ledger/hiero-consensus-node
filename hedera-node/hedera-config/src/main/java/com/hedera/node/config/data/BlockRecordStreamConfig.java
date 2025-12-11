@@ -31,4 +31,5 @@ public record BlockRecordStreamConfig(
         @ConfigProperty(defaultValue = "6") @Min(1) @NetworkProperty int recordFileVersion,
         @ConfigProperty(defaultValue = "6") @Min(1) @NetworkProperty int signatureFileVersion,
         @ConfigProperty(defaultValue = "256") @Min(1) @Max(4096) @NetworkProperty int numOfBlockHashesInState,
-        @ConfigProperty(defaultValue = "concurrent") @NetworkProperty String streamFileProducer) {}
+        @ConfigProperty(defaultValue = "concurrent") @NetworkProperty String streamFileProducer,
+        @ConfigProperty(defaultValue = "true") @NetworkProperty boolean roundBoundaryClosingEnabled) {}
