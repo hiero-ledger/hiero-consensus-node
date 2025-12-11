@@ -22,11 +22,8 @@ import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.List;
 import java.util.Objects;
-import java.util.concurrent.ThreadLocalRandom;
 import org.hiero.block.api.BlockEnd;
 import org.hiero.block.api.BlockItemSet;
 import org.hiero.block.api.PublishStreamRequest;
@@ -171,38 +168,6 @@ public abstract class BlockNodeCommunicationTestBase {
                         .build())
                 .build();
         return BlockItem.newBuilder().blockProof(proof).build();
-    }
-
-    protected static List<BlockItem> newRandomBlockItems(final long blockNumber, final int maxBytesPerItem) {
-        final List<BlockItem> items = new ArrayList<>();
-        final ThreadLocalRandom random = ThreadLocalRandom.current();
-
-        // first item should always be the block header
-        items.add(newBlockHeaderItem(blockNumber));
-
-        final int numItems = random.nextInt(1, 250);
-        for (int i = 0; i < numItems; ++i) {
-            final int bytes = random.nextInt(10, maxBytesPerItem);
-            items.add(newBlockTxItem(bytes));
-        }
-
-        // last item should always be the block proof
-        items.add(newBlockProofItem(blockNumber, random.nextInt(10, maxBytesPerItem)));
-        return items;
-    }
-
-    protected static List<BlockItem> newFixedBlockItems(
-            final long blockNumber, final int bytesPerItem, final int numItems) {
-        final List<BlockItem> items = new ArrayList<>();
-
-        items.add(newBlockHeaderItem(blockNumber));
-
-        for (int i = 0; i < numItems; ++i) {
-            items.add(newBlockTxItem(bytesPerItem));
-        }
-
-        items.add(newBlockProofItem(blockNumber, bytesPerItem));
-        return items;
     }
 
     protected static BlockNodeConfiguration newBlockNodeConfig(final int port, final int priority) {
