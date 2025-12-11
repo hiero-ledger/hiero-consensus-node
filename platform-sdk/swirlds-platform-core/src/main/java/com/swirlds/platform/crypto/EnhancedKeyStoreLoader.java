@@ -37,6 +37,7 @@ import java.security.cert.X509Certificate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -68,8 +69,6 @@ import org.hiero.base.crypto.config.CryptoConfig;
 import org.hiero.consensus.crypto.CryptoConstants;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.model.roster.Address;
-import org.hiero.consensus.model.roster.AddressBook;
 import org.hiero.consensus.roster.RosterUtils;
 
 /**
@@ -137,11 +136,6 @@ public class EnhancedKeyStoreLoader {
     private static final String MSG_ADDRESS_BOOK_NON_NULL = "addressBook must not be null";
 
     /**
-     * The constant message to use when the {@code function} required parameter is {@code null}.
-     */
-    private static final String MSG_FUNCTION_NON_NULL = "function must not be null";
-
-    /**
      * The constant message to use when the {@code keyStoreDirectory} required parameter is {@code null}.
      */
     private static final String MSG_KEY_STORE_DIRECTORY_NON_NULL = "keyStoreDirectory must not be null";
@@ -161,10 +155,7 @@ public class EnhancedKeyStoreLoader {
      */
     private static final Logger logger = LogManager.getLogger(EnhancedKeyStoreLoader.class);
 
-    /**
-     * The address book to use for loading the key stores.
-     */
-    private final AddressBook addressBook;
+    private final Collection<NodeId> allNodes;
 
     /**
      * The absolute path to the key store directory.
@@ -212,26 +203,26 @@ public class EnhancedKeyStoreLoader {
 
     /**
      * Constructs a new {@link EnhancedKeyStoreLoader} instance. Intentionally private to prevent direct instantiation.
-     * Use the {@link #using(AddressBook, Configuration, Set<NodeId>)} method to create a new instance.
+     * Use the {@link #using(Collection, Configuration, Set)} method to create a new instance.
      *
-     * @param addressBook        the address book to use for loading the key stores.
+     * @param allNodes        aaaaaa
      * @param keyStoreDirectory  the absolute path to the key store directory.
      * @param keyStorePassphrase the passphrase used to protect the key stores.
      * @param localNodes         the set of local nodes that need private keys loaded
      * @throws NullPointerException if {@code addressBook} or {@code configuration} is {@code null}.
      */
     private EnhancedKeyStoreLoader(
-            @NonNull final AddressBook addressBook,
+            @NonNull final Collection<NodeId> allNodes,
             @NonNull final Path keyStoreDirectory,
             @NonNull final char[] keyStorePassphrase,
             @NonNull final Set<NodeId> localNodes) {
-        this.addressBook = Objects.requireNonNull(addressBook, MSG_ADDRESS_BOOK_NON_NULL);
+        this.allNodes = Objects.requireNonNull(allNodes);
         this.keyStoreDirectory = Objects.requireNonNull(keyStoreDirectory, MSG_KEY_STORE_DIRECTORY_NON_NULL);
         this.keyStorePassphrase = Objects.requireNonNull(keyStorePassphrase, MSG_KEY_STORE_PASSPHRASE_NON_NULL);
-        this.sigPrivateKeys = HashMap.newHashMap(addressBook.getSize());
-        this.sigCertificates = HashMap.newHashMap(addressBook.getSize());
-        this.agrPrivateKeys = HashMap.newHashMap(addressBook.getSize());
-        this.agrCertificates = HashMap.newHashMap(addressBook.getSize());
+        this.sigPrivateKeys = HashMap.newHashMap(allNodes.size());
+        this.sigCertificates = HashMap.newHashMap(allNodes.size());
+        this.agrPrivateKeys = HashMap.newHashMap(allNodes.size());
+        this.agrCertificates = HashMap.newHashMap(allNodes.size());
         this.localNodes = Collections.unmodifiableSet(Objects.requireNonNull(localNodes, MSG_NODES_TO_START_NON_NULL));
     }
 
@@ -239,7 +230,7 @@ public class EnhancedKeyStoreLoader {
      * Creates a new {@link EnhancedKeyStoreLoader} instance using the provided {@code addressBook} and
      * {@code configuration}.
      *
-     * @param addressBook   the address book to use for loading the key stores.
+     * @param allNodes        aaaaaa
      * @param configuration the configuration to use for loading the key stores.
      * @param localNodes    the local nodes that need private keys loaded.
      * @return a new {@link EnhancedKeyStoreLoader} instance.
@@ -249,10 +240,10 @@ public class EnhancedKeyStoreLoader {
      */
     @NonNull
     public static EnhancedKeyStoreLoader using(
-            @NonNull final AddressBook addressBook,
+            @NonNull final Collection<NodeId> allNodes,
             @NonNull final Configuration configuration,
             @NonNull final Set<NodeId> localNodes) {
-        Objects.requireNonNull(addressBook, MSG_ADDRESS_BOOK_NON_NULL);
+        Objects.requireNonNull(allNodes, MSG_ADDRESS_BOOK_NON_NULL);
         Objects.requireNonNull(configuration, "configuration must not be null");
         Objects.requireNonNull(localNodes, MSG_NODES_TO_START_NON_NULL);
 
@@ -265,7 +256,7 @@ public class EnhancedKeyStoreLoader {
             throw new IllegalArgumentException("keyStorePassphrase must not be null or blank");
         }
 
-        return new EnhancedKeyStoreLoader(addressBook, keyStoreDirectory, keyStorePassphrase.toCharArray(), localNodes);
+        return new EnhancedKeyStoreLoader(allNodes, keyStoreDirectory, keyStorePassphrase.toCharArray(), localNodes);
     }
 
     /**
@@ -279,16 +270,16 @@ public class EnhancedKeyStoreLoader {
         logger.debug(STARTUP.getMarker(), "Starting key store enumeration");
         final KeyStore legacyPublicStore = resolveLegacyPublicStore();
 
-        iterateAddressBook(addressBook, (nodeId, address) -> {
+        for (final NodeId nodeId : this.allNodes) {
             logger.debug(STARTUP.getMarker(), "Attempting to locate key stores for nodeId {}", nodeId);
 
-            if (localNodes.contains(address.getNodeId())) {
-                sigPrivateKeys.compute(nodeId, (k, v) -> resolveNodePrivateKey(nodeId, KeyCertPurpose.SIGNING));
+            if (localNodes.contains(nodeId)) {
+                sigPrivateKeys.compute(nodeId, (k, v) -> resolveNodePrivateKey(nodeId));
             }
 
             sigCertificates.compute(
-                    nodeId, (k, v) -> resolveNodeCertificate(nodeId, KeyCertPurpose.SIGNING, legacyPublicStore));
-        });
+                    nodeId, (k, v) -> resolveNodeCertificate(nodeId, legacyPublicStore));
+        }
 
         logger.trace(STARTUP.getMarker(), "Completed key store enumeration");
         return this;
@@ -342,37 +333,14 @@ public class EnhancedKeyStoreLoader {
      *
      * @return this {@link EnhancedKeyStoreLoader} instance.
      * @throws KeyLoadingException if one or more of the required keys were not loaded.
+     * @throws KeyStoreException    if an error occurred while parsing the key store or the key store is not
+     *                              initialized.
      */
     @NonNull
     public EnhancedKeyStoreLoader verify() throws KeyLoadingException, KeyStoreException {
-        return verify(addressBook);
-    }
-
-    /**
-     * Verifies the presence of all required keys for the nodes being started based on the supplied address book.
-     *
-     * @param validatingBook the address book to use for validation
-     *
-     * @return this {@link EnhancedKeyStoreLoader} instance.
-     * @throws KeyLoadingException  if one or more of the required keys were not loaded.
-     * @throws KeyStoreException    if an error occurred while parsing the key store or the key store is not
-     *                              initialized.
-     * @throws NullPointerException if {@code validatingBook} is {@code null}.
-     */
-    @NonNull
-    public EnhancedKeyStoreLoader verify(@NonNull final AddressBook validatingBook)
-            throws KeyLoadingException, KeyStoreException {
-        Objects.requireNonNull(validatingBook, "validatingBook must not be null");
-
-        if (addressBook.getSize() != validatingBook.getSize()) {
-            throw new KeyLoadingException(
-                    "The validating address book size differs from the address book used during initialization [ validatingSize = %d, initializedSize = %d ]"
-                            .formatted(validatingBook.getSize(), addressBook.getSize()));
-        }
-
-        iterateAddressBook(validatingBook, (nodeId, address) -> {
+        for (final NodeId nodeId : this.allNodes) {
             try {
-                if (localNodes.contains(address.getNodeId())) {
+                if (localNodes.contains(nodeId)) {
                     if (!sigPrivateKeys.containsKey(nodeId)) {
                         throw new KeyLoadingException("No private key found for nodeId %s [ purpose = %s ]"
                                 .formatted(nodeId, KeyCertPurpose.SIGNING));
@@ -398,7 +366,7 @@ public class EnhancedKeyStoreLoader {
                 logger.warn(STARTUP.getMarker(), e.getMessage());
                 throw e;
             }
-        });
+        }
 
         return this;
     }
@@ -414,27 +382,9 @@ public class EnhancedKeyStoreLoader {
      */
     @NonNull
     public Map<NodeId, KeysAndCerts> keysAndCerts() throws KeyStoreException, KeyLoadingException {
-        return keysAndCerts(addressBook);
-    }
+        final Map<NodeId, KeysAndCerts> keysAndCerts = HashMap.newHashMap(allNodes.size());
 
-    /**
-     * Creates a map containing the private keys for all local nodes and the public keys for all nodes using the
-     * supplied address book.
-     *
-     * @return the map of all keys and certificates per {@link NodeId}.
-     * @throws KeyStoreException    if an error occurred while parsing the key store or the key store is not
-     *                              initialized.
-     * @throws KeyLoadingException  if one or more of the required keys were not loaded or are not of the correct type.
-     * @throws NullPointerException if {@code validatingBook} is {@code null}.
-     */
-    @NonNull
-    public Map<NodeId, KeysAndCerts> keysAndCerts(@NonNull final AddressBook validatingBook)
-            throws KeyStoreException, KeyLoadingException {
-        Objects.requireNonNull(validatingBook, "validatingBook must not be null");
-
-        final Map<NodeId, KeysAndCerts> keysAndCerts = HashMap.newHashMap(validatingBook.getSize());
-
-        iterateAddressBook(validatingBook, (nodeId, address) -> {
+        for (final NodeId nodeId : this.allNodes) {
             final Certificate sigCert = sigCertificates.get(nodeId);
 
             if (sigCert == null) {
@@ -474,7 +424,7 @@ public class EnhancedKeyStoreLoader {
 
                 keysAndCerts.put(nodeId, kc);
             }
-        });
+        }
 
         return keysAndCerts;
     }
@@ -512,25 +462,23 @@ public class EnhancedKeyStoreLoader {
      *     <li>Legacy private key store ({@code private-[alias].pfx})</li>
      * </ol>
      *
-     * @param nodeId    the {@link NodeId} for which the private key should be loaded.
-     * @param purpose   the {@link KeyCertPurpose} for which the private key should be loaded.
+     * @param nodeId the {@link NodeId} for which the private key should be loaded.
      * @return the private key for the specified {@code nodeId}, {@code nodeAlias}, and {@code purpose}; otherwise,
      * {@code null} if no key was found.
      * @throws NullPointerException if {@code nodeId}, {@code nodeAlias}, or {@code purpose} is {@code null}.
      */
     @Nullable
-    private PrivateKey resolveNodePrivateKey(@NonNull final NodeId nodeId, @NonNull final KeyCertPurpose purpose) {
+    private PrivateKey resolveNodePrivateKey(@NonNull final NodeId nodeId) {
         Objects.requireNonNull(nodeId, MSG_NODE_ID_NON_NULL);
-        Objects.requireNonNull(purpose, MSG_PURPOSE_NON_NULL);
 
         // Check for the enhanced private key store. The enhance key store is preferred over the legacy key store.
-        Path ksLocation = privateKeyStore(nodeId, purpose);
+        Path ksLocation = privateKeyStore(nodeId);
         if (Files.exists(ksLocation)) {
             logger.trace(
                     STARTUP.getMarker(),
                     "Found enhanced private key store for nodeId: {} [ purpose = {}, fileName = {} ]",
                     nodeId,
-                    purpose,
+                    KeyCertPurpose.SIGNING,
                     ksLocation.getFileName());
             return readPrivateKey(nodeId, ksLocation);
         }
@@ -542,14 +490,15 @@ public class EnhancedKeyStoreLoader {
                     STARTUP.getMarker(),
                     "Found legacy private key store for nodeId: {} [ purpose = {}, fileName = {} ]",
                     nodeId,
-                    purpose,
+                    KeyCertPurpose.SIGNING,
                     ksLocation.getFileName());
-            return readLegacyPrivateKey(nodeId, ksLocation, purpose.storeName(nodeId));
+            return readLegacyPrivateKey(nodeId, ksLocation, KeyCertPurpose.SIGNING.storeName(nodeId));
         }
 
         // No keys were found so return null. Missing keys will be detected during a call to
         // EnhancedKeyStoreLoader::verify() or EnhancedKeyStoreLoader::keysAndCerts().
-        logger.warn(STARTUP.getMarker(), "No private key store found for nodeId: {} [ purpose = {} ]", nodeId, purpose);
+        logger.warn(STARTUP.getMarker(), "No private key store found for nodeId: {} [ purpose = {} ]", nodeId,
+                KeyCertPurpose.SIGNING);
         return null;
     }
 
@@ -563,7 +512,6 @@ public class EnhancedKeyStoreLoader {
      * </ol>
      *
      * @param nodeId            the {@link NodeId} for which the certificate should be loaded.
-     * @param purpose           the {@link KeyCertPurpose} for which the certificate should be loaded.
      * @param legacyPublicStore the preloaded legacy public key store to fallback on if the enhanced certificate store
      *                          is not found.
      * @return the certificate for the specified {@code nodeId}, {@code nodeAlias}, and {@code purpose}; otherwise,
@@ -574,21 +522,20 @@ public class EnhancedKeyStoreLoader {
     @Nullable
     private Certificate resolveNodeCertificate(
             @NonNull final NodeId nodeId,
-            @NonNull final KeyCertPurpose purpose,
             @NonNull final KeyStore legacyPublicStore) {
         Objects.requireNonNull(nodeId, MSG_NODE_ID_NON_NULL);
-        Objects.requireNonNull(purpose, MSG_PURPOSE_NON_NULL);
+        Objects.requireNonNull(KeyCertPurpose.SIGNING, MSG_PURPOSE_NON_NULL);
         Objects.requireNonNull(legacyPublicStore, MSG_LEGACY_PUBLIC_STORE_NON_NULL);
 
         // Check for the enhanced certificate store. The enhanced certificate store is preferred over the legacy
         // certificate store.
-        Path ksLocation = certificateStore(nodeId, purpose);
+        Path ksLocation = certificateStore(nodeId);
         if (Files.exists(ksLocation)) {
             logger.trace(
                     STARTUP.getMarker(),
                     "Found enhanced certificate store for nodeId: {} [ purpose = {}, fileName = {} ]",
                     nodeId,
-                    purpose,
+                    KeyCertPurpose.SIGNING,
                     ksLocation.getFileName());
             return readCertificate(nodeId, ksLocation);
         }
@@ -600,14 +547,15 @@ public class EnhancedKeyStoreLoader {
                     STARTUP.getMarker(),
                     "Found legacy certificate store for nodeId: {} [ purpose = {}, fileName = {} ]",
                     nodeId,
-                    purpose,
+                    KeyCertPurpose.SIGNING,
                     ksLocation.getFileName());
-            return readLegacyCertificate(nodeId, purpose, legacyPublicStore);
+            return readLegacyCertificate(nodeId, legacyPublicStore);
         }
 
         // No certificates were found so return null. Missing certificates will be detected during a call to
         // EnhancedKeyStoreLoader::verify() or EnhancedKeyStoreLoader::keysAndCerts().
-        logger.warn(STARTUP.getMarker(), "No certificate store found for nodeId: {} [ purpose = {} ]", nodeId, purpose);
+        logger.warn(STARTUP.getMarker(), "No certificate store found for nodeId: {} [ purpose = {} ]", nodeId,
+                KeyCertPurpose.SIGNING);
         return null;
     }
 
@@ -644,7 +592,6 @@ public class EnhancedKeyStoreLoader {
      * specified {@code nodeId}, {@code nodeAlias}, and {@code purpose}.
      *
      * @param nodeId            the {@link NodeId} for which the certificate should be loaded.
-     * @param purpose           the {@link KeyCertPurpose} for which the certificate should be loaded.
      * @param legacyPublicStore the preloaded legacy public key store from which to load the certificate.
      * @return the certificate for the specified {@code nodeId}; otherwise, {@code null} if no certificate was found or
      * an error occurred while attempting to read the store.
@@ -654,14 +601,13 @@ public class EnhancedKeyStoreLoader {
     @Nullable
     private Certificate readLegacyCertificate(
             @NonNull final NodeId nodeId,
-            @NonNull final KeyCertPurpose purpose,
             @NonNull final KeyStore legacyPublicStore) {
         Objects.requireNonNull(nodeId, MSG_NODE_ID_NON_NULL);
-        Objects.requireNonNull(purpose, MSG_PURPOSE_NON_NULL);
+        Objects.requireNonNull(KeyCertPurpose.SIGNING, MSG_PURPOSE_NON_NULL);
         Objects.requireNonNull(legacyPublicStore, MSG_LEGACY_PUBLIC_STORE_NON_NULL);
 
         try {
-            final Certificate cert = legacyPublicStore.getCertificate(purpose.storeName(nodeId));
+            final Certificate cert = legacyPublicStore.getCertificate(KeyCertPurpose.SIGNING.storeName(nodeId));
 
             // Legacy certificate store was found, but did not contain the certificate requested.
             if (cert == null) {
@@ -669,7 +615,7 @@ public class EnhancedKeyStoreLoader {
                         STARTUP.getMarker(),
                         "No certificate found for nodeId: {} [ entryName = {} ]",
                         nodeId,
-                        purpose.storeName(nodeId));
+                        KeyCertPurpose.SIGNING.storeName(nodeId));
             }
 
             return cert;
@@ -756,16 +702,14 @@ public class EnhancedKeyStoreLoader {
      * {@code nodeAlias} and {@code purpose}.
      *
      * @param nodeId the alias of the node for which the private key store should be loaded.
-     * @param purpose   the {@link KeyCertPurpose} for which the private key store should be loaded.
      * @return the {@link Path} to the enhanced private key store for the specified {@code nodeAlias} and
      * {@code purpose}.
      * @throws NullPointerException if {@code nodeAlias} or {@code purpose} is {@code null}.
      */
     @NonNull
-    private Path privateKeyStore(@NonNull final NodeId nodeId, @NonNull final KeyCertPurpose purpose) {
-        Objects.requireNonNull(purpose, MSG_PURPOSE_NON_NULL);
+    private Path privateKeyStore(@NonNull final NodeId nodeId) {
         return keyStoreDirectory.resolve(
-                String.format("%s-private-%s.pem", purpose.prefix(), RosterUtils.formatNodeName(nodeId)));
+                String.format("%s-private-%s.pem", KeyCertPurpose.SIGNING.prefix(), RosterUtils.formatNodeName(nodeId)));
     }
 
     /**
@@ -786,18 +730,16 @@ public class EnhancedKeyStoreLoader {
      * Utility method for resolving the {@link Path} to the enhanced certificate store for the specified
      * {@code nodeAlias} and {@code purpose}.
      *
-     * @param nodeId            the {@link NodeId} for which the certificate should be loaded.
-     * @param purpose   the {@link KeyCertPurpose} for which the certificate store should be loaded.
+     * @param nodeId the {@link NodeId} for which the certificate should be loaded.
      * @return the {@link Path} to the enhanced certificate store for the specified {@code nodeAlias} and
      * {@code purpose}.
      * @throws NullPointerException if {@code nodeAlias} or {@code purpose} is {@code null}.
      */
     @NonNull
-    private Path certificateStore(@NonNull final NodeId nodeId, @NonNull final KeyCertPurpose purpose) {
+    private Path certificateStore(@NonNull final NodeId nodeId) {
         Objects.requireNonNull(nodeId, MSG_NODE_ID_NON_NULL);
-        Objects.requireNonNull(purpose, MSG_PURPOSE_NON_NULL);
         return keyStoreDirectory.resolve(
-                String.format("%s-public-%s.pem", purpose.prefix(), RosterUtils.formatNodeName(nodeId)));
+                String.format("%s-public-%s.pem", KeyCertPurpose.SIGNING.prefix(), RosterUtils.formatNodeName(nodeId)));
     }
 
     /**
@@ -1017,38 +959,6 @@ public class EnhancedKeyStoreLoader {
         }
     }
 
-    /**
-     * Helper method for iterating over the address book in index order.
-     *
-     * @param addressBook the address book to iterate over.
-     * @param function    the function to apply to each entry in the address book.
-     * @throws KeyStoreException    if an error occurred while parsing the key store or the key store is not
-     *                              initialized.
-     * @throws KeyLoadingException  if one or more of the required keys were not loaded or are not of the correct type.
-     * @throws NullPointerException if {@code addressBook} or {@code function} is {@code null}.
-     */
-    private static void iterateAddressBook(
-            @NonNull final AddressBook addressBook, @NonNull final AddressBookCallback function)
-            throws KeyStoreException, KeyLoadingException {
-        Objects.requireNonNull(addressBook, MSG_ADDRESS_BOOK_NON_NULL);
-        Objects.requireNonNull(function, MSG_FUNCTION_NON_NULL);
-
-        for (int i = 0; i < addressBook.getSize(); i++) {
-            final NodeId nodeId = addressBook.getNodeId(i);
-            final Address address = addressBook.getAddress(nodeId);
-            function.apply(nodeId, address);
-        }
-    }
-
-    /**
-     * The contract for the function used by {@link #iterateAddressBook(AddressBook, AddressBookCallback)} to iterate
-     * over the address book in index order.
-     */
-    @FunctionalInterface
-    private interface AddressBookCallback {
-        void apply(NodeId nodeId, Address address) throws KeyStoreException, KeyLoadingException;
-    }
-
     /////////////////////////////////////////////////////////////////////////////////////////////////
     //////////////////////////////////// MIGRATION METHODS //////////////////////////////////////////
     /////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1135,7 +1045,7 @@ public class EnhancedKeyStoreLoader {
         final KeyStore legacyPublicStore = resolveLegacyPublicStore();
         final AtomicLong errorCount = new AtomicLong(0);
 
-        iterateAddressBook(addressBook, (nodeId, address) -> {
+        for (final NodeId nodeId : this.allNodes) {
             if (localNodes.contains(nodeId)) {
                 // extract private keys for local nodes
                 final Path sPrivateKeyLocation = keyStoreDirectory.resolve(
@@ -1188,7 +1098,7 @@ public class EnhancedKeyStoreLoader {
                         nodeId,
                         ksLocation.getFileName());
                 final Certificate certificate =
-                        readLegacyCertificate(nodeId, KeyCertPurpose.SIGNING, legacyPublicStore);
+                        readLegacyCertificate(nodeId, legacyPublicStore);
                 pfxCertificates.put(nodeId, certificate);
                 if (certificate == null) {
                     logger.error(
@@ -1215,7 +1125,7 @@ public class EnhancedKeyStoreLoader {
                     }
                 }
             }
-        });
+        }
         return errorCount.get();
     }
 
@@ -1225,17 +1135,14 @@ public class EnhancedKeyStoreLoader {
      * @param pfxPrivateKeys  the map of private keys being extracted.
      * @param pfxCertificates the map of certificates being extracted.
      * @return the number of errors encountered during the validation process.
-     * @throws KeyStoreException   if the underlying method calls throw this exception.
-     * @throws KeyLoadingException if the underlying method calls throw this exception.
      */
     private long validateKeysAndCertsAreLoadableFromPemFiles(
-            final Map<NodeId, PrivateKey> pfxPrivateKeys, final Map<NodeId, Certificate> pfxCertificates)
-            throws KeyStoreException, KeyLoadingException {
+            final Map<NodeId, PrivateKey> pfxPrivateKeys, final Map<NodeId, Certificate> pfxCertificates) {
         final AtomicLong errorCount = new AtomicLong(0);
-        iterateAddressBook(addressBook, (nodeId, address) -> {
+        for (final NodeId nodeId : this.allNodes) {
             if (localNodes.contains(nodeId) && pfxCertificates.containsKey(nodeId)) {
                 // validate private keys for local nodes
-                final Path ksLocation = privateKeyStore(nodeId, KeyCertPurpose.SIGNING);
+                final Path ksLocation = privateKeyStore(nodeId);
                 final PrivateKey pemPrivateKey = readPrivateKey(nodeId, ksLocation);
                 if (pemPrivateKey == null
                         || !Arrays.equals(
@@ -1249,7 +1156,7 @@ public class EnhancedKeyStoreLoader {
 
             // validate certificates for all nodes PEM files were created for.
             if (pfxCertificates.containsKey(nodeId)) {
-                final Path ksLocation = certificateStore(nodeId, KeyCertPurpose.SIGNING);
+                final Path ksLocation = certificateStore(nodeId);
                 final Certificate pemCertificate = readCertificate(nodeId, ksLocation);
                 try {
                     if (pemCertificate == null
@@ -1268,7 +1175,7 @@ public class EnhancedKeyStoreLoader {
                     errorCount.incrementAndGet();
                 }
             }
-        });
+        }
         return errorCount.get();
     }
 
@@ -1277,32 +1184,29 @@ public class EnhancedKeyStoreLoader {
      *
      * @param pfxPrivateKeys  the map of private keys being extracted.
      * @param pfxCertificates the map of certificates being extracted.
-     * @throws KeyStoreException   if the underlying method calls throw this exception.
-     * @throws KeyLoadingException if the underlying method calls throw this exception.
      */
     private void rollBackSigningKeysAndCertsChanges(
-            final Map<NodeId, PrivateKey> pfxPrivateKeys, final Map<NodeId, Certificate> pfxCertificates)
-            throws KeyStoreException, KeyLoadingException {
+            final Map<NodeId, PrivateKey> pfxPrivateKeys, final Map<NodeId, Certificate> pfxCertificates) {
 
         final AtomicLong cleanupErrorCount = new AtomicLong(0);
-        iterateAddressBook(addressBook, (nodeId, address) -> {
+        for (final NodeId nodeId : this.allNodes) {
             // private key rollback
-            if (localNodes.contains(nodeId) && pfxPrivateKeys.containsKey(address.getNodeId())) {
+            if (localNodes.contains(nodeId) && pfxPrivateKeys.containsKey(nodeId)) {
                 try {
-                    Files.deleteIfExists(privateKeyStore(nodeId, KeyCertPurpose.SIGNING));
+                    Files.deleteIfExists(privateKeyStore(nodeId));
                 } catch (final IOException e) {
                     cleanupErrorCount.incrementAndGet();
                 }
             }
             // certificate rollback
-            if (pfxCertificates.containsKey(address.getNodeId())) {
+            if (pfxCertificates.containsKey(nodeId)) {
                 try {
-                    Files.deleteIfExists(certificateStore(nodeId, KeyCertPurpose.SIGNING));
+                    Files.deleteIfExists(certificateStore(nodeId));
                 } catch (final IOException e) {
                     cleanupErrorCount.incrementAndGet();
                 }
             }
-        });
+        }
         if (cleanupErrorCount.get() > 0) {
             logger.error(
                     ERROR.getMarker(),
@@ -1314,14 +1218,11 @@ public class EnhancedKeyStoreLoader {
 
     /**
      * Move the PFX files to the OLD_PFX_KEYS subdirectory.
-     *
-     * @throws KeyStoreException   if the underlying method calls throw this exception.
-     * @throws KeyLoadingException if the underlying method calls throw this exception.
      */
-    private void cleanupByMovingPfxFilesToSubDirectory() throws KeyStoreException, KeyLoadingException {
+    private void cleanupByMovingPfxFilesToSubDirectory() {
         final AtomicLong cleanupErrorCount = new AtomicLong(0);
         final AtomicBoolean doCleanup = new AtomicBoolean(false);
-        iterateAddressBook(addressBook, (nodeId, address) -> {
+        for (final NodeId nodeId : this.allNodes) {
             if (localNodes.contains(nodeId)) {
                 // move private key PFX files per local node
                 final File sPrivatePfx = legacyPrivateKeyStore(nodeId).toFile();
@@ -1329,7 +1230,7 @@ public class EnhancedKeyStoreLoader {
                     doCleanup.set(true);
                 }
             }
-        });
+        }
 
         if (!doCleanup.get()) return;
 
@@ -1354,7 +1255,7 @@ public class EnhancedKeyStoreLoader {
                 return;
             }
         }
-        iterateAddressBook(addressBook, (nodeId, address) -> {
+        for (final NodeId nodeId : this.allNodes) {
             if (localNodes.contains(nodeId)) {
                 // move private key PFX files per local node
                 final File sPrivatePfx = legacyPrivateKeyStore(nodeId).toFile();
@@ -1365,7 +1266,7 @@ public class EnhancedKeyStoreLoader {
                     cleanupErrorCount.incrementAndGet();
                 }
             }
-        });
+        }
         final File sPublicPfx = legacyCertificateStore().toFile();
         if (sPublicPfx.exists()
                 && sPublicPfx.isFile()

@@ -105,7 +105,7 @@ class EnhancedKeyStoreLoaderTest {
         final Set<NodeId> nodesToStart = addressBook.getNodeIdSet();
 
         final EnhancedKeyStoreLoader loader =
-                EnhancedKeyStoreLoader.using(addressBook, configure(keyDirectory), nodesToStart);
+                EnhancedKeyStoreLoader.using(addressBook.getNodeIdSet(), configure(keyDirectory), nodesToStart);
 
         assertThat(keyDirectory).exists().isDirectory().isReadable().isNotEmptyDirectory();
 
@@ -152,7 +152,7 @@ class EnhancedKeyStoreLoaderTest {
         final Path keyDirectory = testDataDirectory.resolve(directoryName);
         final AddressBook addressBook = addressBook();
         final EnhancedKeyStoreLoader loader =
-                EnhancedKeyStoreLoader.using(addressBook, configure(keyDirectory), addressBook.getNodeIdSet());
+                EnhancedKeyStoreLoader.using(addressBook.getNodeIdSet(), configure(keyDirectory), addressBook.getNodeIdSet());
 
         assertThat(keyDirectory).exists().isDirectory().isReadable().isNotEmptyDirectory();
 
@@ -177,7 +177,7 @@ class EnhancedKeyStoreLoaderTest {
         final Path keyDirectory = testDataDirectory.resolve(directoryName);
         final AddressBook addressBook = addressBook();
         final EnhancedKeyStoreLoader loader =
-                EnhancedKeyStoreLoader.using(addressBook, configure(keyDirectory), addressBook.getNodeIdSet());
+                EnhancedKeyStoreLoader.using(addressBook.getNodeIdSet(), configure(keyDirectory), addressBook.getNodeIdSet());
 
         assertThat(keyDirectory).exists().isDirectory().isReadable().isNotEmptyDirectory();
 
@@ -233,7 +233,7 @@ class EnhancedKeyStoreLoaderTest {
         final Path keyDirectory = testDataDirectory.resolve(directoryName);
         final AddressBook addressBook = addressBook();
         final EnhancedKeyStoreLoader loader =
-                EnhancedKeyStoreLoader.using(addressBook, configure(keyDirectory), addressBook.getNodeIdSet());
+                EnhancedKeyStoreLoader.using(addressBook.getNodeIdSet(), configure(keyDirectory), addressBook.getNodeIdSet());
 
         assertThat(keyDirectory).exists().isDirectory().isReadable().isNotEmptyDirectory();
 
