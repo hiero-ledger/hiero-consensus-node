@@ -504,9 +504,7 @@ public class TokenServiceSimpleFeesSuite {
                                 .supplyKey(SUPPLY_KEY)
                                 .fee(ONE_HUNDRED_HBARS)
                                 .hasKnownStatus(SUCCESS),
-                        tokenAssociate(OTHER, FUNGIBLE_TOKEN)
-                                .payingWith(OTHER)
-                                .via("token-associate-txn")),
+                        tokenAssociate(OTHER, FUNGIBLE_TOKEN).payingWith(OTHER).via("token-associate-txn")),
                 "token-associate-txn",
                 0.05,
                 1,
@@ -532,10 +530,7 @@ public class TokenServiceSimpleFeesSuite {
                                 .fee(ONE_HUNDRED_HBARS)
                                 .hasKnownStatus(SUCCESS),
                         tokenAssociate(OTHER, FUNGIBLE_TOKEN),
-                        tokenDissociate(OTHER,FUNGIBLE_TOKEN)
-                                .payingWith(OTHER)
-                                .via("token-dissociate-txn")
-                ),
+                        tokenDissociate(OTHER, FUNGIBLE_TOKEN).payingWith(OTHER).via("token-dissociate-txn")),
                 "token-dissociate-txn",
                 0.05,
                 1,
@@ -566,8 +561,7 @@ public class TokenServiceSimpleFeesSuite {
                         grantTokenKyc(FUNGIBLE_TOKEN, OTHER)
                                 .fee(ONE_HUNDRED_HBARS)
                                 .payingWith(OTHER)
-                                .via("token-grant-kyc-txn")
-                ),
+                                .via("token-grant-kyc-txn")),
                 "token-grant-kyc-txn",
                 0.001,
                 1,
@@ -601,8 +595,7 @@ public class TokenServiceSimpleFeesSuite {
                         revokeTokenKyc(FUNGIBLE_TOKEN, OTHER)
                                 .fee(ONE_HUNDRED_HBARS)
                                 .payingWith(OTHER)
-                                .via("token-revoke-kyc-txn")
-                ),
+                                .via("token-revoke-kyc-txn")),
                 "token-revoke-kyc-txn",
                 0.001,
                 1,
@@ -632,8 +625,7 @@ public class TokenServiceSimpleFeesSuite {
                         tokenAssociate(OTHER, FUNGIBLE_TOKEN),
                         tokenReject(rejectingToken(FUNGIBLE_TOKEN))
                                 .payingWith(OTHER)
-                                .via("token-reject-txn")
-                ),
+                                .via("token-reject-txn")),
                 "token-reject-txn",
                 0.001,
                 1,
@@ -666,11 +658,10 @@ public class TokenServiceSimpleFeesSuite {
                                 .signedBy(SUPPLY_KEY)
                                 .fee(ONE_HUNDRED_HBARS)
                                 .hasKnownStatus(SUCCESS),
-                        wipeTokenAccount(FUNGIBLE_TOKEN, OTHER,80)
+                        wipeTokenAccount(FUNGIBLE_TOKEN, OTHER, 80)
                                 .payingWith(OTHER)
                                 .fee(ONE_HUNDRED_HBARS)
-                                .via("token-wipe-txn")
-                ),
+                                .via("token-wipe-txn")),
                 "token-wipe-txn",
                 0.001,
                 1,
@@ -702,8 +693,7 @@ public class TokenServiceSimpleFeesSuite {
                         tokenFeeScheduleUpdate(FUNGIBLE_TOKEN)
                                 .payingWith(OTHER)
                                 .fee(ONE_HUNDRED_HBARS)
-                                .via("token-fee-schedule-update-txn")
-                ),
+                                .via("token-fee-schedule-update-txn")),
                 "token-fee-schedule-update-txn",
                 0.001,
                 1,
@@ -730,11 +720,10 @@ public class TokenServiceSimpleFeesSuite {
                                 .supplyKey(SUPPLY_KEY)
                                 .fee(ONE_HUNDRED_HBARS)
                                 .hasKnownStatus(SUCCESS),
-                        tokenUpdateNfts(NFT_TOKEN, NFT_TEST_METADATA,List.of(7L))
+                        tokenUpdateNfts(NFT_TOKEN, NFT_TEST_METADATA, List.of(7L))
                                 .payingWith(PAYER)
                                 .fee(ONE_HUNDRED_HBARS)
-                                .via("token-update-nfts-txn")
-                ),
+                                .via("token-update-nfts-txn")),
                 "token-update-nfts-txn",
                 0.001,
                 1,
@@ -742,6 +731,6 @@ public class TokenServiceSimpleFeesSuite {
                 1);
     }
 
-    //TODO: token get info
-    //TODO: get NFT info or infos
+    // TODO: token get info
+    // TODO: get NFT info or infos
 }

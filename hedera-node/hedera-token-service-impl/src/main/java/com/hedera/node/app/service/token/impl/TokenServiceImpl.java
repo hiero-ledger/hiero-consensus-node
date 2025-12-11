@@ -86,14 +86,11 @@ public class TokenServiceImpl implements TokenService {
                 new TokenUnpauseFeeCalculator(),
                 new TokenUnfreezeAccountFeeCalculator(),
                 new TokenUpdateNftsFeeCalculator(),
-                new TokenWipeFeeCalculator()
-        );
+                new TokenWipeFeeCalculator());
     }
+
     @Override
-    public  Set<QueryFeeCalculator> queryFeeCalculators() {
-        return Set.of(
-                new TokenGetInfoFeeCalculator(),
-                new TokenGetNftInfoFeeCalculator()
-        );
+    public Set<QueryFeeCalculator> queryFeeCalculators() {
+        return Set.of(new TokenGetInfoFeeCalculator(), new TokenGetNftInfoFeeCalculator());
     }
 }

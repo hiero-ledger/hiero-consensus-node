@@ -146,13 +146,8 @@ public class TokenServiceFeeCalculatorTests {
                         new TokenUnfreezeAccountFeeCalculator(),
                         new TokenUnpauseFeeCalculator(),
                         new TokenUpdateNftsFeeCalculator(),
-                        new TokenWipeFeeCalculator()
-                ),
-                Set.of(
-                        new TokenGetInfoFeeCalculator(),
-                        new TokenGetNftInfosFeeCalculator()
-                )
-                );
+                        new TokenWipeFeeCalculator()),
+                Set.of(new TokenGetInfoFeeCalculator(), new TokenGetNftInfosFeeCalculator()));
     }
 
     @Test
@@ -303,7 +298,10 @@ public class TokenServiceFeeCalculatorTests {
 
         final var tokenId = TokenID.newBuilder().tokenNum(1234).build();
         final var accountId = AccountID.newBuilder().accountNum(12345).build();
-        final var opBody = TokenAssociateTransactionBody.newBuilder().tokens(tokenId).account(accountId).build();
+        final var opBody = TokenAssociateTransactionBody.newBuilder()
+                .tokens(tokenId)
+                .account(accountId)
+                .build();
         final var txnBody = TransactionBody.newBuilder().tokenAssociate(opBody).build();
         final var result = feeCalculator.calculateTxFee(txnBody, calculatorState);
         assertNotNull(result);
@@ -314,7 +312,10 @@ public class TokenServiceFeeCalculatorTests {
     void disassociateToken() {
         final var tokenId = TokenID.newBuilder().tokenNum(1234).build();
         final var accountId = AccountID.newBuilder().accountNum(12345).build();
-        final var opBody = TokenDissociateTransactionBody.newBuilder().tokens(tokenId).account(accountId).build();
+        final var opBody = TokenDissociateTransactionBody.newBuilder()
+                .tokens(tokenId)
+                .account(accountId)
+                .build();
         final var txnBody = TransactionBody.newBuilder().tokenDissociate(opBody).build();
         final var result = feeCalculator.calculateTxFee(txnBody, calculatorState);
         assertNotNull(result);
@@ -360,7 +361,8 @@ public class TokenServiceFeeCalculatorTests {
     @Test
     void tokenFeeScheduleUpdate() {
         final var opBody = TokenFeeScheduleUpdateTransactionBody.newBuilder().build();
-        final var txnBody = TransactionBody.newBuilder().tokenFeeScheduleUpdate(opBody).build();
+        final var txnBody =
+                TransactionBody.newBuilder().tokenFeeScheduleUpdate(opBody).build();
         final var result = feeCalculator.calculateTxFee(txnBody, calculatorState);
         assertNotNull(result);
         assertEquals(TOKEN_FEE_SCHEDULE_UPDATE_BASE_FEE, result.total());
@@ -407,8 +409,7 @@ public class TokenServiceFeeCalculatorTests {
                         makeServiceFee(TOKEN_REJECT, TOKEN_REJECT_BASE_FEE),
                         makeServiceFee(TOKEN_UPDATE_NFTS, TOKEN_UPDATE_NFTS_BASE_FEE),
                         makeServiceFee(TOKEN_UNFREEZE_ACCOUNT, TOKEN_UNFREEZE_BASE_FEE),
-                        makeServiceFee(TOKEN_ACCOUNT_WIPE, TOKEN_WIPE_BASE_FEE)
-                        ))
+                        makeServiceFee(TOKEN_ACCOUNT_WIPE, TOKEN_WIPE_BASE_FEE)))
                 .build();
     }
 }
