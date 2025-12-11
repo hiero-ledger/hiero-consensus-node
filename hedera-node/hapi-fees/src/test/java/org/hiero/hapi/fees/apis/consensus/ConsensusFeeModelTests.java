@@ -32,10 +32,7 @@ class ConsensusFeeModelTests {
     static void setup() {
         feeSchedule = FeeSchedule.DEFAULT
                 .copyBuilder()
-                .extras(
-                        makeExtraDef(Extra.BYTES, 1),
-                        makeExtraDef(Extra.KEYS, 2),
-                        makeExtraDef(Extra.SIGNATURES, 3))
+                .extras(makeExtraDef(Extra.BYTES, 1), makeExtraDef(Extra.KEYS, 2), makeExtraDef(Extra.SIGNATURES, 3))
                 .node(NodeFee.DEFAULT
                         .copyBuilder()
                         .baseFee(1)
