@@ -20,9 +20,9 @@ import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.TestTags;
 import com.hedera.services.bdd.junit.hedera.HederaNode;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
-import com.hedera.services.bdd.suites.regression.system.LifecycleTest;
 import com.hedera.services.bdd.spec.utilops.FakeNmt;
 import com.hedera.services.bdd.suites.HapiSuite;
+import com.hedera.services.bdd.suites.regression.system.LifecycleTest;
 import com.hederahashgraph.api.proto.java.ServiceEndpoint;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
@@ -79,7 +79,8 @@ public class ClprSuite implements LifecycleTest {
         return customizedHapiTest(
                 Map.of(),
                 withOpContext((spec, opLog) -> {
-                    final var nodes = List.copyOf(spec.subProcessNetworkOrThrow().nodes());
+                    final var nodes =
+                            List.copyOf(spec.subProcessNetworkOrThrow().nodes());
                     assertThat(nodes)
                             .as("Stage 1 expects a four-node subprocess network")
                             .hasSize(4);
@@ -116,7 +117,8 @@ public class ClprSuite implements LifecycleTest {
                         FakeNmt.removeNode(byNodeId(NODE_ID_TO_REMOVE)),
                         FakeNmt.addNode(REPLACEMENT_NODE_ID)),
                 withOpContext((spec, opLog) -> {
-                    final var nodes = List.copyOf(spec.subProcessNetworkOrThrow().nodes());
+                    final var nodes =
+                            List.copyOf(spec.subProcessNetworkOrThrow().nodes());
                     assertThat(nodes)
                             .as("Roster change should keep a four-node network")
                             .hasSize(4);
@@ -145,7 +147,8 @@ public class ClprSuite implements LifecycleTest {
                 prepareFakeUpgrade(),
                 upgradeToNextConfigVersion(PUBLICIZE_ENABLED),
                 withOpContext((spec, opLog) -> {
-                    final var nodes = List.copyOf(spec.subProcessNetworkOrThrow().nodes());
+                    final var nodes =
+                            List.copyOf(spec.subProcessNetworkOrThrow().nodes());
                     assertThat(nodes)
                             .as("Publicize enablement should keep the four-node roster intact")
                             .hasSize(4);
@@ -211,7 +214,8 @@ public class ClprSuite implements LifecycleTest {
     private static ClprLedgerConfiguration tryFetchLedgerConfiguration(final HederaNode node) {
         try {
             final var pbjEndpoint = com.hedera.hapi.node.base.ServiceEndpoint.newBuilder()
-                    .ipAddressV4(Bytes.wrap(InetAddress.getByName(node.getHost()).getAddress()))
+                    .ipAddressV4(
+                            Bytes.wrap(InetAddress.getByName(node.getHost()).getAddress()))
                     .port(node.getGrpcPort())
                     .build();
             final var client = new ClprClientImpl(pbjEndpoint);
@@ -219,8 +223,8 @@ public class ClprSuite implements LifecycleTest {
             if (pbjConfig == null) {
                 return null;
             }
-            final var configBytes = org.hiero.hapi.interledger.state.clpr.ClprLedgerConfiguration.PROTOBUF
-                    .toBytes(pbjConfig);
+            final var configBytes =
+                    org.hiero.hapi.interledger.state.clpr.ClprLedgerConfiguration.PROTOBUF.toBytes(pbjConfig);
             return ClprLedgerConfiguration.parseFrom(configBytes.toByteArray());
         } catch (UnknownHostException | com.google.protobuf.InvalidProtocolBufferException e) {
             throw new IllegalStateException("Unable to fetch CLPR ledger configuration", e);
@@ -245,7 +249,8 @@ public class ClprSuite implements LifecycleTest {
 
     private static String ipV4Of(final ServiceEndpoint endpoint) {
         try {
-            return InetAddress.getByAddress(endpoint.getIpAddressV4().toByteArray()).getHostAddress();
+            return InetAddress.getByAddress(endpoint.getIpAddressV4().toByteArray())
+                    .getHostAddress();
         } catch (UnknownHostException e) {
             throw new IllegalStateException("CLPR endpoint carried an invalid IPv4 address", e);
         }

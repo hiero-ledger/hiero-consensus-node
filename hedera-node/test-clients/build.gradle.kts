@@ -217,9 +217,8 @@ tasks.register<Test>("testSubprocess") {
     val commandLineIncludePatterns =
         try {
             @Suppress("UNCHECKED_CAST")
-            filter::class.java
-                .getMethod("getCommandLineIncludePatterns")
-                .invoke(filter) as Set<String>
+            filter::class.java.getMethod("getCommandLineIncludePatterns").invoke(filter)
+                as Set<String>
         } catch (_: Exception) {
             emptySet()
         }
@@ -227,24 +226,32 @@ tasks.register<Test>("testSubprocess") {
     val taskArgs = gradle.startParameter.taskRequests.flatMap { it.args }
     fun containsClprPattern(value: String?) = value?.contains("CLPR", ignoreCase = true) == true
     val testFiltersClpr = filterPatterns.any(::containsClprPattern)
-    val testsArgWithEquals = taskArgs
-        .filter { it.startsWith("--tests=") }
-        .map { it.substringAfter("=") }
-        .any(::containsClprPattern)
-    val testsArgWithSeparatePattern = taskArgs.withIndex().any { (index, arg) ->
-        arg == "--tests" && containsClprPattern(taskArgs.getOrNull(index + 1))
-    }
-    val testSingleProperty = taskArgs
-        .filter { it.startsWith("-Dtest.single=") }
-        .map { it.substringAfter("=") }
-        .any(::containsClprPattern)
-    val commandLineRequestsClpr = testsArgWithEquals || testsArgWithSeparatePattern || testSingleProperty
-    val shouldEnableClpr = ciTagExpression.contains("CLPR") || testFiltersClpr || commandLineRequestsClpr
+    val testsArgWithEquals =
+        taskArgs
+            .filter { it.startsWith("--tests=") }
+            .map { it.substringAfter("=") }
+            .any(::containsClprPattern)
+    val testsArgWithSeparatePattern =
+        taskArgs.withIndex().any { (index, arg) ->
+            arg == "--tests" && containsClprPattern(taskArgs.getOrNull(index + 1))
+        }
+    val testSingleProperty =
+        taskArgs
+            .filter { it.startsWith("-Dtest.single=") }
+            .map { it.substringAfter("=") }
+            .any(::containsClprPattern)
+    val commandLineRequestsClpr =
+        testsArgWithEquals || testsArgWithSeparatePattern || testSingleProperty
+    val shouldEnableClpr =
+        ciTagExpression.contains("CLPR") || testFiltersClpr || commandLineRequestsClpr
     if (shouldEnableClpr) {
         systemProperty("clpr.clprEnabled", "true")
         systemProperty("clpr.devModeEnabled", "true")
         systemProperty("clpr.publicizeNetworkAddresses", "true")
-        systemProperty("clpr.connectionFrequency", System.getProperty("clpr.connectionFrequency", "5000"))
+        systemProperty(
+            "clpr.connectionFrequency",
+            System.getProperty("clpr.connectionFrequency", "5000"),
+        )
     }
 
     // Choose a different initial port for each test task if running as PR check

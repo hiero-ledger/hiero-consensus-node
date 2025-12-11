@@ -28,7 +28,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
@@ -37,17 +36,12 @@ import org.junit.jupiter.api.Tag;
  * Exercises freeze-upgrade driven node removals across multiple networks and verifies roster changes.
  */
 @Tag(TestTags.MULTINETWORK)
-public class MultiNetworkNodeLifecycleSuite extends AbstractMultiNetworkSuite implements LifecycleTest {
-    @BeforeEach
-    void initDefaults() {
-        setConfigDefaults();
-    }
-
+public class MultiNetworkNodeLifecycleSuite implements LifecycleTest {
     @MultiNetworkHapiTest(
             networks = {
-                @MultiNetworkHapiTest.Network(name = "NET_A", size = 4),
-                @MultiNetworkHapiTest.Network(name = "NET_B", size = 4),
-                @MultiNetworkHapiTest.Network(name = "NET_C", size = 4)
+                @MultiNetworkHapiTest.Network(name = "NET_A", size = 4, firstGrpcPort = 27400),
+                @MultiNetworkHapiTest.Network(name = "NET_B", size = 4, firstGrpcPort = 28400),
+                @MultiNetworkHapiTest.Network(name = "NET_C", size = 4, firstGrpcPort = 29400)
             })
     @DisplayName("Multi-network freeze upgrade updates rosters")
     Stream<DynamicTest> nodeRosterChangesAcrossNetworks(

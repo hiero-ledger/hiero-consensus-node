@@ -13,7 +13,6 @@ import com.hedera.services.bdd.spec.transactions.TxnVerbs;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
@@ -27,23 +26,12 @@ import org.junit.jupiter.api.Tag;
  * and independent ledger counters across distinct networks.
  */
 @Tag(TestTags.MULTINETWORK)
-public class MultiNetworkIsolationSuite extends AbstractMultiNetworkSuite {
-    @BeforeEach
-    void initDefaults() {
-        setConfigDefaults();
-    }
-
-    static {
-        // Use a distinct shard/realm for NET_C to prove isolation is insensitive to shard/realm overlap
-        System.setProperty("hapi.spec.multinet.NET_C.shard", "21");
-        System.setProperty("hapi.spec.multinet.NET_C.realm", "22");
-    }
-
+public class MultiNetworkIsolationSuite {
     @MultiNetworkHapiTest(
             networks = {
-                @MultiNetworkHapiTest.Network(name = "NET_A", size = 1),
-                @MultiNetworkHapiTest.Network(name = "NET_B", size = 1),
-                @MultiNetworkHapiTest.Network(name = "NET_C", size = 1)
+                @MultiNetworkHapiTest.Network(name = "NET_A", size = 1, firstGrpcPort = 27400),
+                @MultiNetworkHapiTest.Network(name = "NET_B", size = 1, firstGrpcPort = 28000),
+                @MultiNetworkHapiTest.Network(name = "NET_C", size = 1, shard = 21, realm = 22, firstGrpcPort = 28600)
             })
     @DisplayName("Three network isolation")
     Stream<DynamicTest> threeNetworkIsolation(

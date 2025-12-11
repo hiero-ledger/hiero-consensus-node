@@ -33,5 +33,13 @@ public @interface MultiNetworkHapiTest {
         String name();
 
         int size() default 4;
+
+        long shard() default -1;
+
+        long realm() default -1;
+
+        int firstGrpcPort() default -1;
+
+        ConfigOverride[] setupOverrides() default {};
     }
 }
