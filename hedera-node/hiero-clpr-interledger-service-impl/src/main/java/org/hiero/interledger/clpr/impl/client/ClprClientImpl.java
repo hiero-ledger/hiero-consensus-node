@@ -45,8 +45,8 @@ import org.hiero.hapi.interledger.clpr.ClprServiceInterface;
 import org.hiero.hapi.interledger.clpr.ClprSetLedgerConfigurationTransactionBody;
 import org.hiero.hapi.interledger.state.clpr.ClprLedgerConfiguration;
 import org.hiero.hapi.interledger.state.clpr.ClprLedgerId;
+import org.hiero.interledger.clpr.ClprStateProofUtils;
 import org.hiero.interledger.clpr.client.ClprClient;
-import org.hiero.interledger.clpr.impl.ClprStateProofUtils;
 
 /**
  * Implementation of the CLPR (Cross-Ledger Protocol) client.
@@ -149,7 +149,7 @@ public class ClprClientImpl implements ClprClient {
             final var stateProof =
                     Objects.requireNonNull(response.clprLedgerConfiguration()).ledgerConfigurationProof();
             if (stateProof != null && ClprStateProofUtils.validateStateProof(stateProof)) {
-                return org.hiero.interledger.clpr.impl.ClprStateProofUtils.extractConfiguration(stateProof);
+                return org.hiero.interledger.clpr.ClprStateProofUtils.extractConfiguration(stateProof);
             }
         }
         return null;
@@ -167,7 +167,7 @@ public class ClprClientImpl implements ClprClient {
             @NonNull final AccountID nodeAccountId,
             @NonNull final ClprLedgerConfiguration clprLedgerConfiguration) {
         try {
-            var stateProof = ClprStateProofUtils.buildStateProof(clprLedgerConfiguration);
+            var stateProof = ClprStateProofUtils.buildLocalClprStateProofWrapper(clprLedgerConfiguration);
             if (stateProof == null || stateProof.paths().isEmpty()) {
                 stateProof = devModeStateProof(clprLedgerConfiguration);
             }

@@ -68,7 +68,6 @@ import com.hedera.node.app.workflows.TransactionChecker.RequireMinValidLifetimeB
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
 import com.hedera.node.app.workflows.purechecks.PureChecksContextImpl;
-import com.hedera.node.config.Utils;
 import com.hedera.node.config.data.ClprConfig;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.HooksConfig;
@@ -274,6 +273,10 @@ public final class IngestChecker {
         transactionChecker.checkTransactionSize(txInfo);
         final var txBody = txInfo.txBody();
         final var functionality = txInfo.functionality();
+        final var clprConfig = configuration.getConfigData(ClprConfig.class);
+        if (!clprConfig.clprEnabled() && functionality == HederaFunctionality.CLPR_SET_LEDGER_CONFIG) {
+            throw new PreCheckException(NOT_SUPPORTED);
+        }
 
         // 1a. Verify the transaction has been sent to *this* node
         final var nodeAccountId = networkInfo.selfNodeInfo().accountId();

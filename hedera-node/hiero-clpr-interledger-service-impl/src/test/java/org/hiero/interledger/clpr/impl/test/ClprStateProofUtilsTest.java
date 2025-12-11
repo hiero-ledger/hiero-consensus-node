@@ -14,7 +14,7 @@ import java.util.List;
 import org.hiero.hapi.interledger.state.clpr.ClprEndpoint;
 import org.hiero.hapi.interledger.state.clpr.ClprLedgerConfiguration;
 import org.hiero.hapi.interledger.state.clpr.ClprLedgerId;
-import org.hiero.interledger.clpr.impl.ClprStateProofUtils;
+import org.hiero.interledger.clpr.ClprStateProofUtils;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -31,7 +31,7 @@ class ClprStateProofUtilsTest extends ClprTestBase {
         final var config =
                 ClprLedgerConfiguration.newBuilder().ledgerId(ledgerId).build();
 
-        final var stateProof = buildStateProof(config);
+        final var stateProof = buildLocalClprStateProofWrapper(config);
 
         // Extract and verify
         final var extracted = ClprStateProofUtils.extractConfiguration(stateProof);
@@ -48,7 +48,7 @@ class ClprStateProofUtilsTest extends ClprTestBase {
                         .build())
                 .build();
 
-        final var validProof = buildStateProof(config);
+        final var validProof = buildLocalClprStateProofWrapper(config);
         final var stateProof = validProof
                 .copyBuilder()
                 .signedBlockProof(validProof
@@ -134,7 +134,7 @@ class ClprStateProofUtilsTest extends ClprTestBase {
                         .build())
                 .build();
 
-        final var stateProof = buildStateProof(config);
+        final var stateProof = buildLocalClprStateProofWrapper(config);
 
         // Should return true
         assertTrue(ClprStateProofUtils.validateStateProof(stateProof));
@@ -149,7 +149,7 @@ class ClprStateProofUtilsTest extends ClprTestBase {
                         .build())
                 .build();
 
-        final var validProof = buildStateProof(config);
+        final var validProof = buildLocalClprStateProofWrapper(config);
         final var stateProof = validProof
                 .copyBuilder()
                 .signedBlockProof(validProof
@@ -195,7 +195,7 @@ class ClprStateProofUtilsTest extends ClprTestBase {
                 .endpoints(List.of(endpoint1, endpoint2))
                 .build();
 
-        final var stateProof = buildStateProof(originalConfig);
+        final var stateProof = buildLocalClprStateProofWrapper(originalConfig);
 
         // Extract configuration back
         final var extractedConfig = ClprStateProofUtils.extractConfiguration(stateProof);

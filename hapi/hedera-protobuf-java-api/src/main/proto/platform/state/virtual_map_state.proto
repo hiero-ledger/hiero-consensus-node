@@ -279,6 +279,11 @@ message StateKey {
      */
     org.hiero.hapi.interledger.state.clpr.ClprLedgerId ClprService_I_CONFIGURATIONS = 55;
 
+    /**
+     * A state identifier for CLPR local ledger metadata.
+     */
+    org.hiero.hapi.interledger.state.clpr.ClprLocalLedgerMetadata ClprService_I_METADATA = 56;
+
     // Queue states
     /**
      * Queue index for the round receipts queue.
@@ -628,6 +633,11 @@ message StateValue {
     org.hiero.hapi.interledger.state.clpr.ClprLedgerConfiguration ClprService_I_CONFIGURATIONS = 55;
 
     /**
+     * A state identifier for CLPR local ledger metadata. Singleton state.
+     */
+    org.hiero.hapi.interledger.state.clpr.ClprLocalLedgerMetadata ClprService_I_METADATA = 56;
+
+    /**
      * Metadata of the round receipts queue.
      */
     proto.TransactionReceiptEntries RecordCache_I_TRANSACTION_RECEIPTS = 126;
@@ -805,6 +815,11 @@ enum SingletonType {
    * A state identifier for the node rewards. Singleton state.
    */
   TokenService_I_NODE_REWARDS = 50;
+
+  /**
+   * A state identifier for CLPR local ledger metadata. Singleton state.
+   */
+  ClprService_I_METADATA = 51;
 
   // Queue metadata
 

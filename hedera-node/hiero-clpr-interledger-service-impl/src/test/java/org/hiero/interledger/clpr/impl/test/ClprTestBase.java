@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.interledger.clpr.impl.test;
 
-import static org.hiero.interledger.clpr.impl.schemas.V0650ClprSchema.CLPR_LEDGER_CONFIGURATIONS_STATE_ID;
-import static org.hiero.interledger.clpr.impl.schemas.V0650ClprSchema.CLPR_LEDGER_CONFIGURATIONS_STATE_KEY;
+import static org.hiero.interledger.clpr.impl.schemas.V0700ClprSchema.CLPR_LEDGER_CONFIGURATIONS_STATE_ID;
+import static org.hiero.interledger.clpr.impl.schemas.V0700ClprSchema.CLPR_LEDGER_CONFIGURATIONS_STATE_KEY;
 
 import com.hedera.hapi.block.stream.StateProof;
 import com.hedera.hapi.node.base.Timestamp;
@@ -124,7 +124,7 @@ public class ClprTestBase {
         setupScenario();
     }
 
-    protected StateProof buildStateProof(@NonNull final ClprLedgerConfiguration configuration) {
+    protected StateProof buildLocalClprStateProofWrapper(@NonNull final ClprLedgerConfiguration configuration) {
         final var stateKey = StateKey.newBuilder()
                 .clprServiceIConfigurations(configuration.ledgerIdOrThrow())
                 .build();
@@ -139,7 +139,7 @@ public class ClprTestBase {
     }
 
     protected StateProof buildInvalidStateProof(@NonNull final ClprLedgerConfiguration configuration) {
-        final var proof = buildStateProof(configuration);
+        final var proof = buildLocalClprStateProofWrapper(configuration);
         return proof.copyBuilder()
                 .signedBlockProof(proof.signedBlockProofOrThrow()
                         .copyBuilder()

@@ -1297,7 +1297,6 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
                 .historyService(historyService)
                 .blockHashSigner(blockHashSigner)
                 .appContext(appContext)
-                .clprService(clprServiceImpl)
                 .build();
         // Initialize infrastructure for fees, exchange rates, and throttles from the working state
         daggerApp.initializer().initialize(state, streamMode);
@@ -1433,13 +1432,6 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
             ((CommittableWritableStates) writableHintsStates).commit();
         }
 
-        final var historyStore = new ReadableHistoryStoreImpl(initState.getReadableStates(HistoryService.NAME));
-        final var ledgerId = historyStore.getLedgerId();
-        if (ledgerId != null) {
-            final var consensusTime = freezeTimeOf(initState);
-            if (consensusTime != null) {
-                clprServiceImpl.dispatchLedgerConfigurationUpdate(initState, consensusTime);
-            }
-        }
+        // CLPR bootstrap now runs via SystemTransactions startup hooks; no direct dispatch here.
     }
 }

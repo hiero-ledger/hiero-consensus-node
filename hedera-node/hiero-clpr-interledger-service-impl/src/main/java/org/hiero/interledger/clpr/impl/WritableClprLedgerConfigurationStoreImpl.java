@@ -2,13 +2,11 @@
 package org.hiero.interledger.clpr.impl;
 
 import static java.util.Objects.requireNonNull;
-import static org.hiero.interledger.clpr.impl.schemas.V0650ClprSchema.CLPR_LEDGER_CONFIGURATIONS_STATE_ID;
+import static org.hiero.interledger.clpr.impl.schemas.V0700ClprSchema.CLPR_LEDGER_CONFIGURATIONS_STATE_ID;
 
 import com.swirlds.state.spi.WritableKVState;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.hiero.hapi.interledger.state.clpr.ClprLedgerConfiguration;
 import org.hiero.hapi.interledger.state.clpr.ClprLedgerId;
 import org.hiero.interledger.clpr.WritableClprLedgerConfigurationStore;
@@ -20,8 +18,6 @@ import org.hiero.interledger.clpr.WritableClprLedgerConfigurationStore;
  */
 public class WritableClprLedgerConfigurationStoreImpl extends ReadableClprLedgerConfigurationStoreImpl
         implements WritableClprLedgerConfigurationStore {
-    private static final Logger logger = LogManager.getLogger(WritableClprLedgerConfigurationStoreImpl.class);
-
     private final WritableKVState<ClprLedgerId, ClprLedgerConfiguration> ledgerConfigurationsMutable;
 
     /**

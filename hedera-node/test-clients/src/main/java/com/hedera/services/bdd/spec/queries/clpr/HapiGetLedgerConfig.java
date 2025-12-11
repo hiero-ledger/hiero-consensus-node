@@ -50,7 +50,7 @@ public class HapiGetLedgerConfig extends HapiQueryOp<HapiGetLedgerConfig> {
             final var pbjProof = com.hedera.hapi.block.stream.StateProof.PROTOBUF.parse(
                     com.hedera.pbj.runtime.io.buffer.Bytes.wrap(protocProof.toByteArray())
                             .toReadableSequentialData());
-            final var pbjConfig = org.hiero.interledger.clpr.impl.ClprStateProofUtils.extractConfiguration(pbjProof);
+            final var pbjConfig = org.hiero.interledger.clpr.ClprStateProofUtils.extractConfiguration(pbjProof);
 
             // Convert PBJ config back to protoc config for comparison
             final var configBytes =
@@ -95,8 +95,7 @@ public class HapiGetLedgerConfig extends HapiQueryOp<HapiGetLedgerConfig> {
                 final var pbjProof = com.hedera.hapi.block.stream.StateProof.PROTOBUF.parse(
                         com.hedera.pbj.runtime.io.buffer.Bytes.wrap(protocProof.toByteArray())
                                 .toReadableSequentialData());
-                final var pbjConfig =
-                        org.hiero.interledger.clpr.impl.ClprStateProofUtils.extractConfiguration(pbjProof);
+                final var pbjConfig = org.hiero.interledger.clpr.ClprStateProofUtils.extractConfiguration(pbjProof);
                 log.info("Info: {}", pbjConfig);
             } catch (com.hedera.pbj.runtime.ParseException e) {
                 throw new RuntimeException("Failed to parse state proof", e);

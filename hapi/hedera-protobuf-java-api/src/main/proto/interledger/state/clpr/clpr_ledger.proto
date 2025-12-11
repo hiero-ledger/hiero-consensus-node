@@ -69,3 +69,21 @@ message ClprEndpoint {
      */
     bytes signing_certificate = 2;
 }
+
+/**
+ * Local metadata for a CLPR ledger on this node.
+ *
+ * Persisted in a singleton state to disambiguate the local ledger id and the roster hash
+ * used to generate the current local configuration.
+ */
+message ClprLocalLedgerMetadata {
+    /**
+     * The locally generated ledger id (pre-TSS) that should be reused across restarts.
+     */
+    ClprLedgerId ledger_id = 1;
+
+    /**
+     * Hash of the roster that produced the current local configuration.
+     */
+    bytes roster_hash = 2;
+}

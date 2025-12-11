@@ -16,24 +16,33 @@ import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.info.NodeInfo;
+import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
+import com.hedera.node.config.ConfigProvider;
+import com.hedera.node.config.data.ClprConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.List;
+import org.hiero.consensus.roster.ReadableRosterStore;
 import org.hiero.hapi.interledger.clpr.ClprSetLedgerConfigurationTransactionBody;
 import org.hiero.hapi.interledger.state.clpr.ClprEndpoint;
 import org.hiero.hapi.interledger.state.clpr.ClprLedgerConfiguration;
 import org.hiero.hapi.interledger.state.clpr.ClprLedgerId;
+import org.hiero.hapi.interledger.state.clpr.ClprLocalLedgerMetadata;
+import org.hiero.interledger.clpr.ClprStateProofUtils;
+import org.hiero.interledger.clpr.WritableClprLedgerConfigurationStore;
+import org.hiero.interledger.clpr.WritableClprMetadataStore;
 import org.hiero.interledger.clpr.impl.ClprStateProofManager;
-import org.hiero.interledger.clpr.impl.ClprStateProofUtils;
 import org.hiero.interledger.clpr.impl.handlers.ClprSetLedgerConfigurationHandler;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
@@ -64,16 +73,45 @@ public class ClprSetLedgerConfigurationHandlerTest extends ClprHandlerTestBase {
     @Mock
     private NodeInfo selfNodeInfo;
 
+    @Mock
+    private ConfigProvider configProvider;
+
+    @Mock
+    private com.hedera.node.config.VersionedConfiguration configuration;
+
+    @Mock
+    private StoreFactory storeFactory;
+
+    @Mock
+    private WritableClprMetadataStore metadataStore;
+
+    @Mock
+    private ReadableRosterStore rosterStore;
+
+    @Mock
+    private WritableClprLedgerConfigurationStore writableConfigStoreMock;
+
+    private final Bytes rosterHash = Bytes.wrap("rosterHash");
+
     private ClprSetLedgerConfigurationHandler subject;
 
     @BeforeEach
     public void setUp() {
         setupHandlerBase();
-        subject = new ClprSetLedgerConfigurationHandler(stateProofManager, networkInfo);
+        subject = new ClprSetLedgerConfigurationHandler(stateProofManager, networkInfo, configProvider);
         given(preHandleContext.creatorInfo()).willReturn(creatorInfo);
         given(networkInfo.selfNodeInfo()).willReturn(selfNodeInfo);
         given(creatorInfo.nodeId()).willReturn(1L);
         given(selfNodeInfo.nodeId()).willReturn(0L);
+        given(configProvider.getConfiguration()).willReturn(configuration);
+        given(configuration.getConfigData(ClprConfig.class)).willReturn(new ClprConfig(true, 5000, true, true));
+        given(preHandleContext.isUserTransaction()).willReturn(true);
+        given(handleContext.storeFactory()).willReturn(storeFactory);
+        given(storeFactory.writableStore(WritableClprLedgerConfigurationStore.class))
+                .willReturn(writableLedgerConfigStore);
+        given(storeFactory.writableStore(WritableClprMetadataStore.class)).willReturn(metadataStore);
+        given(storeFactory.readableStore(ReadableRosterStore.class)).willReturn(rosterStore);
+        given(rosterStore.getCurrentRosterHash()).willReturn(rosterHash);
     }
 
     @Test
@@ -187,7 +225,7 @@ public class ClprSetLedgerConfigurationHandlerTest extends ClprHandlerTestBase {
         final var txn = newTxnBuilder().withClprLedgerConfig(remoteClprConfig).build();
         given(stateProofManager.isDevModeEnabled()).willReturn(true);
         given(stateProofManager.getLedgerConfiguration(remoteClprLedgerId))
-                .willReturn(buildStateProof(remoteClprConfig), (StateProof) null);
+                .willReturn(buildLocalClprStateProofWrapper(remoteClprConfig), (StateProof) null);
         given(stateProofManager.readLedgerConfiguration(remoteClprLedgerId)).willReturn(remoteClprConfig);
         given(stateProofManager.validateStateProof(any(ClprSetLedgerConfigurationTransactionBody.class)))
                 .willReturn(true);
@@ -213,10 +251,29 @@ public class ClprSetLedgerConfigurationHandlerTest extends ClprHandlerTestBase {
                 .willReturn(false);
         given(stateProofManager.readLedgerConfiguration(remoteClprLedgerId)).willReturn(null);
         given(preHandleContext.body()).willReturn(txn);
+        given(preHandleContext.isUserTransaction()).willReturn(true);
 
         assertThatCode(() -> subject.preHandle(preHandleContext))
                 .isInstanceOf(PreCheckException.class)
                 .hasMessageContaining(ResponseCodeEnum.CLPR_INVALID_STATE_PROOF.name());
+    }
+
+    @Test
+    public void preHandleSyntheticSkipsStateProofValidation() {
+        final var invalidProof = buildInvalidStateProof(remoteClprConfig);
+        final var txn = TransactionBody.newBuilder()
+                .clprSetLedgerConfiguration(ClprSetLedgerConfigurationTransactionBody.newBuilder()
+                        .ledgerConfigurationProof(invalidProof)
+                        .build())
+                .build();
+        given(stateProofManager.getLocalLedgerId()).willReturn(localClprLedgerId);
+        given(stateProofManager.isDevModeEnabled()).willReturn(true);
+        given(stateProofManager.readLedgerConfiguration(remoteClprLedgerId)).willReturn(null);
+        given(preHandleContext.body()).willReturn(txn);
+        given(preHandleContext.isUserTransaction()).willReturn(false);
+
+        assertThatCode(() -> subject.preHandle(preHandleContext)).doesNotThrowAnyException();
+        verify(stateProofManager, never()).validateStateProof(any());
     }
 
     @Test
@@ -246,7 +303,7 @@ public class ClprSetLedgerConfigurationHandlerTest extends ClprHandlerTestBase {
         given(stateProofManager.getLocalLedgerId()).willReturn(localClprLedgerId);
         given(stateProofManager.isDevModeEnabled()).willReturn(true);
         given(stateProofManager.getLedgerConfiguration(remoteClprLedgerId))
-                .willReturn(buildStateProof(remoteClprConfig));
+                .willReturn(buildLocalClprStateProofWrapper(remoteClprConfig));
         given(stateProofManager.readLedgerConfiguration(remoteClprLedgerId)).willReturn(remoteClprConfig);
         given(stateProofManager.validateStateProof(any(ClprSetLedgerConfigurationTransactionBody.class)))
                 .willReturn(true);
@@ -268,7 +325,7 @@ public class ClprSetLedgerConfigurationHandlerTest extends ClprHandlerTestBase {
         final var updatedConfig =
                 remoteClprConfig.copyBuilder().timestamp(updatedTimestamp).build();
         assertThat(localClprLedgerId.equals(updatedConfig.ledgerId())).isFalse();
-        final var existingProof = buildStateProof(remoteClprConfig);
+        final var existingProof = buildLocalClprStateProofWrapper(remoteClprConfig);
         assertThat(ClprStateProofUtils.extractConfiguration(existingProof)
                         .timestampOrThrow()
                         .seconds())
@@ -283,6 +340,81 @@ public class ClprSetLedgerConfigurationHandlerTest extends ClprHandlerTestBase {
         given(preHandleContext.body()).willReturn(txn);
 
         assertThatCode(() -> subject.preHandle(preHandleContext)).doesNotThrowAnyException();
+    }
+
+    @Test
+    public void handleUpdatesMetadataWithRosterHashAndStableLedgerId() throws Exception {
+        final var txn = TransactionBody.newBuilder()
+                .clprSetLedgerConfiguration(ClprSetLedgerConfigurationTransactionBody.newBuilder()
+                        .ledgerConfigurationProof(buildLocalClprStateProofWrapper(localClprConfig))
+                        .build())
+                .build();
+        given(handleContext.body()).willReturn(txn);
+        given(metadataStore.get()).willReturn(null);
+
+        subject.handle(handleContext);
+
+        final var captor = ArgumentCaptor.forClass(ClprLocalLedgerMetadata.class);
+        verify(metadataStore).put(captor.capture());
+        final var persisted = captor.getValue();
+        assertThat(persisted.ledgerIdOrThrow().ledgerId())
+                .isEqualTo(localClprConfig.ledgerId().ledgerId());
+        assertThat(persisted.rosterHash()).isEqualTo(rosterHash);
+    }
+
+    @Test
+    public void handleIsNoOpWhenRosterHashDoesNotAdvance() {
+        final var txn = TransactionBody.newBuilder()
+                .clprSetLedgerConfiguration(ClprSetLedgerConfigurationTransactionBody.newBuilder()
+                        .ledgerConfigurationProof(buildLocalClprStateProofWrapper(localClprConfig))
+                        .build())
+                .build();
+        final var existingMetadata = ClprLocalLedgerMetadata.newBuilder()
+                .ledgerId(localClprConfig.ledgerId())
+                .rosterHash(rosterHash)
+                .build();
+        given(handleContext.body()).willReturn(txn);
+        given(metadataStore.get()).willReturn(existingMetadata);
+        given(storeFactory.writableStore(WritableClprLedgerConfigurationStore.class))
+                .willReturn(writableConfigStoreMock);
+
+        assertThatCode(() -> subject.handle(handleContext)).doesNotThrowAnyException();
+        verify(metadataStore, never()).put(any());
+        verify(writableConfigStoreMock, never()).put(any());
+    }
+
+    @Test
+    @DisplayName("Handle reuses existing ledgerId and advances roster hash on change")
+    void handleReusesExistingLedgerIdWhenRosterChanges() throws Exception {
+        final var existingMetadata = ClprLocalLedgerMetadata.newBuilder()
+                .ledgerId(ClprLedgerId.newBuilder()
+                        .ledgerId(Bytes.wrap("existing-ledger"))
+                        .build())
+                .rosterHash(Bytes.wrap("old-roster"))
+                .build();
+        given(metadataStore.get()).willReturn(existingMetadata);
+        given(storeFactory.writableStore(WritableClprLedgerConfigurationStore.class))
+                .willReturn(writableConfigStoreMock);
+
+        final var txn = TransactionBody.newBuilder()
+                .clprSetLedgerConfiguration(ClprSetLedgerConfigurationTransactionBody.newBuilder()
+                        .ledgerConfigurationProof(buildLocalClprStateProofWrapper(localClprConfig))
+                        .build())
+                .build();
+        given(handleContext.body()).willReturn(txn);
+
+        subject.handle(handleContext);
+
+        final var metadataCaptor = ArgumentCaptor.forClass(ClprLocalLedgerMetadata.class);
+        verify(metadataStore).put(metadataCaptor.capture());
+        final var persistedMetadata = metadataCaptor.getValue();
+        assertThat(persistedMetadata.ledgerId().ledgerId())
+                .isEqualTo(existingMetadata.ledgerId().ledgerId());
+        assertThat(persistedMetadata.rosterHash()).isEqualTo(rosterHash);
+
+        final var configCaptor = ArgumentCaptor.forClass(ClprLedgerConfiguration.class);
+        verify(writableConfigStoreMock).put(configCaptor.capture());
+        assertThat(configCaptor.getValue().ledgerId()).isEqualTo(localClprConfig.ledgerId());
     }
 
     private TxnBuilder newTxnBuilder() {
@@ -341,7 +473,7 @@ public class ClprSetLedgerConfigurationHandlerTest extends ClprHandlerTestBase {
                     .timestamp(timestamp)
                     .build();
 
-            final var stateProof = buildStateProof(localClprConfig);
+            final var stateProof = buildLocalClprStateProofWrapper(localClprConfig);
 
             final var bodyInternals = ClprSetLedgerConfigurationTransactionBody.newBuilder()
                     .ledgerConfigurationProof(stateProof)

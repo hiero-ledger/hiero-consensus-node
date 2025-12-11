@@ -63,10 +63,10 @@ document can be retired.
 
 ## 8. State proof helpers
 
-|                                                            Path                                                            |                                                      Why it changed                                                       |
-|----------------------------------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------|
-| `hedera-node/hiero-clpr-interledger-service-impl/src/main/java/org/hiero/interledger/clpr/impl/ClprStateProofManager.java` | Adds `readLedgerConfiguration` helper, dev-mode fallbacks for empty ledger IDs, and verification shortcuts.               |
-| `hedera-node/hiero-clpr-interledger-service-impl/src/main/java/org/hiero/interledger/clpr/impl/ClprStateProofUtils.java`   | Provides a dev-mode `buildStateProof` helper and simplifies extraction logic now that verification is handled separately. |
+|                                                            Path                                                            |                                                             Why it changed                                                             |
+|----------------------------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------|
+| `hedera-node/hiero-clpr-interledger-service-impl/src/main/java/org/hiero/interledger/clpr/impl/ClprStateProofManager.java` | Adds `readLedgerConfiguration` helper, dev-mode fallbacks for empty ledger IDs, and verification shortcuts.                            |
+| `hedera-node/hiero-clpr-interledger-service/src/main/java/org/hiero/interledger/clpr/ClprStateProofUtils.java`             | Provides a local `buildLocalClprStateProofWrapper` helper and simplifies extraction logic now that verification is handled separately. |
 
 ## 9. Handlers
 
