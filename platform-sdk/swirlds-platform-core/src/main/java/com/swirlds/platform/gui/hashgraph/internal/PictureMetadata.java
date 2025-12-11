@@ -96,8 +96,8 @@ public class PictureMetadata {
         return (int) (getGapBetweenColumns() * MARGIN_FRACTION);
     }
 
-    /** find x position on the screen for event e2 which has an other-parent of e1 (or null if none) */
-    public int xpos(final EventImpl e1, final EventImpl e2) {
+    /** find x position on the screen for event e */
+    public int xpos(final EventImpl e) {
         // the gap between left side of screen and leftmost column
         // is marginFraction times the gap between columns (and similarly for right side)
         final double marginFraction = 0.5;
@@ -106,14 +106,14 @@ public class PictureMetadata {
         // gap between leftmost column and left edge (and similar on right)
         final int sideGap = (int) (betweenGap * marginFraction);
 
-        // find the column for e2 next to the column for e1
-        int xPos = sideGap + rosterMetadata.mems2col(e1, e2) * betweenGap;
+        // find the column for e
+        int xPos = sideGap + rosterMetadata.mems2col(e) * betweenGap;
 
-        final GossipEvent e2GossipEvent = e2.getBaseEvent().getGossipEvent();
+        final GossipEvent e2GossipEvent = e.getBaseEvent().getGossipEvent();
 
         // check if we have a branched event
         if (hashgraphSource.getEventStorage().getBranchedEventsMetadata().containsKey(e2GossipEvent)) {
-            return calculateXPosForBranchedEvent(e2, xPos);
+            return calculateXPosForBranchedEvent(e, xPos);
         }
 
         return xPos;

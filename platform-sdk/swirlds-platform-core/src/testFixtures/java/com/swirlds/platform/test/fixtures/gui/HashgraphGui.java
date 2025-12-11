@@ -34,6 +34,7 @@ public class HashgraphGui {
         final GraphGenerator graphGenerator = new StandardGraphGenerator(
                 platformContext,
                 randotron.nextInt(),
+                2,
                 generateSources(numNodes, Arrays.stream(args).anyMatch("branch"::equals)));
         graphGenerator.reset();
 

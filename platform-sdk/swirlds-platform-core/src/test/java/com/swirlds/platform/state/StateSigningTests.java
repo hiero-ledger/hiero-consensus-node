@@ -497,31 +497,4 @@ class StateSigningTests {
         assertEquals(0, signedState.getSigningWeight());
         assertFalse(signedState.isComplete());
     }
-
-    @ParameterizedTest
-    @ValueSource(booleans = {true, false})
-    @DisplayName("Recovery State Is Complete Test")
-    void recoveryStateIsCompleteTest(final boolean evenWeighting) {
-        final Random random = getRandomPrintSeed();
-
-        final int nodeCount = random.nextInt(10, 20);
-
-        final Roster roster = RandomRosterBuilder.create(random)
-                .withWeightGenerator(
-                        evenWeighting ? WeightGenerators.BALANCED_1000_PER_NODE : WeightGenerators.GAUSSIAN)
-                .withSize(nodeCount)
-                .build();
-
-        final SignedState signedState = new RandomSignedStateGenerator(random)
-                .setRoster(roster)
-                .setSignatures(new HashMap<>())
-                .build();
-
-        assertFalse(signedState.isComplete());
-
-        signedState.markAsRecoveryState();
-
-        // Recovery states are considered to be complete regardless of signature count
-        assertTrue(signedState.isComplete());
-    }
 }

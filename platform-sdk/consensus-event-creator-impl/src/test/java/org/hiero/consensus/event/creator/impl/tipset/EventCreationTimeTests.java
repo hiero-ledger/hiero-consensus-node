@@ -40,11 +40,17 @@ public class EventCreationTimeTests {
         final Roster roster =
                 RandomRosterBuilder.create(random).withSize(networkSize).build();
         transactionPool = new ArrayList<>();
-        eventCreator = buildEventCreator(random, time, roster, NodeId.of(0), () -> {
-            final List<TimestampedTransaction> copy = List.copyOf(transactionPool);
-            transactionPool.clear();
-            return copy;
-        });
+        eventCreator = buildEventCreator(
+                random,
+                time,
+                roster,
+                NodeId.of(0),
+                () -> {
+                    final List<TimestampedTransaction> copy = List.copyOf(transactionPool);
+                    transactionPool.clear();
+                    return copy;
+                },
+                1);
     }
 
     /**
