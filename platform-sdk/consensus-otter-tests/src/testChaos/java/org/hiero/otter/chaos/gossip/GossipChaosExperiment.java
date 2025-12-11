@@ -16,7 +16,8 @@ import org.hiero.otter.fixtures.network.LatencyRange;
 
 /**
  * An experiment that isolates a target node from the network for a duration, turning connectivity on and off in short
- * periods.
+ * periods. At the same time puts higher latency on that node, so there is a bigger chance of disconnecting the
+ * connection in the middle of synchronization.
  *
  * @param minDuration           the minimum duration of the entire experiment
  * @param maxDuration           the maximum duration of the entire experiment
@@ -24,6 +25,7 @@ import org.hiero.otter.fixtures.network.LatencyRange;
  * @param maxDisconnectDuration the maximum duration of the single disconnect event
  * @param minConnectedDuration  the minimum duration of pause between disconnect, when connectivity works correctly
  * @param maxConnectedDuration  the maximum duration of pause between disconnect, when connectivity works correctly
+ * @param latencyRange          the range of latencies to put on node under test
  */
 public record GossipChaosExperiment(
         @NonNull Duration minDuration,
