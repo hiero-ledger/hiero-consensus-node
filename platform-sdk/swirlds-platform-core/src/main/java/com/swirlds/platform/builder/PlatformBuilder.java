@@ -26,12 +26,10 @@ import com.swirlds.platform.crypto.CryptoStatic;
 import com.swirlds.platform.event.preconsensus.PcesConfig;
 import com.swirlds.platform.event.preconsensus.PcesFileReader;
 import com.swirlds.platform.event.preconsensus.PcesFileTracker;
-import com.swirlds.platform.freeze.FreezeCheckHolder;
 import com.swirlds.platform.gossip.DefaultIntakeEventCounter;
 import com.swirlds.platform.gossip.IntakeEventCounter;
 import com.swirlds.platform.gossip.NoOpIntakeEventCounter;
 import com.swirlds.platform.gossip.sync.config.SyncConfig;
-import com.swirlds.platform.network.protocol.ReservedSignedStateResultPromise;
 import com.swirlds.platform.reconnect.FallenBehindMonitor;
 import com.swirlds.platform.scratchpad.Scratchpad;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
@@ -56,11 +54,13 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.concurrent.BlockingResourceProvider;
 import org.hiero.base.concurrent.ExecutorFactory;
 import org.hiero.base.crypto.CryptoUtils;
 import org.hiero.base.crypto.Signature;
 import org.hiero.consensus.crypto.PlatformSigner;
 import org.hiero.consensus.event.creator.EventCreatorModule;
+import org.hiero.consensus.hashgraph.FreezeCheckHolder;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
@@ -523,7 +523,7 @@ public final class PlatformBuilder {
                 consensusStateEventHandler,
                 execution,
                 new FallenBehindMonitor(rosterHistory.getCurrentRoster(), configuration, platformContext.getMetrics()),
-                new ReservedSignedStateResultPromise());
+                new BlockingResourceProvider<>());
 
         return new PlatformComponentBuilder(buildingBlocks);
     }

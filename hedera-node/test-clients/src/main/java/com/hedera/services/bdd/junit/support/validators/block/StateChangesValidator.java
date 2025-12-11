@@ -701,8 +701,13 @@ public class StateChangesValidator implements BlockStreamValidator {
                                         wrapsMessage,
                                         context.publicKeysFor(nonRecursiveProof.signingNodeIds()),
                                         nonRecursiveProof.aggregatedSignature().toByteArray()),
-                                "Invalid aggregated signature in proof (start round #" + firstRound + ") - context "
-                                        + context);
+                                "Invalid aggregated signature "
+                                        + nonRecursiveProof.aggregatedSignature()
+                                        + " in proof (start round #" + firstRound
+                                        + ", signing node ids " + nonRecursiveProof.signingNodeIds()
+                                        + ") on WRAPS message " + Bytes.wrap(wrapsMessage)
+                                        + " with metadata " + vk
+                                        + " - context " + context);
                     }
                     case WRAPS_PROOF -> {
                         final var compressedProof = chainOfTrustProof.wrapsProofOrThrow();

@@ -19,7 +19,6 @@ module com.hedera.node.app {
     requires transitive com.hedera.node.app.spi;
     requires transitive com.hedera.node.config;
     requires transitive com.hedera.node.hapi;
-    requires transitive com.hedera.pbj.grpc.client.helidon;
     requires transitive com.hedera.pbj.runtime;
     requires transitive com.swirlds.base;
     requires transitive com.swirlds.common;
@@ -35,7 +34,6 @@ module com.hedera.node.app {
     requires transitive io.grpc.stub;
     requires transitive io.grpc;
     requires transitive io.helidon.grpc.core;
-    requires transitive io.helidon.webclient.api;
     requires transitive io.helidon.webclient.grpc;
     requires transitive io.helidon.webclient.http2;
     requires transitive javax.inject;
@@ -51,6 +49,7 @@ module com.hedera.node.app {
     requires com.hedera.node.app.service.network.admin;
     requires com.hedera.node.app.service.roster;
     requires com.hedera.node.app.service.util;
+    requires com.hedera.pbj.grpc.client.helidon;
     requires com.swirlds.config.extensions;
     requires com.swirlds.logging;
     requires com.swirlds.state.impl;
@@ -60,6 +59,7 @@ module com.hedera.node.app {
     requires com.google.common;
     requires io.grpc.netty;
     requires io.helidon.common.tls;
+    requires io.helidon.webclient.api;
     requires io.netty.handler;
     requires io.netty.transport.classes.epoll;
     requires io.netty.transport;
