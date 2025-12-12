@@ -4,6 +4,8 @@ package org.hiero.hapi.fees;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.HederaFunctionality;
+import java.util.HashSet;
+import java.util.Set;
 import org.hiero.hapi.support.fees.Extra;
 import org.hiero.hapi.support.fees.ExtraFeeDefinition;
 import org.hiero.hapi.support.fees.ExtraFeeReference;
@@ -74,44 +76,103 @@ public class FeeScheduleUtils {
     }
 
     /**
-     * Validate the fee schedule. There must be negative fees and no fees
-     * bigger than Long.MAX_VALUE. All extras used by a service must
-     * be defined. The Node fee must be defined. There must be at least
-     * one service defined.
-     * @param feeSchedule
+     * Validate the fee schedule per HIP-1261.
+     *
+     * @param feeSchedule the fee schedule to validate
+     * @return true if valid, false otherwise
+     * @throws NullPointerException if feeSchedule is null
      */
     public static boolean isValid(FeeSchedule feeSchedule) {
         requireNonNull(feeSchedule);
-        for (ExtraFeeDefinition def : feeSchedule.extras()) {
-            // no negative values or greater than MAX long
-            if (def.fee() < 0) {
-                return false;
-            }
-            if (def.fee() > Long.MAX_VALUE) {
-                return false;
-            }
-        }
 
-        // all referenced extras are defined
-        for (ServiceFeeSchedule service : feeSchedule.services()) {
-            for (ServiceFeeDefinition def : service.schedule()) {
-                for (ExtraFeeReference ref : def.extras()) {
-                    lookupExtraFee(feeSchedule, ref.name());
-                }
-            }
-        }
-        // check that the node is valid
+        // Node and network are required
         if (feeSchedule.node() == null) {
             return false;
         }
-        for (ExtraFeeReference ref : feeSchedule.node().extras()) {
-            lookupExtraFee(feeSchedule, ref.name());
-        }
-
-        // check that the services are defined
-        if (feeSchedule.services().size() <= 0) {
+        if (feeSchedule.network() == null) {
             return false;
         }
+
+        // Multiplier must be >= 1
+        if (feeSchedule.network().multiplier() < 1) {
+            return false;
+        }
+
+        // At least one service required
+        if (feeSchedule.services().isEmpty()) {
+            return false;
+        }
+
+        // Validate extras: fee > 0, unique names
+        Set<Extra> extraNames = new HashSet<>();
+        for (ExtraFeeDefinition def : feeSchedule.extras()) {
+            if (def.fee() <= 0) {
+                return false;
+            }
+            if (!extraNames.add(def.name())) {
+                return false;
+            }
+        }
+
+        // Validate services
+        Set<String> serviceNames = new HashSet<>();
+        for (ServiceFeeSchedule service : feeSchedule.services()) {
+            // Unique service names
+            if (!serviceNames.add(service.name())) {
+                return false;
+            }
+
+            // Non-empty schedule
+            if (service.schedule().isEmpty()) {
+                return false;
+            }
+
+            // Unique transaction names within service
+            Set<HederaFunctionality> txNames = new HashSet<>();
+            for (ServiceFeeDefinition def : service.schedule()) {
+                if (!txNames.add(def.name())) {
+                    return false;
+                }
+
+                // Non-negative baseFee
+                if (def.baseFee() < 0) {
+                    return false;
+                }
+
+                // Validate extra references
+                Set<Extra> refNames = new HashSet<>();
+                for (ExtraFeeReference ref : def.extras()) {
+                    if (ref.includedCount() < 0) {
+                        return false;
+                    }
+                    if (!refNames.add(ref.name())) {
+                        return false;
+                    }
+                    if (lookupExtraFee(feeSchedule, ref.name()) == null) {
+                        return false;
+                    }
+                }
+            }
+        }
+
+        // Validate node fee
+        if (feeSchedule.node().baseFee() < 0) {
+            return false;
+        }
+
+        Set<Extra> nodeRefNames = new HashSet<>();
+        for (ExtraFeeReference ref : feeSchedule.node().extras()) {
+            if (ref.includedCount() < 0) {
+                return false;
+            }
+            if (!nodeRefNames.add(ref.name())) {
+                return false;
+            }
+            if (lookupExtraFee(feeSchedule, ref.name()) == null) {
+                return false;
+            }
+        }
+
         return true;
     }
 }
