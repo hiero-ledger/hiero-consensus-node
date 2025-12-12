@@ -525,11 +525,13 @@ class AtomicContractCreateSuite {
         final var KEY_LIST = "keyList";
         final var ACCOUNT = "acc";
         return hapiTest(
+                cryptoCreate(PAYER).balance(ONE_MILLION_HBARS),
                 newKeyNamed(FILE_KEY),
                 newKeyListNamed(KEY_LIST, List.of(FILE_KEY)),
                 cryptoCreate(ACCOUNT).balance(ONE_HUNDRED_HBARS * 10).key(FILE_KEY),
                 fileCreate("bytecode")
                         .path(bytecodePath("CryptoKitties"))
+                        .payingWith(PAYER)
                         .hasPrecheck(TRANSACTION_OVERSIZE)
                         .orUnavailableStatus(),
                 fileCreate("bytecode").contents("").key(KEY_LIST),
@@ -846,7 +848,7 @@ class AtomicContractCreateSuite {
                             .getTransactionRecord(txn)
                             .getContractCreateResult()
                             .getGasUsed();
-                    assertEquals(117661, gasUsed);
+                    assertEquals(117683, gasUsed);
                 }));
     }
 

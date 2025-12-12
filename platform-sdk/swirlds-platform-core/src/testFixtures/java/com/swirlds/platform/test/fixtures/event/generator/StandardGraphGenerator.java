@@ -252,7 +252,9 @@ public class StandardGraphGenerator implements GraphGenerator {
     }
 
     private void initializeInternalConsensus() {
-        consensus = new ConsensusImpl(platformContext, new NoOpConsensusMetrics(), roster);
+        final ConsensusConfig consensusConfig =
+                platformContext.getConfiguration().getConfigData(ConsensusConfig.class);
+        consensus = new ConsensusImpl(consensusConfig, platformContext.getTime(), new NoOpConsensusMetrics(), roster);
         linker = new ConsensusLinker(NoOpLinkerLogsAndMetrics.getInstance());
         orphanBuffer = new DefaultOrphanBuffer(platformContext.getMetrics(), mock(IntakeEventCounter.class));
     }

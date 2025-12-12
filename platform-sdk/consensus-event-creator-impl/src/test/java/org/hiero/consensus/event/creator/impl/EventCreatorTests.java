@@ -37,7 +37,7 @@ class EventCreatorTests {
     private EventCreator creator;
     private List<PlatformEvent> eventsToCreate;
     private FakeTime time;
-    private DefaultEventCreator manager;
+    private DefaultEventCreationManager manager;
 
     @BeforeEach
     void setUp() {
@@ -64,8 +64,8 @@ class EventCreatorTests {
 
         final Roster roster = new Roster(rosterEntries);
 
-        manager = new DefaultEventCreator();
-        manager.initialize(configuration, metrics, time, () -> false, creator, roster, NodeId.of(1));
+        manager = new DefaultEventCreationManager(
+                configuration, metrics, time, () -> false, creator, roster, NodeId.of(1));
 
         manager.updatePlatformStatus(PlatformStatus.ACTIVE);
     }
