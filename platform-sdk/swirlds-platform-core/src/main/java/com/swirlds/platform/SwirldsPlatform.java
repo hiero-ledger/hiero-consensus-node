@@ -8,7 +8,6 @@ import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.getMet
 import static com.swirlds.platform.state.address.RosterMetrics.registerRosterMetrics;
 import static com.swirlds.platform.state.service.PlatformStateUtils.ancientThresholdOf;
 import static com.swirlds.platform.state.service.PlatformStateUtils.consensusSnapshotOf;
-import static com.swirlds.platform.state.service.PlatformStateUtils.isInFreezePeriod;
 import static com.swirlds.platform.state.service.PlatformStateUtils.legacyRunningEventHashOf;
 import static com.swirlds.platform.state.service.PlatformStateUtils.setCreationSoftwareVersionTo;
 import static org.hiero.base.CompareTo.isLessThan;
@@ -219,8 +218,7 @@ public class SwirldsPlatform implements Platform {
 
         final EventWindowManager eventWindowManager = new DefaultEventWindowManager();
 
-        blocks.freezeCheckHolder()
-                .setFreezeCheckRef(instant -> isInFreezePeriod(instant, stateLifecycleManager.getMutableState()));
+        blocks.freezeCheck();
 
         final AppNotifier appNotifier = new DefaultAppNotifier(blocks.notificationEngine());
 

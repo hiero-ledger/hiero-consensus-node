@@ -38,7 +38,7 @@ public interface HashgraphModule {
             @NonNull Time time,
             @NonNull Roster roster,
             @NonNull NodeId selfId,
-            @NonNull FreezeCheckHolder freezeChecker);
+            @NonNull FreezePeriodChecker freezeChecker);
 
     /**
      * The primary input wire of the Hashgraph module. This input wire accepts events to be added to the consensus

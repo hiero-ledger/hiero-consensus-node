@@ -5,7 +5,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
-import org.hiero.consensus.hashgraph.FreezeCheckHolder;
+import org.hiero.consensus.hashgraph.FreezePeriodChecker;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 
@@ -16,12 +16,12 @@ import org.hiero.consensus.model.hashgraph.EventWindow;
 public class FreezeRoundController {
 
     /** Checks if consensus time has reached the freeze period */
-    private final FreezeCheckHolder freezeChecker;
+    private final FreezePeriodChecker freezeChecker;
 
     /** Indicates if the freeze period has been reached. */
     private boolean isFrozen = false;
 
-    public FreezeRoundController(@NonNull final FreezeCheckHolder freezeChecker) {
+    public FreezeRoundController(@NonNull final FreezePeriodChecker freezeChecker) {
         this.freezeChecker = Objects.requireNonNull(freezeChecker);
     }
 
@@ -35,7 +35,9 @@ public class FreezeRoundController {
     public List<ConsensusRound> filterAndModify(@NonNull final List<ConsensusRound> consensusRounds) {
         // we first check if there is any freeze round. usually there isn't, so we don't start any modifications until
         // we found a freeze round.
-        if (consensusRounds.stream().map(ConsensusRound::getConsensusTimestamp).noneMatch(freezeChecker)) {
+        if (consensusRounds.stream()
+                .map(ConsensusRound::getConsensusTimestamp)
+                .noneMatch(freezeChecker::isInFreezePeriod)) {
             // no freeze round found, so we can return the list as is
             return consensusRounds;
         }
@@ -46,7 +48,7 @@ public class FreezeRoundController {
         // if there is a freeze round, we need to modify the list
         final List<ConsensusRound> modifiedRounds = new ArrayList<>();
         for (final ConsensusRound round : consensusRounds) {
-            if (freezeChecker.test(round.getConsensusTimestamp())) {
+            if (freezeChecker.isInFreezePeriod(round.getConsensusTimestamp())) {
                 // if it's the freeze round, we need to modify it and add it to the list
                 modifiedRounds.add(modifyFreezeRound(round));
                 // we can stop here, since we only want the first freeze round
