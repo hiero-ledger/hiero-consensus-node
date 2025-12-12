@@ -59,7 +59,6 @@ import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
 import org.hiero.consensus.crypto.CryptoConstants;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.model.roster.AddressBook;
 
 /**
  * A collection of various static crypto methods
@@ -268,42 +267,6 @@ public final class CryptoStatic {
      * algorithm, respectively. Of course, ECDH and ECDSA aren't post-quantum, but AES-256 and SHA-384 are (as far as we
      * know).
      *
-     * @param addressBook the address book of the network
-     * @throws ExecutionException   aaaaaaaa
-     * @throws InterruptedException if this thread is interrupted
-     * @throws KeyStoreException    if there is no provider that supports {@link CryptoConstants#KEYSTORE_TYPE}
-     */
-    @NonNull
-    public static Map<NodeId, KeysAndCerts> generateKeysAndCerts(@NonNull final AddressBook addressBook)
-            throws ExecutionException, InterruptedException, KeyStoreException {
-        Objects.requireNonNull(addressBook, ADDRESS_BOOK_MUST_NOT_BE_NULL);
-
-        final Map<NodeId, KeysAndCerts> keysAndCerts = CryptoStatic.generateKeysAndCerts(addressBook.getNodeIdSet());
-        // After the keys have been generated or loaded, they are then copied to the address book
-        try {
-            copyPublicKeys(keysAndCerts, addressBook);
-        } catch (final KeyLoadingException e) {
-            // this should not be possible since we just generated the certificates
-            throw new CryptographyException(e);
-        }
-        return keysAndCerts;
-    }
-
-    /**
-     * This method is designed to generate all a user's keys from their master key, to help with key recovery if their
-     * computer is erased.
-     * <p>
-     * We follow the "CNSA Suite" (Commercial National Security Algorithm), which is the current US government standard
-     * for protecting information up to and including Top Secret:
-     * <p>
-     * <a
-     * href="https://www.iad.gov/iad/library/ia-guidance/ia-solutions-for-classified/algorithm-guidance/commercial-national-security-algorithm-suite-factsheet.cfm">...</a>
-     * <p>
-     * The CNSA standard specifies AES-256, SHA-384, RSA, ECDH and ECDSA. So that is what is used here. Their intent
-     * appears to be that AES and SHA will each have 128 bits of post-quantum security, against Grover's and the BHT
-     * algorithm, respectively. Of course, ECDH and ECDSA aren't post-quantum, but AES-256 and SHA-384 are (as far as we
-     * know).
-     *
      * @param nodeIds The nodeIds to generate keys for
      * @throws ExecutionException   if key generation throws an exception, it will be wrapped in an ExecutionException
      * @throws InterruptedException if this thread is interrupted
@@ -329,27 +292,6 @@ public final class CryptoStatic {
             threadPool.shutdown();
             // After the keys have been generated or loaded, they are then copied to the address book
             return keysAndCerts;
-        }
-    }
-
-    /**
-     * Copies public keys from the stores provided to the address book
-     *
-     * @param keysAndCerts aaaaaaaa
-     * @param addressBook  the address book to modify
-     * @throws KeyLoadingException if the key is not found
-     */
-    static void copyPublicKeys(final Map<NodeId, KeysAndCerts> keysAndCerts, final AddressBook addressBook)
-            throws KeyLoadingException {
-        for (int i = 0; i < addressBook.getSize(); i++) {
-            final NodeId nodeId = addressBook.getNodeId(i);
-            final KeysAndCerts kac = keysAndCerts.get(nodeId);
-            if (kac == null) {
-                throw new KeyLoadingException(String.format("Key %s not found", nodeId));
-            }
-            final X509Certificate sigCert = kac.sigCert();
-            // the agreement key is never used from the address book anymore and is left null.
-            addressBook.add(addressBook.getAddress(nodeId).copySetSigCert(sigCert));
         }
     }
 

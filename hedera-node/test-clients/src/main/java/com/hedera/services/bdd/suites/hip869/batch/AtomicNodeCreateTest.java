@@ -58,19 +58,14 @@ import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.keys.KeyShape;
 import com.hedera.services.bdd.spec.transactions.node.HapiNodeCreate;
 import com.hedera.services.bdd.spec.utilops.embedded.ViewNodeOp;
+import com.hedera.services.bdd.suites.hip869.NodeCreateTest;
 import com.hederahashgraph.api.proto.java.ServiceEndpoint;
-import com.swirlds.platform.test.fixtures.addressbook.RandomAddressBookBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.security.cert.CertificateEncodingException;
 import java.security.cert.X509Certificate;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Random;
-import java.util.Spliterators;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import java.util.stream.StreamSupport;
-import org.hiero.consensus.model.roster.Address;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
@@ -101,7 +96,7 @@ class AtomicNodeCreateTest {
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
         testLifecycle.doAdhoc(cryptoCreate(BATCH_OPERATOR).balance(ONE_MILLION_HBARS));
 
-        gossipCertificates = generateX509Certificates(2);
+        gossipCertificates = NodeCreateTest.generateX509Certificates(2);
     }
 
     /**
@@ -809,13 +804,4 @@ class AtomicNodeCreateTest {
         assertEquals(expected.getPort(), actual.port(), "Service endpoint port invalid");
     }
 
-    public static List<X509Certificate> generateX509Certificates(final int n) {
-        final var randomAddressBook = RandomAddressBookBuilder.create(new Random())
-                .withSize(n)
-                .withRealKeysEnabled(true)
-                .build();
-        return StreamSupport.stream(Spliterators.spliteratorUnknownSize(randomAddressBook.iterator(), 0), false)
-                .map(Address::getSigCert)
-                .collect(Collectors.toList());
-    }
 }

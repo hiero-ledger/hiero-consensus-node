@@ -18,7 +18,6 @@ import com.hedera.services.bdd.spec.HapiPropertySource;
 import com.hedera.services.bdd.spec.props.JutilPropertySource;
 import com.swirlds.platform.crypto.CryptoStatic;
 import com.swirlds.platform.system.address.AddressBookUtils;
-import com.swirlds.platform.test.fixtures.addressbook.RandomAddressBookBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.File;
@@ -29,14 +28,16 @@ import java.nio.file.OpenOption;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
+import java.security.KeyStoreException;
 import java.security.cert.CertificateEncodingException;
 import java.security.cert.X509Certificate;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
-import java.util.Random;
+import java.util.concurrent.ExecutionException;
 import java.util.stream.Stream;
+import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 
 public class WorkingDirUtils {
@@ -54,11 +55,14 @@ public class WorkingDirUtils {
     public static final Bytes VALID_CERT;
 
     static {
-        final var randomAddressBook = RandomAddressBookBuilder.create(new Random())
-                .withSize(1)
-                .withRealKeysEnabled(true)
-                .build();
-        SIG_CERT = requireNonNull(randomAddressBook.iterator().next().getSigCert());
+        final var selfId = NodeId.of(1);
+        final Map<NodeId, KeysAndCerts> sigAndCerts;
+        try {
+            sigAndCerts = CryptoStatic.generateKeysAndCerts(List.of(selfId));
+        } catch (ExecutionException | InterruptedException | KeyStoreException e) {
+            throw new RuntimeException(e);
+        }
+        SIG_CERT = requireNonNull(sigAndCerts.get(selfId).sigCert());
         try {
             VALID_CERT = Bytes.wrap(SIG_CERT.getEncoded());
         } catch (CertificateEncodingException e) {

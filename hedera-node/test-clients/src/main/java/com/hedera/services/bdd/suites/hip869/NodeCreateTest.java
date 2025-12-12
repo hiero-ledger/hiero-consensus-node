@@ -58,17 +58,17 @@ import com.hedera.services.bdd.spec.keys.KeyShape;
 import com.hedera.services.bdd.spec.transactions.node.HapiNodeCreate;
 import com.hedera.services.bdd.spec.utilops.embedded.ViewNodeOp;
 import com.hederahashgraph.api.proto.java.ServiceEndpoint;
-import com.swirlds.platform.test.fixtures.addressbook.RandomAddressBookBuilder;
+import com.swirlds.platform.crypto.CryptoStatic;
+import java.security.KeyStoreException;
 import java.security.cert.CertificateEncodingException;
 import java.security.cert.X509Certificate;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Random;
-import java.util.Spliterators;
-import java.util.stream.Collectors;
+import java.util.concurrent.ExecutionException;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
-import java.util.stream.StreamSupport;
-import org.hiero.consensus.model.roster.Address;
+import org.hiero.consensus.model.node.KeysAndCerts;
+import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
@@ -745,12 +745,12 @@ public class NodeCreateTest {
     }
 
     public static List<X509Certificate> generateX509Certificates(final int n) {
-        final var randomAddressBook = RandomAddressBookBuilder.create(new Random())
-                .withSize(n)
-                .withRealKeysEnabled(true)
-                .build();
-        return StreamSupport.stream(Spliterators.spliteratorUnknownSize(randomAddressBook.iterator(), 0), false)
-                .map(Address::getSigCert)
-                .collect(Collectors.toList());
+        final var nodeIds = IntStream.range(0, n).mapToObj(NodeId::of).toList();
+
+        try {
+            return CryptoStatic.generateKeysAndCerts(nodeIds).values().stream().map(KeysAndCerts::sigCert).toList();
+        } catch (ExecutionException | InterruptedException | KeyStoreException e) {
+            throw new RuntimeException(e);
+        }
     }
 }

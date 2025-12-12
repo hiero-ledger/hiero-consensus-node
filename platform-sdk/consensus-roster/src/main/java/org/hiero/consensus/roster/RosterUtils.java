@@ -23,7 +23,6 @@ import org.hiero.base.crypto.CryptographyException;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.roster.Address;
-import org.hiero.consensus.model.roster.AddressBook;
 import org.hiero.consensus.roster.internal.PbjRecordHasher;
 
 /**
@@ -331,29 +330,6 @@ public final class RosterUtils {
         address = address.copySetSelfName(name).copySetNickname(name);
 
         return address;
-    }
-
-    /**
-     * Build an AddressBook object out of a given Roster object.
-     * Returns null if the input roster is null.
-     * @param roster a Roster
-     * @return an AddressBook
-     * @deprecated To be removed once AddressBook to Roster refactoring is complete.
-     */
-    @Deprecated(forRemoval = true)
-    @Nullable
-    public static AddressBook buildAddressBook(@Nullable final Roster roster) {
-        if (roster == null) {
-            return null;
-        }
-
-        AddressBook addressBook = new AddressBook();
-
-        for (final RosterEntry entry : roster.rosterEntries()) {
-            addressBook = addressBook.add(buildAddress(entry));
-        }
-
-        return addressBook;
     }
 
     /**

@@ -45,7 +45,7 @@ public class AddressBookUtils {
      *
      * @param configTxtContent the config.txt compatible serialized address book to parse.
      * @return a parsed AddressBook.
-     * @throws ParseException if any Address throws a ParseException when being parsed.
+     * @throws RuntimeException if any Address throws a ParseException when being parsed.
      */
     public static SimpleAddresses parseToSimpleAddresses(@NonNull final String configTxtContent) {
         Objects.requireNonNull(configTxtContent, "The configTxtContent must not be null.");
