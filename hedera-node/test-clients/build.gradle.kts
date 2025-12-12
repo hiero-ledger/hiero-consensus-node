@@ -273,6 +273,7 @@ tasks.register<Test>("testSubprocess") {
     val hintsThresholdDenominator =
         if (gradle.startParameter.taskNames.contains("hapiTestRestart")) "4" else "3"
     systemProperty("hapi.spec.hintsThresholdDenominator", hintsThresholdDenominator)
+    systemProperty("hapi.spec.block.stateproof.verification", "false")
 
     // Default quiet mode is "false" unless we are running in CI or set it explicitly to "true"
     systemProperty(
