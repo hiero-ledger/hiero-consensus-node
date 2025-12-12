@@ -342,7 +342,7 @@ class BEVM {
     // -----------------------------------------------------------
     // Execute bytecodes until done
     ExceptionalHaltReason _run() {
-        SB trace = new SB(); // = null;
+        SB trace = null; // = new SB();
         PrintStream oldSysOut = System.out;
         if( trace != null )
             System.setOut(new PrintStream(new FileOutputStream( FileDescriptor.out)));
