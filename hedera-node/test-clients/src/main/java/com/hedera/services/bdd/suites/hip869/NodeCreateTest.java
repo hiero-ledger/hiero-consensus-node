@@ -748,7 +748,9 @@ public class NodeCreateTest {
         final var nodeIds = IntStream.range(0, n).mapToObj(NodeId::of).toList();
 
         try {
-            return CryptoStatic.generateKeysAndCerts(nodeIds).values().stream().map(KeysAndCerts::sigCert).toList();
+            return CryptoStatic.generateKeysAndCerts(nodeIds).values().stream()
+                    .map(KeysAndCerts::sigCert)
+                    .toList();
         } catch (ExecutionException | InterruptedException | KeyStoreException e) {
             throw new RuntimeException(e);
         }

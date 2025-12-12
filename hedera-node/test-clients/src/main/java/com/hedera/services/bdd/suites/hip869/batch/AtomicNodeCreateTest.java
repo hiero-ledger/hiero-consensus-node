@@ -803,5 +803,4 @@ class AtomicNodeCreateTest {
         assertEquals(expected.getDomainName(), actual.domainName(), "Service endpoint domain name invalid");
         assertEquals(expected.getPort(), actual.port(), "Service endpoint port invalid");
     }
-
 }

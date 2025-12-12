@@ -691,7 +691,9 @@ public class SystemFileExportsTest {
 
         try {
             final var keysAndCerts = CryptoStatic.generateKeysAndCerts(nodeIds);
-            return nodeIds.stream().collect(toMap(NodeId::id, nodeId -> keysAndCerts.get(nodeId).sigCert()));
+            return nodeIds.stream()
+                    .collect(
+                            toMap(NodeId::id, nodeId -> keysAndCerts.get(nodeId).sigCert()));
         } catch (ExecutionException | InterruptedException | KeyStoreException e) {
             throw new RuntimeException(e);
         }
