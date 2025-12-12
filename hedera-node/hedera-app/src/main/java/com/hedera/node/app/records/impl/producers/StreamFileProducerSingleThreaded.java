@@ -166,6 +166,17 @@ public final class StreamFileProducerSingleThreaded implements BlockRecordStream
         });
     }
 
+    /** {@inheritDoc} */
+    @Override
+    public boolean finishCurrentBlock() {
+        if (writer != null) {
+            closeWriter(asHashObject(getRunningHash()), currentBlockNumber);
+            writer = null;
+            return true;
+        }
+        return false;
+    }
+
     // =================================================================================================================
     // private implementation
 
