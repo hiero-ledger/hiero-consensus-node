@@ -22,7 +22,6 @@ import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.KeyList;
 import com.hedera.hapi.node.base.RealmID;
-import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.base.ShardID;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.base.TransactionID;
@@ -71,7 +70,6 @@ import com.hedera.node.app.service.util.impl.UtilServiceImpl;
 import com.hedera.node.app.services.AppContextImpl;
 import com.hedera.node.app.services.ServicesRegistry;
 import com.hedera.node.app.spi.AppContext;
-import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.migrate.StartupNetworks;
 import com.hedera.node.app.spi.signatures.SignatureVerifier;
@@ -92,7 +90,6 @@ import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.crypto.CryptoStatic;
-import com.swirlds.platform.test.fixtures.addressbook.RandomAddressBookBuilder;
 import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.CommittableWritableStates;
@@ -111,15 +108,10 @@ import java.time.Instant;
 import java.time.InstantSource;
 import java.util.List;
 import java.util.Map;
-import java.util.Random;
 import java.util.Set;
-import java.util.Spliterators;
 import java.util.function.Function;
-import java.util.stream.StreamSupport;
 import org.apache.tuweni.bytes.Bytes32;
 import org.hiero.consensus.crypto.SigningSchema;
-import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.model.roster.AddressBook;
 import org.hyperledger.besu.evm.EVM;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 import org.hyperledger.besu.evm.gascalculator.GasCalculator;
@@ -508,80 +500,6 @@ public class TransactionExecutorsTest {
                         new NetworkServiceImpl(),
                         new AddressBookServiceImpl())
                 .forEach(servicesRegistry::register);
-    }
-
-    private static NetworkInfo fakeNetworkInfo() {
-        final AccountID someAccount = idFactory.newAccountId(12345);
-        final var addressBook = new AddressBook(StreamSupport.stream(
-                        Spliterators.spliteratorUnknownSize(
-                                RandomAddressBookBuilder.create(new Random())
-                                        .withSize(1)
-                                        .withRealKeysEnabled(true)
-                                        .build()
-                                        .iterator(),
-                                0),
-                        false)
-                .map(address ->
-                        address.copySetMemo("0.0." + (address.getNodeId().id() + 3)))
-                .toList());
-        return new NetworkInfo() {
-            @NonNull
-            @Override
-            public Bytes ledgerId() {
-                throw new UnsupportedOperationException("Not implemented");
-            }
-
-            @NonNull
-            @Override
-            public NodeInfo selfNodeInfo() {
-                return new NodeInfoImpl(
-                        0,
-                        someAccount,
-                        0,
-                        List.of(ServiceEndpoint.DEFAULT, ServiceEndpoint.DEFAULT),
-                        getCertBytes(randomX509Certificate()),
-                        List.of(ServiceEndpoint.DEFAULT, ServiceEndpoint.DEFAULT),
-                        true,
-                        null);
-            }
-
-            @NonNull
-            @Override
-            public List<NodeInfo> addressBook() {
-                return List.of(new NodeInfoImpl(
-                        0,
-                        someAccount,
-                        0,
-                        List.of(ServiceEndpoint.DEFAULT, ServiceEndpoint.DEFAULT),
-                        getCertBytes(randomX509Certificate()),
-                        List.of(ServiceEndpoint.DEFAULT, ServiceEndpoint.DEFAULT),
-                        false,
-                        null));
-            }
-
-            @Override
-            public NodeInfo nodeInfo(final long nodeId) {
-                return new NodeInfoImpl(
-                        0,
-                        someAccount,
-                        0,
-                        List.of(ServiceEndpoint.DEFAULT, ServiceEndpoint.DEFAULT),
-                        Bytes.EMPTY,
-                        List.of(ServiceEndpoint.DEFAULT, ServiceEndpoint.DEFAULT),
-                        false,
-                        null);
-            }
-
-            @Override
-            public boolean containsNode(final long nodeId) {
-                return addressBook.contains(NodeId.of(nodeId));
-            }
-
-            @Override
-            public void updateFrom(final State state) {
-                throw new UnsupportedOperationException("Not implemented");
-            }
-        };
     }
 
     private Bytes resourceAsBytes(@NonNull final String loc) {

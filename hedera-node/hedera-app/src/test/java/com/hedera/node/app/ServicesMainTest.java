@@ -19,7 +19,8 @@ import com.swirlds.platform.config.legacy.LegacyConfigProperties;
 import com.swirlds.platform.config.legacy.LegacyConfigPropertiesLoader;
 import com.swirlds.platform.system.SystemExitUtils;
 import com.swirlds.state.MerkleNodeState;
-import org.hiero.consensus.model.roster.AddressBook;
+import java.util.List;
+import org.hiero.consensus.model.roster.SimpleAddresses;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -97,6 +98,6 @@ final class ServicesMainTest {
                 .when(() -> LegacyConfigPropertiesLoader.loadConfigFile(any()))
                 .thenReturn(legacyConfigProperties);
 
-        when(legacyConfigProperties.getAddressBook()).thenReturn(new AddressBook());
+        when(legacyConfigProperties.getSimpleAddresses()).thenReturn(new SimpleAddresses(List.of()));
     }
 }

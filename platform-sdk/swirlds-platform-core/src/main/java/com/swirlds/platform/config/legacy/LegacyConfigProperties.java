@@ -2,9 +2,8 @@
 package com.swirlds.platform.config.legacy;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.Objects;
-import java.util.Optional;
-import org.hiero.consensus.model.roster.AddressBook;
+import java.util.List;
+import org.hiero.consensus.model.roster.SimpleAddresses;
 
 /**
  * Bean for all parameters that can be part of the config.txt file
@@ -14,56 +13,13 @@ import org.hiero.consensus.model.roster.AddressBook;
  * 		static access as possible.
  */
 @Deprecated(forRemoval = true)
-public class LegacyConfigProperties {
+public record LegacyConfigProperties(SimpleAddresses simpleAddresses) {
 
-    private String swirldName = null;
-
-    private JarAppConfig appConfig = null;
-
-    private AddressBook addressBook = null;
-
-    /**
-     * Set the address book.
-     *
-     * @param addressBook the address book
-     */
-    public void setAddressBook(@NonNull final AddressBook addressBook) {
-        Objects.requireNonNull(addressBook, "addressBook");
-        this.addressBook = addressBook.copy();
-    }
-
-    /**
-     * Get the address book. If no address book is set, an empty address book is returned.
-     *
-     * @return the address book
-     */
     @NonNull
-    public AddressBook getAddressBook() {
-        if (addressBook == null) {
-            return new AddressBook();
+    public SimpleAddresses getSimpleAddresses() {
+        if (simpleAddresses == null) {
+            return new SimpleAddresses(List.of());
         }
-        return addressBook.copy();
-    }
-
-    /**
-     * @throws NullPointerException in case {@code appConfig} parameter is {@code null}
-     */
-    public void setAppConfig(final JarAppConfig appConfig) {
-        this.appConfig = Objects.requireNonNull(appConfig, "appConfig must not be null");
-    }
-
-    /**
-     * @throws NullPointerException in case {@code swirldName} parameter is {@code null}
-     */
-    public void setSwirldName(final String swirldName) {
-        this.swirldName = Objects.requireNonNull(swirldName, "swirldName must not be null");
-    }
-
-    public Optional<String> swirldName() {
-        return Optional.ofNullable(swirldName);
-    }
-
-    public Optional<JarAppConfig> appConfig() {
-        return Optional.ofNullable(appConfig);
+        return simpleAddresses;
     }
 }

@@ -3,27 +3,22 @@ package org.hiero.consensus.roster;
 
 import static java.util.Objects.requireNonNull;
 
-import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.node.state.roster.RosterState;
 import com.hedera.hapi.node.state.roster.RoundRosterPair;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.base.utility.Pair;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.ReadableKVState;
 import com.swirlds.state.spi.ReadableSingletonState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.security.cert.CertificateEncodingException;
 import java.util.Comparator;
 import java.util.List;
-import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.Stream;
-import org.hiero.consensus.model.roster.Address;
-import org.hiero.consensus.model.roster.AddressBook;
+import org.hiero.consensus.model.roster.SimpleAddress;
+import org.hiero.consensus.model.roster.SimpleAddresses;
 
 /**
  * A utility class to help retrieve a Roster instance from the state.
@@ -124,52 +119,13 @@ public final class RosterRetriever {
      * @return a RosterEntry
      */
     @NonNull
-    public static RosterEntry buildRosterEntry(@NonNull final Address address) {
-        try {
-            // There's code, especially in tests, that creates AddressBooks w/o any certificates/keys
-            // (because it would be time-consuming, and these tests don't use the keys anyway.)
-            // So we need to be able to handle this situation here:
-            final Bytes cert = address.getSigCert() == null
-                    ? Bytes.EMPTY
-                    : Bytes.wrap(address.getSigCert().getEncoded());
-            return RosterEntry.newBuilder()
-                    .nodeId(address.getNodeId().id())
-                    .weight(address.getWeight())
-                    .gossipCaCertificate(cert)
-                    .gossipEndpoint(Stream.of(
-                                    Pair.of(address.getHostnameExternal(), address.getPortExternal()),
-                                    Pair.of(address.getHostnameInternal(), address.getPortInternal()))
-                            .filter(pair -> pair.left() != null && !pair.left().isBlank() && pair.right() != 0)
-                            .distinct()
-                            .map(pair -> {
-                                final Matcher matcher = IP_ADDRESS_PATTERN.matcher(pair.left());
-
-                                if (!matcher.matches()) {
-                                    return ServiceEndpoint.newBuilder()
-                                            .domainName(pair.left())
-                                            .port(pair.right())
-                                            .build();
-                                }
-
-                                try {
-                                    return ServiceEndpoint.newBuilder()
-                                            .ipAddressV4(Bytes.wrap(new byte[] {
-                                                (byte) Integer.parseInt(matcher.group(1)),
-                                                (byte) Integer.parseInt(matcher.group(2)),
-                                                (byte) Integer.parseInt(matcher.group(3)),
-                                                (byte) Integer.parseInt(matcher.group(4)),
-                                            }))
-                                            .port(pair.right())
-                                            .build();
-                                } catch (NumberFormatException e) {
-                                    throw new InvalidAddressBookException(e);
-                                }
-                            })
-                            .toList())
-                    .build();
-        } catch (CertificateEncodingException e) {
-            throw new InvalidAddressBookException(e);
-        }
+    public static RosterEntry buildRosterEntry(@NonNull final SimpleAddress address) {
+        return RosterEntry.newBuilder()
+                .nodeId(address.nodeId())
+                .weight(address.weight())
+                .gossipCaCertificate(Bytes.EMPTY)
+                .gossipEndpoint(address.serviceEndpoints())
+                .build();
     }
 
     /**
@@ -179,14 +135,13 @@ public final class RosterRetriever {
      * @return a Roster
      */
     @Nullable
-    public static Roster buildRoster(@Nullable final AddressBook addressBook) {
+    public static Roster buildRoster(@Nullable final SimpleAddresses addressBook) {
         if (addressBook == null) {
             return null;
         }
 
         return Roster.newBuilder()
-                .rosterEntries(addressBook.getNodeIdSet().stream()
-                        .map(addressBook::getAddress)
+                .rosterEntries(addressBook.addresses().stream()
                         .map(RosterRetriever::buildRosterEntry)
                         .sorted(Comparator.comparing(RosterEntry::nodeId))
                         .toList())

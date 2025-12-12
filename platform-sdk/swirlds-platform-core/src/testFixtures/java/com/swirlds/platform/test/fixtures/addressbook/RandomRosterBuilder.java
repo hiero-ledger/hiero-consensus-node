@@ -1,13 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures.addressbook;
 
-import static com.swirlds.platform.crypto.KeyCertPurpose.SIGNING;
-
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.common.test.fixtures.WeightGenerator;
 import com.swirlds.common.test.fixtures.WeightGenerators;
 import com.swirlds.platform.crypto.KeysAndCertsGenerator;
-import com.swirlds.platform.crypto.PublicStores;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.HashMap;
 import java.util.List;
@@ -221,17 +218,13 @@ public class RandomRosterBuilder {
     private void generateKeys(@NonNull final NodeId nodeId, @NonNull final RandomRosterEntryBuilder addressBuilder) {
         if (realKeys) {
             try {
-                final PublicStores publicStores = new PublicStores();
-
                 final byte[] masterKey = new byte[64];
                 random.nextBytes(masterKey);
 
-                final KeysAndCerts keysAndCerts =
-                        KeysAndCertsGenerator.generate(nodeId, new byte[] {}, masterKey, new byte[] {}, publicStores);
+                final KeysAndCerts keysAndCerts = KeysAndCertsGenerator.generate(nodeId);
                 privateKeys.put(nodeId, keysAndCerts);
 
-                final SerializableX509Certificate sigCert =
-                        new SerializableX509Certificate(publicStores.getCertificate(SIGNING, nodeId));
+                final SerializableX509Certificate sigCert = new SerializableX509Certificate(keysAndCerts.sigCert());
 
                 addressBuilder.withSigCert(sigCert);
 

@@ -27,7 +27,6 @@ open module com.hedera.node.app.test.fixtures {
     requires com.swirlds.base;
     requires com.swirlds.config.extensions.test.fixtures;
     requires com.swirlds.merkledb.test.fixtures;
-    requires com.swirlds.platform.core.test.fixtures;
     requires com.swirlds.state.impl.test.fixtures;
     requires org.hiero.consensus.utility;
     requires org.apache.logging.log4j;

@@ -26,9 +26,8 @@ import java.util.List;
 import java.util.Random;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.utility.test.fixtures.RandomUtils;
-import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.model.roster.Address;
-import org.hiero.consensus.model.roster.AddressBook;
+import org.hiero.consensus.model.roster.SimpleAddress;
+import org.hiero.consensus.model.roster.SimpleAddresses;
 import org.junit.jupiter.api.Test;
 
 public class RosterUtilsTest {
@@ -235,11 +234,8 @@ public class RosterUtilsTest {
 
     @Test
     void testCreateRosterFromNonEmptyAddressBook() {
-        final Address address1 = new Address(NodeId.of(1), "", "", 10, null, 77, null, 88, null, null, "");
-        final Address address2 = new Address(NodeId.of(2), "", "", 10, null, 77, null, 88, null, null, "");
-        final AddressBook addressBook = new AddressBook();
-        addressBook.add(address1);
-        addressBook.add(address2);
+        final SimpleAddresses addressBook =
+                new SimpleAddresses(List.of(new SimpleAddress(1L, 10), new SimpleAddress(2L, 20)));
         final Roster roster = buildRoster(addressBook);
 
         assertNotNull(roster);
@@ -255,8 +251,7 @@ public class RosterUtilsTest {
 
     @Test
     void testCreateRosterFromEmptyAddressBook() {
-        final AddressBook addressBook = new AddressBook();
-        final Roster roster = buildRoster(addressBook);
+        final Roster roster = buildRoster(new SimpleAddresses(List.of()));
 
         assertNotNull(roster);
         assertTrue(roster.rosterEntries().isEmpty());
@@ -264,8 +259,13 @@ public class RosterUtilsTest {
 
     @Test
     void testToRosterEntryWithExternalHostname() {
-        final Address address = new Address().copySetHostnameExternal("hostnameExternal");
-        final AddressBook addressBook = new AddressBook(List.of(address));
+        final SimpleAddresses addressBook = new SimpleAddresses(List.of(new SimpleAddress(
+                1L,
+                10L,
+                List.of(ServiceEndpoint.newBuilder()
+                        .domainName("hostnameExternal")
+                        .build()),
+                "")));
         final Roster roster = buildRoster(addressBook);
 
         assertEquals(1, roster.rosterEntries().size());
@@ -276,8 +276,13 @@ public class RosterUtilsTest {
 
     @Test
     void testToRosterEntryWithInternalHostname() {
-        final Address address = new Address().copySetHostnameInternal("hostnameInternal");
-        final AddressBook addressBook = new AddressBook(List.of(address));
+        final SimpleAddresses addressBook = new SimpleAddresses(List.of(new SimpleAddress(
+                1L,
+                10L,
+                List.of(ServiceEndpoint.newBuilder()
+                        .domainName("hostnameInternal")
+                        .build()),
+                "")));
         final Roster roster = buildRoster(addressBook);
 
         assertEquals(1, roster.rosterEntries().size());
