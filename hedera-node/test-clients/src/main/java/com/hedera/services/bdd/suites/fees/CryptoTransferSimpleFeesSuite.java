@@ -409,7 +409,7 @@ public class CryptoTransferSimpleFeesSuite {
 
     // ==================== HOOK TESTS ====================
 
-    @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled", "hooks.hooksEnabled"})
+    @HapiTest
     @DisplayName("HOOKS: HBAR transfer with single hook")
     final Stream<DynamicTest> hbarTransferWithHook() {
         return hapiTest(
@@ -426,7 +426,7 @@ public class CryptoTransferSimpleFeesSuite {
                 validateChargedUsd("hbarWithHookTxn", HOOK_FEE + HBAR_TRANSFER_FEE + HOOK_OVERHEAD_FEE));
     }
 
-    @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled", "hooks.hooksEnabled"})
+    @HapiTest
     @DisplayName("HOOKS: Token transfer with single hook")
     final Stream<DynamicTest> tokenTransferWithHook() {
         return hapiTest(
@@ -450,7 +450,7 @@ public class CryptoTransferSimpleFeesSuite {
                 validateChargedUsd("tokenWithHookTxn", HOOK_FEE + HBAR_TRANSFER_FEE + HOOK_OVERHEAD_FEE));
     }
 
-    @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled", "hooks.hooksEnabled"})
+    @HapiTest
     @DisplayName("HOOKS: NFT transfer with multiple hooks (sender + receiver)")
     final Stream<DynamicTest> nftTransferWithMultipleHooks() {
         return hapiTest(
