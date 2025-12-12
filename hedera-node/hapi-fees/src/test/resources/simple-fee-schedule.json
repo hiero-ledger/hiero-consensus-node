@@ -21,7 +21,7 @@
     { "name":  "TOKEN_TYPES",                    "fee": 0 },
     { "name":  "NFT_SERIALS",                    "fee": 8900000 },
     { "name":  "ACCOUNTS",                       "fee": 0 },
-    { "name":  "FUNGIBLE_TOKENS",                 "fee": 1000000 },
+    { "name":  "FUNGIBLE_TOKENS",                "fee": 1000000 },
     { "name":  "NON_FUNGIBLE_TOKENS",            "fee": 1000000 },
     { "name":  "CREATED_AUTO_ASSOCIATIONS",      "fee": 0 },
     { "name":  "CREATED_ACCOUNTS",               "fee": 0 },
@@ -62,7 +62,7 @@
         },
         {
           "name": "CryptoTransfer",
-          "baseFee": 1000000,
+          "baseFee": 0,
           "extras": [
             {  "name": "TOKEN_TRANSFER_BASE",             "includedCount": 0 },
             {  "name": "TOKEN_TRANSFER_BASE_CUSTOM_FEES", "includedCount": 0 },

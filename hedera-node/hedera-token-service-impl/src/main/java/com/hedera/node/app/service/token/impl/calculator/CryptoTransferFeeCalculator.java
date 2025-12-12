@@ -72,10 +72,8 @@ public class CryptoTransferFeeCalculator implements ServiceFeeCalculator {
         if (transferType != null) {
             // Token transfers: charge TOKEN_TRANSFER_BASE or TOKEN_TRANSFER_BASE_CUSTOM_FEES
             addExtraFeeWithIncludedCount(feeResult, transferType, feeSchedule, serviceDef, 1);
-        } else {
-            // HBAR-only transfers: charge baseFee ($0.0001)
-            feeResult.addServiceFee(1, serviceDef.baseFee());
         }
+        // HBAR-only transfers: no service fee (node + network fees cover the $0.0001)
 
         addExtraFeeWithIncludedCount(feeResult, HOOK_EXECUTION, feeSchedule, serviceDef, numHooks);
         // Note: HOOK_UPDATES is only for CryptoCreate/Update and ContractCreate/Update, not transfers
