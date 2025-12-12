@@ -5,7 +5,6 @@ import static com.swirlds.logging.legacy.LogMarker.SYNC_INFO;
 import static org.hiero.base.CompareTo.isGreaterThan;
 
 import com.hedera.hapi.platform.event.GossipEvent;
-import com.swirlds.platform.gossip.IntakeEventCounter;
 import com.swirlds.platform.gossip.SyncException;
 import com.swirlds.platform.metrics.SyncMetrics;
 import com.swirlds.platform.network.ByteConstants;
@@ -37,6 +36,7 @@ import org.hiero.base.concurrent.ThrowingRunnable;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.io.streams.SerializableDataInputStream;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
+import org.hiero.consensus.event.IntakeEventCounter;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
