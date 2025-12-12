@@ -2,7 +2,7 @@
 package com.swirlds.platform.state.service;
 
 import static java.util.Objects.requireNonNull;
-import static org.hiero.base.utility.CommonUtils.toPbjTimestamp;
+import static org.hiero.consensus.model.PbjConverters.toPbjTimestamp;
 
 import com.hedera.hapi.platform.state.PlatformState;
 import com.hedera.pbj.runtime.io.buffer.Bytes;

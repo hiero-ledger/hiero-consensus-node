@@ -9,6 +9,7 @@ import static org.hiero.base.crypto.test.fixtures.CryptoRandomUtils.randomHash;
 import static org.hiero.base.crypto.test.fixtures.CryptoRandomUtils.randomHashBytes;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.nextInt;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.randomInstant;
+import static org.hiero.consensus.model.PbjConverters.toPbjTimestamp;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
@@ -19,7 +20,6 @@ import com.swirlds.state.State;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Random;
-import org.hiero.base.utility.CommonUtils;
 
 public final class PlatformStateUtils {
 
@@ -60,7 +60,7 @@ public final class PlatformStateUtils {
                         .judgeIds(judges)
                         .minimumJudgeInfoList(minimumJudgeInfo)
                         .nextConsensusNumber(random.nextLong())
-                        .consensusTimestamp(CommonUtils.toPbjTimestamp(randomInstant(random)))
+                        .consensusTimestamp(toPbjTimestamp(randomInstant(random)))
                         .build());
 
         return getWritablePlatformStateOf(state);

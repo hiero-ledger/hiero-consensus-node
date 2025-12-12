@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 module org.hiero.consensus.model {
+    exports org.hiero.consensus.model;
     exports org.hiero.consensus.model.event;
     exports org.hiero.consensus.model.hashgraph;
     exports org.hiero.consensus.model.node;

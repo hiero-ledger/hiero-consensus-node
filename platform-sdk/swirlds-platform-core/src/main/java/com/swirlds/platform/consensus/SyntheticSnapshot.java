@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.consensus;
 
+import static org.hiero.consensus.model.PbjConverters.toPbjTimestamp;
+
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.hedera.hapi.platform.state.JudgeId;
 import com.hedera.hapi.platform.state.MinimumJudgeInfo;
@@ -8,7 +10,6 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.List;
 import java.util.stream.LongStream;
-import org.hiero.base.utility.CommonUtils;
 import org.hiero.consensus.hashgraph.ConsensusConfig;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusConstants;
@@ -58,8 +59,7 @@ public final class SyntheticSnapshot {
                         .build()))
                 .minimumJudgeInfoList(minimumJudgeInfos)
                 .nextConsensusNumber(lastConsensusOrder + 1)
-                .consensusTimestamp(
-                        CommonUtils.toPbjTimestamp(ConsensusUtils.calcMinTimestampForNextEvent(roundTimestamp)))
+                .consensusTimestamp(toPbjTimestamp(ConsensusUtils.calcMinTimestampForNextEvent(roundTimestamp)))
                 .build();
     }
 
@@ -76,7 +76,7 @@ public final class SyntheticSnapshot {
                 .minimumJudgeInfoList(
                         List.of(new MinimumJudgeInfo(ConsensusConstants.ROUND_FIRST, ConsensusConstants.ROUND_FIRST)))
                 .nextConsensusNumber(ConsensusConstants.FIRST_CONSENSUS_NUMBER)
-                .consensusTimestamp(CommonUtils.toPbjTimestamp(Instant.EPOCH))
+                .consensusTimestamp(toPbjTimestamp(Instant.EPOCH))
                 .build();
     }
 }
