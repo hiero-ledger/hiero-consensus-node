@@ -40,8 +40,8 @@ import com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils;
 import com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.OnlyRoster;
 import com.hedera.services.bdd.spec.HapiPropertySource;
 import com.hedera.services.bdd.spec.TargetNetworkType;
-import com.hedera.services.bdd.spec.infrastructure.HapiClients;
 import com.hedera.services.bdd.spec.props.MapPropertySource;
+import com.hedera.services.bdd.spec.infrastructure.HapiClients;
 import com.hedera.services.bdd.spec.utilops.FakeNmt;
 import com.hederahashgraph.api.proto.java.ServiceEndpoint;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -85,9 +85,7 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
     private static final SplittableRandom RANDOM = new SplittableRandom();
     private static final int FIRST_CANDIDATE_PORT = 30000;
     private static final int LAST_CANDIDATE_PORT = 40000;
-    private static final String DEFAULT_NETWORK_CAPACITY_PROPERTY = "hapi.spec.multinet.defaultNetworkSize";
-    private static final int MAX_NODES_PER_NETWORK =
-            Math.max(1, Integer.getInteger(DEFAULT_NETWORK_CAPACITY_PROPERTY, 10));
+    private static final int MAX_NODES_PER_NETWORK = 10;
 
     private static final String SUBPROCESS_HOST = "127.0.0.1";
     private static final ByteString SUBPROCESS_ENDPOINT = asOctets(SUBPROCESS_HOST);
@@ -101,7 +99,6 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
     private static int nextPrometheusPort;
     private static int nextDebugPort;
     private static boolean nextPortsInitialized = false;
-
     private final Map<Long, AccountID> pendingNodeAccounts = new HashMap<>();
     private final AtomicReference<DeferredRun> ready = new AtomicReference<>();
 
@@ -226,7 +223,7 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
             final long realm,
             final int firstGrpcPort) {
         requireNonNull(networkName);
-        return (SubProcessNetwork) liveNetwork(networkName, size, shard, realm, firstGrpcPort);
+        return liveNetwork(networkName, size, shard, realm, firstGrpcPort);
     }
 
     /**
@@ -465,6 +462,13 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
         return endpointFor(nextGrpcPort + (int) nextNodeId * 2);
     }
 
+    private Map<Long, com.hedera.hapi.node.base.ServiceEndpoint> currentGrpcServiceEndpoints() {
+        return nodes().stream()
+                .collect(toMap(
+                        HederaNode::getNodeId,
+                        node -> HapiPropertySource.asServiceEndpoint(node.getHost() + ":" + node.getGrpcPort())));
+    }
+
     @Override
     protected HapiPropertySource networkOverrides() {
         final var baseProperties = WorkingDirUtils.hapiTestStartupProperties();
@@ -482,20 +486,20 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
      * @param size the number of nodes in the network
      * @return the network
      */
-    private static synchronized HederaNetwork liveNetwork(
+    private static synchronized SubProcessNetwork liveNetwork(
             @NonNull final String name,
             final int size,
             final long shard,
             final long realm,
             final int firstGrpcPortOverride) {
         final int blockSize = Math.max(size, MAX_NODES_PER_NETWORK);
-        final int startingGrpcPort;
-        if (!nextPortsInitialized) {
-            startingGrpcPort = firstGrpcPortOverride > 0 ? firstGrpcPortOverride : randomFirstGrpcPort(blockSize);
-        } else {
-            startingGrpcPort = firstGrpcPortOverride > 0 ? firstGrpcPortOverride : nextGrpcPort;
+        if (!nextPortsInitialized || firstGrpcPortOverride > 0) {
+            if (firstGrpcPortOverride > 0) {
+                initializeNextPortsForNetwork(blockSize, firstGrpcPortOverride);
+            } else {
+                initializeNextPortsForNetwork(blockSize);
+            }
         }
-        initializeNextPortsForNetwork(blockSize, startingGrpcPort);
         final int currentFirstGrpcPort = nextGrpcPort;
         final var network = new SubProcessNetwork(
                 name,
@@ -519,24 +523,9 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
                         .toList(),
                 shard,
                 realm);
-        if (!network.nodes().isEmpty()) {
-            final var firstNode = (SubProcessNode) network.nodes().getFirst();
-            final var metadata = firstNode.metadata();
-            // TODO: Remove temporary logging once multi-network startup flake is diagnosed
-            log.info(
-                    "TEMP-DEBUG Ports for network '{}' node{} grpc={} nodeOp={} gossip={} gossipTls={} prometheus={} debug={}",
-                    name,
-                    metadata.nodeId(),
-                    metadata.grpcPort(),
-                    metadata.grpcNodeOperatorPort(),
-                    metadata.internalGossipPort(),
-                    metadata.externalGossipPort(),
-                    metadata.prometheusPort(),
-                    metadata.debugPort());
-        }
+        // Advance the port window by a full reserved block so subsequent networks cannot overlap.
         final int nextFirstGrpcPort = currentFirstGrpcPort + blockSize * PORTS_PER_NODE;
-        nextGrpcPort = nextFirstGrpcPort;
-        nextPortsInitialized = true;
+        initializeNextPortsForNetwork(blockSize, nextFirstGrpcPort);
         Runtime.getRuntime().addShutdownHook(new Thread(network::terminate));
         return network;
     }
@@ -575,15 +564,12 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
                 final var nodePorts = overrideNetwork.nodeMetadata().stream()
                         .map(NodeMetadata::rosterEntryOrThrow)
                         .collect(toMap(RosterEntry::nodeId, RosterEntry::gossipEndpoint));
-                final var updatedNetwork = genesisNetwork
-                        .copyBuilder()
-                        .nodeMetadata(genesisNetwork.nodeMetadata().stream()
-                                .map(metadata -> withReassignedPorts(
-                                        metadata,
-                                        nodePorts.get(
-                                                metadata.rosterEntryOrThrow().nodeId())))
-                                .toList())
-                        .build();
+                final var updatedMetadata = genesisNetwork.nodeMetadata().stream()
+                        .map(metadata -> withReassignedPorts(
+                                metadata, nodePorts.get(metadata.rosterEntryOrThrow().nodeId())))
+                        .toList();
+                final var updatedNetwork =
+                        genesisNetwork.copyBuilder().nodeMetadata(updatedMetadata).build();
                 try {
                     Files.writeString(genesisNetworkPath, Network.JSON.toJSON(updatedNetwork));
                 } catch (IOException e) {
@@ -623,35 +609,25 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
                 .build();
     }
 
-    private Map<Long, com.hedera.hapi.node.base.ServiceEndpoint> currentGrpcServiceEndpoints() {
-        return nodes().stream()
-                .collect(toMap(
-                        HederaNode::getNodeId,
-                        node -> HapiPropertySource.asServiceEndpoint(node.getHost() + ":" + node.getGrpcPort())));
-    }
-
     private static synchronized void initializeNextPortsForNetwork(final int size) {
-        initializeNextPortsForNetwork(size, randomFirstGrpcPort(size));
+        final int configuredPort = Integer.getInteger("hapi.spec.initial.port", -1);
+        final int firstGrpcPort =
+                configuredPort > 0 ? configuredPort : randomPortAfter(FIRST_CANDIDATE_PORT, size * PORTS_PER_NODE);
+        initializeNextPortsForNetwork(size, firstGrpcPort);
     }
 
     /**
      * Initializes the next ports for the network with the given size and first gRPC port.
      *
-     * Layout for size = N:
+     * Layout for size=N:
      *   - grpcPort:            firstGrpcPort + 2*i
      *   - nodeOperatorPort:    firstGrpcPort + 2*N + i
      *   - gossipPort:          firstGrpcPort + 3*N + 2*i
      *   - gossipTlsPort:       firstGrpcPort + 3*N + 2*i + 1
      *   - prometheusPort:      firstGrpcPort + 5*N + i
+     *   - debug (JDWP) port:   firstGrpcPort + 6*N + i
      *
-     * Example: Suppose {@code firstGrpcPort} is 10000 with four nodes in the network. Then
-     *   - grpcPort = 10000, 10002, 10004, 10006
-     *   - nodeOperatorPort = 10008, 10009, 10010, 10011
-     *   - gossipPort = 10012, 10014, 10016, 10018
-     *   - gossipTlsPort = 10013, 10015, 10017, 10019
-     *   - prometheusPort = 10020, 10021, 10022, 10023
-     *
-     * @param size the number of nodes (or reserved port slots) in the network
+     * @param size the number of nodes in the network
      * @param firstGrpcPort the first gRPC port
      */
     public static synchronized void initializeNextPortsForNetwork(final int size, final int firstGrpcPort) {
@@ -662,11 +638,6 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
         nextPrometheusPort = nextInternalGossipPort + 2 * size;
         nextDebugPort = nextPrometheusPort + size;
         nextPortsInitialized = true;
-    }
-
-    private static int randomFirstGrpcPort(final int size) {
-        final int configuredPort = Integer.getInteger("hapi.spec.initial.port", -1);
-        return configuredPort > 0 ? configuredPort : randomPortAfter(FIRST_CANDIDATE_PORT, size * PORTS_PER_NODE);
     }
 
     private static int randomPortAfter(final int firstAvailable, final int numRequired) {
@@ -876,9 +847,10 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
     }
 
     public void addBootstrapOverrides(@NonNull final Map<String, String> overrides) {
+        requireNonNull(overrides);
         if (bootstrapOverrides == null) {
             bootstrapOverrides = new LinkedHashMap<>();
         }
-        bootstrapOverrides.putAll(requireNonNull(overrides));
+        bootstrapOverrides.putAll(overrides);
     }
 }

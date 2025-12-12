@@ -423,10 +423,8 @@ public class WorkingDirUtils {
         requireNonNull(onlyRoster);
         requireNonNull(serviceEndpoints);
         final var certs = AddressBookUtils.certsFor(configTxt);
-        final var lines = Arrays.stream(configTxt.split("\n"))
+        final var nodeMetadata = Arrays.stream(configTxt.split("\n"))
                 .filter(line -> line.contains("address, "))
-                .toList();
-        final var nodeMetadata = lines.stream()
                 .map(line -> {
                     final var parts = line.split(", ");
                     final long nodeId = Long.parseLong(parts[1]);

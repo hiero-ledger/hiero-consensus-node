@@ -23,13 +23,11 @@ import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.OptionalLong;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
@@ -48,7 +46,6 @@ import org.junit.jupiter.api.Assertions;
 public class ProcessUtils {
     private static final Logger log = LogManager.getLogger(ProcessUtils.class);
 
-    private static final int FIRST_AGENT_PORT = 5005;
     private static final long NODE_ID_TO_SUSPEND = -1;
     private static final String[] EMPTY_STRING_ARRAY = new String[0];
     public static final String SAVED_STATES_DIR = "saved";
@@ -185,27 +182,25 @@ public class ProcessUtils {
         final var pidFile = pidFilePath(metadata);
         boolean stoppedFromPid = false;
         if (Files.exists(pidFile)) {
-            final var recordOpt = readPidRecord(pidFile);
-            if (recordOpt.isPresent()) {
-                final var record = recordOpt.get();
-                final var handleOpt = ProcessHandle.of(record.pid());
-                if (handleOpt.isPresent()) {
-                    final var handle = handleOpt.get();
-                    if (handle.isAlive() && handleMatches(handle, metadata, record)) {
-                        log.info("Destroying node{} with PID '{}' from {}", metadata.nodeId(), record.pid(), pidFile);
-                        handle.destroy();
+            try {
+                final var pidText = Files.readString(pidFile, UTF_8).trim();
+                if (!pidText.isEmpty()) {
+                    final var pid = Long.parseLong(pidText);
+                    final var handleOpt = ProcessHandle.of(pid);
+                    if (handleOpt.isPresent()) {
+                        final var handle = handleOpt.get();
                         if (handle.isAlive()) {
-                            handle.destroyForcibly();
+                            log.info("Destroying node{} with PID '{}' from {}", metadata.nodeId(), pid, pidFile);
+                            handle.destroy();
+                            if (handle.isAlive()) {
+                                handle.destroyForcibly();
+                            }
+                            stoppedFromPid = true;
                         }
-                        stoppedFromPid = true;
-                    } else if (handle.isAlive()) {
-                        log.warn(
-                                "PID {} in {} does not appear to belong to node{}; skipping targeted shutdown",
-                                record.pid(),
-                                pidFile,
-                                metadata.nodeId());
                     }
                 }
+            } catch (Exception e) {
+                log.warn("Failed to stop node{} using pid file {}: {}", metadata.nodeId(), pidFile, e.toString());
             }
         }
         // Retain legacy behavior for the default shared-network scope only.
@@ -234,10 +229,7 @@ public class ProcessUtils {
         final var pidFile = pidFilePath(metadata);
         try {
             Files.createDirectories(pidFile.getParent());
-            final var startMillis =
-                    handle.info().startInstant().map(Instant::toEpochMilli).orElse(-1L);
-            final var entry = startMillis >= 0 ? handle.pid() + ":" + startMillis : Long.toString(handle.pid());
-            Files.writeString(pidFile, entry + System.lineSeparator(), UTF_8, CREATE, TRUNCATE_EXISTING);
+            Files.writeString(pidFile, Long.toString(handle.pid()), UTF_8, CREATE, TRUNCATE_EXISTING);
         } catch (IOException e) {
             log.warn("Unable to write pid file for node{} at {}: {}", metadata.nodeId(), pidFile, e.toString());
         }
@@ -246,70 +238,6 @@ public class ProcessUtils {
     private static Path pidFilePath(@NonNull final NodeMetadata metadata) {
         return metadata.workingDirOrThrow().resolve(OUTPUT_DIR).resolve(NODE_PID_FILE);
     }
-
-    private static Optional<NodePidRecord> readPidRecord(@NonNull final Path pidFile) {
-        try {
-            final var content = Files.readString(pidFile, UTF_8).trim();
-            if (content.isEmpty()) {
-                return Optional.empty();
-            }
-            final var firstLine = content.split("\\R", 2)[0].trim();
-            final String pidPart;
-            final String startPart;
-            if (firstLine.contains(":")) {
-                final var parts = firstLine.split(":", 2);
-                pidPart = parts[0];
-                startPart = parts[1];
-            } else {
-                pidPart = firstLine;
-                startPart = null;
-            }
-            final long pid = Long.parseLong(pidPart);
-            OptionalLong startMillis = OptionalLong.empty();
-            if (startPart != null && !startPart.isBlank()) {
-                final long value = Long.parseLong(startPart);
-                if (value >= 0) {
-                    startMillis = OptionalLong.of(value);
-                }
-            }
-            return Optional.of(new NodePidRecord(pid, startMillis));
-        } catch (Exception e) {
-            log.warn("Unable to parse pid file {}: {}", pidFile, e.toString());
-            return Optional.empty();
-        }
-    }
-
-    private static boolean handleMatches(
-            @NonNull final ProcessHandle handle,
-            @NonNull final NodeMetadata metadata,
-            @NonNull final NodePidRecord record) {
-        final var actualStart = actualStartMillis(handle);
-        if (record.startMillis().isPresent()) {
-            return actualStart.isPresent()
-                    && actualStart.getAsLong() == record.startMillis().getAsLong();
-        }
-        return commandLineLooksLikeNode(handle, metadata);
-    }
-
-    private static OptionalLong actualStartMillis(@NonNull final ProcessHandle handle) {
-        final var startInstant = handle.info().startInstant();
-        return startInstant.isPresent() ? OptionalLong.of(startInstant.get().toEpochMilli()) : OptionalLong.empty();
-    }
-
-    private static boolean commandLineLooksLikeNode(
-            @NonNull final ProcessHandle handle, @NonNull final NodeMetadata metadata) {
-        final var info = handle.info();
-        final var args = Arrays.asList(info.arguments().orElse(EMPTY_STRING_ARRAY));
-        final var hasServicesMain = info.commandLine().orElse("").contains("com.hedera.node.app.ServicesMain")
-                || args.stream().anyMatch(arg -> arg.contains("com.hedera.node.app.ServicesMain"));
-        final var localFlagIndex = args.indexOf("-local");
-        final boolean nodeIdMatches = localFlagIndex >= 0
-                && localFlagIndex + 1 < args.size()
-                && Long.toString(metadata.nodeId()).equals(args.get(localFlagIndex + 1));
-        return hasServicesMain && nodeIdMatches;
-    }
-
-    private record NodePidRecord(long pid, OptionalLong startMillis) {}
 
     private static List<String> javaCommandLineFor(@NonNull final NodeMetadata metadata) {
         final List<String> commandLine = new ArrayList<>();
@@ -336,10 +264,14 @@ public class ProcessUtils {
         return commandLine;
     }
 
+    /**
+     * Returns the pre-allocated JDWP debug port for the given node metadata.
+     * <p>
+     * The actual derivation and allocation of the debug port occurs elsewhere in the port allocation logic.
+     * This method simply returns the port value stored in {@link NodeMetadata}.
+     */
     private static int jdwpPort(@NonNull final NodeMetadata metadata) {
-        return metadata.debugPort() != NodeMetadata.UNKNOWN_PORT
-                ? metadata.debugPort()
-                : (int) (FIRST_AGENT_PORT + metadata.nodeId());
+        return metadata.debugPort();
     }
 
     /**

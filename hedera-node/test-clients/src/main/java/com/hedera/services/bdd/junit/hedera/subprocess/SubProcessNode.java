@@ -215,26 +215,7 @@ public class SubProcessNode extends AbstractLocalNode<SubProcessNode> implements
         assertStopped();
         assertWorkingDirInitialized();
         destroySubProcessNodeFor(metadata);
-        // TODO: Remove temporary logging once multi-network startup flake is diagnosed
-        final var applicationLog = getExternalPath(APPLICATION_LOG);
-        log.info(
-                "TEMP-DEBUG Starting node{} ({}) grpc={} gossip={} tlsGossip={} prometheus={} debug={} workingDir={} log={}",
-                metadata.nodeId(),
-                metadata.name(),
-                metadata.grpcPort(),
-                metadata.internalGossipPort(),
-                metadata.externalGossipPort(),
-                metadata.prometheusPort(),
-                metadata.debugPort(),
-                metadata.workingDirOrThrow(),
-                applicationLog);
         processHandle = startSubProcessNodeFrom(metadata, configVersion, envOverrides);
-        // TODO: Remove temporary logging once multi-network startup flake is diagnosed
-        log.info(
-                "TEMP-DEBUG Started node{} with PID {} (log exists? {})",
-                metadata.nodeId(),
-                processHandle.pid(),
-                Files.exists(applicationLog));
         return this;
     }
 
@@ -246,7 +227,7 @@ public class SubProcessNode extends AbstractLocalNode<SubProcessNode> implements
      * @param gossipPort the new gossip port
      * @param tlsGossipPort the new TLS gossip port
      * @param prometheusPort the new Prometheus port
-     * @param debugPort the new JDWP/debug port
+     * @param debugPort the new debug (JDWP) port
      */
     public void reassignPorts(
             final int grpcPort,
