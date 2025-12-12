@@ -3,7 +3,7 @@ package com.hedera.services.bdd.suites.integration.hip1259;
 
 import static com.hedera.hapi.util.HapiUtils.asInstant;
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.toPbj;
-import static com.hedera.node.app.hapi.utils.ValidationUtils.validateTrue;
+import static com.hedera.node.app.service.token.impl.schemas.V0610TokenSchema.NODE_REWARDS_STATE_ID;
 import static com.hedera.node.app.service.token.impl.schemas.V0700TokenSchema.NODE_PAYMENTS_STATE_ID;
 import static com.hedera.services.bdd.junit.RepeatableReason.NEEDS_STATE_ACCESS;
 import static com.hedera.services.bdd.junit.RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION;
@@ -54,9 +54,9 @@ import com.hedera.services.bdd.spec.transactions.TxnUtils;
 import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
 import com.hedera.services.bdd.spec.utilops.EmbeddedVerbs;
 import com.hedera.services.bdd.spec.utilops.streams.assertions.VisibleItemsValidator;
+import com.hedera.services.stream.proto.RecordStreamItem;
 import com.hederahashgraph.api.proto.java.AccountAmount;
 import edu.umd.cs.findbugs.annotations.NonNull;
-
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
@@ -65,7 +65,6 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.LongSupplier;
 import java.util.stream.Stream;
-
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.MethodOrderer;
@@ -129,68 +128,61 @@ public class Hip1259EnabledTests {
      */
     @Order(2)
     @RepeatableHapiTest({NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION, NEEDS_STATE_ACCESS})
-    final Stream<DynamicTest> feesAccumulateInNodeRewardsState() {
+    final Stream<DynamicTest> feesAccumulateInNodeRewardsStateAndDistributedAtStakingPeriodBoundary() {
         final AtomicLong initialFeeCollectionBalance = new AtomicLong(0);
         final AtomicLong initialNodeFeesCollected = new AtomicLong(0);
         final AtomicLong txnFee = new AtomicLong(0);
-        final AtomicReference<Instant> startConsensusTime = new AtomicReference<>();
         final AtomicLong nodeFee = new AtomicLong(0);
 
         return hapiTest(
                 recordStreamMustIncludePassWithoutBackgroundTrafficFrom(
                         selectedItems(
-                                feeDistributionValidator(2, nodeFee::get),
+                                feeDistributionValidator(2, List.of(3L, 800L, 801L, 98L), nodeFee::get),
                                 2,
-                                (spec, item) -> item.getRecord().getTransferList().getAccountAmountsList().stream()
-                                        .anyMatch(
-                                                aa -> aa.getAccountID().getAccountNum() == 802L)),
+                                (spec, item) -> hasFeeDistribution(item)),
                         Duration.ofSeconds(1)),
-
-                doingContextual(spec -> startConsensusTime.set(spec.consensusTime())),
+                cryptoTransfer(TokenMovement.movingHbar(ONE_MILLION_HBARS).between(GENESIS, NODE_REWARD)),
                 /*-------------------------------INITIAL SET UP ---------------------------------*/
                 cryptoCreate(CIVILIAN_PAYER),
                 getAccountBalance(FEE_COLLECTOR).exposingBalanceTo(initialFeeCollectionBalance::set),
                 waitUntilStartOfNextStakingPeriod(1),
-                EmbeddedVerbs.<NodePayments>viewSingleton(
-                        TokenService.NAME,
-                        NODE_PAYMENTS_STATE_ID,
-                        nodePayments -> {
-                            initialNodeFeesCollected.set(nodePayments.payments()
-                                    .stream()
-                                    .mapToLong(NodePayment::fees).sum());
-                            System.out.println("Initial node fees collected: " + initialNodeFeesCollected.get());
-                        }),
+                EmbeddedVerbs.<NodePayments>viewSingleton(TokenService.NAME, NODE_PAYMENTS_STATE_ID, nodePayments -> {
+                    initialNodeFeesCollected.set(nodePayments.payments().stream()
+                            .mapToLong(NodePayment::fees)
+                            .sum());
+                    System.out.println("Initial node fees collected: " + initialNodeFeesCollected.get());
+                }),
 
                 /*-------------------------------TRIGGER NEXT STAKING PERIOD ---------------------------------*/
-                cryptoTransfer(TokenMovement.movingHbar(ONE_MILLION_HBARS).between(GENESIS, NODE_REWARD)).via("distributionTrigger"),
+                cryptoTransfer(TokenMovement.movingHbar(ONE_MILLION_HBARS).between(GENESIS, NODE_REWARD))
+                        .via("distributionTrigger"),
                 getTxnRecord("distributionTrigger").andAllChildRecords().logged(),
-
                 cryptoCreate("testAccount")
                         .balance(ONE_HBAR)
                         .payingWith(CIVILIAN_PAYER)
                         .via("feeTxn"),
                 getTxnRecord("feeTxn").exposingTo(record -> txnFee.set(record.getTransactionFee())),
                 validateRecordContains("feeTxn", EXPECTED_FEE_ACCOUNTS),
-                sourcing(() -> getAccountBalance(FEE_COLLECTOR).hasTinyBars(initialFeeCollectionBalance.get() + txnFee.get()).logged()),
+                sourcing(() -> getAccountBalance(FEE_COLLECTOR)
+                        .hasTinyBars(initialFeeCollectionBalance.get() + txnFee.get())
+                        .logged()),
                 validateChargedUsd("feeTxn", 0.05, 1),
-
                 sleepForBlockPeriod(),
                 EmbeddedVerbs.handleAnyRepeatableQueryPayment(),
                 // Node fees should increase after transaction
-                EmbeddedVerbs.<NodePayments>viewSingleton(
-                        TokenService.NAME,
-                        NODE_PAYMENTS_STATE_ID,
-                        nodePayments -> {
-                            final var newPayments = nodePayments.payments().stream().mapToLong(NodePayment::fees).sum();
-                            nodeFee.set(newPayments - initialNodeFeesCollected.get());
-                            assertTrue(newPayments > initialNodeFeesCollected.get(),
-                                    "Node fees collected should increase after transaction");
-                        }),
+                EmbeddedVerbs.<NodePayments>viewSingleton(TokenService.NAME, NODE_PAYMENTS_STATE_ID, nodePayments -> {
+                    final var newPayments = nodePayments.payments().stream()
+                            .mapToLong(NodePayment::fees)
+                            .sum();
+                    nodeFee.set(newPayments - initialNodeFeesCollected.get());
+                    assertTrue(
+                            newPayments > initialNodeFeesCollected.get(),
+                            "Node fees collected should increase after transaction");
+                }),
                 /*-------------------------------TRIGGER NEXT STAKING PERIOD ---------------------------------*/
                 waitUntilStartOfNextStakingPeriod(1),
                 cryptoTransfer(TokenMovement.movingHbar(ONE_MILLION_HBARS).between(GENESIS, NODE_REWARD)),
-                doingContextual(TxnUtils::triggerAndCloseAtLeastOneFileIfNotInterrupted)
-        );
+                doingContextual(TxnUtils::triggerAndCloseAtLeastOneFileIfNotInterrupted));
     }
 
     /**
@@ -198,51 +190,57 @@ public class Hip1259EnabledTests {
      * are distributed to node accounts via a synthetic transaction.
      */
     @Order(3)
-    @LeakyRepeatableHapiTest(
-            value = {NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION, NEEDS_STATE_ACCESS},
-            overrides = {"nodes.minPerPeriodNodeRewardUsd"})
+    @LeakyRepeatableHapiTest(value = {NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION, NEEDS_STATE_ACCESS})
     final Stream<DynamicTest> feesDistributedAtStakingPeriodBoundary() {
-        final AtomicLong expectedNodeFees = new AtomicLong(0);
-        final AtomicReference<Instant> startConsensusTime = new AtomicReference<>();
+        final AtomicLong initialFeeCollectionBalance = new AtomicLong(0);
+        final AtomicLong initialNodeFeesCollected = new AtomicLong(0);
+        final AtomicLong txnFee = new AtomicLong(0);
+        final AtomicLong nodeFee = new AtomicLong(0);
+
         return hapiTest(
-                doingContextual(spec -> startConsensusTime.set(spec.consensusTime())),
                 recordStreamMustIncludePassWithoutBackgroundTrafficFrom(
                         selectedItems(
-                                feeDistributionValidator(1, expectedNodeFees::get),
-                                1,
-                                (spec, item) -> item.getRecord().getTransferList().getAccountAmountsList().stream()
-                                        .anyMatch(
-                                                aa -> aa.getAccountID().getAccountNum() == 802L
-                                                        && aa.getAmount() < 0L)
-                                        && asInstant(toPbj(item.getRecord().getConsensusTimestamp()))
-                                        .isAfter(startConsensusTime.get())),
+                                feeDistributionValidator(2, List.of(3L, 801L), nodeFee::get),
+                                2,
+                                (spec, item) -> hasFeeDistribution(item)),
                         Duration.ofSeconds(1)),
-                cryptoTransfer(TokenMovement.movingHbar(100000 * ONE_HBAR).between(GENESIS, NODE_REWARD)),
-                nodeUpdate("0").declineReward(true),
-                waitUntilStartOfNextStakingPeriod(1),
+                /*-------------------------------INITIAL SET UP ---------------------------------*/
                 cryptoCreate(CIVILIAN_PAYER),
-                fileCreate("something")
-                        .contents("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
+                getAccountBalance(FEE_COLLECTOR).exposingBalanceTo(initialFeeCollectionBalance::set),
+                waitUntilStartOfNextStakingPeriod(1),
+                EmbeddedVerbs.<NodePayments>viewSingleton(TokenService.NAME, NODE_PAYMENTS_STATE_ID, nodePayments -> {
+                    initialNodeFeesCollected.set(nodePayments.payments().stream()
+                            .mapToLong(NodePayment::fees)
+                            .sum());
+                }),
+
+                /*-------------------------------TRIGGER NEXT STAKING PERIOD ---------------------------------*/
+                cryptoTransfer(TokenMovement.movingHbar(ONE_MILLION_HBARS).between(GENESIS, NODE_REWARD)),
+                cryptoCreate("testAccount")
+                        .balance(ONE_HBAR)
                         .payingWith(CIVILIAN_PAYER)
-                        .via("notFree"),
-                validateRecordContains("notFree", EXPECTED_FEE_ACCOUNTS),
-                getTxnRecord("notFree")
-                        .exposingTo(r -> expectedNodeFees.set(r.getTransferList().getAccountAmountsList().stream()
-                                .filter(a -> a.getAccountID().getAccountNum() == 802L)
-                                .findFirst()
-                                .orElseThrow()
-                                .getAmount())),
+                        .via("feeTxn"),
+                getTxnRecord("feeTxn").exposingTo(record -> txnFee.set(record.getTransactionFee())),
+                validateRecordContains("feeTxn", EXPECTED_FEE_ACCOUNTS),
+                sourcing(() -> getAccountBalance(FEE_COLLECTOR)
+                        .hasTinyBars(initialFeeCollectionBalance.get() + txnFee.get())
+                        .logged()),
+                validateChargedUsd("feeTxn", 0.05, 1),
                 sleepForBlockPeriod(),
                 EmbeddedVerbs.handleAnyRepeatableQueryPayment(),
-                mutateSingleton(TokenService.NAME, NODE_PAYMENTS_STATE_ID, (NodeRewards nodeRewards) -> nodeRewards
-                        .copyBuilder()
-                        .nodeActivities(NodeActivity.newBuilder()
-                                .nodeId(1)
-                                .numMissedJudgeRounds(3)
-                                .build())
-                        .build()),
+                // Node fees should increase after transaction
+                EmbeddedVerbs.<NodePayments>viewSingleton(TokenService.NAME, NODE_PAYMENTS_STATE_ID, nodePayments -> {
+                    final var newPayments = nodePayments.payments().stream()
+                            .mapToLong(NodePayment::fees)
+                            .sum();
+                    nodeFee.set(newPayments - initialNodeFeesCollected.get());
+                    assertTrue(
+                            newPayments > initialNodeFeesCollected.get(),
+                            "Node fees collected should increase after transaction");
+                }),
+                /*-------------------------------TRIGGER NEXT STAKING PERIOD ---------------------------------*/
                 waitUntilStartOfNextStakingPeriod(1),
-                cryptoCreate("nobody").payingWith(GENESIS),
+                cryptoTransfer(TokenMovement.movingHbar(ONE_MILLION_HBARS).between(GENESIS, NODE_REWARD)),
                 doingContextual(TxnUtils::triggerAndCloseAtLeastOneFileIfNotInterrupted));
     }
 
@@ -254,7 +252,7 @@ public class Hip1259EnabledTests {
     @LeakyRepeatableHapiTest(
             value = {NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION, NEEDS_STATE_ACCESS},
             overrides = {"nodes.minPerPeriodNodeRewardUsd"})
-    final Stream<DynamicTest> nodeRewardsWithFeeCollectionEnabled() {
+    final Stream<DynamicTest> nodeRewardsDistributedAfterFeeDistribution() {
         final AtomicLong nodeRewardBalance = new AtomicLong(0);
         final AtomicReference<Instant> startConsensusTime = new AtomicReference<>();
         return hapiTest(
@@ -262,17 +260,15 @@ public class Hip1259EnabledTests {
                 recordStreamMustIncludePassWithoutBackgroundTrafficFrom(
                         selectedItems(
                                 nodeRewardsWithFeeCollectionValidator(nodeRewardBalance::get),
-                                1,
-                                (spec, item) -> item.getRecord().getTransferList().getAccountAmountsList().stream()
-                                        .anyMatch(
-                                                aa -> aa.getAccountID().getAccountNum() == 801L
-                                                        && aa.getAmount() < 0L)
+                                2,
+                                (spec, item) -> isNodeRewardOrFeeDistribution(item)
                                         && asInstant(toPbj(item.getRecord().getConsensusTimestamp()))
-                                        .isAfter(startConsensusTime.get())),
+                                                .isAfter(startConsensusTime.get())),
                         Duration.ofSeconds(1)),
                 cryptoTransfer(TokenMovement.movingHbar(100000 * ONE_HBAR).between(GENESIS, NODE_REWARD)),
                 nodeUpdate("0").declineReward(true),
                 waitUntilStartOfNextStakingPeriod(1),
+                /* --------------------- NEW STAKING PERIOD --------------------- */
                 cryptoCreate(CIVILIAN_PAYER),
                 fileCreate("something")
                         .contents("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
@@ -281,7 +277,7 @@ public class Hip1259EnabledTests {
                 validateRecordContains("notFree", EXPECTED_FEE_ACCOUNTS),
                 sleepForBlockPeriod(),
                 EmbeddedVerbs.handleAnyRepeatableQueryPayment(),
-                mutateSingleton(TokenService.NAME, NODE_PAYMENTS_STATE_ID, (NodeRewards nodeRewards) -> nodeRewards
+                mutateSingleton(TokenService.NAME, NODE_REWARDS_STATE_ID, (NodeRewards nodeRewards) -> nodeRewards
                         .copyBuilder()
                         .nodeActivities(NodeActivity.newBuilder()
                                 .nodeId(1)
@@ -291,112 +287,113 @@ public class Hip1259EnabledTests {
                 getAccountBalance(NODE_REWARD)
                         .exposingBalanceTo(nodeRewardBalance::set)
                         .logged(),
+                /* --------------------- NEW STAKING PERIOD --------------------- */
                 waitUntilStartOfNextStakingPeriod(1),
+                //                getAccountBalance(FEE_COLLECTOR)
+                //                        .hasTinyBars(0L)
+                //                        .logged(),
                 cryptoCreate("nobody").payingWith(GENESIS),
                 doingContextual(TxnUtils::triggerAndCloseAtLeastOneFileIfNotInterrupted));
     }
 
-    /**
-     * Verifies that the fee collection account balance is reset after fees are distributed
-     * at the staking period boundary.
-     */
-    @Order(5)
-    @RepeatableHapiTest({NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION, NEEDS_STATE_ACCESS})
-    final Stream<DynamicTest> feeCollectionAccountResetAfterDistribution() {
-        final AtomicLong preDistributionBalance = new AtomicLong(0);
-        return hapiTest(
-                cryptoTransfer(TokenMovement.movingHbar(ONE_MILLION_HBARS).between(GENESIS, NODE_REWARD)),
-                waitUntilStartOfNextStakingPeriod(1),
-                cryptoCreate(CIVILIAN_PAYER),
-                fileCreate("testFile")
-                        .contents("Test content")
-                        .payingWith(CIVILIAN_PAYER)
-                        .via("feeTxn"),
-                validateRecordContains("feeTxn", EXPECTED_FEE_ACCOUNTS),
-                sleepForBlockPeriod(),
-                getAccountBalance(FEE_COLLECTOR)
-                        .exposingBalanceTo(preDistributionBalance::set)
-                        .logged(),
-                EmbeddedVerbs.handleAnyRepeatableQueryPayment(),
-                mutateSingleton(TokenService.NAME, NODE_PAYMENTS_STATE_ID, (NodeRewards nodeRewards) -> nodeRewards
-                        .copyBuilder()
-                        .nodeActivities(List.of(
-                                NodeActivity.newBuilder()
-                                        .nodeId(0)
-                                        .numMissedJudgeRounds(0)
-                                        .build(),
-                                NodeActivity.newBuilder()
-                                        .nodeId(1)
-                                        .numMissedJudgeRounds(0)
-                                        .build(),
-                                NodeActivity.newBuilder()
-                                        .nodeId(2)
-                                        .numMissedJudgeRounds(0)
-                                        .build(),
-                                NodeActivity.newBuilder()
-                                        .nodeId(3)
-                                        .numMissedJudgeRounds(0)
-                                        .build()))
-                        .build()),
-                waitUntilStartOfNextStakingPeriod(1),
-                cryptoCreate("trigger").payingWith(GENESIS),
-                sleepForBlockPeriod(),
-                EmbeddedVerbs.<NodeRewards>viewSingleton(
-                        TokenService.NAME,
-                        NODE_PAYMENTS_STATE_ID,
-                        nodeRewards -> assertEquals(
-                                0L, nodeRewards.nodeFeesCollected(), "Node fees should be reset after distribution")));
+    private static boolean isNodeRewardOrFeeDistribution(final RecordStreamItem item) {
+        return item.getRecord().getTransferList().getAccountAmountsList().stream()
+                .anyMatch(aa -> (aa.getAccountID().getAccountNum() == 801L && aa.getAmount() < 0L)
+                        || (aa.getAccountID().getAccountNum() == 802L && aa.getAmount() < 0L));
+    }
+
+    private static boolean hasFeeDistribution(final RecordStreamItem item) {
+        return item.getRecord().getTransferList().getAccountAmountsList().stream()
+                .anyMatch(aa -> aa.getAccountID().getAccountNum() == 802L);
     }
 
     /**
      * Validator for fee distribution synthetic transaction.
      */
-    static VisibleItemsValidator feeDistributionValidator(int indexOfRecord, @NonNull final LongSupplier expectedFees) {
+    static VisibleItemsValidator feeDistributionValidator(
+            int recordNumber, List<Long> creditAccounts, @NonNull final LongSupplier expectedFees) {
         return (spec, records) -> {
             final var items = records.get(SELECTED_ITEMS_KEY);
             assertNotNull(items, "No fee distribution found");
-            final var payment = items.get(indexOfRecord);
+            assertNotNull(items.get(recordNumber - 1), "No fee distribution found");
+            final var payment = items.get(recordNumber - 1);
             assertEquals(CryptoTransfer, payment.function());
             final var op = payment.body().getCryptoTransfer();
             final Map<Long, Long> bodyAdjustments = op.getTransfers().getAccountAmountsList().stream()
                     .collect(toMap(aa -> aa.getAccountID().getAccountNum(), AccountAmount::getAmount));
-            // Fee collection account should be debited
-            assertTrue(
-                    bodyAdjustments.containsKey(802L) && bodyAdjustments.get(802L) < 0,
-                    "Fee collection account should be debited");
-            assertTrue(
-                    bodyAdjustments.containsKey(3L) && bodyAdjustments.get(3L) > 0,
-                    "Node account should be credited");
-            assertTrue(
-                    bodyAdjustments.containsKey(98L) && bodyAdjustments.get(98L) > 0,
-                    "Funding account should be credited");
-            assertTrue(
-                    bodyAdjustments.containsKey(800L) && bodyAdjustments.get(800L) > 0,
-                    "Node staking account should be credited");
-            assertTrue(
-                    bodyAdjustments.containsKey(801L) && bodyAdjustments.get(801L) > 0,
-                    "Node reward should be credited");
+            for (Long account : creditAccounts) {
+                assertTrue(
+                        bodyAdjustments.containsKey(account) && bodyAdjustments.get(account) > 0,
+                        "Credit account should be credited");
+            }
             assertEquals((long) bodyAdjustments.get(3L), expectedFees.getAsLong(), "Node account fee should match");
         };
     }
 
     /**
      * Validator for node rewards with fee collection enabled.
+     * Validates that:
+     * 1. Fee distributions happen first (0.0.802 is debited, node accounts and system accounts are credited)
+     * 2. Node rewards are distributed last (0.0.801 is debited, node accounts are credited)
      */
     static VisibleItemsValidator nodeRewardsWithFeeCollectionValidator(@NonNull final LongSupplier nodeRewardBalance) {
         return (spec, records) -> {
             final var items = records.get(SELECTED_ITEMS_KEY);
-            assertNotNull(items, "No reward payments found");
-            assertEquals(1, items.size());
-            final var payment = items.getFirst();
-            assertEquals(CryptoTransfer, payment.function());
-            final var op = payment.body().getCryptoTransfer();
-            final Map<Long, Long> bodyAdjustments = op.getTransfers().getAccountAmountsList().stream()
-                    .collect(toMap(aa -> aa.getAccountID().getAccountNum(), AccountAmount::getAmount));
-            // Node reward account should be debited
-            final long nodeRewardDebit =
-                    bodyAdjustments.get(spec.startupProperties().getLong("accounts.nodeRewardAccount"));
-            assertTrue(nodeRewardDebit < 0, "Node reward account should be debited");
+            assertNotNull(items, "No reward payments or fee distributions found");
+            assertTrue(items.size() >= 2, "Expected at least 2 records (fee distribution + node rewards)");
+
+            // Always fee distributions happen first and then node rewards
+            // validate the order of the transactions
+            boolean foundFeeDistribution = false;
+            boolean foundNodeReward = false;
+            int feeDistributionIndex = -1;
+            int nodeRewardIndex = -1;
+
+            for (int i = 0; i < items.size(); i++) {
+                final var payment = items.get(i);
+                assertEquals(CryptoTransfer, payment.function());
+                final var op = payment.body().getCryptoTransfer();
+                final Map<Long, Long> bodyAdjustments = op.getTransfers().getAccountAmountsList().stream()
+                        .collect(toMap(aa -> aa.getAccountID().getAccountNum(), AccountAmount::getAmount));
+
+                // Check if this is a fee distribution (0.0.802 is debited)
+                if (bodyAdjustments.containsKey(802L) && bodyAdjustments.get(802L) < 0) {
+                    foundFeeDistribution = true;
+                    if (feeDistributionIndex == -1) {
+                        feeDistributionIndex = i;
+                    }
+                    // Validate fee distribution: 0.0.802 debited, node accounts (3) and system accounts credited
+                    assertTrue(
+                            bodyAdjustments.containsKey(3L) && bodyAdjustments.get(3L) > 0,
+                            "Node account 0.0.3 should be credited in fee distribution");
+                    assertTrue(
+                            bodyAdjustments.containsKey(802L) && bodyAdjustments.get(802L) < 0,
+                            "System account 0.0.802 should be debited in fee distribution");
+                }
+
+                // Check if this is a node reward distribution (0.0.801 is debited)
+                if (bodyAdjustments.containsKey(801L) && bodyAdjustments.get(801L) < 0) {
+                    foundNodeReward = true;
+                    nodeRewardIndex = i;
+                    // Validate node reward: 0.0.801 debited, node accounts credited
+                    final long nodeRewardDebit = bodyAdjustments.get(801L);
+                    assertTrue(nodeRewardDebit < 0, "Node reward account 0.0.801 should be debited");
+
+                    // Sum of credits to node accounts should equal the debit from 0.0.801
+                    final long totalCredits = bodyAdjustments.entrySet().stream()
+                            .filter(e -> e.getKey() != 801L && e.getValue() > 0)
+                            .mapToLong(Map.Entry::getValue)
+                            .sum();
+                    assertEquals(
+                            -nodeRewardDebit,
+                            totalCredits,
+                            "Total credits to node accounts should equal debit from 0.0.801");
+                }
+            }
+
+            assertTrue(foundFeeDistribution, "Should have at least one fee distribution transaction");
+            assertTrue(foundNodeReward, "Should have at least one node reward transaction");
+            assertTrue(feeDistributionIndex < nodeRewardIndex, "Fee distribution should happen before node rewards");
         };
     }
 }

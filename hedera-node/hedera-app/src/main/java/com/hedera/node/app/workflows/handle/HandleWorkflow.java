@@ -307,12 +307,14 @@ public class HandleWorkflow {
         }
         final var roundConsTime = round.getConsensusTimestamp();
         try {
-            transactionsDispatched |= feeDistributor.distributeFees(state, roundConsTime.plusNanos(1), systemTransactions);
+            transactionsDispatched |=
+                    feeDistributor.distributeFees(state, roundConsTime.plusNanos(1), systemTransactions);
         } catch (Exception e) {
             logger.warn("Failed to pay node fees to nodes", e);
         }
         try {
-            transactionsDispatched |= nodeRewardManager.maybeRewardActiveNodes(state, roundConsTime.plusNanos(2), systemTransactions);
+            transactionsDispatched |=
+                    nodeRewardManager.maybeRewardActiveNodes(state, roundConsTime.plusNanos(2), systemTransactions);
         } catch (Exception e) {
             logger.warn("Failed to reward active nodes", e);
         }
@@ -417,7 +419,8 @@ public class HandleWorkflow {
         }
         final boolean isGenesis =
                 switch (streamMode) {
-                    case RECORDS -> blockRecordManager.consTimeOfLastHandledTxn().equals(EPOCH);
+                    case RECORDS ->
+                        blockRecordManager.consTimeOfLastHandledTxn().equals(EPOCH);
                     case BLOCKS, BOTH -> blockStreamManager.pendingWork() == GENESIS_WORK;
                 };
         if (isGenesis) {
@@ -1017,13 +1020,13 @@ public class HandleWorkflow {
                     // can still make progress on publishing proof keys as needed
                     final var vk = Optional.ofNullable(
                                     (historyStore.getLedgerId() == null
-                                            || (tssConfig.wrapsEnabled()
-                                            && historyStore
-                                            .getActiveConstruction()
-                                            .hasTargetProof()
-                                            && !isWrapsExtensible(historyStore
-                                            .getActiveConstruction()
-                                            .targetProof())))
+                                                    || (tssConfig.wrapsEnabled()
+                                                            && historyStore
+                                                                    .getActiveConstruction()
+                                                                    .hasTargetProof()
+                                                            && !isWrapsExtensible(historyStore
+                                                                    .getActiveConstruction()
+                                                                    .targetProof())))
                                             ? hintsStore.getActiveConstruction().hintsScheme()
                                             : hintsStore.getNextConstruction().hintsScheme())
                             .map(s -> s.preprocessedKeysOrThrow().verificationKey())

@@ -291,8 +291,7 @@ public class NodeFeeDistributor implements NodeFeeAccumulator {
                 nodesConfig.nodeRewardsEnabled() && nodesConfig.preserveMinNodeRewardBalance();
 
         // If 0.0.801 is low, route fees fully there until it reaches the configured minimum
-        if (preservingRewardBalance
-                && nodeRewardAccount.tinybarBalance() <= nodesConfig.minNodeRewardBalance()) {
+        if (preservingRewardBalance && nodeRewardAccount.tinybarBalance() <= nodesConfig.minNodeRewardBalance()) {
             // Route all fees to node reward account
             transferAmounts.add(AccountAmount.newBuilder()
                     .accountID(nodeRewardAccountId)
@@ -358,9 +357,8 @@ public class NodeFeeDistributor implements NodeFeeAccumulator {
                 .toList();
 
         // We don't update the lastNodeFeeDistributionTime because it is updated only once we distribute fees
-        nodePaymentsState.put(currentPayments.copyBuilder()
-                .payments(updatedPayments)
-                .build());
+        nodePaymentsState.put(
+                currentPayments.copyBuilder().payments(updatedPayments).build());
         ((CommittableWritableStates) writableTokenState).commit();
         log.info("Committed node payments state with {}", updatedPayments);
 

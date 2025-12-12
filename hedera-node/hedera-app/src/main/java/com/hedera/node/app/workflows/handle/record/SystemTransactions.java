@@ -431,6 +431,7 @@ public class SystemTransactions {
             log.info("No fees to distribute for nodes");
             return;
         }
+        log.info("Transferring node fees {} to nodes", transfers);
 
         final var systemContext = newSystemContext(
                 now, state, dispatch -> {}, UseReservedConsensusTimes.YES, TriggerStakePeriodSideEffects.YES);

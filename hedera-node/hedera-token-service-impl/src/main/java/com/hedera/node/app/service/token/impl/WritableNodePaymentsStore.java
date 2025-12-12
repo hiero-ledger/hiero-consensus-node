@@ -45,7 +45,7 @@ public class WritableNodePaymentsStore extends ReadableNodePaymentsStoreImpl {
      * Resets the node rewards state for a new payment period.
      */
     public void resetForNewStakingPeriod(Timestamp lastNodeFeeDistributionTime) {
-        System.out.println("SETTING LAST NODE FEE DISTRIBUTION TIME TO "+  lastNodeFeeDistributionTime);
+        System.out.println("SETTING LAST NODE FEE DISTRIBUTION TIME TO " + lastNodeFeeDistributionTime);
         nodePaymentsState.put(NodePayments.newBuilder()
                 .payments(List.of())
                 .lastNodeFeeDistributionTime(lastNodeFeeDistributionTime)
