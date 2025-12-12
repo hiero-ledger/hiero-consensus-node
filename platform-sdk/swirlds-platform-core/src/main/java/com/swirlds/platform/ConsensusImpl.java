@@ -5,6 +5,8 @@ import static com.swirlds.logging.legacy.LogMarker.CONSENSUS_VOTING;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static java.util.stream.Collectors.toSet;
+import static org.hiero.consensus.model.PbjConverters.fromPbjTimestamp;
+import static org.hiero.consensus.model.PbjConverters.toPbjTimestamp;
 import static org.hiero.consensus.model.hashgraph.ConsensusConstants.FIRST_CONSENSUS_NUMBER;
 
 import com.hedera.hapi.node.state.roster.Roster;
@@ -42,7 +44,6 @@ import java.util.Set;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Hash;
-import org.hiero.base.utility.CommonUtils;
 import org.hiero.consensus.hashgraph.ConsensusConfig;
 import org.hiero.consensus.model.event.NonDeterministicGeneration;
 import org.hiero.consensus.model.event.PlatformEvent;
@@ -242,7 +243,7 @@ public class ConsensusImpl implements Consensus {
         initJudges = new InitJudges(snapshot.round(), judgeHashes);
         rounds.loadFromMinimumJudge(snapshot.minimumJudgeInfoList());
         numConsensus = snapshot.nextConsensusNumber();
-        lastConsensusTime = CommonUtils.fromPbjTimestamp(snapshot.consensusTimestamp());
+        lastConsensusTime = fromPbjTimestamp(snapshot.consensusTimestamp());
     }
 
     /** Reset this instance to a state of a newly created instance */
@@ -764,7 +765,7 @@ public class ConsensusImpl implements Consensus {
                         decidedRoundNumber,
                         rounds.getMinimumJudgeInfoList(),
                         numConsensus,
-                        CommonUtils.toPbjTimestamp(lastConsensusTime),
+                        toPbjTimestamp(lastConsensusTime),
                         judgeIds),
                 pcesMode,
                 time.now());
