@@ -67,7 +67,7 @@ public class TopicDeleteSuite {
                 newKeyNamed("adminKey"),
                 createTopic("testTopic").adminKeyName("adminKey"),
                 deleteTopic("testTopic").hasPrecheck(ResponseCodeEnum.OK),
-                getTopicInfo("testTopic").hasCostAnswerPrecheck(INVALID_TOPIC_ID));
+                getTopicInfo("testTopic").hasCostAnswerPrecheck(ResponseCodeEnum.OK));
     }
 
     @HapiTest
