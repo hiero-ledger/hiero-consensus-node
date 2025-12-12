@@ -40,8 +40,8 @@ import com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils;
 import com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.OnlyRoster;
 import com.hedera.services.bdd.spec.HapiPropertySource;
 import com.hedera.services.bdd.spec.TargetNetworkType;
-import com.hedera.services.bdd.spec.props.MapPropertySource;
 import com.hedera.services.bdd.spec.infrastructure.HapiClients;
+import com.hedera.services.bdd.spec.props.MapPropertySource;
 import com.hedera.services.bdd.spec.utilops.FakeNmt;
 import com.hederahashgraph.api.proto.java.ServiceEndpoint;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -566,10 +566,13 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
                         .collect(toMap(RosterEntry::nodeId, RosterEntry::gossipEndpoint));
                 final var updatedMetadata = genesisNetwork.nodeMetadata().stream()
                         .map(metadata -> withReassignedPorts(
-                                metadata, nodePorts.get(metadata.rosterEntryOrThrow().nodeId())))
+                                metadata,
+                                nodePorts.get(metadata.rosterEntryOrThrow().nodeId())))
                         .toList();
-                final var updatedNetwork =
-                        genesisNetwork.copyBuilder().nodeMetadata(updatedMetadata).build();
+                final var updatedNetwork = genesisNetwork
+                        .copyBuilder()
+                        .nodeMetadata(updatedMetadata)
+                        .build();
                 try {
                     Files.writeString(genesisNetworkPath, Network.JSON.toJSON(updatedNetwork));
                 } catch (IOException e) {

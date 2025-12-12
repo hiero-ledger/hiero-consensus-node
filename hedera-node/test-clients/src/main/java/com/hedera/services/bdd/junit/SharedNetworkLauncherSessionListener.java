@@ -141,9 +141,21 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
                     };
             if (network != null) {
                 if (enableClprOverrides && network instanceof SubProcessNetwork subProcessNetwork) {
-                    subProcessNetwork.nodes().forEach(node -> subProcessNetwork
-                            .getApplicationPropertyOverrides()
-                            .putIfAbsent(node.getNodeId(), List.of("clpr.clprEnabled", "true")));
+                    subProcessNetwork.nodes().forEach(node -> {
+                        final var overrides = subProcessNetwork.getApplicationPropertyOverrides();
+                        final var existing = overrides.getOrDefault(node.getNodeId(), List.of());
+                        final var updated = new ArrayList<>(existing);
+                        for (int i = 0; i + 1 < updated.size(); i += 2) {
+                            if ("clpr.clprEnabled".equals(updated.get(i))) {
+                                updated.set(i + 1, "true");
+                                overrides.put(node.getNodeId(), List.copyOf(updated));
+                                return;
+                            }
+                        }
+                        updated.add("clpr.clprEnabled");
+                        updated.add("true");
+                        overrides.put(node.getNodeId(), List.copyOf(updated));
+                    });
                 }
                 checkPrOverridesForBlockNodeStreaming(network);
                 network.start();
