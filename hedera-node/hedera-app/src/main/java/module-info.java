@@ -21,7 +21,6 @@ module com.hedera.node.app {
     requires transitive com.hedera.node.hapi;
     requires transitive com.hedera.pbj.runtime;
     requires transitive com.swirlds.base;
-    requires transitive com.swirlds.common;
     requires transitive com.swirlds.config.api;
     requires transitive com.swirlds.metrics.api;
     requires transitive com.swirlds.platform.core;
@@ -50,6 +49,7 @@ module com.hedera.node.app {
     requires com.hedera.node.app.service.roster;
     requires com.hedera.node.app.service.util;
     requires com.hedera.pbj.grpc.client.helidon;
+    requires com.swirlds.common;
     requires com.swirlds.config.extensions;
     requires com.swirlds.logging;
     requires com.swirlds.state.impl;
