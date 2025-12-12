@@ -8,6 +8,7 @@ import com.swirlds.common.metrics.extensions.FractionalTimer;
 import com.swirlds.common.metrics.extensions.NoOpFractionalTimer;
 import com.swirlds.component.framework.model.DeterministicWiringModel;
 import com.swirlds.component.framework.model.TraceableWiringModel;
+import com.swirlds.component.framework.schedulers.ExceptionHandlers;
 import com.swirlds.component.framework.schedulers.TaskScheduler;
 import com.swirlds.component.framework.schedulers.builders.internal.AbstractTaskSchedulerBuilder;
 import com.swirlds.component.framework.schedulers.internal.DirectTaskScheduler;
@@ -59,26 +60,29 @@ public class DeterministicTaskSchedulerBuilder<OUT> extends AbstractTaskSchedule
 
         final TaskScheduler<OUT> scheduler =
                 switch (type) {
-                    case CONCURRENT, SEQUENTIAL, SEQUENTIAL_THREAD -> new DeterministicTaskScheduler<>(
-                            model,
-                            name,
-                            type,
-                            counters.onRamp(),
-                            counters.offRamp(),
-                            unhandledTaskCapacity,
-                            flushingEnabled,
-                            squelchingEnabled,
-                            insertionIsBlocking,
-                            submitWork);
-                    case DIRECT, DIRECT_THREADSAFE -> new DirectTaskScheduler<>(
-                            model,
-                            name,
-                            buildUncaughtExceptionHandler(),
-                            counters.onRamp(),
-                            counters.offRamp(),
-                            squelchingEnabled,
-                            busyFractionTimer,
-                            type == DIRECT_THREADSAFE);
+                    case CONCURRENT, SEQUENTIAL, SEQUENTIAL_THREAD ->
+                        new DeterministicTaskScheduler<>(
+                                model,
+                                name,
+                                type,
+                                uncaughtExceptionHandlerOr(ExceptionHandlers.RETHROW_UNCAUGHT_EXCEPTION),
+                                counters.onRamp(),
+                                counters.offRamp(),
+                                unhandledTaskCapacity,
+                                flushingEnabled,
+                                squelchingEnabled,
+                                insertionIsBlocking,
+                                submitWork);
+                    case DIRECT, DIRECT_THREADSAFE ->
+                        new DirectTaskScheduler<>(
+                                model,
+                                name,
+                                uncaughtExceptionHandlerOr(ExceptionHandlers.RETHROW_UNCAUGHT_EXCEPTION),
+                                counters.onRamp(),
+                                counters.offRamp(),
+                                squelchingEnabled,
+                                busyFractionTimer,
+                                type == DIRECT_THREADSAFE);
                     case NO_OP -> new NoOpTaskScheduler<>(model, name, type, flushingEnabled, squelchingEnabled);
                 };
 
