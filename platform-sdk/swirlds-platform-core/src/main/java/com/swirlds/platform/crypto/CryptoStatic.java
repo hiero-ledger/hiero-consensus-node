@@ -408,18 +408,18 @@ public final class CryptoStatic {
 //    }
 
     /**
-     * Create {@link KeysAndCerts} objects for all nodes in the address book.
+     * Create {@link KeysAndCerts} objects for all given node ids.
      *
-     * @param addressBook   the current address book
+     * @param nodeIds   collection of node ids
      * @param configuration the current configuration
      * @param localNodes  the local nodes that need private keys loaded
      * @return a map of KeysAndCerts objects, one for each node
      */
     public static Map<NodeId, KeysAndCerts> initNodeSecurity(
-            @NonNull final AddressBook addressBook,
+            @NonNull final Collection<NodeId> nodeIds,
             @NonNull final Configuration configuration,
             @NonNull final Set<NodeId> localNodes) {
-        Objects.requireNonNull(addressBook, ADDRESS_BOOK_MUST_NOT_BE_NULL);
+        Objects.requireNonNull(nodeIds, ADDRESS_BOOK_MUST_NOT_BE_NULL);
         Objects.requireNonNull(configuration, "configuration must not be null");
         Objects.requireNonNull(localNodes, LOCAL_NODES_MUST_NOT_BE_NULL);
 
@@ -438,7 +438,7 @@ public final class CryptoStatic {
 
                 logger.debug(STARTUP.getMarker(), "About to start loading keys");
                 logger.debug(STARTUP.getMarker(), "Reading keys using the enhanced key loader");
-                keysAndCerts = EnhancedKeyStoreLoader.using(addressBook.getNodeIdSet(), configuration, localNodes)
+                keysAndCerts = EnhancedKeyStoreLoader.using(nodeIds, configuration, localNodes)
                         .migrate()
                         .scan()
                         .generate()
@@ -454,7 +454,7 @@ public final class CryptoStatic {
                         STARTUP.getMarker(),
                         "There are no keys on disk, Adhoc keys will be generated, but this is incompatible with DAB.");
                 logger.debug(STARTUP.getMarker(), "Started generating keys");
-                keysAndCerts = generateKeysAndCerts(addressBook);
+                keysAndCerts = generateKeysAndCerts(nodeIds);
                 logger.debug(STARTUP.getMarker(), "Done generating keys");
             }
         } catch (final InterruptedException

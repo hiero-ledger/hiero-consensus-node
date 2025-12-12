@@ -16,12 +16,11 @@ import java.nio.file.Path;
 import java.security.KeyStoreException;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Set;
 import java.util.stream.Stream;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.model.roster.Address;
-import org.hiero.consensus.model.roster.AddressBook;
+import org.hiero.consensus.model.roster.SimpleAddress;
+import org.hiero.consensus.model.roster.SimpleAddresses;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -101,11 +100,10 @@ class EnhancedKeyStoreLoaderTest {
     void keyStoreLoaderPositiveTest(final String directoryName)
             throws IOException, KeyLoadingException, KeyStoreException {
         final Path keyDirectory = testDataDirectory.resolve(directoryName);
-        final AddressBook addressBook = addressBook();
-        final Set<NodeId> nodesToStart = addressBook.getNodeIdSet();
+        final SimpleAddresses addressBook = addressBook();
 
         final EnhancedKeyStoreLoader loader =
-                EnhancedKeyStoreLoader.using(addressBook.getNodeIdSet(), configure(keyDirectory), nodesToStart);
+                EnhancedKeyStoreLoader.using(addressBook.getNodeIds(), configure(keyDirectory), addressBook.getNodeIds());
 
         assertThat(keyDirectory).exists().isDirectory().isReadable().isNotEmptyDirectory();
 
@@ -116,11 +114,11 @@ class EnhancedKeyStoreLoaderTest {
         assertThatCode(loader::verify).doesNotThrowAnyException();
 
         final Map<NodeId, KeysAndCerts> kc = loader.keysAndCerts();
-        for (int i = 0; i < addressBook.getSize(); i++) {
-            final NodeId nodeId = addressBook.getNodeId(i);
-            final Address addr = addressBook.getAddress(nodeId);
+        for (int i = 0; i < addressBook.addresses().size(); i++) {
+            final SimpleAddress node = addressBook.addresses().get(i);
 
-            if (!nodesToStart.contains(addr.getNodeId())) {
+            final NodeId nodeId = NodeId.of(node.nodeId());
+            if (!addressBook.getNodeIds().contains(nodeId)) {
                 assertThat(kc).doesNotContainKey(nodeId);
             } else {
                 assertThat(kc).containsKey(nodeId);
@@ -132,9 +130,6 @@ class EnhancedKeyStoreLoaderTest {
                 assertThat(keysAndCerts.agrKeyPair()).isNotNull();
                 assertThat(keysAndCerts.sigKeyPair()).isNotNull();
             }
-
-            assertThat(addr.getSigPublicKey()).isNotNull();
-            assertThat(addr.getAgreePublicKey()).isNull();
         }
     }
 
@@ -150,9 +145,9 @@ class EnhancedKeyStoreLoaderTest {
     @ValueSource(strings = {"legacy-invalid-case-1", "hybrid-invalid-case-1", "enhanced-invalid-case-1"})
     void keyStoreLoaderNegativeCase1Test(final String directoryName) throws IOException {
         final Path keyDirectory = testDataDirectory.resolve(directoryName);
-        final AddressBook addressBook = addressBook();
+        final SimpleAddresses addressBook = addressBook();
         final EnhancedKeyStoreLoader loader =
-                EnhancedKeyStoreLoader.using(addressBook.getNodeIdSet(), configure(keyDirectory), addressBook.getNodeIdSet());
+                EnhancedKeyStoreLoader.using(addressBook.getNodeIds(), configure(keyDirectory), addressBook.getNodeIds());
 
         assertThat(keyDirectory).exists().isDirectory().isReadable().isNotEmptyDirectory();
 
@@ -175,9 +170,9 @@ class EnhancedKeyStoreLoaderTest {
     @ValueSource(strings = {"legacy-invalid-case-2", "hybrid-invalid-case-2", "enhanced-invalid-case-2"})
     void keyStoreLoaderNegativeCase2Test(final String directoryName) throws IOException {
         final Path keyDirectory = testDataDirectory.resolve(directoryName);
-        final AddressBook addressBook = addressBook();
+        final SimpleAddresses addressBook = addressBook();
         final EnhancedKeyStoreLoader loader =
-                EnhancedKeyStoreLoader.using(addressBook.getNodeIdSet(), configure(keyDirectory), addressBook.getNodeIdSet());
+                EnhancedKeyStoreLoader.using(addressBook.getNodeIds(), configure(keyDirectory), addressBook.getNodeIds());
 
         assertThat(keyDirectory).exists().isDirectory().isReadable().isNotEmptyDirectory();
 
@@ -211,8 +206,8 @@ class EnhancedKeyStoreLoaderTest {
      *
      * @return the fully initialized address book.
      */
-    private AddressBook addressBook() {
-        return loadConfigFile(testDataDirectory.resolve("config.txt")).getAddressBook();
+    private SimpleAddresses addressBook() {
+        return loadConfigFile(testDataDirectory.resolve("config.txt")).getSimpleAddresses();
     }
 
     /////////////////////////////////////////////////////////////////////////////
@@ -231,9 +226,9 @@ class EnhancedKeyStoreLoaderTest {
     @ValueSource(strings = {"migration-invalid-missing-private-key", "migration-invalid-missing-public-key"})
     void migraitonNegativeCaseTest(final String directoryName) throws IOException {
         final Path keyDirectory = testDataDirectory.resolve(directoryName);
-        final AddressBook addressBook = addressBook();
+        final SimpleAddresses addressBook = addressBook();
         final EnhancedKeyStoreLoader loader =
-                EnhancedKeyStoreLoader.using(addressBook.getNodeIdSet(), configure(keyDirectory), addressBook.getNodeIdSet());
+                EnhancedKeyStoreLoader.using(addressBook.getNodeIds(), configure(keyDirectory), addressBook.getNodeIds());
 
         assertThat(keyDirectory).exists().isDirectory().isReadable().isNotEmptyDirectory();
 

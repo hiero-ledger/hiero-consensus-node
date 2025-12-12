@@ -12,11 +12,10 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.text.ParseException;
 import java.util.Objects;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.consensus.model.roster.AddressBook;
+import org.hiero.consensus.model.roster.SimpleAddresses;
 
 /**
  * Loader that load all properties form the config.txt file
@@ -48,21 +47,16 @@ public final class LegacyConfigPropertiesLoader {
                     "ERROR: Configuration file not found: %s".formatted(configPath.toString()));
         }
         try {
-            final LegacyConfigProperties legacyConfigProperties = new LegacyConfigProperties();
             final String content = Files.readString(configPath);
-            final AddressBook addressBook = AddressBookUtils.parseAddressBookText(content);
-
-            if (addressBook.getSize() > 0) {
-                legacyConfigProperties.setAddressBook(addressBook);
-            }
-            return legacyConfigProperties;
+            final SimpleAddresses simpleAddresses = AddressBookUtils.parseToSimpleAddresses(content);
+            return new LegacyConfigProperties(simpleAddresses);
         } catch (final FileNotFoundException ex) {
             // this should never happen
             logger.error(EXCEPTION.getMarker(), ERROR_CONFIG_TXT_NOT_FOUND_BUT_EXISTS, ex);
             throw new IllegalStateException(ERROR_CONFIG_TXT_NOT_FOUND_BUT_EXISTS, ex);
         } catch (final IOException ex) {
             throw new UncheckedIOException(ex);
-        } catch (ParseException e) {
+        } catch (RuntimeException e) {
             logger.error(EXCEPTION.getMarker(), ERROR_ADDRESS_COULD_NOT_BE_PARSED, e);
             throw new ConfigurationException(ERROR_ADDRESS_COULD_NOT_BE_PARSED, e);
         }

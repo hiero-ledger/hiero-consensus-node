@@ -16,14 +16,14 @@ import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
 import java.security.NoSuchProviderException;
 import java.time.Instant;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.hiero.base.crypto.config.CryptoConfig;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.model.roster.AddressBook;
-import org.hiero.consensus.roster.RosterRetriever;
-import org.hiero.consensus.roster.RosterUtils;
 import org.junit.jupiter.params.provider.Arguments;
 
 /**
@@ -40,33 +40,20 @@ public class CryptoArgsProvider {
         Instant start = Instant.now();
         final RosterAndCerts rosterAndCerts = loadAddressBookWithKeys(NUMBER_OF_ADDRESSES);
         start = Instant.now();
-        final AddressBook genAB = createAddressBook(NUMBER_OF_ADDRESSES);
-        final Map<NodeId, KeysAndCerts> genC = CryptoStatic.generateKeysAndCerts(genAB);
+        final Roster genAB = createAddressBook(NUMBER_OF_ADDRESSES);
+        final List<NodeId> nodeIds = genAB.rosterEntries().stream().map(r -> NodeId.of(r.nodeId())).toList();
+        final Map<NodeId, KeysAndCerts> genC = CryptoStatic.generateKeysAndCerts(nodeIds);
         start = Instant.now();
         return Stream.of(
                 Arguments.of(rosterAndCerts.roster(), rosterAndCerts.nodeIdKeysAndCertsMap()),
-                Arguments.of(RosterRetriever.buildRoster(genAB), genC));
+                Arguments.of(genAB, genC));
     }
 
-    public static AddressBook createAddressBook(final int size) {
-        final Roster roster = RandomRosterBuilder.create(Randotron.create())
+    public static Roster createAddressBook(final int size) {
+        return RandomRosterBuilder.create(Randotron.create())
                 .withSize(size)
                 .withWeightGenerator(WeightGenerators.BALANCED_1000_PER_NODE)
                 .build();
-
-        // We still use the keys injection mechanism from the EnhancedKeyStoreLoader and CryptoStatic,
-        // so we use an AddressBook here.
-        AddressBook addresses = RosterUtils.buildAddressBook(roster);
-
-        for (int i = 0; i < addresses.getSize(); i++) {
-            final NodeId nodeId = addresses.getNodeId(i);
-            addresses.add(addresses
-                    .getAddress(nodeId)
-                    .copySetSelfName(RosterUtils.formatNodeName(nodeId.id()))
-                    .copySetHostnameInternal("127.0.0.1"));
-        }
-
-        return addresses;
     }
 
     private static Configuration configure(final Path keyDirectory) {
@@ -89,15 +76,17 @@ public class CryptoArgsProvider {
     public static RosterAndCerts loadAddressBookWithKeys(final int size)
             throws URISyntaxException, KeyLoadingException, KeyStoreException, NoSuchAlgorithmException,
                     KeyGeneratingException, NoSuchProviderException {
-        final AddressBook createdAB = createAddressBook(size);
+        final Roster createdAB = createAddressBook(size);
+        final Set<NodeId> nodeIds = createdAB.rosterEntries().stream().map(r -> NodeId.of(r.nodeId())).collect(
+                Collectors.toSet());
         final Map<NodeId, KeysAndCerts> loadedC = EnhancedKeyStoreLoader.using(
-                        createdAB.getNodeIdSet(),
+                        nodeIds,
                         configure(ResourceLoader.getFile("preGeneratedPEMKeysAndCerts/")),
-                        createdAB.getNodeIdSet())
+                        nodeIds)
                 .scan()
                 .generate()
                 .verify()
                 .keysAndCerts();
-        return new RosterAndCerts(RosterRetriever.buildRoster(createdAB), loadedC);
+        return new RosterAndCerts(createdAB, loadedC);
     }
 }

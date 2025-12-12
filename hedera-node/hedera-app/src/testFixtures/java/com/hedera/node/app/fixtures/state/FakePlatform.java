@@ -16,7 +16,6 @@ import com.swirlds.common.notification.NotificationEngine;
 import com.swirlds.common.utility.AutoCloseableWrapper;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.system.Platform;
-import com.swirlds.platform.test.fixtures.addressbook.RandomAddressBuilder;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
@@ -28,7 +27,8 @@ import org.hiero.consensus.metrics.platform.MetricKeyRegistry;
 import org.hiero.consensus.metrics.platform.PlatformMetricsFactoryImpl;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
-import org.hiero.consensus.model.roster.AddressBook;
+import org.hiero.consensus.model.roster.SimpleAddress;
+import org.hiero.consensus.model.roster.SimpleAddresses;
 import org.hiero.consensus.roster.RosterRetriever;
 
 /**
@@ -36,7 +36,6 @@ import org.hiero.consensus.roster.RosterRetriever;
  */
 public final class FakePlatform implements Platform {
     private final NodeId selfNodeId;
-    private final AddressBook addressBook;
     private final Roster roster;
     private final PlatformContext context;
     private final NotificationEngine notificationEngine;
@@ -47,12 +46,9 @@ public final class FakePlatform implements Platform {
      */
     public FakePlatform() {
         this.selfNodeId = NodeId.of(0L);
-        final var addressBuilder = RandomAddressBuilder.create(random);
-        final var address =
-                addressBuilder.withNodeId(selfNodeId).withWeight(500L).build();
+        final var address = new SimpleAddress(selfNodeId.id(), 500L);
 
-        this.addressBook = new AddressBook(List.of(address));
-        this.roster = RosterRetriever.buildRoster(addressBook);
+        this.roster = RosterRetriever.buildRoster(new SimpleAddresses(List.of(address)));
 
         this.context = createPlatformContext();
         this.notificationEngine = NotificationEngine.buildEngine(getStaticThreadManager());
@@ -63,10 +59,9 @@ public final class FakePlatform implements Platform {
      * @param nodeId the node id
      * @param addresses the address book
      */
-    public FakePlatform(final long nodeId, final AddressBook addresses) {
+    public FakePlatform(final long nodeId, final SimpleAddresses addresses) {
         this.selfNodeId = NodeId.of(nodeId);
-        this.addressBook = addresses;
-        this.roster = RosterRetriever.buildRoster(addressBook);
+        this.roster = RosterRetriever.buildRoster(addresses);
         this.context = createPlatformContext();
         this.notificationEngine = NotificationEngine.buildEngine(getStaticThreadManager());
     }

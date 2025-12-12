@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.system.address;
 
-import static com.swirlds.platform.system.address.AddressBookUtils.parseAddressBookText;
+import static com.swirlds.platform.system.address.AddressBookUtils.parseToSimpleAddresses;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
@@ -405,11 +405,12 @@ class AddressBookTests {
     }
 
     private void validateParseException(final String addressBook, final int part) {
-        assertThrows(ParseException.class, () -> parseAddressBookText(addressBook));
+        assertThrows(ParseException.class, () -> parseToSimpleAddresses(addressBook));
         try {
-            parseAddressBookText(addressBook);
-        } catch (final ParseException e) {
-            assertEquals(part, e.getErrorOffset(), "The part number is wrong in the exception: " + e.getMessage());
+            parseToSimpleAddresses(addressBook);
+        } catch (final RuntimeException e) {
+            final ParseException cause = (ParseException) e.getCause();
+            assertEquals(part, cause.getErrorOffset(), "The part number is wrong in the exception: " + e.getMessage());
         }
     }
 
