@@ -87,11 +87,11 @@ class CryptoTransferFeeCalculatorTest {
             // When
             final var result = feeCalculator.calculateTxFee(body, feeContext);
 
-            // Then: node=100000, network=900000 (100000*9), service=0 (base)
+            // Then: node=100000, network=900000 (100000*9), service=1000000 (baseFee for HBAR-only)
             // ACCOUNTS extra: 2 accounts, includedCount=2, so 0 extra charge
             assertThat(result.node).isEqualTo(100000L);
             assertThat(result.network).isEqualTo(900000L);
-            assertThat(result.service).isEqualTo(0L);
+            assertThat(result.service).isEqualTo(1000000L);
         }
     }
 
@@ -137,7 +137,7 @@ class CryptoTransferFeeCalculatorTest {
             // When
             final var result = feeCalculator.calculateTxFee(body, feeContext);
 
-            // Then: service=9000000 (CRYPTO_TRANSFER_BASE_FUNGIBLE fee, reduced by 1M to account for node+network)
+            // Then: service=9000000 (TOKEN_TRANSFER_BASE fee)
             // + 0 for FUNGIBLE_TOKENS (1 token with includedCount=1)
             assertThat(result.service).isEqualTo(9000000L);
         }
@@ -207,7 +207,7 @@ class CryptoTransferFeeCalculatorTest {
             // When
             final var result = feeCalculator.calculateTxFee(body, feeContext);
 
-            // Then: service=9000000 (CRYPTO_TRANSFER_BASE_FUNGIBLE fee)
+            // Then: service=9000000 (TOKEN_TRANSFER_BASE fee)
             // + 1000000 * 1 (2 unique fungible tokens, first included in base, second charged)
             assertThat(result.service).isEqualTo(10000000L);
         }
@@ -273,9 +273,207 @@ class CryptoTransferFeeCalculatorTest {
             // When
             final var result = feeCalculator.calculateTxFee(body, feeContext);
 
-            // Then: service=9000000 (CRYPTO_TRANSFER_BASE_FUNGIBLE fee)
+            // Then: service=9000000 (TOKEN_TRANSFER_BASE fee)
             // + 0 (1 fungible token, includedCount=1)
             assertThat(result.service).isEqualTo(9000000L);
+        }
+    }
+
+    @Nested
+    @DisplayName("NFT Transfer Tests")
+    class NftTransferTests {
+        @Test
+        @DisplayName("Standard NFT transfer (no custom fees)")
+        void standardNftTransfer() {
+            // Given: 1 NFT transfer
+            lenient().when(feeContext.numTxnSignatures()).thenReturn(1);
+            lenient().when(feeContext.readableStore(ReadableTokenStore.class)).thenReturn(tokenStore);
+
+            final var tokenId = TokenID.newBuilder().tokenNum(3001L).build();
+            final var token = Token.newBuilder()
+                    .tokenId(tokenId)
+                    .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
+                    .customFees(List.of())
+                    .build();
+            when(tokenStore.get(tokenId)).thenReturn(token);
+
+            final var nftTransfers = TokenTransferList.newBuilder()
+                    .token(tokenId)
+                    .nftTransfers(com.hedera.hapi.node.base.NftTransfer.newBuilder()
+                            .senderAccountID(AccountID.newBuilder().accountNum(1001L).build())
+                            .receiverAccountID(AccountID.newBuilder().accountNum(1002L).build())
+                            .serialNumber(1L)
+                            .build())
+                    .build();
+
+            final var op = CryptoTransferTransactionBody.newBuilder()
+                    .tokenTransfers(nftTransfers)
+                    .build();
+            final var body = TransactionBody.newBuilder().cryptoTransfer(op).build();
+
+            // When
+            final var result = feeCalculator.calculateTxFee(body, feeContext);
+
+            // Then: service=9000000 (TOKEN_TRANSFER_BASE fee - same as FT!)
+            assertThat(result.service).isEqualTo(9000000L);
+        }
+
+        @Test
+        @DisplayName("NFT transfer with custom fees")
+        void nftTransferWithCustomFees() {
+            // Given: 1 NFT with custom fees
+            lenient().when(feeContext.numTxnSignatures()).thenReturn(1);
+            lenient().when(feeContext.readableStore(ReadableTokenStore.class)).thenReturn(tokenStore);
+
+            final var tokenId = TokenID.newBuilder().tokenNum(3001L).build();
+            final var token = Token.newBuilder()
+                    .tokenId(tokenId)
+                    .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
+                    .customFees(List.of(mock(CustomFee.class)))
+                    .build();
+            when(tokenStore.get(tokenId)).thenReturn(token);
+
+            final var nftTransfers = TokenTransferList.newBuilder()
+                    .token(tokenId)
+                    .nftTransfers(com.hedera.hapi.node.base.NftTransfer.newBuilder()
+                            .senderAccountID(AccountID.newBuilder().accountNum(1001L).build())
+                            .receiverAccountID(AccountID.newBuilder().accountNum(1002L).build())
+                            .serialNumber(1L)
+                            .build())
+                    .build();
+
+            final var op = CryptoTransferTransactionBody.newBuilder()
+                    .tokenTransfers(nftTransfers)
+                    .build();
+            final var body = TransactionBody.newBuilder().cryptoTransfer(op).build();
+
+            // When
+            final var result = feeCalculator.calculateTxFee(body, feeContext);
+
+            // Then: service=19000000 (TOKEN_TRANSFER_BASE_CUSTOM_FEES fee)
+            assertThat(result.service).isEqualTo(19000000L);
+        }
+
+        @Test
+        @DisplayName("Mixed FT + NFT transfer charges single TOKEN_TRANSFER_BASE (not double)")
+        void mixedFtAndNftTransferChargesSingleBase() {
+            // This is the key test - verifies we don't double-charge for mixed FT+NFT transfers!
+            lenient().when(feeContext.numTxnSignatures()).thenReturn(1);
+            lenient().when(feeContext.readableStore(ReadableTokenStore.class)).thenReturn(tokenStore);
+
+            // Fungible token
+            final var ftTokenId = TokenID.newBuilder().tokenNum(2001L).build();
+            final var ftToken = Token.newBuilder()
+                    .tokenId(ftTokenId)
+                    .tokenType(TokenType.FUNGIBLE_COMMON)
+                    .customFees(List.of())
+                    .build();
+            when(tokenStore.get(ftTokenId)).thenReturn(ftToken);
+
+            // NFT token
+            final var nftTokenId = TokenID.newBuilder().tokenNum(3001L).build();
+            final var nftToken = Token.newBuilder()
+                    .tokenId(nftTokenId)
+                    .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
+                    .customFees(List.of())
+                    .build();
+            when(tokenStore.get(nftTokenId)).thenReturn(nftToken);
+
+            final var ftTransfers = TokenTransferList.newBuilder()
+                    .token(ftTokenId)
+                    .transfers(
+                            AccountAmount.newBuilder()
+                                    .accountID(AccountID.newBuilder().accountNum(1001L).build())
+                                    .amount(-50L)
+                                    .build(),
+                            AccountAmount.newBuilder()
+                                    .accountID(AccountID.newBuilder().accountNum(1002L).build())
+                                    .amount(50L)
+                                    .build())
+                    .build();
+
+            final var nftTransfers = TokenTransferList.newBuilder()
+                    .token(nftTokenId)
+                    .nftTransfers(com.hedera.hapi.node.base.NftTransfer.newBuilder()
+                            .senderAccountID(AccountID.newBuilder().accountNum(1003L).build())
+                            .receiverAccountID(AccountID.newBuilder().accountNum(1004L).build())
+                            .serialNumber(1L)
+                            .build())
+                    .build();
+
+            final var op = CryptoTransferTransactionBody.newBuilder()
+                    .tokenTransfers(ftTransfers, nftTransfers)
+                    .build();
+            final var body = TransactionBody.newBuilder().cryptoTransfer(op).build();
+
+            // When
+            final var result = feeCalculator.calculateTxFee(body, feeContext);
+
+            // Then: service=9000000 (TOKEN_TRANSFER_BASE - SINGLE charge, not 18M!)
+            // This verifies the consolidation fix - FT+NFT should not be double-charged
+            assertThat(result.service).isEqualTo(9000000L);
+        }
+
+        @Test
+        @DisplayName("Mixed FT + NFT with custom fees charges single TOKEN_TRANSFER_BASE_CUSTOM_FEES")
+        void mixedFtAndNftWithCustomFeesChargesSingleBase() {
+            // Verify custom fees also only charge once for mixed transfers
+            lenient().when(feeContext.numTxnSignatures()).thenReturn(1);
+            lenient().when(feeContext.readableStore(ReadableTokenStore.class)).thenReturn(tokenStore);
+
+            // Fungible token with custom fees
+            final var ftTokenId = TokenID.newBuilder().tokenNum(2001L).build();
+            final var ftToken = Token.newBuilder()
+                    .tokenId(ftTokenId)
+                    .tokenType(TokenType.FUNGIBLE_COMMON)
+                    .customFees(List.of(mock(CustomFee.class)))
+                    .build();
+            when(tokenStore.get(ftTokenId)).thenReturn(ftToken);
+
+            // NFT token with custom fees
+            final var nftTokenId = TokenID.newBuilder().tokenNum(3001L).build();
+            final var nftToken = Token.newBuilder()
+                    .tokenId(nftTokenId)
+                    .tokenType(TokenType.NON_FUNGIBLE_UNIQUE)
+                    .customFees(List.of(mock(CustomFee.class)))
+                    .build();
+            when(tokenStore.get(nftTokenId)).thenReturn(nftToken);
+
+            final var ftTransfers = TokenTransferList.newBuilder()
+                    .token(ftTokenId)
+                    .transfers(
+                            AccountAmount.newBuilder()
+                                    .accountID(AccountID.newBuilder().accountNum(1001L).build())
+                                    .amount(-50L)
+                                    .build(),
+                            AccountAmount.newBuilder()
+                                    .accountID(AccountID.newBuilder().accountNum(1002L).build())
+                                    .amount(50L)
+                                    .build())
+                    .build();
+
+            final var nftTransfers = TokenTransferList.newBuilder()
+                    .token(nftTokenId)
+                    .nftTransfers(com.hedera.hapi.node.base.NftTransfer.newBuilder()
+                            .senderAccountID(AccountID.newBuilder().accountNum(1003L).build())
+                            .receiverAccountID(AccountID.newBuilder().accountNum(1004L).build())
+                            .serialNumber(1L)
+                            .build())
+                    .build();
+
+            final var op = CryptoTransferTransactionBody.newBuilder()
+                    .tokenTransfers(ftTransfers, nftTransfers)
+                    .build();
+            final var body = TransactionBody.newBuilder().cryptoTransfer(op).build();
+
+            // When
+            final var result = feeCalculator.calculateTxFee(body, feeContext);
+
+            // Then: service=19000000 (TOKEN_TRANSFER_BASE_CUSTOM_FEES - SINGLE charge)
+            // + 0 (1 FT, includedCount=1)
+            // + 0 (1 NFT, includedCount=1)
+            // Custom fees present, so we use the custom fee tier (19M, not 9M)
+            assertThat(result.service).isEqualTo(19000000L);
         }
     }
 
@@ -295,8 +493,9 @@ class CryptoTransferFeeCalculatorTest {
             // When
             final var result = feeCalculator.calculateTxFee(body, feeContext);
 
-            // Then: Only base fee (0 accounts within includedCount=2)
-            assertThat(result.service).isEqualTo(0L);
+            // Then: HBAR-only transfer with 0 accounts → baseFee = 1M
+            // (An empty transfer is still technically HBAR-only since no token transfers)
+            assertThat(result.service).isEqualTo(1000000L);
         }
     }
 
@@ -344,7 +543,7 @@ class CryptoTransferFeeCalculatorTest {
             // When
             final var result = feeCalculator.calculateTxFee(body, feeContext);
 
-            // Then: service=19000000 (CRYPTO_TRANSFER_BASE_FUNGIBLE_CUSTOM_FEES fee)
+            // Then: service=19000000 (TOKEN_TRANSFER_BASE_CUSTOM_FEES fee)
             // + 0 (1 FUNGIBLE_TOKEN, includedCount=1, so first token is free)
             assertThat(result.service).isEqualTo(19000000L);
         }
@@ -398,7 +597,7 @@ class CryptoTransferFeeCalculatorTest {
             // When
             final var result = feeCalculator.calculateTxFee(body, feeContext);
 
-            // Then: 19000000 (CRYPTO_TRANSFER_BASE_FUNGIBLE_CUSTOM_FEES, custom fee takes precedence)
+            // Then: 19000000 (TOKEN_TRANSFER_BASE_CUSTOM_FEES, custom fee takes precedence)
             // + 0 (1 standard fungible, included) + 1000000 (1 custom fee token, includedCount=0)
             assertThat(result.service).isEqualTo(20000000L);
         }
@@ -439,9 +638,10 @@ class CryptoTransferFeeCalculatorTest {
             final var result = feeCalculator.calculateTxFee(body, feeContext);
 
             // Then:
+            // - baseFee (HBAR-only): 1,000,000 tinycents
             // - HOOK_EXECUTION: 2 hooks × 50M = 100,000,000 tinycents
-            // - Total service fee: 100,000,000 tinycents
-            assertThat(result.service).isEqualTo(100_000_000L);
+            // - Total service fee: 101,000,000 tinycents
+            assertThat(result.service).isEqualTo(101_000_000L);
         }
 
         @Test
@@ -502,7 +702,7 @@ class CryptoTransferFeeCalculatorTest {
             final var result = feeCalculator.calculateTxFee(body, feeContext);
 
             // Then:
-            // - CRYPTO_TRANSFER_BASE_FUNGIBLE: 9,000,000 tinycents
+            // - TOKEN_TRANSFER_BASE: 9,000,000 tinycents
             // - HOOK_EXECUTION: 4 hooks × 50M = 200,000,000 tinycents
             // - Total service fee: 209,000,000 tinycents
             assertThat(result.service).isEqualTo(209_000_000L);
@@ -539,9 +739,10 @@ class CryptoTransferFeeCalculatorTest {
             final var result = feeCalculator.calculateTxFee(body, feeContext);
 
             // Then:
+            // - baseFee (HBAR-only): 1,000,000 tinycents
             // - HOOK_EXECUTION: 1 hook × 50M = 50,000,000 tinycents
-            // - Total service fee: 50,000,000 tinycents
-            assertThat(result.service).isEqualTo(50_000_000L);
+            // - Total service fee: 51,000,000 tinycents
+            assertThat(result.service).isEqualTo(51_000_000L);
         }
     }
 
@@ -560,20 +761,16 @@ class CryptoTransferFeeCalculatorTest {
                         makeExtraDef(Extra.ACCOUNTS, 0L),
                         makeExtraDef(Extra.FUNGIBLE_TOKENS, 1000000L),
                         makeExtraDef(Extra.NON_FUNGIBLE_TOKENS, 1000000L),
-                        makeExtraDef(Extra.CRYPTO_TRANSFER_BASE_FUNGIBLE, 9000000L),
-                        makeExtraDef(Extra.CRYPTO_TRANSFER_BASE_NFT, 9000000L),
-                        makeExtraDef(Extra.CRYPTO_TRANSFER_BASE_FUNGIBLE_CUSTOM_FEES, 19000000L),
-                        makeExtraDef(Extra.CRYPTO_TRANSFER_BASE_NFT_CUSTOM_FEES, 19000000L),
+                        makeExtraDef(Extra.TOKEN_TRANSFER_BASE, 9000000L),
+                        makeExtraDef(Extra.TOKEN_TRANSFER_BASE_CUSTOM_FEES, 19000000L),
                         makeExtraDef(Extra.HOOK_EXECUTION, 50000000L))
                 .services(makeService(
                         "CryptoTransfer",
                         makeServiceFee(
                                 HederaFunctionality.CRYPTO_TRANSFER,
-                                0L,
-                                makeExtraIncluded(Extra.CRYPTO_TRANSFER_BASE_FUNGIBLE, 0),
-                                makeExtraIncluded(Extra.CRYPTO_TRANSFER_BASE_NFT, 0),
-                                makeExtraIncluded(Extra.CRYPTO_TRANSFER_BASE_FUNGIBLE_CUSTOM_FEES, 0),
-                                makeExtraIncluded(Extra.CRYPTO_TRANSFER_BASE_NFT_CUSTOM_FEES, 0),
+                                1000000L, // baseFee for HBAR-only transfers
+                                makeExtraIncluded(Extra.TOKEN_TRANSFER_BASE, 0),
+                                makeExtraIncluded(Extra.TOKEN_TRANSFER_BASE_CUSTOM_FEES, 0),
                                 makeExtraIncluded(Extra.HOOK_EXECUTION, 0),
                                 makeExtraIncluded(Extra.ACCOUNTS, 2),
                                 makeExtraIncluded(Extra.FUNGIBLE_TOKENS, 1),

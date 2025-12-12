@@ -32,10 +32,8 @@
     { "name":  "TOKEN_MINT_NFT",                 "fee": 199000000 },
     { "name":  "AIRDROPS",                       "fee": 8800 },
     { "name":  "HOOK_UPDATES",                   "fee": 10000000000 },
-    { "name":  "CRYPTO_TRANSFER_BASE_FUNGIBLE",             "fee": 9000000 },
-    { "name":  "CRYPTO_TRANSFER_BASE_NFT",                  "fee": 9000000 },
-    { "name":  "CRYPTO_TRANSFER_BASE_FUNGIBLE_CUSTOM_FEES", "fee": 19000000 },
-    { "name":  "CRYPTO_TRANSFER_BASE_NFT_CUSTOM_FEES",      "fee": 19000000 },
+    { "name":  "TOKEN_TRANSFER_BASE",                       "fee": 9000000 },
+    { "name":  "TOKEN_TRANSFER_BASE_CUSTOM_FEES",           "fee": 19000000 },
     { "name":  "CONSENSUS_CREATE_TOPIC_WITH_CUSTOM_FEE",    "fee": 19900000000 },
     { "name":  "CONSENSUS_SUBMIT_MESSAGE_WITH_CUSTOM_FEE",  "fee": 499000000},
     { "name":  "HOOK_EXECUTION",                            "fee": 10000000000 }
@@ -68,17 +66,15 @@
         },
         {
           "name": "CryptoTransfer",
-          "baseFee": 0,
+          "baseFee": 1000000,
           "extras": [
-            {  "name": "CRYPTO_TRANSFER_BASE_FUNGIBLE",             "includedCount": 0 },
-            {  "name": "CRYPTO_TRANSFER_BASE_NFT",                  "includedCount": 0 },
-            {  "name": "CRYPTO_TRANSFER_BASE_FUNGIBLE_CUSTOM_FEES", "includedCount": 0 },
-            {  "name": "CRYPTO_TRANSFER_BASE_NFT_CUSTOM_FEES",      "includedCount": 0 },
-            {  "name": "HOOK_EXECUTION",                            "includedCount": 0 },
-            {  "name": "HOOK_UPDATES",                              "includedCount": 0 },
-            {  "name": "ACCOUNTS",                                  "includedCount": 2 },
-            {  "name": "FUNGIBLE_TOKENS",                           "includedCount": 1 },
-            {  "name": "NON_FUNGIBLE_TOKENS",                       "includedCount": 1 }
+            {  "name": "TOKEN_TRANSFER_BASE",             "includedCount": 0 },
+            {  "name": "TOKEN_TRANSFER_BASE_CUSTOM_FEES", "includedCount": 0 },
+            {  "name": "HOOK_EXECUTION",                  "includedCount": 0 },
+            {  "name": "HOOK_UPDATES",                    "includedCount": 0 },
+            {  "name": "ACCOUNTS",                        "includedCount": 2 },
+            {  "name": "FUNGIBLE_TOKENS",                 "includedCount": 1 },
+            {  "name": "NON_FUNGIBLE_TOKENS",             "includedCount": 1 }
           ]
         },
         {
