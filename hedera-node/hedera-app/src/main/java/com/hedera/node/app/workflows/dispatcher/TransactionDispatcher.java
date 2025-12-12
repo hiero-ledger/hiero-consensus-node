@@ -151,10 +151,18 @@ public class TransactionDispatcher {
                     TOKEN_MINT,
                     TOKEN_BURN,
                     TOKEN_DELETION,
-                    TOKEN_PAUSE,
+                    TOKEN_FEE_SCHEDULE_UPDATE,
                     TOKEN_FREEZE,
+                    TOKEN_ASSOCIATE,
+                    TOKEN_DISSOCIATE,
+                    TOKEN_GRANT_KYC,
+                    TOKEN_PAUSE,
+                    TOKEN_REVOKE_KYC,
+                    TOKEN_REJECT,
+                    TOKEN_UNFREEZE,
                     TOKEN_UNPAUSE,
-                    TOKEN_UNFREEZE -> true;
+                    TOKEN_UPDATE_NFTS,
+                    TOKEN_WIPE -> true;
             default -> false;
         };
     }
