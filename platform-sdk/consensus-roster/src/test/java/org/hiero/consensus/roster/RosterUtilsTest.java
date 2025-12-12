@@ -237,10 +237,8 @@ public class RosterUtilsTest {
 
     @Test
     void testCreateRosterFromNonEmptyAddressBook() {
-        final SimpleAddresses addressBook = new SimpleAddresses(List.of(
-                new SimpleAddress(1L, 10),
-                new SimpleAddress(2L, 20)
-        ));
+        final SimpleAddresses addressBook =
+                new SimpleAddresses(List.of(new SimpleAddress(1L, 10), new SimpleAddress(2L, 20)));
         final Roster roster = buildRoster(addressBook);
 
         assertNotNull(roster);
@@ -264,11 +262,13 @@ public class RosterUtilsTest {
 
     @Test
     void testToRosterEntryWithExternalHostname() {
-        final SimpleAddresses addressBook = new SimpleAddresses(List.of(
-                new SimpleAddress(1L, 10L,
-                        List.of(ServiceEndpoint.newBuilder().domainName("hostnameExternal").build()),
-                        "")
-        ));
+        final SimpleAddresses addressBook = new SimpleAddresses(List.of(new SimpleAddress(
+                1L,
+                10L,
+                List.of(ServiceEndpoint.newBuilder()
+                        .domainName("hostnameExternal")
+                        .build()),
+                "")));
         final Roster roster = buildRoster(addressBook);
 
         assertEquals(1, roster.rosterEntries().size());
@@ -279,11 +279,13 @@ public class RosterUtilsTest {
 
     @Test
     void testToRosterEntryWithInternalHostname() {
-        final SimpleAddresses addressBook = new SimpleAddresses(List.of(
-                new SimpleAddress(1L, 10L,
-                        List.of(ServiceEndpoint.newBuilder().domainName("hostnameInternal").build()),
-                        "")
-        ));
+        final SimpleAddresses addressBook = new SimpleAddresses(List.of(new SimpleAddress(
+                1L,
+                10L,
+                List.of(ServiceEndpoint.newBuilder()
+                        .domainName("hostnameInternal")
+                        .build()),
+                "")));
         final Roster roster = buildRoster(addressBook);
 
         assertEquals(1, roster.rosterEntries().size());

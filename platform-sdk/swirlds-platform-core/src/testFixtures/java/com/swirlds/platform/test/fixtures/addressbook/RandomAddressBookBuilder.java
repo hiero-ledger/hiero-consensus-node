@@ -1,11 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures.addressbook;
 
-import static com.swirlds.platform.crypto.KeyCertPurpose.AGREEMENT;
-import static com.swirlds.platform.crypto.KeyCertPurpose.SIGNING;
-
 import com.swirlds.platform.crypto.KeysAndCertsGenerator;
-import com.swirlds.platform.crypto.PublicStores;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.HashMap;
 import java.util.Map;
@@ -272,8 +268,7 @@ public class RandomAddressBookBuilder {
                 final byte[] masterKey = new byte[64];
                 random.nextBytes(masterKey);
 
-                final KeysAndCerts keysAndCerts =
-                        KeysAndCertsGenerator.generate(nodeId);
+                final KeysAndCerts keysAndCerts = KeysAndCertsGenerator.generate(nodeId);
                 privateKeys.put(nodeId, keysAndCerts);
 
                 addressBuilder

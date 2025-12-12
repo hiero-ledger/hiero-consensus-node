@@ -41,7 +41,8 @@ public class CryptoArgsProvider {
         final RosterAndCerts rosterAndCerts = loadAddressBookWithKeys(NUMBER_OF_ADDRESSES);
         start = Instant.now();
         final Roster genAB = createAddressBook(NUMBER_OF_ADDRESSES);
-        final List<NodeId> nodeIds = genAB.rosterEntries().stream().map(r -> NodeId.of(r.nodeId())).toList();
+        final List<NodeId> nodeIds =
+                genAB.rosterEntries().stream().map(r -> NodeId.of(r.nodeId())).toList();
         final Map<NodeId, KeysAndCerts> genC = CryptoStatic.generateKeysAndCerts(nodeIds);
         start = Instant.now();
         return Stream.of(
@@ -77,12 +78,11 @@ public class CryptoArgsProvider {
             throws URISyntaxException, KeyLoadingException, KeyStoreException, NoSuchAlgorithmException,
                     KeyGeneratingException, NoSuchProviderException {
         final Roster createdAB = createAddressBook(size);
-        final Set<NodeId> nodeIds = createdAB.rosterEntries().stream().map(r -> NodeId.of(r.nodeId())).collect(
-                Collectors.toSet());
+        final Set<NodeId> nodeIds = createdAB.rosterEntries().stream()
+                .map(r -> NodeId.of(r.nodeId()))
+                .collect(Collectors.toSet());
         final Map<NodeId, KeysAndCerts> loadedC = EnhancedKeyStoreLoader.using(
-                        nodeIds,
-                        configure(ResourceLoader.getFile("preGeneratedPEMKeysAndCerts/")),
-                        nodeIds)
+                        nodeIds, configure(ResourceLoader.getFile("preGeneratedPEMKeysAndCerts/")), nodeIds)
                 .scan()
                 .generate()
                 .verify()

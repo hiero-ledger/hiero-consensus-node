@@ -310,8 +310,7 @@ public final class CryptoStatic {
      * @throws KeyStoreException    if there is no provider that supports {@link CryptoConstants#KEYSTORE_TYPE}
      */
     @NonNull
-    public static Map<NodeId, KeysAndCerts> generateKeysAndCerts(
-            final @NonNull Collection<NodeId> nodeIds)
+    public static Map<NodeId, KeysAndCerts> generateKeysAndCerts(final @NonNull Collection<NodeId> nodeIds)
             throws ExecutionException, InterruptedException, KeyStoreException {
         final Map<NodeId, Future<KeysAndCerts>> futures = HashMap.newHashMap(nodeIds.size());
         try (final ExecutorService threadPool =
@@ -324,9 +323,7 @@ public final class CryptoStatic {
                 // Crypto objects will be created in parallel. The process of creating a Crypto object is
                 // very CPU intensive even if the keys are loaded from the hard drive, so making it parallel
                 // greatly reduces the time it takes to create them all.
-                futures.put(
-                        nodeId,
-                        threadPool.submit(() -> KeysAndCertsGenerator.generate(nodeId)));
+                futures.put(nodeId, threadPool.submit(() -> KeysAndCertsGenerator.generate(nodeId)));
             }
             final Map<NodeId, KeysAndCerts> keysAndCerts = futuresToMap(futures);
             threadPool.shutdown();
@@ -347,7 +344,7 @@ public final class CryptoStatic {
         for (int i = 0; i < addressBook.getSize(); i++) {
             final NodeId nodeId = addressBook.getNodeId(i);
             final KeysAndCerts kac = keysAndCerts.get(nodeId);
-            if(kac == null) {
+            if (kac == null) {
                 throw new KeyLoadingException(String.format("Key %s not found", nodeId));
             }
             final X509Certificate sigCert = kac.sigCert();
@@ -396,16 +393,16 @@ public final class CryptoStatic {
         return nonDetRandom;
     }
 
-//    public static KeysAndCerts initNodeSecurity(
-//            @NonNull final Configuration configuration,
-//            @NonNull final NodeId nodeId) {
-//        final BasicConfig basicConfig = configuration.getConfigData(BasicConfig.class);
-//        if (basicConfig.loadKeysFromPfxFiles()) {
-//
-//        }else{
-//
-//        }
-//    }
+    //    public static KeysAndCerts initNodeSecurity(
+    //            @NonNull final Configuration configuration,
+    //            @NonNull final NodeId nodeId) {
+    //        final BasicConfig basicConfig = configuration.getConfigData(BasicConfig.class);
+    //        if (basicConfig.loadKeysFromPfxFiles()) {
+    //
+    //        }else{
+    //
+    //        }
+    //    }
 
     /**
      * Create {@link KeysAndCerts} objects for all given node ids.

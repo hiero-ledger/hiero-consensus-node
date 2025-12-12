@@ -121,10 +121,8 @@ public class AddressBookUtils {
         } catch (NumberFormatException e) {
             throw new ParseException("Cannot parse ip port from '" + parts[8] + "'", 8);
         }
-        final List<ServiceEndpoint> serviceEndpoints = List.of(
-            endpointFor(internalHostname, internalPort),
-            endpointFor(externalHostname, externalPort)
-        );
+        final List<ServiceEndpoint> serviceEndpoints =
+                List.of(endpointFor(internalHostname, internalPort), endpointFor(externalHostname, externalPort));
 
         final String memoToUse = parts.length == 10 ? parts[9] : "";
 
@@ -169,10 +167,10 @@ public class AddressBookUtils {
         if (IPV4_ADDRESS_PATTERN.matcher(ip).matches()) {
             final var octets = ip.split("[.]");
             builder.ipAddressV4(Bytes.wrap(new byte[] {
-                    (byte) Integer.parseInt(octets[0]),
-                    (byte) Integer.parseInt(octets[1]),
-                    (byte) Integer.parseInt(octets[2]),
-                    (byte) Integer.parseInt(octets[3])
+                (byte) Integer.parseInt(octets[0]),
+                (byte) Integer.parseInt(octets[1]),
+                (byte) Integer.parseInt(octets[2]),
+                (byte) Integer.parseInt(octets[3])
             }));
         } else {
             throw new IllegalArgumentException("Cannot parse ip address from '" + ip + "'.");
