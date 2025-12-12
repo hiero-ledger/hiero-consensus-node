@@ -74,6 +74,7 @@ import com.hedera.node.app.fees.FeeManager;
 import com.hedera.node.app.records.BlockRecordManager;
 import com.hedera.node.app.service.entityid.EntityIdService;
 import com.hedera.node.app.service.entityid.EntityNumGenerator;
+import com.hedera.node.app.service.entityid.NodeIdGenerator;
 import com.hedera.node.app.service.token.TokenService;
 import com.hedera.node.app.services.ServiceScopeLookup;
 import com.hedera.node.app.signature.AppKeyVerifier;
@@ -226,6 +227,9 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
 
     @Mock
     private EntityNumGenerator entityNumGenerator;
+
+    @Mock
+    private NodeIdGenerator nodeIdGenerator;
 
     @Mock
     private ChildDispatchFactory childDispatchFactory;
@@ -437,6 +441,7 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
             exchangeRateManager,
             stack,
             entityNumGenerator,
+            nodeIdGenerator,
             dispatcher,
             networkInfo,
             childDispatchFactory,
@@ -454,7 +459,7 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
         for (int i = 0; i < allArgs.length; i++) {
             final var index = i;
             // Skip signatureMapSize, payerKey, preHandleResults and batchInnerTxnPreHandler
-            if (index == 2 || index == 4 || index == 25 || index == 26) {
+            if (index == 2 || index == 4 || index == 26 || index == 27) {
                 continue;
             }
             assertThatThrownBy(() -> {
@@ -847,6 +852,7 @@ public class DispatchHandleContextTest extends StateTestBase implements Scenario
                 exchangeRateManager,
                 stack,
                 entityNumGenerator,
+                nodeIdGenerator,
                 dispatcher,
                 networkInfo,
                 childDispatchFactory,
