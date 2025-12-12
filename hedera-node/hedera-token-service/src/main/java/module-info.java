@@ -22,4 +22,5 @@ module com.hedera.node.app.service.token {
     requires com.swirlds.state.api;
     requires org.hiero.base.utility;
     requires com.github.spotbugs.annotations;
+    requires org.hyperledger.besu.evm;
 }

@@ -17,6 +17,7 @@ import com.hedera.node.app.spi.workflows.QueryContext;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Objects;
 import javax.inject.Inject;
 import org.hyperledger.besu.evm.frame.MessageFrame;
@@ -108,7 +109,8 @@ public class QueryHederaNativeOperations implements HederaNativeOperations {
      * @throws UnsupportedOperationException always
      */
     @Override
-    public ResponseCodeEnum createHollowAccount(@NonNull final Bytes evmAddress) {
+    public ResponseCodeEnum createHollowAccount(
+            @NonNull final Bytes evmAddress, @Nullable final Bytes delegationAddress) {
         throw new UnsupportedOperationException("Cannot create hollow account in query context");
     }
 

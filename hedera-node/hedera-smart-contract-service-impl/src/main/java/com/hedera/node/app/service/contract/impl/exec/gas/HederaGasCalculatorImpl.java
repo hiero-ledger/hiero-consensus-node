@@ -29,6 +29,7 @@ public class HederaGasCalculatorImpl extends PragueGasCalculator implements Hede
     private static final int LOG_CONTRACT_ID_SIZE = 24;
     private static final int LOG_TOPIC_SIZE = 32;
     private static final int LOG_BLOOM_SIZE = 256;
+    public static final long INTRINSIC_DELEGATION_GAS_COST = 25_000L;
 
     /**
      * Default constructor for injection.
@@ -41,8 +42,18 @@ public class HederaGasCalculatorImpl extends PragueGasCalculator implements Hede
     @Override
     public GasCharges transactionGasRequirements(
             @NonNull final Bytes payload, final boolean isContractCreate, final long baselineCost) {
+        return transactionGasRequirements(payload, isContractCreate, baselineCost, 0L);
+    }
+
+    @Override
+    public GasCharges transactionGasRequirements(
+            @NonNull final Bytes payload,
+            final boolean isContractCreate,
+            final long baselineCost,
+            final long authorizationListSize) {
         int zeros = payloadZeroBytes(payload);
-        final long intrinsicGas = transactionIntrinsicGas(payload, zeros, isContractCreate, baselineCost);
+        final long intrinsicGas =
+                transactionIntrinsicGas(payload, zeros, isContractCreate, baselineCost, authorizationListSize);
         // gasUsed described at https://eips.ethereum.org/EIPS/eip-7623
         final long floorGas = transactionFloorCost(payload, zeros);
         return new GasCharges(intrinsicGas, Math.max(intrinsicGas, floorGas), 0L);
@@ -60,9 +71,16 @@ public class HederaGasCalculatorImpl extends PragueGasCalculator implements Hede
 
     // TODO We won't use the baseline cost for now, should revisit with the Pectra support epic
     protected long transactionIntrinsicGas(
-            @NonNull final Bytes payload, final int zeros, final boolean isContractCreate, final long baselineCost) {
+            @NonNull final Bytes payload,
+            final int zeros,
+            final boolean isContractCreate,
+            final long baselineCost,
+            final long authorizationListSize) {
         final int nonZeros = payload.size() - zeros;
-        long cost = TX_BASE_COST + TX_DATA_ZERO_COST * zeros + ISTANBUL_TX_DATA_NON_ZERO_COST * nonZeros;
+        long cost = TX_BASE_COST
+                + TX_DATA_ZERO_COST * zeros
+                + ISTANBUL_TX_DATA_NON_ZERO_COST * nonZeros
+                + INTRINSIC_DELEGATION_GAS_COST * authorizationListSize;
         return isContractCreate ? (cost + contractCreationCost(payload.size())) : cost;
     }
 

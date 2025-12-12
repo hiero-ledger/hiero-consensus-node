@@ -287,4 +287,9 @@ public class QueryHederaOperations implements HederaOperations {
         // As we do not have throttle adviser it makes no sense to use the metrics
         return null;
     }
+
+    @Override
+    public boolean setAccountCodeDelegation(@NonNull AccountID accountID, @NonNull Address delegationAddress) {
+        throw new UnsupportedOperationException("Queries cannot set code delegation");
+    }
 }

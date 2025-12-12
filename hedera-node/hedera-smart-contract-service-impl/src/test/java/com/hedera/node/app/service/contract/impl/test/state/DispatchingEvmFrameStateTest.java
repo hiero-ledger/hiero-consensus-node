@@ -592,7 +592,7 @@ class DispatchingEvmFrameStateTest {
                 .willReturn(ACCOUNT_NUM);
         given(nativeOperations.configuration()).willReturn(configuration);
 
-        final var reasonLazyCreationFailed = subject.tryLazyCreation(EVM_ADDRESS);
+        final var reasonLazyCreationFailed = subject.tryLazyCreation(EVM_ADDRESS, null);
 
         assertTrue(reasonLazyCreationFailed.isPresent());
         assertEquals(FAILURE_DURING_LAZY_ACCOUNT_CREATION, reasonLazyCreationFailed.get());
@@ -600,20 +600,20 @@ class DispatchingEvmFrameStateTest {
 
     @Test
     void noHaltIfLazyCreationOk() {
-        given(nativeOperations.createHollowAccount(tuweniToPbjBytes(EVM_ADDRESS)))
+        given(nativeOperations.createHollowAccount(tuweniToPbjBytes(EVM_ADDRESS), null))
                 .willReturn(ResponseCodeEnum.SUCCESS);
         given(nativeOperations.configuration()).willReturn(configuration);
-        final var reasonLazyCreationFailed = subject.tryLazyCreation(EVM_ADDRESS);
+        final var reasonLazyCreationFailed = subject.tryLazyCreation(EVM_ADDRESS, null);
 
         assertTrue(reasonLazyCreationFailed.isEmpty());
     }
 
     @Test
     void translatesMaxAccountsCreated() {
-        given(nativeOperations.createHollowAccount(tuweniToPbjBytes(EVM_ADDRESS)))
+        given(nativeOperations.createHollowAccount(tuweniToPbjBytes(EVM_ADDRESS), null))
                 .willReturn(ResponseCodeEnum.MAX_ENTITIES_IN_PRICE_REGIME_HAVE_BEEN_CREATED);
         given(nativeOperations.configuration()).willReturn(configuration);
-        final var reasonLazyCreationFailed = subject.tryLazyCreation(EVM_ADDRESS);
+        final var reasonLazyCreationFailed = subject.tryLazyCreation(EVM_ADDRESS, null);
 
         assertTrue(reasonLazyCreationFailed.isPresent());
         assertEquals(FAILURE_DURING_LAZY_ACCOUNT_CREATION, reasonLazyCreationFailed.get());
@@ -621,7 +621,7 @@ class DispatchingEvmFrameStateTest {
 
     @Test
     void throwsOnLazyCreateOfLongZeroAddress() {
-        final var reasonLazyCreationFailed = subject.tryLazyCreation(LONG_ZERO_ADDRESS);
+        final var reasonLazyCreationFailed = subject.tryLazyCreation(LONG_ZERO_ADDRESS, null);
         assertTrue(reasonLazyCreationFailed.isPresent());
         assertEquals(INVALID_ALIAS_KEY, reasonLazyCreationFailed.get());
     }
@@ -633,7 +633,7 @@ class DispatchingEvmFrameStateTest {
         given(nativeOperations.resolveAlias(anyLong(), anyLong(), eq(Bytes.wrap(EVM_ADDRESS.toArrayUnsafe()))))
                 .willReturn(ACCOUNT_NUM);
 
-        assertThrows(IllegalArgumentException.class, () -> subject.tryLazyCreation(EVM_ADDRESS));
+        assertThrows(IllegalArgumentException.class, () -> subject.tryLazyCreation(EVM_ADDRESS, null));
     }
 
     @Test

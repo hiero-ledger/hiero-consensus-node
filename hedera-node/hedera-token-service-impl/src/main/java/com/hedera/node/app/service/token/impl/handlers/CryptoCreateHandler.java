@@ -8,6 +8,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.FAIL_INVALID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ALIAS_KEY;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_CONTRACT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_INITIAL_BALANCE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_MAX_AUTO_ASSOCIATIONS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_PAYER_ACCOUNT_ID;
@@ -35,6 +36,7 @@ import static com.hedera.node.app.service.token.AliasUtils.asKeyFromAliasPreChec
 import static com.hedera.node.app.service.token.AliasUtils.extractEvmAddress;
 import static com.hedera.node.app.service.token.AliasUtils.isEntityNumAlias;
 import static com.hedera.node.app.service.token.AliasUtils.isKeyAlias;
+import static com.hedera.node.app.service.token.AliasUtils.isOfDelegationIndicatorSize;
 import static com.hedera.node.app.service.token.AliasUtils.isOfEvmAddressSize;
 import static com.hedera.node.app.service.token.HookDispatchUtils.dispatchHookCreations;
 import static com.hedera.node.app.service.token.HookDispatchUtils.validateHookDuplicates;
@@ -171,6 +173,10 @@ public class CryptoCreateHandler extends BaseCryptoHandler implements Transactio
         validateTruePreCheck(key != null, KEY_NOT_PROVIDED);
         // since pure evm hooks are being removed, just added validations for lambda evm hooks for now
         validateHookDuplicates(op.hookCreationDetails());
+        // If a delegation address is set, it must be of EVM address size
+        validateTruePreCheck(
+                op.delegationIndicator().length() == 0 || isOfDelegationIndicatorSize(op.delegationIndicator()),
+                INVALID_CONTRACT_ID);
     }
 
     @Override
@@ -452,7 +458,8 @@ public class CryptoCreateHandler extends BaseCryptoHandler implements Transactio
                 .key(op.keyOrThrow())
                 .stakeAtStartOfLastRewardedPeriod(NOT_REWARDED_SINCE_LAST_STAKING_META_CHANGE)
                 .stakePeriodStart(NO_STAKE_PERIOD_START)
-                .alias(op.alias());
+                .alias(op.alias())
+                .delegationIndicator(op.delegationIndicator());
         if (!op.hookCreationDetails().isEmpty()) {
             builder.firstHookId(op.hookCreationDetails().getFirst().hookId());
             builder.numberHooksInUse(op.hookCreationDetails().size());
