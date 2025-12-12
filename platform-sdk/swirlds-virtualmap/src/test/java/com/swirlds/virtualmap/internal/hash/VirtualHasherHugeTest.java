@@ -52,6 +52,7 @@ class VirtualHasherHugeTest extends VirtualHasherTestBase {
         final VirtualHasher hasher = new VirtualHasher();
         final Hash rootHash = hasher.hash(
                 path -> null,
+                null,
                 LongStream.range(firstLeafPath, lastLeafPath + 1)
                         .mapToObj(leafGetter)
                         .iterator(),

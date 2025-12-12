@@ -479,12 +479,12 @@ public class VirtualPipeline {
                 break;
             }
             if ((next == copies.getFirst()) && shouldBeFlushed(copy)) {
-                logger.debug(VIRTUAL_MERKLE_STATS.getMarker(), "Flush {}", copy.getFastCopyVersion());
+                logger.info(VIRTUAL_MERKLE_STATS.getMarker(), "Flush {}", copy.getFastCopyVersion());
                 flush(copy);
                 copies.remove(next);
             } else if (canBeMerged(next)) {
                 assert !copy.isMerged();
-                logger.debug(VIRTUAL_MERKLE_STATS.getMarker(), "Merge {}", copy.getFastCopyVersion());
+                logger.info(VIRTUAL_MERKLE_STATS.getMarker(), "Merge {}", copy.getFastCopyVersion());
                 merge(next);
                 copies.remove(next);
             }
