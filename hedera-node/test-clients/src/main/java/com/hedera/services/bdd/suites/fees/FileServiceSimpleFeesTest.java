@@ -3,7 +3,6 @@ package com.hedera.services.bdd.suites.fees;
 
 import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SIMPLE_FEES;
-import static com.hedera.services.bdd.spec.HapiSpec.customizedHapiTest;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getFileContents;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getFileInfo;
@@ -22,7 +21,6 @@ import static com.hedera.services.bdd.suites.HapiSuite.THREE_MONTHS_IN_SECONDS;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.spec.keys.KeyShape;
 import java.util.List;
-import java.util.Map;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
@@ -166,8 +164,7 @@ public class FileServiceSimpleFeesTest {
     @HapiTest
     @DisplayName("USD base fee as expected for file get content transaction")
     final Stream<DynamicTest> fileGetContentBaseUSDFee() {
-        return customizedHapiTest(
-                Map.of("memo.useSpecName", "false"),
+        return hapiTest(
                 cryptoCreate(CIVILIAN).balance(5 * ONE_HUNDRED_HBARS),
                 fileCreate("ntb").key(CIVILIAN).contents("Nothing much!"),
                 getFileContents("ntb").payingWith(CIVILIAN).signedBy(CIVILIAN).via("getFileContentsBasic"),
@@ -177,8 +174,7 @@ public class FileServiceSimpleFeesTest {
     @HapiTest
     @DisplayName("USD base fee as expected for file get info transaction")
     final Stream<DynamicTest> fileGetInfoBaseUSDFee() {
-        return customizedHapiTest(
-                Map.of("memo.useSpecName", "false"),
+        return hapiTest(
                 cryptoCreate(CIVILIAN).balance(5 * ONE_HUNDRED_HBARS),
                 fileCreate("ntb").key(CIVILIAN).contents("Nothing much!"),
                 getFileInfo("ntb").payingWith(CIVILIAN).signedBy(CIVILIAN).via("getFileInfoBasic"),

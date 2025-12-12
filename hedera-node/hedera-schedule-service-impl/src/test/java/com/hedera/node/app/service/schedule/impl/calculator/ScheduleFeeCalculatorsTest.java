@@ -7,29 +7,36 @@ import static org.hiero.hapi.fees.FeeScheduleUtils.makeExtraIncluded;
 import static org.hiero.hapi.fees.FeeScheduleUtils.makeService;
 import static org.hiero.hapi.fees.FeeScheduleUtils.makeServiceFee;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.mock;
 
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.KeyList;
 import com.hedera.hapi.node.base.ThresholdKey;
+import com.hedera.hapi.node.contract.ContractCallTransactionBody;
+import com.hedera.hapi.node.scheduled.SchedulableTransactionBody;
 import com.hedera.hapi.node.scheduled.ScheduleCreateTransactionBody;
 import com.hedera.hapi.node.scheduled.ScheduleDeleteTransactionBody;
 import com.hedera.hapi.node.scheduled.ScheduleSignTransactionBody;
+import com.hedera.hapi.node.transaction.Query;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
 import com.hedera.node.app.spi.fees.SimpleFeeCalculatorImpl;
+import com.hedera.node.app.spi.workflows.QueryContext;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Stream;
+import org.hiero.hapi.fees.FeeResult;
 import org.hiero.hapi.support.fees.Extra;
 import org.hiero.hapi.support.fees.FeeSchedule;
 import org.hiero.hapi.support.fees.NetworkFee;
 import org.hiero.hapi.support.fees.NodeFee;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -52,7 +59,8 @@ class ScheduleFeeCalculatorsTest {
                 Set.of(
                         new ScheduleCreateFeeCalculator(),
                         new ScheduleSignFeeCalculator(),
-                        new ScheduleDeleteFeeCalculator()));
+                        new ScheduleDeleteFeeCalculator()),
+                Set.of(new ScheduleGetInfoFeeCalculator()));
     }
 
     static Stream<TestCase> provideTestCases() {
@@ -61,6 +69,8 @@ class ScheduleFeeCalculatorsTest {
                         new ScheduleCreateFeeCalculator(),
                         TransactionBody.newBuilder()
                                 .scheduleCreate(ScheduleCreateTransactionBody.newBuilder()
+                                        .scheduledTransactionBody(SchedulableTransactionBody.newBuilder()
+                                                .build())
                                         .build())
                                 .build(),
                         1,
@@ -71,6 +81,37 @@ class ScheduleFeeCalculatorsTest {
                         new ScheduleCreateFeeCalculator(),
                         TransactionBody.newBuilder()
                                 .scheduleCreate(ScheduleCreateTransactionBody.newBuilder()
+                                        .scheduledTransactionBody(SchedulableTransactionBody.newBuilder()
+                                                .build())
+                                        .adminKey(Key.newBuilder()
+                                                .ed25519(Bytes.wrap(new byte[32]))
+                                                .build())
+                                        .build())
+                                .build(),
+                        2,
+                        1100000L,
+                        99000000L,
+                        2200000L),
+                // Schedule create contract call case
+                new TestCase(
+                        new ScheduleCreateFeeCalculator(),
+                        TransactionBody.newBuilder()
+                                .scheduleCreate(ScheduleCreateTransactionBody.newBuilder()
+                                        .scheduledTransactionBody(SchedulableTransactionBody.newBuilder()
+                                                .contractCall(ContractCallTransactionBody.DEFAULT)
+                                                .build())
+                                        .build())
+                                .build(),
+                        1,
+                        100000L,
+                        99012345L,
+                        200000L),
+                new TestCase(
+                        new ScheduleCreateFeeCalculator(),
+                        TransactionBody.newBuilder()
+                                .scheduleCreate(ScheduleCreateTransactionBody.newBuilder()
+                                        .scheduledTransactionBody(SchedulableTransactionBody.newBuilder()
+                                                .build())
                                         .adminKey(Key.newBuilder()
                                                 .ed25519(Bytes.wrap(new byte[32]))
                                                 .build())
@@ -84,6 +125,8 @@ class ScheduleFeeCalculatorsTest {
                         new ScheduleCreateFeeCalculator(),
                         TransactionBody.newBuilder()
                                 .scheduleCreate(ScheduleCreateTransactionBody.newBuilder()
+                                        .scheduledTransactionBody(SchedulableTransactionBody.newBuilder()
+                                                .build())
                                         .adminKey(Key.newBuilder()
                                                 .keyList(KeyList.newBuilder()
                                                         .keys(
@@ -105,6 +148,8 @@ class ScheduleFeeCalculatorsTest {
                         new ScheduleCreateFeeCalculator(),
                         TransactionBody.newBuilder()
                                 .scheduleCreate(ScheduleCreateTransactionBody.newBuilder()
+                                        .scheduledTransactionBody(SchedulableTransactionBody.newBuilder()
+                                                .build())
                                         .adminKey(Key.newBuilder()
                                                 .thresholdKey(ThresholdKey.newBuilder()
                                                         .threshold(2)
@@ -164,6 +209,20 @@ class ScheduleFeeCalculatorsTest {
         assertThat(result.network).isEqualTo(testCase.expectedNetworkFee);
     }
 
+    @Test
+    void testQueryFeeCalculator() {
+        final var mockQueryContext = mock(QueryContext.class);
+        final var query = Query.newBuilder().build();
+        final var queryFeeCalculator = new ScheduleGetInfoFeeCalculator();
+        final var feeResult = new FeeResult();
+
+        queryFeeCalculator.accumulateNodePayment(query, mockQueryContext, feeResult, createTestFeeSchedule());
+
+        assertThat(feeResult.node).isEqualTo(0L);
+        assertThat(feeResult.network).isEqualTo(0L);
+        assertThat(feeResult.service).isEqualTo(5L);
+    }
+
     private static FeeSchedule createTestFeeSchedule() {
         return FeeSchedule.DEFAULT
                 .copyBuilder()
@@ -175,12 +234,18 @@ class ScheduleFeeCalculatorsTest {
                 .extras(
                         makeExtraDef(Extra.SIGNATURES, 1000000L),
                         makeExtraDef(Extra.KEYS, 10000000L),
-                        makeExtraDef(Extra.BYTES, 110L))
+                        makeExtraDef(Extra.BYTES, 110L),
+                        makeExtraDef(Extra.SCHEDULE_CREATE_CONTRACT_CALL_BASE, 12345L))
                 .services(makeService(
                         "ScheduleService",
-                        makeServiceFee(HederaFunctionality.SCHEDULE_CREATE, 99000000, makeExtraIncluded(Extra.KEYS, 1)),
+                        makeServiceFee(
+                                HederaFunctionality.SCHEDULE_CREATE,
+                                99000000,
+                                makeExtraIncluded(Extra.KEYS, 1),
+                                makeExtraIncluded(Extra.SCHEDULE_CREATE_CONTRACT_CALL_BASE, 0)),
                         makeServiceFee(HederaFunctionality.SCHEDULE_SIGN, 9000000),
-                        makeServiceFee(HederaFunctionality.SCHEDULE_DELETE, 9000000)))
+                        makeServiceFee(HederaFunctionality.SCHEDULE_DELETE, 9000000),
+                        makeServiceFee(HederaFunctionality.SCHEDULE_GET_INFO, 5)))
                 .build();
     }
 
