@@ -80,22 +80,25 @@ import org.openjdk.jmh.infra.Blackhole;
 @BenchmarkMode(Mode.Throughput)
 @OutputTimeUnit(TimeUnit.SECONDS)
 @State(Scope.Benchmark)
-@Warmup(iterations = 1, time = 1)
-@Measurement(iterations = 1, time = 1)
+@Warmup(iterations = 2, time = 2)
+@Measurement(iterations = 3, time = 2)
 @Fork(1)
 public class BlockProductionBenchmark {
 
-    @Param({"30"}) // Number of blocks to produce
+    @Param({"20"}) // Number of blocks to produce (reduced for faster feedback at 100K TPS)
     private int blocksPerRun;
 
     @Param({"2000"}) // Block time in milliseconds
     private int blockTimeMs;
 
-    @Param({"150000"}) // Target TPS
+    @Param({"100000"}) // Target TPS
     private int targetTPS;
 
     @Param({"6000"}) // Transaction size in bytes
     private int transactionSizeBytes;
+
+    @Param({/*"true", */"false"}) // Enable rate limiting (false = max capacity stress test)
+    private boolean enableRateLimiting;
 
     private int maxTransactionsPerBlock;
     private long benchmarkStartTime;
@@ -158,6 +161,9 @@ public class BlockProductionBenchmark {
         System.out.printf(
                 ">>> Config: Blocks/run=%d, Block time=%dms, Target TPS=%d, Tx size=%dB, Max tx/block=%d%n",
                 blocksPerRun, blockTimeMs, targetTPS, transactionSizeBytes, maxTransactionsPerBlock);
+        System.out.printf(
+                ">>> Mode: %s%n",
+                enableRateLimiting ? "Rate-limited (target TPS)" : "MAX CAPACITY STRESS TEST (no rate limiting)");
         System.out.printf(">>> Using REAL BlockStreamManagerImpl code:%n");
         System.out.printf(">>>   - Parallel SHA-384 hashing (REAL ParallelTask)%n");
         System.out.printf(">>>   - Sequential task coordination (REAL SequentialTask)%n");
@@ -248,8 +254,10 @@ public class BlockProductionBenchmark {
         int txInBlock = 0;
 
         // 2. PROCESS TRANSACTIONS - via REAL writeItem()
-        while (System.currentTimeMillis() - blockStartTime < blockTimeMs) {
-            if (txInBlock >= maxTransactionsPerBlock) {
+        // In max capacity mode: process all transactions as fast as possible
+        // In rate-limited mode: respect block time boundary
+        while (txInBlock < maxTransactionsPerBlock) {
+            if (enableRateLimiting && (System.currentTimeMillis() - blockStartTime >= blockTimeMs)) {
                 break;
             }
 
@@ -281,20 +289,22 @@ public class BlockProductionBenchmark {
             totalTransactionsProcessed++;
             consensusNow = consensusNow.plusNanos(1);
 
-            // Rate limiting - simulate transaction arrival
-            long targetIntervalNanos = TimeUnit.SECONDS.toNanos(1) / targetTPS;
-            long now = System.nanoTime();
-            long nextTxTime = benchmarkStartTime + (totalTransactionsProcessed * targetIntervalNanos);
-            long sleepNanos = nextTxTime - now;
+            // Rate limiting - simulate transaction arrival (only if enabled)
+            if (enableRateLimiting) {
+                long targetIntervalNanos = TimeUnit.SECONDS.toNanos(1) / targetTPS;
+                long now = System.nanoTime();
+                long nextTxTime = benchmarkStartTime + (totalTransactionsProcessed * targetIntervalNanos);
+                long sleepNanos = nextTxTime - now;
 
-            if (sleepNanos > 0 && sleepNanos < TimeUnit.MILLISECONDS.toNanos(blockTimeMs)) {
-                try {
-                    long sleepStart = System.nanoTime();
-                    TimeUnit.NANOSECONDS.sleep(sleepNanos);
-                    totalTimeSpentWaiting += (System.nanoTime() - sleepStart);
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    return;
+                if (sleepNanos > 0 && sleepNanos < TimeUnit.MILLISECONDS.toNanos(blockTimeMs)) {
+                    try {
+                        long sleepStart = System.nanoTime();
+                        TimeUnit.NANOSECONDS.sleep(sleepNanos);
+                        totalTimeSpentWaiting += (System.nanoTime() - sleepStart);
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        return;
+                    }
                 }
             }
         }
@@ -331,6 +341,9 @@ public class BlockProductionBenchmark {
 
             System.out.printf("%n>>> SUMMARY:%n");
             System.out.printf(
+                    ">>> Mode: %s%n",
+                    enableRateLimiting ? "Rate-limited (target TPS)" : "MAX CAPACITY STRESS TEST");
+            System.out.printf(
                     ">>> Target TPS: %d, Actual TPS: %.0f (%.1f%% of target)%n",
                     targetTPS, actualTPS, (actualTPS / targetTPS) * 100);
             System.out.printf(
@@ -346,15 +359,23 @@ public class BlockProductionBenchmark {
                     ">>> Blocks: %d blocks, %.0f tx/block, %.2f MB/block, %.1f items/tx%n",
                     blocksPerRun, avgTxPerBlock, avgBlockSizeMB, avgItemsPerTx);
 
-            // WARNING if system couldn't keep up
-            if (actualTPS < targetTPS * 0.95) {
-                System.out.printf(
-                        "%n⚠️  WARNING: System only achieved %.0f TPS (%.1f%% of target %d TPS)%n",
-                        actualTPS, (actualTPS / targetTPS) * 100, targetTPS);
-                System.out.printf("⚠️  This indicates a REAL bottleneck in block production!%n");
+            // WARNING if system couldn't keep up (only relevant when rate limiting is enabled)
+            if (enableRateLimiting) {
+                if (actualTPS < targetTPS * 0.95) {
+                    System.out.printf(
+                            "%n⚠️  WARNING: System only achieved %.0f TPS (%.1f%% of target %d TPS)%n",
+                            actualTPS, (actualTPS / targetTPS) * 100, targetTPS);
+                    System.out.printf("⚠️  This indicates a REAL bottleneck in block production!%n");
+                } else {
+                    System.out.printf(
+                            "%n✅ System kept up with target TPS (%.1f%% achieved)%n", (actualTPS / targetTPS) * 100);
+                }
             } else {
                 System.out.printf(
-                        "%n✅ System kept up with target TPS (%.1f%% achieved)%n", (actualTPS / targetTPS) * 100);
+                        "%n🚀 MAX CAPACITY: System achieved %.0f TPS without rate limiting%n", actualTPS);
+                System.out.printf(
+                        "🚀 This is %.1fx the target rate of %d TPS%n", actualTPS / targetTPS, targetTPS);
+                System.out.printf("🚀 Utilization: %.1f%% (%.3fs total time)%n", utilization, elapsedSeconds);
             }
         }
 

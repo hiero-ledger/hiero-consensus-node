@@ -104,11 +104,13 @@ public class BenchmarkBlockStreamManager {
         simulateStateRead();
 
         // REAL production hashers - ALL 5 TREES
-        consensusHeaderHasher = new ConcurrentStreamingTreeHasher(executor, 128);
-        inputTreeHasher = new ConcurrentStreamingTreeHasher(executor, 128);
-        outputTreeHasher = new ConcurrentStreamingTreeHasher(executor, 128);
-        stateChangesHasher = new ConcurrentStreamingTreeHasher(executor, 128);
-        traceDataHasher = new ConcurrentStreamingTreeHasher(executor, 128);
+        // Using production batch size of 32 (from BlockStreamConfig.hashCombineBatchSize default)
+        // This matches BlockStreamManagerImpl.resetSubtrees() exactly
+        consensusHeaderHasher = new ConcurrentStreamingTreeHasher(executor, 32);
+        inputTreeHasher = new ConcurrentStreamingTreeHasher(executor, 32);
+        outputTreeHasher = new ConcurrentStreamingTreeHasher(executor, 32);
+        stateChangesHasher = new ConcurrentStreamingTreeHasher(executor, 32);
+        traceDataHasher = new ConcurrentStreamingTreeHasher(executor, 32);
 
         // REAL running hash manager
         runningHashManager = new RunningHashManager();
@@ -397,6 +399,12 @@ public class BenchmarkBlockStreamManager {
                 digest.update(hash);
                 digest.update(NULL_HASH);
                 hash = digest.digest();
+            }
+
+            // Prevent DCE: Store result and use it to initialize blockStartStateHash for first block
+            // This simulates reading the state hash from VirtualMap
+            if (blockStartStateHash.length() == 0) {
+                blockStartStateHash = Bytes.wrap(hash);
             }
         } catch (Exception e) {
             System.err.println("Error simulating state read: " + e.getMessage());
