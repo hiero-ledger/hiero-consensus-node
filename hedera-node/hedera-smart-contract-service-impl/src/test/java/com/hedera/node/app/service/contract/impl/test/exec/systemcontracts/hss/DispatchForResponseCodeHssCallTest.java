@@ -64,6 +64,7 @@ class DispatchForResponseCodeHssCallTest extends CallAttemptTestBase {
     private DispatchForResponseCodeHssCall subject;
     private DispatchForResponseCodeHssCall subjectScheduleCreateResultEncoder;
     private DispatchForResponseCodeHssCall subjectFromAttempt;
+    private DispatchForResponseCodeHssCall subjectWithCustomVerification;
 
     @BeforeEach
     void setUp() {
@@ -99,6 +100,8 @@ class DispatchForResponseCodeHssCallTest extends CallAttemptTestBase {
                 .willReturn(verificationStrategy);
         subjectFromAttempt =
                 new DispatchForResponseCodeHssCall(attempt, TransactionBody.DEFAULT, dispatchGasCalculator, emptySet());
+        subjectWithCustomVerification = new DispatchForResponseCodeHssCall(
+                attempt, TransactionBody.DEFAULT, verificationStrategy, dispatchGasCalculator, emptySet());
     }
 
     private byte[] successResult(final DispatchForResponseCodeHssCall call) {
@@ -138,6 +141,11 @@ class DispatchForResponseCodeHssCallTest extends CallAttemptTestBase {
     @Test
     void successResultFromAttemptConstructor() {
         assertArrayEquals(ReturnTypes.encodedRc(SUCCESS).array(), successResult(subjectFromAttempt));
+    }
+
+    @Test
+    void successResultFromAttemptWithCustomVerification() {
+        assertArrayEquals(ReturnTypes.encodedRc(SUCCESS).array(), successResult(subjectWithCustomVerification));
     }
 
     @Test
@@ -201,5 +209,11 @@ class DispatchForResponseCodeHssCallTest extends CallAttemptTestBase {
     @Test
     void failureResultFromAttemptConstructor() {
         assertArrayEquals(ReturnTypes.encodedRc(INVALID_SCHEDULE_ID).array(), failureResult(subjectFromAttempt));
+    }
+
+    @Test
+    void failureResultFromAttemptWithCustomVerification() {
+        assertArrayEquals(
+                ReturnTypes.encodedRc(INVALID_SCHEDULE_ID).array(), failureResult(subjectWithCustomVerification));
     }
 }
