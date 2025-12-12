@@ -47,8 +47,8 @@ import org.junit.jupiter.api.Tag;
 @Tag(SIMPLE_FEES)
 @HapiTestLifecycle
 public class CryptoTransferSimpleFeesSuite {
+    public static final double FUNGIBLE_TOKEN_BASE_FEE = 0.001;
     private static final double HBAR_TRANSFER_BASE_FEE = 0.0001;
-    private static final double FUNGIBLE_TOKEN_BASE_FEE = 0.001;
     private static final double NFT_BASE_FEE = 0.001;
     private static final double CUSTOM_FEE_TOKEN_FEE = 0.001;
     private static final double SINGLE_HOOK_FEE = 1.0;
