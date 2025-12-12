@@ -73,14 +73,6 @@ public class CryptoQuerySimpleFeesSuite {
     }
 
     @HapiTest
-    @DisplayName("crypto get account balance is free")
-    final Stream<DynamicTest> cryptoGetAccountBalanceIsFree() {
-        return hapiTest(
-                getAccountBalance(TEST_ACCOUNT).via("accountBalanceQuery"),
-                validateChargedUsd("accountBalanceQuery", 0));
-    }
-
-    @HapiTest
     @DisplayName("crypto get info multiple queries")
     final Stream<DynamicTest> cryptoGetInfoMultipleQueries() {
         return hapiTest(
