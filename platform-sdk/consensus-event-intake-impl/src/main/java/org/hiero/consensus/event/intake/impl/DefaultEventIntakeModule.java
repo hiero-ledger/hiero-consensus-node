@@ -70,7 +70,7 @@ public class DefaultEventIntakeModule implements EventIntakeModule {
     @Override
     @NonNull
     public OutputWire<PlatformEvent> validatedEventsOutputWire() {
-        throw new UnsupportedOperationException("Not implemented yet");
+        return requireNonNull(eventHasherWiring, "Not initialized").getOutputWire();
     }
 
     /**
