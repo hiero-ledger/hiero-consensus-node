@@ -22,7 +22,6 @@ import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
 import com.swirlds.platform.crypto.KeysAndCertsGenerator;
-import com.swirlds.platform.crypto.PublicStores;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.MessageDigest;

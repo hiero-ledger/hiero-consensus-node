@@ -277,8 +277,7 @@ public class EnhancedKeyStoreLoader {
                 sigPrivateKeys.compute(nodeId, (k, v) -> resolveNodePrivateKey(nodeId));
             }
 
-            sigCertificates.compute(
-                    nodeId, (k, v) -> resolveNodeCertificate(nodeId, legacyPublicStore));
+            sigCertificates.compute(nodeId, (k, v) -> resolveNodeCertificate(nodeId, legacyPublicStore));
         }
 
         logger.trace(STARTUP.getMarker(), "Completed key store enumeration");
@@ -497,7 +496,10 @@ public class EnhancedKeyStoreLoader {
 
         // No keys were found so return null. Missing keys will be detected during a call to
         // EnhancedKeyStoreLoader::verify() or EnhancedKeyStoreLoader::keysAndCerts().
-        logger.warn(STARTUP.getMarker(), "No private key store found for nodeId: {} [ purpose = {} ]", nodeId,
+        logger.warn(
+                STARTUP.getMarker(),
+                "No private key store found for nodeId: {} [ purpose = {} ]",
+                nodeId,
                 KeyCertPurpose.SIGNING);
         return null;
     }
@@ -521,8 +523,7 @@ public class EnhancedKeyStoreLoader {
      */
     @Nullable
     private Certificate resolveNodeCertificate(
-            @NonNull final NodeId nodeId,
-            @NonNull final KeyStore legacyPublicStore) {
+            @NonNull final NodeId nodeId, @NonNull final KeyStore legacyPublicStore) {
         Objects.requireNonNull(nodeId, MSG_NODE_ID_NON_NULL);
         Objects.requireNonNull(KeyCertPurpose.SIGNING, MSG_PURPOSE_NON_NULL);
         Objects.requireNonNull(legacyPublicStore, MSG_LEGACY_PUBLIC_STORE_NON_NULL);
@@ -554,7 +555,10 @@ public class EnhancedKeyStoreLoader {
 
         // No certificates were found so return null. Missing certificates will be detected during a call to
         // EnhancedKeyStoreLoader::verify() or EnhancedKeyStoreLoader::keysAndCerts().
-        logger.warn(STARTUP.getMarker(), "No certificate store found for nodeId: {} [ purpose = {} ]", nodeId,
+        logger.warn(
+                STARTUP.getMarker(),
+                "No certificate store found for nodeId: {} [ purpose = {} ]",
+                nodeId,
                 KeyCertPurpose.SIGNING);
         return null;
     }
@@ -599,9 +603,7 @@ public class EnhancedKeyStoreLoader {
      *                              is {@code null}.
      */
     @Nullable
-    private Certificate readLegacyCertificate(
-            @NonNull final NodeId nodeId,
-            @NonNull final KeyStore legacyPublicStore) {
+    private Certificate readLegacyCertificate(@NonNull final NodeId nodeId, @NonNull final KeyStore legacyPublicStore) {
         Objects.requireNonNull(nodeId, MSG_NODE_ID_NON_NULL);
         Objects.requireNonNull(KeyCertPurpose.SIGNING, MSG_PURPOSE_NON_NULL);
         Objects.requireNonNull(legacyPublicStore, MSG_LEGACY_PUBLIC_STORE_NON_NULL);
@@ -687,7 +689,10 @@ public class EnhancedKeyStoreLoader {
             }
 
             return (k instanceof final PrivateKey pk) ? pk : null;
-        } catch (final KeyLoadingException | KeyStoreException | UnrecoverableKeyException | NoSuchAlgorithmException e) {
+        } catch (final KeyLoadingException
+                | KeyStoreException
+                | UnrecoverableKeyException
+                | NoSuchAlgorithmException e) {
             logger.warn(
                     STARTUP.getMarker(),
                     "Unable to load the legacy private key store [ fileName = {} ]",
@@ -708,8 +713,8 @@ public class EnhancedKeyStoreLoader {
      */
     @NonNull
     private Path privateKeyStore(@NonNull final NodeId nodeId) {
-        return keyStoreDirectory.resolve(
-                String.format("%s-private-%s.pem", KeyCertPurpose.SIGNING.prefix(), RosterUtils.formatNodeName(nodeId)));
+        return keyStoreDirectory.resolve(String.format(
+                "%s-private-%s.pem", KeyCertPurpose.SIGNING.prefix(), RosterUtils.formatNodeName(nodeId)));
     }
 
     /**
@@ -1097,8 +1102,7 @@ public class EnhancedKeyStoreLoader {
                         "Extracting signing certificate for nodeId: {} from file {} ",
                         nodeId,
                         ksLocation.getFileName());
-                final Certificate certificate =
-                        readLegacyCertificate(nodeId, legacyPublicStore);
+                final Certificate certificate = readLegacyCertificate(nodeId, legacyPublicStore);
                 pfxCertificates.put(nodeId, certificate);
                 if (certificate == null) {
                     logger.error(

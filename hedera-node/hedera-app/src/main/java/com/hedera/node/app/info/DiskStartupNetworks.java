@@ -224,13 +224,13 @@ public class DiskStartupNetworks implements StartupNetworks {
     private static Roster buildRoster(final SimpleAddresses addresses) {
         final var builder = Roster.newBuilder();
 
-        builder.rosterEntries(addresses.addresses().stream().map(
-                a -> RosterEntry.newBuilder()
+        builder.rosterEntries(addresses.addresses().stream()
+                .map(a -> RosterEntry.newBuilder()
                         .nodeId(a.nodeId())
                         .weight(a.weight())
                         .gossipEndpoint(a.serviceEndpoints())
-                        .build()
-        ).toList());
+                        .build())
+                .toList());
 
         return builder.build();
     }
@@ -252,7 +252,8 @@ public class DiskStartupNetworks implements StartupNetworks {
                         .map(rosterEntry -> {
                             final var nodeId = rosterEntry.nodeId();
                             final var nodeAccountId = parseAccountFromLegacy(
-                                    requireNonNull(addressBook.get(nodeId), "entry not found").memo(),
+                                    requireNonNull(addressBook.get(nodeId), "entry not found")
+                                            .memo(),
                                     hederaConfig.shard(),
                                     hederaConfig.realm());
                             // Currently the ReadableFreezeUpgradeActions.writeConfigLineAndPem()

@@ -152,7 +152,8 @@ class DiskStartupNetworksTest {
                 .mapToObj(i -> new SimpleAddress(
                         i,
                         i,
-                        List.of(endpointFor( "127.0.0.1", "localhost", i + 1),
+                        List.of(
+                                endpointFor("127.0.0.1", "localhost", i + 1),
                                 endpointFor("127.0.0.1", "localhost", i + 2)),
                         "0.0." + (i + 3)))
                 .toList());
