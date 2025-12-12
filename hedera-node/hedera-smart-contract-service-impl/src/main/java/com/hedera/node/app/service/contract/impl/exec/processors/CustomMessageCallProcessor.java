@@ -172,8 +172,13 @@ public class CustomMessageCallProcessor extends MessageCallProcessor implements 
     }
 
     @Override
-    public void codeSuccess(@NonNull final MessageFrame frame, @NonNull final OperationTracer tracer) {
+    public void codeSuccess(@NonNull MessageFrame frame, @NonNull OperationTracer tracer) {
         super.codeSuccess(frame,tracer);
+    }
+
+    @Override
+    public void revert(@NonNull MessageFrame frame) {
+        super.revert(frame);
     }
 
 

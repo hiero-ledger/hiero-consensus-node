@@ -153,6 +153,9 @@ public class CustomContractCreationProcessor extends ContractCreationProcessor i
         }
     }
 
+    @Override public void revert( @NonNull MessageFrame frame ) {
+        super.revert(frame);
+    }
     private void halt(
             @NonNull final MessageFrame frame,
             @NonNull final OperationTracer tracer,

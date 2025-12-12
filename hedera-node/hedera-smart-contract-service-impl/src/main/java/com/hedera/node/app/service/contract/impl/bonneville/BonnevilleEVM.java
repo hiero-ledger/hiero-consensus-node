@@ -7,6 +7,7 @@ import com.hedera.node.app.service.contract.impl.exec.AddressChecks;
 import com.hedera.node.app.service.contract.impl.exec.FeatureFlags;
 import com.hedera.node.app.service.contract.impl.exec.operations.CustomCreateOperation;
 import com.hedera.node.app.service.contract.impl.exec.operations.CustomExtCodeSizeOperation;
+import com.hedera.node.app.service.contract.impl.exec.operations.CustomSelfDestructOperation;
 import com.hedera.node.app.service.contract.impl.exec.processors.CustomContractCreationProcessor;
 import com.hedera.node.app.service.contract.impl.exec.processors.CustomMessageCallProcessor;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.HtsSystemContract;
@@ -80,6 +81,7 @@ public class BonnevilleEVM extends HEVM {
         if( op == 0xF1 ) return "Call";
         if( op == 0xF3 ) return "ret ";
         if( op == 0xFD ) return "revert ";
+        if( op == 0xFF ) return "self-destruct ";
         return String.format("%x",op);
     }
     private static final String[] OPNAMES = new String[]{
@@ -135,6 +137,10 @@ class BEVM {
     // Custom Create needs this
     final CustomCreateOperation _cccp;
 
+    // Custom Self-Destruct
+    final CustomSelfDestructOperation _selfDestruct;
+
+
     // Wrap a UInt256 in a Supplier for short-term usage, without allocating
     // per-bytecode.
     final UI256.Wrap _wrap0 = new UI256.Wrap(), _wrap1 = new UI256.Wrap();
@@ -189,6 +195,8 @@ class BEVM {
 
         // Custom Contract Creation Processor
         _cccp = (CustomCreateOperation)operations[0xF0];
+        // Custom Self-Destruct hook
+        _selfDestruct = (CustomSelfDestructOperation)operations[0xFF];
 
 
         // Preload input data
@@ -396,11 +404,13 @@ class BEVM {
             case 0x56 ->        // Jump, target on stack
             ((pc=jump()   ) == -1) ? ExceptionalHaltReason.INVALID_JUMP_DESTINATION :
             ( pc            == -2) ? ExceptionalHaltReason.INSUFFICIENT_GAS :
+            ( pc            == -3) ? ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS :
             null;               // No error, pc set correctly
 
             case 0x57 ->        // Conditional jump, target on stack
             ((pc=jumpi(pc)) == -1) ? ExceptionalHaltReason.INVALID_JUMP_DESTINATION :
             ( pc            == -2) ? ExceptionalHaltReason.INSUFFICIENT_GAS :
+            ( pc            == -3) ? ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS :
             null;               // No error, pc set correctly
 
             case 0x5A -> gas();
@@ -442,6 +452,7 @@ class BEVM {
             }
             case 0xF3 -> ret();
             case 0xFD -> revert();
+            case 0xFF -> customSelfDestruct();
 
             default ->
                 throw new TODO(String.format("Unhandled bytecode 0x%02X",op));
@@ -741,7 +752,7 @@ class BEVM {
             val3 = val2;  val2 = val1;  val1 = val0;  val0 = 0;
             shf -= 64;
         }
-        // Remaining partial shift has to merge across word boundries
+        // Remaining partial shift has to merge across word boundaries
         if( shf != 0 ) {
             val3 = (val3<<shf) | (val2>>>(64-shf));
             val2 = (val2<<shf) | (val1>>>(64-shf));
@@ -938,6 +949,7 @@ class BEVM {
 
     // Return from interpreter with data
     private ExceptionalHaltReason ret() {
+        if( _sp < 2 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
         int off = popInt();
         int len = popInt();
 
@@ -954,6 +966,7 @@ class BEVM {
 
     // Revert transaction
     private ExceptionalHaltReason revert() {
+        if( _sp < 2 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
         int off = popInt();
         int len = popInt();
 
@@ -967,9 +980,21 @@ class BEVM {
         return ExceptionalHaltReason.NONE;
     }
 
+    private ExceptionalHaltReason customSelfDestruct() {
+        if( _sp < 1 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
+        Operation.OperationResult opr = _selfDestruct.execute(_frame,_bevm, popAddress());
+        var halt = opr.getHaltReason();
+        if( halt!=null ) return halt;
+        halt = useGas(opr.getGasCost());
+        if( halt!=null ) return halt;
+        // Successfully halting
+        return ExceptionalHaltReason.NONE;
+    }
+
     // Conditional jump to named target.  Returns either valid pc,
     // or -1 for invalid pc or -2 for out of gas
     private int jumpi(int nextpc) {
+        if( _sp < 2 ) return -3;
         if( useGas(_gasCalc.getHighTierGasCost())!=null ) return -2;
         long dst  = popLong();
         long cond = popLong();
@@ -980,6 +1005,7 @@ class BEVM {
     }
 
     private int jump() {
+        if( _sp < 1 ) return -3;
         if( useGas(_gasCalc.getMidTierGasCost())!=null ) return -2;
         long dst = popLong();
         return dst < 0 || dst > _codes.length || !jumpValid((int)dst)
@@ -1339,7 +1365,7 @@ class BEVM {
         case MessageFrame.State.CODE_SUSPENDED:    throw new TODO("Should not reach here");
         case MessageFrame.State.CODE_SUCCESS:      msg.codeSuccess(child, _tracing);  break; // Sets COMPLETED_SUCCESS
         case MessageFrame.State.EXCEPTIONAL_HALT:  throw new TODO(); // msg.exceptionalHalt(child); break;
-        case MessageFrame.State.REVERT:            throw new TODO(); // msg.revert(child);  break;
+        case MessageFrame.State.REVERT:            msg.revert(child);  break;
         case MessageFrame.State.COMPLETED_SUCCESS: throw new TODO("cant find who sets this");
         case MessageFrame.State.COMPLETED_FAILED:  throw new TODO("cant find who sets this");
         };
@@ -1350,10 +1376,11 @@ class BEVM {
         _frame.addCreates(child.getCreates());
         _frame.addSelfDestructs(child.getSelfDestructs());
         _frame.incrementGasRefund(child.getGasRefund());
-        if (child.getState() == MessageFrame.State.COMPLETED_SUCCESS) {
-            final Address creation = child.getContractAddress();
+        if( child.getState() == MessageFrame.State.COMPLETED_SUCCESS ) {
+            Address creation = child.getContractAddress();
             push(creation.toArrayUnsafe(),0,20);
         } else {
+            _tracing.traceContextExit(child);
             _frame.setReturnData(child.getOutputData());
             push0();
         }

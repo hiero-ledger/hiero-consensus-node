@@ -80,98 +80,102 @@ public class CustomSelfDestructOperation extends AbstractOperation {
         this.addressChecks = addressChecks;
     }
 
+
     @Override
     public OperationResult execute(@NonNull final MessageFrame frame, @NonNull final EVM evm) {
         try {
             final var beneficiaryAddress = Words.toAddress(frame.popStackItem());
-            final var tbdAddress = frame.getRecipientAddress();
-            final var proxyWorldUpdater = (ProxyWorldUpdater) frame.getWorldUpdater();
-
-            // In EVM the SELFDESTRUCT operation never fails.  It always sweeps ETH, and the contract
-            // is either deleted or not (per EIP-6780).
-            //
-            // In Hedera we have to allow for our semantics for transfers.  Notably, we can't
-            // transfer hbar unless the signature requirements are met on the transaction, we can't
-            // burn hbar, and we don't allow deletion of a contract which is a token treasury.
-            // There's also a restriction due to our performance guarantees: We don't allow contracts
-            // holding native tokens to self destruct because all the tokens would have to be
-            // transferred in the current `handleTransaction` call and if there were too many tokens
-            // it would be too expensive (in CPU/memory/database resources) to transfer them all.
-            //
-            // If the beneficiary account is the contract itself then we have two cases:
-            // * If (per EIP-6780) the contract is _not_ going to be deleted: That's ok.  SELFDESTRUCT
-            //   is a noop.  But if the contract _is_ going to be deleted and it has a balance of hbar
-            //   or any token then SELFDESTRUCT will fail.
-            // * Otherwise, if the beneficiary account is _not_ the contract itself then we fail the
-            //   SELFDESTRUCT if the contract owns any tokens.
-
-            if (frame.getRecipientAddress().equals(HTS_HOOKS_CONTRACT_ADDRESS)) {
-                // Self destruct operations originating from a hook execution are not allowed
-                return new OperationResult(0, ExceptionalHaltReason.INVALID_OPERATION);
-            }
-            final boolean contractCreatedInThisTransaction = frame.wasCreatedInTransaction(tbdAddress);
-            final boolean contractIsItsOwnBeneficiary = tbdAddress.equals(beneficiaryAddress);
-            final boolean contractIsToBeDeleted =
-                    switch (eip6780Semantics) {
-                        case NO -> true;
-                        case YES -> contractCreatedInThisTransaction;
-                    };
-
-            // inheritance == amount hbar to sweep
-            final var inheritance =
-                    requireNonNull(proxyWorldUpdater.get(tbdAddress)).getBalance();
-            final var beneficiary = proxyWorldUpdater.get(beneficiaryAddress);
-            final var beneficiaryIsWarm =
-                    frame.warmUpAddress(beneficiaryAddress) || gasCalculator().isPrecompile(beneficiaryAddress);
-            final var coldAccountAccessCost =
-                    beneficiaryIsWarm ? 0L : gasCalculator().getColdAccountAccessCost();
-            final var costWithoutBeneficiary = getSelfDestructGas(null, Wei.ZERO);
-            final var costWithBeneficiary = getSelfDestructGas(beneficiary, inheritance) + coldAccountAccessCost;
-
-            // Initial checks for EVM suitability
-            if (frame.isStatic()) {
-                return resultFor(costWithBeneficiary, ILLEGAL_STATE_CHANGE);
-            }
-            if (frame.getRemainingGas() < costWithBeneficiary) {
-                return resultFor(costWithBeneficiary, INSUFFICIENT_GAS);
-            }
-
-            // Enforce Hedera-specific restrictions on account deletion
-            final var maybeReasonToHalt = validateHederaRestrictionsOnBeneficiary(tbdAddress, beneficiaryAddress, frame)
-                    .or(() -> validateHederaRestrictionsOnContract(
-                            tbdAddress, beneficiaryAddress, frame, contractIsToBeDeleted))
-                    .or(() ->
-                            proxyWorldUpdater.tryTrackingSelfDestructBeneficiary(tbdAddress, beneficiaryAddress, frame))
-                    // Sweeps the hbar from the contract being deleted, if Hedera signing requirements met (while
-                    // treating any
-                    // Key{contractID=tbdAddress} or Key{delegatable_contract_id=tbdAddress} keys on the beneficiary
-                    // account as
-                    // active); it could also fail if the beneficiary is a token address.
-                    .or(() -> proxyWorldUpdater.tryTransfer(
-                            tbdAddress, beneficiaryAddress, inheritance.toLong(), isDelegateCall(frame)));
-            if (maybeReasonToHalt.isPresent()) {
-                return resultFor(costWithoutBeneficiary, maybeReasonToHalt.get());
-            }
-
-            // From this point success is assured ...
-
-            // Frame tracks contracts to be deleted (for handling later)
-            if (contractIsToBeDeleted) {
-                frame.addSelfDestruct(tbdAddress);
-            }
-
-            if (!contractIsItsOwnBeneficiary || contractIsToBeDeleted) {
-                proxyWorldUpdater.trackSelfDestructBeneficiary(tbdAddress, beneficiaryAddress, frame);
-                // Frame tracks balance changes
-                frame.addRefund(beneficiaryAddress, inheritance);
-            }
-
-            frame.setState(State.CODE_SUCCESS);
-            return resultFor(costWithBeneficiary, null);
-
+            return execute(frame,evm,beneficiaryAddress);
         } catch (UnderflowException ignore) {
             return UNDERFLOW_RESPONSE;
         }
+    }
+
+    public OperationResult execute(@NonNull MessageFrame frame, @NonNull EVM evm, Address beneficiaryAddress ) {
+        final var tbdAddress = frame.getRecipientAddress();
+        final var proxyWorldUpdater = (ProxyWorldUpdater) frame.getWorldUpdater();
+
+        // In EVM the SELFDESTRUCT operation never fails.  It always sweeps ETH, and the contract
+        // is either deleted or not (per EIP-6780).
+        //
+        // In Hedera we have to allow for our semantics for transfers.  Notably, we can't
+        // transfer hbar unless the signature requirements are met on the transaction, we can't
+        // burn hbar, and we don't allow deletion of a contract which is a token treasury.
+        // There's also a restriction due to our performance guarantees: We don't allow contracts
+        // holding native tokens to self destruct because all the tokens would have to be
+        // transferred in the current `handleTransaction` call and if there were too many tokens
+        // it would be too expensive (in CPU/memory/database resources) to transfer them all.
+        //
+        // If the beneficiary account is the contract itself then we have two cases:
+        // * If (per EIP-6780) the contract is _not_ going to be deleted: That's ok.  SELFDESTRUCT
+        //   is a noop.  But if the contract _is_ going to be deleted and it has a balance of hbar
+        //   or any token then SELFDESTRUCT will fail.
+        // * Otherwise, if the beneficiary account is _not_ the contract itself then we fail the
+        //   SELFDESTRUCT if the contract owns any tokens.
+
+        if (frame.getRecipientAddress().equals(HTS_HOOKS_CONTRACT_ADDRESS)) {
+            // Self destruct operations originating from a hook execution are not allowed
+            return new OperationResult(0, ExceptionalHaltReason.INVALID_OPERATION);
+        }
+        final boolean contractCreatedInThisTransaction = frame.wasCreatedInTransaction(tbdAddress);
+        final boolean contractIsItsOwnBeneficiary = tbdAddress.equals(beneficiaryAddress);
+        final boolean contractIsToBeDeleted =
+                switch (eip6780Semantics) {
+                    case NO -> true;
+                    case YES -> contractCreatedInThisTransaction;
+                };
+
+        // inheritance == amount hbar to sweep
+        final var inheritance =
+                requireNonNull(proxyWorldUpdater.get(tbdAddress)).getBalance();
+        final var beneficiary = proxyWorldUpdater.get(beneficiaryAddress);
+        final var beneficiaryIsWarm =
+                frame.warmUpAddress(beneficiaryAddress) || gasCalculator().isPrecompile(beneficiaryAddress);
+        final var coldAccountAccessCost =
+                beneficiaryIsWarm ? 0L : gasCalculator().getColdAccountAccessCost();
+        final var costWithoutBeneficiary = getSelfDestructGas(null, Wei.ZERO);
+        final var costWithBeneficiary = getSelfDestructGas(beneficiary, inheritance) + coldAccountAccessCost;
+
+        // Initial checks for EVM suitability
+        if (frame.isStatic()) {
+            return resultFor(costWithBeneficiary, ILLEGAL_STATE_CHANGE);
+        }
+        if (frame.getRemainingGas() < costWithBeneficiary) {
+            return resultFor(costWithBeneficiary, INSUFFICIENT_GAS);
+        }
+
+        // Enforce Hedera-specific restrictions on account deletion
+        final var maybeReasonToHalt = validateHederaRestrictionsOnBeneficiary(tbdAddress, beneficiaryAddress, frame)
+                .or(() -> validateHederaRestrictionsOnContract(
+                        tbdAddress, beneficiaryAddress, frame, contractIsToBeDeleted))
+                .or(() ->
+                        proxyWorldUpdater.tryTrackingSelfDestructBeneficiary(tbdAddress, beneficiaryAddress, frame))
+                // Sweeps the hbar from the contract being deleted, if Hedera signing requirements met (while
+                // treating any
+                // Key{contractID=tbdAddress} or Key{delegatable_contract_id=tbdAddress} keys on the beneficiary
+                // account as
+                // active); it could also fail if the beneficiary is a token address.
+                .or(() -> proxyWorldUpdater.tryTransfer(
+                        tbdAddress, beneficiaryAddress, inheritance.toLong(), isDelegateCall(frame)));
+        if (maybeReasonToHalt.isPresent()) {
+            return resultFor(costWithoutBeneficiary, maybeReasonToHalt.get());
+        }
+
+        // From this point success is assured ...
+
+        // Frame tracks contracts to be deleted (for handling later)
+        if (contractIsToBeDeleted) {
+            frame.addSelfDestruct(tbdAddress);
+        }
+
+        if (!contractIsItsOwnBeneficiary || contractIsToBeDeleted) {
+            proxyWorldUpdater.trackSelfDestructBeneficiary(tbdAddress, beneficiaryAddress, frame);
+            // Frame tracks balance changes
+            frame.addRefund(beneficiaryAddress, inheritance);
+        }
+
+        frame.setState(State.CODE_SUCCESS);
+        return resultFor(costWithBeneficiary, null);
     }
 
     protected @NonNull Optional<ExceptionalHaltReason> validateHederaRestrictionsOnBeneficiary(
