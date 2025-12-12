@@ -29,6 +29,11 @@ on:
         type: boolean
         default: true
         description: "Run SDK TCK Regression Panel"
+      enable-mirror-node-explorer-regression-panel:
+        required: true
+        type: boolean
+        default: true
+        description: "Run MNE Regression Panel"
       enable-mirror-node-regression-panel:
         required: true
         type: boolean
@@ -129,3 +134,16 @@ jobs:
       slack-api-token: ${{ secrets.PLATFORM_SLACK_API_TOKEN }}
       slack-citr-details-token: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
       slack-tck-report-webhook: ${{ secrets.SLACK_TCK_MONITOR_WEBHOOK }}
+
+  # TODO: Move into zxc-xts-tests.yaml and update configuration there
+  mirror-node-explorer-regression-panel:
+    name: Mirror Node Explorer Regression Panel
+    if: ${{ inputs.enable-mirror-node-explorer-regression-panel == true }}
+    uses: ./.github/workflows/zxc-mirror-node-explorer-regression.yaml
+    with:
+      ref: ${{ inputs.commit_sha }} # pass the xts-candidate tag to the MNE panel for checkout
+      custom-job-name: "Mirror Node Explorer Regression"
+      solo-version: ${{ vars.CITR_SOLO_VERSION }}
+    secrets:
+      access-token: ${{ secrets.GH_ACCESS_TOKEN }}
+      slack-detailed-report-webhook: ${{ secrets.SLACK_CITR_DETAILED_REPORTS_WEBHOOK }}
