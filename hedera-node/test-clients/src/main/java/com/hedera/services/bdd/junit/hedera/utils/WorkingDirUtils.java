@@ -404,12 +404,14 @@ public class WorkingDirUtils {
                         final var nodeId = address.nodeId();
                         final Bytes cert;
                         try {
-                            cert = Bytes.wrap(certs.get(NodeId.of(nodeId)).sigCert().getEncoded());
+                            cert = Bytes.wrap(
+                                    certs.get(NodeId.of(nodeId)).sigCert().getEncoded());
                         } catch (CertificateEncodingException e) {
                             throw new RuntimeException(e);
                         }
                         final var metadata = NodeMetadata.newBuilder()
-                                .rosterEntry(new RosterEntry(nodeId, address.weight(), cert, address.serviceEndpoints()));
+                                .rosterEntry(
+                                        new RosterEntry(nodeId, address.weight(), cert, address.serviceEndpoints()));
                         final var nodeAccount = toPbj(HapiPropertySource.asAccount(address.memo()));
                         if (onlyRoster == OnlyRoster.NO) {
                             metadata.node(new Node(
