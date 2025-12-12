@@ -23,7 +23,7 @@ import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -39,9 +39,12 @@ public class TokenRelationsIntegrityValidator implements LeafBytesValidator {
     private VirtualMap virtualMap;
     private long numTokenRelations = 0L;
 
-    private final AtomicInteger objectsProcessed = new AtomicInteger(0);
-    private final AtomicInteger accountFailCounter = new AtomicInteger(0);
-    private final AtomicInteger tokenFailCounter = new AtomicInteger(0);
+    private final AtomicLong objectsProcessed = new AtomicLong(0);
+    private final AtomicLong accountFailCounter = new AtomicLong(0);
+    private final AtomicLong tokenFailCounter = new AtomicLong(0);
+
+    private final AtomicLong nullObjectsCounter = new AtomicLong(0);
+    private final AtomicLong unequalObjectsCounter = new AtomicLong(0);
 
     /**
      * {@inheritDoc}
@@ -95,13 +98,57 @@ public class TokenRelationsIntegrityValidator implements LeafBytesValidator {
                 final AccountID accountId2 = tokenRelation.accountId();
                 final TokenID tokenId2 = tokenRelation.tokenId();
 
-                ValidationAssertions.requireNonNull(accountId1, getTag());
-                ValidationAssertions.requireNonNull(tokenId1, getTag());
-                ValidationAssertions.requireNonNull(accountId2, getTag());
-                ValidationAssertions.requireNonNull(tokenId2, getTag());
+                boolean nullObjectCheck = true;
+                if (accountId1 == null) {
+                    nullObjectCheck = false;
+                    nullObjectsCounter.incrementAndGet();
+                    log.error("Account ID is null for EntityIDPair {}", entityIDPair);
+                }
+                if (tokenId1 == null) {
+                    nullObjectCheck = false;
+                    nullObjectsCounter.incrementAndGet();
+                    log.error("Token ID is null for EntityIDPair {}", entityIDPair);
+                }
+                if (accountId2 == null) {
+                    nullObjectCheck = false;
+                    nullObjectsCounter.incrementAndGet();
+                    log.error("Account ID is null for TokenRelation {}", tokenRelation);
+                }
+                if (tokenId2 == null) {
+                    nullObjectCheck = false;
+                    nullObjectsCounter.incrementAndGet();
+                    log.error("Token ID is null for TokenRelation {}", tokenRelation);
+                }
 
-                ValidationAssertions.requireEqual(accountId1, accountId2, getTag());
-                ValidationAssertions.requireEqual(tokenId1, tokenId2, getTag());
+                // Just continue processing when encountered some null object
+                if (!nullObjectCheck) {
+                    objectsProcessed.incrementAndGet();
+                    return;
+                }
+
+                boolean equalityObjectCheck = true;
+                if (!accountId1.equals(accountId2)) {
+                    equalityObjectCheck = false;
+                    unequalObjectsCounter.incrementAndGet();
+                    log.error(
+                            "Account IDs are not equal for EntityIDPair {} and TokenRelation {}",
+                            entityIDPair,
+                            tokenRelation);
+                }
+                if (!tokenId1.equals(tokenId2)) {
+                    equalityObjectCheck = false;
+                    unequalObjectsCounter.incrementAndGet();
+                    log.error(
+                            "Token IDs are not equal for EntityIDPair {} and TokenRelation {}",
+                            entityIDPair,
+                            tokenRelation);
+                }
+
+                // Just continue processing when encountered unequal objects
+                if (!equalityObjectCheck) {
+                    objectsProcessed.incrementAndGet();
+                    return;
+                }
 
                 if (!virtualMap.containsKey(
                         getStateKeyForKv(V0490TokenSchema.ACCOUNTS_STATE_ID, accountId1, AccountID.PROTOBUF))) {
@@ -112,6 +159,7 @@ public class TokenRelationsIntegrityValidator implements LeafBytesValidator {
                         getStateKeyForKv(V0490TokenSchema.TOKENS_STATE_ID, tokenId1, TokenID.PROTOBUF))) {
                     tokenFailCounter.incrementAndGet();
                 }
+
                 objectsProcessed.incrementAndGet();
             } catch (final ParseException e) {
                 throw new RuntimeException("Failed to parse a key", e);
@@ -124,8 +172,29 @@ public class TokenRelationsIntegrityValidator implements LeafBytesValidator {
      */
     @Override
     public void validate() {
-        ValidationAssertions.requireEqual(objectsProcessed.get(), numTokenRelations, getTag());
-        ValidationAssertions.requireEqual(0, accountFailCounter.get(), getTag());
-        ValidationAssertions.requireEqual(0, tokenFailCounter.get(), getTag());
+        log.info("Checked {} token relation entries", objectsProcessed.get());
+
+        final boolean ok = objectsProcessed.get() == numTokenRelations
+                && accountFailCounter.get() == 0
+                && tokenFailCounter.get() == 0
+                && nullObjectsCounter.get() == 0
+                && unequalObjectsCounter.get() == 0;
+
+        ValidationAssertions.requireTrue(
+                ok,
+                getTag(),
+                ("""
+                        %s validation failed.
+                        objectsProcessed=%d vs expectedNumTokenRelations=%d
+                        accountFailCount=%d tokenFailCount=%d
+                        nullObjectsCount=%d unequalObjectsCount=%d""")
+                        .formatted(
+                                getTag(),
+                                objectsProcessed.get(),
+                                numTokenRelations,
+                                accountFailCounter.get(),
+                                tokenFailCounter.get(),
+                                nullObjectsCounter.get(),
+                                unequalObjectsCounter.get()));
     }
 }

@@ -35,7 +35,7 @@ import com.swirlds.state.spi.ReadableKVState;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -56,7 +56,7 @@ public class EntityIdUniquenessValidator implements LeafBytesValidator {
     private ReadableKVState<FileID, File> fileState;
     private ReadableKVState<ScheduleID, Schedule> scheduleState;
 
-    private final AtomicInteger issuesFound = new AtomicInteger(0);
+    private final AtomicLong issuesFound = new AtomicLong(0);
 
     /**
      * {@inheritDoc}
@@ -96,7 +96,7 @@ public class EntityIdUniquenessValidator implements LeafBytesValidator {
         long entityId = IMPERMISSIBLE_ENTITY_ID;
 
         try {
-            StateKey key = StateKey.PROTOBUF.parse(leafBytes.keyBytes());
+            final StateKey key = StateKey.PROTOBUF.parse(leafBytes.keyBytes());
             switch (key.key().kind()) {
                 case TOKENSERVICE_I_TOKENS -> {
                     final TokenID tokenId = key.key().as();
@@ -195,7 +195,7 @@ public class EntityIdUniquenessValidator implements LeafBytesValidator {
              Schedule = %s
             """,
                     entityId, counter, token, account, contract, topic, file, schedule);
-            log.info(errorMessage);
+            log.error(errorMessage);
             issuesFound.incrementAndGet();
         }
     }

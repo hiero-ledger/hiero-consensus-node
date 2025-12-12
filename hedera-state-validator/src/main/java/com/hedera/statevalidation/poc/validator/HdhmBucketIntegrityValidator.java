@@ -22,6 +22,7 @@ import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicLong;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -37,6 +38,8 @@ public class HdhmBucketIntegrityValidator implements HdhmBucketValidator {
     private DataFileCollection keyToPathDfc;
     private DataFileCollection pathToKeyValueDfc;
     private LongList pathToDiskLocationLeafNodes;
+
+    private final AtomicLong processedCount = new AtomicLong(0);
 
     private final CopyOnWriteArrayList<StalePathInfo> stalePathsInfos = new CopyOnWriteArrayList<>();
     private final CopyOnWriteArrayList<NullLeafInfo> nullLeafsInfo = new CopyOnWriteArrayList<>();
@@ -122,6 +125,8 @@ public class HdhmBucketIntegrityValidator implements HdhmBucketValidator {
             if (bucketLocation != 0) {
                 printFileDataLocationError(log, e.getMessage(), keyToPathDfc, bucketLocation);
             }
+        } finally {
+            processedCount.incrementAndGet();
         }
     }
 
@@ -130,6 +135,8 @@ public class HdhmBucketIntegrityValidator implements HdhmBucketValidator {
      */
     @Override
     public void validate() {
+        log.debug("Checked {} Bucket entries", processedCount.get());
+
         if (!stalePathsInfos.isEmpty()) {
             log.error("Stale path info:\n{}", stalePathsInfos);
             log.error(

@@ -24,14 +24,12 @@ import edu.umd.cs.findbugs.annotations.NonNull;
  *     <li>The state being validated is read-only (no concurrent writes)</li>
  *     <li>All counters/accumulators must use atomic types (e.g., {@code AtomicLong}, {@code AtomicInteger})</li>
  *     <li>The underlying MerkleDB infrastructure supports concurrent reads</li>
- *     <li>Validators are stored in {@code CopyOnWriteArraySet} allowing safe removal on failure</li>
  * </ul>
  *
  * <h2>Error Handling</h2>
  * <p>Validators should throw {@link com.hedera.statevalidation.poc.util.ValidationException} when
  * validation fails. When an exception is thrown:
  * <ul>
- *     <li>The validator is automatically removed from the active validator set</li>
  *     <li>Registered {@link com.hedera.statevalidation.poc.listener.ValidationListener listeners}
  *         are notified of the failure</li>
  *     <li>Processing continues for remaining validators</li>

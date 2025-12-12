@@ -66,9 +66,6 @@ public interface ValidationListener {
      *     <li>An unexpected exception occurs (wrapped in a {@link ValidationException})</li>
      * </ul>
      *
-     * <p>When a validator fails, it is automatically removed from the active validator set
-     * to prevent blocking the processing of subsequent data items.
-     *
      * @param error the validation exception containing the validator tag and failure details
      */
     default void onValidationFailed(@NonNull ValidationException error) {}

@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.statevalidation.poc.pipeline;
 
+import static com.swirlds.merkledb.collections.LongList.IMPERMISSIBLE_VALUE;
+
 import com.hedera.statevalidation.poc.listener.ValidationListener;
 import com.hedera.statevalidation.poc.model.DataStats;
 import com.hedera.statevalidation.poc.model.DiskDataItem;
@@ -21,9 +23,9 @@ import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.Callable;
-import java.util.concurrent.CopyOnWriteArraySet;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -42,8 +44,7 @@ import org.apache.logging.log4j.Logger;
  *
  * <p>The processor validates each data item's location against the corresponding index to determine
  * if it represents a live object or obsolete data. Live objects are passed to registered validators,
- * while obsolete items are tracked in statistics. Thread-safe validator sets ({@link CopyOnWriteArraySet})
- * allow validators to be removed dynamically if they fail during processing.
+ * while obsolete items are tracked in statistics.
  *
  * <p>The task terminates gracefully when it receives a poison pill item in the queue.
  *
@@ -58,12 +59,12 @@ public class ProcessorTask implements Callable<Void> {
     /** List of listeners to notify about validation events such as start, completion, or failure */
     private final List<ValidationListener> validationListeners;
 
-    /** Thread-safe set of validators for P2KV (Path to Key/Value) data items, may be null if no P2KV validators configured */
-    private final CopyOnWriteArraySet<Validator> p2kvValidators;
-    /** Thread-safe set of validators for P2H (Path to Hash) data items, may be null if no P2H validators configured */
-    private final CopyOnWriteArraySet<Validator> p2hValidators;
-    /** Thread-safe set of validators for K2P (Key to Path) data items, may be null if no K2P validators configured */
-    private final CopyOnWriteArraySet<Validator> k2pValidators;
+    /** Set of validators for P2KV (Path to Key/Value) data items; may be null if no P2KV validators configured */
+    private final Set<Validator> p2kvValidators;
+    /** Set of validators for P2H (Path to Hash) data items; may be null if no P2H validators configured */
+    private final Set<Validator> p2hValidators;
+    /** Set of validators for K2P (Key to Path) data items; may be null if no K2P validators configured */
+    private final Set<Validator> k2pValidators;
 
     /** The MerkleDB data source providing access to file collections for error logging */
     private final MerkleDbDataSource vds;
@@ -84,15 +85,14 @@ public class ProcessorTask implements Callable<Void> {
     /**
      * Creates a new ProcessorTask that consumes data items from a queue and dispatches them to validators.
      *
-     * @param validators map of data types to their corresponding validator sets; validators may be
-     *                   dynamically removed from these sets if they fail during processing
+     * @param validators map of data types to their corresponding validator sets;
      * @param validationListeners listeners to notify about validation lifecycle events
      * @param dataQueue the blocking queue from which batches of data items are consumed
      * @param vds the MerkleDB data source providing location indexes and file collections
      * @param dataStats statistics collector for tracking processing metrics
      */
     public ProcessorTask(
-            @NonNull final Map<Type, CopyOnWriteArraySet<Validator>> validators,
+            @NonNull final Map<Type, Set<Validator>> validators,
             @NonNull final List<ValidationListener> validationListeners,
             @NonNull final BlockingQueue<List<ValidationItem>> dataQueue,
             @NonNull final MerkleDbDataSource vds,
@@ -182,14 +182,19 @@ public class ProcessorTask implements Callable<Void> {
      * <p>Memory-sourced items are always considered live—no liveness check against the disk location
      * index is performed.
      *
-     * <p>If a validator throws an exception during processing, it is removed from the validator set
-     * and listeners are notified of the failure, ensuring that a failing validator does not block
-     * processing of subsequent items.
-     *
      * @param hashRecord the pre-parsed hash record containing path and hash data from memory
      */
     private void processMemoryHashRecord(@NonNull final VirtualHashRecord hashRecord) {
         dataStats.getP2hMemory().incrementItemCount();
+
+        // Cross-check with P2H disk
+        if (pathToDiskLocationInternalNodes.get(hashRecord.path()) != IMPERMISSIBLE_VALUE) {
+            log.error(
+                    "Path found in P2H memory (p:{}) index AND on disk (p:{})",
+                    hashRecord.path(),
+                    pathToDiskLocationInternalNodes.get(hashRecord.path()));
+            dataStats.getP2hMemory().incrementInvalidLocationCount();
+        }
 
         if (p2hValidators == null || p2hValidators.isEmpty()) {
             return;
@@ -198,15 +203,9 @@ public class ProcessorTask implements Callable<Void> {
         p2hValidators.forEach(validator -> {
             try {
                 ((HashRecordValidator) validator).processHashRecord(hashRecord);
-            } catch (final ValidationException e) {
-                if (p2hValidators.removeIf(v -> v.getTag().equals(validator.getTag()))) {
-                    validationListeners.forEach(listener -> listener.onValidationFailed(e));
-                }
             } catch (final Exception e) {
-                if (p2hValidators.removeIf(v -> v.getTag().equals(validator.getTag()))) {
-                    validationListeners.forEach(listener -> listener.onValidationFailed(
-                            new ValidationException(validator.getTag(), "Unexpected exception: " + e.getMessage(), e)));
-                }
+                validationListeners.forEach(listener -> listener.onValidationFailed(
+                        new ValidationException(validator.getTag(), "Unexpected exception: " + e.getMessage(), e)));
             }
         });
     }
@@ -219,10 +218,6 @@ public class ProcessorTask implements Callable<Void> {
      *     <li>Updates space and item count statistics</li>
      *     <li>For live items, passes them to all registered P2KV validators</li>
      * </ol>
-     *
-     * <p>If a validator throws an exception during processing, it is removed from the validator set
-     * and listeners are notified of the failure. This ensures that a failing validator does not
-     * block processing of subsequent items.
      *
      * @param data the P2KV data item to process
      */
@@ -243,17 +238,9 @@ public class ProcessorTask implements Callable<Void> {
                 p2kvValidators.forEach(validator -> {
                     try {
                         ((LeafBytesValidator) validator).processLeafBytes(data.location(), virtualLeafBytes);
-                    } catch (final ValidationException e) {
-                        // Remove validator and notify listeners only once
-                        if (p2kvValidators.removeIf(v -> v.getTag().equals(validator.getTag()))) {
-                            validationListeners.forEach(listener -> listener.onValidationFailed(e));
-                        }
                     } catch (final Exception e) {
-                        // Remove validator and notify listeners only once
-                        if (p2kvValidators.removeIf(v -> v.getTag().equals(validator.getTag()))) {
-                            validationListeners.forEach(listener -> listener.onValidationFailed(new ValidationException(
-                                    validator.getTag(), "Unexpected exception: " + e.getMessage(), e)));
-                        }
+                        validationListeners.forEach(listener -> listener.onValidationFailed(new ValidationException(
+                                validator.getTag(), "Unexpected exception: " + e.getMessage(), e)));
                     }
                 });
             } else if (data.location() == -1) {
@@ -284,10 +271,6 @@ public class ProcessorTask implements Callable<Void> {
      *     <li>For live items, passes them to all registered P2H validators</li>
      * </ol>
      *
-     * <p>If a validator throws an exception during processing, it is removed from the validator set
-     * and listeners are notified of the failure. This ensures that a failing validator does not
-     * block processing of subsequent items.
-     *
      * @param data the P2H data item to process
      */
     private void processVirtualHashRecord(@NonNull final DiskDataItem data) {
@@ -307,17 +290,9 @@ public class ProcessorTask implements Callable<Void> {
                 p2hValidators.forEach(validator -> {
                     try {
                         ((HashRecordValidator) validator).processHashRecord(virtualHashRecord);
-                    } catch (final ValidationException e) {
-                        // Remove validator and notify listeners only once
-                        if (p2hValidators.removeIf(v -> v.getTag().equals(validator.getTag()))) {
-                            validationListeners.forEach(listener -> listener.onValidationFailed(e));
-                        }
                     } catch (final Exception e) {
-                        // Remove validator and notify listeners only once
-                        if (p2hValidators.removeIf(v -> v.getTag().equals(validator.getTag()))) {
-                            validationListeners.forEach(listener -> listener.onValidationFailed(new ValidationException(
-                                    validator.getTag(), "Unexpected exception: " + e.getMessage(), e)));
-                        }
+                        validationListeners.forEach(listener -> listener.onValidationFailed(new ValidationException(
+                                validator.getTag(), "Unexpected exception: " + e.getMessage(), e)));
                     }
                 });
             } else if (data.location() == -1) {
@@ -348,10 +323,6 @@ public class ProcessorTask implements Callable<Void> {
      *     <li>For live items, passes them to all registered K2P validators</li>
      * </ol>
      *
-     * <p>If a validator throws an exception during processing, it is removed from the validator set
-     * and listeners are notified of the failure. This ensures that a failing validator does not
-     * block processing of subsequent items.
-     *
      * @param data the K2P data item to process
      */
     private void processBucket(@NonNull final DiskDataItem data) {
@@ -370,18 +341,9 @@ public class ProcessorTask implements Callable<Void> {
                     k2pValidators.forEach(validator -> {
                         try {
                             ((HdhmBucketValidator) validator).processBucket(data.location(), bucket);
-                        } catch (final ValidationException e) {
-                            // Remove validator and notify listeners only once
-                            if (k2pValidators.removeIf(v -> v.getTag().equals(validator.getTag()))) {
-                                validationListeners.forEach(listener -> listener.onValidationFailed(e));
-                            }
                         } catch (final Exception e) {
-                            // Remove validator and notify listeners only once
-                            if (k2pValidators.removeIf(v -> v.getTag().equals(validator.getTag()))) {
-                                validationListeners.forEach(
-                                        listener -> listener.onValidationFailed(new ValidationException(
-                                                validator.getTag(), "Unexpected exception: " + e.getMessage(), e)));
-                            }
+                            validationListeners.forEach(listener -> listener.onValidationFailed(new ValidationException(
+                                    validator.getTag(), "Unexpected exception: " + e.getMessage(), e)));
                         }
                     });
                 } else if (data.location() == -1) {

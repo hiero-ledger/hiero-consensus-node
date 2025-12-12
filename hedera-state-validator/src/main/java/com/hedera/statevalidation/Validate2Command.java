@@ -27,8 +27,8 @@ import com.swirlds.state.MerkleNodeState;
 import com.swirlds.virtualmap.VirtualMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.Callable;
-import java.util.concurrent.CopyOnWriteArraySet;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import picocli.CommandLine;
@@ -133,6 +133,10 @@ public class Validate2Command implements Callable<Integer> {
                     deserializedSignedState.reservedSignedState().get().getState();
             final VirtualMap virtualMap = (VirtualMap) state.getRoot();
             final MerkleDbDataSource vds = (MerkleDbDataSource) virtualMap.getDataSource();
+            if (vds.getFirstLeafPath() == -1) {
+                log.info("Skipping the validation as there is no data");
+                return 0; // should be 0 or 1?
+            }
 
             // Initialize validators and listeners
             final var validationExecutionListener = new ValidationExecutionListener();
@@ -156,7 +160,7 @@ public class Validate2Command implements Callable<Integer> {
             }
 
             // Run pipeline
-            final Map<Type, CopyOnWriteArraySet<Validator>> validators =
+            final Map<Type, Set<Validator>> validators =
                     createAndInitValidators(deserializedSignedState, tags, validationListeners);
             final boolean pipelineSuccess = ValidationPipelineExecutor.run(
                     vds,

@@ -41,6 +41,7 @@ public class AccountAndSupplyValidator implements LeafBytesValidator {
 
     private final AtomicLong accountsCreated = new AtomicLong(0L);
     private final AtomicLong totalBalance = new AtomicLong(0L);
+    private final AtomicLong invalidAccountBalanceCount = new AtomicLong(0);
 
     private long numAccounts;
 
@@ -91,7 +92,10 @@ public class AccountAndSupplyValidator implements LeafBytesValidator {
                         com.hedera.hapi.platform.state.StateValue.PROTOBUF.parse(valueBytes);
                 final Account account = stateValue.value().as();
                 final long tinybarBalance = account.tinybarBalance();
-                ValidationAssertions.requireTrue(tinybarBalance >= 0, getTag());
+                if (tinybarBalance < 0) {
+                    invalidAccountBalanceCount.incrementAndGet();
+                    log.error("Invalid balance for account {}", account.accountId());
+                }
                 totalBalance.addAndGet(tinybarBalance);
                 accountsCreated.incrementAndGet();
             } catch (final ParseException e) {
@@ -105,7 +109,26 @@ public class AccountAndSupplyValidator implements LeafBytesValidator {
      */
     @Override
     public void validate() {
-        ValidationAssertions.requireEqual(TOTAL_tHBAR_SUPPLY, totalBalance.get(), getTag());
-        ValidationAssertions.requireEqual(accountsCreated.get(), numAccounts, getTag());
+        log.debug("Checked {} accounts", accountsCreated.get());
+
+        final boolean ok = TOTAL_tHBAR_SUPPLY == totalBalance.get()
+                && numAccounts == accountsCreated.get()
+                && invalidAccountBalanceCount.get() == 0;
+
+        ValidationAssertions.requireTrue(
+                ok,
+                getTag(),
+                ("""
+                        %s validation failed.
+                        totalSupplyExpected=%d vs totalSupplyActual=%d
+                        accountsExpected=%d vs accountsObserved=%d
+                        invalidAccountBalanceCount=%d""")
+                        .formatted(
+                                getTag(),
+                                TOTAL_tHBAR_SUPPLY,
+                                totalBalance.get(),
+                                numAccounts,
+                                accountsCreated.get(),
+                                invalidAccountBalanceCount.get()));
     }
 }

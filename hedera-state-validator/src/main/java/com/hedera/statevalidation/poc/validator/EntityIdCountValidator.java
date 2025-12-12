@@ -98,45 +98,69 @@ public class EntityIdCountValidator implements LeafBytesValidator {
     @Override
     public void validate() {
         ValidationAssertions.requireNonNull(entityCounts, getTag());
-        ValidationAssertions.requireEqual(
-                entityCounts.numAccounts(), accountCount.get(), getTag(), "Account count is unexpected");
-        ValidationAssertions.requireEqual(
-                entityCounts.numAliases(), aliasesCount.get(), getTag(), "Alias count is unexpected");
-        ValidationAssertions.requireEqual(
-                entityCounts.numTokens(), tokenCount.get(), getTag(), "Token count is unexpected");
-        ValidationAssertions.requireEqual(
-                entityCounts.numTokenRelations(), tokenRelCount.get(), getTag(), "Token relations count is unexpected");
-        ValidationAssertions.requireEqual(
-                entityCounts.numNfts(), nftsCount.get(), getTag(), "NFTs count is unexpected");
-        ValidationAssertions.requireEqual(
-                entityCounts.numAirdrops(), airdropsCount.get(), getTag(), "Airdrops count is unexpected");
-        ValidationAssertions.requireEqual(
-                entityCounts.numStakingInfos(), stakingInfoCount.get(), getTag(), "Staking infos count is unexpected");
-        ValidationAssertions.requireEqual(
-                entityCounts.numTopics(), topicCount.get(), getTag(), "Topic count is unexpected");
-        ValidationAssertions.requireEqual(
-                entityCounts.numFiles(), fileCount.get(), getTag(), "File count is unexpected");
-        ValidationAssertions.requireEqual(
-                entityCounts.numNodes(), nodesCount.get(), getTag(), "Nodes count is unexpected");
-        //      To be investigated - https://github.com/hiero-ledger/hiero-consensus-node/issues/20993
-        //      ValidationAssertions.requireEqual(entityCounts.numSchedules(), scheduleCount.get(), getTag(),
-        // "Schedule count is unexpected");
-        //      ValidationAssertions.requireEqual(
-        //                entityCounts.numContractStorageSlots(),
-        //                contractStorageCount.get(),
-        //                getTag(),
-        //                "Contract storage count is unexpected");
-        ValidationAssertions.requireEqual(
-                entityCounts.numContractBytecodes(),
-                contractBytecodeCount.get(),
+
+        final boolean ok = entityCounts.numAccounts() == accountCount.get()
+                && entityCounts.numAliases() == aliasesCount.get()
+                && entityCounts.numTokens() == tokenCount.get()
+                && entityCounts.numTokenRelations() == tokenRelCount.get()
+                && entityCounts.numNfts() == nftsCount.get()
+                && entityCounts.numAirdrops() == airdropsCount.get()
+                && entityCounts.numStakingInfos() == stakingInfoCount.get()
+                && entityCounts.numTopics() == topicCount.get()
+                && entityCounts.numFiles() == fileCount.get()
+                && entityCounts.numNodes() == nodesCount.get()
+                //      To be investigated - https://github.com/hiero-ledger/hiero-consensus-node/issues/20993
+                //      && entityCounts.numSchedules() == scheduleCount.get()
+                //      && entityCounts.numContractStorageSlots() == contractStorageCount.get()
+                && entityCounts.numContractBytecodes() == contractBytecodeCount.get()
+                && entityCounts.numHooks() == hookCount.get()
+                && entityCounts.numLambdaStorageSlots() == lambdaStorageCount.get();
+
+        ValidationAssertions.requireTrue(
+                ok,
                 getTag(),
-                "Contract count is unexpected");
-        ValidationAssertions.requireEqual(
-                entityCounts.numHooks(), hookCount.get(), getTag(), "Hook count is unexpected");
-        ValidationAssertions.requireEqual(
-                entityCounts.numLambdaStorageSlots(),
-                lambdaStorageCount.get(),
-                getTag(),
-                "Lambda slot count is unexpected");
+                ("""
+                        %s validation failed.
+                        accounts exp=%d act=%d
+                        aliases exp=%d act=%d
+                        tokens exp=%d act=%d
+                        tokenRels exp=%d act=%d
+                        nfts exp=%d act=%d
+                        airdrops exp=%d act=%d
+                        stakingInfos exp=%d act=%d
+                        topics exp=%d act=%d
+                        files exp=%d act=%d
+                        nodes exp=%d act=%d
+                        contractBytecodes exp=%d act=%d
+                        hooks exp=%d act=%d
+                        lambdaStorageSlots exp=%d act=%d""")
+                        .formatted(
+                                getTag(),
+                                entityCounts.numAccounts(),
+                                accountCount.get(),
+                                entityCounts.numAliases(),
+                                aliasesCount.get(),
+                                entityCounts.numTokens(),
+                                tokenCount.get(),
+                                entityCounts.numTokenRelations(),
+                                tokenRelCount.get(),
+                                entityCounts.numNfts(),
+                                nftsCount.get(),
+                                entityCounts.numAirdrops(),
+                                airdropsCount.get(),
+                                entityCounts.numStakingInfos(),
+                                stakingInfoCount.get(),
+                                entityCounts.numTopics(),
+                                topicCount.get(),
+                                entityCounts.numFiles(),
+                                fileCount.get(),
+                                entityCounts.numNodes(),
+                                nodesCount.get(),
+                                entityCounts.numContractBytecodes(),
+                                contractBytecodeCount.get(),
+                                entityCounts.numHooks(),
+                                hookCount.get(),
+                                entityCounts.numLambdaStorageSlots(),
+                                lambdaStorageCount.get()));
     }
 }

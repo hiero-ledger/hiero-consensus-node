@@ -25,8 +25,8 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -69,7 +69,7 @@ public final class ValidationPipelineExecutor {
 
     // Input data
     private final MerkleDbDataSource vds;
-    private final Map<Type, CopyOnWriteArraySet<Validator>> validators;
+    private final Map<Type, Set<Validator>> validators;
     private final List<ValidationListener> validationListeners;
 
     // Runtime state (initialized in execute())
@@ -80,7 +80,7 @@ public final class ValidationPipelineExecutor {
 
     private ValidationPipelineExecutor(
             @NonNull final MerkleDbDataSource vds,
-            @NonNull final Map<Type, CopyOnWriteArraySet<Validator>> validators,
+            @NonNull final Map<Type, Set<Validator>> validators,
             @NonNull final List<ValidationListener> validationListeners,
             final int ioThreads,
             final int processThreads,
@@ -119,7 +119,7 @@ public final class ValidationPipelineExecutor {
      */
     public static boolean run(
             @NonNull final MerkleDbDataSource vds,
-            @NonNull final Map<Type, CopyOnWriteArraySet<Validator>> validators,
+            @NonNull final Map<Type, Set<Validator>> validators,
             @NonNull final List<ValidationListener> validationListeners,
             final int ioThreads,
             final int processThreads,

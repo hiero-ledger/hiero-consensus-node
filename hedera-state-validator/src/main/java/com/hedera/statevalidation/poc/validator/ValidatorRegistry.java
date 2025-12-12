@@ -15,10 +15,10 @@ import com.swirlds.platform.state.snapshot.DeserializedSignedState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.EnumMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.CopyOnWriteArraySet;
 
 /**
  * Central registry for all state validators.
@@ -121,9 +121,8 @@ public final class ValidatorRegistry {
      * @param tags array of validator tags to run; use {@link Validator#ALL_TAG} to run all validators
      * @param validationListeners listeners to notify of initialization events; must not be null
      * @return a map from {@link Type} to thread-safe sets of initialized validators;
-     *         uses {@link CopyOnWriteArraySet} for safe concurrent access during pipeline execution
      */
-    public static Map<Type, CopyOnWriteArraySet<Validator>> createAndInitValidators(
+    public static Map<Type, Set<Validator>> createAndInitValidators(
             @NonNull final DeserializedSignedState deserializedSignedState,
             @NonNull final String[] tags,
             @NonNull final List<ValidationListener> validationListeners) {
@@ -131,10 +130,10 @@ public final class ValidatorRegistry {
         final Set<String> tagSet = Set.of(tags);
         final boolean runAll = tagSet.contains(ALL_TAG);
 
-        final Map<Type, CopyOnWriteArraySet<Validator>> result = new EnumMap<>(Type.class);
+        final Map<Type, Set<Validator>> result = new EnumMap<>(Type.class);
 
         ValidatorRegistry.getPipelineValidators().forEach((type, validators) -> {
-            final CopyOnWriteArraySet<Validator> validatorSet = new CopyOnWriteArraySet<>();
+            final Set<Validator> validatorSet = new HashSet<>();
             for (Validator v : validators) {
                 if (runAll || tagSet.contains(v.getTag())) {
                     if (tryInitialize(v, deserializedSignedState, validationListeners)) {
