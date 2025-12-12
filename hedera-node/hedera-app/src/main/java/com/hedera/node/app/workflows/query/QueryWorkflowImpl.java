@@ -346,7 +346,7 @@ public final class QueryWorkflowImpl implements QueryWorkflow {
             return false;
         }
         return switch (context.query().query().kind()) {
-            case CONSENSUS_GET_TOPIC_INFO -> true;
+            case CONSENSUS_GET_TOPIC_INFO, CRYPTO_GET_INFO, CRYPTO_GET_ACCOUNT_RECORDS -> true;
             default -> false;
         };
     }
