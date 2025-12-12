@@ -18,6 +18,7 @@ mainModuleInfo {
     annotationProcessor("com.google.auto.service.processor")
     runtimeOnly("com.swirlds.config.impl")
     runtimeOnly("org.hiero.consensus.event.creator.impl")
+    runtimeOnly("org.hiero.consensus.event.intake.impl")
 }
 
 jmhModuleInfo {

@@ -8,7 +8,6 @@ import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.component.framework.component.ComponentWiring;
 import com.swirlds.component.framework.transformers.WireFilter;
-import com.swirlds.component.framework.wires.input.InputWire;
 import com.swirlds.component.framework.wires.output.OutputWire;
 import com.swirlds.platform.builder.ApplicationCallbacks;
 import com.swirlds.platform.builder.ExecutionLayer;
@@ -50,7 +49,6 @@ import com.swirlds.platform.system.status.PlatformStatusConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
 import java.util.Queue;
-import org.hiero.consensus.crypto.EventHasher;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
@@ -74,9 +72,10 @@ public class PlatformWiring {
         Objects.requireNonNull(execution);
         Objects.requireNonNull(components);
 
-        final InputWire<PlatformEvent> hasherInputWire =
-                components.eventHasherWiring().getInputWire(EventHasher::hashEvent, "unhashed event");
-        components.gossipWiring().getEventOutput().solderTo(hasherInputWire);
+        components
+                .gossipWiring()
+                .getEventOutput()
+                .solderTo(components.eventIntakeModule().unhashedEventsInputWire());
 
         components
                 .gossipWiring()
@@ -84,8 +83,8 @@ public class PlatformWiring {
                 .solderTo(components.eventCreatorModule().syncProgressInputWire());
 
         components
-                .eventHasherWiring()
-                .getOutputWire()
+                .eventIntakeModule()
+                .validatedEventsOutputWire()
                 .solderTo(
                         components.internalEventValidatorWiring().getInputWire(InternalEventValidator::validateEvent));
 
@@ -237,7 +236,10 @@ public class PlatformWiring {
 
         solderEventWindow(components);
 
-        components.pcesReplayerWiring().eventOutput().solderTo(hasherInputWire);
+        components
+                .pcesReplayerWiring()
+                .eventOutput()
+                .solderTo(components.eventIntakeModule().unhashedEventsInputWire());
 
         final OutputWire<ConsensusRound> consensusRoundOutputWire = components
                 .consensusEngineWiring()
@@ -424,7 +426,10 @@ public class PlatformWiring {
                 .eventPipelineMetricsEnabled()) {
             final EventPipelineTracker pipelineTracker = new EventPipelineTracker(platformContext.getMetrics());
 
-            components.eventHasherWiring().getOutputWire().solderForMonitoring(pipelineTracker::afterHashing);
+            components
+                    .eventIntakeModule()
+                    .validatedEventsOutputWire()
+                    .solderForMonitoring(pipelineTracker::afterHashing);
             components
                     .internalEventValidatorWiring()
                     .getOutputWire()

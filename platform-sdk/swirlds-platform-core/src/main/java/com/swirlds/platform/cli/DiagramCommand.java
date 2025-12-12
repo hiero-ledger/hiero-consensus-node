@@ -14,6 +14,7 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.platform.builder.ApplicationCallbacks;
 import com.swirlds.platform.cli.helper.NoOpEventCreatorModule;
+import com.swirlds.platform.cli.helper.NoOpEventIntakeModule;
 import com.swirlds.platform.config.DefaultConfiguration;
 import com.swirlds.platform.util.VirtualTerminal;
 import com.swirlds.platform.wiring.PlatformComponents;
@@ -26,6 +27,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import org.hiero.consensus.event.creator.EventCreatorModule;
+import org.hiero.consensus.event.intake.EventIntakeModule;
 import picocli.CommandLine;
 
 @CommandLine.Command(
@@ -104,15 +106,14 @@ public final class DiagramCommand extends AbstractCommand {
         final Configuration configuration = DefaultConfiguration.buildBasicConfiguration(ConfigurationBuilder.create());
         final PlatformContext platformContext = PlatformContext.create(configuration);
 
-        final ApplicationCallbacks callbacks = new ApplicationCallbacks(x -> {}, x -> {}, x -> {});
-
         final WiringModel model = WiringModelBuilder.create(platformContext.getMetrics(), platformContext.getTime())
                 .build();
 
-        final EventCreatorModule eventCreatorModule = new NoOpEventCreatorModule(configuration, model);
+        final EventCreatorModule eventCreatorModule = new NoOpEventCreatorModule(model);
+        final EventIntakeModule eventIntakeModule = new NoOpEventIntakeModule(model);
 
         final PlatformComponents platformComponents =
-                PlatformComponents.create(platformContext, model, eventCreatorModule);
+                PlatformComponents.create(platformContext, model, eventCreatorModule, eventIntakeModule);
 
         PlatformWiring.wire(platformContext, new NoOpExecutionLayer(), platformComponents, ApplicationCallbacks.EMPTY);
 

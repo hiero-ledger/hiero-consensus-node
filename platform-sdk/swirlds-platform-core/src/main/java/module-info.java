@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 import org.hiero.consensus.event.creator.EventCreatorModule;
+import org.hiero.consensus.event.intake.EventIntakeModule;
 
 /**
  * The Swirlds public API module used by platform applications.
  */
 module com.swirlds.platform.core {
     uses EventCreatorModule;
+    uses EventIntakeModule;
 
     /* Public Package Exports. This list should remain alphabetized. */
     exports com.swirlds.platform;
@@ -114,6 +116,7 @@ module com.swirlds.platform.core {
     requires transitive org.hiero.base.crypto;
     requires transitive org.hiero.base.utility;
     requires transitive org.hiero.consensus.event.creator;
+    requires transitive org.hiero.consensus.event.intake;
     requires transitive org.hiero.consensus.hashgraph;
     requires transitive org.hiero.consensus.model;
     requires transitive org.hiero.consensus.utility;
