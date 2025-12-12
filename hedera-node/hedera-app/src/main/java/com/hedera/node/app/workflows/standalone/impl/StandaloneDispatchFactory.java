@@ -22,8 +22,6 @@ import com.hedera.node.app.fees.FeeManager;
 import com.hedera.node.app.fees.ResourcePriceCalculatorImpl;
 import com.hedera.node.app.info.NodeInfoImpl;
 import com.hedera.node.app.records.impl.BlockRecordInfoImpl;
-import com.hedera.node.app.service.contract.ContractServiceApi;
-import com.hedera.node.app.service.contract.impl.ContractServiceImpl;
 import com.hedera.node.app.service.entityid.EntityIdService;
 import com.hedera.node.app.service.entityid.impl.EntityNumGeneratorImpl;
 import com.hedera.node.app.service.entityid.impl.WritableEntityIdStoreImpl;
@@ -109,8 +107,7 @@ public class StandaloneDispatchFactory {
             @NonNull final TransactionDispatcher transactionDispatcher,
             @NonNull final NetworkUtilizationManager networkUtilizationManager,
             @NonNull final TransactionChecker transactionChecker,
-            @NonNull final ScheduleServiceImpl scheduleService,
-            @NonNull final ContractServiceImpl contractService) {
+            @NonNull final ScheduleServiceImpl scheduleService) {
         this.feeManager = requireNonNull(feeManager);
         this.appFeeCharging = requireNonNull(appFeeCharging);
         this.authorizer = requireNonNull(authorizer);
@@ -130,9 +127,7 @@ public class StandaloneDispatchFactory {
                 TokenServiceApi.class,
                 TOKEN_SERVICE_API_PROVIDER,
                 ScheduleServiceApi.class,
-                scheduleService.apiProvider(),
-                ContractServiceApi.class,
-                contractService.apiProvider());
+                scheduleService.apiProvider());
     }
 
     /**

@@ -21,7 +21,7 @@ import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.BASIC_ENTITY_ID_SIZE
 import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.INT_SIZE;
 import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.LONG_SIZE;
 import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.getAccountKeyStorageSize;
-import static com.hedera.node.app.service.token.AliasUtils.isOfEvmAddressSize;
+import static com.hedera.node.app.service.token.AliasUtils.isOfDelegationIndicatorSize;
 import static com.hedera.node.app.service.token.HookDispatchUtils.dispatchHookCreations;
 import static com.hedera.node.app.service.token.HookDispatchUtils.dispatchHookDeletions;
 import static com.hedera.node.app.service.token.HookDispatchUtils.validateHookDuplicates;
@@ -46,7 +46,6 @@ import com.hedera.hapi.node.token.CryptoUpdateTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.hapi.utils.CommonPbjConverters;
 import com.hedera.node.app.hapi.utils.EntityType;
-import com.hedera.node.app.service.contract.ContractServiceApi;
 import com.hedera.node.app.service.token.CryptoSignatureWaivers;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.impl.WritableAccountStore;
@@ -67,6 +66,7 @@ import com.hedera.node.config.data.AutoRenewConfig;
 import com.hedera.node.config.data.EntitiesConfig;
 import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.node.config.data.TokensConfig;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -105,9 +105,9 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
             final var distinctHookIds = op.hookIdsToDelete().stream().distinct().count();
             validateTruePreCheck(distinctHookIds == op.hookIdsToDelete().size(), HOOK_ID_REPEATED_IN_CREATION_DETAILS);
         }
-        // If a delegation address is set, it must be of EVM address size
+        // If a delegation address is set, it must be of delegation indicator address size
         validateTruePreCheck(
-                op.delegationAddress().length() == 0 || isOfEvmAddressSize(op.delegationAddress()),
+                op.delegationIndicator().length() == 0 || isOfDelegationIndicatorSize(op.delegationIndicator()),
                 INVALID_CONTRACT_ID);
     }
 
@@ -178,12 +178,6 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
         context.savepointStack()
                 .getBaseBuilder(CryptoUpdateStreamBuilder.class)
                 .accountID(targetAccount.accountIdOrThrow());
-
-        // If delegation address is set, update state in ContractServiceApi to reflect the delegation
-        if (op.delegationAddress().length() > 0) {
-            final var contractServiceApi = context.storeFactory().serviceApi(ContractServiceApi.class);
-            contractServiceApi.setAccountDelegationTarget(target, op.delegationAddress());
-        }
     }
 
     /**
@@ -276,6 +270,13 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
             builder.numberHooksInUse(currentHooks
                     - op.hookIdsToDelete().size()
                     + op.hookCreationDetails().size());
+        }
+        if (op.delegationIndicator().length() > 0) {
+            if (isOfDelegationIndicatorSize(op.delegationIndicator())) {
+                builder.delegationIndicator(op.delegationIndicator());
+            } else {
+                builder.delegationIndicator(Bytes.EMPTY);
+            }
         }
         return builder;
     }

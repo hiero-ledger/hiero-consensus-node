@@ -147,7 +147,7 @@ public class SynthTxnUtils {
                 .maxAutomaticTokenAssociations(unlimitedAutoAssociations ? -1 : 0)
                 .key(IMMUTABILITY_SENTINEL_KEY)
                 .autoRenewPeriod(DEFAULT_AUTO_RENEW_PERIOD)
-                .delegationAddress(delegationAddress)
+                .delegationIndicator(delegationAddress)
                 .build();
     }
 

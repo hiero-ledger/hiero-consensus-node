@@ -36,6 +36,7 @@ import static com.hedera.node.app.service.token.AliasUtils.asKeyFromAliasPreChec
 import static com.hedera.node.app.service.token.AliasUtils.extractEvmAddress;
 import static com.hedera.node.app.service.token.AliasUtils.isEntityNumAlias;
 import static com.hedera.node.app.service.token.AliasUtils.isKeyAlias;
+import static com.hedera.node.app.service.token.AliasUtils.isOfDelegationIndicatorSize;
 import static com.hedera.node.app.service.token.AliasUtils.isOfEvmAddressSize;
 import static com.hedera.node.app.service.token.HookDispatchUtils.dispatchHookCreations;
 import static com.hedera.node.app.service.token.HookDispatchUtils.validateHookDuplicates;
@@ -60,7 +61,6 @@ import com.hedera.hapi.node.token.CryptoCreateTransactionBody;
 import com.hedera.hapi.node.token.CryptoUpdateTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.hapi.utils.CommonPbjConverters;
-import com.hedera.node.app.service.contract.ContractServiceApi;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.impl.WritableAccountStore;
@@ -175,7 +175,7 @@ public class CryptoCreateHandler extends BaseCryptoHandler implements Transactio
         validateHookDuplicates(op.hookCreationDetails());
         // If a delegation address is set, it must be of EVM address size
         validateTruePreCheck(
-                op.delegationAddress().length() == 0 || isOfEvmAddressSize(op.delegationAddress()),
+                op.delegationIndicator().length() == 0 || isOfDelegationIndicatorSize(op.delegationIndicator()),
                 INVALID_CONTRACT_ID);
     }
 
@@ -320,12 +320,6 @@ public class CryptoCreateHandler extends BaseCryptoHandler implements Transactio
                 accountStore.putAndIncrementCountAlias(alias, createdAccountID);
             }
         }
-
-        // If delegation address is set, update state in ContractServiceApi to reflect the delegation
-        if (op.delegationAddress().length() > 0) {
-            final var contractServiceApi = context.storeFactory().serviceApi(ContractServiceApi.class);
-            contractServiceApi.setAccountDelegationTarget(createdAccountID, op.delegationAddress());
-        }
     }
 
     /* ----------- Helper Methods ----------- */
@@ -464,7 +458,8 @@ public class CryptoCreateHandler extends BaseCryptoHandler implements Transactio
                 .key(op.keyOrThrow())
                 .stakeAtStartOfLastRewardedPeriod(NOT_REWARDED_SINCE_LAST_STAKING_META_CHANGE)
                 .stakePeriodStart(NO_STAKE_PERIOD_START)
-                .alias(op.alias());
+                .alias(op.alias())
+                .delegationIndicator(op.delegationIndicator());
         if (!op.hookCreationDetails().isEmpty()) {
             builder.firstHookId(op.hookCreationDetails().getFirst().hookId());
             builder.numberHooksInUse(op.hookCreationDetails().size());

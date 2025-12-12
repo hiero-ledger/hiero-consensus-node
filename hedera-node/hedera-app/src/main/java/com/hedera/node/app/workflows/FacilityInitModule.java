@@ -23,8 +23,6 @@ import com.hedera.node.app.fees.ExchangeRateManager;
 import com.hedera.node.app.fees.FeeManager;
 import com.hedera.node.app.records.BlockRecordService;
 import com.hedera.node.app.service.consensus.impl.ConsensusServiceImpl;
-import com.hedera.node.app.service.contract.ContractService;
-import com.hedera.node.app.service.contract.ContractServiceApi;
 import com.hedera.node.app.service.file.ReadableFileStore;
 import com.hedera.node.app.service.file.impl.FileServiceImpl;
 import com.hedera.node.app.service.schedule.ScheduleService;
@@ -111,17 +109,13 @@ public interface FacilityInitModule {
 
     @Provides
     @Singleton
-    static Map<Class<?>, ServiceApiProvider<?>> provideApiProviders(
-            @NonNull final ScheduleService scheduleService, @NonNull final ContractService contractService) {
+    static Map<Class<?>, ServiceApiProvider<?>> provideApiProviders(@NonNull final ScheduleService scheduleService) {
         requireNonNull(scheduleService);
-        requireNonNull(contractService);
         return Map.of(
                 TokenServiceApi.class,
                 TOKEN_SERVICE_API_PROVIDER,
                 ScheduleServiceApi.class,
-                scheduleService.apiProvider(),
-                ContractServiceApi.class,
-                contractService.apiProvider());
+                scheduleService.apiProvider());
     }
 
     @Binds

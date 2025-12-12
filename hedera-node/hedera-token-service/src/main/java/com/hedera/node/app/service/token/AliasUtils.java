@@ -2,7 +2,9 @@
 package com.hedera.node.app.service.token;
 
 import static com.hedera.node.app.hapi.utils.keys.KeyUtils.isValid;
+import static com.hedera.node.app.service.token.api.AccountSummariesApi.EVM_ADDRESS_SIZE;
 import static java.util.Objects.requireNonNull;
+import static org.hyperledger.besu.evm.worldstate.CodeDelegationHelper.CODE_DELEGATION_PREFIX;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.Key;
@@ -234,5 +236,14 @@ public final class AliasUtils {
     public static boolean isAliasSizeGreaterThanEvmAddress(@NonNull final Bytes alias) {
         requireNonNull(alias);
         return alias.length() > EVM_ADDRESS_SIZE;
+    }
+
+    /**
+     * Check if the given delegation indicator is of the correct size.
+     * @param delegationIndicator The delegation indicator to check
+     * @return True if the delegation indicator is of the correct size
+     */
+    public static boolean isOfDelegationIndicatorSize(final Bytes delegationIndicator) {
+        return delegationIndicator.length() == EVM_ADDRESS_SIZE + CODE_DELEGATION_PREFIX.size();
     }
 }

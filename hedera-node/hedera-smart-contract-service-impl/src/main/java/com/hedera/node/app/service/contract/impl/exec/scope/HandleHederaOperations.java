@@ -567,11 +567,11 @@ public class HandleHederaOperations implements HederaOperations {
      * {@inheritDoc}
      */
     @Override
-    public boolean setAccountCodeDelegation(@NonNull AccountID accountID, @NonNull Address delegationAddress) {
+    public boolean setAccountCodeDelegation(@NonNull AccountID accountID, @NonNull Address delegationIndicator) {
         // Dispatch a synthetic transaction to set the delegation
         final var cryptoUpdate = CryptoUpdateTransactionBody.newBuilder()
                 .accountIDToUpdate(accountID)
-                .delegationAddress(tuweniToPbjBytes(delegationAddress))
+                .delegationIndicator(tuweniToPbjBytes(delegationIndicator))
                 .build();
         final var body =
                 TransactionBody.newBuilder().cryptoUpdateAccount(cryptoUpdate).build();

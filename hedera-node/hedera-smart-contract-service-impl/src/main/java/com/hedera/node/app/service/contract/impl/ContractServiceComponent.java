@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl;
 
-import com.hedera.node.app.service.contract.ContractServiceApi;
 import com.hedera.node.app.service.contract.impl.annotations.CustomOps;
 import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
 import com.hedera.node.app.service.contract.impl.exec.scope.VerificationStrategies;
@@ -13,7 +12,6 @@ import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethod
 import com.hedera.node.app.service.contract.impl.handlers.ContractHandlers;
 import com.hedera.node.app.service.contract.impl.nativelibverification.NativeLibVerifier;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
-import com.hedera.node.app.spi.api.ServiceApiProvider;
 import com.hedera.node.app.spi.signatures.SignatureVerifier;
 import dagger.BindsInstance;
 import dagger.Component;
@@ -60,8 +58,7 @@ public interface ContractServiceComponent {
                 @BindsInstance SystemContractMethodRegistry systemContractMethodRegistry,
                 @BindsInstance @CustomOps Set<Operation> customOps,
                 @BindsInstance EntityIdFactory entityIdFactory,
-                @BindsInstance NativeLibVerifier nativeLibVerifier,
-                @BindsInstance ServiceApiProvider<ContractServiceApi> contractServiceApiProvider);
+                @BindsInstance NativeLibVerifier nativeLibVerifier);
     }
 
     /**
@@ -83,11 +80,6 @@ public interface ContractServiceComponent {
      * @return method registry for system contracts
      */
     SystemContractMethodRegistry systemContractMethodRegistry();
-
-    /**
-     * Provides the {@link ContractServiceApi} provider.
-     */
-    ServiceApiProvider<ContractServiceApi> contractServiceApiProvider();
 
     @Named("HasTranslators")
     Provider<List<CallTranslator<HasCallAttempt>>> hasCallTranslators();

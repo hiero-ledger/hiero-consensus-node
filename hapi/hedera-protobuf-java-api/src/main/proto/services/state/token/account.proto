@@ -481,6 +481,13 @@ message Account {
      * The number of storage slots in use by this account's lambdas.
      */
     uint64 number_lambda_storage_slots = 38;
+
+    /**
+     * The delegation indicator for this account.  If set, then a call to this account's
+     * address from an EVM contract is considered a delegate to the contract address encoded
+     * in this field.
+     */
+    bytes delegation_indicator = 39;
 }
 
 /**
