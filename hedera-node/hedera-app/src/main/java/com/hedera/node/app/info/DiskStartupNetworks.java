@@ -42,7 +42,6 @@ import java.util.regex.Pattern;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.consensus.model.roster.AddressBook;
 import org.hiero.consensus.model.roster.SimpleAddresses;
 import org.hiero.consensus.roster.RosterRetriever;
 
@@ -236,7 +235,7 @@ public class DiskStartupNetworks implements StartupNetworks {
     }
 
     /**
-     * Converts a {@link AddressBook} to a {@link Network}. The resulting network will have no TSS
+     * Converts {@link SimpleAddresses} to a {@link Network}. The resulting network will have no TSS
      * keys of any kind.
      *
      * @param addressBook   the address book to convert
