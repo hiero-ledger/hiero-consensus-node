@@ -60,6 +60,7 @@ import org.hiero.base.crypto.Signature;
 import org.hiero.consensus.crypto.PlatformSigner;
 import org.hiero.consensus.event.IntakeEventCounter;
 import org.hiero.consensus.event.creator.EventCreatorModule;
+import org.hiero.consensus.event.intake.EventIntakeModule;
 import org.hiero.consensus.hashgraph.FreezeCheckHolder;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.KeysAndCerts;
@@ -87,6 +88,7 @@ public final class PlatformBuilder {
     private ExecutorFactory executorFactory;
 
     private EventCreatorModule eventCreatorModule;
+    private EventIntakeModule eventIntakeModule;
 
     private static final UncaughtExceptionHandler DEFAULT_UNCAUGHT_EXCEPTION_HANDLER =
             (t, e) -> logger.error(EXCEPTION.getMarker(), "Uncaught exception on thread {}: {}", t, e);
@@ -398,6 +400,39 @@ public final class PlatformBuilder {
     }
 
     /**
+     * Provide the consensus event intake to use for this platform.
+     *
+     * @param eventIntakeModule the consensus event intake module
+     * @return this
+     */
+    @NonNull
+    public PlatformBuilder withEventIntakeModule(@NonNull final EventIntakeModule eventIntakeModule) {
+        throwIfAlreadyUsed();
+        this.eventIntakeModule = requireNonNull(eventIntakeModule);
+        return this;
+    }
+
+    private void initializeEventIntakeModule(@NonNull final IntakeEventCounter intakeEventCounter) {
+        if (this.eventIntakeModule == null) {
+            this.eventIntakeModule = ServiceLoader.load(EventIntakeModule.class)
+                    .findFirst()
+                    .orElseThrow(() -> new IllegalStateException("No EventIntakeModule implementation found!"));
+        }
+
+        eventIntakeModule.initialize(
+                model,
+                platformContext.getConfiguration(),
+                platformContext.getMetrics(),
+                platformContext.getTime(),
+                rosterHistory,
+                selfId,
+                intakeEventCounter,
+                execution.getTransactionLimits(),
+                platformContext.getRecycleBin(),
+                initialState.get().getRound());
+    }
+
+    /**
      * Throw an exception if this builder has been used to build a platform or a platform factory.
      */
     private void throwIfAlreadyUsed() {
@@ -488,8 +523,10 @@ public final class PlatformBuilder {
         }
 
         initializeEventCreatorModule();
+        initializeEventIntakeModule(intakeEventCounter);
 
-        var platformComponentWiring = PlatformComponents.create(platformContext, model, eventCreatorModule);
+        final PlatformComponents platformComponentWiring =
+                PlatformComponents.create(platformContext, model, eventCreatorModule, eventIntakeModule);
 
         PlatformWiring.wire(platformContext, execution, platformComponentWiring, callbacks);
         PlatformWiring.wireMetrics(platformContext, platformComponentWiring);

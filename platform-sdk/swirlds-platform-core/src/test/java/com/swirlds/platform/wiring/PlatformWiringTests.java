@@ -18,6 +18,7 @@ import com.swirlds.platform.builder.ExecutionLayer;
 import com.swirlds.platform.builder.PlatformBuildingBlocks;
 import com.swirlds.platform.builder.PlatformComponentBuilder;
 import com.swirlds.platform.cli.helper.NoOpEventCreatorModule;
+import com.swirlds.platform.cli.helper.NoOpEventIntakeModule;
 import com.swirlds.platform.components.AppNotifier;
 import com.swirlds.platform.components.EventWindowManager;
 import com.swirlds.platform.components.SavedStateController;
@@ -52,9 +53,9 @@ import java.security.NoSuchAlgorithmException;
 import java.security.NoSuchProviderException;
 import java.security.SecureRandom;
 import java.util.stream.Stream;
-import org.hiero.consensus.crypto.EventHasher;
 import org.hiero.consensus.crypto.SigningSchema;
 import org.hiero.consensus.event.creator.EventCreatorModule;
+import org.hiero.consensus.event.intake.EventIntakeModule;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.roster.RosterHistory;
@@ -89,11 +90,11 @@ class PlatformWiringTests {
         final WiringModel model =
                 WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent()).build();
 
-        final EventCreatorModule eventCreatorModule =
-                new NoOpEventCreatorModule(platformContext.getConfiguration(), model);
+        final EventCreatorModule eventCreatorModule = new NoOpEventCreatorModule(model);
+        final EventIntakeModule eventIntakeModule = new NoOpEventIntakeModule(model);
 
         final PlatformComponents platformComponents =
-                PlatformComponents.create(platformContext, model, eventCreatorModule);
+                PlatformComponents.create(platformContext, model, eventCreatorModule, eventIntakeModule);
         PlatformWiring.wire(
                 platformContext, mock(ExecutionLayer.class), platformComponents, ApplicationCallbacks.EMPTY);
 
@@ -102,7 +103,6 @@ class PlatformWiringTests {
 
         final PlatformCoordinator coordinator = new PlatformCoordinator(platformComponents, ApplicationCallbacks.EMPTY);
         componentBuilder
-                .withEventHasher(mock(EventHasher.class))
                 .withInternalEventValidator(mock(InternalEventValidator.class))
                 .withEventDeduplicator(mock(EventDeduplicator.class))
                 .withEventSignatureValidator(mock(EventSignatureValidator.class))

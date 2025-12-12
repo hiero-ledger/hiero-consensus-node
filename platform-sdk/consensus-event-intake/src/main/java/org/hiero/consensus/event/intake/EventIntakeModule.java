@@ -62,9 +62,9 @@ public interface EventIntakeModule {
      *
      * @return the {@link InputWire} for gossiped events
      */
-    @InputWireLabel("gossiped events")
+    @InputWireLabel("unhashed events")
     @NonNull
-    InputWire<PlatformEvent> gossipedEventsInputWire();
+    InputWire<PlatformEvent> unhashedEventsInputWire();
 
     /**
      * {@link InputWire} for self events created by this node.

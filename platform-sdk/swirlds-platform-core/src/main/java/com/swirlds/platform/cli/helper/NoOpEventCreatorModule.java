@@ -5,6 +5,7 @@ import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.time.Time;
 import com.swirlds.component.framework.component.ComponentWiring;
 import com.swirlds.component.framework.model.WiringModel;
+import com.swirlds.component.framework.schedulers.builders.TaskSchedulerConfiguration;
 import com.swirlds.component.framework.wires.input.InputWire;
 import com.swirlds.component.framework.wires.output.OutputWire;
 import com.swirlds.config.api.Configuration;
@@ -13,7 +14,6 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.security.SecureRandom;
 import java.time.Duration;
 import org.hiero.consensus.event.creator.EventCreatorModule;
-import org.hiero.consensus.event.creator.config.EventCreationWiringConfig;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.gossip.SyncProgress;
 import org.hiero.consensus.model.hashgraph.EventWindow;
@@ -34,15 +34,17 @@ public class NoOpEventCreatorModule implements EventCreatorModule {
     /**
      * Constructs a NoOpEventCreatorModule.
      *
-     * @param configuration the configuration
      * @param model         the wiring model
      */
-    public NoOpEventCreatorModule(@NonNull final Configuration configuration, @NonNull final WiringModel model) {
-        final EventCreationWiringConfig wiringConfig = configuration.getConfigData(EventCreationWiringConfig.class);
-        componentWiring = new ComponentWiring<>(model, EventCreatorModule.class, wiringConfig.eventCreationManager());
+    public NoOpEventCreatorModule(@NonNull final WiringModel model) {
+        componentWiring =
+                new ComponentWiring<>(model, EventCreatorModule.class, TaskSchedulerConfiguration.DIRECT_CONFIGURATION);
         componentWiring.bind(this);
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void initialize(
             @NonNull final WiringModel model,
@@ -56,62 +58,98 @@ public class NoOpEventCreatorModule implements EventCreatorModule {
             @NonNull final EventTransactionSupplier transactionSupplier,
             @NonNull final SignatureTransactionCheck signatureTransactionCheck) {}
 
-    @NonNull
+    /**
+     * {@inheritDoc}
+     */
     @Override
+    @NonNull
     public OutputWire<PlatformEvent> createdEventOutputWire() {
         return componentWiring.getOutputWire();
     }
 
-    @NonNull
+    /**
+     * {@inheritDoc}
+     */
     @Override
+    @NonNull
     public InputWire<PlatformEvent> orderedEventInputWire() {
         return componentWiring.getInputWire(EventCreatorModule::orderedEventInputWire);
     }
 
-    @NonNull
+    /**
+     * {@inheritDoc}
+     */
     @Override
+    @NonNull
     public InputWire<EventWindow> eventWindowInputWire() {
         return componentWiring.getInputWire(EventCreatorModule::eventWindowInputWire);
     }
 
-    @NonNull
+    /**
+     * {@inheritDoc}
+     */
     @Override
+    @NonNull
     public InputWire<PlatformStatus> platformStatusInputWire() {
         return componentWiring.getInputWire(EventCreatorModule::platformStatusInputWire);
     }
 
-    @NonNull
+    /**
+     * {@inheritDoc}
+     */
     @Override
+    @NonNull
     public InputWire<Duration> healthStatusInputWire() {
         return componentWiring.getInputWire(EventCreatorModule::healthStatusInputWire);
     }
 
-    @NonNull
+    /**
+     * {@inheritDoc}
+     */
     @Override
+    @NonNull
     public InputWire<SyncProgress> syncProgressInputWire() {
         return componentWiring.getInputWire(EventCreatorModule::syncProgressInputWire);
     }
 
-    @NonNull
+    /**
+     * {@inheritDoc}
+     */
     @Override
+    @NonNull
     public InputWire<QuiescenceCommand> quiescenceCommandInputWire() {
         return componentWiring.getInputWire(EventCreatorModule::quiescenceCommandInputWire);
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void destroy() {}
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void startSquelching() {}
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void flush() {}
 
+    /**
+     * {@inheritDoc}
+     */
     @Override
     public void stopSquelching() {}
 
-    @NonNull
+    /**
+     * {@inheritDoc}
+     */
     @Override
+    @NonNull
     public InputWire<Object> clearCreationMangerInputWire() {
         return componentWiring.getInputWire(EventCreatorModule::clearCreationMangerInputWire);
     }
