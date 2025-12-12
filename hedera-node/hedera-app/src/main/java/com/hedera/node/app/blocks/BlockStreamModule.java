@@ -63,21 +63,20 @@ public interface BlockStreamModule {
             @NonNull final ConfigProvider configProvider,
             @NonNull final SelfNodeAccountIdManager selfNodeAccountIdManager,
             @NonNull final FileSystem fileSystem,
-            @NonNull final BlockBufferService blockBufferService,
-            @NonNull final BlockNodeConnectionManager blockNodeConnectionManager) {
+            @NonNull final BlockBufferService blockBufferService) {
         final var config = configProvider.getConfiguration();
         final var blockStreamConfig = config.getConfigData(BlockStreamConfig.class);
 
         return switch (blockStreamConfig.writerMode()) {
             case FILE -> () -> new FileBlockItemWriter(configProvider, selfNodeAccountIdManager, fileSystem);
-            case GRPC -> () -> new GrpcBlockItemWriter(blockBufferService, blockNodeConnectionManager);
+            case GRPC -> () -> new GrpcBlockItemWriter(blockBufferService);
             case FILE_AND_GRPC ->
-                () -> new FileAndGrpcBlockItemWriter(
-                        configProvider,
-                        selfNodeAccountIdManager,
-                        fileSystem,
-                        blockBufferService,
-                        blockNodeConnectionManager);
+                () -> {
+                    final FileBlockItemWriter fileWriter =
+                            new FileBlockItemWriter(configProvider, selfNodeAccountIdManager, fileSystem);
+                    final GrpcBlockItemWriter grpcWriter = new GrpcBlockItemWriter(blockBufferService);
+                    return new FileAndGrpcBlockItemWriter(configProvider, fileWriter, grpcWriter);
+                };
         };
     }
 
