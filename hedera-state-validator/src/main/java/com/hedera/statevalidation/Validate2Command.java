@@ -21,6 +21,7 @@ import com.hedera.statevalidation.poc.model.DiskDataItem.Type;
 import com.hedera.statevalidation.poc.pipeline.ValidationPipelineExecutor;
 import com.hedera.statevalidation.poc.util.ValidationException;
 import com.hedera.statevalidation.poc.validator.api.Validator;
+import com.hedera.statevalidation.report.SlackReportBuilder;
 import com.hedera.statevalidation.util.StateUtils;
 import com.swirlds.merkledb.MerkleDbDataSource;
 import com.swirlds.state.MerkleNodeState;
@@ -176,6 +177,13 @@ public class Validate2Command implements Callable<Integer> {
 
             log.debug(
                     "Time spent for validation: {} ms", (System.nanoTime() - startTime) * NANOSECONDS_TO_MILLISECONDS);
+
+            // Generate Slack report for failures
+            final List<SlackReportBuilder.ValidationFailure> failures =
+                    validationExecutionListener.getFailedValidations().stream()
+                            .map(e -> new SlackReportBuilder.ValidationFailure(e.getValidatorTag(), e.getMessage()))
+                            .toList();
+            SlackReportBuilder.generateReport(failures);
 
             // Return result
             if (!pipelineSuccess) {

@@ -3,6 +3,9 @@ package com.hedera.statevalidation.poc.listener;
 
 import com.hedera.statevalidation.poc.util.ValidationException;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -14,6 +17,7 @@ public class ValidationExecutionListener implements ValidationListener {
 
     private static final Logger log = LogManager.getLogger(ValidationExecutionListener.class);
 
+    private final List<ValidationException> failedValidations = Collections.synchronizedList(new ArrayList<>());
     private volatile boolean failed = false;
 
     /**
@@ -41,6 +45,7 @@ public class ValidationExecutionListener implements ValidationListener {
     @Override
     public void onValidationFailed(@NonNull final ValidationException error) {
         this.failed = true;
+        this.failedValidations.add(error);
         log.error("Validator [{}] failed: {}", error.getValidatorTag(), error.getMessage(), error);
     }
 
@@ -51,5 +56,14 @@ public class ValidationExecutionListener implements ValidationListener {
      */
     public boolean isFailed() {
         return failed;
+    }
+
+    /**
+     * Returns the list of validation exceptions for all failed validations.
+     *
+     * @return unmodifiable list of validation failures
+     */
+    public List<ValidationException> getFailedValidations() {
+        return List.copyOf(failedValidations);
     }
 }
