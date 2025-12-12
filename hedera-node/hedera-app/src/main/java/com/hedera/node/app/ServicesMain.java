@@ -21,7 +21,6 @@ import static com.swirlds.platform.system.SystemExitCode.NODE_ADDRESS_MISMATCH;
 import static com.swirlds.platform.system.SystemExitUtils.exitSystem;
 import static com.swirlds.platform.util.BootstrapUtils.getNodesToRun;
 import static java.util.Objects.requireNonNull;
-import static org.hiero.consensus.roster.RosterUtils.buildAddressBook;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.hedera.hapi.node.base.AccountID;
@@ -86,7 +85,7 @@ import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.RuntimeConstructable;
 import org.hiero.base.crypto.CryptographyProvider;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.model.roster.AddressBook;
+import org.hiero.consensus.model.roster.SimpleAddresses;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.model.transaction.TimestampedTransaction;
 import org.hiero.consensus.roster.RosterUtils;
@@ -331,7 +330,7 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
         ConsensusStateEventHandler<MerkleNodeState> consensusStateEventHandler = hedera.newConsensusStateEvenHandler();
         final PlatformContext platformContext = PlatformContext.create(
                 platformConfig, Time.getCurrent(), metrics, fileSystemManager, recycleBin, merkleCryptography);
-        final Optional<AddressBook> maybeDiskAddressBook = loadLegacyAddressBook();
+        final Optional<SimpleAddresses> maybeDiskAddressBook = loadLegacyAddressBook();
         final HashedReservedSignedState reservedState = loadInitialState(
                 recycleBin,
                 version,
@@ -365,14 +364,10 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
         // --- Create the platform context and initialize the cryptography ---
         final var rosterHistory = RosterUtils.createRosterHistory(state);
         final var currentRoster = rosterHistory.getCurrentRoster();
-        // For now we convert to a legacy representation of the roster for convenience
-        final var addressBook = requireNonNull(buildAddressBook(currentRoster));
-        if (!addressBook.contains(selfId)) {
-            throw new IllegalStateException("Self node id " + selfId + " is not in the address book");
-        }
-        final var networkKeysAndCerts = initNodeSecurity(addressBook, platformConfig, Set.copyOf(nodesToRun));
+        final var nodeIds = currentRoster.rosterEntries().stream().map(e -> NodeId.of(e.nodeId())).toList();
+
+        final var networkKeysAndCerts = initNodeSecurity(nodeIds, platformConfig, Set.copyOf(nodesToRun));
         final var keysAndCerts = networkKeysAndCerts.get(selfId);
-        cryptography.digestSync(addressBook);
 
         // --- Now build the platform and start it ---
         final var platformBuilder = PlatformBuilder.create(
@@ -540,11 +535,11 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
      * @return the address book from a legacy config file, if present
      */
     @Deprecated
-    private static Optional<AddressBook> loadLegacyAddressBook() {
+    private static Optional<SimpleAddresses> loadLegacyAddressBook() {
         try {
             final LegacyConfigProperties props =
                     LegacyConfigPropertiesLoader.loadConfigFile(getAbsolutePath(DEFAULT_CONFIG_FILE_NAME));
-            return Optional.of(props.getAddressBook());
+            return Optional.of(props.getSimpleAddresses());
         } catch (final Exception ignore) {
             return Optional.empty();
         }

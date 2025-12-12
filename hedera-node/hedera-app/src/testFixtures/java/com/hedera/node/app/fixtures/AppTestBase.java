@@ -76,8 +76,8 @@ import java.util.Set;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.model.roster.Address;
-import org.hiero.consensus.model.roster.AddressBook;
+import org.hiero.consensus.model.roster.SimpleAddress;
+import org.hiero.consensus.model.roster.SimpleAddresses;
 import org.junit.jupiter.api.AfterEach;
 
 /**
@@ -381,11 +381,9 @@ public class AppTestBase extends TestBase implements TransactionFactory, Scenari
 
             final ConfigProvider configProvider = () -> new VersionedConfigImpl(configBuilder.getOrCreateConfig(), 1);
             final var addresses = nodes.stream()
-                    .map(nodeInfo -> new Address()
-                            .copySetNodeId(NodeId.of(nodeInfo.nodeId()))
-                            .copySetWeight(nodeInfo.zeroWeight() ? 0 : 10))
+                    .map(nodeInfo -> new SimpleAddress(nodeInfo.nodeId(), nodeInfo.weight()))
                     .toList();
-            final var addressBook = new AddressBook(addresses);
+            final var addressBook = new SimpleAddresses(addresses);
             final var platform = new FakePlatform(realSelfNodeInfo.nodeId(), addressBook);
             final var initialState = new FakeState();
             final var genesisRoster = buildRoster(addressBook);

@@ -8,9 +8,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import java.net.UnknownHostException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.model.roster.Address;
-import org.hiero.consensus.model.roster.AddressBook;
+import org.hiero.consensus.model.roster.SimpleAddress;
+import org.hiero.consensus.model.roster.SimpleAddresses;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
@@ -52,25 +51,21 @@ class LegacyConfigPropertiesLoaderTest {
         // then
         assertNotNull(properties, "The properties should never be null");
 
-        final AddressBook addressBook = properties.getAddressBook();
+        final SimpleAddresses addressBook = properties.getSimpleAddresses();
         assertNotNull(addressBook);
 
-        assertEquals(4, addressBook.getSize());
+        assertEquals(4, addressBook.addresses().size());
 
-        final NodeId firstNode = addressBook.getNodeId(0);
-        final Address firstAddress = addressBook.getAddress(firstNode);
-        assertEquals(1L, firstAddress.getNodeId().id());
+        final SimpleAddress firstNode = addressBook.addresses().getFirst();
+        assertEquals(1L, firstNode.nodeId());
 
-        final NodeId secondNode = addressBook.getNodeId(1);
-        final Address secondAddress = addressBook.getAddress(secondNode);
-        assertEquals(3L, secondAddress.getNodeId().id());
+        final SimpleAddress secondNode = addressBook.addresses().get(1);
+        assertEquals(3L, secondNode.nodeId());
 
-        final NodeId thirdNode = addressBook.getNodeId(2);
-        final Address thirdAddress = addressBook.getAddress(thirdNode);
-        assertEquals(20L, thirdAddress.getNodeId().id());
+        final SimpleAddress thirdNode = addressBook.addresses().get(2);
+        assertEquals(20L, thirdNode.nodeId());
 
-        final NodeId fourthNode = addressBook.getNodeId(3);
-        final Address fourthAddress = addressBook.getAddress(fourthNode);
-        assertEquals(95L, fourthAddress.getNodeId().id());
+        final SimpleAddress fourthNode = addressBook.addresses().get(3);
+        assertEquals(95L, fourthNode.nodeId());
     }
 }

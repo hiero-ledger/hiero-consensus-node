@@ -3,28 +3,21 @@ package com.hedera.services.bdd.junit.hedera.utils;
 
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.workingDirFor;
 import static java.util.Objects.requireNonNull;
-import static java.util.stream.Collectors.toMap;
 
 import com.google.protobuf.ByteString;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
-import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.hedera.HederaNode;
 import com.hedera.services.bdd.junit.hedera.NodeMetadata;
 import com.hederahashgraph.api.proto.java.ServiceEndpoint;
-import com.swirlds.platform.crypto.CryptoStatic;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.file.Path;
-import java.security.cert.CertificateEncodingException;
-import java.text.ParseException;
 import java.util.List;
 import java.util.Map;
 import java.util.regex.Pattern;
-import java.util.stream.IntStream;
 import java.util.stream.Stream;
-import org.hiero.consensus.model.roster.AddressBook;
 
 /**
  * Utility class for generating an address book configuration file.
@@ -36,38 +29,6 @@ public class AddressBookUtils {
 
     private AddressBookUtils() {
         throw new UnsupportedOperationException("Utility Class");
-    }
-
-    /**
-     * Given a config.txt file, generates the same map of node ids to ASN.1 DER encodings of X.509 certificates
-     * as will be produced in a test network.
-     * @param configTxt the contents of a config.txt file
-     * @return the map of node IDs to their cert encodings
-     */
-    public static Map<Long, Bytes> certsFor(@NonNull final String configTxt) {
-        final AddressBook synthBook;
-        try {
-            synthBook = com.swirlds.platform.system.address.AddressBookUtils.parseAddressBookText(configTxt);
-        } catch (ParseException e) {
-            throw new IllegalArgumentException(e);
-        }
-        try {
-            CryptoStatic.generateKeysAndCerts(synthBook);
-        } catch (Exception e) {
-            throw new IllegalStateException("Error generating keys and certs", e);
-        }
-        return IntStream.range(0, synthBook.getSize())
-                .boxed()
-                .collect(toMap(j -> synthBook.getNodeId(j).id(), j -> {
-                    try {
-                        return Bytes.wrap(requireNonNull(synthBook
-                                        .getAddress(synthBook.getNodeId(j))
-                                        .getSigCert())
-                                .getEncoded());
-                    } catch (CertificateEncodingException e) {
-                        throw new IllegalStateException(e);
-                    }
-                }));
     }
 
     /**

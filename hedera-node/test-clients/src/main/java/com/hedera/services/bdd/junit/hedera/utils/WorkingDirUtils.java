@@ -16,6 +16,8 @@ import com.hedera.node.internal.network.NodeMetadata;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.spec.HapiPropertySource;
 import com.hedera.services.bdd.spec.props.JutilPropertySource;
+import com.swirlds.platform.crypto.CryptoStatic;
+import com.swirlds.platform.system.address.AddressBookUtils;
 import com.swirlds.platform.test.fixtures.addressbook.RandomAddressBookBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -29,13 +31,13 @@ import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.security.cert.CertificateEncodingException;
 import java.security.cert.X509Certificate;
-import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Random;
 import java.util.stream.Stream;
+import org.hiero.consensus.model.node.NodeId;
 
 public class WorkingDirUtils {
     private static final Key CLASSIC_ADMIN_KEY = Key.newBuilder()
@@ -389,39 +391,45 @@ public class WorkingDirUtils {
     public static Network networkFrom(@NonNull final String configTxt, @NonNull final OnlyRoster onlyRoster) {
         requireNonNull(configTxt);
         requireNonNull(onlyRoster);
-        final var certs = AddressBookUtils.certsFor(configTxt);
-        final var nodeMetadata = Arrays.stream(configTxt.split("\n"))
-                .filter(line -> line.contains("address, "))
-                .map(line -> {
-                    final var parts = line.split(", ");
-                    final long nodeId = Long.parseLong(parts[1]);
-                    final long weight = Long.parseLong(parts[4]);
-                    final var gossipEndpoints =
-                            List.of(endpointFrom(parts[5], parts[6]), endpointFrom(parts[7], parts[8]));
-                    final var cert = certs.get(nodeId);
-                    final var metadata = NodeMetadata.newBuilder()
-                            .rosterEntry(new RosterEntry(nodeId, weight, cert, gossipEndpoints));
-                    final var nodeAccount = toPbj(HapiPropertySource.asAccount(parts[9]));
-                    if (onlyRoster == OnlyRoster.NO) {
-                        metadata.node(new Node(
-                                nodeId,
-                                nodeAccount,
-                                "node" + (nodeId + 1),
-                                gossipEndpoints,
-                                List.of(endpointFrom(parts[5], parts[6])),
-                                cert,
-                                // The gRPC certificate hash is irrelevant for PR checks
-                                Bytes.EMPTY,
-                                weight,
-                                false,
-                                CLASSIC_ADMIN_KEY,
-                                false,
-                                null));
-                    }
-                    return metadata.build();
-                })
-                .toList();
-        return Network.newBuilder().nodeMetadata(nodeMetadata).build();
+        try {
+            final var simpleAddresses = AddressBookUtils.parseToSimpleAddresses(configTxt);
+            final var nodeIds = simpleAddresses.getNodeIds();
+            final var certs = CryptoStatic.generateKeysAndCerts(nodeIds);
+            final var nodeMetadata = simpleAddresses.addresses().stream()
+                    .map(address -> {
+                        final var nodeId = address.nodeId();
+                        final Bytes cert;
+                        try {
+                            cert = Bytes.wrap(certs.get(NodeId.of(nodeId)).sigCert().getEncoded());
+                        } catch (CertificateEncodingException e) {
+                            throw new RuntimeException(e);
+                        }
+                        final var metadata = NodeMetadata.newBuilder()
+                                .rosterEntry(new RosterEntry(nodeId, address.weight(), cert, address.serviceEndpoints()));
+                        final var nodeAccount = toPbj(HapiPropertySource.asAccount(address.memo()));
+                        if (onlyRoster == OnlyRoster.NO) {
+                            metadata.node(new Node(
+                                    nodeId,
+                                    nodeAccount,
+                                    "node" + (nodeId + 1),
+                                    address.serviceEndpoints(),
+                                    List.of(address.serviceEndpoints().getFirst()),
+                                    cert,
+                                    // The gRPC certificate hash is irrelevant for PR checks
+                                    Bytes.EMPTY,
+                                    address.weight(),
+                                    false,
+                                    CLASSIC_ADMIN_KEY,
+                                    false,
+                                    null));
+                        }
+                        return metadata.build();
+                    })
+                    .toList();
+            return Network.newBuilder().nodeMetadata(nodeMetadata).build();
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
     }
 
     private static ServiceEndpoint endpointFrom(@NonNull final String hostLiteral, @NonNull final String portLiteral) {

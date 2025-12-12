@@ -5,10 +5,11 @@ import static com.hedera.hapi.util.HapiUtils.parseAccountFromLegacy;
 import static com.swirlds.platform.builder.PlatformBuildConstants.DEFAULT_CONFIG_FILE_NAME;
 import static com.swirlds.platform.state.service.PlatformStateUtils.roundOf;
 import static java.util.Objects.requireNonNull;
-import static org.hiero.consensus.roster.RosterRetriever.buildRoster;
 
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.state.addressbook.Node;
+import com.hedera.hapi.node.state.roster.Roster;
+import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.node.app.service.addressbook.AddressBookService;
 import com.hedera.node.app.service.addressbook.impl.ReadableNodeStoreImpl;
 import com.hedera.node.app.service.entityid.EntityIdService;
@@ -41,8 +42,8 @@ import java.util.regex.Pattern;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.roster.AddressBook;
+import org.hiero.consensus.model.roster.SimpleAddresses;
 import org.hiero.consensus.roster.RosterRetriever;
 
 /**
@@ -220,6 +221,20 @@ public class DiskStartupNetworks implements StartupNetworks {
         }
     }
 
+    private static Roster buildRoster(final SimpleAddresses addresses) {
+        final var builder = Roster.newBuilder();
+
+        builder.rosterEntries(addresses.addresses().stream().map(
+                a -> RosterEntry.newBuilder()
+                        .nodeId(a.nodeId())
+                        .weight(a.weight())
+                        .gossipEndpoint(a.serviceEndpoints())
+                        .build()
+        ).toList());
+
+        return builder.build();
+    }
+
     /**
      * Converts a {@link AddressBook} to a {@link Network}. The resulting network will have no TSS
      * keys of any kind.
@@ -229,7 +244,7 @@ public class DiskStartupNetworks implements StartupNetworks {
      * @return the converted network
      */
     public static @NonNull Network fromLegacyAddressBook(
-            @NonNull final AddressBook addressBook, @NonNull final VersionedConfiguration configuration) {
+            @NonNull final SimpleAddresses addressBook, @NonNull final VersionedConfiguration configuration) {
         final var roster = buildRoster(addressBook);
         final var hederaConfig = configuration.getConfigData(HederaConfig.class);
         return Network.newBuilder()
@@ -237,7 +252,7 @@ public class DiskStartupNetworks implements StartupNetworks {
                         .map(rosterEntry -> {
                             final var nodeId = rosterEntry.nodeId();
                             final var nodeAccountId = parseAccountFromLegacy(
-                                    addressBook.getAddress(NodeId.of(nodeId)).getMemo(),
+                                    requireNonNull(addressBook.get(nodeId), "entry not found").memo(),
                                     hederaConfig.shard(),
                                     hederaConfig.realm());
                             // Currently the ReadableFreezeUpgradeActions.writeConfigLineAndPem()
@@ -317,12 +332,12 @@ public class DiskStartupNetworks implements StartupNetworks {
             @NonNull final Configuration platformConfig, @NonNull final VersionedConfiguration appConfig) {
         try {
             log.info("No genesis-network.json detected, falling back to config.txt and initNodeSecurity()");
-            final AddressBook legacyBook;
+            final SimpleAddresses legacyBook;
             final var configFile = LegacyConfigPropertiesLoader.loadConfigFile(Paths.get(DEFAULT_CONFIG_FILE_NAME));
             try {
-                legacyBook = configFile.getAddressBook();
+                legacyBook = configFile.getSimpleAddresses();
                 // Load the public keys into the address book. No private keys should be loaded!
-                CryptoStatic.initNodeSecurity(legacyBook, platformConfig, Set.of());
+                CryptoStatic.initNodeSecurity(legacyBook.getNodeIds(), platformConfig, Set.of());
             } catch (Exception e) {
                 throw new IllegalStateException("Error generating keys and certs", e);
             }

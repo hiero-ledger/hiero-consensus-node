@@ -8,6 +8,7 @@ import static com.hedera.node.app.info.DiskStartupNetworks.OVERRIDE_NETWORK_JSON
 import static com.hedera.node.app.info.DiskStartupNetworks.fromLegacyAddressBook;
 import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema.NODES_STATE_ID;
 import static com.swirlds.platform.state.service.PlatformStateService.PLATFORM_STATE_SERVICE;
+import static com.swirlds.platform.system.address.AddressBookUtils.endpointFor;
 import static java.util.Objects.requireNonNull;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThatNoException;
@@ -62,9 +63,8 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.IntStream;
 import org.assertj.core.api.Assertions;
-import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.model.roster.Address;
-import org.hiero.consensus.model.roster.AddressBook;
+import org.hiero.consensus.model.roster.SimpleAddress;
+import org.hiero.consensus.model.roster.SimpleAddresses;
 import org.hiero.consensus.roster.RosterUtils;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -148,18 +148,12 @@ class DiskStartupNetworksTest {
     @Test
     void computesFromLegacyAddressBook() {
         final int n = 3;
-        final var legacyBook = new AddressBook(IntStream.range(0, n)
-                .mapToObj(i -> new Address(
-                        NodeId.of(i),
-                        "" + i,
-                        "node" + (i + 1),
-                        1L,
-                        "localhost",
-                        i + 1,
-                        "127.0.0.1",
-                        i + 2,
-                        null,
-                        null,
+        final var legacyBook = new SimpleAddresses(IntStream.range(0, n)
+                .mapToObj(i -> new SimpleAddress(
+                        i,
+                        i,
+                        List.of(endpointFor( "127.0.0.1", "localhost", i + 1),
+                                endpointFor("127.0.0.1", "localhost", i + 2)),
                         "0.0." + (i + 3)))
                 .toList());
         final var network = fromLegacyAddressBook(

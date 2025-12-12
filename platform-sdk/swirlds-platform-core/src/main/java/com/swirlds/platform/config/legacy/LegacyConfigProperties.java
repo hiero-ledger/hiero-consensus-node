@@ -2,8 +2,8 @@
 package com.swirlds.platform.config.legacy;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.Objects;
-import org.hiero.consensus.model.roster.AddressBook;
+import java.util.List;
+import org.hiero.consensus.model.roster.SimpleAddresses;
 
 /**
  * Bean for all parameters that can be part of the config.txt file
@@ -13,31 +13,13 @@ import org.hiero.consensus.model.roster.AddressBook;
  * 		static access as possible.
  */
 @Deprecated(forRemoval = true)
-public class LegacyConfigProperties {
+public record LegacyConfigProperties(SimpleAddresses simpleAddresses) {
 
-    private AddressBook addressBook = null;
-
-    /**
-     * Set the address book.
-     *
-     * @param addressBook the address book
-     */
-    public void setAddressBook(@NonNull final AddressBook addressBook) {
-        Objects.requireNonNull(addressBook, "addressBook");
-        this.addressBook = addressBook.copy();
-    }
-
-    /**
-     * Get the address book. If no address book is set, an empty address book is returned.
-     *
-     * @return the address book
-     */
     @NonNull
-    public AddressBook getAddressBook() {
-        if (addressBook == null) {
-            return new AddressBook();
+    public SimpleAddresses getSimpleAddresses() {
+        if (simpleAddresses == null) {
+            return new SimpleAddresses(List.of());
         }
-        return addressBook.copy();
+        return simpleAddresses;
     }
-
 }
