@@ -21,14 +21,12 @@ import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.movi
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
-import static com.hedera.services.bdd.suites.HapiSuite.THOUSAND_HBAR;
 import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
 import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
 
 import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
-import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
@@ -404,7 +402,8 @@ public class CryptoTransferSimpleFeesSuite {
                 // + 2 extra fungible tokens (3 total - 1 included)
                 // + 2 extra NFT serials (3 total - 1 included)
                 validateChargedUsd(
-                        "complexTxn", TOKEN_TRANSFER_CUSTOM_FEE + 2 * ADDITIONAL_TOKEN_FEE + 2 * ADDITIONAL_NFT_SERIAL_FEE));
+                        "complexTxn",
+                        TOKEN_TRANSFER_CUSTOM_FEE + 2 * ADDITIONAL_TOKEN_FEE + 2 * ADDITIONAL_NFT_SERIAL_FEE));
     }
 
     // ==================== HOOK TESTS ====================

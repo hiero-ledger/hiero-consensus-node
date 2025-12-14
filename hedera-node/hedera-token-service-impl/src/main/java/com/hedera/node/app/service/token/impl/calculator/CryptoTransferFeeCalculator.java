@@ -91,9 +91,8 @@ public class CryptoTransferFeeCalculator implements ServiceFeeCalculator {
     @Nullable
     private Extra determineTransferType(@NonNull final TokenCounts tokenCounts) {
         final boolean hasCustomFeeTokens = tokenCounts.customFeeNft() > 0 || tokenCounts.customFeeFungible() > 0;
-        final boolean hasAnyTokens = hasCustomFeeTokens
-                || tokenCounts.standardNft() > 0
-                || tokenCounts.standardFungible() > 0;
+        final boolean hasAnyTokens =
+                hasCustomFeeTokens || tokenCounts.standardNft() > 0 || tokenCounts.standardFungible() > 0;
 
         if (hasCustomFeeTokens) {
             return TOKEN_TRANSFER_BASE_CUSTOM_FEES;

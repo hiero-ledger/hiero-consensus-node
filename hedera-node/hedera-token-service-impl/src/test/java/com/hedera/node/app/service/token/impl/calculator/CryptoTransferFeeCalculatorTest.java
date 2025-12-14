@@ -187,7 +187,7 @@ class CryptoTransferFeeCalculatorTest {
         void mixOfStandardAndCustomFeeTokens() {
             setupMocksWithTokenStore();
             mockFungibleToken(2001L, false); // standard
-            mockFungibleToken(2002L, true);  // custom fees
+            mockFungibleToken(2002L, true); // custom fees
 
             final var standardTransfer = buildTokenTransferList(2001L, 1001L, 1002L, 50L);
             final var customFeeTransfer = buildTokenTransferList(2002L, 1003L, 1004L, 100L);
@@ -241,12 +241,16 @@ class CryptoTransferFeeCalculatorTest {
                     .token(TokenID.newBuilder().tokenNum(2001L).build())
                     .transfers(
                             AccountAmount.newBuilder()
-                                    .accountID(AccountID.newBuilder().accountNum(1001L).build())
+                                    .accountID(AccountID.newBuilder()
+                                            .accountNum(1001L)
+                                            .build())
                                     .amount(-50L)
                                     .preTxAllowanceHook(HookCall.DEFAULT)
                                     .build(),
                             AccountAmount.newBuilder()
-                                    .accountID(AccountID.newBuilder().accountNum(1002L).build())
+                                    .accountID(AccountID.newBuilder()
+                                            .accountNum(1002L)
+                                            .build())
                                     .amount(50L)
                                     .build())
                     .build();
@@ -299,24 +303,32 @@ class CryptoTransferFeeCalculatorTest {
         final var transfers = TransferList.newBuilder()
                 .accountAmounts(
                         AccountAmount.newBuilder()
-                                .accountID(AccountID.newBuilder().accountNum(senderNum).build())
+                                .accountID(AccountID.newBuilder()
+                                        .accountNum(senderNum)
+                                        .build())
                                 .amount(-amount)
                                 .build(),
                         AccountAmount.newBuilder()
-                                .accountID(AccountID.newBuilder().accountNum(receiverNum).build())
+                                .accountID(AccountID.newBuilder()
+                                        .accountNum(receiverNum)
+                                        .build())
                                 .amount(amount)
                                 .build())
                 .build();
 
         return TransactionBody.newBuilder()
-                .cryptoTransfer(CryptoTransferTransactionBody.newBuilder().transfers(transfers).build())
+                .cryptoTransfer(CryptoTransferTransactionBody.newBuilder()
+                        .transfers(transfers)
+                        .build())
                 .build();
     }
 
     private TransactionBody buildFungibleTokenTransfer(long tokenNum, long senderNum, long receiverNum, long amount) {
         final var tokenTransfers = buildTokenTransferList(tokenNum, senderNum, receiverNum, amount);
         return TransactionBody.newBuilder()
-                .cryptoTransfer(CryptoTransferTransactionBody.newBuilder().tokenTransfers(tokenTransfers).build())
+                .cryptoTransfer(CryptoTransferTransactionBody.newBuilder()
+                        .tokenTransfers(tokenTransfers)
+                        .build())
                 .build();
     }
 
@@ -325,11 +337,15 @@ class CryptoTransferFeeCalculatorTest {
                 .token(TokenID.newBuilder().tokenNum(tokenNum).build())
                 .transfers(
                         AccountAmount.newBuilder()
-                                .accountID(AccountID.newBuilder().accountNum(senderNum).build())
+                                .accountID(AccountID.newBuilder()
+                                        .accountNum(senderNum)
+                                        .build())
                                 .amount(-amount)
                                 .build(),
                         AccountAmount.newBuilder()
-                                .accountID(AccountID.newBuilder().accountNum(receiverNum).build())
+                                .accountID(AccountID.newBuilder()
+                                        .accountNum(receiverNum)
+                                        .build())
                                 .amount(amount)
                                 .build())
                 .build();
@@ -338,7 +354,9 @@ class CryptoTransferFeeCalculatorTest {
     private TransactionBody buildNftTransfer(long tokenNum, long senderNum, long receiverNum, long serialNumber) {
         final var nftTransfers = buildNftTransferList(tokenNum, senderNum, receiverNum, serialNumber);
         return TransactionBody.newBuilder()
-                .cryptoTransfer(CryptoTransferTransactionBody.newBuilder().tokenTransfers(nftTransfers).build())
+                .cryptoTransfer(CryptoTransferTransactionBody.newBuilder()
+                        .tokenTransfers(nftTransfers)
+                        .build())
                 .build();
     }
 
@@ -346,8 +364,10 @@ class CryptoTransferFeeCalculatorTest {
         return TokenTransferList.newBuilder()
                 .token(TokenID.newBuilder().tokenNum(tokenNum).build())
                 .nftTransfers(NftTransfer.newBuilder()
-                        .senderAccountID(AccountID.newBuilder().accountNum(senderNum).build())
-                        .receiverAccountID(AccountID.newBuilder().accountNum(receiverNum).build())
+                        .senderAccountID(
+                                AccountID.newBuilder().accountNum(senderNum).build())
+                        .receiverAccountID(
+                                AccountID.newBuilder().accountNum(receiverNum).build())
                         .serialNumber(serialNumber)
                         .build())
                 .build();
