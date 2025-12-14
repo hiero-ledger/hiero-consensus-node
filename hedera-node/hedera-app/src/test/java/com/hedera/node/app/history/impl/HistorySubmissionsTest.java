@@ -124,7 +124,7 @@ class HistorySubmissionsTest {
         given(appContext.configSupplier()).willReturn(() -> DEFAULT_CONFIG);
         given(appContext.gossip()).willReturn(gossip);
 
-        subject.submitProofVote(123L, HistoryProof.DEFAULT);
+        subject.submitExplicitProofVote(123L, HistoryProof.DEFAULT);
 
         final ArgumentCaptor<Consumer<TransactionBody.Builder>> captor = ArgumentCaptor.forClass(Consumer.class);
         verify(gossip)
