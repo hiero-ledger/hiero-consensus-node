@@ -309,24 +309,16 @@ public class BlockStreamEventBuilder {
                     // Parent is already an EventDescriptor (outside current block)
                     final EventDescriptor parentDescriptor = parentRef.parent().as();
                     resolvedParents.add(parentDescriptor);
-                    final Hash parentHash = new Hash(parentDescriptor.hash());
 
-                    // Only validate parents that should be within the block stream's scope.
+                    // Only track cross-block parents that should be within the block stream's scope.
                     // Parents with birth round before firstRoundInStream are pre-stream/genesis
-                    // events that we cannot validate (they were created before recording started).
+                    // events that won't exist in the stream - they are excluded from validation.
                     final boolean parentIsWithinStreamScope =
                             firstRoundInStream == -1 || parentDescriptor.birthRound() >= firstRoundInStream;
 
                     if (parentIsWithinStreamScope) {
-                        if (!eventHashToEvent.containsKey(parentHash)) {
-                            fail(
-                                    "Unable to find event matching parent hash %s (birthRound=%d, firstRoundInStream=%d)",
-                                    parentHash, parentDescriptor.birthRound(), firstRoundInStream);
-                        }
-                        crossBlockParentHashes.add(parentHash);
+                        crossBlockParentHashes.add(new Hash(parentDescriptor.hash()));
                     }
-                    // Parents outside scope (birthRound < firstRoundInStream) are expected to be
-                    // missing - they are genesis/pre-stream events not recorded in the block stream
                     break;
 
                 default:
