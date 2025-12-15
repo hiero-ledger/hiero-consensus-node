@@ -69,11 +69,9 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Objects;
-import java.util.ServiceLoader;
 import org.hiero.consensus.crypto.DefaultEventHasher;
 import org.hiero.consensus.crypto.EventHasher;
 import org.hiero.consensus.crypto.PlatformSigner;
-import org.hiero.consensus.event.creator.EventCreatorModule;
 import org.hiero.consensus.model.event.CesEvent;
 
 /**
@@ -104,7 +102,6 @@ public class PlatformComponentBuilder {
     private EventSignatureValidator eventSignatureValidator;
     private StateGarbageCollector stateGarbageCollector;
     private OrphanBuffer orphanBuffer;
-    private EventCreatorModule eventCreator;
     private ConsensusEngine consensusEngine;
     private ConsensusEventStream consensusEventStream;
     private SignedStateSentinel signedStateSentinel;
@@ -399,50 +396,6 @@ public class PlatformComponentBuilder {
         this.orphanBuffer = Objects.requireNonNull(orphanBuffer);
 
         return this;
-    }
-
-    /**
-     * Provide an event creator in place of the platform's default event creator.
-     *
-     * @param eventCreator the event creator to use
-     * @return this builder
-     */
-    @NonNull
-    public PlatformComponentBuilder withEventCreator(@NonNull final EventCreatorModule eventCreator) {
-        throwIfAlreadyUsed();
-        if (this.eventCreator != null) {
-            throw new IllegalStateException("Event creation manager has already been set");
-        }
-        this.eventCreator = Objects.requireNonNull(eventCreator);
-        return this;
-    }
-
-    /**
-     * Build the event creator if it has not yet been built. If one has been provided via
-     * {@link #withEventCreator(EventCreatorModule)}, that creator will be used. If this method is called more than once,
-     * only the first call will build the event creator. Otherwise, the default creator will be created and returned.
-     *
-     * @return the event creator
-     */
-    @NonNull
-    public EventCreatorModule buildEventCreator() {
-        if (eventCreator == null) {
-            eventCreator = ServiceLoader.load(EventCreatorModule.class).stream()
-                    .findFirst()
-                    .orElseThrow(() -> new IllegalStateException("No EventCreatorModule implementation found!"))
-                    .get();
-        }
-        eventCreator.initialize(
-                blocks.platformContext().getConfiguration(),
-                blocks.platformContext().getMetrics(),
-                blocks.platformContext().getTime(),
-                blocks.secureRandomSupplier().get(),
-                new PlatformSigner(blocks.keysAndCerts()),
-                blocks.rosterHistory().getCurrentRoster(),
-                blocks.selfId(),
-                blocks.execution(),
-                blocks.execution());
-        return eventCreator;
     }
 
     /**

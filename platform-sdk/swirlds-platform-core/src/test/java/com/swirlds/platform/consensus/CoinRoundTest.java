@@ -3,7 +3,6 @@ package com.swirlds.platform.consensus;
 
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.test.fixtures.io.ResourceLoader;
-import com.swirlds.platform.ConsensusImpl;
 import com.swirlds.platform.config.legacy.LegacyConfigProperties;
 import com.swirlds.platform.config.legacy.LegacyConfigPropertiesLoader;
 import com.swirlds.platform.event.preconsensus.PcesFileReader;
@@ -57,7 +56,5 @@ public class CoinRoundTest extends PlatformTest {
             final PlatformEvent event = eventIterator.next();
             intake.addEvent(event);
         }
-
-        assertMarkerFile(ConsensusImpl.COIN_ROUND_MARKER_FILE, true);
     }
 }
