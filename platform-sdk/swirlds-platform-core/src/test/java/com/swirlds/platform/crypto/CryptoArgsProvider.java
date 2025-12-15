@@ -2,6 +2,8 @@
 package com.swirlds.platform.crypto;
 
 import com.hedera.hapi.node.state.roster.Roster;
+import com.hedera.hapi.node.state.roster.RosterEntry;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.test.fixtures.Randotron;
 import com.swirlds.common.test.fixtures.WeightGenerators;
 import com.swirlds.common.test.fixtures.io.ResourceLoader;
@@ -15,7 +17,9 @@ import java.nio.file.Path;
 import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
 import java.security.NoSuchProviderException;
+import java.security.cert.CertificateEncodingException;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -87,6 +91,17 @@ public class CryptoArgsProvider {
                 .generate()
                 .verify()
                 .keysAndCerts();
-        return new RosterAndCerts(createdAB, loadedC);
+        final ArrayList<RosterEntry> rosterEntries = new ArrayList<>();
+        for (RosterEntry entry : createdAB.rosterEntries()) {
+            try {
+                final RosterEntry newOne = entry.copyBuilder()
+                        .gossipCaCertificate(Bytes.wrap(loadedC.get(NodeId.of(entry.nodeId())).sigCert().getEncoded()))
+                        .build();
+                rosterEntries.add(newOne);
+            } catch (CertificateEncodingException e) {
+                throw new RuntimeException(e);
+            }
+        }
+        return new RosterAndCerts(new Roster(rosterEntries), loadedC);
     }
 }
