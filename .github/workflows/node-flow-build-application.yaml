@@ -177,9 +177,6 @@ jobs:
           retention-days: 7
           path: |
             run.log
-            hedera-node/test-clients/build/*.log
-            hedera-node/test-clients/build/*.blk.gz
-            hedera-node/test-clients/build/*.rcd.gz
 
 #      - name: Get Commit Information
 #        id: fetch-commit-info

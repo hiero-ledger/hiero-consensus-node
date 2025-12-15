@@ -359,7 +359,7 @@ jobs:
           path: platform-sdk/consensus-otter-tests/build/container
           retention-days: 7
 
-      - name: HAPI Test (Misc)
+      - name: HAPI Testing (Misc)
         id: gradle-hapi-misc
         if: ${{ inputs.enable-hapi-tests-misc && steps.gradle-build.conclusion == 'success' && !cancelled() }}
         env:
@@ -391,9 +391,9 @@ jobs:
         with:
           name: HAPI Test (Misc) Network Logs
           path: |
-            hedera-node/test-clients/build/hapi-test/**/output/**
-            hedera-node/test-clients/build/hapi-test/*.log
-            hedera-node/test-clients/output/**
+            hedera-node/test-clients/build/**/*.log
+            hedera-node/test-clients/build/**/*.blk.gz
+            hedera-node/test-clients/build/**/*.rcd.gz
           retention-days: 7
 
       - name: List the files to upload as artifact
@@ -636,7 +636,7 @@ jobs:
             hedera-node/test-clients/output/**
           retention-days: 7
 
-      - name: HAPI Test (Restart)
+      - name: HAPI Testing (Restart)
         id: gradle-hapi-restart
         if: ${{ inputs.enable-hapi-tests-restart && steps.gradle-build.conclusion == 'success' && !cancelled() }}
         env:
@@ -683,6 +683,10 @@ jobs:
           ls -lh hedera-node/test-clients/
           echo "Contents of hedera-node/test-clients/build/:"
           ls -lh hedera-node/test-clients/build/
+          echo "Contents of hedera-node/test-clients/build/hapi-test/:"
+          ls -lh hedera-node/test-clients/build/hapi-test/
+          echo "Contents of hedera-node/test-clients/build/hapi-test/node0/data/blockStreams/block-11.12.3:"
+          ls -lh hedera-node/test-clients/build/hapi-test/node0/data/blockStreams/block-11.12.3/
 
       - name: Upload Unit Test (Timing Sensitive) Failure Artifacts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -691,9 +695,9 @@ jobs:
         with:
           name: HAPI Test (Restart) Failure Artifacts
           path: |
-            hedera-node/test-clients/build/*.log
-            hedera-node/test-clients/build/*.blk.gz
-            hedera-node/test-clients/build/*.rcd.gz
+            hedera-node/test-clients/build/**/*.log
+            hedera-node/test-clients/build/**/*.blk.gz
+            hedera-node/test-clients/build/**/*.rcd.gz
           retention-days: 7
 
       - name: HAPI Testing (Node Death Reconnect)
