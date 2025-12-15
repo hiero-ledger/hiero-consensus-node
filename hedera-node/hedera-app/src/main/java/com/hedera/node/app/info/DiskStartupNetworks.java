@@ -34,14 +34,17 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.security.cert.X509Certificate;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.roster.SimpleAddresses;
 import org.hiero.consensus.roster.RosterRetriever;
 
@@ -337,7 +340,8 @@ public class DiskStartupNetworks implements StartupNetworks {
             try {
                 legacyBook = configFile.getSimpleAddresses();
                 // Load the public keys into the address book. No private keys should be loaded!
-                CryptoStatic.initNodeSecurity(legacyBook.getNodeIds(), platformConfig, Set.of());
+                final Map<NodeId, X509Certificate> signingCertificates = CryptoStatic.getSigningCertificates(
+                        platformConfig, legacyBook.getNodeIds());
             } catch (Exception e) {
                 throw new IllegalStateException("Error generating keys and certs", e);
             }

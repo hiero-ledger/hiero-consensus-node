@@ -240,7 +240,7 @@ public class EnhancedKeyStoreLoader {
      */
     @NonNull
     public static EnhancedKeyStoreLoader using(
-            @NonNull final Collection<NodeId> allNodes,
+            @NonNull final Collection<NodeId> allNodes,//TODO remove once set
             @NonNull final Configuration configuration,
             @NonNull final Set<NodeId> localNodes) {
         Objects.requireNonNull(allNodes, MSG_ADDRESS_BOOK_NON_NULL);
@@ -370,23 +370,21 @@ public class EnhancedKeyStoreLoader {
         return this;
     }
 
-
-    public AllKeysAndCerts allKeysAndCerts() throws KeyLoadingException {
+    /**
+     * Creates a map containing the private keys for all local nodes and the public keys for all nodes using the
+     * supplied address book.
+     *
+     * @return the map of all keys and certificates per {@link NodeId}.
+     * @throws KeyStoreException   if an error occurred while parsing the key store or the key store is not
+     *                             initialized.
+     * @throws KeyLoadingException if one or more of the required keys were not loaded or are not of the correct type.
+     */
+    @NonNull
+    public Map<NodeId, KeysAndCerts> keysAndCerts() throws KeyStoreException, KeyLoadingException {
         final Map<NodeId, KeysAndCerts> keysAndCerts = HashMap.newHashMap(localNodes.size());
-        final Map<NodeId, X509Certificate> allCerts = HashMap.newHashMap(allNodes.size());
+        final Map<NodeId, X509Certificate> signing = signingCertificates();
 
         for (final NodeId nodeId : this.allNodes) {
-            final Certificate sigCert = sigCertificates.get(nodeId);
-
-            if (sigCert == null) {
-                throw new KeyLoadingException("No signing certificate found for nodeId: %s".formatted(nodeId));
-            }
-            if (!(sigCert instanceof final X509Certificate x509SigCert)) {
-                throw new KeyLoadingException("Illegal signing certificate type for nodeId: %s [ purpose = %s ]"
-                        .formatted(nodeId, KeyCertPurpose.SIGNING));
-            }
-            allCerts.put(nodeId, x509SigCert);
-
             if (localNodes.contains(nodeId)) {
                 final Certificate agrCert = agrCertificates.get(nodeId);
                 final PrivateKey sigPrivateKey = sigPrivateKeys.get(nodeId);
@@ -410,30 +408,38 @@ public class EnhancedKeyStoreLoader {
                             .formatted(nodeId, KeyCertPurpose.AGREEMENT));
                 }
 
+                final X509Certificate sigCert = signing.get(nodeId);
+
                 final KeyPair sigKeyPair = new KeyPair(sigCert.getPublicKey(), sigPrivateKey);
                 final KeyPair agrKeyPair = new KeyPair(agrCert.getPublicKey(), agrPrivateKey);
-                final KeysAndCerts kc = new KeysAndCerts(sigKeyPair, agrKeyPair, x509SigCert, x509AgrCert);
+                final KeysAndCerts kc = new KeysAndCerts(sigKeyPair, agrKeyPair, sigCert, x509AgrCert);
 
                 keysAndCerts.put(nodeId, kc);
             }
         }
 
-        return new AllKeysAndCerts(keysAndCerts, allCerts);
+        return keysAndCerts;
     }
 
-    /**
-     * Creates a map containing the private keys for all local nodes and the public keys for all nodes using the
-     * supplied address book.
-     *
-     * @return the map of all keys and certificates per {@link NodeId}.
-     * @throws KeyStoreException   if an error occurred while parsing the key store or the key store is not
-     *                             initialized.
-     * @throws KeyLoadingException if one or more of the required keys were not loaded or are not of the correct type.
-     */
     @NonNull
-    public Map<NodeId, KeysAndCerts> keysAndCerts() throws KeyStoreException, KeyLoadingException {
-        return allKeysAndCerts().localKeysAndCerts();
+    public Map<NodeId, X509Certificate> signingCertificates() throws KeyLoadingException {
+        final Map<NodeId, X509Certificate> certs = HashMap.newHashMap(allNodes.size());
+        for (final NodeId nodeId : this.allNodes) {
+            final Certificate sigCert = sigCertificates.get(nodeId);
+
+            if (sigCert == null) {
+                throw new KeyLoadingException("No signing certificate found for nodeId: %s".formatted(nodeId));
+            }
+            if (!(sigCert instanceof final X509Certificate x509SigCert)) {
+                throw new KeyLoadingException("Illegal signing certificate type for nodeId: %s [ purpose = %s ]"
+                        .formatted(nodeId, KeyCertPurpose.SIGNING));
+            }
+            certs.put(nodeId, x509SigCert);
+        }
+        return certs;
     }
+
+
 
     /**
      * Attempts to locate the legacy (combined) public key store and load it.

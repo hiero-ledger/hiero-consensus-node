@@ -365,11 +365,8 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
         // --- Create the platform context and initialize the cryptography ---
         final var rosterHistory = RosterStateUtils.createRosterHistory(state);
         final var currentRoster = rosterHistory.getCurrentRoster();
-        final var nodeIds = currentRoster.rosterEntries().stream()
-                .map(e -> NodeId.of(e.nodeId()))
-                .toList();
 
-        final var networkKeysAndCerts = initNodeSecurity(nodeIds, platformConfig, Set.copyOf(nodesToRun));
+        final var networkKeysAndCerts = initNodeSecurity(platformConfig, Set.copyOf(nodesToRun));
         final var keysAndCerts = networkKeysAndCerts.get(selfId);
 
         // --- Now build the platform and start it ---

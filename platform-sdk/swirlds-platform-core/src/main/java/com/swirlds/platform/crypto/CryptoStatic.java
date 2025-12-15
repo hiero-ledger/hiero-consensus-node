@@ -43,6 +43,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import javax.security.auth.x500.X500Principal;
 import org.apache.logging.log4j.LogManager;
@@ -66,7 +67,6 @@ import org.hiero.consensus.model.node.NodeId;
 public final class CryptoStatic {
     private static final Logger logger = LogManager.getLogger(CryptoStatic.class);
     private static final int SERIAL_NUMBER_BITS = 64;
-    private static final String ADDRESS_BOOK_MUST_NOT_BE_NULL = "addressBook must not be null";
     private static final String LOCAL_NODES_MUST_NOT_BE_NULL = "the local nodes must not be null";
 
     static {
@@ -335,30 +335,44 @@ public final class CryptoStatic {
         return nonDetRandom;
     }
 
-    //    public static KeysAndCerts initNodeSecurity(
-    //            @NonNull final Configuration configuration,
-    //            @NonNull final NodeId nodeId) {
-    //        final BasicConfig basicConfig = configuration.getConfigData(BasicConfig.class);
-    //        if (basicConfig.loadKeysFromPfxFiles()) {
-    //
-    //        }else{
-    //
-    //        }
-    //    }
+    public static Map<NodeId, X509Certificate> getSigningCertificates(
+            @NonNull final Configuration configuration,
+            @NonNull final Set<NodeId> localNodes) {
+        final BasicConfig basicConfig = configuration.getConfigData(BasicConfig.class);
+        final Map<NodeId, X509Certificate> certificates;
+        try {
+            if (basicConfig.loadKeysFromPfxFiles()) {
+                logger.debug(STARTUP.getMarker(), "Reading certificates using the enhanced key loader");
+                certificates = EnhancedKeyStoreLoader.using(localNodes,
+                                configuration, localNodes)
+                        .migrate()
+                        .scan()
+                        .generate()
+                        .verify()
+                        .signingCertificates();
+            } else {
+                certificates = generateKeysAndCerts(localNodes).entrySet().stream().collect(Collectors.toMap(
+                        Map.Entry::getKey,
+                        entry -> entry.getValue().sigCert()
+                ));
+            }
+        } catch (final KeyStoreException | KeyLoadingException | NoSuchAlgorithmException | KeyGeneratingException |
+                       NoSuchProviderException | ExecutionException | InterruptedException e) {
+            throw new RuntimeException(e);
+        }
+        return certificates;
+    }
 
     /**
      * Create {@link KeysAndCerts} objects for all given node ids.
      *
-     * @param nodeIds   collection of node ids
      * @param configuration the current configuration
      * @param localNodes  the local nodes that need private keys loaded
      * @return a map of KeysAndCerts objects, one for each node
      */
     public static Map<NodeId, KeysAndCerts> initNodeSecurity(
-            @NonNull final Collection<NodeId> nodeIds,
             @NonNull final Configuration configuration,
             @NonNull final Set<NodeId> localNodes) {
-        Objects.requireNonNull(nodeIds, ADDRESS_BOOK_MUST_NOT_BE_NULL);
         Objects.requireNonNull(configuration, "configuration must not be null");
         Objects.requireNonNull(localNodes, LOCAL_NODES_MUST_NOT_BE_NULL);
 
@@ -377,7 +391,7 @@ public final class CryptoStatic {
 
                 logger.debug(STARTUP.getMarker(), "About to start loading keys");
                 logger.debug(STARTUP.getMarker(), "Reading keys using the enhanced key loader");
-                keysAndCerts = EnhancedKeyStoreLoader.using(nodeIds, configuration, localNodes)
+                keysAndCerts = EnhancedKeyStoreLoader.using(localNodes, configuration, localNodes)
                         .migrate()
                         .scan()
                         .generate()
@@ -393,7 +407,7 @@ public final class CryptoStatic {
                         STARTUP.getMarker(),
                         "There are no keys on disk, Adhoc keys will be generated, but this is incompatible with DAB.");
                 logger.debug(STARTUP.getMarker(), "Started generating keys");
-                keysAndCerts = generateKeysAndCerts(nodeIds);
+                keysAndCerts = generateKeysAndCerts(localNodes);
                 logger.debug(STARTUP.getMarker(), "Done generating keys");
             }
         } catch (final InterruptedException
