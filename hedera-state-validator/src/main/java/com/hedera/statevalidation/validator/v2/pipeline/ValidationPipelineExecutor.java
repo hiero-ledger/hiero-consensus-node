@@ -472,7 +472,7 @@ public final class ValidationPipelineExecutor {
                 }
             } catch (final IOException e) {
                 log.error("Failed to read hash from memory at path {}: {}", path, e.getMessage());
-                dataStats.getP2hMemory().getParseErrorCount();
+                dataStats.getP2hMemory().incrementParseErrorCount();
             }
         }
 
