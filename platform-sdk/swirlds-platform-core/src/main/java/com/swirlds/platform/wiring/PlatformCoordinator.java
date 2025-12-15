@@ -78,7 +78,7 @@ public record PlatformCoordinator(@NonNull PlatformComponents components, @NonNu
         components.gossipWiring().flush();
         components.consensusEngineWiring().flush();
         components.applicationTransactionPrehandlerWiring().flush();
-        components.eventCreationManagerWiring().flush();
+        components.eventCreatorModule().flush();
         components.branchDetectorWiring().flush();
     }
 
@@ -101,8 +101,8 @@ public record PlatformCoordinator(@NonNull PlatformComponents components, @NonNu
         // squelch is activated.
         components.consensusEngineWiring().startSquelching();
         components.consensusEngineWiring().flush();
-        components.eventCreationManagerWiring().startSquelching();
-        components.eventCreationManagerWiring().flush();
+        components.eventCreatorModule().startSquelching();
+        components.eventCreatorModule().flush();
 
         // Also squelch the transaction handler. It isn't strictly necessary to do this to prevent dataflow through
         // the system, but it prevents the transaction handler from wasting time handling rounds that don't need to
@@ -122,7 +122,7 @@ public record PlatformCoordinator(@NonNull PlatformComponents components, @NonNu
         // Phase 3: stop squelching
         // Once everything has been flushed out of the system, it's safe to stop squelching.
         components.consensusEngineWiring().stopSquelching();
-        components.eventCreationManagerWiring().stopSquelching();
+        components.eventCreatorModule().stopSquelching();
         components.transactionHandlerWiring().stopSquelching();
 
         // Phase 4: clear
@@ -137,10 +137,7 @@ public record PlatformCoordinator(@NonNull PlatformComponents components, @NonNu
                 .stateSignatureCollectorWiring()
                 .getInputWire(StateSignatureCollector::clear)
                 .inject(NoInput.getInstance());
-        components
-                .eventCreationManagerWiring()
-                .getInputWire(EventCreatorModule::clear)
-                .inject(NoInput.getInstance());
+        components.eventCreatorModule().clearCreationMangerInputWire().inject(NoInput.getInstance());
         components.branchDetectorWiring().getInputWire(BranchDetector::clear).inject(NoInput.getInstance());
         components.branchReporterWiring().getInputWire(BranchReporter::clear).inject(NoInput.getInstance());
     }
@@ -366,17 +363,14 @@ public record PlatformCoordinator(@NonNull PlatformComponents components, @NonNu
     }
 
     /**
-     * @see EventCreatorModule#quiescenceCommand(QuiescenceCommand)
+     * @see EventCreatorModule#quiescenceCommandInputWire()
      */
     public void quiescenceCommand(@NonNull final QuiescenceCommand quiescenceCommand) {
         components
                 .platformMonitorWiring()
                 .getInputWire(PlatformMonitor::quiescenceCommand)
                 .inject(quiescenceCommand);
-        components
-                .eventCreationManagerWiring()
-                .getInputWire(EventCreatorModule::quiescenceCommand)
-                .inject(quiescenceCommand);
+        components.eventCreatorModule().quiescenceCommandInputWire().inject(quiescenceCommand);
     }
 
     /**

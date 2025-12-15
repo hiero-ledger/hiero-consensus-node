@@ -44,7 +44,7 @@ jobs:
           if [[ "${CHECK_TAG}" =~ ${PROMOTED_GREP_PATTERN} ]]; then
             echo "The tag is a valid build tag."
             BUILD_NUMBER="${BASH_REMATCH[1]}"
-            echo "build-number=${BUILD_NUMBER}" >> $GITHUB_OUTPUT
+            echo "build-number=${BUILD_NUMBER}" >> "${GITHUB_OUTPUT}"
 
             echo "### Running SDLT" >> "${GITHUB_STEP_SUMMARY}"
             echo "Build number: ${BUILD_NUMBER}" >> "${GITHUB_STEP_SUMMARY}"
@@ -107,14 +107,14 @@ jobs:
           RESULT="${{ needs.run-single-day-longevity-test.outputs.result }}"
           BUILD_NUM="${{ needs.verify-tag.outputs.build-number }}"
 
-          if [ "$RESULT" == "success" ]; then
+          if [[ "${RESULT}" == "success" ]]; then
             TAG_NAME="sdlt-pass-${BUILD_NUM}"
             MSG="Single Day Longevity Test passed for build-${BUILD_NUM}"
-          elif [ "$RESULT" == "failure" ]; then
+          elif [[ "${RESULT}" == "failure" ]]; then
             TAG_NAME="sdlt-fail-${BUILD_NUM}"
             MSG="Single Day Longevity Test FAILED for build-${BUILD_NUM}"
           else
-            echo "No tag will be applied. Test result was: $RESULT" >> "${GITHUB_STEP_SUMMARY}"
+            echo "No tag will be applied. Test result was: ${RESULT}" >> "${GITHUB_STEP_SUMMARY}"
             exit 0
           fi
 

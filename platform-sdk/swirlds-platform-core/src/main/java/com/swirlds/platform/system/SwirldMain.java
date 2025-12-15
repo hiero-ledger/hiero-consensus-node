@@ -2,15 +2,13 @@
 package com.swirlds.platform.system;
 
 import com.hedera.hapi.node.base.SemanticVersion;
-import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.builder.ExecutionLayer;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.State;
-import com.swirlds.virtualmap.VirtualMap;
+import com.swirlds.state.StateLifecycleManager;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
-import java.util.function.Function;
 import org.hiero.consensus.model.node.NodeId;
 
 /**
@@ -54,6 +52,14 @@ public interface SwirldMain<T extends MerkleNodeState> extends Runnable, Executi
     void run();
 
     /**
+     * State lifecycle manager associated with this app
+     *
+     * @return state lifecycle manager
+     */
+    @NonNull
+    StateLifecycleManager getStateLifecycleManager();
+
+    /**
      * Instantiate and return a state root object for this SwirldMain object.
      * The returned state root object could be one of the following:
      * <ul>
@@ -69,14 +75,6 @@ public interface SwirldMain<T extends MerkleNodeState> extends Runnable, Executi
      */
     @NonNull
     T newStateRoot();
-
-    /**
-     * A function to instantiate the state root object from a Virtual Map.
-     *
-     * @param metrics the platform metric instance to use when creating the new state root
-     * @return a function that accepts a {@code VirtualMap} and returns the state root object.
-     */
-    Function<VirtualMap, T> stateRootFromVirtualMap(@NonNull final Metrics metrics);
 
     /**
      * Instantiate and return a new instance of the consensus state event handler for this SwirldMain object.

@@ -8,11 +8,9 @@ import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.platform.Consensus;
 import com.swirlds.platform.ConsensusImpl;
-import com.swirlds.platform.consensus.ConsensusConfig;
 import com.swirlds.platform.consensus.EventWindowUtils;
 import com.swirlds.platform.event.linking.ConsensusLinker;
 import com.swirlds.platform.event.linking.DefaultLinkerLogsAndMetrics;
-import com.swirlds.platform.freeze.FreezeCheckHolder;
 import com.swirlds.platform.internal.EventImpl;
 import com.swirlds.platform.metrics.ConsensusEngineMetrics;
 import com.swirlds.platform.metrics.ConsensusMetrics;
@@ -25,6 +23,8 @@ import java.util.Objects;
 import java.util.Queue;
 import org.hiero.consensus.event.FutureEventBuffer;
 import org.hiero.consensus.event.FutureEventBufferingOption;
+import org.hiero.consensus.hashgraph.ConsensusConfig;
+import org.hiero.consensus.hashgraph.FreezeCheckHolder;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
@@ -70,7 +70,9 @@ public class DefaultConsensusEngine implements ConsensusEngine {
             @NonNull final FreezeCheckHolder freezeChecker) {
 
         final ConsensusMetrics consensusMetrics = new ConsensusMetricsImpl(selfId, platformContext.getMetrics());
-        consensus = new ConsensusImpl(platformContext, consensusMetrics, roster);
+        final ConsensusConfig consensusConfig =
+                platformContext.getConfiguration().getConfigData(ConsensusConfig.class);
+        consensus = new ConsensusImpl(consensusConfig, platformContext.getTime(), consensusMetrics, roster);
 
         linker = new ConsensusLinker(
                 new DefaultLinkerLogsAndMetrics(platformContext.getMetrics(), platformContext.getTime()));

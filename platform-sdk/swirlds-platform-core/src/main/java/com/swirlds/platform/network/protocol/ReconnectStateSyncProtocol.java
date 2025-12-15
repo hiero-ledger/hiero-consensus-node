@@ -9,15 +9,13 @@ import com.swirlds.platform.reconnect.FallenBehindMonitor;
 import com.swirlds.platform.reconnect.ReconnectStatePeerProtocol;
 import com.swirlds.platform.reconnect.ReconnectStateTeacherThrottle;
 import com.swirlds.platform.state.signed.ReservedSignedState;
-import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.StateLifecycleManager;
-import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Function;
 import java.util.function.Supplier;
+import org.hiero.base.concurrent.BlockingResourceProvider;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
 
@@ -36,9 +34,8 @@ public class ReconnectStateSyncProtocol implements Protocol {
     private final Time time;
     private final PlatformContext platformContext;
     private final AtomicReference<PlatformStatus> platformStatus = new AtomicReference<>(PlatformStatus.STARTING_UP);
-    private final ReservedSignedStateResultPromise reservedSignedStateResultPromise;
+    private final BlockingResourceProvider<ReservedSignedStateResult> reservedSignedStateResultPromise;
     private final StateLifecycleManager stateLifecycleManager;
-    private final Function<VirtualMap, MerkleNodeState> createStateFromVirtualMap;
 
     public ReconnectStateSyncProtocol(
             @NonNull final PlatformContext platformContext,
@@ -48,9 +45,8 @@ public class ReconnectStateSyncProtocol implements Protocol {
             @NonNull final Duration reconnectSocketTimeout,
             @NonNull final ReconnectMetrics reconnectMetrics,
             @NonNull final FallenBehindMonitor fallenBehindManager,
-            @NonNull final ReservedSignedStateResultPromise reservedSignedStateResultPromise,
-            @NonNull final StateLifecycleManager stateLifecycleManager,
-            @NonNull final Function<VirtualMap, MerkleNodeState> createStateFromVirtualMap) {
+            @NonNull final BlockingResourceProvider<ReservedSignedStateResult> reservedSignedStateResultPromise,
+            @NonNull final StateLifecycleManager stateLifecycleManager) {
 
         this.platformContext = Objects.requireNonNull(platformContext);
         this.threadManager = Objects.requireNonNull(threadManager);
@@ -62,7 +58,6 @@ public class ReconnectStateSyncProtocol implements Protocol {
         this.time = Objects.requireNonNull(platformContext.getTime());
         this.reservedSignedStateResultPromise = Objects.requireNonNull(reservedSignedStateResultPromise);
         this.stateLifecycleManager = Objects.requireNonNull(stateLifecycleManager);
-        this.createStateFromVirtualMap = Objects.requireNonNull(createStateFromVirtualMap);
     }
 
     /**
@@ -83,8 +78,7 @@ public class ReconnectStateSyncProtocol implements Protocol {
                 platformStatus::get,
                 time,
                 reservedSignedStateResultPromise,
-                stateLifecycleManager,
-                createStateFromVirtualMap);
+                stateLifecycleManager);
     }
 
     /**
