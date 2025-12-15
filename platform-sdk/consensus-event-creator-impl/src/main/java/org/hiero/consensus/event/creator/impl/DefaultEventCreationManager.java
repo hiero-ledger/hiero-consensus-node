@@ -12,21 +12,17 @@ import com.swirlds.common.metrics.extensions.PhaseTimer;
 import com.swirlds.common.metrics.extensions.PhaseTimerBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.DoubleGauge;
-import com.swirlds.metrics.api.DoubleGauge.Config;
 import com.swirlds.metrics.api.FloatFormats;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.security.SecureRandom;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
-import org.hiero.base.crypto.BytesSigner;
 import org.hiero.consensus.event.FutureEventBuffer;
 import org.hiero.consensus.event.FutureEventBufferingOption;
-import org.hiero.consensus.event.creator.EventCreationConfig;
-import org.hiero.consensus.event.creator.EventCreatorModule;
+import org.hiero.consensus.event.creator.config.EventCreationConfig;
 import org.hiero.consensus.event.creator.impl.rules.AggregateEventCreationRules;
 import org.hiero.consensus.event.creator.impl.rules.EventCreationRule;
 import org.hiero.consensus.event.creator.impl.rules.MaximumRateRule;
@@ -35,101 +31,68 @@ import org.hiero.consensus.event.creator.impl.rules.PlatformStatusRule;
 import org.hiero.consensus.event.creator.impl.rules.QuiescenceRule;
 import org.hiero.consensus.event.creator.impl.rules.SyncLagCalculator;
 import org.hiero.consensus.event.creator.impl.rules.SyncLagRule;
-import org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreator;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.gossip.SyncProgress;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.consensus.model.status.PlatformStatus;
-import org.hiero.consensus.model.transaction.EventTransactionSupplier;
 import org.hiero.consensus.model.transaction.SignatureTransactionCheck;
 
 /**
- * Default implementation of the {@link EventCreatorModule}.
+ * Default implementation of the {@link EventCreationManager}.
  */
-public class DefaultEventCreator implements EventCreatorModule {
+public class DefaultEventCreationManager implements EventCreationManager {
 
-    private static final Config SYNC_ROUND_LAG_METRIC_CONFIG = new Config(Metrics.PLATFORM_CATEGORY, "syncRoundLag")
+    private static final DoubleGauge.Config SYNC_ROUND_LAG_METRIC_CONFIG = new DoubleGauge.Config(
+                    Metrics.PLATFORM_CATEGORY, "syncRoundLag")
             .withDescription("How many rounds on average are we lagging behind peers")
             .withFormat(FloatFormats.FORMAT_DECIMAL_3);
     /**
      * Creates events.
      */
-    private EventCreator creator;
+    private final EventCreator creator;
 
     /**
      * Rules that say if event creation is permitted.
      */
-    private EventCreationRule eventCreationRules;
+    private final EventCreationRule eventCreationRules;
 
     /**
      * Tracks the current phase of event creation.
      */
-    private PhaseTimer<EventCreationStatus> phase;
+    private final PhaseTimer<EventCreationStatus> phase;
 
     /**
      * The duration that the system has been unhealthy.
      */
     private Duration unhealthyDuration = Duration.ZERO;
 
-    private FutureEventBuffer futureEventBuffer;
+    private final FutureEventBuffer futureEventBuffer;
 
-    /**
-     * How many rounds are we behind the median of the network when comparing latest consensus round reported by syncs
-     */
-    private double syncRoundLag;
+    private final QuiescenceRule quiescenceRule;
 
-    private QuiescenceRule quiescenceRule;
+    private final PlatformStatusRule platformStatusRule;
 
-    private PlatformStatusRule platformStatusRule;
-
-    private DoubleGauge syncLagBehind;
+    private final DoubleGauge syncLagBehind;
 
     /**
      * Utility class for computing median lag for sync.
      */
-    private SyncLagCalculator syncLagCalculator;
+    private final SyncLagCalculator syncLagCalculator;
 
     /**
-     * Default constructor required by service loader.
-     * {@link #initialize(Configuration, Metrics, Time, SecureRandom, BytesSigner, Roster, NodeId,
-     * EventTransactionSupplier, SignatureTransactionCheck)} must be called before use.
-     */
-    public DefaultEventCreator() {}
-
-    @Override
-    public void initialize(
-            @NonNull final Configuration configuration,
-            @NonNull final Metrics metrics,
-            @NonNull final Time time,
-            @NonNull final SecureRandom random,
-            @NonNull final BytesSigner signer,
-            @NonNull final Roster roster,
-            @NonNull final NodeId selfId,
-            @NonNull final EventTransactionSupplier transactionSupplier,
-            @NonNull final SignatureTransactionCheck signatureTransactionCheck) {
-        if (creator != null || eventCreationRules != null || phase != null || futureEventBuffer != null) {
-            throw new IllegalStateException("EventCreationManager already initialized");
-        }
-
-        final EventCreator eventCreator = new TipsetEventCreator(
-                configuration, metrics, time, random, signer, roster, selfId, transactionSupplier);
-        this.initialize(configuration, metrics, time, signatureTransactionCheck, eventCreator, roster, selfId);
-    }
-
-    /**
-     * Initialization for using a custom event creator.
+     * Constructor of the event creation manager.
      *
-     * @param configuration             provides the configuration for the event creator
-     * @param metrics                   provides the metrics for the event creator
-     * @param time                      provides the time source for the event creator
+     * @param configuration provides the configuration for the event creator
+     * @param metrics provides the metrics for the event creator
+     * @param time provides the time source for the event creator
      * @param signatureTransactionCheck checks for pending signature transactions
-     * @param eventCreator              creates events
-     * @param roster                    current roster
-     * @param selfId                    id of current node
+     * @param eventCreator creates events
+     * @param roster current roster
+     * @param selfId id of current node
      */
-    public void initialize(
+    public DefaultEventCreationManager(
             @NonNull final Configuration configuration,
             @NonNull final Metrics metrics,
             @NonNull final Time time,
@@ -137,9 +100,6 @@ public class DefaultEventCreator implements EventCreatorModule {
             @NonNull final EventCreator eventCreator,
             @NonNull final Roster roster,
             @NonNull final NodeId selfId) {
-        if (creator != null || eventCreationRules != null || phase != null || futureEventBuffer != null) {
-            throw new IllegalStateException("EventCreationManager already initialized");
-        }
         this.creator = Objects.requireNonNull(eventCreator);
         this.syncLagCalculator = new SyncLagCalculator(selfId, roster);
         final EventCreationConfig config = configuration.getConfigData(EventCreationConfig.class);
