@@ -97,6 +97,7 @@ open module com.hedera.node.test.clients {
     requires com.hedera.pbj.grpc.helidon;
     requires com.swirlds.base.test.fixtures;
     requires com.swirlds.base;
+    requires com.swirlds.common.test.fixtures;
     requires com.swirlds.common;
     requires com.swirlds.config.api;
     requires com.swirlds.merkledb;
@@ -149,5 +150,4 @@ open module com.hedera.node.test.clients {
     requires static com.hedera.pbj.runtime;
     requires static com.github.spotbugs.annotations;
     requires static org.junit.platform.engine;
-    requires com.swirlds.common.test.fixtures;
 }
