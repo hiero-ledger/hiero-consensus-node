@@ -434,7 +434,7 @@ public class SystemTransactions {
         log.info("Transferring node fees {} to nodes", transfers);
 
         final var systemContext = newSystemContext(
-                now, state, dispatch -> {}, UseReservedConsensusTimes.YES, TriggerStakePeriodSideEffects.YES);
+                now, state, dispatch -> {}, UseReservedConsensusTimes.YES, TriggerStakePeriodSideEffects.NO);
         systemContext.dispatchAdmin(b -> b.memo("Synthetic node fees payment")
                 .cryptoTransfer(CryptoTransferTransactionBody.newBuilder()
                         .transfers(transfers)
@@ -471,6 +471,8 @@ public class SystemTransactions {
         requireNonNull(nodeRewardsAccountId);
         final var systemContext = newSystemContext(
                 now, state, dispatch -> {}, UseReservedConsensusTimes.YES, TriggerStakePeriodSideEffects.YES);
+//        log.info("XXXX Dispatching node rewards for active nodes {} and inactive nodes {}",
+//                activeNodeIds, rosterEntries.stream().map(RosterEntry::nodeId).toList());
         final var activeNodeAccountIds = activeNodeIds.stream()
                 .map(id -> systemContext.networkInfo().nodeInfo(id))
                 .filter(nodeInfo -> nodeInfo != null && !nodeInfo.declineReward())
@@ -483,6 +485,7 @@ public class SystemTransactions {
                 .filter(nodeInfo -> nodeInfo != null && !nodeInfo.declineReward())
                 .map(NodeInfo::accountId)
                 .toList();
+        log.info("XXXX Active node account ids {}", activeNodeAccountIds);
         if (activeNodeAccountIds.isEmpty() && (minNodeReward <= 0 || inactiveNodeAccountIds.isEmpty())) {
             // No eligible rewards to distribute
             return;
@@ -737,6 +740,7 @@ public class SystemTransactions {
                                 .nonce(nextDispatchNonce++)
                                 .build());
                 spec.accept(builder);
+                log.info("Dispatching system transaction: " + builder.build());
                 dispatch(builder.build(), 0, triggerStakePeriodSideEffects);
             }
 
@@ -809,6 +813,7 @@ public class SystemTransactions {
                 if (streamMode != RECORDS) {
                     handleOutput.blockRecordSourceOrThrow().forEachItem(blockStreamManager::writeItem);
                 }
+               log.info("XXXXX identifiedReceipts " + handleOutput.preferringBlockRecordSource().identifiedReceipts());
             }
         };
     }

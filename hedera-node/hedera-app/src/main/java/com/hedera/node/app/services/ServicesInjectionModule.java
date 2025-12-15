@@ -22,5 +22,5 @@ public interface ServicesInjectionModule {
     ScheduleService bindScheduleService(ScheduleServiceImpl impl);
 
     @Binds
-    NodeFeeAccumulator bindNodeFeeAccumulator(NodeFeeDistributor impl);
+    NodeFeeAccumulator bindNodeFeeAccumulator(NodeFeeManager impl);
 }

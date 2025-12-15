@@ -9,7 +9,7 @@ import com.hedera.node.app.blocks.impl.streaming.FileAndGrpcBlockItemWriter;
 import com.hedera.node.app.blocks.impl.streaming.FileBlockItemWriter;
 import com.hedera.node.app.blocks.impl.streaming.GrpcBlockItemWriter;
 import com.hedera.node.app.metrics.BlockStreamMetrics;
-import com.hedera.node.app.services.NodeFeeDistributor;
+import com.hedera.node.app.services.NodeFeeManager;
 import com.hedera.node.app.services.NodeRewardManager;
 import com.hedera.node.app.spi.records.SelfNodeAccountIdManager;
 import com.hedera.node.config.ConfigProvider;
@@ -87,7 +87,7 @@ public interface BlockStreamModule {
     static BlockStreamManager.Lifecycle provideBlockStreamManagerLifecycle(
             @NonNull final NodeRewardManager nodeRewardManager,
             @NonNull final BoundaryStateChangeListener listener,
-            @NonNull final NodeFeeDistributor nodeFeeDistributor) {
+            @NonNull final NodeFeeManager nodeFeeDistributor) {
         return new BlockStreamManager.Lifecycle() {
             @Override
             public void onOpenBlock(@NonNull final State state) {

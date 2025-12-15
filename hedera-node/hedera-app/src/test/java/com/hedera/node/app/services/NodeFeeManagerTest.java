@@ -53,7 +53,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
-class NodeFeeDistributorTest {
+class NodeFeeManagerTest {
     private static final Instant NOW = Instant.ofEpochSecond(1_234_567L);
     private static final Instant PREV_PERIOD = NOW.minusSeconds(1500);
     private static final AccountID NODE_ACCOUNT_ID_3 = asAccount(0, 0, 3);
@@ -75,7 +75,7 @@ class NodeFeeDistributorTest {
 
     private final AtomicReference<NodePayments> nodePaymentsRef = new AtomicReference<>();
     private WritableSingletonStateBase<NodePayments> nodePaymentsState;
-    private NodeFeeDistributor subject;
+    private NodeFeeManager subject;
 
     @BeforeEach
     void setUp() {
@@ -88,7 +88,7 @@ class NodeFeeDistributorTest {
                 .withValue("staking.feesStakingRewardPercentage", 10)
                 .getOrCreateConfig();
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1));
-        subject = new NodeFeeDistributor(configProvider, entityIdFactory);
+        subject = new NodeFeeManager(configProvider, entityIdFactory);
     }
 
     @Test
@@ -203,7 +203,7 @@ class NodeFeeDistributorTest {
                 .withValue("nodes.feeCollectionAccountEnabled", false)
                 .getOrCreateConfig();
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1));
-        subject = new NodeFeeDistributor(configProvider, entityIdFactory);
+        subject = new NodeFeeManager(configProvider, entityIdFactory);
 
         final var result = subject.distributeFees(state, NOW, systemTransactions);
 
@@ -303,7 +303,7 @@ class NodeFeeDistributorTest {
                 .withValue("nodes.feeCollectionAccountEnabled", false)
                 .getOrCreateConfig();
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1));
-        subject = new NodeFeeDistributor(configProvider, entityIdFactory);
+        subject = new NodeFeeManager(configProvider, entityIdFactory);
 
         subject.onOpenBlock(state);
 
@@ -316,7 +316,7 @@ class NodeFeeDistributorTest {
                 .withValue("nodes.feeCollectionAccountEnabled", false)
                 .getOrCreateConfig();
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1));
-        subject = new NodeFeeDistributor(configProvider, entityIdFactory);
+        subject = new NodeFeeManager(configProvider, entityIdFactory);
 
         subject.onCloseBlock(state);
 

@@ -5,6 +5,9 @@ import com.hedera.node.app.hapi.utils.forensics.RecordStreamEntry;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.stream.proto.RecordStreamItem;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -17,6 +20,7 @@ import java.util.function.BiPredicate;
  */
 public class SelectedItemsAssertion implements RecordStreamAssertion {
     public static final String SELECTED_ITEMS_KEY = "SELECTED_ITEMS";
+    private static final Logger log = LogManager.getLogger(SelectedItemsAssertion.class);
 
     private final int expectedCount;
     private final HapiSpec spec;
@@ -44,10 +48,13 @@ public class SelectedItemsAssertion implements RecordStreamAssertion {
     public boolean test(@NonNull final RecordStreamItem item) throws AssertionError {
         final var entry = RecordStreamEntry.from(item);
         selectedEntries.add(entry);
+        System.out.println("ITEM" + item);
         if (selectedEntries.size() == expectedCount) {
             validator.assertValid(
                     spec, Map.of(SELECTED_ITEMS_KEY, new VisibleItems(new AtomicInteger(), selectedEntries)));
             return true;
+        }else{
+           log.error("Selected {} items, expected {}", selectedEntries.size(), expectedCount);
         }
         return false;
     }

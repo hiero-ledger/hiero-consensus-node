@@ -58,7 +58,7 @@ import com.hedera.node.app.service.token.impl.WritableNetworkStakingRewardsStore
 import com.hedera.node.app.service.token.impl.WritableStakingInfoStore;
 import com.hedera.node.app.service.token.impl.handlers.staking.StakeInfoHelper;
 import com.hedera.node.app.service.token.impl.handlers.staking.StakePeriodManager;
-import com.hedera.node.app.services.NodeFeeDistributor;
+import com.hedera.node.app.services.NodeFeeManager;
 import com.hedera.node.app.services.NodeRewardManager;
 import com.hedera.node.app.spi.api.ServiceApiProvider;
 import com.hedera.node.app.spi.info.NetworkInfo;
@@ -164,7 +164,7 @@ public class HandleWorkflow {
     // The last second for which this workflow has confirmed all scheduled transactions are executed
     private long lastExecutedSecond;
     private final NodeRewardManager nodeRewardManager;
-    private final NodeFeeDistributor feeDistributor;
+    private final NodeFeeManager feeDistributor;
     // Flag to indicate whether we have checked for transplant updates after JVM started
     private boolean checkedForTransplant;
 
@@ -200,7 +200,7 @@ public class HandleWorkflow {
             @NonNull final BlockBufferService blockBufferService,
             @NonNull final Map<Class<?>, ServiceApiProvider<?>> apiProviders,
             @NonNull final QuiescenceController quiescenceController,
-            @NonNull final NodeFeeDistributor feeDistributor) {
+            @NonNull final NodeFeeManager feeDistributor) {
         this.networkInfo = requireNonNull(networkInfo);
         this.stakePeriodChanges = requireNonNull(stakePeriodChanges);
         this.dispatchProcessor = requireNonNull(dispatchProcessor);

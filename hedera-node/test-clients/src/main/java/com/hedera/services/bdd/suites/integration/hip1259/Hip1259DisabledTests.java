@@ -15,25 +15,25 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.fileCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeUpdate;
-import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.mutateSingleton;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doWithStartupConfig;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.recordStreamMustIncludePassWithoutBackgroundTrafficFrom;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.selectedItems;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepForBlockPeriod;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitUntilStartOfNextStakingPeriod;
-import static com.hedera.services.bdd.spec.utilops.streams.assertions.SelectedItemsAssertion.SELECTED_ITEMS_KEY;
 import static com.hedera.services.bdd.suites.HapiSuite.CIVILIAN_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.FEE_COLLECTOR;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.NODE_REWARD;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
-import static com.hederahashgraph.api.proto.java.HederaFunctionality.CryptoTransfer;
-import static java.util.stream.Collectors.toMap;
+import static com.hedera.services.bdd.suites.HapiSuite.TINY_PARTS_PER_WHOLE;
+import static com.hedera.services.bdd.suites.integration.AdditionalHip1064Tests.allNodesActiveValidator;
+import static com.hedera.services.bdd.suites.integration.RepeatableStreamValidators.nodeRewardsValidator;
+import static com.hedera.services.bdd.suites.integration.RepeatableStreamValidators.validateRecordContains;
+import static com.hedera.services.bdd.suites.integration.RepeatableStreamValidators.validateRecordNotContains;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.hapi.node.state.token.NodeActivity;
@@ -44,13 +44,9 @@ import com.hedera.services.bdd.junit.LeakyRepeatableHapiTest;
 import com.hedera.services.bdd.junit.RepeatableHapiTest;
 import com.hedera.services.bdd.junit.TargetEmbeddedMode;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
-import com.hedera.services.bdd.spec.SpecOperation;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
 import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
 import com.hedera.services.bdd.spec.utilops.EmbeddedVerbs;
-import com.hedera.services.bdd.spec.utilops.UtilVerbs;
-import com.hedera.services.bdd.spec.utilops.streams.assertions.VisibleItemsValidator;
-import com.hederahashgraph.api.proto.java.AccountAmount;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.time.Instant;
@@ -59,7 +55,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.LongSupplier;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
@@ -82,8 +77,8 @@ import org.junit.jupiter.api.TestMethodOrder;
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 public class Hip1259DisabledTests {
 
-    private static final List<Long> EXPECTED_FEE_ACCOUNTS = List.of(3L, 801L);
-    private static final List<Long> UNEXPECTED_FEE_ACCOUNTS = List.of(802L);
+    private static final List<Long> LEGACY_FEE_ACCOUNTS = List.of(3L, 801L);
+    private static final List<Long> FEE_COLLECTION_ACCOUNT = List.of(802L);
 
     @BeforeAll
     static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
@@ -91,11 +86,6 @@ public class Hip1259DisabledTests {
                 "nodes.feeCollectionAccountEnabled", "false",
                 "nodes.nodeRewardsEnabled", "true",
                 "nodes.preserveMinNodeRewardBalance", "true"));
-        testLifecycle.doAdhoc(
-                nodeUpdate("0").declineReward(false),
-                nodeUpdate("1").declineReward(false),
-                nodeUpdate("2").declineReward(false),
-                nodeUpdate("3").declineReward(false));
     }
 
     /**
@@ -105,35 +95,16 @@ public class Hip1259DisabledTests {
     @Order(1)
     @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
     final Stream<DynamicTest> feesGoToLegacyAccounts() {
-        return hapiTest(
-                cryptoCreate(CIVILIAN_PAYER),
-                fileCreate("testFile")
-                        .contents("Test content for legacy fee distribution")
-                        .payingWith(CIVILIAN_PAYER)
-                        .via("legacyFeeTxn"),
-                getTxnRecord("legacyFeeTxn").logged(),
-                validateRecordContains("legacyFeeTxn", EXPECTED_FEE_ACCOUNTS),
-                validateRecordNotContains("legacyFeeTxn", UNEXPECTED_FEE_ACCOUNTS));
-    }
-
-    /**
-     * Verifies that the fee collection account (0.0.802) does not receive any fees
-     * when HIP-1259 is disabled.
-     */
-    @Order(2)
-    @RepeatableHapiTest({NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION, NEEDS_STATE_ACCESS})
-    final Stream<DynamicTest> feeCollectionAccountNotUsed() {
         final AtomicLong initialFeeCollectionBalance = new AtomicLong(0);
         return hapiTest(
-                waitUntilStartOfNextStakingPeriod(1),
                 getAccountBalance(FEE_COLLECTOR).exposingBalanceTo(initialFeeCollectionBalance::set),
-                cryptoCreate(CIVILIAN_PAYER),
-                fileCreate("testFile")
-                        .contents("Test content")
+                cryptoCreate(CIVILIAN_PAYER).balance(ONE_MILLION_HBARS),
+                cryptoCreate("testFile")
                         .payingWith(CIVILIAN_PAYER)
                         .via("feeTxn"),
-                validateRecordNotContains("feeTxn", UNEXPECTED_FEE_ACCOUNTS),
-                sleepForBlockPeriod(),
+                getTxnRecord("feeTxn").logged(),
+                validateRecordContains("feeTxn", LEGACY_FEE_ACCOUNTS),
+                validateRecordNotContains("feeTxn", FEE_COLLECTION_ACCOUNT),
                 getAccountBalance(FEE_COLLECTOR)
                         .hasTinyBars(spec -> actual -> {
                             if (actual == initialFeeCollectionBalance.get()) {
@@ -150,42 +121,66 @@ public class Hip1259DisabledTests {
      */
     @Order(3)
     @LeakyRepeatableHapiTest(
-            value = {NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION, NEEDS_STATE_ACCESS},
-            overrides = {"nodes.minPerPeriodNodeRewardUsd"})
+            value = {NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION, NEEDS_STATE_ACCESS})
     final Stream<DynamicTest> nodeRewardsWithLegacyFeeDistribution() {
+        final AtomicLong expectedNodeRewards = new AtomicLong(0);
         final AtomicLong nodeRewardBalance = new AtomicLong(0);
         final AtomicReference<Instant> startConsensusTime = new AtomicReference<>();
         return hapiTest(
-                doingContextual(spec -> startConsensusTime.set(spec.consensusTime())),
-                recordStreamMustIncludePassWithoutBackgroundTrafficFrom(
-                        selectedItems(
-                                legacyNodeRewardsValidator(nodeRewardBalance::get),
-                                1,
-                                (spec, item) -> item.getRecord().getTransferList().getAccountAmountsList().stream()
-                                                .anyMatch(
-                                                        aa -> aa.getAccountID().getAccountNum() == 801L
-                                                                && aa.getAmount() < 0L)
-                                        && asInstant(toPbj(item.getRecord().getConsensusTimestamp()))
-                                                .isAfter(startConsensusTime.get())),
-                        Duration.ofSeconds(1)),
                 cryptoTransfer(TokenMovement.movingHbar(100000 * ONE_HBAR).between(GENESIS, NODE_REWARD)),
                 nodeUpdate("0").declineReward(true),
                 waitUntilStartOfNextStakingPeriod(1),
+                doingContextual(spec -> startConsensusTime.set(spec.consensusTime())),
+
+                recordStreamMustIncludePassWithoutBackgroundTrafficFrom(
+                        selectedItems(
+                                nodeRewardsValidator(nodeRewardBalance::get),
+                                1,
+                                (spec, item) -> item.getRecord().getTransferList().getAccountAmountsList().stream()
+                                        .anyMatch(
+                                                aa -> aa.getAccountID().getAccountNum() == 801L
+                                                        && aa.getAmount() < 0L)
+                                        && asInstant(toPbj(item.getRecord().getConsensusTimestamp()))
+                                        .isAfter(startConsensusTime.get())),
+                        Duration.ofSeconds(1)),
+
                 cryptoCreate(CIVILIAN_PAYER),
                 fileCreate("something")
                         .contents("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
                         .payingWith(CIVILIAN_PAYER)
-                        .via("notFree"),
-                validateRecordContains("notFree", EXPECTED_FEE_ACCOUNTS),
-                validateRecordNotContains("notFree", UNEXPECTED_FEE_ACCOUNTS),
+                        .via("feeTxn"),
+                validateRecordContains("feeTxn", LEGACY_FEE_ACCOUNTS),
+                validateRecordNotContains("feeTxn", FEE_COLLECTION_ACCOUNT),
+                doWithStartupConfig(
+                        "nodes.targetYearlyNodeRewardsUsd",
+                        target -> doWithStartupConfig(
+                                "nodes.numPeriodsToTargetUsd",
+                                numPeriods -> doingContextual(spec -> {
+                                    final long targetReward = (Long.parseLong(target) * 100 * TINY_PARTS_PER_WHOLE)
+                                            / Integer.parseInt(numPeriods);
+                                    final long targetTinybars =
+                                            spec.ratesProvider().toTbWithActiveRates(targetReward);
+                                    expectedNodeRewards.set(targetTinybars);
+                                }))),
                 sleepForBlockPeriod(),
                 EmbeddedVerbs.handleAnyRepeatableQueryPayment(),
+
+                // Set nodes to have perfect activity - no missed rounds
                 mutateSingleton(TokenService.NAME, NODE_REWARDS_STATE_ID, (NodeRewards nodeRewards) -> nodeRewards
                         .copyBuilder()
-                        .nodeActivities(NodeActivity.newBuilder()
-                                .nodeId(1)
-                                .numMissedJudgeRounds(3)
-                                .build())
+                        .nodeActivities(
+                                NodeActivity.newBuilder()
+                                        .nodeId(1)
+                                        .numMissedJudgeRounds(0)
+                                        .build(), // 100% active
+                                NodeActivity.newBuilder()
+                                        .nodeId(2)
+                                        .numMissedJudgeRounds(0)
+                                        .build(), // 100% active
+                                NodeActivity.newBuilder()
+                                        .nodeId(3)
+                                        .numMissedJudgeRounds(0)
+                                        .build()) // 100% active
                         .build()),
                 getAccountBalance(NODE_REWARD)
                         .exposingBalanceTo(nodeRewardBalance::set)
@@ -215,7 +210,7 @@ public class Hip1259DisabledTests {
                         .contents("Test content")
                         .payingWith(CIVILIAN_PAYER)
                         .via("feeTxn"),
-                validateRecordContains("feeTxn", EXPECTED_FEE_ACCOUNTS),
+                validateRecordContains("feeTxn", LEGACY_FEE_ACCOUNTS),
                 sleepForBlockPeriod(),
                 EmbeddedVerbs.<NodeRewards>viewSingleton(
                         TokenService.NAME,
@@ -239,7 +234,7 @@ public class Hip1259DisabledTests {
                         .contents("Test content")
                         .payingWith(CIVILIAN_PAYER)
                         .via("feeTxn"),
-                validateRecordContains("feeTxn", EXPECTED_FEE_ACCOUNTS),
+                validateRecordContains("feeTxn", LEGACY_FEE_ACCOUNTS),
                 sleepForBlockPeriod(),
                 EmbeddedVerbs.handleAnyRepeatableQueryPayment(),
                 mutateSingleton(TokenService.NAME, NODE_REWARDS_STATE_ID, (NodeRewards nodeRewards) -> nodeRewards
@@ -272,56 +267,5 @@ public class Hip1259DisabledTests {
                                 0L,
                                 nodeRewards.nodeFeesCollected(),
                                 "Node fees should be reset after staking period")));
-    }
-
-    /**
-     * Validator for legacy node rewards (when HIP-1259 is disabled).
-     */
-    static VisibleItemsValidator legacyNodeRewardsValidator(@NonNull final LongSupplier nodeRewardBalance) {
-        return (spec, records) -> {
-            final var items = records.get(SELECTED_ITEMS_KEY);
-            assertNotNull(items, "No reward payments found");
-            assertEquals(1, items.size());
-            final var payment = items.getFirst();
-            assertEquals(CryptoTransfer, payment.function());
-            final var op = payment.body().getCryptoTransfer();
-            final Map<Long, Long> bodyAdjustments = op.getTransfers().getAccountAmountsList().stream()
-                    .collect(toMap(aa -> aa.getAccountID().getAccountNum(), AccountAmount::getAmount));
-            // Node reward account should be debited
-            final long nodeRewardDebit =
-                    bodyAdjustments.get(spec.startupProperties().getLong("accounts.nodeRewardAccount"));
-            assertTrue(nodeRewardDebit < 0, "Node reward account should be debited");
-        };
-    }
-
-    public static SpecOperation validateRecordContains(final String record, List<Long> expectedFeeAccounts) {
-        return UtilVerbs.withOpContext((spec, opLog) -> {
-            var txnRecord = getTxnRecord(record);
-            allRunFor(spec, txnRecord);
-            var response = txnRecord.getResponseRecord();
-            assertEquals(
-                    1,
-                    response.getTransferList().getAccountAmountsList().stream()
-                            .filter(aa -> aa.getAmount() < 0)
-                            .count());
-            assertTrue(response.getTransferList().getAccountAmountsList().stream()
-                    .filter(aa -> aa.getAmount() > 0)
-                    .map(aa -> aa.getAccountID().getAccountNum())
-                    .sorted()
-                    .toList()
-                    .containsAll(expectedFeeAccounts));
-        });
-    }
-
-    public static SpecOperation validateRecordNotContains(final String record, List<Long> expectedFeeAccounts) {
-        return UtilVerbs.withOpContext((spec, opLog) -> {
-            var txnRecord = getTxnRecord(record);
-            allRunFor(spec, txnRecord);
-            var response = txnRecord.getResponseRecord();
-            for (final var expectedFeeAccount : expectedFeeAccounts) {
-                assertFalse(response.getTransferList().getAccountAmountsList().stream()
-                        .anyMatch(aa -> aa.getAccountID().getAccountNum() == expectedFeeAccount));
-            }
-        });
     }
 }

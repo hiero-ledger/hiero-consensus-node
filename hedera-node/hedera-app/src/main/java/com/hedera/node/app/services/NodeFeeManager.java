@@ -4,8 +4,8 @@ package com.hedera.node.app.services;
 import static com.hedera.hapi.util.HapiUtils.asInstant;
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
 import static com.hedera.node.app.service.token.impl.schemas.V0700TokenSchema.NODE_PAYMENTS_STATE_ID;
-import static com.hedera.node.app.services.NodeFeeDistributor.LastNodeFeesPaymentTime.CURRENT_PERIOD;
-import static com.hedera.node.app.services.NodeFeeDistributor.LastNodeFeesPaymentTime.PREVIOUS_PERIOD;
+import static com.hedera.node.app.services.NodeFeeManager.LastNodeFeesPaymentTime.CURRENT_PERIOD;
+import static com.hedera.node.app.services.NodeFeeManager.LastNodeFeesPaymentTime.PREVIOUS_PERIOD;
 import static com.hedera.node.app.workflows.handle.steps.StakePeriodChanges.isNextStakingPeriod;
 import static java.util.Objects.requireNonNull;
 
@@ -53,13 +53,9 @@ import org.apache.logging.log4j.Logger;
  * </ol>
  */
 @Singleton
-public class NodeFeeDistributor implements NodeFeeAccumulator {
-    private static final Logger log = LogManager.getLogger(NodeFeeDistributor.class);
+public class NodeFeeManager implements NodeFeeAccumulator {
+    private static final Logger log = LogManager.getLogger(NodeFeeManager.class);
 
-    private final AccountsConfig accountsConfig;
-    private final LedgerConfig ledgerConfig;
-    private final StakingConfig stakingConfig;
-    private final NodesConfig nodesConfig;
     private final EntityIdFactory entityIdFactory;
     private final ConfigProvider configProvider;
 
@@ -68,20 +64,16 @@ public class NodeFeeDistributor implements NodeFeeAccumulator {
     private final Map<AccountID, Long> nodeFees = new LinkedHashMap<>();
 
     /**
-     * Constructs an {@link NodeFeeDistributor} instance.
+     * Constructs an {@link NodeFeeManager} instance.
      *
      * @param configProvider the configuration provider
      * @param entityIdFactory the entity ID factory
      */
     @Inject
-    public NodeFeeDistributor(
+    public NodeFeeManager(
             @NonNull final ConfigProvider configProvider, @NonNull final EntityIdFactory entityIdFactory) {
         final var config = configProvider.getConfiguration();
         this.configProvider = configProvider;
-        this.accountsConfig = config.getConfigData(AccountsConfig.class);
-        this.ledgerConfig = config.getConfigData(LedgerConfig.class);
-        this.stakingConfig = config.getConfigData(StakingConfig.class);
-        this.nodesConfig = config.getConfigData(NodesConfig.class);
         this.entityIdFactory = entityIdFactory;
     }
 
@@ -95,6 +87,7 @@ public class NodeFeeDistributor implements NodeFeeAccumulator {
             nodeFees.clear();
             final var nodePayments = nodePaymentsFrom(state);
             nodePayments.payments().forEach(pair -> nodeFees.put(pair.nodeAccountId(), pair.fees()));
+            log.info("Loaded node payments from state: {}", nodePayments);
         }
     }
 
@@ -181,6 +174,11 @@ public class NodeFeeDistributor implements NodeFeeAccumulator {
         requireNonNull(now);
         requireNonNull(systemTransactions);
 
+        final var nodesConfig = configProvider.getConfiguration().getConfigData(NodesConfig.class);
+        final var accountsConfig = configProvider.getConfiguration().getConfigData(AccountsConfig.class);
+        final var ledgerConfig = configProvider.getConfiguration().getConfigData(LedgerConfig.class);
+        final var stakingConfig = configProvider.getConfiguration().getConfigData(StakingConfig.class);
+
         if (!nodesConfig.feeCollectionAccountEnabled()) {
             return false;
         }
@@ -243,7 +241,9 @@ public class NodeFeeDistributor implements NodeFeeAccumulator {
                         stakingRewardAccountId,
                         nodeRewardAccountId,
                         accountStore,
-                        transferAmounts);
+                        transferAmounts,
+                        nodesConfig,
+                        stakingConfig);
             }
 
             // Add the debit from fee collection account
@@ -268,6 +268,8 @@ public class NodeFeeDistributor implements NodeFeeAccumulator {
                     now,
                     TransferList.newBuilder().accountAmounts(transferAmounts).build());
         }
+        // Even when the lastFeeDistributionTime=NEVER in genesis case we should reset the node payments state.
+        // So, we count this time for next distribution.
         nodePaymentsStore.resetForNewStakingPeriod(asTimestamp(now));
         resetNodeFees();
         ((CommittableWritableStates) writableTokenStates).commit();
@@ -283,7 +285,9 @@ public class NodeFeeDistributor implements NodeFeeAccumulator {
             @NonNull final AccountID stakingRewardAccountId,
             @NonNull final AccountID nodeRewardAccountId,
             @NonNull final ReadableAccountStore accountStore,
-            @NonNull final ArrayList<AccountAmount> transferAmounts) {
+            @NonNull final ArrayList<AccountAmount> transferAmounts,
+            final NodesConfig nodesConfig,
+            final StakingConfig stakingConfig) {
         long balance = amount;
 
         final var nodeRewardAccount = requireNonNull(accountStore.getAccountById(nodeRewardAccountId));
