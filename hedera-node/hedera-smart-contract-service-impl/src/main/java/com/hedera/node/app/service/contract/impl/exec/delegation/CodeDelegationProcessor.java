@@ -2,6 +2,7 @@
 package com.hedera.node.app.service.contract.impl.exec.delegation;
 
 import static org.hyperledger.besu.evm.account.Account.MAX_NONCE;
+import static org.hyperledger.besu.evm.worldstate.CodeDelegationHelper.CODE_DELEGATION_PREFIX;
 
 import com.hedera.node.app.hapi.utils.ethereum.CodeDelegation;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxSigs;
@@ -29,8 +30,6 @@ public record CodeDelegationProcessor(long chainId) {
             new BigInteger("7fffffffffffffffffffffffffffffff5d576e7357a4501ddfe92f46681b20a0", 16);
 
     private static final int MAX_Y_PARITY = 2 ^ 8;
-
-    public static final Bytes CODE_DELEGATION_PREFIX = Bytes.fromHexString("ef0100");
 
     /** The size of the delegated code */
     public static final int DELEGATED_CODE_SIZE = CODE_DELEGATION_PREFIX.size() + Address.SIZE;
