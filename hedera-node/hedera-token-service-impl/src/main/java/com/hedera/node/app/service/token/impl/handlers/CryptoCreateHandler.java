@@ -36,7 +36,6 @@ import static com.hedera.node.app.service.token.AliasUtils.asKeyFromAliasPreChec
 import static com.hedera.node.app.service.token.AliasUtils.extractEvmAddress;
 import static com.hedera.node.app.service.token.AliasUtils.isEntityNumAlias;
 import static com.hedera.node.app.service.token.AliasUtils.isKeyAlias;
-import static com.hedera.node.app.service.token.AliasUtils.isOfDelegationIndicatorSize;
 import static com.hedera.node.app.service.token.AliasUtils.isOfEvmAddressSize;
 import static com.hedera.node.app.service.token.HookDispatchUtils.dispatchHookCreations;
 import static com.hedera.node.app.service.token.HookDispatchUtils.validateHookDuplicates;
@@ -175,7 +174,7 @@ public class CryptoCreateHandler extends BaseCryptoHandler implements Transactio
         validateHookDuplicates(op.hookCreationDetails());
         // If a delegation address is set, it must be of EVM address size
         validateTruePreCheck(
-                op.delegationIndicator().length() == 0 || isOfDelegationIndicatorSize(op.delegationIndicator()),
+                op.delegationAddress().length() == 0 || isOfEvmAddressSize(op.delegationAddress()),
                 INVALID_CONTRACT_ID);
     }
 
@@ -459,7 +458,7 @@ public class CryptoCreateHandler extends BaseCryptoHandler implements Transactio
                 .stakeAtStartOfLastRewardedPeriod(NOT_REWARDED_SINCE_LAST_STAKING_META_CHANGE)
                 .stakePeriodStart(NO_STAKE_PERIOD_START)
                 .alias(op.alias())
-                .delegationIndicator(op.delegationIndicator());
+                .delegationAddress(op.delegationAddress());
         if (!op.hookCreationDetails().isEmpty()) {
             builder.firstHookId(op.hookCreationDetails().getFirst().hookId());
             builder.numberHooksInUse(op.hookCreationDetails().size());

@@ -228,9 +228,9 @@ message CryptoUpdateTransactionBody {
     repeated com.hedera.hapi.node.hooks.HookCreationDetails hook_creation_details = 20;
 
     /**
-     * The delegation contract indicator for the account.
+     * The delegation contract address for the account.
      * If this field is set, a call to the account's address within a smart contract will
      * result in the code of the authorized contract being executed.
      */
-    bytes delegation_indicator = 21;
+    bytes delegation_address = 21;
 }

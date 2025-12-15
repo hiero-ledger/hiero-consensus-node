@@ -21,7 +21,7 @@ import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.BASIC_ENTITY_ID_SIZE
 import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.INT_SIZE;
 import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.LONG_SIZE;
 import static com.hedera.node.app.hapi.utils.fee.FeeBuilder.getAccountKeyStorageSize;
-import static com.hedera.node.app.service.token.AliasUtils.isOfDelegationIndicatorSize;
+import static com.hedera.node.app.service.token.AliasUtils.isOfEvmAddressSize;
 import static com.hedera.node.app.service.token.HookDispatchUtils.dispatchHookCreations;
 import static com.hedera.node.app.service.token.HookDispatchUtils.dispatchHookDeletions;
 import static com.hedera.node.app.service.token.HookDispatchUtils.validateHookDuplicates;
@@ -105,9 +105,9 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
             final var distinctHookIds = op.hookIdsToDelete().stream().distinct().count();
             validateTruePreCheck(distinctHookIds == op.hookIdsToDelete().size(), HOOK_ID_REPEATED_IN_CREATION_DETAILS);
         }
-        // If a delegation address is set, it must be of delegation indicator address size
+        // If a delegation address is set, it must be of delegation address size
         validateTruePreCheck(
-                op.delegationIndicator().length() == 0 || isOfDelegationIndicatorSize(op.delegationIndicator()),
+                op.delegationAddress().length() == 0 || isOfEvmAddressSize(op.delegationAddress()),
                 INVALID_CONTRACT_ID);
     }
 
@@ -271,11 +271,11 @@ public class CryptoUpdateHandler extends BaseCryptoHandler implements Transactio
                     - op.hookIdsToDelete().size()
                     + op.hookCreationDetails().size());
         }
-        if (op.delegationIndicator().length() > 0) {
-            if (isOfDelegationIndicatorSize(op.delegationIndicator())) {
-                builder.delegationIndicator(op.delegationIndicator());
+        if (op.delegationAddress().length() > 0) {
+            if (isOfEvmAddressSize(op.delegationAddress())) {
+                builder.delegationAddress(op.delegationAddress());
             } else {
-                builder.delegationIndicator(Bytes.EMPTY);
+                builder.delegationAddress(Bytes.EMPTY);
             }
         }
         return builder;
