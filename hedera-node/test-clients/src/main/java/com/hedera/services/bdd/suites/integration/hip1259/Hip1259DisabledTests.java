@@ -29,7 +29,6 @@ import static com.hedera.services.bdd.suites.HapiSuite.NODE_REWARD;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.TINY_PARTS_PER_WHOLE;
-import static com.hedera.services.bdd.suites.integration.AdditionalHip1064Tests.allNodesActiveValidator;
 import static com.hedera.services.bdd.suites.integration.RepeatableStreamValidators.nodeRewardsValidator;
 import static com.hedera.services.bdd.suites.integration.RepeatableStreamValidators.validateRecordContains;
 import static com.hedera.services.bdd.suites.integration.RepeatableStreamValidators.validateRecordNotContains;
@@ -99,9 +98,7 @@ public class Hip1259DisabledTests {
         return hapiTest(
                 getAccountBalance(FEE_COLLECTOR).exposingBalanceTo(initialFeeCollectionBalance::set),
                 cryptoCreate(CIVILIAN_PAYER).balance(ONE_MILLION_HBARS),
-                cryptoCreate("testFile")
-                        .payingWith(CIVILIAN_PAYER)
-                        .via("feeTxn"),
+                cryptoCreate("testFile").payingWith(CIVILIAN_PAYER).via("feeTxn"),
                 getTxnRecord("feeTxn").logged(),
                 validateRecordContains("feeTxn", LEGACY_FEE_ACCOUNTS),
                 validateRecordNotContains("feeTxn", FEE_COLLECTION_ACCOUNT),
@@ -120,8 +117,7 @@ public class Hip1259DisabledTests {
      * when HIP-1259 is disabled, using the legacy fee distribution mechanism.
      */
     @Order(3)
-    @LeakyRepeatableHapiTest(
-            value = {NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION, NEEDS_STATE_ACCESS})
+    @LeakyRepeatableHapiTest(value = {NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION, NEEDS_STATE_ACCESS})
     final Stream<DynamicTest> nodeRewardsWithLegacyFeeDistribution() {
         final AtomicLong expectedNodeRewards = new AtomicLong(0);
         final AtomicLong nodeRewardBalance = new AtomicLong(0);
@@ -131,19 +127,17 @@ public class Hip1259DisabledTests {
                 nodeUpdate("0").declineReward(true),
                 waitUntilStartOfNextStakingPeriod(1),
                 doingContextual(spec -> startConsensusTime.set(spec.consensusTime())),
-
                 recordStreamMustIncludePassWithoutBackgroundTrafficFrom(
                         selectedItems(
                                 nodeRewardsValidator(nodeRewardBalance::get),
                                 1,
                                 (spec, item) -> item.getRecord().getTransferList().getAccountAmountsList().stream()
-                                        .anyMatch(
-                                                aa -> aa.getAccountID().getAccountNum() == 801L
-                                                        && aa.getAmount() < 0L)
+                                                .anyMatch(
+                                                        aa -> aa.getAccountID().getAccountNum() == 801L
+                                                                && aa.getAmount() < 0L)
                                         && asInstant(toPbj(item.getRecord().getConsensusTimestamp()))
-                                        .isAfter(startConsensusTime.get())),
+                                                .isAfter(startConsensusTime.get())),
                         Duration.ofSeconds(1)),
-
                 cryptoCreate(CIVILIAN_PAYER),
                 fileCreate("something")
                         .contents("ABCDEFGHIJKLMNOPQRSTUVWXYZ")

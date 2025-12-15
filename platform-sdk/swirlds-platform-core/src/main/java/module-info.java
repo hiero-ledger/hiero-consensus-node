@@ -38,9 +38,7 @@ module com.swirlds.platform.core {
     exports com.swirlds.platform.network.communication;
     exports com.swirlds.platform.network.protocol;
     exports com.swirlds.platform.network.topology;
-    exports com.swirlds.platform.recovery;
     exports com.swirlds.platform.state;
-    exports com.swirlds.platform.state.editor;
     exports com.swirlds.platform.state.signed;
     exports com.swirlds.platform.state.address;
     exports com.swirlds.platform.gossip.sync;

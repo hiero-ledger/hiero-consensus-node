@@ -608,7 +608,7 @@ public class AdditionalHip1064Tests {
         final AtomicLong balanceAfterTest = new AtomicLong(0);
 
         return hapiTest(
-                overriding("nodes.minNodeRewardBalance", "100000000000"),// 1000 HBAR in tinybars
+                overriding("nodes.minNodeRewardBalance", "100000000000"), // 1000 HBAR in tinybars
                 overriding("nodes.feeCollectionAccountEnabled", "false"),
                 waitUntilStartOfNextStakingPeriod(1),
                 cryptoCreate(CIVILIAN_PAYER),

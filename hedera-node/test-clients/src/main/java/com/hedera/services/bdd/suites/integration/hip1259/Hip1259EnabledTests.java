@@ -66,7 +66,6 @@ import com.hedera.services.stream.proto.RecordStreamItem;
 import com.hederahashgraph.api.proto.java.AccountAmount;
 import com.hederahashgraph.api.proto.java.TokenSupplyType;
 import edu.umd.cs.findbugs.annotations.NonNull;
-
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
@@ -75,7 +74,6 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.LongSupplier;
 import java.util.stream.Stream;
-
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.MethodOrderer;
@@ -148,13 +146,13 @@ public class Hip1259EnabledTests {
         final AtomicLong nodeAccountBalance = new AtomicLong(0);
         final AtomicReference<Instant> startConsensusTime = new AtomicReference<>();
 
-
         return hapiTest(
                 getAccountBalance(NODE_ACCOUNT).exposingBalanceTo(nodeAccountBalance::set),
                 doingContextual(spec -> startConsensusTime.set(spec.consensusTime())),
                 recordStreamMustIncludePassWithoutBackgroundTrafficFrom(
                         selectedItems(
-                                feeDistributionValidator(1, List.of(3L, 800L, 801L, 98L), nodeFee::get, nodeAccountBalance::get),
+                                feeDistributionValidator(
+                                        1, List.of(3L, 800L, 801L, 98L), nodeFee::get, nodeAccountBalance::get),
                                 1,
                                 (spec, item) -> hasFeeDistribution(item, startConsensusTime)),
                         Duration.ofSeconds(1)),
@@ -171,15 +169,14 @@ public class Hip1259EnabledTests {
                         .via("distributionTrigger"),
                 // record fee collector account before the transaction of interest
                 getAccountBalance(FEE_COLLECTOR).exposingBalanceTo(initialFeeCollectionBalance::set),
-
                 cryptoCreate("testAccount")
                         .balance(ONE_HBAR)
                         .payingWith(CIVILIAN_PAYER)
                         .via("feeTxn"),
                 // verify fee collection account balance increased by transaction fee
                 getTxnRecord("feeTxn").exposingTo(record -> txnFee.set(record.getTransactionFee())),
-                sourcing(() -> getAccountBalance(FEE_COLLECTOR)
-                        .hasTinyBars(initialFeeCollectionBalance.get() + txnFee.get())),
+                sourcing(() ->
+                        getAccountBalance(FEE_COLLECTOR).hasTinyBars(initialFeeCollectionBalance.get() + txnFee.get())),
 
                 // Node fees should increase after transaction
                 sleepForBlockPeriod(),
@@ -193,8 +190,6 @@ public class Hip1259EnabledTests {
                             newPayments > initialNodeFeesCollected.get(),
                             "Node fees collected should increase after transaction");
                 }),
-
-
                 validateRecordContains("feeTxn", FEE_COLLECTOR_ACCOUNT),
                 validateRecordNotContains("feeTxn", UNEXPECTED_FEE_ACCOUNTS),
 
@@ -224,11 +219,11 @@ public class Hip1259EnabledTests {
                 doingContextual(spec -> startConsensusTime.set(spec.consensusTime())),
                 recordStreamMustIncludePassWithoutBackgroundTrafficFrom(
                         selectedItems(
-                                nodeRewardsWithFeeCollectionValidator(initialNodeAccountBalance::get, nodeAccountBalanceAfterDistribution::get),
+                                nodeRewardsWithFeeCollectionValidator(
+                                        initialNodeAccountBalance::get, nodeAccountBalanceAfterDistribution::get),
                                 2,
                                 (spec, item) -> isNodeRewardOrFeeDistribution(item, startConsensusTime)),
                         Duration.ofSeconds(1)),
-
                 cryptoTransfer(TokenMovement.movingHbar(100000 * ONE_HBAR).between(GENESIS, NODE_REWARD)),
                 nodeUpdate("0").declineReward(true),
                 waitUntilStartOfNextStakingPeriod(1),
@@ -264,7 +259,9 @@ public class Hip1259EnabledTests {
                 cryptoCreate("nobody").payingWith(GENESIS),
                 doingContextual(TxnUtils::triggerAndCloseAtLeastOneFileIfNotInterrupted),
                 getAccountBalance(FEE_COLLECTOR).logged(),
-                getAccountBalance(NODE_ACCOUNT).exposingBalanceTo(nodeAccountBalanceAfterDistribution::set).logged());
+                getAccountBalance(NODE_ACCOUNT)
+                        .exposingBalanceTo(nodeAccountBalanceAfterDistribution::set)
+                        .logged());
     }
 
     @Order(10)
@@ -300,28 +297,31 @@ public class Hip1259EnabledTests {
                         .withCustom(fixedHbarFee(1, FEE_COLLECTOR))
                         .hasKnownStatus(INVALID_CUSTOM_FEE_COLLECTOR)
                 // TODO: Add a case tp transfer via EVM
-        );
+                );
     }
 
-
-    private static boolean isNodeRewardOrFeeDistribution(final RecordStreamItem item,
-                                                         final AtomicReference<Instant> startConsensusTime) {
+    private static boolean isNodeRewardOrFeeDistribution(
+            final RecordStreamItem item, final AtomicReference<Instant> startConsensusTime) {
         return item.getRecord().getTransferList().getAccountAmountsList().stream()
                 .anyMatch(aa -> {
                     final var accountNum = aa.getAccountID().getAccountNum();
                     final var amount = aa.getAmount();
-                    final var isAfter = asInstant(toPbj(item.getRecord().getConsensusTimestamp())).minusSeconds(60).isAfter(startConsensusTime.get());
+                    final var isAfter = asInstant(toPbj(item.getRecord().getConsensusTimestamp()))
+                            .minusSeconds(60)
+                            .isAfter(startConsensusTime.get());
                     return ((accountNum == 801L || accountNum == 802L) && amount < 0L) && isAfter;
                 });
     }
 
-    private static boolean hasFeeDistribution(final RecordStreamItem item,
-                                              final AtomicReference<Instant> startConsensusTime) {
+    private static boolean hasFeeDistribution(
+            final RecordStreamItem item, final AtomicReference<Instant> startConsensusTime) {
         return item.getRecord().getTransferList().getAccountAmountsList().stream()
                 .anyMatch(aa -> {
                     final var accountNum = aa.getAccountID().getAccountNum();
                     final var amount = aa.getAmount();
-                    final var isAfter = asInstant(toPbj(item.getRecord().getConsensusTimestamp())).minusSeconds(60).isAfter(startConsensusTime.get());
+                    final var isAfter = asInstant(toPbj(item.getRecord().getConsensusTimestamp()))
+                            .minusSeconds(60)
+                            .isAfter(startConsensusTime.get());
                     return ((accountNum == 802L) && amount < 0L) && isAfter;
                 });
     }
@@ -360,8 +360,8 @@ public class Hip1259EnabledTests {
      * 2. Node rewards are distributed last (0.0.801 is debited, node accounts are credited)
      */
     static VisibleItemsValidator nodeRewardsWithFeeCollectionValidator(
-                                                                       @NonNull final LongSupplier initialNodeBalance,
-                                                                       @NonNull final LongSupplier nodeAccountBalanceAfterDistribution) {
+            @NonNull final LongSupplier initialNodeBalance,
+            @NonNull final LongSupplier nodeAccountBalanceAfterDistribution) {
         return (spec, records) -> {
             final var items = records.get(SELECTED_ITEMS_KEY);
             assertNotNull(items, "No reward payments or fee distributions found");
@@ -423,7 +423,10 @@ public class Hip1259EnabledTests {
             assertTrue(foundFeeDistribution, "Should have at least one fee distribution transaction");
             assertTrue(foundNodeReward, "Should have at least one node reward transaction");
             assertTrue(feeDistributionIndex < nodeRewardIndex, "Fee distribution should happen before node rewards");
-            assertEquals( initialNodeBalance.getAsLong() + nodeFees, nodeAccountBalanceAfterDistribution.getAsLong(),"Node account balance should match");
+            assertEquals(
+                    initialNodeBalance.getAsLong() + nodeFees,
+                    nodeAccountBalanceAfterDistribution.getAsLong(),
+                    "Node account balance should match");
         };
     }
 }

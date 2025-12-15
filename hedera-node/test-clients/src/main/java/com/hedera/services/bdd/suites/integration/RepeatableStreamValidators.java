@@ -1,14 +1,5 @@
+// SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.integration;
-
-import com.hedera.services.bdd.spec.SpecOperation;
-import com.hedera.services.bdd.spec.utilops.UtilVerbs;
-import com.hedera.services.bdd.spec.utilops.streams.assertions.VisibleItemsValidator;
-import com.hederahashgraph.api.proto.java.AccountAmount;
-import edu.umd.cs.findbugs.annotations.NonNull;
-
-import java.util.List;
-import java.util.Map;
-import java.util.function.LongSupplier;
 
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
@@ -19,6 +10,15 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import com.hedera.services.bdd.spec.SpecOperation;
+import com.hedera.services.bdd.spec.utilops.UtilVerbs;
+import com.hedera.services.bdd.spec.utilops.streams.assertions.VisibleItemsValidator;
+import com.hederahashgraph.api.proto.java.AccountAmount;
+import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.List;
+import java.util.Map;
+import java.util.function.LongSupplier;
 
 public class RepeatableStreamValidators {
     /**

@@ -19,6 +19,7 @@ import com.hedera.node.app.spi.AppContext;
 import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.migrate.StartupNetworks;
+import com.hedera.node.app.spi.records.SelfNodeAccountIdManager;
 import com.hedera.node.app.state.HederaRecordCache;
 import com.hedera.node.app.workflows.handle.DispatchProcessor;
 import com.hedera.node.app.workflows.handle.steps.ParentTxnFactory;
@@ -89,6 +90,9 @@ class SystemTransactionsTest {
     private EntityIdFactory entityIdFactory;
 
     @Mock
+    private SelfNodeAccountIdManager selfNodeAccountIdManager;
+
+    @Mock
     private State state;
 
     @Mock(strictness = Mock.Strictness.LENIENT)
@@ -130,7 +134,8 @@ class SystemTransactionsTest {
                 recordCache,
                 startupNetworks,
                 stakePeriodChanges,
-                immediateStateChangeListener);
+                immediateStateChangeListener,
+                selfNodeAccountIdManager);
     }
 
     @Test
@@ -185,7 +190,8 @@ class SystemTransactionsTest {
                 recordCache,
                 startupNetworks,
                 stakePeriodChanges,
-                immediateStateChangeListener);
+                immediateStateChangeListener,
+                selfNodeAccountIdManager);
 
         final var result = subject.firstReservedSystemTimeFor(NOW);
 
@@ -390,7 +396,8 @@ class SystemTransactionsTest {
                 recordCache,
                 startupNetworks,
                 stakePeriodChanges,
-                immediateStateChangeListener);
+                immediateStateChangeListener,
+                selfNodeAccountIdManager);
 
         final var result = subject.firstReservedSystemTimeFor(NOW);
 
@@ -430,7 +437,8 @@ class SystemTransactionsTest {
                 recordCache,
                 startupNetworks,
                 stakePeriodChanges,
-                immediateStateChangeListener);
+                immediateStateChangeListener,
+                selfNodeAccountIdManager);
 
         final var result = subject.firstReservedSystemTimeFor(NOW);
 

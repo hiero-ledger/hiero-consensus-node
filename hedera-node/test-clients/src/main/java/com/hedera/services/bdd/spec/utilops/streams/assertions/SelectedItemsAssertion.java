@@ -5,14 +5,13 @@ import com.hedera.node.app.hapi.utils.forensics.RecordStreamEntry;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.stream.proto.RecordStreamItem;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiPredicate;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * An assertion that validates a stream item against a predicate, and after finding an expected number of items,
@@ -53,8 +52,8 @@ public class SelectedItemsAssertion implements RecordStreamAssertion {
             validator.assertValid(
                     spec, Map.of(SELECTED_ITEMS_KEY, new VisibleItems(new AtomicInteger(), selectedEntries)));
             return true;
-        }else{
-           log.error("Selected {} items, expected {}", selectedEntries.size(), expectedCount);
+        } else {
+            log.error("Selected {} items, expected {}", selectedEntries.size(), expectedCount);
         }
         return false;
     }

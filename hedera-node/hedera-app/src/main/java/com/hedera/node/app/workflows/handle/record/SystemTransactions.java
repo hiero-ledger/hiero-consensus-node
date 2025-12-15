@@ -60,6 +60,7 @@ import com.hedera.node.app.spi.AppContext;
 import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.migrate.StartupNetworks;
+import com.hedera.node.app.spi.records.SelfNodeAccountIdManager;
 import com.hedera.node.app.spi.workflows.SystemContext;
 import com.hedera.node.app.state.HederaRecordCache;
 import com.hedera.node.app.state.recordcache.LegacyListRecordSource;
@@ -153,6 +154,7 @@ public class SystemTransactions {
     private final StartupNetworks startupNetworks;
     private final StakePeriodChanges stakePeriodChanges;
     private final ImmediateStateChangeListener immediateStateChangeListener;
+    private final SelfNodeAccountIdManager selfNodeAccountIdManager;
 
     private int nextDispatchNonce = 1;
 
@@ -174,7 +176,8 @@ public class SystemTransactions {
             @NonNull final HederaRecordCache recordCache,
             @NonNull final StartupNetworks startupNetworks,
             @NonNull final StakePeriodChanges stakePeriodChanges,
-            @NonNull final ImmediateStateChangeListener immediateStateChangeListener) {
+            @NonNull final ImmediateStateChangeListener immediateStateChangeListener,
+            @NonNull final SelfNodeAccountIdManager selfNodeAccountIdManager) {
         this.initTrigger = requireNonNull(initTrigger);
         this.fileService = requireNonNull(fileService);
         this.parentTxnFactory = requireNonNull(parentTxnFactory);
@@ -193,6 +196,7 @@ public class SystemTransactions {
         this.startupNetworks = requireNonNull(startupNetworks);
         this.stakePeriodChanges = requireNonNull(stakePeriodChanges);
         this.immediateStateChangeListener = requireNonNull(immediateStateChangeListener);
+        this.selfNodeAccountIdManager = requireNonNull(selfNodeAccountIdManager);
     }
 
     /**
@@ -374,6 +378,7 @@ public class SystemTransactions {
             final var nodeStore = new ReadableStoreFactory(state).getStore(ReadableNodeStore.class);
             fileService.updateAddressBookAndNodeDetailsAfterFreeze(systemContext, nodeStore);
         }
+        selfNodeAccountIdManager.setSelfNodeAccountId(networkInfo.selfNodeInfo().accountId());
 
         // And then we update the system files for fees schedules, throttles, override properties, and override
         // permissions from any upgrade files that are present in the configured directory
@@ -471,8 +476,8 @@ public class SystemTransactions {
         requireNonNull(nodeRewardsAccountId);
         final var systemContext = newSystemContext(
                 now, state, dispatch -> {}, UseReservedConsensusTimes.YES, TriggerStakePeriodSideEffects.YES);
-//        log.info("XXXX Dispatching node rewards for active nodes {} and inactive nodes {}",
-//                activeNodeIds, rosterEntries.stream().map(RosterEntry::nodeId).toList());
+        //        log.info("XXXX Dispatching node rewards for active nodes {} and inactive nodes {}",
+        //                activeNodeIds, rosterEntries.stream().map(RosterEntry::nodeId).toList());
         final var activeNodeAccountIds = activeNodeIds.stream()
                 .map(id -> systemContext.networkInfo().nodeInfo(id))
                 .filter(nodeInfo -> nodeInfo != null && !nodeInfo.declineReward())
@@ -813,7 +818,8 @@ public class SystemTransactions {
                 if (streamMode != RECORDS) {
                     handleOutput.blockRecordSourceOrThrow().forEachItem(blockStreamManager::writeItem);
                 }
-               log.info("XXXXX identifiedReceipts " + handleOutput.preferringBlockRecordSource().identifiedReceipts());
+                log.info("XXXXX identifiedReceipts "
+                        + handleOutput.preferringBlockRecordSource().identifiedReceipts());
             }
         };
     }
