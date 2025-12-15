@@ -220,6 +220,7 @@ public class BlockProductionBenchmark {
                     .transactionFee(1000L)
                     .transferList(sampleTransferList);
 
+            //TODO create state change block item instead of null
             BlockStreamBuilder.Output output = builder.build(false, null);
 
             // WRITE ITEMS via REAL BlockStreamManagerImpl.writeItem()
