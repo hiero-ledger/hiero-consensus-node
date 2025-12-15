@@ -116,6 +116,8 @@ val prCheckStartPorts =
         put("hapiTestMisc", "26800")
         put("hapiTestBlockNodeCommunication", "27000")
         put("hapiTestMiscRecords", "27200")
+        put("hapiTestClpr", "27400")
+        put("hapiTestMultiNetwork", "27600")
 
         // Create the MATS variants
         val originalEntries = toMap() // Create a snapshot of current entries
@@ -131,7 +133,7 @@ val prCheckPropOverrides =
         )
         put(
             "hapiTestCrypto",
-            "tss.hintsEnabled=true,tss.historyEnabled=true,tss.wrapsEnabled=false,blockStream.blockPeriod=1s",
+            "tss.hintsEnabled=true,tss.historyEnabled=true,blockStream.blockPeriod=1s",
         )
         put("hapiTestSmartContract", "tss.historyEnabled=false")
         put(
@@ -145,6 +147,11 @@ val prCheckPropOverrides =
             "blockStream.streamMode=RECORDS,nodes.nodeRewardsEnabled=false,quiescence.enabled=true",
         )
         put("hapiTestSimpleFees", "fees.simpleFeesEnabled=true")
+        put(
+            "hapiTestClpr",
+            "clpr.clprEnabled=true,clpr.devModeEnabled=true,clpr.connectionFrequency=100",
+        )
+        put("hapiTestMultiNetwork", "clpr.clprEnabled=false")
 
         // Copy vals to the MATS variants
         val originalEntries = toMap() // Create a snapshot of current entries
@@ -209,7 +216,7 @@ tasks.register<Test>("testSubprocess") {
             else if (ciTagExpression.contains("ISS") || ciTagExpression.contains("BLOCK_NODE"))
                 "(${ciTagExpression})&!(EMBEDDED|REPEATABLE)"
             else if (ciTagExpression.contains("CLPR")) "(CLPR)"
-            else if (ciTagExpression.contains("MULTINETWORK")) "MULTINETWORK"
+            else if (ciTagExpression.contains("MULTINETWORK")) "(MULTINETWORK)"
             else "(${ciTagExpression}|STREAM_VALIDATION|LOG_VALIDATION)&!(EMBEDDED|REPEATABLE|ISS)"
         )
     }

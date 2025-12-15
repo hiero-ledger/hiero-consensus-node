@@ -8,6 +8,7 @@ import static com.hedera.node.app.spi.workflows.PreCheckException.validateFalseP
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.QueryHeader;
+import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.ResponseHeader;
 import com.hedera.hapi.node.transaction.Query;
 import com.hedera.hapi.node.transaction.Response;
@@ -60,6 +61,9 @@ public class ClprGetLedgerConfigurationHandler extends FreeQueryHandler {
      */
     public void validate(@NonNull final QueryContext context) throws PreCheckException {
         requireNonNull(context);
+        if (!stateProofManager.clprEnabled()) {
+            throw new PreCheckException(ResponseCodeEnum.NOT_SUPPORTED);
+        }
         final var query = context.query();
         final var op = query.getClprLedgerConfigurationOrThrow();
         // We are retrieving data from the StateProofManager since we are answering the query with a state proof.

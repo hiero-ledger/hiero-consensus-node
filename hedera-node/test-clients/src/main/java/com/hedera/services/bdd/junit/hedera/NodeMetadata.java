@@ -30,6 +30,7 @@ public record NodeMetadata(
      * @param internalGossipPort the new internal gossip port
      * @param externalGossipPort the new external gossip port
      * @param prometheusPort the new prometheus port
+     * @param debugPort the new debug (JDWP) port
      * @return a new instance with the same values as this instance, but different ports
      */
     public NodeMetadata withNewPorts(

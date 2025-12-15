@@ -52,6 +52,9 @@ public class ClprSetLedgerConfigurationHandler implements TransactionHandler {
 
     @Override
     public void pureChecks(@NonNull final PureChecksContext context) throws PreCheckException {
+        if (!stateProofManager.clprEnabled()) {
+            throw new PreCheckException(ResponseCodeEnum.NOT_SUPPORTED);
+        }
         requireNonNull(context);
         // TODO: Determine what throttles apply to this transaction.
         //  Number of state proofs per second?
