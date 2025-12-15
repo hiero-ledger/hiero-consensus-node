@@ -12,6 +12,7 @@ import org.hiero.base.utility.CommonUtils;
 import org.hiero.consensus.hashgraph.ConsensusConfig;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusConstants;
+import org.hiero.consensus.round.RoundCalculationUtils;
 
 /**
  * Utility class for generating "synthetic" snapshots
