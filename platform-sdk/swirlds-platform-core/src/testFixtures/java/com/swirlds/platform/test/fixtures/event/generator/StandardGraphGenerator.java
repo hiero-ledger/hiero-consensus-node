@@ -200,10 +200,10 @@ public class StandardGraphGenerator implements GraphGenerator {
      * Note: once an event source has been passed to this constructor it should not be modified by the outer context.
      *
      * @param platformContext The platform context
-     * @param seed            The random seed used to generate events.
+     * @param seed The random seed used to generate events.
      * @param maxOtherParents The maximum number of other-parents for each event.
-     * @param eventSources    One or more event sources.
-     * @param roster          The roster to use.
+     * @param eventSources One or more event sources.
+     * @param roster The roster to use.
      */
     public StandardGraphGenerator(
             @NonNull final PlatformContext platformContext,
@@ -252,9 +252,8 @@ public class StandardGraphGenerator implements GraphGenerator {
     }
 
     private void initializeInternalConsensus() {
-        final ConsensusConfig consensusConfig =
-                platformContext.getConfiguration().getConfigData(ConsensusConfig.class);
-        consensus = new ConsensusImpl(consensusConfig, platformContext.getTime(), new NoOpConsensusMetrics(), roster);
+        consensus = new ConsensusImpl(
+                platformContext.getConfiguration(), platformContext.getTime(), new NoOpConsensusMetrics(), roster);
         linker = new ConsensusLinker(NoOpLinkerLogsAndMetrics.getInstance());
         orphanBuffer = new DefaultOrphanBuffer(platformContext.getMetrics(), mock(IntakeEventCounter.class));
     }
@@ -264,7 +263,7 @@ public class StandardGraphGenerator implements GraphGenerator {
      * the event sources from the addresses.
      *
      * @param eventSources the event sources to initialize.
-     * @param roster       the roster to use.
+     * @param roster the roster to use.
      */
     private void setAddressBookInitializeEventSources(
             @NonNull final List<EventSource> eventSources, @NonNull final Roster roster) {
@@ -281,9 +280,8 @@ public class StandardGraphGenerator implements GraphGenerator {
      * Set the affinity of each node for choosing the parents of its events.
      *
      * @param affinityMatrix An n by n matrix where n is the number of event sources. Each row defines the preference of
-     *                       a particular node when choosing other parents. Node 0 is described by the first row, node 1
-     *                       by the next, etc. Each entry should be a weight. Weights of self (i.e. the weights on the
-     *                       diagonal) should be 0.
+     * a particular node when choosing other parents. Node 0 is described by the first row, node 1 by the next, etc.
+     * Each entry should be a weight. Weights of self (i.e. the weights on the diagonal) should be 0.
      */
     public void setOtherParentAffinity(final List<List<Double>> affinityMatrix) {
         setOtherParentAffinity(staticDynamicValue(affinityMatrix));
@@ -293,7 +291,7 @@ public class StandardGraphGenerator implements GraphGenerator {
      * Set the affinity of each node for choosing the parents of its events.
      *
      * @param affinityMatrix A dynamic n by n matrix where n is the number of event sources. Each entry should be a
-     *                       weight. Weights of self (i.e. the weights on the diagonal) should be 0.
+     * weight. Weights of self (i.e. the weights on the diagonal) should be 0.
      */
     public void setOtherParentAffinity(final DynamicValue<List<List<Double>>> affinityMatrix) {
         this.affinityMatrix = new DynamicValueGenerator<>(affinityMatrix);
@@ -303,7 +301,7 @@ public class StandardGraphGenerator implements GraphGenerator {
      * Get the affinity vector for a particular node.
      *
      * @param eventIndex the current event index
-     * @param nodeId     the node ID that is being requested
+     * @param nodeId the node ID that is being requested
      */
     private List<Double> getOtherParentAffinityVector(final long eventIndex, final int nodeId) {
         return affinityMatrix.get(getRandom(), eventIndex).get(nodeId);
