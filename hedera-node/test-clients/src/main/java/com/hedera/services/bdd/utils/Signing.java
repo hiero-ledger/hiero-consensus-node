@@ -74,6 +74,7 @@ public final class Signing {
                 ethTx.accessList(),
                 null,
                 ethTx.authorizationList(),
+                new Object[] {},
                 flipRecId ? ((byte) recId.getValue()) ^ 1 : (byte) recId.getValue(),
                 val == null ? null : val.toByteArray(),
                 r,
