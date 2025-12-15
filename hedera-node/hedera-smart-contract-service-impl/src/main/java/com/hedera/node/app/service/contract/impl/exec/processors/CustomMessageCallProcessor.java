@@ -209,7 +209,7 @@ public class CustomMessageCallProcessor extends MessageCallProcessor {
                     doExecuteSystemContract(context, systemContracts.get(context.executableCodeAddress));
                 }
             } else {
-                // For any other accounts: code delegation to System Contracts is a no-op - so just succeed.
+                // For any other Hedera accounts: code delegation to System Contracts is a no-op - so just succeed.
                 context.frame.setState(MessageFrame.State.CODE_SUCCESS);
 
                 // Even though execution is no-op, the call may still carry value transfer.

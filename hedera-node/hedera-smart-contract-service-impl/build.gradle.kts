@@ -5,8 +5,7 @@ description = "Default Hedera Smart Contract Service Implementation"
 
 // Remove the following line to enable all 'javac' lint checks that we have turned on by default
 // and then fix the reported issues.
-// TODO(Pectra): restore to `options.compilerArgs.add("-Xlint:-exports")`
-tasks.withType<JavaCompile>().configureEach { options.compilerArgs.clear() }
+tasks.withType<JavaCompile>().configureEach { options.compilerArgs.add("-Xlint:-exports") }
 
 mainModuleInfo { annotationProcessor("dagger.compiler") }
 

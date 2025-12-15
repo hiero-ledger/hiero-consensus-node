@@ -70,6 +70,7 @@ public class ProxyEvmHook extends AbstractProxyEvmAccount {
 
     @NonNull
     private static AccountID getOwnerId(final @NonNull HookId hookId) {
+        // We always use account id for hook owner internally
         return hookId.entityIdOrThrow().accountIdOrThrow();
     }
 

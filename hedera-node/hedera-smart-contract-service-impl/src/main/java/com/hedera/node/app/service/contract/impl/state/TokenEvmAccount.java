@@ -2,7 +2,7 @@
 package com.hedera.node.app.service.contract.impl.state;
 
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.HtsSystemContract.HTS_167_EVM_ADDRESS;
-import static org.hyperledger.besu.crypto.Hash.sha256;
+import static org.hyperledger.besu.crypto.Hash.keccak256;
 import static org.hyperledger.besu.evm.worldstate.CodeDelegationHelper.CODE_DELEGATION_PREFIX;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -29,7 +29,7 @@ public class TokenEvmAccount extends AbstractEvmEntityAccount {
     // EIP-7702 delegation to HTS system contract
     public static final Bytes CODE =
             Bytes.concatenate(CODE_DELEGATION_PREFIX, Address.fromHexString(HTS_167_EVM_ADDRESS));
-    public static final Hash CODE_HASH = Hash.wrap(sha256(CODE));
+    public static final Hash CODE_HASH = Hash.wrap(keccak256(CODE));
 
     public TokenEvmAccount(@NonNull final Address address, @NonNull final EvmFrameState state) {
         super(address, state);
