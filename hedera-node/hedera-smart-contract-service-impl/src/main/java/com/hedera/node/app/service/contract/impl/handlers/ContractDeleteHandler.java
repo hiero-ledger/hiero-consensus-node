@@ -114,8 +114,7 @@ public class ContractDeleteHandler implements TransactionHandler {
                         obtainer.accountIdOrThrow(),
                         context.expiryValidator(),
                         recordBuilder,
-                        accountNodeRelStore,
-                        entityIdFactory);
+                        accountNodeRelStore);
         recordBuilder.contractID(asNumericContractId(entityIdFactory, deletedId));
     }
 

@@ -125,6 +125,7 @@ public class CryptoTransferValidator {
                     TRANSFER_LIST_SIZE_LIMIT_EXCEEDED);
         }
 
+        // Verify that no credits are going to the fee collection account
         final var feeCollectionAccount = entityIdFactory.newAccountId(accountsConfig.feeCollectionAccount());
         validateTrue(
                 hbarTransfers.stream()
@@ -157,6 +158,12 @@ public class CryptoTransferValidator {
         }
     }
 
+    /**
+     * Verify that no credits are going to the fee collection account
+     *
+     * @param transferList token transfer list
+     * @param feeCollectionAccount fee collection account
+     */
     private void validateNoCreditsToFeeCollectionAccount(
             final TokenTransferList transferList, final AccountID feeCollectionAccount) {
         validateTrue(

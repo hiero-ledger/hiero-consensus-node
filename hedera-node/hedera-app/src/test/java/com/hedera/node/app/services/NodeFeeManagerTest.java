@@ -84,8 +84,8 @@ class NodeFeeManagerTest {
                 .withValue("nodes.feeCollectionAccountEnabled", true)
                 .withValue("nodes.nodeRewardsEnabled", true)
                 .withValue("nodes.preserveMinNodeRewardBalance", false)
-                .withValue("staking.feesNodeRewardPercentage", 10)
-                .withValue("staking.feesStakingRewardPercentage", 10)
+                .withValue("staking.fees.nodeRewardPercentage", 10)
+                .withValue("staking.fees.stakingRewardPercentage", 10)
                 .getOrCreateConfig();
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1));
         subject = new NodeFeeManager(configProvider, entityIdFactory);
@@ -193,7 +193,7 @@ class NodeFeeManagerTest {
         final var updatedPayments = nodePaymentsRef.get();
         assertNotNull(updatedPayments);
         assertEquals(1, updatedPayments.payments().size());
-        assertEquals(7L, updatedPayments.payments().get(0).nodeAccountId());
+        assertEquals(asAccount(0, 0, 7L), updatedPayments.payments().get(0).nodeAccountId());
         assertEquals(300L, updatedPayments.payments().get(0).fees());
     }
 
@@ -341,15 +341,12 @@ class NodeFeeManagerTest {
         // Set up with 0.0.801 having low balance (below minimum)
         final var nodePayments = NodePayments.newBuilder()
                 .lastNodeFeeDistributionTime(asTimestamp(PREV_PERIOD))
-                .payments(List.of(NodePayment.newBuilder()
-                        .nodeAccountId(NODE_ACCOUNT_ID_3)
-                        .fees(100L)
-                        .build()))
+                .payments(List.of())
                 .build();
         givenSetupForDistributionWithNodeRewardBalance(nodePayments, 1000L, 500L); // 500 < 10000 minimum
 
-        // Load state into memory first
-        subject.onOpenBlock(state);
+        // Accumulate fees in memory (simulating block processing)
+        subject.accumulate(NODE_ACCOUNT_ID_3, 100L);
 
         final var result = subject.distributeFees(state, NOW, systemTransactions);
 
@@ -387,12 +384,12 @@ class NodeFeeManagerTest {
         // Set up with 0.0.801 having high balance (above minimum)
         final var nodePayments = NodePayments.newBuilder()
                 .lastNodeFeeDistributionTime(asTimestamp(PREV_PERIOD))
-                .payments(List.of(NodePayment.newBuilder()
-                        .nodeAccountId(NODE_ACCOUNT_ID_3)
-                        .fees(100L)
-                        .build()))
+                .payments(List.of())
                 .build();
         givenSetupForDistributionWithNodeRewardBalance(nodePayments, 1000L, 500L); // 500 > 100 minimum
+
+        // Accumulate fees in memory (simulating block processing)
+        subject.accumulate(NODE_ACCOUNT_ID_3, 100L);
 
         final var result = subject.distributeFees(state, NOW, systemTransactions);
 
@@ -430,17 +427,13 @@ class NodeFeeManagerTest {
     void testDistributeFeesSkipsNonExistentNodeAccounts() {
         final var nodePayments = NodePayments.newBuilder()
                 .lastNodeFeeDistributionTime(asTimestamp(PREV_PERIOD))
-                .payments(List.of(
-                        NodePayment.newBuilder()
-                                .nodeAccountId(NODE_ACCOUNT_ID_3)
-                                .fees(100L)
-                                .build(),
-                        NodePayment.newBuilder()
-                                .nodeAccountId(asAccount(0, 0, 888L)) // Non-existent account
-                                .fees(200L)
-                                .build()))
+                .payments(List.of())
                 .build();
         givenSetupForDistributionWithMissingAccount(nodePayments, 1000L, 888L);
+
+        // Accumulate fees in memory (simulating block processing)
+        subject.accumulate(NODE_ACCOUNT_ID_3, 100L);
+        subject.accumulate(asAccount(0, 0, 888L), 200L); // Non-existent account
 
         final var result = subject.distributeFees(state, NOW, systemTransactions);
 
@@ -531,21 +524,14 @@ class NodeFeeManagerTest {
     void testDistributeFeesWithMultipleNodesVaryingFees() {
         final var nodePayments = NodePayments.newBuilder()
                 .lastNodeFeeDistributionTime(asTimestamp(PREV_PERIOD))
-                .payments(List.of(
-                        NodePayment.newBuilder()
-                                .nodeAccountId(NODE_ACCOUNT_ID_3)
-                                .fees(100L)
-                                .build(),
-                        NodePayment.newBuilder()
-                                .nodeAccountId(NODE_ACCOUNT_ID_5)
-                                .fees(300L)
-                                .build(),
-                        NodePayment.newBuilder()
-                                .nodeAccountId(asAccount(0, 0, 7L))
-                                .fees(200L)
-                                .build()))
+                .payments(List.of())
                 .build();
         givenSetupForDistributionWithMultipleNodes(nodePayments, 1600L); // 100+300+200=600 node fees, 1000 network fees
+
+        // Accumulate fees in memory (simulating block processing)
+        subject.accumulate(NODE_ACCOUNT_ID_3, 100L);
+        subject.accumulate(NODE_ACCOUNT_ID_5, 300L);
+        subject.accumulate(asAccount(0, 0, 7L), 200L);
 
         final var result = subject.distributeFees(state, NOW, systemTransactions);
 
@@ -591,12 +577,12 @@ class NodeFeeManagerTest {
     void testDistributeFeesVerifiesExactTransferAmounts() {
         final var nodePayments = NodePayments.newBuilder()
                 .lastNodeFeeDistributionTime(asTimestamp(PREV_PERIOD))
-                .payments(List.of(NodePayment.newBuilder()
-                        .nodeAccountId(NODE_ACCOUNT_ID_3)
-                        .fees(500L)
-                        .build()))
+                .payments(List.of())
                 .build();
         givenSetupForDistribution(nodePayments, 1000L); // 500 node fees, 500 network fees
+
+        // Accumulate fees in memory (simulating block processing)
+        subject.accumulate(NODE_ACCOUNT_ID_3, 500L);
 
         final var result = subject.distributeFees(state, NOW, systemTransactions);
 
@@ -633,12 +619,12 @@ class NodeFeeManagerTest {
     void testDistributeFeesResetsNodePaymentsState() {
         final var nodePayments = NodePayments.newBuilder()
                 .lastNodeFeeDistributionTime(asTimestamp(PREV_PERIOD))
-                .payments(List.of(NodePayment.newBuilder()
-                        .nodeAccountId(NODE_ACCOUNT_ID_3)
-                        .fees(100L)
-                        .build()))
+                .payments(List.of())
                 .build();
         givenSetupForDistribution(nodePayments, 1000L);
+
+        // Accumulate fees in memory (simulating block processing)
+        subject.accumulate(NODE_ACCOUNT_ID_3, 100L);
 
         subject.distributeFees(state, NOW, systemTransactions);
 
@@ -660,8 +646,8 @@ class NodeFeeManagerTest {
                 .withValue("nodes.nodeRewardsEnabled", false)
                 .withValue("nodes.preserveMinNodeRewardBalance", true)
                 .withValue("nodes.minNodeRewardBalance", 10000L)
-                .withValue("staking.feesNodeRewardPercentage", 10)
-                .withValue("staking.feesStakingRewardPercentage", 10)
+                .withValue("staking.fees.nodeRewardPercentage", 10)
+                .withValue("staking.fees.stakingRewardPercentage", 10)
                 .getOrCreateConfig();
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1));
         subject = new NodeFeeManager(configProvider, entityIdFactory);
@@ -670,7 +656,8 @@ class NodeFeeManagerTest {
                 .lastNodeFeeDistributionTime(asTimestamp(PREV_PERIOD))
                 .payments(List.of())
                 .build();
-        givenSetupForDistributionWithNodeRewardBalance(nodePayments, 1000L, 100L); // Low balance but nodeRewardsEnabled=false
+        givenSetupForDistributionWithNodeRewardBalance(
+                nodePayments, 1000L, 100L); // Low balance but nodeRewardsEnabled=false
 
         final var result = subject.distributeFees(state, NOW, systemTransactions);
 
@@ -696,8 +683,8 @@ class NodeFeeManagerTest {
                 .withValue("nodes.feeCollectionAccountEnabled", true)
                 .withValue("nodes.nodeRewardsEnabled", true)
                 .withValue("nodes.preserveMinNodeRewardBalance", false)
-                .withValue("staking.feesNodeRewardPercentage", 0)
-                .withValue("staking.feesStakingRewardPercentage", 0)
+                .withValue("staking.fees.nodeRewardPercentage", 0)
+                .withValue("staking.fees.stakingRewardPercentage", 0)
                 .getOrCreateConfig();
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1));
         subject = new NodeFeeManager(configProvider, entityIdFactory);
@@ -742,17 +729,13 @@ class NodeFeeManagerTest {
         // Test when a node has zero fees in the payments list
         final var nodePayments = NodePayments.newBuilder()
                 .lastNodeFeeDistributionTime(asTimestamp(PREV_PERIOD))
-                .payments(List.of(
-                        NodePayment.newBuilder()
-                                .nodeAccountId(NODE_ACCOUNT_ID_3)
-                                .fees(0L) // Zero fees
-                                .build(),
-                        NodePayment.newBuilder()
-                                .nodeAccountId(NODE_ACCOUNT_ID_5)
-                                .fees(100L)
-                                .build()))
+                .payments(List.of())
                 .build();
         givenSetupForDistributionWithMultipleNodes(nodePayments, 1100L);
+
+        // Accumulate fees in memory (simulating block processing)
+        // Node 3 has zero fees (not accumulated)
+        subject.accumulate(NODE_ACCOUNT_ID_5, 100L);
 
         final var result = subject.distributeFees(state, NOW, systemTransactions);
 
@@ -965,9 +948,7 @@ class NodeFeeManagerTest {
                         Account.newBuilder().tinybarBalance(0).build())
                 .value(
                         asAccount(0, 0, 801),
-                        Account.newBuilder()
-                                .tinybarBalance(nodeRewardBalance)
-                                .build())
+                        Account.newBuilder().tinybarBalance(nodeRewardBalance).build())
                 .build();
 
         final var aliases = MapWritableKVState.<ProtoBytes, AccountID>builder(ALIASES_STATE_ID, ALIASES_STATE_LABEL)

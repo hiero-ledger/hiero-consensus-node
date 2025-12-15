@@ -32,7 +32,6 @@ import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.entity.EntityCounts;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
-import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.entityid.WritableEntityCounters;
 import com.hedera.node.app.service.entityid.impl.WritableEntityIdStoreImpl;
 import com.hedera.node.app.service.token.api.ContractChangeSummary;
@@ -41,7 +40,6 @@ import com.hedera.node.app.service.token.impl.WritableAccountStore;
 import com.hedera.node.app.service.token.impl.api.TokenServiceApiImpl;
 import com.hedera.node.app.service.token.impl.validators.StakingValidator;
 import com.hedera.node.app.spi.fees.Fees;
-import com.hedera.node.app.spi.fixtures.ids.FakeEntityIdFactoryImpl;
 import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
@@ -109,7 +107,6 @@ class TokenServiceApiImplTest {
             new FunctionWritableSingletonState<>(
                     ENTITY_COUNTS_STATE_ID, ENTITY_COUNTS_STATE_LABEL, () -> EntityCounts.DEFAULT, c -> {})));
     private WritableAccountStore accountStore;
-    private final EntityIdFactory entityIdFactory = new FakeEntityIdFactoryImpl(0, 0);
 
     @Mock
     private NetworkInfo networkInfo;
@@ -349,7 +346,7 @@ class TokenServiceApiImplTest {
                 .smartContract(true)
                 .build());
 
-        subject.transferFromTo(EOA_ACCOUNT_ID, CONTRACT_ACCOUNT_ID, 23L, entityIdFactory);
+        subject.transferFromTo(EOA_ACCOUNT_ID, CONTRACT_ACCOUNT_ID, 23L);
 
         final var postTransferSender = requireNonNull(accountState.get(EOA_ACCOUNT_ID));
         final var postTransferReceiver = requireNonNull(accountState.get(CONTRACT_ACCOUNT_ID));
@@ -365,7 +362,7 @@ class TokenServiceApiImplTest {
                 .smartContract(true)
                 .build());
 
-        subject.transferFromTo(CONTRACT_ACCOUNT_ID, CONTRACT_ACCOUNT_ID, 23L, entityIdFactory);
+        subject.transferFromTo(CONTRACT_ACCOUNT_ID, CONTRACT_ACCOUNT_ID, 23L);
 
         final var postTransfer = requireNonNull(accountState.get(CONTRACT_ACCOUNT_ID));
         assertEquals(123L, postTransfer.tinybarBalance());
@@ -374,8 +371,7 @@ class TokenServiceApiImplTest {
     @Test
     void refusesToTransferNegativeAmount() {
         assertThrows(
-                IllegalArgumentException.class,
-                () -> subject.transferFromTo(EOA_ACCOUNT_ID, CONTRACT_ACCOUNT_ID, -1L, entityIdFactory));
+                IllegalArgumentException.class, () -> subject.transferFromTo(EOA_ACCOUNT_ID, CONTRACT_ACCOUNT_ID, -1L));
     }
 
     @Test
@@ -392,7 +388,7 @@ class TokenServiceApiImplTest {
 
         assertThrows(
                 IllegalArgumentException.class,
-                () -> subject.transferFromTo(EOA_ACCOUNT_ID, CONTRACT_ACCOUNT_ID, 124L, entityIdFactory));
+                () -> subject.transferFromTo(EOA_ACCOUNT_ID, CONTRACT_ACCOUNT_ID, 124L));
     }
 
     @Test
@@ -410,7 +406,7 @@ class TokenServiceApiImplTest {
 
         assertThrows(
                 IllegalArgumentException.class,
-                () -> subject.transferFromTo(CONTRACT_ACCOUNT_ID, EOA_ACCOUNT_ID, Long.MAX_VALUE, entityIdFactory));
+                () -> subject.transferFromTo(CONTRACT_ACCOUNT_ID, EOA_ACCOUNT_ID, Long.MAX_VALUE));
     }
 
     @Test

@@ -13,7 +13,6 @@ import com.hedera.hapi.node.base.SubType;
 import com.hedera.node.app.hapi.utils.CommonPbjConverters;
 import com.hedera.node.app.hapi.utils.fee.CryptoFeeBuilder;
 import com.hedera.node.app.service.addressbook.ReadableAccountNodeRelStore;
-import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.token.api.TokenServiceApi;
 import com.hedera.node.app.service.token.records.CryptoDeleteStreamBuilder;
 import com.hedera.node.app.spi.fees.FeeContext;
@@ -34,14 +33,12 @@ import javax.inject.Singleton;
 @Singleton
 public class CryptoDeleteHandler implements TransactionHandler {
     private final CryptoFeeBuilder usageEstimator = new CryptoFeeBuilder();
-    private EntityIdFactory entityIdFactory;
 
     /**
      * Default constructor for injection.
      */
     @Inject
-    public CryptoDeleteHandler(EntityIdFactory entityIdFactory) {
-        this.entityIdFactory = requireNonNull(entityIdFactory);
+    public CryptoDeleteHandler() {
         // Exists for injection
     }
 
@@ -82,8 +79,7 @@ public class CryptoDeleteHandler implements TransactionHandler {
                         op.transferAccountIDOrThrow(),
                         context.expiryValidator(),
                         context.savepointStack().getBaseBuilder(CryptoDeleteStreamBuilder.class),
-                        accountNodeRelStore,
-                        entityIdFactory);
+                        accountNodeRelStore);
     }
 
     @NonNull

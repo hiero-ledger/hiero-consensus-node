@@ -32,14 +32,12 @@ import com.hedera.node.config.data.StakingConfig;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.CommittableWritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
-
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import javax.inject.Inject;
 import javax.inject.Singleton;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -89,8 +87,8 @@ public class NodeFeeManager implements NodeFeeAccumulator {
     public void onOpenBlock(@NonNull final State state) {
         if (configProvider.getConfiguration().getConfigData(NodesConfig.class).feeCollectionAccountEnabled()) {
             resetNodeFees();
-            final var nodePaymentsState = requireNonNull(state.getReadableStates(TokenService.NAME)
-                    .<NodePayments>getSingleton(NODE_PAYMENTS_STATE_ID));
+            final var nodePaymentsState = requireNonNull(
+                    state.getReadableStates(TokenService.NAME).<NodePayments>getSingleton(NODE_PAYMENTS_STATE_ID));
             final NodePayments nodePayments = requireNonNull(nodePaymentsState.get());
             nodePayments.payments().forEach(pair -> nodeFees.put(pair.nodeAccountId(), pair.fees()));
             log.debug("Loaded node payments from state: {}", nodePayments);
@@ -153,8 +151,7 @@ public class NodeFeeManager implements NodeFeeAccumulator {
      * @return whether the last time node fees were distributed was a different staking period
      */
     private LastNodeFeesPaymentTime classifyLastNodeFeesPaymentTime(
-            @NonNull final State state,
-            @NonNull final Instant now) {
+            @NonNull final State state, @NonNull final Instant now) {
         final var nodeFeePaymentsStore = new ReadableNodePaymentsStoreImpl(state.getReadableStates(TokenService.NAME));
         final var lastPaidTime = nodeFeePaymentsStore.get().lastNodeFeeDistributionTime();
         if (lastPaidTime == null) {
@@ -176,9 +173,10 @@ public class NodeFeeManager implements NodeFeeAccumulator {
      * @param state the savepoint stack for the current transaction
      * @return the stream builder for the synthetic fee distribution transaction, or null if no fees to distribute
      */
-    public boolean distributeFees(@NonNull final State state,
-                                  @NonNull final Instant now,
-                                  @NonNull final SystemTransactions systemTransactions) {
+    public boolean distributeFees(
+            @NonNull final State state,
+            @NonNull final Instant now,
+            @NonNull final SystemTransactions systemTransactions) {
         requireNonNull(state);
         requireNonNull(now);
         requireNonNull(systemTransactions);

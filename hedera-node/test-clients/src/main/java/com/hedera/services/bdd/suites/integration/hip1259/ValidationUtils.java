@@ -26,7 +26,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.LongSupplier;
 
-public class RepeatableStreamValidators {
+public class ValidationUtils {
     /**
      * Validator for legacy node rewards (when HIP-1259 is disabled).
      */

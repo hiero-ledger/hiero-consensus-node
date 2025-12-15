@@ -26,7 +26,6 @@ import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.node.app.hapi.utils.EntityType;
 import com.hedera.node.app.service.addressbook.ReadableAccountNodeRelStore;
-import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.entityid.WritableEntityCounters;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.api.ContractChangeSummary;
@@ -293,8 +292,7 @@ public class TokenServiceApiImpl implements TokenServiceApi {
      * {@inheritDoc}
      */
     @Override
-    public void transferFromTo(
-            @NonNull AccountID fromId, @NonNull AccountID toId, long amount, final EntityIdFactory entityIdFactory) {
+    public void transferFromTo(@NonNull AccountID fromId, @NonNull AccountID toId, long amount) {
         if (amount < 0) {
             throw new IllegalArgumentException(
                     "Cannot transfer negative value (" + amount + " tinybars) from " + fromId + " to " + toId);
@@ -302,9 +300,8 @@ public class TokenServiceApiImpl implements TokenServiceApi {
         final var from = requireNonNull(accountStore.get(fromId));
         final var to = requireNonNull(accountStore.get(toId));
 
-        final var feeCollectorAccountID = entityIdFactory.newAccountId(accountsConfig.feeCollectionAccount());
         validateFalse(
-                to.accountIdOrThrow().equals(feeCollectorAccountID), TRANSFER_TO_FEE_COLLECTION_ACCOUNT_NOT_ALLOWED);
+                to.accountIdOrThrow().equals(feeCollectionAccountID), TRANSFER_TO_FEE_COLLECTION_ACCOUNT_NOT_ALLOWED);
         if (from.tinybarBalance() < amount) {
             throw new IllegalArgumentException(
                     "Insufficient balance to transfer " + amount + " tinybars from " + fromId + " to " + toId);
@@ -417,7 +414,7 @@ public class TokenServiceApiImpl implements TokenServiceApi {
         requireNonNull(payerId);
         requireNonNull(rb);
         final long retractedAmount = nodesConfig.feeCollectionAccountEnabled()
-                ? retractFromFeeCollectionAccount(amount)
+                ? retractFeeCollectionAccount(amount)
                 : retractFromNetworkFundingAccounts(amount);
         final var payerAccount = lookupAccount("Payer", payerId);
         refundPayer(payerAccount, retractedAmount);
@@ -519,7 +516,7 @@ public class TokenServiceApiImpl implements TokenServiceApi {
             amountRetracted += amountToRetract;
         }
         amountRetracted += nodesConfig.feeCollectionAccountEnabled()
-                ? retractFromFeeCollectionAccount(fees.totalWithoutNodeFee())
+                ? retractFeeCollectionAccount(fees.totalWithoutNodeFee())
                 : retractFromNetworkFundingAccounts(fees.totalWithoutNodeFee());
         final var payerAccount = lookupAccount("Payer", payerId);
         refundPayer(payerAccount, amountRetracted);
@@ -684,12 +681,11 @@ public class TokenServiceApiImpl implements TokenServiceApi {
             @NonNull final AccountID obtainerId,
             @NonNull final ExpiryValidator expiryValidator,
             @NonNull final DeleteCapableTransactionStreamBuilder recordBuilder,
-            @NonNull final ReadableAccountNodeRelStore accountNodeRelStore,
-            @NonNull final EntityIdFactory entityIdFactory) {
+            @NonNull final ReadableAccountNodeRelStore accountNodeRelStore) {
         // validate the semantics involving dynamic properties and state.
         // Gets delete and transfer accounts from state
         final var deleteAndTransferAccounts =
-                validateSemantics(deletedId, obtainerId, expiryValidator, accountNodeRelStore, entityIdFactory);
+                validateSemantics(deletedId, obtainerId, expiryValidator, accountNodeRelStore);
         transferRemainingBalance(expiryValidator, deleteAndTransferAccounts);
 
         // get the account from account store that has all balance changes
@@ -710,8 +706,7 @@ public class TokenServiceApiImpl implements TokenServiceApi {
             @NonNull final AccountID deletedId,
             @NonNull final AccountID obtainerId,
             @NonNull final ExpiryValidator expiryValidator,
-            @NonNull final ReadableAccountNodeRelStore accountNodeRelStore,
-            @NonNull final EntityIdFactory entityIdFactory) {
+            @NonNull final ReadableAccountNodeRelStore accountNodeRelStore) {
         // validate if accounts exist
         final var deletedAccount = accountStore.get(deletedId);
         validateTrue(deletedAccount != null, INVALID_ACCOUNT_ID);
@@ -729,9 +724,7 @@ public class TokenServiceApiImpl implements TokenServiceApi {
         validateTrue(deletedAccount.numberHooksInUse() == 0, TRANSACTION_REQUIRES_ZERO_HOOKS);
         validateTrue(accountNodeRelStore.get(deletedAccount.accountId()) == null, ACCOUNT_IS_LINKED_TO_A_NODE);
         validateFalse(
-                transferAccount
-                        .accountIdOrThrow()
-                        .equals(entityIdFactory.newAccountId(accountsConfig.feeCollectionAccount())),
+                transferAccount.accountIdOrThrow().equals(feeCollectionAccountID),
                 TRANSFER_TO_FEE_COLLECTION_ACCOUNT_NOT_ALLOWED);
         return new InvolvedAccounts(deletedAccount, transferAccount);
     }
@@ -777,6 +770,10 @@ public class TokenServiceApiImpl implements TokenServiceApi {
         return account.smartContract() ? EntityType.CONTRACT_BYTECODE : EntityType.ACCOUNT;
     }
 
+    /**
+     * Pay the fee collection account for the given amount.
+     * @param amount The amount to pay the fee collection account.
+     */
     private void payFeeCollectionAccount(final long amount) {
         if (amount == 0) return;
         final var feeCollection = lookupAccount("Fee collection", feeCollectionAccountID);
@@ -786,6 +783,12 @@ public class TokenServiceApiImpl implements TokenServiceApi {
                 .build());
     }
 
+    /**
+     * Retracts the given amount from the fee collection account's balance.
+     *
+     * @param amount The amount to retract from the fee collection account.
+     * @return The amount that was actually retracted from the fee collection account.
+     */
     private long retractFeeCollectionAccount(final long amount) {
         if (amount == 0) return 0L;
         final var feeCollectionAccount = lookupAccount("Fee collection", feeCollectionAccountID);
@@ -798,6 +801,12 @@ public class TokenServiceApiImpl implements TokenServiceApi {
         return amountToRetract;
     }
 
+    /**
+     * Pays the fee collection account for the given amount, and calls the given callback with the amount paid.
+     *
+     * @param amount The amount to pay the fee collection account.
+     * @param cb The callback to call with the amount paid.
+     */
     private void payFeeCollectionAccount(final long amount, @Nullable final ObjLongConsumer<AccountID> cb) {
         payFeeCollectionAccount(amount);
         if (cb != null) {
@@ -805,17 +814,12 @@ public class TokenServiceApiImpl implements TokenServiceApi {
         }
     }
 
-    private long retractFromFeeCollectionAccount(final long amount) {
-        final var nodeRewardAccount = lookupAccount("Node rewards", nodeRewardAccountID);
-        final boolean preservingRewardBalance =
-                nodesConfig.nodeRewardsEnabled() && nodesConfig.preserveMinNodeRewardBalance();
-        if (!preservingRewardBalance || nodeRewardAccount.tinybarBalance() > nodesConfig.minNodeRewardBalance()) {
-            return retractFeeCollectionAccount(amount);
-        } else {
-            return retractNodeRewardAccount(amount);
-        }
-    }
-
+    /**
+     * Distributes the given amount to the network funding accounts.
+     *
+     * @param amount The amount to distribute to the network funding accounts.
+     * @param cb The callback to call with the amount paid.
+     */
     private void distributeToNetworkFundingAccounts(final long amount, @Nullable final ObjLongConsumer<AccountID> cb) {
         // We may have a rounding error, so we will first remove the node and staking rewards from the total, and then
         // whatever is left over goes to the funding account.
