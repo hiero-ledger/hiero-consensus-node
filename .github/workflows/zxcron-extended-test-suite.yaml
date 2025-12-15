@@ -63,16 +63,6 @@ jobs:
           echo "solo-ge-0440=${SOLO_GE_0440}" >> "${GITHUB_OUTPUT}"
           echo "solo-version=${{ vars.CITR_SOLO_VERSION }}" >> "${GITHUB_OUTPUT}"
 
-  state-validator-uberjar:
-    name: Build & Publish Hedera State Validator Uber JAR
-    runs-on: hiero-citr-linux-medium
-    needs:
-      - fetch-xts-candidate
-    if: ${{ needs.fetch-xts-candidate.result == 'success' && needs.fetch-xts-candidate.outputs.xts-tag-exists == 'true' }}
-    uses: ./.github/workflows/zxc-build-publish-state-validator.yaml
-    with:
-      ref: ${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }}
-
   fetch-xts-candidate:
     name: Fetch XTS Candidate Tag
     runs-on: hiero-citr-linux-medium
@@ -246,6 +236,15 @@ jobs:
             gh run cancel "${{ github.run_id }}"
           fi
           echo "::endgroup::" # Set Outputs
+
+  state-validator-uberjar:
+    name: Build & Publish Hedera State Validator Uber JAR
+    needs:
+      - fetch-xts-candidate
+    if: ${{ needs.fetch-xts-candidate.result == 'success' && needs.fetch-xts-candidate.outputs.xts-tag-exists == 'true' }}
+    uses: ./.github/workflows/zxc-build-publish-state-validator.yaml
+    with:
+      ref: ${{ needs.fetch-xts-candidate.outputs.xts-tag-commit }}
 
   xts-execution:
     name: Execute XTS

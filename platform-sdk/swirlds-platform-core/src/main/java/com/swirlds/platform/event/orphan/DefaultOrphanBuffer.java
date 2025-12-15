@@ -6,7 +6,6 @@ import static org.hiero.consensus.model.event.NonDeterministicGeneration.assignN
 
 import com.swirlds.common.metrics.FunctionGauge;
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.platform.gossip.IntakeEventCounter;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.Deque;
@@ -14,6 +13,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Function;
+import org.hiero.consensus.event.IntakeEventCounter;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
