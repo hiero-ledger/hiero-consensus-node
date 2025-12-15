@@ -66,7 +66,7 @@ public class RehashValidator implements Validator {
     public void validate() {
         logger.debug("Doing full rehash for the path range: {} - {} in the VirtualMap", firstLeafPath, lastLeafPath);
 
-        final long startTime = System.currentTimeMillis();
+        final long startTimeNanos = System.nanoTime();
         final RehashTaskExecutor executor = new RehashTaskExecutor(records, firstLeafPath, lastLeafPath);
         final Hash computedHash;
 
@@ -79,6 +79,6 @@ public class RehashValidator implements Validator {
         ValidationAssertions.requireEqual(originalHash, computedHash, getTag());
 
         logger.debug(
-                "It took {} ms to rehash the state", (System.nanoTime() - startTime) * NANOSECONDS_TO_MILLISECONDS);
+                "It took {} ms to rehash the state", (System.nanoTime() - startTimeNanos) * NANOSECONDS_TO_MILLISECONDS);
     }
 }
