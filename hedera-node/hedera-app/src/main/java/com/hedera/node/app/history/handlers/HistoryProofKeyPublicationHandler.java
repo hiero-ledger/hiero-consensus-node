@@ -13,7 +13,6 @@ import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.PreHandleContext;
 import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
-import com.hedera.node.config.data.TssConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import javax.inject.Inject;
 import javax.inject.Singleton;
@@ -63,8 +62,7 @@ public class HistoryProofKeyPublicationHandler implements TransactionHandler {
             controllers.getAnyInProgress().ifPresent(controller -> {
                 final var publication =
                         new WrapsMessagePublication(nodeId, message, op.phase(), context.consensusNow());
-                if (controller.addWrapsMessagePublication(
-                        publication, historyStore, context.configuration().getConfigData(TssConfig.class))) {
+                if (controller.addWrapsMessagePublication(publication, historyStore)) {
                     historyStore.addWrapsMessage(controller.constructionId(), publication);
                 }
             });
