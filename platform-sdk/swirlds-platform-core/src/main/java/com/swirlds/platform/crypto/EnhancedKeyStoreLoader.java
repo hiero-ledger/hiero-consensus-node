@@ -370,18 +370,10 @@ public class EnhancedKeyStoreLoader {
         return this;
     }
 
-    /**
-     * Creates a map containing the private keys for all local nodes and the public keys for all nodes using the
-     * supplied address book.
-     *
-     * @return the map of all keys and certificates per {@link NodeId}.
-     * @throws KeyStoreException   if an error occurred while parsing the key store or the key store is not
-     *                             initialized.
-     * @throws KeyLoadingException if one or more of the required keys were not loaded or are not of the correct type.
-     */
-    @NonNull
-    public Map<NodeId, KeysAndCerts> keysAndCerts() throws KeyStoreException, KeyLoadingException {
-        final Map<NodeId, KeysAndCerts> keysAndCerts = HashMap.newHashMap(allNodes.size());
+
+    public AllKeysAndCerts allKeysAndCerts() throws KeyLoadingException {
+        final Map<NodeId, KeysAndCerts> keysAndCerts = HashMap.newHashMap(localNodes.size());
+        final Map<NodeId, X509Certificate> allCerts = HashMap.newHashMap(allNodes.size());
 
         for (final NodeId nodeId : this.allNodes) {
             final Certificate sigCert = sigCertificates.get(nodeId);
@@ -393,6 +385,7 @@ public class EnhancedKeyStoreLoader {
                 throw new KeyLoadingException("Illegal signing certificate type for nodeId: %s [ purpose = %s ]"
                         .formatted(nodeId, KeyCertPurpose.SIGNING));
             }
+            allCerts.put(nodeId, x509SigCert);
 
             if (localNodes.contains(nodeId)) {
                 final Certificate agrCert = agrCertificates.get(nodeId);
@@ -425,7 +418,21 @@ public class EnhancedKeyStoreLoader {
             }
         }
 
-        return keysAndCerts;
+        return new AllKeysAndCerts(keysAndCerts, allCerts);
+    }
+
+    /**
+     * Creates a map containing the private keys for all local nodes and the public keys for all nodes using the
+     * supplied address book.
+     *
+     * @return the map of all keys and certificates per {@link NodeId}.
+     * @throws KeyStoreException   if an error occurred while parsing the key store or the key store is not
+     *                             initialized.
+     * @throws KeyLoadingException if one or more of the required keys were not loaded or are not of the correct type.
+     */
+    @NonNull
+    public Map<NodeId, KeysAndCerts> keysAndCerts() throws KeyStoreException, KeyLoadingException {
+        return allKeysAndCerts().localKeysAndCerts();
     }
 
     /**
