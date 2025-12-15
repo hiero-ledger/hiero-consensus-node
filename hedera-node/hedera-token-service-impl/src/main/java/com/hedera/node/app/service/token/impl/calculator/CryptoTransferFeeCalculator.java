@@ -23,7 +23,6 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.HashSet;
 import java.util.Set;
 import org.hiero.hapi.fees.FeeResult;
-import org.hiero.hapi.fees.FeeScheduleUtils;
 import org.hiero.hapi.support.fees.Extra;
 import org.hiero.hapi.support.fees.FeeSchedule;
 import org.hiero.hapi.support.fees.ServiceFeeDefinition;
@@ -70,18 +69,14 @@ public class CryptoTransferFeeCalculator implements ServiceFeeCalculator {
 
         final Extra transferType = determineTransferType(tokenCounts);
         if (transferType != null) {
-            // Token transfers: charge TOKEN_TRANSFER_BASE or TOKEN_TRANSFER_BASE_CUSTOM_FEES
-            addExtraFeeWithIncludedCount(feeResult, transferType, feeSchedule, serviceDef, 1);
+            addExtraFee(feeResult, serviceDef, transferType, feeSchedule, 1);
         }
-        // HBAR-only transfers: no service fee (node + network fees cover the $0.0001)
-
-        addExtraFeeWithIncludedCount(feeResult, HOOK_EXECUTION, feeSchedule, serviceDef, numHooks);
-        // Note: HOOK_UPDATES is only for CryptoCreate/Update and ContractCreate/Update, not transfers
-        addExtraFeeWithIncludedCount(feeResult, ACCOUNTS, feeSchedule, serviceDef, numAccounts);
+        addExtraFee(feeResult, serviceDef, HOOK_EXECUTION, feeSchedule, numHooks);
+        addExtraFee(feeResult, serviceDef, ACCOUNTS, feeSchedule, numAccounts);
         final long totalFungible = tokenCounts.standardFungible() + tokenCounts.customFeeFungible();
-        addExtraFeeWithIncludedCount(feeResult, FUNGIBLE_TOKENS, feeSchedule, serviceDef, totalFungible);
+        addExtraFee(feeResult, serviceDef, FUNGIBLE_TOKENS, feeSchedule, totalFungible);
         final long totalNft = tokenCounts.standardNft() + tokenCounts.customFeeNft();
-        addExtraFeeWithIncludedCount(feeResult, NON_FUNGIBLE_TOKENS, feeSchedule, serviceDef, totalNft);
+        addExtraFee(feeResult, serviceDef, NON_FUNGIBLE_TOKENS, feeSchedule, totalNft);
     }
 
     /**
@@ -119,7 +114,9 @@ public class CryptoTransferFeeCalculator implements ServiceFeeCalculator {
         return accounts.size();
     }
 
-    /** Counts token transfers by type (standard vs custom fee, fungible vs NFT). */
+    /**
+     * Counts token transfers by type (standard vs custom fee, fungible vs NFT).
+     */
     private TokenCounts analyzeTokenTransfers(
             @NonNull final CryptoTransferTransactionBody op, @NonNull final ReadableTokenStore tokenStore) {
         int standardFungible = 0;
@@ -152,28 +149,9 @@ public class CryptoTransferFeeCalculator implements ServiceFeeCalculator {
         return new TokenCounts(standardFungible, standardNft, customFeeFungible, customFeeNft);
     }
 
-    /** Adds extra fee for items exceeding the included count. */
-    private void addExtraFeeWithIncludedCount(
-            @NonNull final FeeResult result,
-            @NonNull final Extra extra,
-            @NonNull final FeeSchedule feeSchedule,
-            @NonNull final ServiceFeeDefinition serviceDef,
-            final long actualCount) {
-        final var extraRef =
-                serviceDef.extras().stream().filter(ref -> ref.name() == extra).findFirst();
-        if (extraRef.isEmpty()) {
-            return;
-        }
-        final long includedCount = extraRef.get().includedCount();
-        if (actualCount <= includedCount) {
-            return;
-        }
-        final long overage = actualCount - includedCount;
-        final long unitFee = FeeScheduleUtils.lookupExtraFee(feeSchedule, extra).fee();
-        result.addServiceFee(overage, unitFee);
-    }
-
-    /** Counts hooks across all transfers in the operation. */
+    /**
+     * Counts hooks across all transfers in the operation.
+     */
     private long countHooks(@NonNull final CryptoTransferTransactionBody op) {
         long hookCount = 0;
         if (op.hasTransfers()) {
