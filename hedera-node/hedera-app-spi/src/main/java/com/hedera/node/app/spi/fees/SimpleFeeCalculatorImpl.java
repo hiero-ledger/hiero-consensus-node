@@ -7,6 +7,7 @@ import static org.hiero.hapi.support.fees.Extra.SIGNATURES;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.transaction.Query;
 import com.hedera.hapi.node.transaction.TransactionBody;
+import com.hedera.node.app.spi.workflows.QueryContext;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Map;
@@ -28,11 +29,21 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
 
     protected final FeeSchedule feeSchedule;
     private final Map<TransactionBody.DataOneOfType, ServiceFeeCalculator> serviceFeeCalculators;
+    private final Map<Query.QueryOneOfType, QueryFeeCalculator> queryFeeCalculators;
 
     public SimpleFeeCalculatorImpl(FeeSchedule feeSchedule, Set<ServiceFeeCalculator> serviceFeeCalculators) {
+        this(feeSchedule, serviceFeeCalculators, Set.of());
+    }
+
+    public SimpleFeeCalculatorImpl(
+            FeeSchedule feeSchedule,
+            Set<ServiceFeeCalculator> serviceFeeCalculators,
+            Set<QueryFeeCalculator> queryFeeCalculators) {
         this.feeSchedule = feeSchedule;
         this.serviceFeeCalculators = serviceFeeCalculators.stream()
                 .collect(Collectors.toMap(ServiceFeeCalculator::getTransactionType, Function.identity()));
+        this.queryFeeCalculators = queryFeeCalculators.stream()
+                .collect(Collectors.toMap(QueryFeeCalculator::getQueryType, Function.identity()));
     }
 
     /**
@@ -110,14 +121,15 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
      * Default implementation for query fee calculation.
      *
      * @param query The query to calculate fees for
-     * @param feeContext fee context
+     * @param queryContext the query context
      * @return Never returns normally
      * @throws UnsupportedOperationException always
      */
     @Override
-    @NonNull
-    public FeeResult calculateQueryFee(@NonNull final Query query, @Nullable final FeeContext feeContext) {
-        throw new UnsupportedOperationException(
-                "Query fee calculation not supported for " + getClass().getSimpleName());
+    public long calculateQueryFee(@NonNull final Query query, @NonNull final QueryContext queryContext) {
+        final var result = new FeeResult();
+        final var queryFeeCalculator = queryFeeCalculators.get(query.query().kind());
+        queryFeeCalculator.accumulateNodePayment(query, queryContext, result, feeSchedule);
+        return result.total();
     }
 }

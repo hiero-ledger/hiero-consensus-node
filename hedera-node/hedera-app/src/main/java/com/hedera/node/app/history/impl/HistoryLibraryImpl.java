@@ -19,7 +19,6 @@ import java.util.SplittableRandom;
  * Default implementation of the {@link HistoryLibrary}.
  */
 public class HistoryLibraryImpl implements HistoryLibrary {
-    private static final byte[] DUMMY_HINTS_KEY = new byte[1280];
     public static final SplittableRandom RANDOM = new SplittableRandom();
     public static final WRAPSLibraryBridge WRAPS = WRAPSLibraryBridge.getInstance();
 
@@ -131,7 +130,7 @@ public class HistoryLibraryImpl implements HistoryLibrary {
                 addressBook.publicKeys(),
                 addressBook.weights(),
                 null,
-                DUMMY_HINTS_KEY,
+                GENESIS_WRAPS_METADATA,
                 aggregatedSignature,
                 addressBook.signersMask(signers));
     }
@@ -168,5 +167,10 @@ public class HistoryLibraryImpl implements HistoryLibrary {
     public boolean isValidWraps(@NonNull final byte[] compressedProof) {
         requireNonNull(compressedProof);
         return WRAPS.verifyCompressedProof(compressedProof);
+    }
+
+    @Override
+    public boolean wrapsProverReady() {
+        return WRAPSLibraryBridge.isProofSupported();
     }
 }
