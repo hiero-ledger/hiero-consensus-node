@@ -254,7 +254,14 @@ public class TransactionProcessor {
             }
         }
         if (transaction.isEthereumTransaction()) {
-            validateTrue(transaction.nonce() == parties.sender().getNonce(), WRONG_NONCE);
+            // For EIP-7702 transactions with code delegations, skip nonce check here
+            // because it was already checked in ContextTransactionProcessor before code delegations,
+            // and code delegations may have incremented the sender's nonce if they're an authority
+            final boolean hasCodeDelegations = transaction.codeDelegations() != null
+                    && !transaction.codeDelegations().isEmpty();
+            if (!hasCodeDelegations) {
+                validateTrue(transaction.nonce() == parties.sender().getNonce(), WRONG_NONCE);
+            }
         }
         return parties;
     }

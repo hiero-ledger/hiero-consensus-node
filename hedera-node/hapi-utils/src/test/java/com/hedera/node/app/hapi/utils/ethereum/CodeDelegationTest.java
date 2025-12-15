@@ -98,7 +98,7 @@ class CodeDelegationTest {
 
         final byte[] expected = Bytes.concatenate(
                         MAGIC,
-                        Bytes.wrap(RLPEncoder.sequence(
+                        Bytes.wrap(RLPEncoder.list(
                                 chainId, address, com.google.common.primitives.Longs.toByteArray(nonce))))
                 .toArray();
         assertArrayEquals(expected, cd.calculateSignableMessage());

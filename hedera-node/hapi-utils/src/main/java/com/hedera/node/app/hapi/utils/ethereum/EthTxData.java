@@ -37,6 +37,7 @@ public record EthTxData(
         byte[] accessList,
         Object[] accessListAsRlp,
         byte[] authorizationList,
+        Object[] authorizationListAsRlp,
         int recId, // "recovery id" part of a v,r,s ECDSA signature - range 0..1
         byte[] v, // actual `v` value, incoming, recovery id (`yParity` above) (possibly) encoded with chain id
         byte[] r,
@@ -115,6 +116,7 @@ public record EthTxData(
                 accessList,
                 null,
                 authorizationList,
+                authorizationListAsRlp,
                 recId,
                 v,
                 r,
@@ -138,6 +140,7 @@ public record EthTxData(
                 accessList,
                 null,
                 authorizationList,
+                authorizationListAsRlp,
                 recId,
                 v,
                 r,
@@ -379,6 +382,7 @@ public record EthTxData(
                 accessList,
                 null,
                 authorizationList,
+                authorizationListAsRlp,
                 recId,
                 v,
                 r,
@@ -402,6 +406,7 @@ public record EthTxData(
                 accessList,
                 null,
                 authorizationList,
+                authorizationListAsRlp,
                 newRecId,
                 v,
                 r,
@@ -425,6 +430,7 @@ public record EthTxData(
                 accessList,
                 accessListAsRlp,
                 authorizationList,
+                authorizationListAsRlp,
                 recId,
                 v,
                 newR,
@@ -448,6 +454,7 @@ public record EthTxData(
                 accessList,
                 accessListAsRlp,
                 authorizationList,
+                authorizationListAsRlp,
                 recId,
                 v,
                 r,
@@ -533,6 +540,7 @@ public record EthTxData(
                 null, // accessList
                 null,
                 null, // authorizationList
+                null,
                 recId,
                 val,
                 rlpList.get(7).data(), // r
@@ -572,6 +580,7 @@ public record EthTxData(
                         ? encodeRlpList(rlpList.get(8).asRLPList())
                         : new Object[0], // accessList as RLPList
                 null, // authorizationList
+                null,
                 asByte(rlpList.get(9)), // yParity
                 null, // v
                 rlpList.get(10).data(), // r
@@ -611,6 +620,7 @@ public record EthTxData(
                         ? encodeRlpList(rlpList.get(7).asRLPList())
                         : new Object[0], // accessList encoded as Object
                 null, // authorizationList
+                null,
                 asByte(rlpList.get(8)), // yParity
                 null, // v
                 rlpList.get(9).data(), // r
@@ -649,7 +659,10 @@ public record EthTxData(
                 rlpList.get(8) != null && rlpList.get(8).isList()
                         ? encodeRlpList(rlpList.get(8).asRLPList())
                         : new Object[0], // accessList as RLPList
-                rlpList.get(9).data(), // authorizationList
+                rlpList.get(9).data(),
+                rlpList.get(9) != null && rlpList.get(9).isList()
+                        ? encodeRlpList(rlpList.get(9).asRLPList())
+                        : new Object[0], // authorizationList - must preserve full RLP encoding
                 asByte(rlpList.get(10)), // yParity
                 null, // v
                 rlpList.get(11).data(), // r
