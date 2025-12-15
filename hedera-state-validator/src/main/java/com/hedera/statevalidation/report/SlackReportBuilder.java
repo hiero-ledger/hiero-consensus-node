@@ -10,6 +10,7 @@ import static com.hedera.statevalidation.util.ConfigUtils.SLACK_TAGS;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
@@ -28,25 +29,25 @@ public final class SlackReportBuilder {
     /**
      * Represents a validation failure with a name and error message.
      */
-    public record ValidationFailure(String name, String errorMessage) {}
+    public record ValidationFailure(@NonNull String name, @NonNull String errorMessage) {}
 
     /**
      * Generates a Slack report from validation failures.
      */
-    public static void generateReport(List<ValidationFailure> failures) {
+    public static void generateReport(@NonNull final List<ValidationFailure> failures) {
         generateReport(failures, DEFAULT_REPORT_FILE_PATH);
     }
 
     /**
      * Generates a Slack report from validation failures to the specified path.
      */
-    public static void generateReport(List<ValidationFailure> failures, String reportFilePath) {
+    public static void generateReport(@NonNull final List<ValidationFailure> failures, @NonNull final String reportFilePath) {
         if (failures.isEmpty()) {
             return;
         }
 
         try {
-            ArrayNode blocksArray = mapper.createArrayNode();
+            final ArrayNode blocksArray = mapper.createArrayNode();
             addHeader(blocksArray);
             addFailures(blocksArray, failures);
             addTags(blocksArray);
@@ -55,13 +56,13 @@ public final class SlackReportBuilder {
             attachment.put("color", "#ff0000");
             attachment.set("blocks", blocksArray);
 
-            ArrayNode attachmentArray = mapper.createArrayNode();
+            final ArrayNode attachmentArray = mapper.createArrayNode();
             attachmentArray.add(attachment);
 
-            ObjectNode reportNode = mapper.createObjectNode();
+            final ObjectNode reportNode = mapper.createObjectNode();
             reportNode.set("attachments", attachmentArray);
 
-            File previousReport = new File(reportFilePath);
+            final File previousReport = new File(reportFilePath);
             if (previousReport.exists()) {
                 mapper.readTree(previousReport).get("attachments").forEach(attachmentArray::add);
             }
@@ -74,10 +75,10 @@ public final class SlackReportBuilder {
         }
     }
 
-    private static void addHeader(ArrayNode blockArrayNode) {
-        ObjectNode blockNode = mapper.createObjectNode();
+    private static void addHeader(@NonNull final ArrayNode blockArrayNode) {
+        final ObjectNode blockNode = mapper.createObjectNode();
         blockNode.put("type", "header");
-        ObjectNode textNode = mapper.createObjectNode();
+        final ObjectNode textNode = mapper.createObjectNode();
         textNode.put("type", "plain_text");
         textNode.put(
                 "text",
@@ -87,11 +88,11 @@ public final class SlackReportBuilder {
         blockArrayNode.add(blockNode);
     }
 
-    private static void addFailures(ArrayNode blockArrayNode, List<ValidationFailure> failures) {
-        for (ValidationFailure failure : failures) {
-            ObjectNode blockNode = mapper.createObjectNode();
+    private static void addFailures(@NonNull final ArrayNode blockArrayNode, @NonNull final List<ValidationFailure> failures) {
+        for (final ValidationFailure failure : failures) {
+            final ObjectNode blockNode = mapper.createObjectNode();
             blockNode.put("type", "section");
-            ObjectNode textNode = mapper.createObjectNode();
+            final ObjectNode textNode = mapper.createObjectNode();
             textNode.put("type", "mrkdwn");
             textNode.put("text", String.format("*%s* %s", failure.name(), failure.errorMessage()));
             blockNode.set("text", textNode);
@@ -100,10 +101,10 @@ public final class SlackReportBuilder {
     }
 
     private static void addTags(ArrayNode blockArrayNode) {
-        for (String slackTag : SLACK_TAGS.split(",")) {
-            ObjectNode blockNode = mapper.createObjectNode();
+        for (final String slackTag : SLACK_TAGS.split(",")) {
+            final ObjectNode blockNode = mapper.createObjectNode();
             blockNode.put("type", "section");
-            ObjectNode textNode = mapper.createObjectNode();
+            final ObjectNode textNode = mapper.createObjectNode();
             textNode.put("type", "mrkdwn");
             textNode.put("text", String.format("person to notify - %s . See <%s|job details here>", slackTag, JOB_URL));
             blockNode.set("text", textNode);

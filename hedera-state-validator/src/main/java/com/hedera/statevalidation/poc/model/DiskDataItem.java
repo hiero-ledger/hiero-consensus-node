@@ -4,7 +4,7 @@ package com.hedera.statevalidation.poc.model;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 
 /**
- * Immutable data item read from a MerkleDB data file chunk for validation processing.
+ * Immutable data item read from a MerkleDB data file for validation processing.
  *
  * @param type the MerkleDB data type
  * @param bytes the serialized data content

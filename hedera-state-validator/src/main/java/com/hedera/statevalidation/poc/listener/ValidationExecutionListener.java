@@ -3,9 +3,10 @@ package com.hedera.statevalidation.poc.listener;
 
 import com.hedera.statevalidation.poc.util.ValidationException;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.ArrayList;
-import java.util.Collections;
+import java.util.Collection;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -17,12 +18,11 @@ public class ValidationExecutionListener implements ValidationListener {
 
     private static final Logger log = LogManager.getLogger(ValidationExecutionListener.class);
 
-    private final List<ValidationException> failedValidations = Collections.synchronizedList(new ArrayList<>());
-    private volatile boolean failed = false;
+    private final Map<String, ValidationException> failedValidations = new ConcurrentHashMap<>();
 
     /**
      * {@inheritDoc}
-     * <p>Logs the validator start event at INFO level.
+     * <p>Logs the validator start event.
      */
     @Override
     public void onValidationStarted(@NonNull final String tag) {
@@ -31,7 +31,7 @@ public class ValidationExecutionListener implements ValidationListener {
 
     /**
      * {@inheritDoc}
-     * <p>Logs the validator completion event at INFO level.
+     * <p>Logs the validator completion event.
      */
     @Override
     public void onValidationCompleted(@NonNull final String tag) {
@@ -40,12 +40,11 @@ public class ValidationExecutionListener implements ValidationListener {
 
     /**
      * {@inheritDoc}
-     * <p>Sets the failed flag and logs the failure event at ERROR level.
+     * <p>Tracks failed validations, and logs the failure event.
      */
     @Override
     public void onValidationFailed(@NonNull final ValidationException error) {
-        this.failed = true;
-        this.failedValidations.add(error);
+        this.failedValidations.putIfAbsent(error.getValidatorTag(), error);
         log.error("Validator [{}] failed: {}", error.getValidatorTag(), error.getMessage(), error);
     }
 
@@ -55,15 +54,15 @@ public class ValidationExecutionListener implements ValidationListener {
      * @return {@code true} if at least one validator failed, {@code false} otherwise
      */
     public boolean isFailed() {
-        return failed;
+        return !failedValidations.isEmpty();
     }
 
     /**
-     * Returns the list of validation exceptions for all failed validations.
+     * Returns the validation exceptions for all failed validators.
      *
-     * @return unmodifiable list of validation failures
+     * @return unmodifiable collection of validation failures
      */
-    public List<ValidationException> getFailedValidations() {
-        return List.copyOf(failedValidations);
+    public Collection<ValidationException> getFailedValidations() {
+        return List.copyOf(failedValidations.values());
     }
 }

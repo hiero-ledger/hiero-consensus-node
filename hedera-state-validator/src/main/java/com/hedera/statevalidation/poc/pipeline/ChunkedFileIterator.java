@@ -89,7 +89,7 @@ public class ChunkedFileIterator implements AutoCloseable {
      * @param startByte the starting byte offset in the file (will be adjusted to nearest boundary if non-zero)
      * @param endByte the ending byte offset in the file (exclusive)
      * @param bufferSizeBytes the buffer size for both boundary scanning and stream reading
-     * @param totalBoundarySearchMillis atomic counter to accumulate boundary search time in nanoseconds
+     * @param totalBoundarySearchNanos atomic counter to accumulate boundary search time in nanoseconds
      * @throws IOException if there was a problem opening the file or finding a valid boundary
      */
     public ChunkedFileIterator(
@@ -99,7 +99,7 @@ public class ChunkedFileIterator implements AutoCloseable {
             long startByte,
             long endByte,
             int bufferSizeBytes,
-            @NonNull final AtomicLong totalBoundarySearchMillis)
+            @NonNull final AtomicLong totalBoundarySearchNanos)
             throws IOException {
         this.channel = FileChannel.open(path, StandardOpenOption.READ);
         try {
@@ -116,8 +116,7 @@ public class ChunkedFileIterator implements AutoCloseable {
                 // Find boundary, then position channel and open streams
                 final long startTimeNanos = System.nanoTime();
                 this.startByte += findBoundaryOffset();
-                final long boundaryOffsetSearchTimeNanos = System.nanoTime() - startTimeNanos;
-                totalBoundarySearchMillis.addAndGet(boundaryOffsetSearchTimeNanos);
+                totalBoundarySearchNanos.addAndGet(System.nanoTime() - startTimeNanos);
                 channel.position(this.startByte);
                 openStreams();
             } else {
@@ -278,7 +277,7 @@ public class ChunkedFileIterator implements AutoCloseable {
 
                 // Not found, advance by 1 byte
                 bufferData.position(positionInBuffer + 1);
-            } catch (Exception e) {
+            } catch (final Exception e) {
                 // Parsing failed, advance by 1 byte
                 bufferData.position(positionInBuffer + 1);
             }

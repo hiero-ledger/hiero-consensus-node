@@ -21,6 +21,7 @@ import org.hiero.base.crypto.Hash;
  *
  * <p>This validator runs independently (not through the data pipeline) because it uses
  * tasks for parallel tree traversal.
+ * @see Validator
  */
 public class RehashValidator implements Validator {
 
@@ -72,7 +73,7 @@ public class RehashValidator implements Validator {
 
         try {
             computedHash = executor.execute();
-        } catch (Exception e) {
+        } catch (final Exception e) {
             throw new ValidationException(REHASH_TAG, "Unexpected exception: " + e.getMessage(), e);
         }
 

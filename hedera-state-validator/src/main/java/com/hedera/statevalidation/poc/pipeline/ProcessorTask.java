@@ -56,7 +56,7 @@ public class ProcessorTask implements Callable<Void> {
 
     private static final Logger log = LogManager.getLogger(ProcessorTask.class);
 
-    /** List of listeners to notify about validation events such as start, completion, or failure */
+    /** List of listeners to notify about validation failure in this context */
     private final List<ValidationListener> validationListeners;
 
     /** Set of validators for P2KV (Path to Key/Value) data items; may be null if no P2KV validators configured */
@@ -228,9 +228,8 @@ public class ProcessorTask implements Callable<Void> {
 
             final VirtualLeafBytes<?> virtualLeafBytes =
                     VirtualLeafBytes.parseFrom(data.bytes().toReadableSequentialData());
-            final long path = virtualLeafBytes.path();
 
-            if (data.location() == pathToDiskLocationLeafNodes.get(path)) {
+            if (data.location() == pathToDiskLocationLeafNodes.get(virtualLeafBytes.path())) {
                 // Live object, perform ops on it...
                 if (p2kvValidators == null || p2kvValidators.isEmpty()) {
                     return;
@@ -280,9 +279,8 @@ public class ProcessorTask implements Callable<Void> {
 
             final VirtualHashRecord virtualHashRecord =
                     VirtualHashRecord.parseFrom(data.bytes().toReadableSequentialData());
-            final long path = virtualHashRecord.path();
 
-            if (data.location() == pathToDiskLocationInternalNodes.get(path)) {
+            if (data.location() == pathToDiskLocationInternalNodes.get(virtualHashRecord.path())) {
                 // Live object, perform ops on it...
                 if (p2hValidators == null || p2hValidators.isEmpty()) {
                     return;

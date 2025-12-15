@@ -38,9 +38,7 @@ public interface ValidationListener {
      * <p>This callback is invoked before the validator's initialization phase.
      * It provides an opportunity to log or track which validators are being executed.
      *
-     * @param tag the unique identifier tag of the validator that is starting,
-     *            such as "internal", "leaf", "hdhm", "account", "tokenRelations",
-     *            "entityIdCount", or "entityIdUniqueness"
+     * @param tag the unique identifier tag of the validator that is starting
      */
     default void onValidationStarted(@NonNull String tag) {}
 
@@ -57,14 +55,6 @@ public interface ValidationListener {
 
     /**
      * Called when a validator fails during initialization, processing, or final validation.
-     *
-     * <p>This callback is invoked when:
-     * <ul>
-     *     <li>A validator throws a {@link ValidationException} during initialization</li>
-     *     <li>A validator throws a {@link ValidationException} while processing data items</li>
-     *     <li>A validator throws a {@link ValidationException} during final validation</li>
-     *     <li>An unexpected exception occurs (wrapped in a {@link ValidationException})</li>
-     * </ul>
      *
      * @param error the validation exception containing the validator tag and failure details
      */

@@ -13,12 +13,12 @@ import com.hedera.statevalidation.poc.validator.api.LeafBytesValidator;
 import com.hedera.statevalidation.poc.validator.api.Validator;
 import com.swirlds.platform.state.snapshot.DeserializedSignedState;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Central registry for all state validators.
@@ -49,9 +49,9 @@ import java.util.Set;
 public final class ValidatorRegistry {
 
     /**
-     * Master list of all available validators.
+     * Master set of all available validators.
      */
-    private static final List<Validator> ALL_VALIDATORS = List.of(
+    private static final Set<Validator> ALL_VALIDATORS = Set.of(
             new HashRecordIntegrityValidator(),
             new HdhmBucketIntegrityValidator(),
             new LeafBytesIntegrityValidator(),
@@ -60,7 +60,7 @@ public final class ValidatorRegistry {
             new EntityIdCountValidator(),
             new EntityIdUniquenessValidator(),
             new RehashValidator(),
-            new MerkleTreeValidator());
+            new RootHashValidator());
 
     /**
      * Returns pipeline validators grouped by the data type they process.
@@ -69,21 +69,21 @@ public final class ValidatorRegistry {
      * {@link HashRecordValidator}, {@link HdhmBucketValidator}, or {@link LeafBytesValidator}.
      * They receive data items streamed through the validation pipeline.
      *
-     * @return a map from {@link Type} to the list of validators processing that type;
-     *         the returned map uses {@link EnumMap} for optimal performance
+     * @return a map from {@link Type} to the set of validators processing that type;
      */
-    public static Map<Type, List<Validator>> getPipelineValidators() {
-        Map<Type, List<Validator>> result = new EnumMap<>(Type.class);
+    public static Map<Type, Set<Validator>> getPipelineValidators() {
+        final Map<Type, Set<Validator>> result = new EnumMap<>(Type.class);
 
-        for (Validator v : ALL_VALIDATORS) {
-            if (v instanceof HashRecordValidator) {
-                result.computeIfAbsent(Type.P2H, k -> new ArrayList<>()).add(v);
-            } else if (v instanceof HdhmBucketValidator) {
-                result.computeIfAbsent(Type.K2P, k -> new ArrayList<>()).add(v);
-            } else if (v instanceof LeafBytesValidator) {
-                result.computeIfAbsent(Type.P2KV, k -> new ArrayList<>()).add(v);
+        for (final Validator validator : ALL_VALIDATORS) {
+            if (validator instanceof HashRecordValidator) {
+                result.computeIfAbsent(Type.P2H, k -> new HashSet<>()).add(validator);
+            } else if (validator instanceof HdhmBucketValidator) {
+                result.computeIfAbsent(Type.K2P, k -> new HashSet<>()).add(validator);
+            } else if (validator instanceof LeafBytesValidator) {
+                result.computeIfAbsent(Type.P2KV, k -> new HashSet<>()).add(validator);
             }
         }
+
         return result;
     }
 
@@ -95,14 +95,14 @@ public final class ValidatorRegistry {
      * validation that requires custom execution patterns, such as tree traversal
      * or external file comparison.
      *
-     * @return an unmodifiable list of individual validators
+     * @return an unmodifiable set of individual validators
      */
-    public static List<Validator> getIndividualValidators() {
+    public static Set<Validator> getIndividualValidators() {
         return ALL_VALIDATORS.stream()
                 .filter(v -> !(v instanceof HashRecordValidator)
                         && !(v instanceof HdhmBucketValidator)
                         && !(v instanceof LeafBytesValidator))
-                .toList();
+                .collect(Collectors.toSet());
     }
 
     /**
@@ -190,7 +190,9 @@ public final class ValidatorRegistry {
      * @return {@code true} if initialization succeeded, {@code false} otherwise
      */
     public static boolean tryInitialize(
-            Validator validator, DeserializedSignedState state, List<ValidationListener> listeners) {
+            @NonNull final Validator validator,
+            @NonNull final DeserializedSignedState state,
+            @NonNull final List<ValidationListener> listeners) {
         listeners.forEach(l -> l.onValidationStarted(validator.getTag()));
         try {
             validator.initialize(state);
@@ -199,7 +201,7 @@ public final class ValidatorRegistry {
             listeners.forEach(l -> l.onValidationFailed(e));
         } catch (Exception e) {
             listeners.forEach(l -> l.onValidationFailed(
-                    new ValidationException(validator.getTag(), "Unexpected: " + e.getMessage(), e)));
+                    new ValidationException(validator.getTag(), "Unexpected exception: " + e.getMessage(), e)));
         }
         return false;
     }

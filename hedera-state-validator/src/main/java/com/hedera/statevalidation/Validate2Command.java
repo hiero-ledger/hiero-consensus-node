@@ -7,8 +7,8 @@ import static com.hedera.statevalidation.poc.validator.EntityIdUniquenessValidat
 import static com.hedera.statevalidation.poc.validator.HashRecordIntegrityValidator.INTERNAL_TAG;
 import static com.hedera.statevalidation.poc.validator.HdhmBucketIntegrityValidator.HDHM_TAG;
 import static com.hedera.statevalidation.poc.validator.LeafBytesIntegrityValidator.LEAF_TAG;
-import static com.hedera.statevalidation.poc.validator.MerkleTreeValidator.MERKLE_TREE_TAG;
 import static com.hedera.statevalidation.poc.validator.RehashValidator.REHASH_TAG;
+import static com.hedera.statevalidation.poc.validator.RootHashValidator.ROOT_HASH_TAG;
 import static com.hedera.statevalidation.poc.validator.TokenRelationsIntegrityValidator.TOKEN_RELATIONS_TAG;
 import static com.hedera.statevalidation.poc.validator.ValidatorRegistry.createAndInitIndividualValidators;
 import static com.hedera.statevalidation.poc.validator.ValidatorRegistry.createAndInitValidators;
@@ -106,7 +106,7 @@ public class Validate2Command implements Callable<Integer> {
                     + ", "
                     + REHASH_TAG
                     + ", "
-                    + MERKLE_TREE_TAG
+                    + ROOT_HASH_TAG
                     + "]")
     private String[] tags = {
         ALL_TAG,
@@ -118,7 +118,7 @@ public class Validate2Command implements Callable<Integer> {
         ENTITY_ID_COUNT_TAG,
         ENTITY_ID_UNIQUENESS_TAG,
         REHASH_TAG,
-        MERKLE_TREE_TAG
+        ROOT_HASH_TAG
     };
 
     private Validate2Command() {}
@@ -136,14 +136,14 @@ public class Validate2Command implements Callable<Integer> {
             final MerkleDbDataSource vds = (MerkleDbDataSource) virtualMap.getDataSource();
             if (vds.getFirstLeafPath() == -1) {
                 log.info("Skipping the validation as there is no data");
-                return 0; // should be 0 or 1?
+                return 0;
             }
 
             // Initialize validators and listeners
             final var validationExecutionListener = new ValidationExecutionListener();
             final List<ValidationListener> validationListeners = List.of(validationExecutionListener);
 
-            final long startTime = System.nanoTime();
+            final long startTimeNanos = System.nanoTime();
 
             // Run individual validators (those that don't use the pipeline)
             final List<Validator> individualValidators =
@@ -176,21 +176,22 @@ public class Validate2Command implements Callable<Integer> {
                     bufferSizeKib);
 
             log.debug(
-                    "Time spent for validation: {} ms", (System.nanoTime() - startTime) * NANOSECONDS_TO_MILLISECONDS);
-
-            // Generate Slack report for failures
-            final List<SlackReportBuilder.ValidationFailure> failures =
-                    validationExecutionListener.getFailedValidations().stream()
-                            .map(e -> new SlackReportBuilder.ValidationFailure(e.getValidatorTag(), e.getMessage()))
-                            .toList();
-            SlackReportBuilder.generateReport(failures);
+                    "Time spent for validation: {} ms",
+                    (System.nanoTime() - startTimeNanos) * NANOSECONDS_TO_MILLISECONDS);
 
             // Return result
-            if (!pipelineSuccess) {
+            if (!pipelineSuccess || validationExecutionListener.isFailed()) {
+                // Generate Slack report for failures
+                final List<SlackReportBuilder.ValidationFailure> failures =
+                        validationExecutionListener.getFailedValidations().stream()
+                                .map(e -> new SlackReportBuilder.ValidationFailure(e.getValidatorTag(), e.getMessage()))
+                                .toList();
+                SlackReportBuilder.generateReport(failures);
+
                 return 1;
             }
 
-            return validationExecutionListener.isFailed() ? 1 : 0;
+            return 0;
 
         } catch (final RuntimeException e) {
             throw e;

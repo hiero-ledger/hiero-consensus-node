@@ -41,10 +41,12 @@ public final class DataStats {
     }
 
     public long getObsoleteSpaceSize() {
+        // Note: memory items don't track obsolete space (no disk footprint)
         return p2h.getObsoleteSpaceSize() + p2kv.getObsoleteSpaceSize() + k2p.getObsoleteSpaceSize();
     }
 
     public long getObsoleteItemCount() {
+        // Note: memory items don't track obsolete items (no disk footprint)
         return p2h.getObsoleteItemCount() + p2kv.getObsoleteItemCount() + k2p.getObsoleteItemCount();
     }
 

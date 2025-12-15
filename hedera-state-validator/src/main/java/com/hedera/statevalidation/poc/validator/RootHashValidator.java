@@ -19,28 +19,21 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 /**
- * Validator that validates the Merkle tree structure of the state by comparing
+ * Validator that validates the root hash of the state by comparing
  * the root hash line against a reference file.
  *
  * <p>This validator runs independently (not through the data pipeline) because it
  * requires reading an external hash info file for comparison.
+ * @see Validator
  */
-public class MerkleTreeValidator implements Validator {
+public class RootHashValidator implements Validator {
 
-    // TODO: revisit tag and validator name
-    public static final String MERKLE_TREE_TAG = "merkleTree";
+    public static final String ROOT_HASH_TAG = "rootHash";
 
     /**
      * The file name containing the expected hash info.
      */
     public static final String HASH_INFO_FILE_NAME = "hashInfo.txt";
-
-    /**
-     * This parameter defines how deep the hash tree should be traversed.
-     * Note that it doesn't go below the top level of VirtualMap even if the depth is set to a higher value.
-     * TODO: check if this is needed
-     */
-    private static final int HASH_DEPTH = 5;
 
     private MerkleNodeState state;
     private String expectedRootHashLine;
@@ -51,7 +44,7 @@ public class MerkleTreeValidator implements Validator {
     @Override
     @NonNull
     public String getTag() {
-        return MERKLE_TREE_TAG;
+        return ROOT_HASH_TAG;
     }
 
     /**
@@ -78,7 +71,7 @@ public class MerkleTreeValidator implements Validator {
     @Override
     public void validate() {
         final PlatformStateFacade platformStateFacade = PlatformStateFacade.DEFAULT_PLATFORM_STATE_FACADE;
-        final String infoStringFromState = platformStateFacade.getInfoString(state, HASH_DEPTH);
+        final String infoStringFromState = platformStateFacade.getInfoString(state, 1);
 
         final List<String> fullList = Arrays.asList(infoStringFromState.split("\n"));
         String actualRootHashLine = "";

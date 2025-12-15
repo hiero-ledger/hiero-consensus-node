@@ -2,6 +2,7 @@
 package com.hedera.statevalidation.poc.pipeline;
 
 import static com.swirlds.base.units.UnitConstants.BYTES_TO_MEBIBYTES;
+import static com.swirlds.base.units.UnitConstants.KB_TO_BYTES;
 import static com.swirlds.base.units.UnitConstants.MEBIBYTES_TO_BYTES;
 import static com.swirlds.base.units.UnitConstants.NANOSECONDS_TO_MILLISECONDS;
 
@@ -43,7 +44,7 @@ import org.hiero.base.crypto.Hash;
  * <p>This executor implements a producer-consumer pattern with the following stages:
  * <ol>
  *   <li><b>Task Planning</b> - Divides data files into chunks for parallel reading</li>
- *   <li><b>Data Reading</b> - IO threads read data from disk files and in-memory stores</li>
+ *   <li><b>Data Reading</b> - IO threads read data from in-memory stores and disk files</li>
  *   <li><b>Processing</b> - CPU threads consume batches from a bounded queue and feed validators</li>
  *   <li><b>Final Validation</b> - Validators perform their final checks after all data is processed</li>
  * </ol>
@@ -145,8 +146,8 @@ public final class ValidationPipelineExecutor {
     }
 
     private boolean execute() throws InterruptedException {
-        try (ExecutorService ioPool = Executors.newFixedThreadPool(ioThreads)) {
-            try (ExecutorService processPool = Executors.newFixedThreadPool(processThreads)) {
+        try (final ExecutorService ioPool = Executors.newFixedThreadPool(ioThreads)) {
+            try (final ExecutorService processPool = Executors.newFixedThreadPool(processThreads)) {
 
                 // Get data file collections
                 final DataFileCollection pathToKeyValueDfc =
@@ -281,11 +282,12 @@ public final class ValidationPipelineExecutor {
                             dataStats.getK2p().toStringContent());
                 }
 
-                // Don't log total aggregate stats if only one validator is present
+                // Don't log total aggregate stats if only one type of validator is present
                 if (validators.size() > 1) {
                     log.info(dataStats);
                 }
 
+                // Debug metrics
                 log.debug(
                         "Total boundary search time: {} ms",
                         totalBoundarySearchNanos.get() * NANOSECONDS_TO_MILLISECONDS);
@@ -347,29 +349,6 @@ public final class ValidationPipelineExecutor {
     }
 
     /**
-     * Plans in-memory read tasks for P2H (Path to Hash) data.
-     * Chunks the path range for parallel processing.
-     *
-     * @param totalPaths the total number of paths to read
-     * @return list of memory read tasks
-     */
-    private List<MemoryReadTask> planP2HMemoryReadTasks(final long totalPaths) {
-        final List<MemoryReadTask> tasks = new ArrayList<>();
-
-        // Use a reasonable chunk size
-        final long minPathsPerChunk = 100_000L;
-        final int targetChunks = Math.max(1, ioThreads * chunkMultiplier);
-        final long pathsPerChunk = Math.max(minPathsPerChunk, (totalPaths + targetChunks - 1) / targetChunks);
-
-        for (long start = 0; start < totalPaths; start += pathsPerChunk) {
-            final long end = Math.min(start + pathsPerChunk, totalPaths);
-            tasks.add(new MemoryReadTask(start, end));
-        }
-
-        return tasks;
-    }
-
-    /**
      * Calculates the optimal number of chunks for a file based on its size and configuration.
      *
      * @param fileSize the size of the file in bytes
@@ -392,6 +371,29 @@ public final class ValidationPipelineExecutor {
         return (int) Math.ceil((double) fileSize / targetChunkSize);
     }
 
+    /**
+     * Plans in-memory read tasks for P2H (Path to Hash) data.
+     * Chunks the path range for parallel processing.
+     *
+     * @param totalPaths the total number of paths to read
+     * @return list of memory read tasks
+     */
+    private List<MemoryReadTask> planP2HMemoryReadTasks(final long totalPaths) {
+        final List<MemoryReadTask> tasks = new ArrayList<>();
+
+        // Use a reasonable min chunk size
+        final long minPathsPerChunk = 100_000L;
+        final int targetChunks = Math.max(1, ioThreads * chunkMultiplier);
+        final long pathsPerChunk = Math.max(minPathsPerChunk, (totalPaths + targetChunks - 1) / targetChunks);
+
+        for (long start = 0; start < totalPaths; start += pathsPerChunk) {
+            final long end = Math.min(start + pathsPerChunk, totalPaths);
+            tasks.add(new MemoryReadTask(start, end));
+        }
+
+        return tasks;
+    }
+
     // ==================== Task Reading Methods ====================
 
     /**
@@ -411,7 +413,7 @@ public final class ValidationPipelineExecutor {
             final long endByte)
             throws IOException, InterruptedException {
 
-        final int bufferSizeBytes = bufferSizeKib * 1024;
+        final int bufferSizeBytes = bufferSizeKib * KB_TO_BYTES;
         try (ChunkedFileIterator iterator = new ChunkedFileIterator(
                 reader.getPath(),
                 reader.getMetadata(),
@@ -456,6 +458,7 @@ public final class ValidationPipelineExecutor {
             try {
                 final Hash hash = pathToHashRam.get(path);
                 if (hash == null) {
+                    log.error("Hash is null when read from memory at path: {}", path);
                     dataStats.getP2hMemory().incrementInvalidLocationCount();
                     continue;
                 }
@@ -468,8 +471,8 @@ public final class ValidationPipelineExecutor {
                     batch = new ArrayList<>(batchSize);
                 }
             } catch (final IOException e) {
+                log.error("Failed to read hash from memory at path {}: {}", path, e.getMessage());
                 dataStats.getP2hMemory().getParseErrorCount();
-                log.warn("Failed to read hash from memory at path {}: {}", path, e.getMessage());
             }
         }
 
