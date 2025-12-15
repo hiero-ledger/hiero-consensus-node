@@ -9,11 +9,12 @@ Performance benchmarks for the block production pipeline using JMH (Java Microbe
 ## Benchmark Classes
 
 ### 1. `BlockProductionBenchmark.java`
+
 **End-to-end performance test**
 
 - **Purpose:** Measures complete block production pipeline throughput
 - **Tests:** Full flow from transaction → block production → serialization
-- **Target:** 100K TPS (currently achieving 160K TPS)
+- **Target:** 100K TPS (currently achieving 127K TPS)
 - **Components tested:**
   - BlockStreamBuilder
   - BlockStreamManager task system
@@ -30,6 +31,7 @@ Performance benchmarks for the block production pipeline using JMH (Java Microbe
 ---
 
 ### 2. `BlockProductionMicrobenchmarks.java`
+
 **Component-level performance tests**
 
 - **Purpose:** Measures individual components in isolation to find bottlenecks
@@ -51,6 +53,7 @@ Performance benchmarks for the block production pipeline using JMH (Java Microbe
 ---
 
 ### 3. `HashingBenchmark.java`
+
 **Algorithm-level performance test**
 
 - **Purpose:** Measures pure SHA-384 hashing and merkle tree computation
@@ -69,6 +72,7 @@ Performance benchmarks for the block production pipeline using JMH (Java Microbe
 ## Utility Classes
 
 ### `BenchmarkBlockStreamManager.java`
+
 **Production-realistic block stream manager**
 
 - **Purpose:** Trimmed copy of `BlockStreamManagerImpl` for benchmarking
@@ -86,6 +90,7 @@ Performance benchmarks for the block production pipeline using JMH (Java Microbe
 ---
 
 ### `TransactionGeneratorUtil.java`
+
 **Realistic transaction generator**
 
 - **Purpose:** Creates realistic CryptoTransfer transactions for testing
@@ -101,15 +106,15 @@ Performance benchmarks for the block production pipeline using JMH (Java Microbe
 
 **With Production Configuration (batch size 32):**
 
-| Benchmark | Target | Achieved | Headroom |
-|-----------|--------|----------|----------|
-| **End-to-End** | 100K TPS | 127K TPS | +27% |
-| **BlockItem Serialization** | 200K/s | 4-66M ops/s | 20-330× |
-| **BlockItem Hashing** | 200K/s | 10M ops/s | 50× |
-| **Merkle Trees (100K leaves)** | 1M leaves/s | 8.8M leaves/s | 8.8× |
-| **BlockStreamBuilder** | 100K/s | 4.5M ops/s | 45× |
-| **Running Hash** | 100K/s | 10M ops/s | 100× |
-| **Block Serialization** | 0.5/s | ~30/s | 60× |
+|           Benchmark            |   Target    |   Achieved    | Headroom |
+|--------------------------------|-------------|---------------|----------|
+| **End-to-End**                 | 100K TPS    | 127K TPS      | +27%     |
+| **BlockItem Serialization**    | 200K/s      | 4-66M ops/s   | 20-330×  |
+| **BlockItem Hashing**          | 200K/s      | 10M ops/s     | 50×      |
+| **Merkle Trees (100K leaves)** | 1M leaves/s | 8.8M leaves/s | 8.8×     |
+| **BlockStreamBuilder**         | 100K/s      | 4.5M ops/s    | 45×      |
+| **Running Hash**               | 100K/s      | 10M ops/s     | 100×     |
+| **Block Serialization**        | 0.5/s       | ~30/s         | 60×      |
 
 **Key Findings:**
 - System achieves 127K TPS (27% above 100K target)

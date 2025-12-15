@@ -97,7 +97,10 @@ public class BlockProductionBenchmark {
     @Param({"6000"}) // Transaction size in bytes
     private int transactionSizeBytes;
 
-    @Param({/*"true", */"false"}) // Enable rate limiting (false = max capacity stress test)
+    @Param({
+        /*"true", */
+        "false"
+    }) // Enable rate limiting (false = max capacity stress test)
     private boolean enableRateLimiting;
 
     private int maxTransactionsPerBlock;
@@ -341,8 +344,7 @@ public class BlockProductionBenchmark {
 
             System.out.printf("%n>>> SUMMARY:%n");
             System.out.printf(
-                    ">>> Mode: %s%n",
-                    enableRateLimiting ? "Rate-limited (target TPS)" : "MAX CAPACITY STRESS TEST");
+                    ">>> Mode: %s%n", enableRateLimiting ? "Rate-limited (target TPS)" : "MAX CAPACITY STRESS TEST");
             System.out.printf(
                     ">>> Target TPS: %d, Actual TPS: %.0f (%.1f%% of target)%n",
                     targetTPS, actualTPS, (actualTPS / targetTPS) * 100);
@@ -371,10 +373,8 @@ public class BlockProductionBenchmark {
                             "%n✅ System kept up with target TPS (%.1f%% achieved)%n", (actualTPS / targetTPS) * 100);
                 }
             } else {
-                System.out.printf(
-                        "%n🚀 MAX CAPACITY: System achieved %.0f TPS without rate limiting%n", actualTPS);
-                System.out.printf(
-                        "🚀 This is %.1fx the target rate of %d TPS%n", actualTPS / targetTPS, targetTPS);
+                System.out.printf("%n🚀 MAX CAPACITY: System achieved %.0f TPS without rate limiting%n", actualTPS);
+                System.out.printf("🚀 This is %.1fx the target rate of %d TPS%n", actualTPS / targetTPS, targetTPS);
                 System.out.printf("🚀 Utilization: %.1f%% (%.3fs total time)%n", utilization, elapsedSeconds);
             }
         }

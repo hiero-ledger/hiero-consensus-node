@@ -38,10 +38,10 @@ import org.openjdk.jmh.infra.Blackhole;
 
 /**
  * Component-level microbenchmarks for block production pipeline.
- * 
+ *
  * Each benchmark tests a specific production component in isolation to identify bottlenecks.
  * These benchmarks use REAL production classes without mocking or simulation.
- * 
+ *
  * COMPONENTS TESTED:
  * 1. BlockItem serialization - How fast can we serialize BlockItems?
  * 2. BlockItem hashing (SHA-384) - How fast can we hash serialized BlockItems?
@@ -51,7 +51,7 @@ import org.openjdk.jmh.infra.Blackhole;
  * 6. Block hash combining - How fast is the 10x SHA-384 combine operation?
  * 7. Block serialization - How fast can we serialize final blocks?
  * 8. Running hash (n-3) - How fast is the running hash computation?
- * 
+ *
  * BENEFITS:
  * - No mocking required (all components are self-contained)
  * - No maintenance when production code changes (compile-time safety)
@@ -100,7 +100,7 @@ public class BlockProductionMicrobenchmarks {
         public void setup() {
             // Create realistic BlockItems
             Instant now = Instant.now();
-            
+
             transactionResultItem = BlockItem.newBuilder()
                     .transactionResult(TransactionResult.newBuilder()
                             .consensusTimestamp(Timestamp.newBuilder()
@@ -220,11 +220,8 @@ public class BlockProductionMicrobenchmarks {
      */
     @Benchmark
     public void incrementalStreamingHasher_AddLeaf(IncrementalHasherState state, Blackhole bh) {
-        IncrementalStreamingHasher hasher = new IncrementalStreamingHasher(
-                CommonUtils.sha384DigestOrThrow(),
-                List.of(),
-                0L
-        );
+        IncrementalStreamingHasher hasher =
+                new IncrementalStreamingHasher(CommonUtils.sha384DigestOrThrow(), List.of(), 0L);
 
         // Add leaves and compute root (simulating block-by-block hashing)
         for (byte[] blockHash : state.blockHashes) {
@@ -311,18 +308,28 @@ public class BlockProductionMicrobenchmarks {
                 consensusTime = Instant.now();
 
                 exchangeRates = ExchangeRateSet.newBuilder()
-                        .currentRate(ExchangeRate.newBuilder().centEquiv(12).hbarEquiv(1).build())
-                        .nextRate(ExchangeRate.newBuilder().centEquiv(12).hbarEquiv(1).build())
+                        .currentRate(ExchangeRate.newBuilder()
+                                .centEquiv(12)
+                                .hbarEquiv(1)
+                                .build())
+                        .nextRate(ExchangeRate.newBuilder()
+                                .centEquiv(12)
+                                .hbarEquiv(1)
+                                .build())
                         .build();
 
                 transferList = TransferList.newBuilder()
                         .accountAmounts(
                                 AccountAmount.newBuilder()
-                                        .accountID(AccountID.newBuilder().accountNum(2).build())
+                                        .accountID(AccountID.newBuilder()
+                                                .accountNum(2)
+                                                .build())
                                         .amount(-1000L)
                                         .build(),
                                 AccountAmount.newBuilder()
-                                        .accountID(AccountID.newBuilder().accountNum(3).build())
+                                        .accountID(AccountID.newBuilder()
+                                                .accountNum(3)
+                                                .build())
                                         .amount(1000L)
                                         .build())
                         .build();
@@ -340,7 +347,7 @@ public class BlockProductionMicrobenchmarks {
     @Benchmark
     public void blockHashCombining(CombineState state, Blackhole bh) {
         // REAL production logic: 10x SHA-384 combines
-        
+
         // Depth 4 combines (4 operations)
         Bytes depth4Node1 = combineSha384(state.hash1, state.hash2);
         Bytes depth4Node2 = combineSha384(state.hash3, state.hash4);
@@ -356,9 +363,10 @@ public class BlockProductionMicrobenchmarks {
 
         // Depth 1 combines (2 operations)
         Bytes depth2Node2Combined = combineSha384(
-                combineSha384(combineSha384(state.nullHash, state.nullHash), combineSha384(state.nullHash, state.nullHash)),
-                combineSha384(combineSha384(state.nullHash, state.nullHash), combineSha384(state.nullHash, state.nullHash))
-        );
+                combineSha384(
+                        combineSha384(state.nullHash, state.nullHash), combineSha384(state.nullHash, state.nullHash)),
+                combineSha384(
+                        combineSha384(state.nullHash, state.nullHash), combineSha384(state.nullHash, state.nullHash)));
         Bytes depth1Node1 = combineSha384(depth2Node1, depth2Node2Combined);
 
         // Timestamp hash (1 operation)
@@ -380,7 +388,7 @@ public class BlockProductionMicrobenchmarks {
         public void setup() {
             try {
                 MessageDigest digest = sha384DigestOrThrow();
-                
+
                 // Generate 8 random hashes (representing the 8 merkle branches)
                 hash1 = Bytes.wrap(digest.digest("branch1".getBytes()));
                 digest.reset();
@@ -397,9 +405,9 @@ public class BlockProductionMicrobenchmarks {
                 hash7 = Bytes.wrap(digest.digest("branch7".getBytes()));
                 digest.reset();
                 hash8 = Bytes.wrap(digest.digest("branch8".getBytes()));
-                
+
                 nullHash = Bytes.wrap(new byte[48]); // SHA-384 null hash
-                
+
                 Timestamp timestamp = Timestamp.newBuilder()
                         .seconds(Instant.now().getEpochSecond())
                         .build();
@@ -465,10 +473,10 @@ public class BlockProductionMicrobenchmarks {
     public void runningHashComputation(RunningHashState state, Blackhole bh) {
         // Simulate n-3 running hash computation (REAL production logic)
         byte[] currentHash = state.initialHash.clone();
-        
+
         try {
             MessageDigest digest = sha384DigestOrThrow();
-            
+
             for (ByteBuffer resultHash : state.resultHashes) {
                 // REAL running hash update logic
                 digest.reset();
@@ -479,7 +487,7 @@ public class BlockProductionMicrobenchmarks {
                 digest.update(tempHash);
                 currentHash = digest.digest();
             }
-            
+
             bh.consume(currentHash.length);
         } catch (Exception e) {
             throw new RuntimeException(e);
@@ -499,7 +507,7 @@ public class BlockProductionMicrobenchmarks {
             try {
                 MessageDigest digest = sha384DigestOrThrow();
                 initialHash = new byte[48]; // Start with zeros
-                
+
                 resultHashes = new ArrayList<>();
                 for (int i = 0; i < numResults; i++) {
                     byte[] data = ("result" + i).getBytes();
@@ -538,6 +546,6 @@ public class BlockProductionMicrobenchmarks {
     }
 
     public static void main(String[] args) throws Exception {
-        org.openjdk.jmh.Main.main(new String[]{"BlockProductionMicrobenchmarks"});
+        org.openjdk.jmh.Main.main(new String[] {"BlockProductionMicrobenchmarks"});
     }
 }

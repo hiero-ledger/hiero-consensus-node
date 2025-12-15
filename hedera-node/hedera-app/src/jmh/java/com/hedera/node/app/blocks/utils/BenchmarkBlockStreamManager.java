@@ -390,7 +390,7 @@ public class BenchmarkBlockStreamManager {
         final byte[] NULL_HASH = new byte[48];
 
         try {
-            final var digest = java.security.MessageDigest.getInstance("SHA-384");
+            final var digest = MessageDigest.getInstance("SHA-384");
             byte[] hash = digest.digest(previousBlockHash.toByteArray());
 
             // Simulate read cost (path traversal with cached hashes)
@@ -436,7 +436,7 @@ public class BenchmarkBlockStreamManager {
      */
     private Bytes computeStateHash(Bytes blockHash) {
         try {
-            final var digest = java.security.MessageDigest.getInstance("SHA-384");
+            final var digest = MessageDigest.getInstance("SHA-384");
             // Derive state hash from block hash
             digest.update(blockHash.toByteArray());
             digest.update("STATE_HASH".getBytes());
