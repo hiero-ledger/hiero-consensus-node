@@ -1431,7 +1431,5 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
             hintsService.handoff(store, previousRoster, adoptedRoster, adoptedRosterHash, tssConfig.forceHandoffs());
             ((CommittableWritableStates) writableHintsStates).commit();
         }
-
-        // CLPR bootstrap now runs via SystemTransactions startup hooks; no direct dispatch here.
     }
 }
