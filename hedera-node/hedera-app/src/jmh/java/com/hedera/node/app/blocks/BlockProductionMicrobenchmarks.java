@@ -15,6 +15,7 @@ import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.Timestamp;
+import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.base.TransferList;
 import com.hedera.hapi.node.transaction.ExchangeRate;
 import com.hedera.hapi.node.transaction.ExchangeRateSet;
@@ -40,7 +41,7 @@ import org.openjdk.jmh.infra.Blackhole;
  * Component-level microbenchmarks for block production pipeline.
  *
  * Each benchmark tests a specific production component in isolation to identify bottlenecks.
- * These benchmarks use REAL production classes without mocking or simulation.
+ * These benchmarks use production classes without mocking or simulation.
  *
  * COMPONENTS TESTED:
  * 1. BlockItem serialization - How fast can we serialize BlockItems?
@@ -55,8 +56,8 @@ import org.openjdk.jmh.infra.Blackhole;
  * BENEFITS:
  * - No mocking required (all components are self-contained)
  * - No maintenance when production code changes (compile-time safety)
- * - Pinpoint specific bottlenecks (which component is slow?)
- * - Test scaling behavior (how does performance change with size?)
+ * - Pinpoint specific bottlenecks (which component is slow)
+ * - Test scaling behavior (how does performance change with size)
  * - CI/CD friendly (catch regressions early)
  */
 @BenchmarkMode(Mode.Throughput)
@@ -176,7 +177,7 @@ public class BlockProductionMicrobenchmarks {
             hasher.addLeaf(hash.duplicate()); // duplicate to allow reuse
         }
 
-        // Compute root hash (REAL parallel computation)
+        // Compute root hash (parallel computation)
         Bytes rootHash = hasher.rootHash().join();
         bh.consume(rootHash);
     }
@@ -209,6 +210,7 @@ public class BlockProductionMicrobenchmarks {
 
         @TearDown(Level.Trial)
         public void tearDown() {
+            // Shutdown executor to prevent resource leaks
             executor.shutdown();
         }
     }
@@ -276,7 +278,7 @@ public class BlockProductionMicrobenchmarks {
                 .transactionFee(1000L)
                 .transferList(state.transferList);
 
-        // Build BlockItems (REAL translation)
+        // Build BlockItems (translation)
         BlockStreamBuilder.Output output = builder.build(false, null);
         bh.consume(output.blockItems().size());
     }
@@ -291,7 +293,7 @@ public class BlockProductionMicrobenchmarks {
         Instant consensusTime;
         ExchangeRateSet exchangeRates;
         TransferList transferList;
-        com.hedera.hapi.node.base.TransactionID txId;
+        TransactionID txId;
         String memo;
 
         @Setup(Level.Trial)
@@ -346,7 +348,7 @@ public class BlockProductionMicrobenchmarks {
      */
     @Benchmark
     public void blockHashCombining(CombineState state, Blackhole bh) {
-        // REAL production logic: 10x SHA-384 combines
+        // Production logic: 10x SHA-384 combines
 
         // Depth 4 combines (4 operations)
         Bytes depth4Node1 = combineSha384(state.hash1, state.hash2);
@@ -471,14 +473,14 @@ public class BlockProductionMicrobenchmarks {
      */
     @Benchmark
     public void runningHashComputation(RunningHashState state, Blackhole bh) {
-        // Simulate n-3 running hash computation (REAL production logic)
+        // Simulate n-3 running hash computation (production logic)
         byte[] currentHash = state.initialHash.clone();
 
         try {
             MessageDigest digest = sha384DigestOrThrow();
 
             for (ByteBuffer resultHash : state.resultHashes) {
-                // REAL running hash update logic
+                // Running hash update logic
                 digest.reset();
                 digest.update(currentHash);
                 byte[] tempHash = new byte[48];
@@ -521,28 +523,20 @@ public class BlockProductionMicrobenchmarks {
     }
 
     // ============================================================================
-    // HELPER METHODS (copied from BenchmarkBlockStreamManager)
+    // HELPER METHODS (utility methods for block hash combining)
     // ============================================================================
 
     private static Bytes combineSha384(Bytes leftHash, Bytes rightHash) {
-        try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-384");
-            digest.update(leftHash.toByteArray());
-            digest.update(rightHash.toByteArray());
-            return Bytes.wrap(digest.digest());
-        } catch (Exception e) {
-            throw new RuntimeException("SHA-384 not available", e);
-        }
+        MessageDigest digest = sha384DigestOrThrow();
+        digest.update(leftHash.toByteArray());
+        digest.update(rightHash.toByteArray());
+        return Bytes.wrap(digest.digest());
     }
 
     private static Bytes sha384HashOf(Bytes data) {
-        try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-384");
-            digest.update(data.toByteArray());
-            return Bytes.wrap(digest.digest());
-        } catch (Exception e) {
-            throw new RuntimeException("SHA-384 not available", e);
-        }
+        MessageDigest digest = sha384DigestOrThrow();
+        digest.update(data.toByteArray());
+        return Bytes.wrap(digest.digest());
     }
 
     public static void main(String[] args) throws Exception {
