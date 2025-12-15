@@ -12,12 +12,13 @@ import com.hedera.hapi.node.base.AccountID;
 @FunctionalInterface
 public interface NodeFeeAccumulator {
     /**
-     * A no-op accumulator that does nothing.
+     * A no-op accumulator that does nothing. It is only used in tests and in StandaloneDispatchFactory
      */
     NodeFeeAccumulator NOOP = (nodeAccountNumber, fees) -> {};
 
     /**
-     * Accumulates fees for a node account.
+     * Accumulates node fees for each transaction processed. This will update an in-memory map of node fees
+     * for each transaction, which is then written to state at block boundaries for efficiency.
      *
      * @param nodeAccountId the node account id
      * @param fees the fees to accumulate

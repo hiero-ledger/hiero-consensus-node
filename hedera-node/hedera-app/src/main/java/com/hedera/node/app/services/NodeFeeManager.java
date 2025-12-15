@@ -32,24 +32,28 @@ import com.hedera.node.config.data.StakingConfig;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.CommittableWritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
+
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 /**
- * Distributes accumulated fees from the fee collection account (0.0.802) at the end of each staking period.
+ * Manages the NodePayments singleton.
+ * Distributes accumulated fees from the fee collection account (0.0.802) at the start of each staking period.
  * <p>
  * Per HIP-1259, all transaction fees are accumulated in the fee collection account during the staking period.
- * At the end of each staking period, this class:
+ * At the start of each staking period,
  * <ol>
  *     <li>Pays node fees from the NodePayments map to each node's account</li>
- *     <li>Splits the remaining balance among 0.0.98, 0.0.800, and 0.0.801 per current rules</li>
- *     <li>Resets NodePayments to an empty map</li>
+ *     <li>Splits the remaining balance among 0.0.98, 0.0.800, and 0.0.801 if 0.0.801 has minimum required balance.
+ *      If not, transfers all the balance to 0.0.801</li>
+ *     <li>Resets the node payments singleton</li>
  * </ol>
  */
 @Singleton
@@ -72,27 +76,30 @@ public class NodeFeeManager implements NodeFeeAccumulator {
     @Inject
     public NodeFeeManager(
             @NonNull final ConfigProvider configProvider, @NonNull final EntityIdFactory entityIdFactory) {
-        final var config = configProvider.getConfiguration();
         this.configProvider = configProvider;
         this.entityIdFactory = entityIdFactory;
     }
 
     /**
      * Called at the start of each block to load node payments from state into memory.
+     * The in-memory map is cleared and then populated from state.
      *
      * @param state the state
      */
     public void onOpenBlock(@NonNull final State state) {
         if (configProvider.getConfiguration().getConfigData(NodesConfig.class).feeCollectionAccountEnabled()) {
-            nodeFees.clear();
-            final var nodePayments = nodePaymentsFrom(state);
+            resetNodeFees();
+            final var nodePaymentsState = requireNonNull(state.getReadableStates(TokenService.NAME)
+                    .<NodePayments>getSingleton(NODE_PAYMENTS_STATE_ID));
+            final NodePayments nodePayments = requireNonNull(nodePaymentsState.get());
             nodePayments.payments().forEach(pair -> nodeFees.put(pair.nodeAccountId(), pair.fees()));
-            log.info("Loaded node payments from state: {}", nodePayments);
+            log.debug("Loaded node payments from state: {}", nodePayments);
         }
     }
 
     /**
      * Called at the end of each block to write accumulated node fees back to state.
+     * We clear the in-memory map after writing to state.
      *
      * @param state the state
      */
@@ -121,32 +128,33 @@ public class NodeFeeManager implements NodeFeeAccumulator {
     }
 
     /**
-     * The possible times at which the last time node rewards were paid.
+     * The possible times at which the last time node fees were distributed
      */
     enum LastNodeFeesPaymentTime {
         /**
-         * Node fees have never been paid. In the genesis edge case, we don't need to pay fees.
+         * Node fees have never been distributed. In the genesis edge case, we don't need to distribute fees.
          */
         NEVER,
         /**
-         * The last time node fees were paid was in the previous staking period.
+         * The last time node fees were distributed was in the previous staking period.
          */
         PREVIOUS_PERIOD,
         /**
-         * The last time node fees were paid was in the current staking period.
+         * The last time node fees were distributed was in the current staking period.
          */
         CURRENT_PERIOD,
     }
 
     /**
-     * Checks if the last time node rewards were paid was a different staking period.
+     * Checks if the last time node fees were distributed was a different staking period.
      *
      * @param state the state
      * @param now the current time
-     * @return whether the last time node rewards were paid was a different staking period
+     * @return whether the last time node fees were distributed was a different staking period
      */
     private LastNodeFeesPaymentTime classifyLastNodeFeesPaymentTime(
-            @NonNull final State state, @NonNull final Instant now) {
+            @NonNull final State state,
+            @NonNull final Instant now) {
         final var nodeFeePaymentsStore = new ReadableNodePaymentsStoreImpl(state.getReadableStates(TokenService.NAME));
         final var lastPaidTime = nodeFeePaymentsStore.get().lastNodeFeeDistributionTime();
         if (lastPaidTime == null) {
@@ -168,8 +176,9 @@ public class NodeFeeManager implements NodeFeeAccumulator {
      * @param state the savepoint stack for the current transaction
      * @return the stream builder for the synthetic fee distribution transaction, or null if no fees to distribute
      */
-    public boolean distributeFees(
-            @NonNull final State state, @NonNull final Instant now, final SystemTransactions systemTransactions) {
+    public boolean distributeFees(@NonNull final State state,
+                                  @NonNull final Instant now,
+                                  @NonNull final SystemTransactions systemTransactions) {
         requireNonNull(state);
         requireNonNull(now);
         requireNonNull(systemTransactions);
@@ -179,6 +188,7 @@ public class NodeFeeManager implements NodeFeeAccumulator {
         final var ledgerConfig = configProvider.getConfiguration().getConfigData(LedgerConfig.class);
         final var stakingConfig = configProvider.getConfiguration().getConfigData(StakingConfig.class);
 
+        // Do nothing if fee collection account is disabled
         if (!nodesConfig.feeCollectionAccountEnabled()) {
             return false;
         }
@@ -194,7 +204,7 @@ public class NodeFeeManager implements NodeFeeAccumulator {
         final var nodePaymentsStore = new WritableNodePaymentsStore(writableTokenStates);
         final var accountStore = new WritableAccountStore(writableTokenStates, entityIdStore);
         if (lastNodeFeesPaymentTime == LastNodeFeesPaymentTime.PREVIOUS_PERIOD) {
-            log.info("Calculating if there are distributions for staking period @ {}", asTimestamp(now));
+            log.info("Considering distributing node fees for staking period @ {}", asTimestamp(now));
             // commit the node fees accumulated in the previous period from nodeFees to nodePaymentsStore
             updateNodePaymentsState(state);
 
@@ -248,6 +258,8 @@ public class NodeFeeManager implements NodeFeeAccumulator {
 
             // Add the debit from fee collection account
             if (!transferAmounts.isEmpty()) {
+                // To avoid any rounding error, so we need to sum up the total distributed amount
+                // instead of just using the feeCollectionBalance
                 final long totalDistributed = transferAmounts.stream()
                         .mapToLong(AccountAmount::amount)
                         .sum();
@@ -255,13 +267,12 @@ public class NodeFeeManager implements NodeFeeAccumulator {
                         .accountID(feeCollectionAccountId)
                         .amount(-totalDistributed)
                         .build());
+                log.info(
+                        "Distributing {} tinybars from fee collection account: {} as node fees, {} to network/service accounts",
+                        feeCollectionBalance,
+                        totalNodeFees,
+                        networkServiceFees);
             }
-
-            log.info(
-                    "Distributing {} tinybars from fee collection account: {} to nodes, {} to network/service accounts",
-                    feeCollectionBalance,
-                    totalNodeFees,
-                    networkServiceFees);
 
             systemTransactions.dispatchNodePayments(
                     state,
@@ -332,19 +343,8 @@ public class NodeFeeManager implements NodeFeeAccumulator {
     }
 
     /**
-     * Gets the node payments from state.
-     *
-     * @param state the state
-     * @return the node payments
-     */
-    private @NonNull NodePayments nodePaymentsFrom(@NonNull final State state) {
-        final var nodePayments =
-                state.getReadableStates(TokenService.NAME).<NodePayments>getSingleton(NODE_PAYMENTS_STATE_ID);
-        return requireNonNull(nodePayments.get());
-    }
-
-    /**
      * Updates the node payments state with the accumulated in-memory fees.
+     * * This is called at the end of each block and also before distributing fees.
      *
      * @param state the state to update
      */
@@ -365,8 +365,9 @@ public class NodeFeeManager implements NodeFeeAccumulator {
         nodePaymentsState.put(
                 currentPayments.copyBuilder().payments(updatedPayments).build());
         ((CommittableWritableStates) writableTokenState).commit();
-        log.info("Committed node payments state with {}", updatedPayments);
+        log.debug("Committed node payments state with {}", updatedPayments);
 
-        nodeFees.clear();
+        // Clear the in-memory node fees map
+        resetNodeFees();
     }
 }

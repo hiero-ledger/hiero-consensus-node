@@ -87,18 +87,18 @@ public interface BlockStreamModule {
     static BlockStreamManager.Lifecycle provideBlockStreamManagerLifecycle(
             @NonNull final NodeRewardManager nodeRewardManager,
             @NonNull final BoundaryStateChangeListener listener,
-            @NonNull final NodeFeeManager nodeFeeDistributor) {
+            @NonNull final NodeFeeManager nodeFeeManager) {
         return new BlockStreamManager.Lifecycle() {
             @Override
             public void onOpenBlock(@NonNull final State state) {
-                nodeFeeDistributor.onOpenBlock(state);
+                nodeFeeManager.onOpenBlock(state);
                 listener.resetCollectedNodeFees();
                 nodeRewardManager.onOpenBlock(state);
             }
 
             @Override
             public void onCloseBlock(@NonNull final State state) {
-                nodeFeeDistributor.onCloseBlock(state);
+                nodeFeeManager.onCloseBlock(state);
                 nodeRewardManager.onCloseBlock(state, listener.nodeFeesCollected());
             }
         };

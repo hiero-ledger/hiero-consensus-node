@@ -323,6 +323,460 @@ class NodeFeeManagerTest {
         verify(state, never()).getWritableStates(any());
     }
 
+    @Test
+    void testDistributeFeesRoutesToNodeRewardWhenBelowMinBalance() {
+        // Configure preserveMinNodeRewardBalance=true with a high minimum balance
+        final var config = HederaTestConfigBuilder.create()
+                .withValue("staking.periodMins", 1)
+                .withValue("nodes.feeCollectionAccountEnabled", true)
+                .withValue("nodes.nodeRewardsEnabled", true)
+                .withValue("nodes.preserveMinNodeRewardBalance", true)
+                .withValue("nodes.minNodeRewardBalance", 10000L) // High minimum
+                .withValue("staking.feesNodeRewardPercentage", 10)
+                .withValue("staking.feesStakingRewardPercentage", 10)
+                .getOrCreateConfig();
+        given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1));
+        subject = new NodeFeeManager(configProvider, entityIdFactory);
+
+        // Set up with 0.0.801 having low balance (below minimum)
+        final var nodePayments = NodePayments.newBuilder()
+                .lastNodeFeeDistributionTime(asTimestamp(PREV_PERIOD))
+                .payments(List.of(NodePayment.newBuilder()
+                        .nodeAccountId(NODE_ACCOUNT_ID_3)
+                        .fees(100L)
+                        .build()))
+                .build();
+        givenSetupForDistributionWithNodeRewardBalance(nodePayments, 1000L, 500L); // 500 < 10000 minimum
+
+        // Load state into memory first
+        subject.onOpenBlock(state);
+
+        final var result = subject.distributeFees(state, NOW, systemTransactions);
+
+        assertTrue(result);
+        final var transferCaptor = ArgumentCaptor.forClass(TransferList.class);
+        verify(systemTransactions).dispatchNodePayments(eq(state), eq(NOW), transferCaptor.capture());
+
+        final var transfers = transferCaptor.getValue();
+        assertNotNull(transfers);
+
+        // All network/service fees (1000 - 100 = 900) should go to 0.0.801
+        final var nodeRewardTransfer = transfers.accountAmounts().stream()
+                .filter(aa -> aa.accountID().accountNum() == 801L)
+                .findFirst()
+                .orElse(null);
+        assertNotNull(nodeRewardTransfer);
+        assertEquals(900L, nodeRewardTransfer.amount()); // All network fees go to 801
+    }
+
+    @Test
+    void testDistributeFeesNormalDistributionWhenAboveMinBalance() {
+        // Configure preserveMinNodeRewardBalance=true with a low minimum balance
+        final var config = HederaTestConfigBuilder.create()
+                .withValue("staking.periodMins", 1)
+                .withValue("nodes.feeCollectionAccountEnabled", true)
+                .withValue("nodes.nodeRewardsEnabled", true)
+                .withValue("nodes.preserveMinNodeRewardBalance", true)
+                .withValue("nodes.minNodeRewardBalance", 100L) // Low minimum
+                .withValue("staking.feesNodeRewardPercentage", 10)
+                .withValue("staking.feesStakingRewardPercentage", 10)
+                .getOrCreateConfig();
+        given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1));
+        subject = new NodeFeeManager(configProvider, entityIdFactory);
+
+        // Set up with 0.0.801 having high balance (above minimum)
+        final var nodePayments = NodePayments.newBuilder()
+                .lastNodeFeeDistributionTime(asTimestamp(PREV_PERIOD))
+                .payments(List.of(NodePayment.newBuilder()
+                        .nodeAccountId(NODE_ACCOUNT_ID_3)
+                        .fees(100L)
+                        .build()))
+                .build();
+        givenSetupForDistributionWithNodeRewardBalance(nodePayments, 1000L, 500L); // 500 > 100 minimum
+
+        final var result = subject.distributeFees(state, NOW, systemTransactions);
+
+        assertTrue(result);
+        final var transferCaptor = ArgumentCaptor.forClass(TransferList.class);
+        verify(systemTransactions).dispatchNodePayments(eq(state), eq(NOW), transferCaptor.capture());
+
+        final var transfers = transferCaptor.getValue();
+        assertNotNull(transfers);
+
+        // Network fees (900) should be split: 10% to 801, 10% to 800, 80% to 98
+        final var nodeRewardTransfer = transfers.accountAmounts().stream()
+                .filter(aa -> aa.accountID().accountNum() == 801L)
+                .findFirst()
+                .orElse(null);
+        assertNotNull(nodeRewardTransfer);
+        assertEquals(90L, nodeRewardTransfer.amount()); // 10% of 900
+
+        final var stakingRewardTransfer = transfers.accountAmounts().stream()
+                .filter(aa -> aa.accountID().accountNum() == 800L)
+                .findFirst()
+                .orElse(null);
+        assertNotNull(stakingRewardTransfer);
+        assertEquals(90L, stakingRewardTransfer.amount()); // 10% of 900
+
+        final var fundingTransfer = transfers.accountAmounts().stream()
+                .filter(aa -> aa.accountID().accountNum() == 98L)
+                .findFirst()
+                .orElse(null);
+        assertNotNull(fundingTransfer);
+        assertEquals(720L, fundingTransfer.amount()); // 80% of 900
+    }
+
+    @Test
+    void testDistributeFeesSkipsNonExistentNodeAccounts() {
+        final var nodePayments = NodePayments.newBuilder()
+                .lastNodeFeeDistributionTime(asTimestamp(PREV_PERIOD))
+                .payments(List.of(
+                        NodePayment.newBuilder()
+                                .nodeAccountId(NODE_ACCOUNT_ID_3)
+                                .fees(100L)
+                                .build(),
+                        NodePayment.newBuilder()
+                                .nodeAccountId(asAccount(0, 0, 888L)) // Non-existent account
+                                .fees(200L)
+                                .build()))
+                .build();
+        givenSetupForDistributionWithMissingAccount(nodePayments, 1000L, 888L);
+
+        final var result = subject.distributeFees(state, NOW, systemTransactions);
+
+        assertTrue(result);
+        final var transferCaptor = ArgumentCaptor.forClass(TransferList.class);
+        verify(systemTransactions).dispatchNodePayments(eq(state), eq(NOW), transferCaptor.capture());
+
+        final var transfers = transferCaptor.getValue();
+        // Should only have transfers for account 3, not 888 (non-existent)
+        final var account888Transfer = transfers.accountAmounts().stream()
+                .filter(aa -> aa.accountID().accountNum() == 888L)
+                .findFirst()
+                .orElse(null);
+        assertNull(account888Transfer);
+
+        // Account 3 should still receive its fees
+        final var account3Transfer = transfers.accountAmounts().stream()
+                .filter(aa -> aa.accountID().accountNum() == 3L)
+                .findFirst()
+                .orElse(null);
+        assertNotNull(account3Transfer);
+        assertEquals(100L, account3Transfer.amount());
+    }
+
+    @Test
+    void testDistributeFeesWithZeroNodeFees() {
+        // Set up with no node fees but positive fee collection balance
+        final var nodePayments = NodePayments.newBuilder()
+                .lastNodeFeeDistributionTime(asTimestamp(PREV_PERIOD))
+                .payments(List.of()) // No node fees
+                .build();
+        givenSetupForDistribution(nodePayments, 1000L);
+
+        final var result = subject.distributeFees(state, NOW, systemTransactions);
+
+        assertTrue(result);
+        final var transferCaptor = ArgumentCaptor.forClass(TransferList.class);
+        verify(systemTransactions).dispatchNodePayments(eq(state), eq(NOW), transferCaptor.capture());
+
+        final var transfers = transferCaptor.getValue();
+        assertNotNull(transfers);
+
+        // All 1000 should be distributed to network/service accounts
+        // 10% to 801, 10% to 800, 80% to 98
+        final var nodeRewardTransfer = transfers.accountAmounts().stream()
+                .filter(aa -> aa.accountID().accountNum() == 801L)
+                .findFirst()
+                .orElse(null);
+        assertNotNull(nodeRewardTransfer);
+        assertEquals(100L, nodeRewardTransfer.amount()); // 10% of 1000
+
+        final var stakingRewardTransfer = transfers.accountAmounts().stream()
+                .filter(aa -> aa.accountID().accountNum() == 800L)
+                .findFirst()
+                .orElse(null);
+        assertNotNull(stakingRewardTransfer);
+        assertEquals(100L, stakingRewardTransfer.amount()); // 10% of 1000
+
+        final var fundingTransfer = transfers.accountAmounts().stream()
+                .filter(aa -> aa.accountID().accountNum() == 98L)
+                .findFirst()
+                .orElse(null);
+        assertNotNull(fundingTransfer);
+        assertEquals(800L, fundingTransfer.amount()); // 80% of 1000
+    }
+
+    @Test
+    void testDistributeFeesWithZeroBalance() {
+        // Set up with zero fee collection balance
+        final var nodePayments = NodePayments.newBuilder()
+                .lastNodeFeeDistributionTime(asTimestamp(PREV_PERIOD))
+                .payments(List.of())
+                .build();
+        givenSetupForDistribution(nodePayments, 0L);
+
+        final var result = subject.distributeFees(state, NOW, systemTransactions);
+
+        assertTrue(result);
+        final var transferCaptor = ArgumentCaptor.forClass(TransferList.class);
+        verify(systemTransactions).dispatchNodePayments(eq(state), eq(NOW), transferCaptor.capture());
+
+        final var transfers = transferCaptor.getValue();
+        // With zero balance, there should be no transfers (empty list)
+        assertTrue(transfers.accountAmounts().isEmpty());
+    }
+
+    @Test
+    void testDistributeFeesWithMultipleNodesVaryingFees() {
+        final var nodePayments = NodePayments.newBuilder()
+                .lastNodeFeeDistributionTime(asTimestamp(PREV_PERIOD))
+                .payments(List.of(
+                        NodePayment.newBuilder()
+                                .nodeAccountId(NODE_ACCOUNT_ID_3)
+                                .fees(100L)
+                                .build(),
+                        NodePayment.newBuilder()
+                                .nodeAccountId(NODE_ACCOUNT_ID_5)
+                                .fees(300L)
+                                .build(),
+                        NodePayment.newBuilder()
+                                .nodeAccountId(asAccount(0, 0, 7L))
+                                .fees(200L)
+                                .build()))
+                .build();
+        givenSetupForDistributionWithMultipleNodes(nodePayments, 1600L); // 100+300+200=600 node fees, 1000 network fees
+
+        final var result = subject.distributeFees(state, NOW, systemTransactions);
+
+        assertTrue(result);
+        final var transferCaptor = ArgumentCaptor.forClass(TransferList.class);
+        verify(systemTransactions).dispatchNodePayments(eq(state), eq(NOW), transferCaptor.capture());
+
+        final var transfers = transferCaptor.getValue();
+        assertNotNull(transfers);
+
+        // Verify each node gets their correct fees
+        final var node3Transfer = transfers.accountAmounts().stream()
+                .filter(aa -> aa.accountID().accountNum() == 3L)
+                .findFirst()
+                .orElse(null);
+        assertNotNull(node3Transfer);
+        assertEquals(100L, node3Transfer.amount());
+
+        final var node5Transfer = transfers.accountAmounts().stream()
+                .filter(aa -> aa.accountID().accountNum() == 5L)
+                .findFirst()
+                .orElse(null);
+        assertNotNull(node5Transfer);
+        assertEquals(300L, node5Transfer.amount());
+
+        final var node7Transfer = transfers.accountAmounts().stream()
+                .filter(aa -> aa.accountID().accountNum() == 7L)
+                .findFirst()
+                .orElse(null);
+        assertNotNull(node7Transfer);
+        assertEquals(200L, node7Transfer.amount());
+
+        // Verify fee collection account is debited
+        final var feeCollectorDebit = transfers.accountAmounts().stream()
+                .filter(aa -> aa.accountID().accountNum() == 802L)
+                .findFirst()
+                .orElse(null);
+        assertNotNull(feeCollectorDebit);
+        assertTrue(feeCollectorDebit.amount() < 0);
+    }
+
+    @Test
+    void testDistributeFeesVerifiesExactTransferAmounts() {
+        final var nodePayments = NodePayments.newBuilder()
+                .lastNodeFeeDistributionTime(asTimestamp(PREV_PERIOD))
+                .payments(List.of(NodePayment.newBuilder()
+                        .nodeAccountId(NODE_ACCOUNT_ID_3)
+                        .fees(500L)
+                        .build()))
+                .build();
+        givenSetupForDistribution(nodePayments, 1000L); // 500 node fees, 500 network fees
+
+        final var result = subject.distributeFees(state, NOW, systemTransactions);
+
+        assertTrue(result);
+        final var transferCaptor = ArgumentCaptor.forClass(TransferList.class);
+        verify(systemTransactions).dispatchNodePayments(eq(state), eq(NOW), transferCaptor.capture());
+
+        final var transfers = transferCaptor.getValue();
+
+        // Calculate expected amounts
+        // Node 3: 500
+        // Network fees: 500
+        //   - 801: 10% of 500 = 50
+        //   - 800: 10% of 500 = 50
+        //   - 98: 80% of 500 = 400
+        // Total credits: 500 + 50 + 50 + 400 = 1000
+        // Fee collector debit: -1000
+
+        long totalCredits = transfers.accountAmounts().stream()
+                .filter(aa -> aa.amount() > 0)
+                .mapToLong(aa -> aa.amount())
+                .sum();
+        long totalDebits = transfers.accountAmounts().stream()
+                .filter(aa -> aa.amount() < 0)
+                .mapToLong(aa -> aa.amount())
+                .sum();
+
+        assertEquals(1000L, totalCredits);
+        assertEquals(-1000L, totalDebits);
+        assertEquals(0L, totalCredits + totalDebits); // Net zero
+    }
+
+    @Test
+    void testDistributeFeesResetsNodePaymentsState() {
+        final var nodePayments = NodePayments.newBuilder()
+                .lastNodeFeeDistributionTime(asTimestamp(PREV_PERIOD))
+                .payments(List.of(NodePayment.newBuilder()
+                        .nodeAccountId(NODE_ACCOUNT_ID_3)
+                        .fees(100L)
+                        .build()))
+                .build();
+        givenSetupForDistribution(nodePayments, 1000L);
+
+        subject.distributeFees(state, NOW, systemTransactions);
+
+        // Verify the node payments state was reset
+        final var updatedPayments = nodePaymentsRef.get();
+        assertNotNull(updatedPayments);
+        assertTrue(updatedPayments.payments().isEmpty());
+        // Verify lastNodeFeeDistributionTime was updated
+        assertNotNull(updatedPayments.lastNodeFeeDistributionTime());
+        assertEquals(asTimestamp(NOW), updatedPayments.lastNodeFeeDistributionTime());
+    }
+
+    @Test
+    void testDistributeFeesWithNodeRewardsDisabled() {
+        // Configure nodeRewardsEnabled=false
+        final var config = HederaTestConfigBuilder.create()
+                .withValue("staking.periodMins", 1)
+                .withValue("nodes.feeCollectionAccountEnabled", true)
+                .withValue("nodes.nodeRewardsEnabled", false)
+                .withValue("nodes.preserveMinNodeRewardBalance", true)
+                .withValue("nodes.minNodeRewardBalance", 10000L)
+                .withValue("staking.feesNodeRewardPercentage", 10)
+                .withValue("staking.feesStakingRewardPercentage", 10)
+                .getOrCreateConfig();
+        given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1));
+        subject = new NodeFeeManager(configProvider, entityIdFactory);
+
+        final var nodePayments = NodePayments.newBuilder()
+                .lastNodeFeeDistributionTime(asTimestamp(PREV_PERIOD))
+                .payments(List.of())
+                .build();
+        givenSetupForDistributionWithNodeRewardBalance(nodePayments, 1000L, 100L); // Low balance but nodeRewardsEnabled=false
+
+        final var result = subject.distributeFees(state, NOW, systemTransactions);
+
+        assertTrue(result);
+        final var transferCaptor = ArgumentCaptor.forClass(TransferList.class);
+        verify(systemTransactions).dispatchNodePayments(eq(state), eq(NOW), transferCaptor.capture());
+
+        final var transfers = transferCaptor.getValue();
+        // With nodeRewardsEnabled=false, normal distribution should occur (not routing all to 801)
+        final var nodeRewardTransfer = transfers.accountAmounts().stream()
+                .filter(aa -> aa.accountID().accountNum() == 801L)
+                .findFirst()
+                .orElse(null);
+        assertNotNull(nodeRewardTransfer);
+        assertEquals(100L, nodeRewardTransfer.amount()); // 10% of 1000, not all 1000
+    }
+
+    @Test
+    void testDistributeFeesWithZeroPercentages() {
+        // Configure zero percentages for node and staking rewards
+        final var config = HederaTestConfigBuilder.create()
+                .withValue("staking.periodMins", 1)
+                .withValue("nodes.feeCollectionAccountEnabled", true)
+                .withValue("nodes.nodeRewardsEnabled", true)
+                .withValue("nodes.preserveMinNodeRewardBalance", false)
+                .withValue("staking.feesNodeRewardPercentage", 0)
+                .withValue("staking.feesStakingRewardPercentage", 0)
+                .getOrCreateConfig();
+        given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1));
+        subject = new NodeFeeManager(configProvider, entityIdFactory);
+
+        final var nodePayments = NodePayments.newBuilder()
+                .lastNodeFeeDistributionTime(asTimestamp(PREV_PERIOD))
+                .payments(List.of())
+                .build();
+        givenSetupForDistribution(nodePayments, 1000L);
+
+        final var result = subject.distributeFees(state, NOW, systemTransactions);
+
+        assertTrue(result);
+        final var transferCaptor = ArgumentCaptor.forClass(TransferList.class);
+        verify(systemTransactions).dispatchNodePayments(eq(state), eq(NOW), transferCaptor.capture());
+
+        final var transfers = transferCaptor.getValue();
+        // All fees should go to funding account (98)
+        final var fundingTransfer = transfers.accountAmounts().stream()
+                .filter(aa -> aa.accountID().accountNum() == 98L)
+                .findFirst()
+                .orElse(null);
+        assertNotNull(fundingTransfer);
+        assertEquals(1000L, fundingTransfer.amount());
+
+        // 801 and 800 should not receive anything (0%)
+        final var nodeRewardTransfer = transfers.accountAmounts().stream()
+                .filter(aa -> aa.accountID().accountNum() == 801L)
+                .findFirst()
+                .orElse(null);
+        assertNull(nodeRewardTransfer);
+
+        final var stakingRewardTransfer = transfers.accountAmounts().stream()
+                .filter(aa -> aa.accountID().accountNum() == 800L)
+                .findFirst()
+                .orElse(null);
+        assertNull(stakingRewardTransfer);
+    }
+
+    @Test
+    void testDistributeFeesWithZeroNodeFeePayment() {
+        // Test when a node has zero fees in the payments list
+        final var nodePayments = NodePayments.newBuilder()
+                .lastNodeFeeDistributionTime(asTimestamp(PREV_PERIOD))
+                .payments(List.of(
+                        NodePayment.newBuilder()
+                                .nodeAccountId(NODE_ACCOUNT_ID_3)
+                                .fees(0L) // Zero fees
+                                .build(),
+                        NodePayment.newBuilder()
+                                .nodeAccountId(NODE_ACCOUNT_ID_5)
+                                .fees(100L)
+                                .build()))
+                .build();
+        givenSetupForDistributionWithMultipleNodes(nodePayments, 1100L);
+
+        final var result = subject.distributeFees(state, NOW, systemTransactions);
+
+        assertTrue(result);
+        final var transferCaptor = ArgumentCaptor.forClass(TransferList.class);
+        verify(systemTransactions).dispatchNodePayments(eq(state), eq(NOW), transferCaptor.capture());
+
+        final var transfers = transferCaptor.getValue();
+        // Node 3 should not appear in transfers (zero fees)
+        final var node3Transfer = transfers.accountAmounts().stream()
+                .filter(aa -> aa.accountID().accountNum() == 3L)
+                .findFirst()
+                .orElse(null);
+        assertNull(node3Transfer);
+
+        // Node 5 should receive its fees
+        final var node5Transfer = transfers.accountAmounts().stream()
+                .filter(aa -> aa.accountID().accountNum() == 5L)
+                .findFirst()
+                .orElse(null);
+        assertNotNull(node5Transfer);
+        assertEquals(100L, node5Transfer.amount());
+    }
+
     private void givenSetup(NodePayments nodePayments) {
         nodePaymentsState = new FunctionWritableSingletonState<>(
                 NODE_PAYMENTS_STATE_ID, NODE_PAYMENTS_STATE_LABEL, nodePaymentsRef::get, nodePaymentsRef::set);
@@ -449,6 +903,209 @@ class NodeFeeManagerTest {
                 .build();
 
         // Set up aliases (empty, but required by ReadableAccountStoreImpl)
+        final var aliases = MapWritableKVState.<ProtoBytes, AccountID>builder(ALIASES_STATE_ID, ALIASES_STATE_LABEL)
+                .build();
+
+        writableStates = new MapWritableStates(Map.of(
+                NODE_PAYMENTS_STATE_ID, nodePaymentsState,
+                ENTITY_ID_STATE_ID, entityIdState,
+                ENTITY_COUNTS_STATE_ID, entityCountsState,
+                ACCOUNTS_STATE_ID, accounts,
+                ALIASES_STATE_ID, aliases));
+
+        final var readableEntityIdState = new FunctionReadableSingletonState<>(
+                ENTITY_ID_STATE_ID, ENTITY_ID_STATE_LABEL, () -> EntityNumber.newBuilder()
+                        .build());
+        final var readableEntityCountsState = new FunctionReadableSingletonState<>(
+                ENTITY_COUNTS_STATE_ID, ENTITY_COUNTS_STATE_LABEL, () -> EntityCounts.DEFAULT);
+
+        readableStates = new MapReadableStates(Map.of(
+                NODE_PAYMENTS_STATE_ID, readableNodePaymentsState,
+                ENTITY_ID_STATE_ID, readableEntityIdState,
+                ENTITY_COUNTS_STATE_ID, readableEntityCountsState));
+
+        lenient().when(state.getReadableStates(TokenService.NAME)).thenReturn(readableStates);
+        lenient().when(state.getWritableStates(TokenService.NAME)).thenReturn(writableStates);
+        lenient().when(state.getWritableStates(EntityIdService.NAME)).thenReturn(writableStates);
+        lenient().when(state.getReadableStates(EntityIdService.NAME)).thenReturn(readableStates);
+    }
+
+    private void givenSetupForDistributionWithNodeRewardBalance(
+            NodePayments nodePayments, long feeCollectionBalance, long nodeRewardBalance) {
+        nodePaymentsState = new FunctionWritableSingletonState<>(
+                NODE_PAYMENTS_STATE_ID, NODE_PAYMENTS_STATE_LABEL, nodePaymentsRef::get, nodePaymentsRef::set);
+        nodePaymentsRef.set(nodePayments);
+
+        final var readableNodePaymentsState = new FunctionReadableSingletonState<>(
+                NODE_PAYMENTS_STATE_ID, NODE_PAYMENTS_STATE_LABEL, nodePaymentsRef::get);
+
+        final var entityIdState = new FunctionWritableSingletonState<>(
+                ENTITY_ID_STATE_ID,
+                ENTITY_ID_STATE_LABEL,
+                () -> EntityNumber.newBuilder().build(),
+                c -> {});
+        final var entityCountsState = new FunctionWritableSingletonState<>(
+                ENTITY_COUNTS_STATE_ID, ENTITY_COUNTS_STATE_LABEL, () -> EntityCounts.DEFAULT, c -> {});
+
+        // Set up accounts with specific node reward balance
+        final var accounts = MapWritableKVState.<AccountID, Account>builder(ACCOUNTS_STATE_ID, ACCOUNTS_STATE_LABEL)
+                .value(
+                        asAccount(0, 0, 802),
+                        Account.newBuilder()
+                                .tinybarBalance(feeCollectionBalance)
+                                .build())
+                .value(
+                        asAccount(0, 0, 3),
+                        Account.newBuilder().tinybarBalance(0).build())
+                .value(
+                        asAccount(0, 0, 98),
+                        Account.newBuilder().tinybarBalance(0).build())
+                .value(
+                        asAccount(0, 0, 800),
+                        Account.newBuilder().tinybarBalance(0).build())
+                .value(
+                        asAccount(0, 0, 801),
+                        Account.newBuilder()
+                                .tinybarBalance(nodeRewardBalance)
+                                .build())
+                .build();
+
+        final var aliases = MapWritableKVState.<ProtoBytes, AccountID>builder(ALIASES_STATE_ID, ALIASES_STATE_LABEL)
+                .build();
+
+        writableStates = new MapWritableStates(Map.of(
+                NODE_PAYMENTS_STATE_ID, nodePaymentsState,
+                ENTITY_ID_STATE_ID, entityIdState,
+                ENTITY_COUNTS_STATE_ID, entityCountsState,
+                ACCOUNTS_STATE_ID, accounts,
+                ALIASES_STATE_ID, aliases));
+
+        final var readableEntityIdState = new FunctionReadableSingletonState<>(
+                ENTITY_ID_STATE_ID, ENTITY_ID_STATE_LABEL, () -> EntityNumber.newBuilder()
+                        .build());
+        final var readableEntityCountsState = new FunctionReadableSingletonState<>(
+                ENTITY_COUNTS_STATE_ID, ENTITY_COUNTS_STATE_LABEL, () -> EntityCounts.DEFAULT);
+
+        readableStates = new MapReadableStates(Map.of(
+                NODE_PAYMENTS_STATE_ID, readableNodePaymentsState,
+                ENTITY_ID_STATE_ID, readableEntityIdState,
+                ENTITY_COUNTS_STATE_ID, readableEntityCountsState));
+
+        lenient().when(state.getReadableStates(TokenService.NAME)).thenReturn(readableStates);
+        lenient().when(state.getWritableStates(TokenService.NAME)).thenReturn(writableStates);
+        lenient().when(state.getWritableStates(EntityIdService.NAME)).thenReturn(writableStates);
+        lenient().when(state.getReadableStates(EntityIdService.NAME)).thenReturn(readableStates);
+    }
+
+    private void givenSetupForDistributionWithMissingAccount(
+            NodePayments nodePayments, long feeCollectionBalance, long missingAccountNum) {
+        nodePaymentsState = new FunctionWritableSingletonState<>(
+                NODE_PAYMENTS_STATE_ID, NODE_PAYMENTS_STATE_LABEL, nodePaymentsRef::get, nodePaymentsRef::set);
+        nodePaymentsRef.set(nodePayments);
+
+        final var readableNodePaymentsState = new FunctionReadableSingletonState<>(
+                NODE_PAYMENTS_STATE_ID, NODE_PAYMENTS_STATE_LABEL, nodePaymentsRef::get);
+
+        final var entityIdState = new FunctionWritableSingletonState<>(
+                ENTITY_ID_STATE_ID,
+                ENTITY_ID_STATE_LABEL,
+                () -> EntityNumber.newBuilder().build(),
+                c -> {});
+        final var entityCountsState = new FunctionWritableSingletonState<>(
+                ENTITY_COUNTS_STATE_ID, ENTITY_COUNTS_STATE_LABEL, () -> EntityCounts.DEFAULT, c -> {});
+
+        // Set up accounts WITHOUT the missing account
+        final var accounts = MapWritableKVState.<AccountID, Account>builder(ACCOUNTS_STATE_ID, ACCOUNTS_STATE_LABEL)
+                .value(
+                        asAccount(0, 0, 802),
+                        Account.newBuilder()
+                                .tinybarBalance(feeCollectionBalance)
+                                .build())
+                .value(
+                        asAccount(0, 0, 3),
+                        Account.newBuilder().tinybarBalance(0).build())
+                .value(
+                        asAccount(0, 0, 98),
+                        Account.newBuilder().tinybarBalance(0).build())
+                .value(
+                        asAccount(0, 0, 800),
+                        Account.newBuilder().tinybarBalance(0).build())
+                .value(
+                        asAccount(0, 0, 801),
+                        Account.newBuilder().tinybarBalance(0).build())
+                // Note: missingAccountNum is NOT added to the accounts map
+                .build();
+
+        final var aliases = MapWritableKVState.<ProtoBytes, AccountID>builder(ALIASES_STATE_ID, ALIASES_STATE_LABEL)
+                .build();
+
+        writableStates = new MapWritableStates(Map.of(
+                NODE_PAYMENTS_STATE_ID, nodePaymentsState,
+                ENTITY_ID_STATE_ID, entityIdState,
+                ENTITY_COUNTS_STATE_ID, entityCountsState,
+                ACCOUNTS_STATE_ID, accounts,
+                ALIASES_STATE_ID, aliases));
+
+        final var readableEntityIdState = new FunctionReadableSingletonState<>(
+                ENTITY_ID_STATE_ID, ENTITY_ID_STATE_LABEL, () -> EntityNumber.newBuilder()
+                        .build());
+        final var readableEntityCountsState = new FunctionReadableSingletonState<>(
+                ENTITY_COUNTS_STATE_ID, ENTITY_COUNTS_STATE_LABEL, () -> EntityCounts.DEFAULT);
+
+        readableStates = new MapReadableStates(Map.of(
+                NODE_PAYMENTS_STATE_ID, readableNodePaymentsState,
+                ENTITY_ID_STATE_ID, readableEntityIdState,
+                ENTITY_COUNTS_STATE_ID, readableEntityCountsState));
+
+        lenient().when(state.getReadableStates(TokenService.NAME)).thenReturn(readableStates);
+        lenient().when(state.getWritableStates(TokenService.NAME)).thenReturn(writableStates);
+        lenient().when(state.getWritableStates(EntityIdService.NAME)).thenReturn(writableStates);
+        lenient().when(state.getReadableStates(EntityIdService.NAME)).thenReturn(readableStates);
+    }
+
+    private void givenSetupForDistributionWithMultipleNodes(NodePayments nodePayments, long feeCollectionBalance) {
+        nodePaymentsState = new FunctionWritableSingletonState<>(
+                NODE_PAYMENTS_STATE_ID, NODE_PAYMENTS_STATE_LABEL, nodePaymentsRef::get, nodePaymentsRef::set);
+        nodePaymentsRef.set(nodePayments);
+
+        final var readableNodePaymentsState = new FunctionReadableSingletonState<>(
+                NODE_PAYMENTS_STATE_ID, NODE_PAYMENTS_STATE_LABEL, nodePaymentsRef::get);
+
+        final var entityIdState = new FunctionWritableSingletonState<>(
+                ENTITY_ID_STATE_ID,
+                ENTITY_ID_STATE_LABEL,
+                () -> EntityNumber.newBuilder().build(),
+                c -> {});
+        final var entityCountsState = new FunctionWritableSingletonState<>(
+                ENTITY_COUNTS_STATE_ID, ENTITY_COUNTS_STATE_LABEL, () -> EntityCounts.DEFAULT, c -> {});
+
+        // Set up accounts for multiple nodes
+        final var accounts = MapWritableKVState.<AccountID, Account>builder(ACCOUNTS_STATE_ID, ACCOUNTS_STATE_LABEL)
+                .value(
+                        asAccount(0, 0, 802),
+                        Account.newBuilder()
+                                .tinybarBalance(feeCollectionBalance)
+                                .build())
+                .value(
+                        asAccount(0, 0, 3),
+                        Account.newBuilder().tinybarBalance(0).build())
+                .value(
+                        asAccount(0, 0, 5),
+                        Account.newBuilder().tinybarBalance(0).build())
+                .value(
+                        asAccount(0, 0, 7),
+                        Account.newBuilder().tinybarBalance(0).build())
+                .value(
+                        asAccount(0, 0, 98),
+                        Account.newBuilder().tinybarBalance(0).build())
+                .value(
+                        asAccount(0, 0, 800),
+                        Account.newBuilder().tinybarBalance(0).build())
+                .value(
+                        asAccount(0, 0, 801),
+                        Account.newBuilder().tinybarBalance(0).build())
+                .build();
+
         final var aliases = MapWritableKVState.<ProtoBytes, AccountID>builder(ALIASES_STATE_ID, ALIASES_STATE_LABEL)
                 .build();
 

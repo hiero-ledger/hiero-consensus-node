@@ -164,7 +164,7 @@ public class HandleWorkflow {
     // The last second for which this workflow has confirmed all scheduled transactions are executed
     private long lastExecutedSecond;
     private final NodeRewardManager nodeRewardManager;
-    private final NodeFeeManager feeDistributor;
+    private final NodeFeeManager nodeFeeManager;
     // Flag to indicate whether we have checked for transplant updates after JVM started
     private boolean checkedForTransplant;
 
@@ -200,7 +200,7 @@ public class HandleWorkflow {
             @NonNull final BlockBufferService blockBufferService,
             @NonNull final Map<Class<?>, ServiceApiProvider<?>> apiProviders,
             @NonNull final QuiescenceController quiescenceController,
-            @NonNull final NodeFeeManager feeDistributor) {
+            @NonNull final NodeFeeManager nodeFeeManager) {
         this.networkInfo = requireNonNull(networkInfo);
         this.stakePeriodChanges = requireNonNull(stakePeriodChanges);
         this.dispatchProcessor = requireNonNull(dispatchProcessor);
@@ -233,7 +233,7 @@ public class HandleWorkflow {
         this.systemEntitiesCreatedFlag = systemEntitiesCreatedFlag;
         this.blockBufferService = requireNonNull(blockBufferService);
         this.apiProviders = requireNonNull(apiProviders);
-        this.feeDistributor = requireNonNull(feeDistributor);
+        this.nodeFeeManager = requireNonNull(nodeFeeManager);
     }
 
     /**
@@ -308,7 +308,7 @@ public class HandleWorkflow {
         final var roundConsTime = round.getConsensusTimestamp();
         try {
             transactionsDispatched |=
-                    feeDistributor.distributeFees(state, roundConsTime.plusNanos(1), systemTransactions);
+                    nodeFeeManager.distributeFees(state, roundConsTime.plusNanos(1), systemTransactions);
         } catch (Exception e) {
             logger.warn("Failed to pay node fees to nodes", e);
         }
@@ -676,7 +676,7 @@ public class HandleWorkflow {
                     executionStart,
                     iteratorEnd,
                     StoreFactoryImpl.from(
-                            state, ScheduleService.NAME, config, writableEntityIdStore, apiProviders, feeDistributor));
+                            state, ScheduleService.NAME, config, writableEntityIdStore, apiProviders, nodeFeeManager));
 
             final var writableStates = state.getWritableStates(ScheduleService.NAME);
             // Configuration sets a maximum number of execution slots per user transaction

@@ -181,7 +181,7 @@ class HandleWorkflowTest {
     private PlatformState platformState;
 
     @Mock
-    private NodeFeeManager nodeFeeDistributor;
+    private NodeFeeManager nodeFeeManager;
 
     private HandleWorkflow subject;
 
@@ -517,7 +517,7 @@ class HandleWorkflowTest {
                 blockBufferService,
                 Map.of(),
                 quiescenceController,
-                nodeFeeDistributor);
+                nodeFeeManager);
     }
 
     @Test
