@@ -6,6 +6,7 @@ import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.node.app.service.addressbook.ReadableAccountNodeRelStore;
+import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.info.NetworkInfo;
@@ -42,6 +43,7 @@ public interface TokenServiceApi {
      * @param expiryValidator the expiry validator to use
      * @param recordBuilder the record builder to record the transfer in
      * @param accountNodeRelStore readable store to validate account node relation
+     * @param entityIdFactory
      * @throws HandleException if the account could not be deleted for some reason
      */
     void deleteAndTransfer(
@@ -49,7 +51,8 @@ public interface TokenServiceApi {
             @NonNull AccountID obtainerId,
             @NonNull ExpiryValidator expiryValidator,
             @NonNull DeleteCapableTransactionStreamBuilder recordBuilder,
-            @NonNull ReadableAccountNodeRelStore accountNodeRelStore);
+            @NonNull ReadableAccountNodeRelStore accountNodeRelStore,
+            final EntityIdFactory entityIdFactory);
 
     /**
      * Validates the creation of a given staking election relative to the given account store, network info,
@@ -141,8 +144,10 @@ public interface TokenServiceApi {
      * @param from the id of the sender
      * @param to the id of the recipient
      * @param amount the amount to transfer
+     * @param entityIdFactory the entity id factory
      */
-    void transferFromTo(@NonNull AccountID from, @NonNull AccountID to, long amount);
+    void transferFromTo(
+            @NonNull AccountID from, @NonNull AccountID to, long amount, final EntityIdFactory entityIdFactory);
 
     /**
      * Returns a summary of the changes made to contract state.

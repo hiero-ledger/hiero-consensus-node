@@ -277,7 +277,8 @@ public class NodeFeeManager implements NodeFeeAccumulator {
     }
 
     /**
-     * Distributes network/service fees to 0.0.98, 0.0.800, and 0.0.801 per current rules.
+     * Distributes network/service fees to 0.0.98, 0.0.800, and 0.0.801 if 0.0.801 is above configured minimum balance.
+     * Otherwise, it routes all fees to 0.0.801.
      */
     private void distributeNetworkServiceFees(
             final long amount,

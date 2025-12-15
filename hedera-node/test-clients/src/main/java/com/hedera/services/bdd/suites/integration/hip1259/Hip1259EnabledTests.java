@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.integration.hip1259;
 
-import static com.hedera.hapi.util.HapiUtils.asInstant;
-import static com.hedera.node.app.hapi.utils.CommonPbjConverters.toPbj;
 import static com.hedera.node.app.service.token.impl.schemas.V0610TokenSchema.NODE_REWARDS_STATE_ID;
 import static com.hedera.node.app.service.token.impl.schemas.V0700TokenSchema.NODE_PAYMENTS_STATE_ID;
 import static com.hedera.services.bdd.junit.RepeatableReason.NEEDS_STATE_ACCESS;
@@ -12,12 +10,20 @@ import static com.hedera.services.bdd.junit.hedera.embedded.EmbeddedMode.REPEATA
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoDelete;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoUpdate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.fileCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.mintToken;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeUpdate;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenAirdrop;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenAssociate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
+import static com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil.asHeadlongAddress;
 import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fixedHbarFee;
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.mutateSingleton;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
@@ -28,22 +34,21 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepForBlockPeriod
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitUntilStartOfNextStakingPeriod;
-import static com.hedera.services.bdd.spec.utilops.streams.assertions.SelectedItemsAssertion.SELECTED_ITEMS_KEY;
 import static com.hedera.services.bdd.suites.HapiSuite.CIVILIAN_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.FEE_COLLECTOR;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.NODE_REWARD;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
-import static com.hedera.services.bdd.suites.integration.RepeatableStreamValidators.validateRecordContains;
-import static com.hedera.services.bdd.suites.integration.RepeatableStreamValidators.validateRecordNotContains;
-import static com.hederahashgraph.api.proto.java.HederaFunctionality.CryptoTransfer;
+import static com.hedera.services.bdd.suites.contract.Utils.asSolidityAddress;
+import static com.hedera.services.bdd.suites.contract.hapi.ContractCallSuite.TRANSFERRING_CONTRACT;
+import static com.hedera.services.bdd.suites.integration.hip1259.RepeatableStreamValidators.*;
+import static com.hedera.services.bdd.suites.integration.hip1259.RepeatableStreamValidators.feeDistributionValidator;
+import static com.hedera.services.bdd.suites.integration.hip1259.RepeatableStreamValidators.validateRecordContains;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ACCOUNT_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_CUSTOM_FEE_COLLECTOR;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TRANSFER_TO_FEE_COLLECTION_ACCOUNT_NOT_ALLOWED;
 import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
-import static java.util.stream.Collectors.toMap;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.google.protobuf.ByteString;
@@ -61,18 +66,15 @@ import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
 import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
 import com.hedera.services.bdd.spec.utilops.EmbeddedVerbs;
-import com.hedera.services.bdd.spec.utilops.streams.assertions.VisibleItemsValidator;
-import com.hedera.services.stream.proto.RecordStreamItem;
-import com.hederahashgraph.api.proto.java.AccountAmount;
 import com.hederahashgraph.api.proto.java.TokenSupplyType;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.math.BigInteger;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.LongSupplier;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
@@ -151,8 +153,7 @@ public class Hip1259EnabledTests {
                 doingContextual(spec -> startConsensusTime.set(spec.consensusTime())),
                 recordStreamMustIncludePassWithoutBackgroundTrafficFrom(
                         selectedItems(
-                                feeDistributionValidator(
-                                        1, List.of(3L, 800L, 801L, 98L), nodeFee::get, nodeAccountBalance::get),
+                                feeDistributionValidator(1, List.of(3L, 800L, 801L, 98L), nodeFee::get),
                                 1,
                                 (spec, item) -> hasFeeDistribution(item, startConsensusTime)),
                         Duration.ofSeconds(1)),
@@ -206,7 +207,7 @@ public class Hip1259EnabledTests {
      * Verifies that node rewards are correctly calculated and distributed when HIP-1259 is enabled,
      * taking into account the fees collected in the fee collection account.
      */
-    @Order(5)
+    @Order(3)
     @LeakyRepeatableHapiTest(
             value = {NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION, NEEDS_STATE_ACCESS},
             overrides = {"nodes.minPerPeriodNodeRewardUsd"})
@@ -264,7 +265,7 @@ public class Hip1259EnabledTests {
                         .logged());
     }
 
-    @Order(10)
+    @Order(4)
     @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
     final Stream<DynamicTest> transferToFeeCollectionAccountFails() {
         return hapiTest(
@@ -295,138 +296,204 @@ public class Hip1259EnabledTests {
                 tokenCreate("tokenWithFee")
                         .treasury(CIVILIAN_PAYER)
                         .withCustom(fixedHbarFee(1, FEE_COLLECTOR))
-                        .hasKnownStatus(INVALID_CUSTOM_FEE_COLLECTOR)
-                // TODO: Add a case tp transfer via EVM
-                );
-    }
-
-    private static boolean isNodeRewardOrFeeDistribution(
-            final RecordStreamItem item, final AtomicReference<Instant> startConsensusTime) {
-        return item.getRecord().getTransferList().getAccountAmountsList().stream()
-                .anyMatch(aa -> {
-                    final var accountNum = aa.getAccountID().getAccountNum();
-                    final var amount = aa.getAmount();
-                    final var isAfter = asInstant(toPbj(item.getRecord().getConsensusTimestamp()))
-                            .minusSeconds(60)
-                            .isAfter(startConsensusTime.get());
-                    return ((accountNum == 801L || accountNum == 802L) && amount < 0L) && isAfter;
-                });
-    }
-
-    private static boolean hasFeeDistribution(
-            final RecordStreamItem item, final AtomicReference<Instant> startConsensusTime) {
-        return item.getRecord().getTransferList().getAccountAmountsList().stream()
-                .anyMatch(aa -> {
-                    final var accountNum = aa.getAccountID().getAccountNum();
-                    final var amount = aa.getAmount();
-                    final var isAfter = asInstant(toPbj(item.getRecord().getConsensusTimestamp()))
-                            .minusSeconds(60)
-                            .isAfter(startConsensusTime.get());
-                    return ((accountNum == 802L) && amount < 0L) && isAfter;
-                });
+                        .hasKnownStatus(INVALID_CUSTOM_FEE_COLLECTOR));
     }
 
     /**
-     * Validator for fee distribution synthetic transaction.
+     * Verifies that smart contract transfers to the fee collection account (0.0.802) are rejected.
+     * Per HIP-1259: "Reject any transaction that would send any hbar to the fee account"
      */
-    static VisibleItemsValidator feeDistributionValidator(
-            int recordNumber,
-            List<Long> creditAccounts,
-            @NonNull final LongSupplier expectedFees,
-            @NonNull final LongSupplier initialNodeBalance) {
-        return (spec, records) -> {
-            final var items = records.get(SELECTED_ITEMS_KEY);
-            assertNotNull(items, "No fee distribution found");
-            assertNotNull(items.get(recordNumber - 1), "No fee distribution found");
-            final var payment = items.get(recordNumber - 1);
-            assertEquals(CryptoTransfer, payment.function());
-            final var op = payment.body().getCryptoTransfer();
-            final Map<Long, Long> bodyAdjustments = op.getTransfers().getAccountAmountsList().stream()
-                    .collect(toMap(aa -> aa.getAccountID().getAccountNum(), AccountAmount::getAmount));
-            for (Long account : creditAccounts) {
-                assertTrue(
-                        bodyAdjustments.containsKey(account) && bodyAdjustments.get(account) > 0,
-                        "Credit account should be credited");
-            }
-            assertEquals((long) bodyAdjustments.get(3L), expectedFees.getAsLong(), "Node account fee should match");
-            getAccountBalance(NODE_ACCOUNT).hasTinyBars(initialNodeBalance.getAsLong() + expectedFees.getAsLong());
-        };
+    @Order(5)
+    @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
+    final Stream<DynamicTest> evmTransferToFeeCollectionAccountFails() {
+        return hapiTest(
+                cryptoCreate(CIVILIAN_PAYER).balance(ONE_MILLION_HBARS),
+                uploadInitCode(TRANSFERRING_CONTRACT),
+                contractCreate(TRANSFERRING_CONTRACT).balance(ONE_HBAR).payingWith(CIVILIAN_PAYER),
+                // Try to transfer HBAR to fee collection account via smart contract
+                contractCall(
+                                TRANSFERRING_CONTRACT,
+                                "transferToAddress",
+                                asHeadlongAddress(asSolidityAddress(0, 0, 802L)),
+                                BigInteger.valueOf(1000))
+                        .payingWith(CIVILIAN_PAYER)
+                        .hasKnownStatus(TRANSFER_TO_FEE_COLLECTION_ACCOUNT_NOT_ALLOWED));
     }
 
     /**
-     * Validator for node rewards with fee collection enabled.
-     * Validates that:
-     * 1. Fee distributions happen first (0.0.802 is debited, node accounts and system accounts are credited)
-     * 2. Node rewards are distributed last (0.0.801 is debited, node accounts are credited)
+     * Verifies that token associations with the fee collection account (0.0.802) are rejected.
+     * Per HIP-1259: "Reject any transaction that would associate a token with the fee account"
      */
-    static VisibleItemsValidator nodeRewardsWithFeeCollectionValidator(
-            @NonNull final LongSupplier initialNodeBalance,
-            @NonNull final LongSupplier nodeAccountBalanceAfterDistribution) {
-        return (spec, records) -> {
-            final var items = records.get(SELECTED_ITEMS_KEY);
-            assertNotNull(items, "No reward payments or fee distributions found");
-            assertTrue(items.size() >= 2, "Expected at least 2 records (fee distribution + node rewards)");
+    @Order(6)
+    @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
+    final Stream<DynamicTest> tokenAssociationWithFeeCollectionAccountFails() {
+        return hapiTest(
+                cryptoCreate(CIVILIAN_PAYER).balance(ONE_MILLION_HBARS),
+                tokenCreate("testToken").treasury(CIVILIAN_PAYER),
+                tokenAssociate(FEE_COLLECTOR, "testToken")
+                        .payingWith(GENESIS)
+                        .signedBy(GENESIS)
+                        .hasKnownStatus(INVALID_ACCOUNT_ID));
+    }
 
-            // Always fee distributions happen first and then node rewards
-            // validate the order of the transactions
-            boolean foundFeeDistribution = false;
-            boolean foundNodeReward = false;
-            int feeDistributionIndex = -1;
-            int nodeRewardIndex = -1;
-            long nodeFees = 0L;
+    /**
+     * Verifies that updates to the fee collection account (0.0.802) are rejected.
+     * Per HIP-1259: "Reject any transaction that would update the fee account"
+     */
+    @Order(7)
+    @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
+    final Stream<DynamicTest> updateFeeCollectionAccountFails() {
+        return hapiTest(
+                newKeyNamed("newKey"),
+                cryptoUpdate(FEE_COLLECTOR)
+                        .payingWith(GENESIS)
+                        .signedBy(GENESIS)
+                        .key("newKey")
+                        .hasPrecheck(INVALID_ACCOUNT_ID));
+    }
 
-            for (int i = 0; i < items.size(); i++) {
-                final var payment = items.get(i);
-                assertEquals(CryptoTransfer, payment.function());
-                final var op = payment.body().getCryptoTransfer();
-                final Map<Long, Long> bodyAdjustments = op.getTransfers().getAccountAmountsList().stream()
-                        .collect(toMap(aa -> aa.getAccountID().getAccountNum(), AccountAmount::getAmount));
+    /**
+     * Verifies that deletion of the fee collection account (0.0.802) is rejected.
+     * Per HIP-1259: "Reject any transaction that would delete the fee account"
+     */
+    @Order(8)
+    @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
+    final Stream<DynamicTest> deleteFeeCollectionAccountFails() {
+        return hapiTest(
+                cryptoCreate(CIVILIAN_PAYER).balance(ONE_MILLION_HBARS),
+                cryptoDelete(FEE_COLLECTOR)
+                        .transfer(CIVILIAN_PAYER)
+                        .payingWith(GENESIS)
+                        .signedBy(GENESIS)
+                        .hasPrecheck(INVALID_ACCOUNT_ID));
+    }
 
-                // Check if this is a fee distribution (0.0.802 is debited)
-                if (bodyAdjustments.containsKey(802L) && bodyAdjustments.get(802L) < 0) {
-                    foundFeeDistribution = true;
-                    if (feeDistributionIndex == -1) {
-                        feeDistributionIndex = i;
-                    }
-                    // Validate fee distribution: 0.0.802 debited, node accounts (3) and system accounts credited
-                    assertTrue(
-                            bodyAdjustments.containsKey(3L) && bodyAdjustments.get(3L) > 0,
-                            "Node account 0.0.3 should be credited in fee distribution");
-                    assertTrue(
-                            bodyAdjustments.containsKey(802L) && bodyAdjustments.get(802L) < 0,
-                            "System account 0.0.802 should be debited in fee distribution");
-                    if (bodyAdjustments.containsKey(3L)) {
-                        nodeFees += bodyAdjustments.get(3L);
-                    }
-                }
+    /**
+     * Verifies that token airdrops to the fee collection account (0.0.802) are rejected.
+     * Per HIP-1259: "Reject any transaction that would send any hbar to the fee account"
+     * This includes token airdrops which are essentially token transfers.
+     */
+    @Order(9)
+    @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
+    final Stream<DynamicTest> tokenAirdropToFeeCollectionAccountFails() {
+        return hapiTest(
+                cryptoCreate(CIVILIAN_PAYER).balance(ONE_MILLION_HBARS),
+                tokenCreate("airdropToken").treasury(CIVILIAN_PAYER).initialSupply(1000L),
+                tokenAirdrop(TokenMovement.moving(10, "airdropToken").between(CIVILIAN_PAYER, FEE_COLLECTOR))
+                        .payingWith(GENESIS)
+                        .signedBy(GENESIS, FEE_COLLECTOR)
+                        .hasKnownStatus(TRANSFER_TO_FEE_COLLECTION_ACCOUNT_NOT_ALLOWED));
+    }
 
-                // Check if this is a node reward distribution (0.0.801 is debited)
-                if (bodyAdjustments.containsKey(801L) && bodyAdjustments.get(801L) < 0) {
-                    foundNodeReward = true;
-                    nodeRewardIndex = i;
-                    // Validate node reward: 0.0.801 debited, node accounts credited
-                    final long nodeRewardDebit = bodyAdjustments.get(801L);
-                    assertTrue(nodeRewardDebit < 0, "Node reward account 0.0.801 should be debited");
+    /**
+     * Verifies that NFT airdrops to the fee collection account (0.0.802) are rejected.
+     * Per HIP-1259: "Reject any transaction that would send any hbar to the fee account"
+     * This includes NFT airdrops which are essentially token transfers.
+     */
+    @Order(10)
+    @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
+    final Stream<DynamicTest> nftAirdropToFeeCollectionAccountFails() {
+        return hapiTest(
+                cryptoCreate(CIVILIAN_PAYER).balance(ONE_MILLION_HBARS),
+                newKeyNamed("nftSupplyKey"),
+                tokenCreate("airdropNft")
+                        .treasury(CIVILIAN_PAYER)
+                        .tokenType(NON_FUNGIBLE_UNIQUE)
+                        .supplyKey("nftSupplyKey")
+                        .initialSupply(0L),
+                mintToken("airdropNft", List.of(ByteString.copyFromUtf8("metadata"))),
+                tokenAirdrop(TokenMovement.movingUnique("airdropNft", 1L).between(CIVILIAN_PAYER, FEE_COLLECTOR))
+                        .payingWith(GENESIS)
+                        .signedBy(GENESIS)
+                        .hasKnownStatus(TRANSFER_TO_FEE_COLLECTION_ACCOUNT_NOT_ALLOWED));
+    }
 
-                    // Sum of credits to node accounts should equal the debit from 0.0.801
-                    final long totalCredits = bodyAdjustments.entrySet().stream()
-                            .filter(e -> e.getKey() != 801L && e.getValue() > 0)
-                            .mapToLong(Map.Entry::getValue)
-                            .sum();
-                    assertEquals(
-                            -nodeRewardDebit,
-                            totalCredits,
-                            "Total credits to node accounts should equal debit from 0.0.801");
-                }
-            }
+    /**
+     * Verifies that receiverSigRequired is ignored when distributing fees to node accounts.
+     * Per HIP-1259: "receiverSigRequired is ignored for payments to node accounts"
+     * This test sets receiverSigRequired=true on a node account and verifies fees are still distributed.
+     */
+    @Order(11)
+    @RepeatableHapiTest({NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION, NEEDS_STATE_ACCESS})
+    final Stream<DynamicTest> receiverSigRequiredIgnoredForNodeAccountFeePayments() {
+        final AtomicLong initialNodeAccountBalance = new AtomicLong(0);
+        final AtomicLong nodeAccountBalanceAfterDistribution = new AtomicLong(0);
+        final AtomicReference<Instant> startConsensusTime = new AtomicReference<>();
 
-            assertTrue(foundFeeDistribution, "Should have at least one fee distribution transaction");
-            assertTrue(foundNodeReward, "Should have at least one node reward transaction");
-            assertTrue(feeDistributionIndex < nodeRewardIndex, "Fee distribution should happen before node rewards");
-            assertEquals(
-                    initialNodeBalance.getAsLong() + nodeFees,
-                    nodeAccountBalanceAfterDistribution.getAsLong(),
-                    "Node account balance should match");
-        };
+        return hapiTest(
+                getAccountBalance(NODE_ACCOUNT).exposingBalanceTo(initialNodeAccountBalance::set),
+                doingContextual(spec -> startConsensusTime.set(spec.consensusTime())),
+                recordStreamMustIncludePassWithoutBackgroundTrafficFrom(
+                        selectedItems(
+                                feeDistributionValidator(1, List.of(3L, 800L, 801L, 98L)),
+                                1,
+                                (spec, item) -> hasFeeDistribution(item, startConsensusTime)),
+                        Duration.ofSeconds(1)),
+                cryptoCreate(CIVILIAN_PAYER),
+                waitUntilStartOfNextStakingPeriod(1),
+                // Set receiverSigRequired=true on node account 0.0.3
+                EmbeddedVerbs.mutateAccount(NODE_ACCOUNT, account -> account.receiverSigRequired(true)),
+                // Generate some fees
+                fileCreate("testFile")
+                        .contents("Test content for fee collection")
+                        .payingWith(CIVILIAN_PAYER)
+                        .via("feeTxn"),
+                validateRecordContains("feeTxn", FEE_COLLECTOR_ACCOUNT),
+                sleepForBlockPeriod(),
+                cryptoTransfer(TokenMovement.movingHbar(ONE_HBAR).between(GENESIS, NODE_REWARD)),
+                // Trigger fee distribution at next staking period
+                waitUntilStartOfNextStakingPeriod(1),
+                cryptoCreate("nobody").payingWith(GENESIS),
+                doingContextual(TxnUtils::triggerAndCloseAtLeastOneFileIfNotInterrupted),
+                // Verify node account received fees despite receiverSigRequired=true
+                getAccountBalance(NODE_ACCOUNT)
+                        .exposingBalanceTo(nodeAccountBalanceAfterDistribution::set)
+                        .logged(),
+                // Reset receiverSigRequired to false for cleanup
+                EmbeddedVerbs.mutateAccount(NODE_ACCOUNT, account -> account.receiverSigRequired(false)));
+    }
+
+    /**
+     * Verifies that fees are forfeit if a node's account is deleted.
+     * Per HIP-1259: "If for any reason the node's account cannot accept the fees
+     * (i.e. it is deleted or doesn't exist), then they are forfeit."
+     * This test marks a node account as deleted and verifies fees are distributed to 0.0.98, 0.0.800, 0.0.801.
+     */
+    @Order(12)
+    @RepeatableHapiTest({NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION, NEEDS_STATE_ACCESS})
+    final Stream<DynamicTest> feesAreForfeitWhenNodeAccountIsDeleted() {
+        final AtomicReference<Instant> startConsensusTime = new AtomicReference<>();
+
+        return hapiTest(
+                cryptoTransfer(TokenMovement.movingHbar(ONE_MILLION_HBARS).between(GENESIS, NODE_REWARD)),
+                doingContextual(spec -> startConsensusTime.set(spec.consensusTime())),
+                recordStreamMustIncludePassWithoutBackgroundTrafficFrom(
+                        // validate node 3 doesnt get any fees
+                        selectedItems(
+                                feeDistributionValidator(1, List.of(800L, 801L, 98L)),
+                                1,
+                                (spec, item) -> hasFeeDistribution(item, startConsensusTime)),
+                        Duration.ofSeconds(1)),
+                cryptoCreate(CIVILIAN_PAYER).balance(ONE_MILLION_HBARS),
+                waitUntilStartOfNextStakingPeriod(1),
+                // Mark node account 0.0.3 as deleted
+                EmbeddedVerbs.mutateAccount(NODE_ACCOUNT, account -> account.deleted(true)),
+                // Generate some fees
+                fileCreate("testFile")
+                        .contents("Test content for fee collection")
+                        .payingWith(CIVILIAN_PAYER)
+                        .via("feeTxn"),
+                validateRecordContains("feeTxn", FEE_COLLECTOR_ACCOUNT),
+                sleepForBlockPeriod(),
+                cryptoTransfer(TokenMovement.movingHbar(ONE_MILLION_HBARS).between(GENESIS, NODE_REWARD)),
+
+                // Trigger fee distribution at next staking period
+                waitUntilStartOfNextStakingPeriod(1),
+                cryptoCreate("nobody").payingWith(GENESIS),
+                doingContextual(TxnUtils::triggerAndCloseAtLeastOneFileIfNotInterrupted),
+                // Verify fee collector still has fees (they were forfeit, not distributed to deleted node account)
+                getAccountBalance(FEE_COLLECTOR).hasTinyBars(0L).logged(),
+                // Reset node account to not deleted for cleanup
+                EmbeddedVerbs.mutateAccount(NODE_ACCOUNT, account -> account.deleted(false)));
     }
 }

@@ -260,7 +260,7 @@ class HandleHederaNativeOperationsTest {
                         .build(),
                 verificationStrategy);
         assertEquals(OK, result);
-        verify(tokenServiceApi).transferFromTo(NON_SYSTEM_ACCOUNT_ID, contractAccountId, 1L);
+        verify(tokenServiceApi).transferFromTo(NON_SYSTEM_ACCOUNT_ID, contractAccountId, 1L, entityIdFactory);
     }
 
     @Test
@@ -282,7 +282,7 @@ class HandleHederaNativeOperationsTest {
                         .build(),
                 verificationStrategy);
         assertEquals(INVALID_SIGNATURE, result);
-        verify(tokenServiceApi, never()).transferFromTo(NON_SYSTEM_ACCOUNT_ID, contractAccountId, 1L);
+        verify(tokenServiceApi, never()).transferFromTo(NON_SYSTEM_ACCOUNT_ID, contractAccountId, 1L, entityIdFactory);
     }
 
     @Test
@@ -303,7 +303,7 @@ class HandleHederaNativeOperationsTest {
                         .build(),
                 verificationStrategy);
         assertEquals(OK, result);
-        verify(tokenServiceApi).transferFromTo(NON_SYSTEM_ACCOUNT_ID, contractAccountId, 1L);
+        verify(tokenServiceApi).transferFromTo(NON_SYSTEM_ACCOUNT_ID, contractAccountId, 1L, entityIdFactory);
     }
 
     @Test

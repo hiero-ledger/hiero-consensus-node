@@ -11,6 +11,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSFER_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TRANSACTION_REQUIRES_ZERO_HOOKS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TRANSACTION_REQUIRES_ZERO_TOKEN_BALANCES;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.TRANSFER_TO_FEE_COLLECTION_ACCOUNT_NOT_ALLOWED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.WRONG_HOOK_ENTITY_TYPE;
 import static com.hedera.node.app.hapi.utils.keys.KeyUtils.IMMUTABILITY_SENTINEL_KEY;
 import static com.hedera.node.app.spi.workflows.HandleException.validateFalse;
@@ -25,6 +26,7 @@ import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.node.app.hapi.utils.EntityType;
 import com.hedera.node.app.service.addressbook.ReadableAccountNodeRelStore;
+import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.entityid.WritableEntityCounters;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.api.ContractChangeSummary;
@@ -71,6 +73,7 @@ public class TokenServiceApiImpl implements TokenServiceApi {
     private final StakingConfig stakingConfig;
     private final AccountID fundingAccountID;
     private final AccountID stakingRewardAccountID;
+    private final AccountsConfig accountsConfig;
 
     /**
      * Constructs a {@link TokenServiceApiImpl}.Used only in tests
@@ -110,8 +113,8 @@ public class TokenServiceApiImpl implements TokenServiceApi {
         this.nodeFeeAccumulator = requireNonNull(nodeFeeAccumulator);
 
         nodesConfig = config.getConfigData(NodesConfig.class);
-        // Determine whether staking is enabled
         stakingConfig = config.getConfigData(StakingConfig.class);
+        accountsConfig = config.getConfigData(AccountsConfig.class);
 
         // Compute the account ID's for funding (normally 0.0.98) and staking rewards (normally 0.0.800).
         final var hederaConfig = config.getConfigData(HederaConfig.class);
@@ -290,13 +293,18 @@ public class TokenServiceApiImpl implements TokenServiceApi {
      * {@inheritDoc}
      */
     @Override
-    public void transferFromTo(@NonNull AccountID fromId, @NonNull AccountID toId, long amount) {
+    public void transferFromTo(
+            @NonNull AccountID fromId, @NonNull AccountID toId, long amount, final EntityIdFactory entityIdFactory) {
         if (amount < 0) {
             throw new IllegalArgumentException(
                     "Cannot transfer negative value (" + amount + " tinybars) from " + fromId + " to " + toId);
         }
         final var from = requireNonNull(accountStore.get(fromId));
         final var to = requireNonNull(accountStore.get(toId));
+
+        final var feeCollectorAccountID = entityIdFactory.newAccountId(accountsConfig.feeCollectionAccount());
+        validateFalse(
+                to.accountIdOrThrow().equals(feeCollectorAccountID), TRANSFER_TO_FEE_COLLECTION_ACCOUNT_NOT_ALLOWED);
         if (from.tinybarBalance() < amount) {
             throw new IllegalArgumentException(
                     "Insufficient balance to transfer " + amount + " tinybars from " + fromId + " to " + toId);
@@ -676,11 +684,12 @@ public class TokenServiceApiImpl implements TokenServiceApi {
             @NonNull final AccountID obtainerId,
             @NonNull final ExpiryValidator expiryValidator,
             @NonNull final DeleteCapableTransactionStreamBuilder recordBuilder,
-            @NonNull final ReadableAccountNodeRelStore accountNodeRelStore) {
+            @NonNull final ReadableAccountNodeRelStore accountNodeRelStore,
+            @NonNull final EntityIdFactory entityIdFactory) {
         // validate the semantics involving dynamic properties and state.
         // Gets delete and transfer accounts from state
         final var deleteAndTransferAccounts =
-                validateSemantics(deletedId, obtainerId, expiryValidator, accountNodeRelStore);
+                validateSemantics(deletedId, obtainerId, expiryValidator, accountNodeRelStore, entityIdFactory);
         transferRemainingBalance(expiryValidator, deleteAndTransferAccounts);
 
         // get the account from account store that has all balance changes
@@ -701,7 +710,8 @@ public class TokenServiceApiImpl implements TokenServiceApi {
             @NonNull final AccountID deletedId,
             @NonNull final AccountID obtainerId,
             @NonNull final ExpiryValidator expiryValidator,
-            @NonNull final ReadableAccountNodeRelStore accountNodeRelStore) {
+            @NonNull final ReadableAccountNodeRelStore accountNodeRelStore,
+            @NonNull final EntityIdFactory entityIdFactory) {
         // validate if accounts exist
         final var deletedAccount = accountStore.get(deletedId);
         validateTrue(deletedAccount != null, INVALID_ACCOUNT_ID);
@@ -718,6 +728,11 @@ public class TokenServiceApiImpl implements TokenServiceApi {
         // Can't delete account with non-zero hooks
         validateTrue(deletedAccount.numberHooksInUse() == 0, TRANSACTION_REQUIRES_ZERO_HOOKS);
         validateTrue(accountNodeRelStore.get(deletedAccount.accountId()) == null, ACCOUNT_IS_LINKED_TO_A_NODE);
+        validateFalse(
+                transferAccount
+                        .accountIdOrThrow()
+                        .equals(entityIdFactory.newAccountId(accountsConfig.feeCollectionAccount())),
+                TRANSFER_TO_FEE_COLLECTION_ACCOUNT_NOT_ALLOWED);
         return new InvolvedAccounts(deletedAccount, transferAccount);
     }
 

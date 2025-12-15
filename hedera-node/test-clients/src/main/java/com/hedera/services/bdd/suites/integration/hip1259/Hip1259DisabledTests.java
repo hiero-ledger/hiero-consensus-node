@@ -29,9 +29,9 @@ import static com.hedera.services.bdd.suites.HapiSuite.NODE_REWARD;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.TINY_PARTS_PER_WHOLE;
-import static com.hedera.services.bdd.suites.integration.RepeatableStreamValidators.nodeRewardsValidator;
-import static com.hedera.services.bdd.suites.integration.RepeatableStreamValidators.validateRecordContains;
-import static com.hedera.services.bdd.suites.integration.RepeatableStreamValidators.validateRecordNotContains;
+import static com.hedera.services.bdd.suites.integration.hip1259.RepeatableStreamValidators.nodeRewardsValidator;
+import static com.hedera.services.bdd.suites.integration.hip1259.RepeatableStreamValidators.validateRecordContains;
+import static com.hedera.services.bdd.suites.integration.hip1259.RepeatableStreamValidators.validateRecordNotContains;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -65,11 +65,11 @@ import org.junit.jupiter.api.TestMethodOrder;
 /**
  * Tests for HIP-1259 Fee Collection Account when the feature is disabled.
  * These tests verify:
- * 1. Fees are distributed immediately to node accounts (0.0.3) and system accounts (0.0.801)
+ * 1. Fees are distributed immediately to node accounts (0.0.3) and system accounts (0.0.801, 0.0.98, 0.0.800)
  * 2. The fee collection account (0.0.802) is NOT used
  * 3. Node rewards work correctly with the legacy fee distribution mechanism
  */
-@Order(9)
+@Order(19)
 @Tag(INTEGRATION)
 @HapiTestLifecycle
 @TargetEmbeddedMode(REPEATABLE)
@@ -98,7 +98,7 @@ public class Hip1259DisabledTests {
         return hapiTest(
                 getAccountBalance(FEE_COLLECTOR).exposingBalanceTo(initialFeeCollectionBalance::set),
                 cryptoCreate(CIVILIAN_PAYER).balance(ONE_MILLION_HBARS),
-                cryptoCreate("testFile").payingWith(CIVILIAN_PAYER).via("feeTxn"),
+                cryptoCreate("testAccount").payingWith(CIVILIAN_PAYER).via("feeTxn"),
                 getTxnRecord("feeTxn").logged(),
                 validateRecordContains("feeTxn", LEGACY_FEE_ACCOUNTS),
                 validateRecordNotContains("feeTxn", FEE_COLLECTION_ACCOUNT),
@@ -116,7 +116,7 @@ public class Hip1259DisabledTests {
      * Verifies that node rewards are correctly distributed at staking period boundary
      * when HIP-1259 is disabled, using the legacy fee distribution mechanism.
      */
-    @Order(3)
+    @Order(2)
     @LeakyRepeatableHapiTest(value = {NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION, NEEDS_STATE_ACCESS})
     final Stream<DynamicTest> nodeRewardsWithLegacyFeeDistribution() {
         final AtomicLong expectedNodeRewards = new AtomicLong(0);
@@ -188,7 +188,7 @@ public class Hip1259DisabledTests {
      * Verifies that node fees are tracked in NodeRewards state even when HIP-1259 is disabled,
      * for the purpose of calculating node rewards.
      */
-    @Order(4)
+    @Order(3)
     @RepeatableHapiTest({NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION, NEEDS_STATE_ACCESS})
     final Stream<DynamicTest> nodeFeesTrackedForRewardsCalculation() {
         final AtomicLong initialNodeFeesCollected = new AtomicLong(0);
@@ -217,7 +217,7 @@ public class Hip1259DisabledTests {
     /**
      * Verifies that at staking period boundary, node fees are reset even when HIP-1259 is disabled.
      */
-    @Order(5)
+    @Order(6)
     @RepeatableHapiTest({NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION, NEEDS_STATE_ACCESS})
     final Stream<DynamicTest> nodeFeesResetAtStakingPeriodBoundary() {
         return hapiTest(

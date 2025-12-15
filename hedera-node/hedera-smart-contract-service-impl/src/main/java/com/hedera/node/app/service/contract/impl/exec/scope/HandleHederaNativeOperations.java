@@ -190,7 +190,7 @@ public class HandleHederaNativeOperations implements HederaNativeOperations {
             return INVALID_SIGNATURE;
         }
         final var tokenServiceApi = context.storeFactory().serviceApi(TokenServiceApi.class);
-        tokenServiceApi.transferFromTo(fromEntityId, toEntityId, amount);
+        tokenServiceApi.transferFromTo(fromEntityId, toEntityId, amount, entityIdFactory);
         return OK;
     }
 
