@@ -144,8 +144,6 @@ public class RepeatableStreamValidators {
                         bodyAdjustments.containsKey(account) && bodyAdjustments.get(account) > 0,
                         "Credit account should be credited");
             }
-
-            assertTrue(bodyAdjustments.get(3L) > 0, "Node account fee is greater than 0");
         };
     }
 

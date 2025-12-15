@@ -47,10 +47,16 @@ public class SelectedItemsAssertion implements RecordStreamAssertion {
     public boolean test(@NonNull final RecordStreamItem item) throws AssertionError {
         final var entry = RecordStreamEntry.from(item);
         selectedEntries.add(entry);
-        System.out.println("ITEM" + item);
         if (selectedEntries.size() == expectedCount) {
-            validator.assertValid(
-                    spec, Map.of(SELECTED_ITEMS_KEY, new VisibleItems(new AtomicInteger(), selectedEntries)));
+            try {
+                validator.assertValid(
+                        spec, Map.of(SELECTED_ITEMS_KEY, new VisibleItems(new AtomicInteger(), selectedEntries)));
+            } catch (Throwable t) {
+                if (t instanceof AssertionError) {
+                    throw t;
+                }
+                throw new AssertionError("Unhandled exception in validator", t);
+            }
             return true;
         } else {
             log.error("Selected {} items, expected {}", selectedEntries.size(), expectedCount);

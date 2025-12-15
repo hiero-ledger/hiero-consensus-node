@@ -32,6 +32,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.TINY_PARTS_PER_WHOLE;
 import static com.hedera.services.bdd.suites.integration.hip1259.RepeatableStreamValidators.nodeRewardsValidator;
 import static com.hedera.services.bdd.suites.integration.hip1259.RepeatableStreamValidators.validateRecordContains;
 import static com.hedera.services.bdd.suites.integration.hip1259.RepeatableStreamValidators.validateRecordNotContains;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TRANSFER_TO_FEE_COLLECTION_ACCOUNT_NOT_ALLOWED;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -261,5 +262,43 @@ public class Hip1259DisabledTests {
                                 0L,
                                 nodeRewards.nodeFeesCollected(),
                                 "Node fees should be reset after staking period")));
+    }
+
+    /**
+     * Verifies that various transaction types all distribute fees to legacy accounts
+     * (node account and 0.0.801) when HIP-1259 is disabled.
+     */
+    @Order(7)
+    @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
+    final Stream<DynamicTest> variousTransactionTypesFeesGoToLegacyAccounts() {
+        return hapiTest(
+                cryptoCreate(CIVILIAN_PAYER).balance(ONE_MILLION_HBARS),
+                // Crypto transaction
+                cryptoCreate("testAccount1")
+                        .balance(ONE_HBAR)
+                        .payingWith(CIVILIAN_PAYER)
+                        .via("cryptoTxn"),
+                validateRecordContains("cryptoTxn", LEGACY_FEE_ACCOUNTS),
+                validateRecordNotContains("cryptoTxn", FEE_COLLECTION_ACCOUNT),
+                // File transaction
+                fileCreate("testFile")
+                        .contents("Test content")
+                        .payingWith(CIVILIAN_PAYER)
+                        .via("fileTxn"),
+                validateRecordContains("fileTxn", LEGACY_FEE_ACCOUNTS),
+                validateRecordNotContains("fileTxn", FEE_COLLECTION_ACCOUNT));
+    }
+
+    /**
+     * Verifies that transfers to the fee collection account (0.0.802) are still rejected
+     * even when HIP-1259 is disabled. The account should still be protected.
+     */
+    @Order(8)
+    @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
+    final Stream<DynamicTest> transferToFeeCollectionAccountStillRejectedWhenDisabled() {
+        return hapiTest(
+                cryptoCreate(CIVILIAN_PAYER).balance(ONE_MILLION_HBARS),
+                cryptoTransfer(TokenMovement.movingHbar(ONE_HBAR).between(CIVILIAN_PAYER, FEE_COLLECTOR))
+                        .hasKnownStatus(TRANSFER_TO_FEE_COLLECTION_ACCOUNT_NOT_ALLOWED));
     }
 }

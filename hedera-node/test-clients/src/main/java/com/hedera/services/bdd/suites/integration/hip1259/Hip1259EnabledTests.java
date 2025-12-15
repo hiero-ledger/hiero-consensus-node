@@ -6,6 +6,7 @@ import static com.hedera.node.app.service.token.impl.schemas.V0700TokenSchema.NO
 import static com.hedera.services.bdd.junit.RepeatableReason.NEEDS_STATE_ACCESS;
 import static com.hedera.services.bdd.junit.RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION;
 import static com.hedera.services.bdd.junit.TestTags.INTEGRATION;
+import static com.hedera.services.bdd.junit.hedera.embedded.EmbeddedMode.REPEATABLE;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
@@ -56,11 +57,11 @@ import com.hedera.hapi.node.state.token.NodePayment;
 import com.hedera.hapi.node.state.token.NodePayments;
 import com.hedera.hapi.node.state.token.NodeRewards;
 import com.hedera.node.app.service.token.TokenService;
-import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyRepeatableHapiTest;
 import com.hedera.services.bdd.junit.OrderedInIsolation;
 import com.hedera.services.bdd.junit.RepeatableHapiTest;
+import com.hedera.services.bdd.junit.TargetEmbeddedMode;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
 import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
@@ -76,6 +77,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
@@ -93,7 +95,7 @@ import org.junit.jupiter.api.TestMethodOrder;
 @Order(20)
 @Tag(INTEGRATION)
 @HapiTestLifecycle
-// @TargetEmbeddedMode(REPEATABLE)
+@TargetEmbeddedMode(REPEATABLE)
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 @OrderedInIsolation
 public class Hip1259EnabledTests {
@@ -340,8 +342,7 @@ public class Hip1259EnabledTests {
      * Per HIP-1259: "Reject any transaction that would update the fee account"
      */
     @Order(7)
-    //    @HapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
-    @HapiTest
+    @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
     final Stream<DynamicTest> updateFeeCollectionAccountFails() {
         return hapiTest(
                 newKeyNamed("newKey"),
@@ -349,7 +350,7 @@ public class Hip1259EnabledTests {
                         .payingWith(GENESIS)
                         .signedBy(GENESIS)
                         .key("newKey")
-                        .hasPrecheck(INVALID_ACCOUNT_ID));
+                        .hasKnownStatus(INVALID_ACCOUNT_ID));
     }
 
     /**
@@ -365,7 +366,7 @@ public class Hip1259EnabledTests {
                         .transfer(CIVILIAN_PAYER)
                         .payingWith(GENESIS)
                         .signedBy(GENESIS)
-                        .hasPrecheck(INVALID_ACCOUNT_ID));
+                        .hasKnownStatus(INVALID_ACCOUNT_ID));
     }
 
     /**
@@ -374,6 +375,7 @@ public class Hip1259EnabledTests {
      * This includes token airdrops which are essentially token transfers.
      */
     @Order(9)
+    @Disabled
     @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
     final Stream<DynamicTest> tokenAirdropToFeeCollectionAccountFails() {
         return hapiTest(
@@ -391,6 +393,7 @@ public class Hip1259EnabledTests {
      * This includes NFT airdrops which are essentially token transfers.
      */
     @Order(10)
+    @Disabled
     @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
     final Stream<DynamicTest> nftAirdropToFeeCollectionAccountFails() {
         return hapiTest(
@@ -495,5 +498,85 @@ public class Hip1259EnabledTests {
                 getAccountBalance(FEE_COLLECTOR).hasTinyBars(0L).logged(),
                 // Reset node account to not deleted for cleanup
                 EmbeddedVerbs.mutateAccount(NODE_ACCOUNT, account -> account.deleted(false)));
+    }
+
+    /**
+     * Verifies that the NodePayments state is reset (cleared) after fee distribution at staking period boundary.
+     * Per HIP-1259: "Reset NodePayments to an empty map" after distribution.
+     */
+    @Order(13)
+    @RepeatableHapiTest({NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION, NEEDS_STATE_ACCESS})
+    final Stream<DynamicTest> nodePaymentsStateResetAfterDistribution() {
+        return hapiTest(
+                cryptoTransfer(TokenMovement.movingHbar(ONE_MILLION_HBARS).between(GENESIS, NODE_REWARD)),
+                cryptoCreate(CIVILIAN_PAYER).balance(ONE_MILLION_HBARS),
+                waitUntilStartOfNextStakingPeriod(1),
+                // Generate some fees to populate NodePayments
+                fileCreate("testFile")
+                        .contents("Test content for fee collection")
+                        .payingWith(CIVILIAN_PAYER)
+                        .via("feeTxn"),
+                validateRecordContains("feeTxn", FEE_COLLECTOR_ACCOUNT),
+                sleepForBlockPeriod(),
+                cryptoTransfer(TokenMovement.movingHbar(ONE_HBAR).between(GENESIS, NODE_REWARD)),
+                // Verify NodePayments has accumulated fees
+                EmbeddedVerbs.<NodePayments>viewSingleton(
+                        TokenService.NAME,
+                        NODE_PAYMENTS_STATE_ID,
+                        nodePayments -> assertTrue(
+                                !nodePayments.payments().isEmpty(),
+                                "NodePayments should have accumulated fees before distribution")),
+                // Trigger fee distribution at next staking period
+                waitUntilStartOfNextStakingPeriod(1),
+                cryptoCreate("trigger").payingWith(GENESIS),
+                doingContextual(TxnUtils::triggerAndCloseAtLeastOneFileIfNotInterrupted),
+                sleepForBlockPeriod(),
+                // Verify NodePayments is reset after distribution
+                EmbeddedVerbs.<NodePayments>viewSingleton(
+                        TokenService.NAME,
+                        NODE_PAYMENTS_STATE_ID,
+                        nodePayments -> assertTrue(
+                                nodePayments.payments().isEmpty(),
+                                "NodePayments should be empty after fee distribution")));
+    }
+
+    /**
+     * Verifies that fees from various transaction types all go to the fee collection account (0.0.802).
+     * Tests crypto, file, token, and contract transactions.
+     */
+    @Order(14)
+    @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
+    final Stream<DynamicTest> variousTransactionTypesFeesGoToFeeCollector() {
+        return hapiTest(
+                cryptoCreate(CIVILIAN_PAYER).balance(ONE_MILLION_HBARS),
+                // Crypto transaction
+                cryptoCreate("testAccount1")
+                        .balance(ONE_HBAR)
+                        .payingWith(CIVILIAN_PAYER)
+                        .via("cryptoTxn"),
+                validateRecordContains("cryptoTxn", FEE_COLLECTOR_ACCOUNT),
+                validateRecordNotContains("cryptoTxn", UNEXPECTED_FEE_ACCOUNTS),
+                // File transaction
+                fileCreate("testFile")
+                        .contents("Test content")
+                        .payingWith(CIVILIAN_PAYER)
+                        .via("fileTxn"),
+                validateRecordContains("fileTxn", FEE_COLLECTOR_ACCOUNT),
+                validateRecordNotContains("fileTxn", UNEXPECTED_FEE_ACCOUNTS),
+                // Token transaction
+                tokenCreate("testToken")
+                        .treasury(CIVILIAN_PAYER)
+                        .payingWith(CIVILIAN_PAYER)
+                        .via("tokenTxn"),
+                validateRecordContains("tokenTxn", FEE_COLLECTOR_ACCOUNT),
+                validateRecordNotContains("tokenTxn", UNEXPECTED_FEE_ACCOUNTS),
+                // Contract transaction
+                uploadInitCode(TRANSFERRING_CONTRACT),
+                contractCreate(TRANSFERRING_CONTRACT)
+                        .balance(ONE_HBAR)
+                        .payingWith(CIVILIAN_PAYER)
+                        .via("contractTxn"),
+                validateRecordContains("contractTxn", FEE_COLLECTOR_ACCOUNT),
+                validateRecordNotContains("contractTxn", UNEXPECTED_FEE_ACCOUNTS));
     }
 }

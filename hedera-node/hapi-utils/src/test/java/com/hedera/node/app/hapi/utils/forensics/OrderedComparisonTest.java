@@ -61,6 +61,25 @@ class OrderedComparisonTest {
     }
 
     @Test
+    void test() throws IOException {
+        final var consensusStreamLoc =
+                "/Users/neeharikasompalli/Documents/Hedera/Repos/repo2/hedera-services/hedera-node/test-clients/build/repeatable-test/node0/data/recordStreams/record0.0.3/";
+
+        final var consensusStream = parseV6RecordStreamEntriesIn(consensusStreamLoc);
+        var count = 0;
+        for (final var entry : consensusStream) {
+            if (entry.function() == HederaFunctionality.CryptoTransfer) {
+                if (entry.body().getCryptoTransfer().getTransfers().getAccountAmountsList().stream()
+                        .anyMatch(aa -> aa.getAccountID().getAccountNum() == 802L)) {
+                    count++;
+                }
+                System.out.println(entry);
+            }
+        }
+        System.out.println("COUNT " + count);
+    }
+
+    @Test
     void onlyEqualLengthsCanBeDiffed() {
         final var parts = new TransactionParts(
                 Transaction.getDefaultInstance(), TransactionBody.getDefaultInstance(), FileAppend);
