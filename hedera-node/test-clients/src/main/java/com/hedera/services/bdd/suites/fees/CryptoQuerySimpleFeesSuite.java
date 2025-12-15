@@ -9,7 +9,7 @@ import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountRecords;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdForQueries;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 
 import com.hedera.services.bdd.junit.HapiTest;
@@ -47,7 +47,7 @@ public class CryptoQuerySimpleFeesSuite {
                 cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                 cryptoCreate(TEST_ACCOUNT).payingWith(PAYER),
                 getAccountInfo(TEST_ACCOUNT).payingWith(PAYER).via("getInfoQuery"),
-                validateChargedUsd("getInfoQuery", CRYPTO_GET_INFO_USD));
+                validateChargedUsdForQueries("getInfoQuery", CRYPTO_GET_INFO_USD, 1.0));
     }
 
     @HapiTest
@@ -57,7 +57,7 @@ public class CryptoQuerySimpleFeesSuite {
                 cryptoCreate(PAYER).balance(ONE_HUNDRED_HBARS),
                 cryptoCreate(TEST_ACCOUNT).payingWith(PAYER),
                 getAccountInfo(TEST_ACCOUNT).payingWith(PAYER).via("getInfoWithTokensQuery"),
-                validateChargedUsd("getInfoWithTokensQuery", CRYPTO_GET_INFO_USD));
+                validateChargedUsdForQueries("getInfoWithTokensQuery", CRYPTO_GET_INFO_USD, 1.0));
     }
 
     @HapiTest
@@ -68,7 +68,7 @@ public class CryptoQuerySimpleFeesSuite {
                 cryptoCreate(TEST_ACCOUNT).payingWith(PAYER),
                 cryptoTransfer(tinyBarsFromTo(PAYER, TEST_ACCOUNT, 1000L)).payingWith(PAYER),
                 getAccountRecords(TEST_ACCOUNT).payingWith(PAYER).via("getRecordsQuery"),
-                validateChargedUsd("getRecordsQuery", CRYPTO_GET_ACCOUNT_RECORDS_USD));
+                validateChargedUsdForQueries("getRecordsQuery", CRYPTO_GET_ACCOUNT_RECORDS_USD, 1.0));
     }
 
     @HapiTest
@@ -81,7 +81,7 @@ public class CryptoQuerySimpleFeesSuite {
                 // Multiple queries should each charge the same fee
                 getAccountInfo(TEST_ACCOUNT).payingWith(PAYER).via("getInfoQuery1"),
                 getAccountInfo("account2").payingWith(PAYER).via("getInfoQuery2"),
-                validateChargedUsd("getInfoQuery1", CRYPTO_GET_INFO_USD),
-                validateChargedUsd("getInfoQuery2", CRYPTO_GET_INFO_USD));
+                validateChargedUsdForQueries("getInfoQuery1", CRYPTO_GET_INFO_USD, 1.0),
+                validateChargedUsdForQueries("getInfoQuery2", CRYPTO_GET_INFO_USD, 1.0));
     }
 }
