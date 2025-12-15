@@ -134,8 +134,6 @@ defaults:
         value: "32g"
       - name: JAVA_HEAP_MAX
         value: "118g"
-      - name: MALLOC_ARENA_MAX
-        value: "4"
 minio-server:
   tenant:
     pools:
