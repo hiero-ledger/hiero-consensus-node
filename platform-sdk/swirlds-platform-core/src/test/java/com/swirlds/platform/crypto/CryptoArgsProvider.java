@@ -95,7 +95,8 @@ public class CryptoArgsProvider {
         for (RosterEntry entry : createdAB.rosterEntries()) {
             try {
                 final RosterEntry newOne = entry.copyBuilder()
-                        .gossipCaCertificate(Bytes.wrap(loadedC.get(NodeId.of(entry.nodeId())).sigCert().getEncoded()))
+                        .gossipCaCertificate(Bytes.wrap(
+                                loadedC.get(NodeId.of(entry.nodeId())).sigCert().getEncoded()))
                         .build();
                 rosterEntries.add(newOne);
             } catch (CertificateEncodingException e) {
