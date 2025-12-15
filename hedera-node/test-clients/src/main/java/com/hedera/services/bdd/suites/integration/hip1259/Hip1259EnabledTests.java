@@ -6,7 +6,6 @@ import static com.hedera.node.app.service.token.impl.schemas.V0700TokenSchema.NO
 import static com.hedera.services.bdd.junit.RepeatableReason.NEEDS_STATE_ACCESS;
 import static com.hedera.services.bdd.junit.RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION;
 import static com.hedera.services.bdd.junit.TestTags.INTEGRATION;
-import static com.hedera.services.bdd.junit.hedera.embedded.EmbeddedMode.REPEATABLE;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
@@ -57,11 +56,11 @@ import com.hedera.hapi.node.state.token.NodePayment;
 import com.hedera.hapi.node.state.token.NodePayments;
 import com.hedera.hapi.node.state.token.NodeRewards;
 import com.hedera.node.app.service.token.TokenService;
+import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyRepeatableHapiTest;
 import com.hedera.services.bdd.junit.OrderedInIsolation;
 import com.hedera.services.bdd.junit.RepeatableHapiTest;
-import com.hedera.services.bdd.junit.TargetEmbeddedMode;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
 import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
@@ -94,7 +93,7 @@ import org.junit.jupiter.api.TestMethodOrder;
 @Order(20)
 @Tag(INTEGRATION)
 @HapiTestLifecycle
-@TargetEmbeddedMode(REPEATABLE)
+// @TargetEmbeddedMode(REPEATABLE)
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 @OrderedInIsolation
 public class Hip1259EnabledTests {
@@ -341,7 +340,8 @@ public class Hip1259EnabledTests {
      * Per HIP-1259: "Reject any transaction that would update the fee account"
      */
     @Order(7)
-    @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
+    //    @HapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
+    @HapiTest
     final Stream<DynamicTest> updateFeeCollectionAccountFails() {
         return hapiTest(
                 newKeyNamed("newKey"),
@@ -381,7 +381,7 @@ public class Hip1259EnabledTests {
                 tokenCreate("airdropToken").treasury(CIVILIAN_PAYER).initialSupply(1000L),
                 tokenAirdrop(TokenMovement.moving(10, "airdropToken").between(CIVILIAN_PAYER, FEE_COLLECTOR))
                         .payingWith(GENESIS)
-                        .signedBy(GENESIS, FEE_COLLECTOR)
+                        .signedBy(GENESIS)
                         .hasKnownStatus(TRANSFER_TO_FEE_COLLECTION_ACCOUNT_NOT_ALLOWED));
     }
 

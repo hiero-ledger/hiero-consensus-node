@@ -46,6 +46,7 @@ import "services/state/token/account.proto";
 import "services/state/token/account_pending_airdrop.proto";
 import "services/state/token/network_staking_rewards.proto";
 import "services/state/token/node_rewards.proto";
+import "services/state/token/node_payments.proto";
 import "services/state/token/nft.proto";
 import "services/state/token/staking_node_info.proto";
 import "services/state/token/token.proto";
@@ -724,6 +725,12 @@ message SingletonUpdateChange {
          * Node rewards SHALL be updated for every non-empty block.
          */
         proto.NodeRewards node_rewards_value = 18;
+        /**
+         * A change to the node payments singleton.
+         * <p>
+         * Node payments SHALL be updated for every non-empty block.
+         */
+        proto.NodePayments node_payments_value = 19;
     }
 }
 

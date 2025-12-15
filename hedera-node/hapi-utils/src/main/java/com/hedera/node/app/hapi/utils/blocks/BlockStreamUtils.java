@@ -114,6 +114,7 @@ public final class BlockStreamUtils {
             case ENTITY_COUNTS_VALUE -> singletonUpdateChange.entityCountsValueOrThrow();
             case HISTORY_PROOF_CONSTRUCTION_VALUE -> singletonUpdateChange.historyProofConstructionValueOrThrow();
             case CRS_STATE_VALUE -> singletonUpdateChange.crsStateValueOrThrow();
+            case NODE_PAYMENTS_VALUE -> singletonUpdateChange.nodePaymentsValueOrThrow();
         };
     }
 
