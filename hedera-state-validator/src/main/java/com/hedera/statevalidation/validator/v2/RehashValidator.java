@@ -79,6 +79,7 @@ public class RehashValidator implements Validator {
         ValidationAssertions.requireEqual(originalHash, computedHash, getTag());
 
         logger.debug(
-                "It took {} ms to rehash the state", (System.nanoTime() - startTimeNanos) * NANOSECONDS_TO_MILLISECONDS);
+                "It took {} ms to rehash the state",
+                (System.nanoTime() - startTimeNanos) * NANOSECONDS_TO_MILLISECONDS);
     }
 }
