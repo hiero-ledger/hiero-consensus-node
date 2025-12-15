@@ -340,8 +340,8 @@ public class DiskStartupNetworks implements StartupNetworks {
             try {
                 legacyBook = configFile.getSimpleAddresses();
                 // Load the public keys into the address book. No private keys should be loaded!
-                final Map<NodeId, X509Certificate> signingCertificates = CryptoStatic.getSigningCertificates(
-                        platformConfig, legacyBook.getNodeIds());
+                final Map<NodeId, X509Certificate> signingCertificates =
+                        CryptoStatic.getSigningCertificates(platformConfig, legacyBook.getNodeIds());
             } catch (Exception e) {
                 throw new IllegalStateException("Error generating keys and certs", e);
             }

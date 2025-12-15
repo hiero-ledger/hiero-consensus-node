@@ -101,8 +101,7 @@ class EnhancedKeyStoreLoaderTest {
             throws IOException, KeyLoadingException, KeyStoreException {
         final Path keyDirectory = testDataDirectory.resolve(directoryName);
 
-        final EnhancedKeyStoreLoader loader = EnhancedKeyStoreLoader.using(
-                NODE_IDS, configure(keyDirectory), NODE_IDS);
+        final EnhancedKeyStoreLoader loader = EnhancedKeyStoreLoader.using(NODE_IDS, configure(keyDirectory), NODE_IDS);
 
         assertThat(keyDirectory).exists().isDirectory().isReadable().isNotEmptyDirectory();
 
@@ -111,8 +110,6 @@ class EnhancedKeyStoreLoaderTest {
         assertThatCode(loader::scan).doesNotThrowAnyException();
         assertThatCode(loader::generate).doesNotThrowAnyException();
         assertThatCode(loader::verify).doesNotThrowAnyException();
-
-
 
         final Map<NodeId, KeysAndCerts> kc = loader.keysAndCerts();
         assertThat(kc).doesNotContainKey(NON_EXISTENT_NODE_ID);
@@ -140,8 +137,7 @@ class EnhancedKeyStoreLoaderTest {
     @ValueSource(strings = {"legacy-invalid-case-1", "hybrid-invalid-case-1", "enhanced-invalid-case-1"})
     void keyStoreLoaderNegativeCase1Test(final String directoryName) throws IOException {
         final Path keyDirectory = testDataDirectory.resolve(directoryName);
-        final EnhancedKeyStoreLoader loader = EnhancedKeyStoreLoader.using(
-                NODE_IDS, configure(keyDirectory), NODE_IDS);
+        final EnhancedKeyStoreLoader loader = EnhancedKeyStoreLoader.using(NODE_IDS, configure(keyDirectory), NODE_IDS);
 
         assertThat(keyDirectory).exists().isDirectory().isReadable().isNotEmptyDirectory();
 
@@ -164,8 +160,7 @@ class EnhancedKeyStoreLoaderTest {
     @ValueSource(strings = {"legacy-invalid-case-2", "hybrid-invalid-case-2", "enhanced-invalid-case-2"})
     void keyStoreLoaderNegativeCase2Test(final String directoryName) throws IOException {
         final Path keyDirectory = testDataDirectory.resolve(directoryName);
-        final EnhancedKeyStoreLoader loader = EnhancedKeyStoreLoader.using(
-                NODE_IDS, configure(keyDirectory), NODE_IDS);
+        final EnhancedKeyStoreLoader loader = EnhancedKeyStoreLoader.using(NODE_IDS, configure(keyDirectory), NODE_IDS);
 
         assertThat(keyDirectory).exists().isDirectory().isReadable().isNotEmptyDirectory();
 
@@ -210,8 +205,7 @@ class EnhancedKeyStoreLoaderTest {
     @ValueSource(strings = {"migration-invalid-missing-private-key", "migration-invalid-missing-public-key"})
     void migraitonNegativeCaseTest(final String directoryName) throws IOException {
         final Path keyDirectory = testDataDirectory.resolve(directoryName);
-        final EnhancedKeyStoreLoader loader = EnhancedKeyStoreLoader.using(
-                NODE_IDS, configure(keyDirectory), NODE_IDS);
+        final EnhancedKeyStoreLoader loader = EnhancedKeyStoreLoader.using(NODE_IDS, configure(keyDirectory), NODE_IDS);
 
         assertThat(keyDirectory).exists().isDirectory().isReadable().isNotEmptyDirectory();
 

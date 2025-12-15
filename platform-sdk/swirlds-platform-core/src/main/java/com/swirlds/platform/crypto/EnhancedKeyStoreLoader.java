@@ -240,7 +240,7 @@ public class EnhancedKeyStoreLoader {
      */
     @NonNull
     public static EnhancedKeyStoreLoader using(
-            @NonNull final Collection<NodeId> allNodes,//TODO remove once set
+            @NonNull final Collection<NodeId> allNodes, // TODO remove once set
             @NonNull final Configuration configuration,
             @NonNull final Set<NodeId> localNodes) {
         Objects.requireNonNull(allNodes, MSG_ADDRESS_BOOK_NON_NULL);
@@ -438,8 +438,6 @@ public class EnhancedKeyStoreLoader {
         }
         return certs;
     }
-
-
 
     /**
      * Attempts to locate the legacy (combined) public key store and load it.

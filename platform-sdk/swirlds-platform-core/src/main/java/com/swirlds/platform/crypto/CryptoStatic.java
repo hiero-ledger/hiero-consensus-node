@@ -336,28 +336,30 @@ public final class CryptoStatic {
     }
 
     public static Map<NodeId, X509Certificate> getSigningCertificates(
-            @NonNull final Configuration configuration,
-            @NonNull final Set<NodeId> localNodes) {
+            @NonNull final Configuration configuration, @NonNull final Set<NodeId> localNodes) {
         final BasicConfig basicConfig = configuration.getConfigData(BasicConfig.class);
         final Map<NodeId, X509Certificate> certificates;
         try {
             if (basicConfig.loadKeysFromPfxFiles()) {
                 logger.debug(STARTUP.getMarker(), "Reading certificates using the enhanced key loader");
-                certificates = EnhancedKeyStoreLoader.using(localNodes,
-                                configuration, localNodes)
+                certificates = EnhancedKeyStoreLoader.using(localNodes, configuration, localNodes)
                         .migrate()
                         .scan()
                         .generate()
                         .verify()
                         .signingCertificates();
             } else {
-                certificates = generateKeysAndCerts(localNodes).entrySet().stream().collect(Collectors.toMap(
-                        Map.Entry::getKey,
-                        entry -> entry.getValue().sigCert()
-                ));
+                certificates = generateKeysAndCerts(localNodes).entrySet().stream()
+                        .collect(Collectors.toMap(
+                                Map.Entry::getKey, entry -> entry.getValue().sigCert()));
             }
-        } catch (final KeyStoreException | KeyLoadingException | NoSuchAlgorithmException | KeyGeneratingException |
-                       NoSuchProviderException | ExecutionException | InterruptedException e) {
+        } catch (final KeyStoreException
+                | KeyLoadingException
+                | NoSuchAlgorithmException
+                | KeyGeneratingException
+                | NoSuchProviderException
+                | ExecutionException
+                | InterruptedException e) {
             throw new RuntimeException(e);
         }
         return certificates;
@@ -371,8 +373,7 @@ public final class CryptoStatic {
      * @return a map of KeysAndCerts objects, one for each node
      */
     public static Map<NodeId, KeysAndCerts> initNodeSecurity(
-            @NonNull final Configuration configuration,
-            @NonNull final Set<NodeId> localNodes) {
+            @NonNull final Configuration configuration, @NonNull final Set<NodeId> localNodes) {
         Objects.requireNonNull(configuration, "configuration must not be null");
         Objects.requireNonNull(localNodes, LOCAL_NODES_MUST_NOT_BE_NULL);
 
