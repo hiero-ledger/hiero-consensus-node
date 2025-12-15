@@ -5,6 +5,7 @@ import static java.util.Objects.requireNonNull;
 
 import com.swirlds.base.time.Time;
 import com.swirlds.common.io.utility.RecycleBin;
+import com.swirlds.common.metrics.event.EventPipelineTracker;
 import com.swirlds.component.framework.component.ComponentWiring;
 import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.component.framework.wires.input.InputWire;
@@ -46,7 +47,8 @@ public class DefaultEventIntakeModule implements EventIntakeModule {
             @NonNull final IntakeEventCounter intakeEventCounter,
             @NonNull final TransactionLimits transactionLimits,
             @NonNull final RecycleBin recycleBin,
-            final long startingRound) {
+            final long startingRound,
+            @Nullable final EventPipelineTracker pipelineTracker) {
         //noinspection VariableNotUsedInsideIf
         if (eventHasherWiring != null) {
             throw new IllegalStateException("Already initialized");
@@ -58,6 +60,14 @@ public class DefaultEventIntakeModule implements EventIntakeModule {
         this.eventHasherWiring = new ComponentWiring<>(model, EventHasher.class, wiringConfig.eventHasher());
 
         // Force not soldered wires to be built
+
+        // Wire metrics
+        if (pipelineTracker != null) {
+            pipelineTracker.registerMetric("hashing");
+            this.eventHasherWiring
+                    .getOutputWire()
+                    .solderForMonitoring(platformEvent -> pipelineTracker.recordEvent("hashing", platformEvent));
+        }
 
         // Create and bind components
         final EventHasher eventHasher = new DefaultEventHasher();

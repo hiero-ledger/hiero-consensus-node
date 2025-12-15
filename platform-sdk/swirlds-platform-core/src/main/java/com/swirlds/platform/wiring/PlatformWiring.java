@@ -6,6 +6,7 @@ import static com.swirlds.component.framework.wires.SolderType.OFFER;
 
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.swirlds.common.context.PlatformContext;
+import com.swirlds.common.metrics.event.EventPipelineTracker;
 import com.swirlds.component.framework.component.ComponentWiring;
 import com.swirlds.component.framework.transformers.WireFilter;
 import com.swirlds.component.framework.wires.output.OutputWire;
@@ -29,8 +30,6 @@ import com.swirlds.platform.eventhandling.StateWithHashComplexity;
 import com.swirlds.platform.eventhandling.TransactionHandler;
 import com.swirlds.platform.eventhandling.TransactionHandlerResult;
 import com.swirlds.platform.eventhandling.TransactionPrehandler;
-import com.swirlds.platform.metrics.PlatformMetricsConfig;
-import com.swirlds.platform.metrics.event.EventPipelineTracker;
 import com.swirlds.platform.state.hasher.StateHasher;
 import com.swirlds.platform.state.hashlogger.HashLogger;
 import com.swirlds.platform.state.iss.IssDetector;
@@ -47,6 +46,7 @@ import com.swirlds.platform.system.PlatformMonitor;
 import com.swirlds.platform.system.state.notifications.StateHashedNotification;
 import com.swirlds.platform.system.status.PlatformStatusConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Objects;
 import java.util.Queue;
 import org.hiero.consensus.model.event.PlatformEvent;
@@ -415,36 +415,44 @@ public class PlatformWiring {
     /**
      * Solder any metrics tracking wires.
      *
-     * @param platformContext the platform context
      * @param components      the platform components
+     * @param pipelineTracker the pipeline tracker, or {@code null} to skip wiring metrics
      */
     public static void wireMetrics(
-            @NonNull final PlatformContext platformContext, @NonNull final PlatformComponents components) {
-        if (platformContext
-                .getConfiguration()
-                .getConfigData(PlatformMetricsConfig.class)
-                .eventPipelineMetricsEnabled()) {
-            final EventPipelineTracker pipelineTracker = new EventPipelineTracker(platformContext.getMetrics());
-
-            components
-                    .eventIntakeModule()
-                    .validatedEventsOutputWire()
-                    .solderForMonitoring(pipelineTracker::afterHashing);
+            @NonNull final PlatformComponents components, @Nullable final EventPipelineTracker pipelineTracker) {
+        if (pipelineTracker != null) {
+            pipelineTracker.registerMetric("validation");
             components
                     .internalEventValidatorWiring()
                     .getOutputWire()
-                    .solderForMonitoring(pipelineTracker::afterValidation);
+                    .solderForMonitoring(platformEvent -> pipelineTracker.recordEvent("validation", platformEvent));
+            pipelineTracker.registerMetric("deduplication");
             components
                     .eventDeduplicatorWiring()
                     .getOutputWire()
-                    .solderForMonitoring(pipelineTracker::afterDeduplication);
+                    .solderForMonitoring(platformEvent -> pipelineTracker.recordEvent("deduplication", platformEvent));
+            pipelineTracker.registerMetric("verification");
             components
                     .eventSignatureValidatorWiring()
                     .getOutputWire()
-                    .solderForMonitoring(pipelineTracker::afterSigVerification);
-            components.orphanBufferWiring().getOutputWire().solderForMonitoring(pipelineTracker::afterOrphanBuffer);
-            components.pcesInlineWriterWiring().getOutputWire().solderForMonitoring(pipelineTracker::afterPces);
-            components.consensusEngineWiring().getOutputWire().solderForMonitoring(pipelineTracker::afterConsensus);
+                    .solderForMonitoring(platformEvent -> pipelineTracker.recordEvent("verification", platformEvent));
+            pipelineTracker.registerMetric("orphanBuffer");
+            components
+                    .orphanBufferWiring()
+                    .getOutputWire()
+                    .solderForMonitoring(
+                            platformEvents -> pipelineTracker.recordEvents("orphanBuffer", platformEvents));
+            pipelineTracker.registerMetric("pces");
+            components
+                    .pcesInlineWriterWiring()
+                    .getOutputWire()
+                    .solderForMonitoring(platformEvent -> pipelineTracker.recordEvent("pces", platformEvent));
+            pipelineTracker.registerMetric("consensus");
+            components
+                    .consensusEngineWiring()
+                    .getOutputWire()
+                    .solderForMonitoring(consensusEngineOutput ->
+                            pipelineTracker.recordRounds("consensus", consensusEngineOutput.consensusRounds()));
         }
     }
 

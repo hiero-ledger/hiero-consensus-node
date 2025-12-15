@@ -3,6 +3,7 @@ package com.swirlds.platform.cli.helper;
 
 import com.swirlds.base.time.Time;
 import com.swirlds.common.io.utility.RecycleBin;
+import com.swirlds.common.metrics.event.EventPipelineTracker;
 import com.swirlds.component.framework.component.ComponentWiring;
 import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.component.framework.schedulers.builders.TaskSchedulerConfiguration;
@@ -11,6 +12,7 @@ import com.swirlds.component.framework.wires.output.OutputWire;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import org.hiero.consensus.event.IntakeEventCounter;
 import org.hiero.consensus.event.intake.EventIntakeModule;
 import org.hiero.consensus.model.event.PlatformEvent;
@@ -51,7 +53,8 @@ public class NoOpEventIntakeModule implements EventIntakeModule {
             @NonNull final IntakeEventCounter intakeEventCounter,
             @NonNull final TransactionLimits transactionLimits,
             @NonNull final RecycleBin recycleBin,
-            final long startingRound) {}
+            final long startingRound,
+            @Nullable final EventPipelineTracker pipelineTracker) {}
 
     /**
      * {@inheritDoc}

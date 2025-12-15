@@ -16,6 +16,7 @@ import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.context.PlatformContext;
+import com.swirlds.common.metrics.event.EventPipelineTracker;
 import com.swirlds.common.notification.NotificationEngine;
 import com.swirlds.component.framework.WiringConfig;
 import com.swirlds.component.framework.model.WiringModel;
@@ -29,6 +30,7 @@ import com.swirlds.platform.event.preconsensus.PcesFileTracker;
 import com.swirlds.platform.gossip.DefaultIntakeEventCounter;
 import com.swirlds.platform.gossip.NoOpIntakeEventCounter;
 import com.swirlds.platform.gossip.sync.config.SyncConfig;
+import com.swirlds.platform.metrics.PlatformMetricsConfig;
 import com.swirlds.platform.reconnect.FallenBehindMonitor;
 import com.swirlds.platform.scratchpad.Scratchpad;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
@@ -40,6 +42,7 @@ import com.swirlds.platform.wiring.PlatformWiring;
 import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.StateLifecycleManager;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.lang.Thread.UncaughtExceptionHandler;
@@ -412,7 +415,9 @@ public final class PlatformBuilder {
         return this;
     }
 
-    private void initializeEventIntakeModule(@NonNull final IntakeEventCounter intakeEventCounter) {
+    private void initializeEventIntakeModule(
+            @NonNull final IntakeEventCounter intakeEventCounter,
+            @Nullable final EventPipelineTracker pipelineTracker) {
         if (this.eventIntakeModule == null) {
             this.eventIntakeModule = ServiceLoader.load(EventIntakeModule.class)
                     .findFirst()
@@ -429,7 +434,8 @@ public final class PlatformBuilder {
                 intakeEventCounter,
                 execution.getTransactionLimits(),
                 platformContext.getRecycleBin(),
-                initialState.get().getRound());
+                initialState.get().getRound(),
+                pipelineTracker);
     }
 
     /**
@@ -522,14 +528,21 @@ public final class PlatformBuilder {
             };
         }
 
+        final boolean eventPipelineMetricsEnabled = platformContext
+                .getConfiguration()
+                .getConfigData(PlatformMetricsConfig.class)
+                .eventPipelineMetricsEnabled();
+        final EventPipelineTracker pipelineTracker =
+                eventPipelineMetricsEnabled ? new EventPipelineTracker(platformContext.getMetrics()) : null;
+
         initializeEventCreatorModule();
-        initializeEventIntakeModule(intakeEventCounter);
+        initializeEventIntakeModule(intakeEventCounter, pipelineTracker);
 
         final PlatformComponents platformComponentWiring =
                 PlatformComponents.create(platformContext, model, eventCreatorModule, eventIntakeModule);
 
         PlatformWiring.wire(platformContext, execution, platformComponentWiring, callbacks);
-        PlatformWiring.wireMetrics(platformContext, platformComponentWiring);
+        PlatformWiring.wireMetrics(platformComponentWiring, pipelineTracker);
 
         final PlatformBuildingBlocks buildingBlocks = new PlatformBuildingBlocks(
                 platformComponentWiring,
