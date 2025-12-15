@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.spi.fees;
 
-import static org.hiero.hapi.fees.FeeScheduleUtils.lookupExtraFee;
 import static org.hiero.hapi.support.fees.Extra.SIGNATURES;
 
 import com.hedera.hapi.node.base.Key;
@@ -15,6 +14,7 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.hiero.hapi.fees.FeeResult;
+import org.hiero.hapi.support.fees.Extra;
 import org.hiero.hapi.support.fees.ExtraFeeReference;
 import org.hiero.hapi.support.fees.FeeSchedule;
 
@@ -60,7 +60,7 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
             final long used = ref.name() == SIGNATURES ? signatures : 0;
             if (used > ref.includedCount()) {
                 final long overage = used - ref.includedCount();
-                final long unitFee = lookupExtraFee(feeSchedule, ref.name()).fee();
+                final long unitFee = getExtraFee(ref.name());
 
                 result.addNodeFee(overage, unitFee);
             }
@@ -93,6 +93,15 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
                 serviceFeeCalculators.get(txnBody.data().kind());
         serviceFeeCalculator.accumulateServiceFee(txnBody, feeContext, result, feeSchedule);
         return result;
+    }
+
+    @Override
+    public long getExtraFee(Extra extra) {
+        return feeSchedule.extras().stream()
+                .filter(feeDefinition -> feeDefinition.name() == extra)
+                .findFirst()
+                .orElseThrow(() -> new IllegalArgumentException("Extra fee not found: " + extra))
+                .fee();
     }
 
     /**
