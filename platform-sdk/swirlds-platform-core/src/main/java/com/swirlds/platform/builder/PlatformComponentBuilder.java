@@ -428,7 +428,7 @@ public class PlatformComponentBuilder {
                     blocks.platformContext(),
                     blocks.rosterHistory().getCurrentRoster(),
                     blocks.selfId(),
-                    blocks.freezeCheck());
+                    blocks.freezeChecker());
         }
         return consensusEngine;
     }
@@ -466,7 +466,7 @@ public class PlatformComponentBuilder {
                     (byte[] data) -> new PlatformSigner(blocks.keysAndCerts()).sign(data),
                     blocks.consensusEventStreamName(),
                     (CesEvent event) -> event.isLastInRoundReceived()
-                            && blocks.freezeCheck()
+                            && blocks.freezeChecker()
                                     .isInFreezePeriod(event.getPlatformEvent().getConsensusTimestamp()));
         }
         return consensusEventStream;

@@ -56,7 +56,7 @@ import org.hiero.consensus.roster.RosterHistory;
  * @param intakeEventCounter                     counts events that have been received by gossip but not yet inserted
  *                                               into gossip event storage, per peer
  * @param secureRandomSupplier                   a source of secure random number generator instances
- * @param freezeCheck                            a predicate that determines if a timestamp is in the freeze period
+ * @param freezeChecker                          a predicate that determines if a timestamp is in the freeze period
  * @param latestImmutableStateProviderReference  a reference to a method that supplies the latest immutable state. Input
  *                                               argument is a string explaining why we are getting this state (for
  *                                               debugging). Return value may be null (implementation detail of
@@ -98,7 +98,7 @@ public record PlatformBuildingBlocks(
         @Nullable Consumer<ConsensusSnapshot> snapshotOverrideConsumer,
         @NonNull IntakeEventCounter intakeEventCounter,
         @NonNull Supplier<SecureRandom> secureRandomSupplier,
-        @NonNull FreezePeriodChecker freezeCheck,
+        @NonNull FreezePeriodChecker freezeChecker,
         @NonNull AtomicReference<Function<String, ReservedSignedState>> latestImmutableStateProviderReference,
         @NonNull PcesFileTracker initialPcesFiles,
         @NonNull String consensusEventStreamName,
@@ -126,7 +126,7 @@ public record PlatformBuildingBlocks(
         requireNonNull(applicationCallbacks);
         requireNonNull(intakeEventCounter);
         requireNonNull(secureRandomSupplier);
-        requireNonNull(freezeCheck);
+        requireNonNull(freezeChecker);
         requireNonNull(latestImmutableStateProviderReference);
         requireNonNull(initialPcesFiles);
         requireNonNull(consensusEventStreamName);

@@ -218,8 +218,6 @@ public class SwirldsPlatform implements Platform {
 
         final EventWindowManager eventWindowManager = new DefaultEventWindowManager();
 
-        blocks.freezeCheck();
-
         final AppNotifier appNotifier = new DefaultAppNotifier(blocks.notificationEngine());
 
         final ReconnectController reconnectController = new ReconnectController(

@@ -166,8 +166,8 @@ public class TestIntake {
         return output;
     }
 
-    public void setFreezeCheck(final FreezePeriodChecker freezeCheckHolder) {
-        this.freezeCheckHolder.set(freezeCheckHolder);
+    public void setFreezeCheck(@NonNull final FreezePeriodChecker freezeChecker) {
+        this.freezeCheckHolder.set(freezeChecker);
     }
 
     public void reset() {
