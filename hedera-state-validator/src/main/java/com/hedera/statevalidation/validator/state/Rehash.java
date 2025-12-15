@@ -3,11 +3,11 @@ package com.hedera.statevalidation.validator.state;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import com.hedera.statevalidation.poc.pipeline.RehashTaskExecutor;
 import com.hedera.statevalidation.report.SlackReportGenerator;
 import com.hedera.statevalidation.util.junit.HashInfo;
 import com.hedera.statevalidation.util.junit.HashInfoResolver;
 import com.hedera.statevalidation.util.junit.StateResolver;
+import com.hedera.statevalidation.validator.v2.pipeline.RehashTaskExecutor;
 import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.snapshot.DeserializedSignedState;
 import com.swirlds.virtualmap.VirtualMap;

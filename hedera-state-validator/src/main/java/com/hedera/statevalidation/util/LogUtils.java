@@ -3,7 +3,7 @@ package com.hedera.statevalidation.util;
 
 import static com.swirlds.merkledb.files.DataFileCommon.dataLocationToString;
 
-import com.hedera.statevalidation.poc.model.DiskDataItem;
+import com.hedera.statevalidation.validator.v2.model.DiskDataItem;
 import com.swirlds.merkledb.files.DataFileCollection;
 import com.swirlds.merkledb.files.DataFileReader;
 import edu.umd.cs.findbugs.annotations.NonNull;

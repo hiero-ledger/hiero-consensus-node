@@ -1,5 +1,23 @@
 // SPDX-License-Identifier: Apache-2.0
 module com.hedera.state.validator {
+    opens com.hedera.statevalidation to
+            info.picocli;
+    opens com.hedera.statevalidation.validator.state.service to
+            org.junit.platform.commons;
+    opens com.hedera.statevalidation.validator.state to
+            org.junit.platform.commons;
+
+    exports com.hedera.statevalidation.validator.state to
+            org.junit.platform.commons;
+    exports com.hedera.statevalidation.util.junit to
+            org.junit.platform.commons;
+    exports com.hedera.statevalidation.report to
+            org.junit.platform.commons;
+    exports com.hedera.statevalidation.validator.state.service to
+            org.junit.platform.commons;
+    exports com.hedera.statevalidation.validator.merkledb to
+            org.junit.platform.commons;
+
     requires com.hedera.node.app.hapi.utils;
     requires com.hedera.node.app.service.addressbook.impl;
     requires com.hedera.node.app.service.consensus.impl;

@@ -41,7 +41,8 @@ public final class SlackReportBuilder {
     /**
      * Generates a Slack report from validation failures to the specified path.
      */
-    public static void generateReport(@NonNull final List<ValidationFailure> failures, @NonNull final String reportFilePath) {
+    public static void generateReport(
+            @NonNull final List<ValidationFailure> failures, @NonNull final String reportFilePath) {
         if (failures.isEmpty()) {
             return;
         }
@@ -88,7 +89,8 @@ public final class SlackReportBuilder {
         blockArrayNode.add(blockNode);
     }
 
-    private static void addFailures(@NonNull final ArrayNode blockArrayNode, @NonNull final List<ValidationFailure> failures) {
+    private static void addFailures(
+            @NonNull final ArrayNode blockArrayNode, @NonNull final List<ValidationFailure> failures) {
         for (final ValidationFailure failure : failures) {
             final ObjectNode blockNode = mapper.createObjectNode();
             blockNode.put("type", "section");

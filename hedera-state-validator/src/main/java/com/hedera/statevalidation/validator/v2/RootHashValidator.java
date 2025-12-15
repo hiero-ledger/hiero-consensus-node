@@ -1,0 +1,86 @@
+// SPDX-License-Identifier: Apache-2.0
+package com.hedera.statevalidation.validator.v2;
+
+import com.hedera.statevalidation.util.ConfigUtils;
+import com.hedera.statevalidation.validator.v2.util.ValidationAssertions;
+import com.swirlds.platform.state.service.PlatformStateFacade;
+import com.swirlds.platform.state.snapshot.DeserializedSignedState;
+import com.swirlds.state.MerkleNodeState;
+import edu.umd.cs.findbugs.annotations.NonNull;
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Arrays;
+import java.util.List;
+import java.util.stream.Collectors;
+
+/**
+ * Validator that validates the root hash of the state by comparing
+ * the root hash line against a reference file.
+ *
+ * <p>This validator runs independently (not through the data pipeline) because it
+ * requires reading an external hash info file for comparison.
+ * @see Validator
+ */
+public class RootHashValidator implements Validator {
+
+    public static final String ROOT_HASH_TAG = "rootHash";
+
+    /**
+     * The file name containing the expected hash info.
+     */
+    public static final String HASH_INFO_FILE_NAME = "hashInfo.txt";
+
+    private MerkleNodeState state;
+    private String expectedRootHashLine;
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    public String getTag() {
+        return ROOT_HASH_TAG;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void initialize(@NonNull final DeserializedSignedState deserializedSignedState) {
+        //noinspection resource
+        this.state = deserializedSignedState.reservedSignedState().get().getState();
+
+        // Read hash info file
+        final Path hashInfoPath = Path.of(ConfigUtils.STATE_DIR, HASH_INFO_FILE_NAME);
+        try (BufferedReader reader = Files.newBufferedReader(hashInfoPath, StandardCharsets.UTF_8)) {
+            final String content = reader.lines().collect(Collectors.joining("\n"));
+            this.expectedRootHashLine = Arrays.asList(content.split("\n")).getFirst();
+        } catch (final IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void validate() {
+        final PlatformStateFacade platformStateFacade = PlatformStateFacade.DEFAULT_PLATFORM_STATE_FACADE;
+        final String infoStringFromState = platformStateFacade.getInfoString(state, 1);
+
+        final List<String> fullList = Arrays.asList(infoStringFromState.split("\n"));
+        String actualRootHashLine = "";
+        for (String line : fullList) {
+            if (line.contains("(root)")) {
+                actualRootHashLine = line;
+                break;
+            }
+        }
+
+        ValidationAssertions.requireEqual(expectedRootHashLine, actualRootHashLine, getTag());
+    }
+}
