@@ -10,10 +10,10 @@
  */
 syntax = "proto3";
 
-package proto;
+package com.hedera.hapi.node.state.token;
 
 // SPDX-License-Identifier: Apache-2.0
-option java_package = "com.hederahashgraph.api.proto.java";
+option java_package = "com.hedera.hapi.node.state.token.legacy";
 // <<<pbj.java_package = "com.hedera.hapi.node.state.token">>> This comment is special code for setting PBJ Compiler java package
 option java_multiple_files = true;
 
@@ -42,7 +42,7 @@ message NodePayment {
   /**
    * The node account id
    */
-  AccountID node_account_id = 1;
+  proto.AccountID node_account_id = 1;
   /**
    * The total amount of fees due to the node in tinybars
    */

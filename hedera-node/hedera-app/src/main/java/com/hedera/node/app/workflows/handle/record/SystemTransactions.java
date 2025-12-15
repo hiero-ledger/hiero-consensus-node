@@ -431,14 +431,12 @@ public class SystemTransactions {
             final var ledgerConfig = config.getConfigData(LedgerConfig.class);
             final var accountsConfig = config.getConfigData(AccountsConfig.class);
             final var feeCollectionAccount = accountsConfig.feeCollectionAccount();
-            final var bootstrapConfig = config.getConfigData(BootstrapConfig.class);
-            final var systemKey =
-                    Key.newBuilder().ed25519(bootstrapConfig.genesisPublicKey()).build();
+
             final var systemAutoRenewPeriod = new Duration(ledgerConfig.autoRenewPeriodMaxDuration());
             systemContext.dispatchCreation(
                     b -> b.memo("Fee collection account creation for v0.70")
                             .cryptoCreateAccount(CryptoCreateTransactionBody.newBuilder()
-                                    .key(systemKey)
+                                    .key(IMMUTABILITY_SENTINEL_KEY)
                                     .autoRenewPeriod(systemAutoRenewPeriod)
                                     .build())
                             .build(),
@@ -463,7 +461,7 @@ public class SystemTransactions {
             return;
         }
         final var systemContext = newSystemContext(
-                now, state, dispatch -> {}, UseReservedConsensusTimes.YES, TriggerStakePeriodSideEffects.NO);
+                now, state, dispatch -> {}, UseReservedConsensusTimes.NO, TriggerStakePeriodSideEffects.YES);
         systemContext.dispatchAdmin(b -> b.memo("Synthetic node fees payment")
                 .cryptoTransfer(CryptoTransferTransactionBody.newBuilder()
                         .transfers(transfers)
@@ -499,7 +497,7 @@ public class SystemTransactions {
         requireNonNull(activeNodeIds);
         requireNonNull(nodeRewardsAccountId);
         final var systemContext = newSystemContext(
-                now, state, dispatch -> {}, UseReservedConsensusTimes.YES, TriggerStakePeriodSideEffects.YES);
+                now, state, dispatch -> {}, UseReservedConsensusTimes.NO, TriggerStakePeriodSideEffects.YES);
         final var activeNodeAccountIds = activeNodeIds.stream()
                 .map(id -> systemContext.networkInfo().nodeInfo(id))
                 .filter(nodeInfo -> nodeInfo != null && !nodeInfo.declineReward())

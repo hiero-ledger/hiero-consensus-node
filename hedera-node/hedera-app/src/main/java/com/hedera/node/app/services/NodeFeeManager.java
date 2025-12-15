@@ -6,6 +6,7 @@ import static com.hedera.hapi.util.HapiUtils.asTimestamp;
 import static com.hedera.node.app.service.token.impl.schemas.V0700TokenSchema.NODE_PAYMENTS_STATE_ID;
 import static com.hedera.node.app.services.NodeFeeManager.LastNodeFeesPaymentTime.CURRENT_PERIOD;
 import static com.hedera.node.app.services.NodeFeeManager.LastNodeFeesPaymentTime.PREVIOUS_PERIOD;
+import static com.hedera.node.app.workflows.handle.HandleWorkflow.ALERT_MESSAGE;
 import static com.hedera.node.app.workflows.handle.steps.StakePeriodChanges.isNextStakingPeriod;
 import static java.util.Objects.requireNonNull;
 
@@ -182,14 +183,15 @@ public class NodeFeeManager implements NodeFeeAccumulator {
         requireNonNull(systemTransactions);
 
         final var nodesConfig = configProvider.getConfiguration().getConfigData(NodesConfig.class);
-        final var accountsConfig = configProvider.getConfiguration().getConfigData(AccountsConfig.class);
-        final var ledgerConfig = configProvider.getConfiguration().getConfigData(LedgerConfig.class);
-        final var stakingConfig = configProvider.getConfiguration().getConfigData(StakingConfig.class);
-
         // Do nothing if fee collection account is disabled
         if (!nodesConfig.feeCollectionAccountEnabled()) {
             return false;
         }
+
+        final var accountsConfig = configProvider.getConfiguration().getConfigData(AccountsConfig.class);
+        final var ledgerConfig = configProvider.getConfiguration().getConfigData(LedgerConfig.class);
+        final var stakingConfig = configProvider.getConfiguration().getConfigData(StakingConfig.class);
+
         final var lastNodeFeesPaymentTime = classifyLastNodeFeesPaymentTime(state, now);
         // If we're in the same staking period as the last time node fees were paid, we don't
         // need to do anything
@@ -200,12 +202,12 @@ public class NodeFeeManager implements NodeFeeAccumulator {
         final var writableTokenStates = state.getWritableStates(TokenService.NAME);
         final var entityIdStore = new WritableEntityIdStoreImpl(state.getWritableStates(EntityIdService.NAME));
         final var nodePaymentsStore = new WritableNodePaymentsStore(writableTokenStates);
-        final var accountStore = new WritableAccountStore(writableTokenStates, entityIdStore);
         if (lastNodeFeesPaymentTime == LastNodeFeesPaymentTime.PREVIOUS_PERIOD) {
             log.info("Considering distributing node fees for staking period @ {}", asTimestamp(now));
             // commit the node fees accumulated in the previous period from nodeFees to nodePaymentsStore
             updateNodePaymentsState(state);
 
+            final var accountStore = new WritableAccountStore(writableTokenStates, entityIdStore);
             final var feeCollectionAccountId = entityIdFactory.newAccountId(accountsConfig.feeCollectionAccount());
             final var feeCollectionAccount = requireNonNull(accountStore.getAccountById(feeCollectionAccountId));
             final long feeCollectionBalance = feeCollectionAccount.tinybarBalance();
@@ -235,6 +237,11 @@ public class NodeFeeManager implements NodeFeeAccumulator {
                 }
             }
 
+            // This should never happen
+            if (totalNodeFees > feeCollectionBalance) {
+                throw new IllegalStateException(ALERT_MESSAGE + "Total node fees to be distributed" + totalNodeFees
+                        + " exceeds fee collection balance " + feeCollectionBalance);
+            }
             final long networkServiceFees = feeCollectionBalance - totalNodeFees;
 
             // Distribute network/service fees to 0.0.98, 0.0.800, and 0.0.801
@@ -243,7 +250,7 @@ public class NodeFeeManager implements NodeFeeAccumulator {
             final var nodeRewardAccountId = entityIdFactory.newAccountId(accountsConfig.nodeRewardAccount());
 
             if (networkServiceFees > 0) {
-                distributeNetworkServiceFees(
+                updateNetworkAndServiceTransferAmounts(
                         networkServiceFees,
                         fundingAccountId,
                         stakingRewardAccountId,
@@ -289,15 +296,15 @@ public class NodeFeeManager implements NodeFeeAccumulator {
      * Distributes network/service fees to 0.0.98, 0.0.800, and 0.0.801 if 0.0.801 is above configured minimum balance.
      * Otherwise, it routes all fees to 0.0.801.
      */
-    private void distributeNetworkServiceFees(
+    private void updateNetworkAndServiceTransferAmounts(
             final long amount,
             @NonNull final AccountID fundingAccountId,
             @NonNull final AccountID stakingRewardAccountId,
             @NonNull final AccountID nodeRewardAccountId,
             @NonNull final ReadableAccountStore accountStore,
             @NonNull final ArrayList<AccountAmount> transferAmounts,
-            final NodesConfig nodesConfig,
-            final StakingConfig stakingConfig) {
+            @NonNull final NodesConfig nodesConfig,
+            @NonNull final StakingConfig stakingConfig) {
         long balance = amount;
 
         final var nodeRewardAccount = requireNonNull(accountStore.getAccountById(nodeRewardAccountId));
@@ -357,6 +364,8 @@ public class NodeFeeManager implements NodeFeeAccumulator {
                         .nodeAccountId(entry.getKey())
                         .fees(entry.getValue())
                         .build())
+                .sorted((a, b) -> Long.compare(
+                        a.nodeAccountId().accountNum(), b.nodeAccountId().accountNum()))
                 .toList();
 
         // We don't update the lastNodeFeeDistributionTime because it is updated only once we distribute fees

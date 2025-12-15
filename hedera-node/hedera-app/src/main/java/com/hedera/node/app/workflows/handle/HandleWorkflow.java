@@ -305,18 +305,21 @@ public class HandleWorkflow {
                 logger.error("{} trying to reconcile TSS state", ALERT_MESSAGE, e);
             }
         }
-        final var roundConsTime = round.getConsensusTimestamp();
+        final var lastUsedConsTime = blockHashSigner.isReady()
+                ? blockStreamManager.lastUsedConsensusTime()
+                : blockRecordManager.lastUsedConsensusTime();
+        // Using the last used consensus time, we need to add 2ns, in case this triggers stake periods side effects
         try {
             transactionsDispatched |=
-                    nodeFeeManager.distributeFees(state, roundConsTime.plusNanos(1), systemTransactions);
+                    nodeFeeManager.distributeFees(state, lastUsedConsTime.plusNanos(2), systemTransactions);
         } catch (Exception e) {
-            logger.warn("Failed to pay node fees to nodes", e);
+            logger.error("{} Failed to pay node fees to nodes", ALERT_MESSAGE, e);
         }
         try {
             transactionsDispatched |=
-                    nodeRewardManager.maybeRewardActiveNodes(state, roundConsTime.plusNanos(2), systemTransactions);
+                    nodeRewardManager.maybeRewardActiveNodes(state, lastUsedConsTime.plusNanos(4), systemTransactions);
         } catch (Exception e) {
-            logger.warn("Failed to reward active nodes", e);
+            logger.error("{} Failed to reward active nodes", ALERT_MESSAGE, e);
         }
         try {
             final int receiptEntriesBatchSize = configProvider

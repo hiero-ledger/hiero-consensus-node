@@ -95,13 +95,15 @@ public class CryptoTransferValidator {
      * @param accountsConfig the accounts config
      * @param hooksConfig the hooks config
      * @param category the transaction category
+     * @param payer the payer account ID
      */
     public void validateSemantics(
             @NonNull final CryptoTransferTransactionBody op,
             @NonNull final LedgerConfig ledgerConfig,
             @NonNull final AccountsConfig accountsConfig,
             @NonNull final HooksConfig hooksConfig,
-            final HandleContext.TransactionCategory category) {
+            final HandleContext.TransactionCategory category,
+            @NonNull final AccountID payer) {
         final var transfers = op.transfersOrElse(TransferList.DEFAULT);
         // validate hooks are enabled if hooks are present in the transaction
         if (hasHookExecutions(op)) {
@@ -114,25 +116,20 @@ public class CryptoTransferValidator {
 
         // Validate that there aren't too many hbar transfers
         final var hbarTransfers = transfers.accountAmounts();
-
-        // If the payer is node rewards account, we are dispatching synthetic node rewards. So skip checking the limits.
-        if (hbarTransfers.size() > ledgerConfig.transfersMaxLen()) {
+        final var isAdminPayer =
+                entityIdFactory.newAccountId(accountsConfig.systemAdmin()).equals(payer);
+        // If the debit account is node rewards account or fee collection account, we are dispatching synthetic
+        // node rewards or node fee distributions. So skip checking the limits.
+        if ((hbarTransfers.size() > ledgerConfig.transfersMaxLen()) && isAdminPayer) {
             final var nodeRewardAccountId = entityIdFactory.newAccountId(accountsConfig.nodeRewardAccount());
+            final var feeCollectionAccountId = entityIdFactory.newAccountId(accountsConfig.feeCollectionAccount());
             validateTrue(
                     hbarTransfers.stream()
                             .filter(aa -> aa.amount() < 0)
-                            .anyMatch(aa -> nodeRewardAccountId.equals(aa.accountID())),
+                            .anyMatch(aa -> (nodeRewardAccountId.equals(aa.accountID())
+                                    || feeCollectionAccountId.equals(aa.accountID()))),
                     TRANSFER_LIST_SIZE_LIMIT_EXCEEDED);
         }
-
-        // Verify that no credits are going to the fee collection account
-        final var feeCollectionAccount = entityIdFactory.newAccountId(accountsConfig.feeCollectionAccount());
-        validateTrue(
-                hbarTransfers.stream()
-                        .noneMatch(aa -> aa.amount() > 0 && aa.accountID().equals(feeCollectionAccount)),
-                TRANSFER_TO_FEE_COLLECTION_ACCOUNT_NOT_ALLOWED);
-
-        // Validate that allowances are enabled, or that no hbar transfers are an allowance transfer
 
         // The loop below will validate the counts for token transfers (both fungible and non-fungible)
         final var tokenTransfers = op.tokenTransfers();
@@ -153,7 +150,9 @@ public class CryptoTransferValidator {
                     TOKEN_TRANSFER_LIST_SIZE_LIMIT_EXCEEDED);
             // Verify that the current total number of (counted) nft transfers does not exceed the limit
             validateTrue(totalNftTransfers <= ledgerConfig.nftTransfersMaxLen(), BATCH_SIZE_LIMIT_EXCEEDED);
-            //  Verify that no credits are going to the fee collection account
+            final var feeCollectionAccount = entityIdFactory.newAccountId(accountsConfig.feeCollectionAccount());
+            //  Verify that no credits are going to the fee collection account.
+            //  We validate hbar transfers in AdjustHbarChangesStep
             validateNoCreditsToFeeCollectionAccount(tokenTransfer, feeCollectionAccount);
         }
     }

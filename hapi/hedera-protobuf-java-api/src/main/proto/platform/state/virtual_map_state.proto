@@ -620,7 +620,7 @@ message StateValue {
     /**
      * A state identifier for the node payments. Singleton state.
      */
-    proto.NodePayments TokenService_I_NODE_PAYMENTS = 55;
+    com.hedera.hapi.node.state.token.NodePayments TokenService_I_NODE_PAYMENTS = 55;
 
     /**
      * Metadata of the round receipts queue.

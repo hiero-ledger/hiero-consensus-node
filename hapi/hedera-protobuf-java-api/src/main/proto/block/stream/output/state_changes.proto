@@ -730,7 +730,7 @@ message SingletonUpdateChange {
          * <p>
          * Node payments SHALL be updated for every non-empty block.
          */
-        proto.NodePayments node_payments_value = 19;
+        com.hedera.hapi.node.state.token.NodePayments node_payments_value = 19;
     }
 }
 

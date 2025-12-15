@@ -22,6 +22,11 @@ public interface ServiceApiProvider<T> {
 
     /**
      * Creates a new instance of the service API.
+     *  <i>(FUTURE)</i> Once HIP-1259, "Fee Collection Account", is enabled by default, we could replace
+     *  {@code TokenServiceApiImpl}'s injected {@code NodeFeeAccumulator} by instead passing the
+     *  {@code NodeFeeManager} to the existing {@code ObjLongConsumer<AccountID>} argument. (The current
+     *  use of that argument to track <b>all</b> accumulated node fees for HIP-1065 could then be replaced
+     *  by just summing the fees from all account ids in the {@code NodePayment} singleton.)
      *
      * @param configuration  the node configuration
      * @param writableStates the writable state of the service
