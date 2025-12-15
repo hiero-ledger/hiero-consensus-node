@@ -905,6 +905,9 @@ public class BlockNodeSuite {
                         Duration.ofSeconds(20),
                         Duration.ofSeconds(20),
                         String.format(
+                                "/localhost:%s/ACTIVE] Received BehindPublisher response for block 9223372036854775807.",
+                                portNumbers.getFirst()),
+                        String.format(
                                 "/localhost:%s/ACTIVE] Block node reported it is behind. Will restart stream at block 0.",
                                 portNumbers.getFirst()))),
                 waitUntilNextBlocks(1).withBackgroundTraffic(true),

@@ -561,22 +561,27 @@ public class BlockNodeConnection extends AbstractBlockNodeConnection implements 
     private void handleBlockNodeBehind(@NonNull final BehindPublisher nodeBehind) {
         requireNonNull(nodeBehind, "nodeBehind must not be null");
         final long blockNumber = nodeBehind.blockNumber();
+        logger.debug("{} Received BehindPublisher response for block {}.", this, blockNumber);
 
+        final long restartBlockNumber = blockNumber == Long.MAX_VALUE ? 0 : blockNumber + 1;
         // The block node is behind us, check if we have the last verified block still available
         // in order to restart the stream from there
-        final long restartBlockNumber = blockNumber == Long.MAX_VALUE ? 0 : blockNumber + 1;
         if (blockBufferService.getBlockState(restartBlockNumber) != null) {
             logger.info(
                     "{} Block node reported it is behind. Will restart stream at block {}.", this, restartBlockNumber);
 
-            closeAndRestart(restartBlockNumber);
+            streamingBlockNumber.set(restartBlockNumber);
         } else {
-            // If we don't have the block state, we schedule retry for this connection and establish new one
-            // with different block node
+            // If we don't have the block state, we schedule retry for this connection
+            // and establish new one with different block node
             logger.info("{} Block node is behind and block state is not available. Ending the stream.", this);
 
-            // Indicate that the block node should recover and catch up from another trustworthy block node
-            endStreamAndReschedule(TOO_FAR_BEHIND);
+            if (restartBlockNumber < blockBufferService.getEarliestAvailableBlockNumber()) {
+                // Indicate that the block node should catch up from another trustworthy block node
+                endStreamAndReschedule(TOO_FAR_BEHIND);
+            } else if (restartBlockNumber > blockBufferService.getLastBlockNumberProduced()) {
+                endStreamAndReschedule(ERROR);
+            }
         }
     }
 

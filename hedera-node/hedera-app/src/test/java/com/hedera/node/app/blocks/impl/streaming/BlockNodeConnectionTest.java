@@ -629,7 +629,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
     }
 
     @Test
-    void testOnNext_endOfStream_blockNodeBehind_blockExists() {
+    void testOnNext_blockNodeBehind_blockExists() {
         openConnectionAndResetMocks();
         final PublishStreamResponse response = createBlockNodeBehindResponse(10L);
         when(bufferService.getBlockState(11L)).thenReturn(new BlockState(11L));
@@ -639,21 +639,17 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
 
         verify(metrics).recordLatestBlockNodeBehindPublisher(10L);
         verify(metrics).recordResponseReceived(ResponseOneOfType.NODE_BEHIND_PUBLISHER);
-        verify(metrics).recordConnectionClosed();
-        verify(metrics).recordActiveConnectionIp(-1L);
-        verify(requestPipeline).onComplete();
-        verify(connectionManager).rescheduleConnection(connection, null, 11L, false);
         verify(bufferService).getBlockState(11L);
         verifyNoMoreInteractions(metrics);
         verifyNoMoreInteractions(requestPipeline);
     }
 
     @Test
-    void testOnNext_endOfStream_blockNodeBehind_blockDoesNotExist() {
+    void testOnNext_blockNodeBehind_blockDoesNotExist_TooFarBehind() {
         openConnectionAndResetMocks();
         final PublishStreamResponse response = createBlockNodeBehindResponse(10L);
-        when(bufferService.getHighestAckedBlockNumber()).thenReturn(10L);
         when(bufferService.getBlockState(11L)).thenReturn(null);
+        when(bufferService.getEarliestAvailableBlockNumber()).thenReturn(12L);
 
         connection.updateConnectionState(ConnectionState.ACTIVE);
         connection.onNext(response);
@@ -671,6 +667,38 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
                 .onNext(PublishStreamRequest.newBuilder()
                         .endStream(EndStream.newBuilder()
                                 .endCode(EndStream.Code.TOO_FAR_BEHIND)
+                                .earliestBlockNumber(12L)
+                                .build())
+                        .build());
+        verify(requestPipeline).onComplete();
+        verify(connectionManager).rescheduleConnection(connection, Duration.ofSeconds(30), null, true);
+        verifyNoMoreInteractions(metrics);
+        verifyNoMoreInteractions(requestPipeline);
+    }
+
+    @Test
+    void testOnNext_endOfStream_blockNodeBehind_blockDoesNotExist_Error() {
+        openConnectionAndResetMocks();
+        final PublishStreamResponse response = createBlockNodeBehindResponse(10L);
+        when(bufferService.getHighestAckedBlockNumber()).thenReturn(10L);
+        when(bufferService.getBlockState(11L)).thenReturn(null);
+
+        connection.updateConnectionState(ConnectionState.ACTIVE);
+        connection.onNext(response);
+
+        verify(metrics).recordLatestBlockNodeBehindPublisher(10L);
+        verify(metrics).recordResponseReceived(ResponseOneOfType.NODE_BEHIND_PUBLISHER);
+        verify(metrics).recordConnectionClosed();
+        verify(metrics).recordActiveConnectionIp(-1L);
+        verify(metrics).recordRequestEndStreamSent(EndStream.Code.ERROR);
+        verify(metrics).recordRequestLatency(anyLong());
+        verify(bufferService, atLeastOnce()).getEarliestAvailableBlockNumber();
+        verify(bufferService, atLeastOnce()).getHighestAckedBlockNumber();
+        verify(bufferService).getBlockState(11L);
+        verify(requestPipeline)
+                .onNext(PublishStreamRequest.newBuilder()
+                        .endStream(EndStream.newBuilder()
+                                .endCode(EndStream.Code.ERROR)
                                 .latestBlockNumber(10L)
                                 .build())
                         .build());
@@ -1614,9 +1642,9 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         assertThat(connection.currentState()).isEqualTo(ConnectionState.CLOSED);
     }
 
-    // Tests EndOfStream BEHIND code with Long.MAX_VALUE edge case (should restart at block 0)
+    // Tests BehindPublisher code with Long.MAX_VALUE edge case (should restart at block 0)
     @Test
-    void testOnNext_endOfStream_blockNodeBehind_maxValueBlockNumber() {
+    void testOnNext_blockNodeBehind_maxValueBlockNumber() {
         openConnectionAndResetMocks();
         final PublishStreamResponse response = createBlockNodeBehindResponse(Long.MAX_VALUE);
         when(bufferService.getBlockState(0L)).thenReturn(new BlockState(0L));
@@ -1626,14 +1654,11 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
 
         verify(metrics).recordLatestBlockNodeBehindPublisher(Long.MAX_VALUE);
         verify(metrics).recordResponseReceived(ResponseOneOfType.NODE_BEHIND_PUBLISHER);
-        verify(requestPipeline).onComplete();
-        verify(connectionManager)
-                .rescheduleConnection(connection, null, 0L, false); // Should restart at 0 for MAX_VALUE
         verify(bufferService).getBlockState(0L);
-        verify(metrics).recordConnectionClosed();
-        verify(metrics).recordActiveConnectionIp(-1L);
         verifyNoMoreInteractions(metrics);
         verifyNoMoreInteractions(requestPipeline);
+        verifyNoMoreInteractions(connectionManager);
+        verifyNoMoreInteractions(bufferService);
     }
 
     // Tests stream failure handling without calling onComplete on the pipeline
