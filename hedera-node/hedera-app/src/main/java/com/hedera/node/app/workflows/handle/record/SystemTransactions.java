@@ -424,6 +424,25 @@ public class SystemTransactions {
                 adminConfig.upgradeNodeAdminKeysFile(),
                 SystemTransactions::parseNodeAdminKeys);
         autoNodeAdminKeyUpdates.tryIfPresent(adminConfig.upgradeSysFilesLoc(), systemContext);
+
+        // TODO: Delete this in release 0.71
+        // If fee collection account is enabled, we need to create the fee collection account only for release 0.70
+        if (nodesConfig.feeCollectionAccountEnabled()) {
+            final var ledgerConfig = config.getConfigData(LedgerConfig.class);
+            final var accountsConfig = config.getConfigData(AccountsConfig.class);
+            final var feeCollectionAccount = accountsConfig.feeCollectionAccount();
+            final var bootstrapConfig = config.getConfigData(BootstrapConfig.class);
+            final var systemKey =
+                    Key.newBuilder().ed25519(bootstrapConfig.genesisPublicKey()).build();
+            final var systemAutoRenewPeriod = new Duration(ledgerConfig.autoRenewPeriodMaxDuration());
+            systemContext.dispatchCreation(b -> b.memo("Fee collection account creation for v0.70")
+                            .cryptoCreateAccount(CryptoCreateTransactionBody.newBuilder()
+                                    .key(systemKey)
+                                    .autoRenewPeriod(systemAutoRenewPeriod)
+                                    .build())
+                            .build(),
+                    feeCollectionAccount);
+        }
     }
 
     public void dispatchNodePayments(
