@@ -52,7 +52,7 @@ public class AddressBookUtils {
         final List<SimpleAddress> simpleAddresses = new ArrayList<>();
 
         Arrays.stream(configTxtContent.split("\\r?\\n"))
-                .filter(line -> line.startsWith(ADDRESS_KEYWORD))
+                .filter(line -> line.trim().startsWith(ADDRESS_KEYWORD))
                 .forEach(line -> {
                     try {
                         final SimpleAddress simpleAddress = parseSimpleAddress(line.trim());
