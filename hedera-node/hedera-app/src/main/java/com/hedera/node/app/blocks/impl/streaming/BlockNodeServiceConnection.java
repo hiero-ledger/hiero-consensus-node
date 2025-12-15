@@ -29,14 +29,29 @@ public class BlockNodeServiceConnection extends AbstractBlockNodeConnection {
 
     private static final Logger logger = LogManager.getLogger(BlockNodeServiceConnection.class);
 
+    /**
+     * Counter used to create unique IDs for each client created.
+     */
     private static final AtomicLong clientCtr = new AtomicLong(0);
-
+    /**
+     * Holder that contains the client ID and the client instance.
+     *
+     * @param clientId unique ID of the client
+     * @param client the client instance
+     */
     record ServiceClientHolder(long clientId, BlockNodeServiceClient client) {}
-
+    /**
+     * Atomic reference that contains the active client.
+     */
     private final AtomicReference<ServiceClientHolder> clientRef = new AtomicReference<>();
+    /**
+     * Executor used to perform async tasks such as retrieving the block node status.
+     */
     private final ExecutorService executorService;
+    /**
+     * Factory to create Block Node clients.
+     */
     private final BlockNodeClientFactory clientFactory;
-    private final BlockNodeConnectionConfig bncConfig;
 
     /**
      * Create a new instance.
@@ -54,8 +69,16 @@ public class BlockNodeServiceConnection extends AbstractBlockNodeConnection {
         super(ConnectionType.SERVER_STATUS, nodeConfig, configProvider);
         this.executorService = requireNonNull(executorService, "pipeline executor is required");
         this.clientFactory = requireNonNull(clientFactory, "client factory is required");
+    }
 
-        bncConfig = configProvider().getConfiguration().getConfigData(BlockNodeConnectionConfig.class);
+    /**
+     * @return the timeout out duration for async operations
+     */
+    private Duration operationTimeout() {
+        return configProvider()
+                .getConfiguration()
+                .getConfigData(BlockNodeConnectionConfig.class)
+                .pipelineOperationTimeout();
     }
 
     @Override
@@ -69,7 +92,7 @@ public class BlockNodeServiceConnection extends AbstractBlockNodeConnection {
 
         try {
             future = executorService.submit(new CreateClientTask());
-            future.get(bncConfig.pipelineOperationTimeout().toMillis(), TimeUnit.MILLISECONDS);
+            future.get(operationTimeout().toMillis(), TimeUnit.MILLISECONDS);
         } catch (final Exception e) {
             logger.warn("{} Error initializing connection", this, e);
 
@@ -129,9 +152,9 @@ public class BlockNodeServiceConnection extends AbstractBlockNodeConnection {
          */
         private void closeSilently(@NonNull final ServiceClientHolder holder) {
             logger.debug("{} Silently closing client (clientId: {})", BlockNodeServiceConnection.this, holder.clientId);
-            final Future<?> future = executorService.submit(new CloseClientTask(holder));
             try {
-                future.get(bncConfig.pipelineOperationTimeout().toMillis(), TimeUnit.MILLISECONDS);
+                final Future<?> future = executorService.submit(new CloseClientTask(holder));
+                future.get(operationTimeout().toMillis(), TimeUnit.MILLISECONDS);
             } catch (final Exception e) {
                 logger.debug(
                         "{} Attempted to close a client (clientId: {}), but it failed; ignoring failure",
@@ -152,7 +175,7 @@ public class BlockNodeServiceConnection extends AbstractBlockNodeConnection {
         private final ServiceClientHolder clientHolder;
 
         CloseClientTask(@NonNull final ServiceClientHolder clientHolder) {
-            this.clientHolder = requireNonNull(clientHolder);
+            this.clientHolder = requireNonNull(clientHolder, "client is required");
         }
 
         @Override
@@ -183,7 +206,7 @@ public class BlockNodeServiceConnection extends AbstractBlockNodeConnection {
 
         try {
             future = executorService.submit(new CloseClientTask(clientHolder));
-            future.get(bncConfig.pipelineOperationTimeout().toMillis(), TimeUnit.MILLISECONDS);
+            future.get(operationTimeout().toMillis(), TimeUnit.MILLISECONDS);
         } catch (final Exception e) {
             // the connection is being closed... don't propagate the exception
             logger.warn("{} Error occurred while closing connection; it will be suppressed", this, e);
@@ -223,7 +246,7 @@ public class BlockNodeServiceConnection extends AbstractBlockNodeConnection {
 
         try {
             future = executorService.submit(new GetBlockNodeStatusTask(clientHolder.client));
-            response = future.get(bncConfig.pipelineOperationTimeout().toMillis(), TimeUnit.MILLISECONDS);
+            response = future.get(operationTimeout().toMillis(), TimeUnit.MILLISECONDS);
             durationMillis = System.currentTimeMillis() - startMillis;
         } catch (final Exception e) {
             logger.warn("{} Error retrieving block node status", this, e);
@@ -258,8 +281,8 @@ public class BlockNodeServiceConnection extends AbstractBlockNodeConnection {
          */
         private final BlockNodeServiceClient client;
 
-        private GetBlockNodeStatusTask(@NonNull final BlockNodeServiceClient client) {
-            this.client = requireNonNull(client);
+        GetBlockNodeStatusTask(@NonNull final BlockNodeServiceClient client) {
+            this.client = requireNonNull(client, "client is required");
         }
 
         @Override
