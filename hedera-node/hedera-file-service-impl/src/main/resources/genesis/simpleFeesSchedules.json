@@ -171,7 +171,9 @@
         {
           "name": "FileGetContents",
           "baseFee": 0,
-          "extras": []
+          "extras": [
+            { "name": "BYTES", "includedCount": 1000}
+          ]
         },
         {
           "name": "FileGetInfo",
