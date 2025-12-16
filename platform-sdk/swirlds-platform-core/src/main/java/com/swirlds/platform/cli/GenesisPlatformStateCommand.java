@@ -21,6 +21,7 @@ import com.swirlds.platform.util.BootstrapUtils;
 import com.swirlds.state.State;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.StateLifecycleManagerImpl;
+import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.spi.WritableStates;
 import java.io.IOException;
@@ -61,20 +62,15 @@ public class GenesisPlatformStateCommand extends AbstractCommand {
         BootstrapUtils.setupConstructableRegistry();
 
         final PlatformContext platformContext = PlatformContext.create(configuration);
-        final StateLifecycleManager stateLifecycleManager =
-                new StateLifecycleManagerImpl(platformContext.getMetrics(), platformContext.getTime(), (virtualMap) -> {
-                    // FUTURE WORK: https://github.com/hiero-ledger/hiero-consensus-node/issues/19003
-                    throw new UnsupportedOperationException();
-                });
+        final StateLifecycleManager stateLifecycleManager = new StateLifecycleManagerImpl(
+                platformContext.getMetrics(),
+                platformContext.getTime(),
+                (virtualMap) -> new VirtualMapState(virtualMap, platformContext.getMetrics()),
+                platformContext.getConfiguration());
 
         System.out.printf("Reading from %s %n", statePath.toAbsolutePath());
-        final DeserializedSignedState deserializedSignedState = SignedStateFileReader.readState(
-                statePath,
-                (virtualMap) -> {
-                    // FUTURE WORK: https://github.com/hiero-ledger/hiero-consensus-node/issues/19003
-                    throw new UnsupportedOperationException();
-                },
-                platformContext);
+        final DeserializedSignedState deserializedSignedState =
+                SignedStateFileReader.readState(statePath, platformContext, stateLifecycleManager);
         try (final ReservedSignedState reservedSignedState = deserializedSignedState.reservedSignedState()) {
             bulkUpdateOf(reservedSignedState.get().getState(), v -> {
                 System.out.printf("Replacing platform data %n");

@@ -4,11 +4,12 @@ package com.swirlds.platform.test.fixtures.state;
 import static com.swirlds.platform.state.service.PlatformStateUtils.bulkUpdateOf;
 import static com.swirlds.platform.test.fixtures.config.ConfigUtils.CONFIGURATION;
 import static com.swirlds.platform.test.fixtures.state.manager.SignatureVerificationTestUtils.buildFakeSignature;
-import static com.swirlds.state.test.fixtures.merkle.VirtualMapStateTestUtils.createTestStateWithLabel;
+import static com.swirlds.state.test.fixtures.merkle.VirtualMapStateTestUtils.createTestState;
 import static org.hiero.base.crypto.test.fixtures.CryptoRandomUtils.randomHash;
 import static org.hiero.base.crypto.test.fixtures.CryptoRandomUtils.randomHashBytes;
 import static org.hiero.base.crypto.test.fixtures.CryptoRandomUtils.randomSignature;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
+import static org.hiero.consensus.model.PbjConverters.toPbjTimestamp;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
@@ -47,7 +48,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.Signature;
-import org.hiero.base.utility.CommonUtils;
 import org.hiero.base.utility.test.fixtures.RandomUtils;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.roster.RosterUtils;
@@ -137,9 +137,7 @@ public class RandomSignedStateGenerator {
         }
 
         if (state == null) {
-            final String virtualMapLabel =
-                    "vm-" + RandomSignedStateGenerator.class.getSimpleName() + "-" + java.util.UUID.randomUUID();
-            stateInstance = createTestStateWithLabel(virtualMapLabel);
+            stateInstance = createTestState();
         } else {
             stateInstance = state;
         }
@@ -184,7 +182,7 @@ public class RandomSignedStateGenerator {
                             .mapToObj(i -> new MinimumJudgeInfo(roundInstance - i, 0L))
                             .toList())
                     .nextConsensusNumber(roundInstance)
-                    .consensusTimestamp(CommonUtils.toPbjTimestamp(consensusTimestampInstance))
+                    .consensusTimestamp(toPbjTimestamp(consensusTimestampInstance))
                     .build();
         } else {
             consensusSnapshotInstance = consensusSnapshot;

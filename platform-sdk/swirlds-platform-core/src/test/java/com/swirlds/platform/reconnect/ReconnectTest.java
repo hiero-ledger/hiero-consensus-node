@@ -8,8 +8,10 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 import com.hedera.hapi.node.state.roster.Roster;
+import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
+import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.common.test.fixtures.WeightGenerators;
 import com.swirlds.common.test.fixtures.merkle.util.PairedStreams;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
@@ -24,6 +26,8 @@ import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
 import com.swirlds.state.MerkleNodeState;
+import com.swirlds.state.StateLifecycleManager;
+import com.swirlds.state.merkle.StateLifecycleManagerImpl;
 import com.swirlds.state.test.fixtures.merkle.VirtualMapStateTestUtils;
 import java.io.IOException;
 import java.time.Duration;
@@ -106,12 +110,15 @@ final class ReconnectTest {
                 .build();
 
         MerkleNodeState stateCopy = null;
+        StateLifecycleManager stateLifecycleManager = null;
         try (final PairedStreams pairedStreams = new PairedStreams()) {
             final SignedState signedState = new RandomSignedStateGenerator()
                     .setRoster(roster)
                     .setSigningNodeIds(nodeIds)
                     .setState(createTestState())
                     .build();
+            stateLifecycleManager = new StateLifecycleManagerImpl(
+                    new NoOpMetrics(), new FakeTime(), VirtualMapStateTestUtils::createTestStateWithVM, configuration);
 
             stateCopy = signedState.getState().copy();
             // hash the underlying VM
@@ -121,7 +128,8 @@ final class ReconnectTest {
                     stateCopy,
                     new DummyConnection(
                             platformContext, pairedStreams.getLearnerInput(), pairedStreams.getLearnerOutput()),
-                    reconnectMetrics);
+                    reconnectMetrics,
+                    stateLifecycleManager);
 
             final Thread thread = new Thread(() -> {
                 try {
@@ -129,8 +137,9 @@ final class ReconnectTest {
                     final ReconnectStateTeacher sender = buildSender(
                             new DummyConnection(
                                     platformContext, pairedStreams.getTeacherInput(), pairedStreams.getTeacherOutput()),
+                            signedState,
                             reconnectMetrics);
-                    sender.execute(signedState);
+                    sender.execute();
                 } catch (final IOException ex) {
                     ex.printStackTrace();
                 }
@@ -148,7 +157,8 @@ final class ReconnectTest {
     }
 
     private ReconnectStateTeacher buildSender(
-            final SocketConnection connection, final ReconnectMetrics reconnectMetrics) throws IOException {
+            final SocketConnection connection, final SignedState signedState, final ReconnectMetrics reconnectMetrics)
+            throws IOException {
 
         final PlatformContext platformContext =
                 TestPlatformContextBuilder.create().build();
@@ -165,11 +175,15 @@ final class ReconnectTest {
                 selfId,
                 otherId,
                 lastRoundReceived,
+                signedState,
                 reconnectMetrics);
     }
 
     private ReconnectStateLearner buildReceiver(
-            final MerkleNodeState state, final Connection connection, final ReconnectMetrics reconnectMetrics) {
+            final MerkleNodeState state,
+            final Connection connection,
+            final ReconnectMetrics reconnectMetrics,
+            final StateLifecycleManager stateLifecycleManager) {
 
         return new ReconnectStateLearner(
                 TestPlatformContextBuilder.create().build(),
@@ -178,6 +192,6 @@ final class ReconnectTest {
                 state,
                 RECONNECT_SOCKET_TIMEOUT,
                 reconnectMetrics,
-                VirtualMapStateTestUtils::createTestStateWithVM);
+                stateLifecycleManager);
     }
 }

@@ -34,6 +34,7 @@ import com.hedera.node.app.service.token.impl.TokenServiceImpl;
 import com.hedera.node.app.spi.AppContext;
 import com.hedera.node.app.spi.api.ServiceApiProvider;
 import com.hedera.node.app.spi.fees.FeeCharging;
+import com.hedera.node.app.spi.fees.QueryFeeCalculator;
 import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
 import com.hedera.node.app.state.WorkingStateAccessor;
 import com.hedera.node.app.store.ReadableStoreFactory;
@@ -92,6 +93,13 @@ public interface FacilityInitModule {
     @Singleton
     static Set<ServiceFeeCalculator> provideConsensusServiceFeeCalculators(ConsensusServiceImpl consensusService) {
         return consensusService.serviceFeeCalculators();
+    }
+
+    @Provides
+    @ElementsIntoSet
+    @Singleton
+    static Set<QueryFeeCalculator> provideConsensusQueryFeeCalculators(ConsensusServiceImpl consensusService) {
+        return consensusService.queryFeeCalculators();
     }
 
     @Provides
