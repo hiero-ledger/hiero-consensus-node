@@ -30,7 +30,6 @@ testModuleInfo {
     requires("org.apache.commons.lang3")
     requires("org.apache.logging.log4j.core")
     requires("org.hiero.base.utility.test.fixtures")
-    requires("org.hiero.consensus.model")
     requires("org.junit.jupiter.api")
     requires("org.junit.jupiter.params")
     requires("org.mockito")
