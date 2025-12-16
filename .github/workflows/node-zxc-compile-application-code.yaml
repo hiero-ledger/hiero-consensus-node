@@ -391,12 +391,12 @@ jobs:
         with:
           name: HAPI Test (Misc) Network Logs
           path: |
-            hedera-node/test-clients/build/**/*.log
-            hedera-node/test-clients/build/**/*.blk.gz
-            hedera-node/test-clients/build/**/*.rcd.gz
+            hedera-node/test-clients/build/hapi-test/**/output/**
+            hedera-node/test-clients/build/hapi-test/*.log
+            hedera-node/test-clients/output/**
           retention-days: 7
 
-      - name: HAPI Test (Misc Records)
+      - name: HAPI Testing (Misc Records)
         id: gradle-hapi-misc-records
         if: ${{ inputs.enable-hapi-tests-misc-records && steps.gradle-build.conclusion == 'success' && !cancelled() }}
         env:
