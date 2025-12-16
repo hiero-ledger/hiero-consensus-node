@@ -90,8 +90,7 @@ public class LegacyCsvWriter {
      * @param folderPath    {@link Path} to the folder where the file should be stored
      * @param configuration the configuration
      */
-    public LegacyCsvWriter(
-            long selfId, @NonNull final Path folderPath, @NonNull final Configuration configuration) {
+    public LegacyCsvWriter(long selfId, @NonNull final Path folderPath, @NonNull final Configuration configuration) {
         Objects.requireNonNull(folderPath, "folderPath is null");
         Objects.requireNonNull(configuration, "configuration is null");
 

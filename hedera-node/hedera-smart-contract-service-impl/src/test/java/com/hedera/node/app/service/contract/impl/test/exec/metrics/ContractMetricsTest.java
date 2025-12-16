@@ -21,7 +21,6 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Map;
 import java.util.OptionalLong;
 import java.util.concurrent.Executors;
-import org.hiero.consensus.model.node.NodeId;
 import org.hyperledger.besu.evm.frame.MessageFrame.State;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -132,7 +131,7 @@ public class ContractMetricsTest {
                 HederaTestConfigBuilder.createConfig().getConfigData(MetricsConfig.class);
 
         return new DefaultPlatformMetrics(
-                NodeId.of(DEFAULT_NODE_ID),
+                DEFAULT_NODE_ID,
                 new MetricKeyRegistry(),
                 Executors.newSingleThreadScheduledExecutor(),
                 new PlatformMetricsFactoryImpl(metricsConfig),

@@ -9,7 +9,6 @@ import com.swirlds.common.metrics.platform.PlatformMetricsFactoryImpl;
 import com.swirlds.metrics.api.Metrics;
 import java.util.Random;
 import java.util.concurrent.Executors;
-import org.hiero.consensus.model.node.NodeId;
 
 public class TestUtils {
     private static final Random RANDOM = new Random(9239992);
@@ -34,7 +33,7 @@ public class TestUtils {
                 HederaTestConfigBuilder.createConfig().getConfigData(MetricsConfig.class);
 
         return new DefaultPlatformMetrics(
-                NodeId.of(DEFAULT_NODE_ID),
+                DEFAULT_NODE_ID,
                 new MetricKeyRegistry(),
                 Executors.newSingleThreadScheduledExecutor(),
                 new PlatformMetricsFactoryImpl(metricsConfig),

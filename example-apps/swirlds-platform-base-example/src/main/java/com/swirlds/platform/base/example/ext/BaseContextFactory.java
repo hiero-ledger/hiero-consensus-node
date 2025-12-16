@@ -71,7 +71,7 @@ public class BaseContextFactory {
     @NonNull
     private static Metrics getMetrics(@NonNull final Configuration configuration) {
         final DefaultMetricsProvider metricsProvider = new DefaultMetricsProvider(configuration);
-        final Metrics platformMetrics = metricsProvider.createPlatformMetrics(NodeId.FIRST_NODE_ID);
+        final Metrics platformMetrics = metricsProvider.createPlatformMetrics(NodeId.FIRST_NODE_ID.id());
         // Starting the provider here has the effect that we lose support for csv file
         // We should start the provider AFTER all metrics are registered and our current patter doesn't allow for that
         metricsProvider.start();

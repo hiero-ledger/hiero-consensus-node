@@ -105,7 +105,7 @@ public class ConsensusNodeManager {
         final MerkleCryptography merkleCryptography = MerkleCryptographyFactory.create(platformConfig);
 
         setupGlobalMetrics(platformConfig);
-        final Metrics metrics = getMetricsProvider().createPlatformMetrics(selfId);
+        final Metrics metrics = getMetricsProvider().createPlatformMetrics(selfId.id());
 
         log.info(STARTUP.getMarker(), "Creating node {} with version {}", selfId, version);
 

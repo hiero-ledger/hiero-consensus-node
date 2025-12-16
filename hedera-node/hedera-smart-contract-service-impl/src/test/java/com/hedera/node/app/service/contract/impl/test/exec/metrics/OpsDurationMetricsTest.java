@@ -13,7 +13,6 @@ import com.swirlds.common.metrics.platform.MetricKeyRegistry;
 import com.swirlds.common.metrics.platform.PlatformMetricsFactoryImpl;
 import com.swirlds.metrics.api.Metrics;
 import java.util.concurrent.Executors;
-import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -34,7 +33,7 @@ class OpsDurationMetricsTest {
         final MetricsConfig metricsConfig =
                 HederaTestConfigBuilder.createConfig().getConfigData(MetricsConfig.class);
         metrics = new DefaultPlatformMetrics(
-                NodeId.of(DEFAULT_NODE_ID),
+                DEFAULT_NODE_ID,
                 new MetricKeyRegistry(),
                 Executors.newSingleThreadScheduledExecutor(),
                 new PlatformMetricsFactoryImpl(metricsConfig),

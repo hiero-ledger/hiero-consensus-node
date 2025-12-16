@@ -16,7 +16,6 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import java.nio.file.Path;
 import org.hiero.base.concurrent.ExecutorFactory;
-import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.Test;
 
 class DefaultPlatformContextTest {
@@ -25,7 +24,6 @@ class DefaultPlatformContextTest {
     void testNoNullServices() {
         // given
         final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
-        final NodeId nodeId = NodeId.of(3256733545L);
         final PlatformMetricsProvider metricsProvider = new DefaultMetricsProvider(configuration);
         metricsProvider.createGlobalMetrics();
         final MerkleCryptography merkleCryptography = mock(MerkleCryptography.class);
@@ -33,7 +31,7 @@ class DefaultPlatformContextTest {
         // when
         final PlatformContext context = new DefaultPlatformContext(
                 configuration,
-                metricsProvider.createPlatformMetrics(nodeId),
+                metricsProvider.createPlatformMetrics(3256733545L),
                 Time.getCurrent(),
                 ExecutorFactory.create("test", new PlatformUncaughtExceptionHandler()),
                 new TestFileSystemManager(Path.of("/tmp/test")),

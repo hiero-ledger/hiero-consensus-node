@@ -203,11 +203,11 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
             try {
                 // If a previous test didn't clean up properly, remove any existing metrics for this node
                 // This can happen if a test fails during platform initialization
-                getMetricsProvider().removePlatformMetrics(selfId);
+                getMetricsProvider().removePlatformMetrics(selfId.id());
             } catch (final InterruptedException | IllegalArgumentException e) {
                 // ignore, this is just a fallback in case an earlier test didn't clean up properly
             }
-            final Metrics metrics = getMetricsProvider().createPlatformMetrics(selfId);
+            final Metrics metrics = getMetricsProvider().createPlatformMetrics(selfId.id());
             final FileSystemManager fileSystemManager = FileSystemManager.create(currentConfiguration);
             final RecycleBin recycleBin = RecycleBin.create(
                     metrics,

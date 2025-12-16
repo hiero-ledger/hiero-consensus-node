@@ -132,9 +132,9 @@ public class AppTestBase extends TestBase implements TransactionFactory, Scenari
                 ENTITY_COUNTS_STATE_ID, ENTITY_COUNTS_STATE_LABEL, () -> EntityCounts.DEFAULT, (a) -> {});
         nodesState = new MapWritableKVState<>(NODES_STATE_ID, NODES_STATE_LABEL);
         nodesState.put(
-                EntityNumber.newBuilder().number(nodeSelfId.id()).build(),
+                EntityNumber.newBuilder().number(nodeSelfId).build(),
                 Node.newBuilder()
-                        .nodeId(nodeSelfId.id())
+                        .nodeId(nodeSelfId)
                         .accountId(nodeSelfAccountId)
                         .build());
         final var writableStates = MapWritableStates.builder()
@@ -170,7 +170,7 @@ public class AppTestBase extends TestBase implements TransactionFactory, Scenari
         };
     }
     /** Represents "this node" in our tests. */
-    protected final NodeId nodeSelfId = NodeId.of(7);
+    protected final long nodeSelfId = 7L;
     /** The AccountID of "this node" in our tests. */
     protected final AccountID nodeSelfAccountId =
             AccountID.newBuilder().shardNum(0).realmNum(0).accountNum(8).build();

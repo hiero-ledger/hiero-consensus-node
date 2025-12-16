@@ -147,7 +147,7 @@ public abstract class AbstractEmbeddedHedera implements EmbeddedHedera {
         defaultNodeAccountId = fromPbj(accountIds.get(defaultNodeId));
         final var metricsConfig = PLATFORM_CONFIG.getConfigData(MetricsConfig.class);
         metrics = new DefaultPlatformMetrics(
-                defaultNodeId,
+                defaultNodeId.id(),
                 new MetricKeyRegistry(),
                 executorService,
                 new PlatformMetricsFactoryImpl(metricsConfig),

@@ -227,7 +227,7 @@ public class Browser {
             final Configuration configuration = configBuilder.build();
 
             setupGlobalMetrics(configuration);
-            guiMetrics = getMetricsProvider().createPlatformMetrics(nodeId);
+            guiMetrics = getMetricsProvider().createPlatformMetrics(nodeId.id());
 
             final RecycleBin recycleBin = RecycleBin.create(
                     guiMetrics,

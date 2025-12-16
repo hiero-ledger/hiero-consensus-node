@@ -79,7 +79,7 @@ public final class FakePlatform implements Platform {
         final Configuration configuration = HederaTestConfigBuilder.createConfig();
         final MetricsConfig metricsConfig = configuration.getConfigData(MetricsConfig.class);
         final var metrics = new DefaultPlatformMetrics(
-                selfNodeId,
+                selfNodeId.id(),
                 new MetricKeyRegistry(),
                 METRIC_EXECUTOR,
                 new PlatformMetricsFactoryImpl(metricsConfig),
@@ -133,6 +133,6 @@ public final class FakePlatform implements Platform {
     @Override
     public void destroy() throws InterruptedException {
         notificationEngine.shutdown();
-        getMetricsProvider().removePlatformMetrics(selfNodeId);
+        getMetricsProvider().removePlatformMetrics(selfNodeId.id());
     }
 }

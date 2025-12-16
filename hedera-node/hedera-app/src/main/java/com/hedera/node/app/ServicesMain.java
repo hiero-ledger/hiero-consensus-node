@@ -320,7 +320,7 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
         // --- Initialize the platform metrics and the Hedera instance ---
         setupGlobalMetrics(platformConfig);
         final var time = Time.getCurrent();
-        metrics = getMetricsProvider().createPlatformMetrics(selfId);
+        metrics = getMetricsProvider().createPlatformMetrics(selfId.id());
         hedera = newHedera(platformConfig, metrics, time);
         final var version = hedera.getSemanticVersion();
         final AtomicReference<Network> genesisNetwork = new AtomicReference<>();

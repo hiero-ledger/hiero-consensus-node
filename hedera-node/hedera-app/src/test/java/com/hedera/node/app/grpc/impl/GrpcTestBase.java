@@ -102,7 +102,7 @@ public abstract class GrpcTestBase extends TestBase {
      * correctly for different types of calls.
      */
     protected final Metrics metrics = new DefaultPlatformMetrics(
-            nodeSelfId,
+            nodeSelfId.id(),
             new MetricKeyRegistry(),
             METRIC_EXECUTOR,
             new PlatformMetricsFactoryImpl(configuration.getConfigData(MetricsConfig.class)),

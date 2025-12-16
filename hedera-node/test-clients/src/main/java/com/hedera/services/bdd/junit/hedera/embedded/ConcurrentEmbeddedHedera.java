@@ -171,7 +171,7 @@ class ConcurrentEmbeddedHedera extends AbstractEmbeddedHedera implements Embedde
         @Override
         public void destroy() throws InterruptedException {
             executorService.shutdown();
-            getMetricsProvider().removePlatformMetrics(platform.getSelfId());
+            getMetricsProvider().removePlatformMetrics(platform.getSelfId().id());
         }
 
         /**

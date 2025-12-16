@@ -354,7 +354,7 @@ public class SwirldsPlatform implements Platform {
         notificationEngine.shutdown();
         platformContext.getRecycleBin().stop();
         platformCoordinator.stop();
-        getMetricsProvider().removePlatformMetrics(selfId);
+        getMetricsProvider().removePlatformMetrics(selfId.id());
     }
 
     /**

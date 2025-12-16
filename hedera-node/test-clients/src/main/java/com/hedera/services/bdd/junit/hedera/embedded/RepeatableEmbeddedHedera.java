@@ -220,7 +220,7 @@ public class RepeatableEmbeddedHedera extends AbstractEmbeddedHedera implements 
 
         @Override
         public void destroy() throws InterruptedException {
-            getMetricsProvider().removePlatformMetrics(platform.getSelfId());
+            getMetricsProvider().removePlatformMetrics(platform.getSelfId().id());
         }
 
         /**
