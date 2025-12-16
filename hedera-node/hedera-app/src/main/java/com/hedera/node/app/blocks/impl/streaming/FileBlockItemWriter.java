@@ -338,42 +338,25 @@ public class FileBlockItemWriter implements BlockItemWriter {
         }
     }
 
-    /**
-     * Writes a serialized item to the destination stream.
-     *
-     * @param bytes the serialized item to write
-     */
-    void writeItem(@NonNull final byte[] bytes) {
-        requireNonNull(bytes);
+    @Override
+    public void writePbjItem(@NonNull final BlockItem item) {
+        requireNonNull(item);
         if (state != State.OPEN) {
             throw new IllegalStateException(
                     "Cannot write to a FileBlockItemWriter that is not open for block: " + this.blockNumber);
         }
 
-        // Write the ITEMS tag.
-        ProtoWriterTools.writeTag(writableStreamingData, BlockSchema.ITEMS, ProtoConstants.WIRE_TYPE_DELIMITED);
-        // Write the length of the item.
-        writableStreamingData.writeVarInt(bytes.length, false);
-        // Write the item bytes themselves.
-        writableStreamingData.writeBytes(bytes);
-    }
-
-    /**
-     * Writes a block item and its serialized bytes to the destination stream.
-     * Only the serialized bytes are used, the block item is ignored.
-     *
-     * @param item the item to write (ignored in this implementation)
-     * @param bytes the serialized item to write
-     */
-    @Override
-    public void writePbjItemAndBytes(@NonNull final BlockItem item, @NonNull final Bytes bytes) {
-        requireNonNull(bytes, "bytes must not be null");
-        writeItem(bytes.toByteArray());
-    }
-
-    @Override
-    public void writePbjItem(@NonNull BlockItem item) {
-        throw new UnsupportedOperationException("writePbjItem is not supported in this implementation");
+        try {
+            // Write the ITEMS tag
+            ProtoWriterTools.writeTag(writableStreamingData, BlockSchema.ITEMS, ProtoConstants.WIRE_TYPE_DELIMITED);
+            // Write the length of the item we are about to write
+            writableStreamingData.writeVarInt(item.protobufSize(), false);
+            // Write the item
+            BlockItem.PROTOBUF.write(item, writableStreamingData);
+        } catch (final IOException e) {
+            logger.error("Error while writing item in FileBlockItemWriter", e);
+            throw new UncheckedIOException(e);
+        }
     }
 
     @Override
@@ -433,11 +416,6 @@ public class FileBlockItemWriter implements BlockItemWriter {
         } else {
             logger.warn("Block #{} flushed in non-OPEN state '{}'", blockNumber, state, new IllegalStateException());
         }
-    }
-
-    @Override
-    public void jumpToBlockAfterFreeze(long blockNumber) {
-        // no-op
     }
 
     /**

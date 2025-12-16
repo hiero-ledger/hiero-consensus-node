@@ -5,13 +5,10 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.node.app.blocks.BlockItemWriter;
-import com.hedera.node.app.spi.records.SelfNodeAccountIdManager;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.internal.network.PendingProof;
-import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.nio.file.FileSystem;
 
 /**
  * Writes serialized block items to files and streams bidirectionally for the publishBlockStream rpc in BlockStreamService.
@@ -25,18 +22,15 @@ public class FileAndGrpcBlockItemWriter implements BlockItemWriter {
      * Construct a new FileAndGrpcBlockItemWriter.
      *
      * @param configProvider configuration provider
-     * @param selfNodeAccountIdManager information about the current node
-     * @param fileSystem the file system to use for writing block files
-     * @param blockBufferService the block stream state manager
+     * @param fileBlockItemWriter the file block item writer
+     * @param grpcBlockItemWriter the gRPC block item writer
      */
     public FileAndGrpcBlockItemWriter(
             @NonNull final ConfigProvider configProvider,
-            @NonNull final SelfNodeAccountIdManager selfNodeAccountIdManager,
-            @NonNull final FileSystem fileSystem,
-            @NonNull final BlockBufferService blockBufferService,
-            @NonNull final BlockNodeConnectionManager blockNodeConnectionManager) {
-        this.fileBlockItemWriter = new FileBlockItemWriter(configProvider, selfNodeAccountIdManager, fileSystem);
-        this.grpcBlockItemWriter = new GrpcBlockItemWriter(blockBufferService, blockNodeConnectionManager);
+            @NonNull final FileBlockItemWriter fileBlockItemWriter,
+            @NonNull final GrpcBlockItemWriter grpcBlockItemWriter) {
+        this.fileBlockItemWriter = requireNonNull(fileBlockItemWriter);
+        this.grpcBlockItemWriter = requireNonNull(grpcBlockItemWriter);
         this.configProvider = requireNonNull(configProvider, "configProvider must not be null");
     }
 
@@ -52,16 +46,6 @@ public class FileAndGrpcBlockItemWriter implements BlockItemWriter {
         this.fileBlockItemWriter.openBlock(blockNumber);
         if (isStreamingEnabled()) {
             this.grpcBlockItemWriter.openBlock(blockNumber);
-        }
-    }
-
-    @Override
-    public void writePbjItemAndBytes(@NonNull final BlockItem item, @NonNull final Bytes bytes) {
-        requireNonNull(item, "item cannot be null");
-        requireNonNull(bytes, "bytes cannot be null");
-        this.fileBlockItemWriter.writeItem(bytes.toByteArray());
-        if (isStreamingEnabled()) {
-            this.grpcBlockItemWriter.writePbjItem(item);
         }
     }
 
@@ -84,19 +68,10 @@ public class FileAndGrpcBlockItemWriter implements BlockItemWriter {
 
     @Override
     public void writePbjItem(@NonNull final BlockItem item) {
-        throw new UnsupportedOperationException("writePbjItem is not supported in this implementation");
-    }
-
-    /**
-     * Jumps to a specific block number after a freeze event.
-     * This method only affects the gRPC writer, not the file writer.
-     *
-     * @param blockNumber the block number to jump to after freeze
-     */
-    @Override
-    public void jumpToBlockAfterFreeze(final long blockNumber) {
+        requireNonNull(item, "item cannot be null");
+        this.fileBlockItemWriter.writePbjItem(item);
         if (isStreamingEnabled()) {
-            this.grpcBlockItemWriter.jumpToBlockAfterFreeze(blockNumber);
+            this.grpcBlockItemWriter.writePbjItem(item);
         }
     }
 }
