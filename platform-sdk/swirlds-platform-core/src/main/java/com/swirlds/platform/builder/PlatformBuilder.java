@@ -9,6 +9,7 @@ import static com.swirlds.platform.builder.PlatformBuildConstants.DEFAULT_CONFIG
 import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.doStaticSetup;
 import static com.swirlds.platform.config.internal.PlatformConfigUtils.checkConfiguration;
 import static com.swirlds.platform.event.preconsensus.PcesUtilities.getDatabaseDirectory;
+import static com.swirlds.platform.state.service.PlatformStateUtils.isInFreezePeriod;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.SemanticVersion;
@@ -60,7 +61,6 @@ import org.hiero.base.crypto.Signature;
 import org.hiero.consensus.crypto.PlatformSigner;
 import org.hiero.consensus.event.IntakeEventCounter;
 import org.hiero.consensus.event.creator.EventCreatorModule;
-import org.hiero.consensus.hashgraph.FreezeCheckHolder;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
@@ -510,7 +510,7 @@ public final class PlatformBuilder {
                 snapshotOverrideConsumer,
                 intakeEventCounter,
                 secureRandomSupplier,
-                new FreezeCheckHolder(),
+                instant -> isInFreezePeriod(instant, stateLifecycleManager.getMutableState()),
                 new AtomicReference<>(),
                 initialPcesFiles,
                 consensusEventStreamName,
