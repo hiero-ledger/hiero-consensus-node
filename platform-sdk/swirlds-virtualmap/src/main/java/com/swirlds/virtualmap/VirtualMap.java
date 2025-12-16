@@ -1053,6 +1053,7 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
      * @param value Hash value to set
      */
     private void setHashPrivate(@Nullable final Hash value) {
+//        System.err.println("Set hash " + getFastCopyVersion() + ": " + value);
         hash.set(value);
     }
 
@@ -1095,14 +1096,6 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
 
         // Compute the root hash of the virtual tree
         final VirtualHashListener hashListener = new VirtualHashListener() {
-            /*
-            @Override
-            public void onNodeHashed(final long path, final Hash hash) {
-                if (path > 0) {
-                    cache.putHash(path, hash);
-                }
-            }
-            */
             @Override
             public void onHashChunkHashed(@NonNull VirtualHashChunk chunk) {
                 cache.putHashChunk(chunk);
@@ -1110,7 +1103,6 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
         };
         final AtomicInteger hl =  new AtomicInteger();
         Hash virtualHash = hasher.hash(
-                records::findHash,
 //                cache::preloadHashChunk,
                 i -> {
                     hl.incrementAndGet();
@@ -1125,7 +1117,7 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
         logger.info(VIRTUAL_MERKLE_STATS.getMarker(), "Hash chunks loaded {}: {}", getFastCopyVersion(), hl.get());
 
         if (virtualHash == null) {
-            final Hash rootHash = (metadata.getSize() == 0) ? null : records.findRootHash();
+            final Hash rootHash = (metadata.getSize() == 0) ? null : records.rootHash();
             virtualHash = (rootHash != null) ? rootHash : hasher.emptyRootHash();
         }
 
@@ -1381,7 +1373,6 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
                 .setComponent("virtualmap")
                 .setThreadName("hasher")
                 .setRunnable(() -> reconnectHashingFuture.complete(hasher.hash(
-                        reconnectRecords::findHash,
                         reconnectCache::preloadHashChunk,
                         reconnectIterator,
                         firstLeafPath,

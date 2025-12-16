@@ -97,7 +97,7 @@ public class ReconnectHashLeafFlusherTest {
             final long chunkPath = VirtualHashChunk.chunkIdToChunkPath(i, hashChunkHeight);
             final VirtualHashChunk chunk = new VirtualHashChunk(chunkPath, hashChunkHeight);
             for (int j = 0; j < chunk.getChunkSize(); j++) {
-                final long path = VirtualHashChunk.getPathInChunk(chunkPath, j, hashChunkHeight);
+                final long path = VirtualHashChunk.getPathInChunk(j, chunkPath, hashChunkHeight);
                 chunk.setHashAtPath(path, hash((int) (path + 2)));
             }
             flusher.updateHashChunk(chunk);

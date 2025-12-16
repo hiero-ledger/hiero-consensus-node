@@ -1223,7 +1223,7 @@ public final class VirtualNodeCache implements FastCopyable {
 
     public VirtualHashChunk preloadHashChunk(final long path) {
 
-        final long hashChunkId = VirtualHashChunk.pathToChunkId(path, hashChunkHeight);
+        final long hashChunkId = VirtualHashChunk.chunkPathToChunkId(path, hashChunkHeight);
         return idToDirtyHashChunkIndex.compute(hashChunkId, (id, mutation) -> {
                     Mutation<Long, VirtualHashChunk> nextMutation = mutation;
                     Mutation<Long, VirtualHashChunk> previousMutation = null;

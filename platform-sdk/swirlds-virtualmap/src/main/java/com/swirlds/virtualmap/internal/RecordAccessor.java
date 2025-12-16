@@ -57,7 +57,7 @@ public final class RecordAccessor {
         this.dataSource = dataSource;
     }
 
-    public Hash findRootHash() {
+    public Hash rootHash() {
         VirtualHashChunk rootChunk = cache.lookupHashChunkById(0);
         if (rootChunk == null) {
             try {
@@ -69,6 +69,7 @@ public final class RecordAccessor {
         assert rootChunk != null;
         final long size = state.getSize();
         if (size >= 1) {
+            // TODO: path 1 may not be in the root hash chunk
             final Hash left = rootChunk.getHashAtPath(1);
             final Hash right = size >= 2 ? rootChunk.getHashAtPath(2) : VirtualHasher.NO_PATH2_HASH;
             return VirtualHasher.hashInternal(left, right);

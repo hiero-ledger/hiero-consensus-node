@@ -5,6 +5,7 @@ import static com.swirlds.virtualmap.test.fixtures.VirtualMapTestUtils.CONFIGURA
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 import com.swirlds.virtualmap.config.VirtualMapConfig;
+import com.swirlds.virtualmap.datasource.VirtualHashChunk;
 import com.swirlds.virtualmap.datasource.VirtualHashRecord;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import com.swirlds.virtualmap.test.fixtures.TestKey;
@@ -51,8 +52,7 @@ class VirtualHasherHugeTest extends VirtualHasherTestBase {
         // tests. In this test, I just want to be sure that we complete, and that we don't run out of memory.
         final VirtualHasher hasher = new VirtualHasher();
         final Hash rootHash = hasher.hash(
-                path -> null,
-                null,
+                chunkPath -> new VirtualHashChunk(chunkPath, CHUNK_HEIGHT),
                 LongStream.range(firstLeafPath, lastLeafPath + 1)
                         .mapToObj(leafGetter)
                         .iterator(),

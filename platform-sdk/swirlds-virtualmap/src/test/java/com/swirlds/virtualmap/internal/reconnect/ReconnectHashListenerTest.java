@@ -31,6 +31,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.TreeSet;
 import java.util.function.Function;
+import java.util.function.LongFunction;
 import java.util.stream.LongStream;
 import java.util.stream.Stream;
 import org.hiero.base.crypto.Cryptography;
@@ -83,13 +84,12 @@ class ReconnectHashListenerTest {
         final int last = 2 * size - 2;
         final ReconnectHashListener listener = new ReconnectHashListener(flusher);
         final VirtualHasher hasher = new VirtualHasher();
-        final Function<Long, VirtualHashChunk> chunkPreloader = path -> {
+        final LongFunction<VirtualHashChunk> chunkPreloader = path -> {
             final long chunkId = VirtualHashChunk.pathToChunkId(path, hashChunkHeight);
             final long chunkPath = VirtualHashChunk.chunkIdToChunkPath(chunkId, hashChunkHeight);
             return new VirtualHashChunk(chunkPath, hashChunkHeight);
         };
         hasher.hash(
-                this::hash,
                 chunkPreloader,
                 LongStream.range(first, last + 1).mapToObj(this::leaf).iterator(),
                 first,

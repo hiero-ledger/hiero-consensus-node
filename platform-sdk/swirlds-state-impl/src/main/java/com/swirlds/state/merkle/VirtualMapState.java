@@ -791,7 +791,7 @@ public class VirtualMapState implements MerkleNodeState {
     @Override
     public Hash getHashForPath(long path) {
         return path == 0
-                ? virtualMap.getRecords().findRootHash()
+                ? virtualMap.getRecords().rootHash()
                 : virtualMap.getRecords().findHash(path);
     }
 

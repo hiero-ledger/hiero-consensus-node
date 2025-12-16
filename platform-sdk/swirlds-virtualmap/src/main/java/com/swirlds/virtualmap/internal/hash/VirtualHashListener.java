@@ -21,16 +21,11 @@ public interface VirtualHashListener {
     default void onHashingStarted(final long firstLeafPath, final long lastLeafPath) {}
 
     /**
-     * Called after each node is hashed, internal or leaf. This is called between
+     * Called after each hash chunk is hashed. This is called between
      * {@link #onHashingStarted(long, long)} and {@link #onHashingCompleted()}.
      *
-     * @param path
-     * 		Node path
-     * @param hash
-     * 		A non-null node hash
+     * @param chunk Non-null hash chunk
      */
-    default void onNodeHashed(final long path, final Hash hash) {}
-
     default void onHashChunkHashed(@NonNull final VirtualHashChunk chunk) {}
 
     /**
