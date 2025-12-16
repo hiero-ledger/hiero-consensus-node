@@ -74,8 +74,11 @@ public class TokenServiceImpl implements TokenService {
                 new CryptoDeleteFeeCalculator(),
                 new CryptoUpdateFeeCalculator(),
                 new CryptoTransferFeeCalculator(),
+                new TokenAirdropFeeCalculator(),
                 new TokenAssociateFeeCalculator(),
                 new TokenBurnFeeCalculator(),
+                new TokenCancelAirdropFeeCalculator(),
+                new TokenClaimAirdropFeeCalculator(),
                 new TokenCreateFeeCalculator(),
                 new TokenDeleteFeeCalculator(),
                 new TokenDissociateFeeCalculator(),
@@ -86,14 +89,9 @@ public class TokenServiceImpl implements TokenService {
                 new TokenPauseFeeCalculator(),
                 new TokenRejectFeeCalculator(),
                 new TokenRevokeKycFeeCalculator(),
-                new TokenUnpauseFeeCalculator(),
-                new TokenUnfreezeAccountFeeCalculator(),
-                new TokenBurnFeeCalculator(),
-                new TokenDeleteFeeCalculator(),
-                new TokenAirdropFeeCalculator(),
-                new TokenClaimAirdropFeeCalculator(),
-                new TokenCancelAirdropFeeCalculator());
                 new TokenUpdateNftsFeeCalculator(),
+                new TokenUnfreezeAccountFeeCalculator(),
+                new TokenUnpauseFeeCalculator(),
                 new TokenWipeFeeCalculator());
     }
 
