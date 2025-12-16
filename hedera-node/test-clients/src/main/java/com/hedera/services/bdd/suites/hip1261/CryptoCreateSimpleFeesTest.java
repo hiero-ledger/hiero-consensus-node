@@ -55,6 +55,7 @@ import com.google.protobuf.ByteString;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyEmbeddedHapiTest;
+import com.hedera.services.bdd.junit.LeakyHapiTest;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.keys.KeyShape;
 import com.hedera.services.bdd.spec.keys.SigControl;
@@ -1182,7 +1183,7 @@ public class CryptoCreateSimpleFeesTest {
         @Tag(ONLY_SUBPROCESS)
         @DisplayName("CryptoCreate Simple Fees Failures on Handle")
         class CryptoCreateSimpleFeesFailuresOnHandle {
-            @HapiTest
+            @LeakyHapiTest
             @DisplayName("CryptoCreate with duplicate transaction fails on handle")
             Stream<DynamicTest> cryptoCreateWithDuplicateTransactionFailsOnHandlePayerChargedFullFee() {
                 final AtomicLong initialBalance = new AtomicLong();
