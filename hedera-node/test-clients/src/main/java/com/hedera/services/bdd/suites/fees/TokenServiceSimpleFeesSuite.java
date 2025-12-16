@@ -3,6 +3,8 @@ package com.hedera.services.bdd.suites.fees;
 
 import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SIMPLE_FEES;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTokenInfo;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTokenNftInfo;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.burnToken;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.grantTokenKyc;
@@ -27,6 +29,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_BILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.THREE_MONTHS_IN_SECONDS;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.OK;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.TokenType.FUNGIBLE_COMMON;
 import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
@@ -504,7 +507,10 @@ public class TokenServiceSimpleFeesSuite {
                                 .supplyKey(SUPPLY_KEY)
                                 .fee(ONE_HUNDRED_HBARS)
                                 .hasKnownStatus(SUCCESS),
-                        tokenAssociate(OTHER, FUNGIBLE_TOKEN).payingWith(OTHER).via("token-associate-txn")),
+                        tokenAssociate(OTHER, FUNGIBLE_TOKEN)
+                                .payingWith(OTHER)
+                                .fee(ONE_HUNDRED_HBARS)
+                                .via("token-associate-txn")),
                 "token-associate-txn",
                 0.05,
                 1,
@@ -731,6 +737,56 @@ public class TokenServiceSimpleFeesSuite {
                 1);
     }
 
-    // TODO: token get info
-    // TODO: get NFT info or infos
+    @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+    @DisplayName("compare TokenGetInfoQuery")
+    final Stream<DynamicTest> compareTokenGetInfo() {
+        return compareSimpleToOld(() -> Arrays.asList(
+                        newKeyNamed(SUPPLY_KEY),
+                        newKeyNamed(FREEZE_KEY),
+                        cryptoCreate(PAYER).balance(ONE_BILLION_HBARS).key(SUPPLY_KEY),
+                        tokenCreate(FUNGIBLE_TOKEN)
+                                .treasury(PAYER)
+                                .tokenType(FUNGIBLE_COMMON)
+                                .initialSupply(1000L)
+                                .hasKnownStatus(SUCCESS),
+                        getTokenInfo(FUNGIBLE_TOKEN)
+                                .hasTotalSupply(1000L)
+                                .via("get-token-info-query")
+                                .payingWith(PAYER)
+        ),
+                "get-token-info-query",
+                0.0001,
+                1,
+                0.0001,
+                1);
+    }
+    @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+    @DisplayName("compare TokenGetNftInfoQuery")
+    final Stream<DynamicTest> compareTokenGetNftInfo() {
+        return compareSimpleToOld(() -> Arrays.asList(
+                        newKeyNamed(SUPPLY_KEY),
+                        cryptoCreate(PAYER).balance(ONE_BILLION_HBARS).key(SUPPLY_KEY),
+                        tokenCreate(NFT_TOKEN)
+                                .tokenType(NON_FUNGIBLE_UNIQUE)
+                                .initialSupply(0L)
+                                .supplyKey(SUPPLY_KEY)
+                                .hasKnownStatus(SUCCESS),
+                        mintToken(NFT_TOKEN, List.of(ByteString.copyFromUtf8("Bart Simpson")))
+                                .signedBy(SUPPLY_KEY)
+                                .payingWith(PAYER)
+                                .fee(ONE_HUNDRED_HBARS)
+                                .hasKnownStatus(SUCCESS),
+                        getTokenNftInfo(NFT_TOKEN, 1L)
+                                .hasMetadata(ByteString.copyFromUtf8("Bart Simpson"))
+                                .hasSerialNum(1L)
+                                .hasCostAnswerPrecheck(OK)
+                                .via("get-token-nft-info-query")
+                ),
+                "get-token-nft-info-query",
+                0.0001,
+                1,
+                0.0001,
+                1);
+    }
+
 }

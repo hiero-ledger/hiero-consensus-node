@@ -20,7 +20,6 @@ public class TokenGetNftInfoFeeCalculator implements QueryFeeCalculator {
             @Nullable QueryContext queryContext,
             @NonNull FeeResult feeResult,
             @NonNull FeeSchedule feeSchedule) {
-        // TODO: this is deprecated
         final ServiceFeeDefinition serviceDef = lookupServiceFee(feeSchedule, HederaFunctionality.TOKEN_GET_NFT_INFO);
         feeResult.addServiceFee(1, serviceDef.baseFee());
     }

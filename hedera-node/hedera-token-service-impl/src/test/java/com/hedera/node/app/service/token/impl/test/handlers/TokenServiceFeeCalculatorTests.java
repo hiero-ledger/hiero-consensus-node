@@ -9,6 +9,8 @@ import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_DELETE;
 import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_DISSOCIATE_FROM_ACCOUNT;
 import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_FEE_SCHEDULE_UPDATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_FREEZE_ACCOUNT;
+import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_GET_INFO;
+import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_GET_NFT_INFO;
 import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_GRANT_KYC_TO_ACCOUNT;
 import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_MINT;
 import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_PAUSE;
@@ -37,6 +39,8 @@ import com.hedera.hapi.node.token.TokenDeleteTransactionBody;
 import com.hedera.hapi.node.token.TokenDissociateTransactionBody;
 import com.hedera.hapi.node.token.TokenFeeScheduleUpdateTransactionBody;
 import com.hedera.hapi.node.token.TokenFreezeAccountTransactionBody;
+import com.hedera.hapi.node.token.TokenGetInfoQuery;
+import com.hedera.hapi.node.token.TokenGetNftInfoQuery;
 import com.hedera.hapi.node.token.TokenGrantKycTransactionBody;
 import com.hedera.hapi.node.token.TokenMintTransactionBody;
 import com.hedera.hapi.node.token.TokenPauseTransactionBody;
@@ -46,6 +50,7 @@ import com.hedera.hapi.node.token.TokenUnfreezeAccountTransactionBody;
 import com.hedera.hapi.node.token.TokenUnpauseTransactionBody;
 import com.hedera.hapi.node.token.TokenUpdateNftsTransactionBody;
 import com.hedera.hapi.node.token.TokenWipeAccountTransactionBody;
+import com.hedera.hapi.node.transaction.Query;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.token.impl.calculator.CryptoCreateFeeCalculator;
 import com.hedera.node.app.service.token.impl.calculator.CryptoDeleteFeeCalculator;
@@ -57,7 +62,7 @@ import com.hedera.node.app.service.token.impl.calculator.TokenDissociateFeeCalcu
 import com.hedera.node.app.service.token.impl.calculator.TokenFeeScheduleUpdateFeeCalculator;
 import com.hedera.node.app.service.token.impl.calculator.TokenFreezeAccountFeeCalculator;
 import com.hedera.node.app.service.token.impl.calculator.TokenGetInfoFeeCalculator;
-import com.hedera.node.app.service.token.impl.calculator.TokenGetNftInfosFeeCalculator;
+import com.hedera.node.app.service.token.impl.calculator.TokenGetNftInfoFeeCalculator;
 import com.hedera.node.app.service.token.impl.calculator.TokenGrantKycFeeCalculator;
 import com.hedera.node.app.service.token.impl.calculator.TokenMintFeeCalculator;
 import com.hedera.node.app.service.token.impl.calculator.TokenPauseFeeCalculator;
@@ -69,6 +74,7 @@ import com.hedera.node.app.service.token.impl.calculator.TokenUpdateNftsFeeCalcu
 import com.hedera.node.app.service.token.impl.calculator.TokenWipeFeeCalculator;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.SimpleFeeCalculatorImpl;
+import com.hedera.node.app.spi.workflows.QueryContext;
 import com.hedera.node.config.VersionedConfiguration;
 import com.hedera.node.config.data.EntitiesConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -107,12 +113,17 @@ public class TokenServiceFeeCalculatorTests {
     private static final long TOKEN_UNFREEZE_BASE_FEE = 30;
     private static final long TOKEN_UPDATE_NFTS_BASE_FEE = 45;
     private static final long TOKEN_WIPE_BASE_FEE = 45;
+    private static final short TOKEN_GET_INFO_BASE_FEE = 101;
+    private static final short TOKEN_GET_NFT_INFO_BASE_FEE = 102;
 
     private static final long COMMON_TOKEN_FEE = 5;
     private static final long UNIQUE_TOKEN_FEE = 10;
 
     @Mock
     private FeeContext calculatorState;
+
+    @Mock
+    private QueryContext queryContext;
 
     @Mock
     private EntitiesConfig entitiesConfig;
@@ -147,7 +158,8 @@ public class TokenServiceFeeCalculatorTests {
                         new TokenUnpauseFeeCalculator(),
                         new TokenUpdateNftsFeeCalculator(),
                         new TokenWipeFeeCalculator()),
-                Set.of(new TokenGetInfoFeeCalculator(), new TokenGetNftInfosFeeCalculator()));
+                Set.of(new TokenGetInfoFeeCalculator(),
+                        new TokenGetNftInfoFeeCalculator()));
     }
 
     @Test
@@ -377,6 +389,23 @@ public class TokenServiceFeeCalculatorTests {
         assertEquals(TOKEN_UPDATE_NFTS_BASE_FEE, result.total());
     }
 
+
+    @Test
+    void tokenGetInfo() {
+        final var opBody = TokenGetInfoQuery.newBuilder().build();
+        final var queryBody = Query.newBuilder().tokenGetInfo(opBody).build();
+        final var result = feeCalculator.calculateQueryFee(queryBody,queryContext);
+        assertEquals(TOKEN_GET_INFO_BASE_FEE, result);
+    }
+
+    @Test
+    void tokenGetNftInfo() {
+        final var opBody = TokenGetNftInfoQuery.newBuilder().build();
+        final var queryBody = Query.newBuilder().tokenGetNftInfo(opBody).build();
+        final var result = feeCalculator.calculateQueryFee(queryBody,queryContext);
+        assertEquals(TOKEN_GET_NFT_INFO_BASE_FEE, result);
+    }
+
     private FeeSchedule createTestFeeSchedule() {
         return FeeSchedule.DEFAULT
                 .copyBuilder()
@@ -409,7 +438,10 @@ public class TokenServiceFeeCalculatorTests {
                         makeServiceFee(TOKEN_REJECT, TOKEN_REJECT_BASE_FEE),
                         makeServiceFee(TOKEN_UPDATE_NFTS, TOKEN_UPDATE_NFTS_BASE_FEE),
                         makeServiceFee(TOKEN_UNFREEZE_ACCOUNT, TOKEN_UNFREEZE_BASE_FEE),
-                        makeServiceFee(TOKEN_ACCOUNT_WIPE, TOKEN_WIPE_BASE_FEE)))
+                        makeServiceFee(TOKEN_ACCOUNT_WIPE, TOKEN_WIPE_BASE_FEE),
+                        makeServiceFee(TOKEN_GET_INFO,TOKEN_GET_INFO_BASE_FEE),
+                        makeServiceFee(TOKEN_GET_NFT_INFO,TOKEN_GET_NFT_INFO_BASE_FEE)
+                        ))
                 .build();
     }
 }
