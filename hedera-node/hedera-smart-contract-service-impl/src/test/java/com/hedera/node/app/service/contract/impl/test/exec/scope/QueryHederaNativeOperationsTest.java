@@ -82,7 +82,7 @@ class QueryHederaNativeOperationsTest {
                 UnsupportedOperationException.class,
                 () -> subject.checkForCustomFees(CryptoTransferTransactionBody.DEFAULT));
         assertThrows(UnsupportedOperationException.class, () -> subject.setNonce(1L, 2L));
-        assertThrows(UnsupportedOperationException.class, () -> subject.createHollowAccount(Bytes.EMPTY, null));
+        assertThrows(UnsupportedOperationException.class, () -> subject.createHollowAccount(Bytes.EMPTY, Bytes.EMPTY));
         assertThrows(UnsupportedOperationException.class, () -> subject.finalizeHollowAccountAsContract(Bytes.EMPTY));
         assertThrows(UnsupportedOperationException.class, () -> subject.finalizeHollowAccountAsContract(Bytes.EMPTY));
         assertThrows(

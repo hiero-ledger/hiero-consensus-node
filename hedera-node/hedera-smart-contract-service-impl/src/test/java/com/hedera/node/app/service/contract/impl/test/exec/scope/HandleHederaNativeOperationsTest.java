@@ -56,6 +56,7 @@ import com.hedera.node.app.service.token.records.CryptoCreateStreamBuilder;
 import com.hedera.node.app.spi.key.KeyVerifier;
 import com.hedera.node.app.spi.store.StoreFactory;
 import com.hedera.node.app.spi.workflows.HandleContext;
+import com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory;
 import com.hedera.node.app.spi.workflows.record.DeleteCapableTransactionStreamBuilder;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -192,7 +193,7 @@ class HandleHederaNativeOperationsTest {
         given(cryptoCreateRecordBuilder.status()).willReturn(OK);
         given(context.configuration()).willReturn(DEFAULT_CONFIG);
 
-        final var status = subject.createHollowAccount(CANONICAL_ALIAS, null);
+        final var status = subject.createHollowAccount(CANONICAL_ALIAS, Bytes.EMPTY);
         assertEquals(OK, status);
 
         verify(cryptoCreateRecordBuilder, never()).memo(any());
@@ -209,7 +210,29 @@ class HandleHederaNativeOperationsTest {
         given(cryptoCreateRecordBuilder.status()).willReturn(MAX_ENTITIES_IN_PRICE_REGIME_HAVE_BEEN_CREATED);
         given(context.configuration()).willReturn(DEFAULT_CONFIG);
 
-        final var status = assertDoesNotThrow(() -> subject.createHollowAccount(CANONICAL_ALIAS, null));
+        final var status = assertDoesNotThrow(() -> subject.createHollowAccount(CANONICAL_ALIAS, Bytes.EMPTY));
+        assertThat(status).isEqualTo(MAX_ENTITIES_IN_PRICE_REGIME_HAVE_BEEN_CREATED);
+
+        verify(cryptoCreateRecordBuilder, never()).memo(any());
+    }
+
+    @Test
+    void createsHollowAccountWithDelegationByDispatchingDoesNotThrowErrors() {
+        final var synthLazyCreate = TransactionBody.newBuilder()
+                .cryptoCreateAccount(synthHollowAccountCreation(CANONICAL_ALIAS, true, Bytes.fromHex("1234")))
+                .build();
+        given(context.payer()).willReturn(A_NEW_ACCOUNT_ID);
+        given(context.dispatch(assertArg(options -> {
+                    assertEquals(synthLazyCreate, options.body());
+                    assertTrue(options.commitImmediately());
+                    assertEquals(TransactionCategory.CHILD, options.category());
+                })))
+                .willReturn(cryptoCreateRecordBuilder);
+        given(cryptoCreateRecordBuilder.status()).willReturn(MAX_ENTITIES_IN_PRICE_REGIME_HAVE_BEEN_CREATED);
+        given(context.configuration()).willReturn(DEFAULT_CONFIG);
+
+        final var status =
+                assertDoesNotThrow(() -> subject.createHollowAccount(CANONICAL_ALIAS, Bytes.fromHex("1234")));
         assertThat(status).isEqualTo(MAX_ENTITIES_IN_PRICE_REGIME_HAVE_BEEN_CREATED);
 
         verify(cryptoCreateRecordBuilder, never()).memo(any());

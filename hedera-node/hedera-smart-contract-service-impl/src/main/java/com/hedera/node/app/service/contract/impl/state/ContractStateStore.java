@@ -31,14 +31,6 @@ public interface ContractStateStore {
     void putBytecode(@NonNull ContractID contractID, @NonNull Bytecode code);
 
     /**
-     * Removes the {@link Bytecode} for the given contract number.
-     * This should only be used with an EOA with a code delegation indicator.
-     *
-     * @param contractID the contract id to remove the {@link Bytecode} for
-     */
-    void removeBytecode(@NonNull ContractID contractID);
-
-    /**
      * Removes the given {@link SlotKey}.
      *
      * @param key the {@link SlotKey} to remove

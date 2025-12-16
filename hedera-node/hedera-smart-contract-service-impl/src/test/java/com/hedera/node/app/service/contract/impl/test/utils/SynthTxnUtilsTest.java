@@ -51,6 +51,16 @@ class SynthTxnUtilsTest {
                 .build();
         assertEquals(
                 expectedWithoutUnlimitedAssociations, synthHollowAccountCreation(CANONICAL_ALIAS, false, Bytes.EMPTY));
+
+        final var expectedWithCodeDelegation = CryptoCreateTransactionBody.newBuilder()
+                .key(IMMUTABILITY_SENTINEL_KEY)
+                .memo(LAZY_CREATION_MEMO)
+                .alias(CANONICAL_ALIAS)
+                .autoRenewPeriod(DEFAULT_AUTO_RENEW_PERIOD)
+                .delegationAddress(Bytes.fromHex("1234"))
+                .build();
+        assertEquals(
+                expectedWithCodeDelegation, synthHollowAccountCreation(CANONICAL_ALIAS, false, Bytes.fromHex("1234")));
     }
 
     @Test

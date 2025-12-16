@@ -104,6 +104,9 @@ class ProxyWorldUpdaterTest {
     @Mock
     private EvmFrameState evmFrameState;
 
+    @Mock
+    private AccountID accountID;
+
     private ProxyWorldUpdater subject;
 
     @BeforeEach
@@ -493,5 +496,17 @@ class ProxyWorldUpdaterTest {
     void currentExchangeRateTest() {
         subject.currentExchangeRate();
         verify(systemContractOperations).currentExchangeRate();
+    }
+
+    @Test
+    void setAccountCodeDelegationTest() {
+        subject.setAccountCodeDelegationIndicator(accountID, Address.ZERO);
+        verify(subject.enhancement().operations()).setAccountCodeDelegation(accountID, Address.ZERO);
+    }
+
+    @Test
+    void createAccountWithCodeDelegationIndicatorTest() {
+        subject.createAccountWithCodeDelegationIndicator(SOME_EVM_ADDRESS, Address.ZERO);
+        verify(evmFrameState).tryLazyCreation(SOME_EVM_ADDRESS, Address.ZERO);
     }
 }

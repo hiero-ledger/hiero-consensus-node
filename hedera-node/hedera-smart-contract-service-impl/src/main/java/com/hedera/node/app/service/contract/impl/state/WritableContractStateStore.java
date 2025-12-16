@@ -56,15 +56,6 @@ public class WritableContractStateStore extends ReadableContractStateStore imple
         entityCounters.incrementEntityTypeCount(EntityType.CONTRACT_BYTECODE);
     }
 
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void removeBytecode(@NonNull final ContractID contractID) {
-        bytecode.remove(requireNonNull(contractID));
-        entityCounters.decrementEntityTypeCounter(EntityType.CONTRACT_BYTECODE);
-    }
-
     @Override
     public void removeSlot(@NonNull final SlotKey key) {
         storage.remove(requireNonNull(key));

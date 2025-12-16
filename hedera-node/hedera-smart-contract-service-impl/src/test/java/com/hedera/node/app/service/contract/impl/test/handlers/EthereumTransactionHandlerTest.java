@@ -415,7 +415,8 @@ class EthereumTransactionHandlerTest {
             final var toAddress = RECEIVER_ADDRESS.toByteArray();
             given(ethTxDataReturned.to()).willReturn(toAddress);
             GasCharges gasCharges = TestHelpers.gasChargesFromIntrinsicGas(INTRINSIC_GAS_FOR_0_ARG_METHOD);
-            given(gasCalculator.transactionGasRequirements(org.apache.tuweni.bytes.Bytes.wrap(new byte[0]), false, 0L))
+            given(gasCalculator.transactionGasRequirements(
+                            org.apache.tuweni.bytes.Bytes.wrap(new byte[0]), false, 0L, 0L))
                     .willReturn(gasCharges);
             given(ethTxDataReturned.gasLimit()).willReturn(INTRINSIC_GAS_FOR_0_ARG_METHOD);
             assertDoesNotThrow(() -> subject.pureChecks(pureChecksContext));
@@ -474,7 +475,8 @@ class EthereumTransactionHandlerTest {
             final var toAddress = RECEIVER_ADDRESS.toByteArray();
             given(ethTxDataReturned.to()).willReturn(toAddress);
             GasCharges gasCharges = TestHelpers.gasChargesFromIntrinsicGas(INTRINSIC_GAS_FOR_0_ARG_METHOD);
-            given(gasCalculator.transactionGasRequirements(org.apache.tuweni.bytes.Bytes.wrap(new byte[0]), false, 0L))
+            given(gasCalculator.transactionGasRequirements(
+                            org.apache.tuweni.bytes.Bytes.wrap(new byte[0]), false, 0L, 0L))
                     .willReturn(gasCharges);
             PreCheckException exception =
                     assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
@@ -493,7 +495,8 @@ class EthereumTransactionHandlerTest {
             final var toAddress = RECEIVER_ADDRESS.toByteArray();
             given(ethTxDataReturned.to()).willReturn(toAddress);
             GasCharges gasCharges = TestHelpers.gasChargesFromIntrinsicGas(INTRINSIC_GAS_FOR_0_ARG_METHOD);
-            given(gasCalculator.transactionGasRequirements(org.apache.tuweni.bytes.Bytes.wrap(new byte[0]), false, 0L))
+            given(gasCalculator.transactionGasRequirements(
+                            org.apache.tuweni.bytes.Bytes.wrap(new byte[0]), false, 0L, 0L))
                     .willReturn(gasCharges);
             PreCheckException exception =
                     assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));

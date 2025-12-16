@@ -25,15 +25,19 @@ import static com.hedera.node.app.service.contract.impl.utils.SynthTxnUtils.synt
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.SignedTxCustomizer.SUPPRESSING_SIGNED_TX_CUSTOMIZER;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.assertArg;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
@@ -58,6 +62,7 @@ import com.hedera.node.app.service.contract.impl.state.WritableContractStateStor
 import com.hedera.node.app.service.entityid.EntityNumGenerator;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.api.TokenServiceApi;
+import com.hedera.node.app.service.token.records.CryptoUpdateStreamBuilder;
 import com.hedera.node.app.spi.fees.FeeCharging;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.records.BlockRecordInfo;
@@ -73,12 +78,15 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Collections;
 import java.util.Objects;
 import java.util.function.UnaryOperator;
+import org.hyperledger.besu.datatypes.Address;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
+import org.mockito.MockedStatic;
+import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
@@ -124,6 +132,15 @@ class HandleHederaOperationsTest {
 
     @Mock
     private ContractMetrics contractMetrics;
+
+    @Mock
+    private AccountID accountID;
+
+    @Mock
+    private AccountID payerID;
+
+    @Mock
+    private DispatchOptions dispatchOptions;
 
     private HandleHederaOperations subject;
 
@@ -611,5 +628,55 @@ class HandleHederaOperationsTest {
         // then
         verify(contractCreateRecordBuilder).createdContractID(contractId);
         verify(contractCreateRecordBuilder).contractCreateResult(any(ContractFunctionResult.class));
+    }
+
+    @Test
+    void setAccountCodeDelegationReturnsTrueOnSuccess() {
+        final var delegationAddress = Address.fromHexString("0x0000000000000000000000000000000000000042");
+
+        when(context.payer()).thenReturn(payerID);
+
+        final var streamBuilder = mock(CryptoUpdateStreamBuilder.class);
+        when(streamBuilder.status()).thenReturn(ResponseCodeEnum.SUCCESS);
+
+        try (MockedStatic<DispatchOptions> icd = Mockito.mockStatic(DispatchOptions.class)) {
+            icd.when(() -> DispatchOptions.independentChildDispatch(
+                            eq(payerID), any(TransactionBody.class), eq(CryptoUpdateStreamBuilder.class)))
+                    .thenReturn(dispatchOptions);
+
+            when(context.dispatch(any())).thenReturn(streamBuilder);
+
+            final var result = subject.setAccountCodeDelegation(accountID, delegationAddress);
+
+            assertTrue(result);
+            verify(context).dispatch(any());
+            verify(streamBuilder).status();
+        }
+    }
+
+    @Test
+    void setAccountCodeDelegationReturnsFalseOnNonSuccess() {
+        final var delegationAddress = Address.fromHexString("0x0000000000000000000000000000000000000042");
+
+        when(context.payer()).thenReturn(payerID);
+
+        final var streamBuilder = mock(CryptoUpdateStreamBuilder.class);
+        when(streamBuilder.status()).thenReturn(ResponseCodeEnum.INVALID_ACCOUNT_ID);
+
+        try (MockedStatic<DispatchOptions> icd = Mockito.mockStatic(DispatchOptions.class)) {
+            icd.when(() -> DispatchOptions.independentChildDispatch(
+                            eq(payerID), any(TransactionBody.class), eq(CryptoUpdateStreamBuilder.class)))
+                    .thenReturn(dispatchOptions);
+
+            when(context.dispatch(any())).thenReturn(streamBuilder);
+
+            // Act
+            final var result = subject.setAccountCodeDelegation(accountID, delegationAddress);
+
+            // Assert
+            assertFalse(result);
+            verify(context).dispatch(any());
+            verify(streamBuilder).status();
+        }
     }
 }

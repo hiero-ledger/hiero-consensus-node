@@ -2,7 +2,6 @@
 package com.hedera.node.app.service.token;
 
 import static com.hedera.node.app.hapi.utils.keys.KeyUtils.isValid;
-import static com.hedera.node.app.service.token.api.AccountSummariesApi.EVM_ADDRESS_SIZE;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
