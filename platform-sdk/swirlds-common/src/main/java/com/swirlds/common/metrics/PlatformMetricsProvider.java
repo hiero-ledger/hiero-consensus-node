@@ -26,16 +26,16 @@ public interface PlatformMetricsProvider {
     /**
      * Creates a platform-specific {@link Metrics}-instance.
      *
-     * @param nodeId the node id of the platform
+     * @param id the id of the platform
      * @return the new instance of {@code Metrics}
      */
     @NonNull
-    Metrics createPlatformMetrics(long nodeId);
+    Metrics createPlatformMetrics(long id);
 
     /**
      * Remove a platform-specific {@link Metrics}-instance.
      *
-     * @param nodeId the node id of the platform
+     * @param id the id of the platform
      */
-    void removePlatformMetrics(long nodeId) throws InterruptedException;
+    void removePlatformMetrics(long id) throws InterruptedException;
 }

@@ -98,17 +98,17 @@ public class DefaultMetricsProvider implements PlatformMetricsProvider, Lifecycl
      * {@inheritDoc}
      */
     @Override
-    public @NonNull Metrics createPlatformMetrics(final long nodeId) {
+    public @NonNull Metrics createPlatformMetrics(final long id) {
         final DefaultPlatformMetrics newMetrics =
-                new DefaultPlatformMetrics(nodeId, metricKeyRegistry, executor, factory, metricsConfig);
+                new DefaultPlatformMetrics(id, metricKeyRegistry, executor, factory, metricsConfig);
 
-        final DefaultPlatformMetrics oldMetrics = platformMetrics.putIfAbsent(nodeId, newMetrics);
+        final DefaultPlatformMetrics oldMetrics = platformMetrics.putIfAbsent(id, newMetrics);
         if (oldMetrics != null) {
-            throw new IllegalStateException(String.format("PlatformMetrics for %s already exists", nodeId));
+            throw new IllegalStateException(String.format("PlatformMetrics for %s already exists", id));
         }
 
         final Runnable unsubscribeGlobalMetrics = globalMetrics.subscribe(newMetrics::handleGlobalMetrics);
-        unsubscribers.put(nodeId, List.of(unsubscribeGlobalMetrics));
+        unsubscribers.put(id, List.of(unsubscribeGlobalMetrics));
 
         if (lifecyclePhase == LifecyclePhase.STARTED) {
             newMetrics.start();
@@ -121,9 +121,9 @@ public class DefaultMetricsProvider implements PlatformMetricsProvider, Lifecycl
 
             // setup LegacyCsvWriter
             if (!metricsConfig.csvFileName().isBlank()) {
-                final LegacyCsvWriter legacyCsvWriter = new LegacyCsvWriter(nodeId, folderPath, configuration);
+                final LegacyCsvWriter legacyCsvWriter = new LegacyCsvWriter(id, folderPath, configuration);
                 final Runnable unsubscribeCsvWriter = snapshotService.subscribe(legacyCsvWriter::handleSnapshots);
-                unsubscribers.put(nodeId, List.of(unsubscribeCsvWriter, unsubscribeGlobalMetrics));
+                unsubscribers.put(id, List.of(unsubscribeCsvWriter, unsubscribeGlobalMetrics));
             }
 
             // setup Prometheus Endpoint
@@ -139,16 +139,16 @@ public class DefaultMetricsProvider implements PlatformMetricsProvider, Lifecycl
      * {@inheritDoc}
      */
     @Override
-    public void removePlatformMetrics(final long nodeId) throws InterruptedException {
-        final DefaultPlatformMetrics metrics = platformMetrics.get(nodeId);
+    public void removePlatformMetrics(final long id) throws InterruptedException {
+        final DefaultPlatformMetrics metrics = platformMetrics.get(id);
         if (metrics == null) {
-            throw new IllegalArgumentException(String.format("PlatformMetrics for %s does not exist", nodeId));
+            throw new IllegalArgumentException(String.format("PlatformMetrics for %s does not exist", id));
         }
 
         metrics.shutdown();
-        unsubscribers.remove(nodeId).forEach(Runnable::run);
+        unsubscribers.remove(id).forEach(Runnable::run);
         snapshotService.removePlatformMetric(metrics);
-        platformMetrics.remove(nodeId);
+        platformMetrics.remove(id);
     }
 
     @Override
