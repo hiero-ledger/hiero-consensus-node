@@ -2,6 +2,8 @@
 package com.hedera.node.config.data;
 
 import static com.hedera.hapi.node.base.HederaFunctionality.ATOMIC_BATCH;
+import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_GET_LEDGER_CONFIG;
+import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_SET_LEDGER_CONFIG;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONSENSUS_CREATE_TOPIC;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONSENSUS_DELETE_TOPIC;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONSENSUS_GET_TOPIC_INFO;
@@ -282,7 +284,9 @@ public record ApiPermissionConfig(
         @ConfigProperty(defaultValue = "0-0") PermissionedAccountsRange crsPublication,
         @ConfigProperty(defaultValue = "0-*") PermissionedAccountsRange lambdaSStore,
         @ConfigProperty(defaultValue = "0-0") PermissionedAccountsRange hookDispatch,
-        @ConfigProperty(defaultValue = "0-0") PermissionedAccountsRange nodeStakeUpdate) {
+        @ConfigProperty(defaultValue = "0-0") PermissionedAccountsRange nodeStakeUpdate,
+        @ConfigProperty(defaultValue = "0-*") PermissionedAccountsRange clprGetLedgerConfig,
+        @ConfigProperty(defaultValue = "0-*") PermissionedAccountsRange clprSetLedgerConfig) {
 
     private static final EnumMap<HederaFunctionality, Function<ApiPermissionConfig, PermissionedAccountsRange>>
             permissionKeys = new EnumMap<>(HederaFunctionality.class);
@@ -372,6 +376,8 @@ public record ApiPermissionConfig(
         permissionKeys.put(HISTORY_PROOF_VOTE, c -> c.historyProofVote);
         permissionKeys.put(CRS_PUBLICATION, c -> c.crsPublication);
         permissionKeys.put(NODE_STAKE_UPDATE, c -> c.nodeStakeUpdate);
+        permissionKeys.put(CLPR_GET_LEDGER_CONFIG, c -> c.clprGetLedgerConfig);
+        permissionKeys.put(CLPR_SET_LEDGER_CONFIG, c -> c.clprSetLedgerConfig);
     }
 
     /**

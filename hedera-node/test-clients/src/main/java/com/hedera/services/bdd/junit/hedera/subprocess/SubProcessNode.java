@@ -11,7 +11,7 @@ import static com.hedera.services.bdd.junit.hedera.subprocess.NodeStatus.GrpcSta
 import static com.hedera.services.bdd.junit.hedera.subprocess.NodeStatus.GrpcStatus.NA;
 import static com.hedera.services.bdd.junit.hedera.subprocess.NodeStatus.GrpcStatus.UP;
 import static com.hedera.services.bdd.junit.hedera.subprocess.ProcessUtils.conditionFuture;
-import static com.hedera.services.bdd.junit.hedera.subprocess.ProcessUtils.destroyAnySubProcessNodeWithId;
+import static com.hedera.services.bdd.junit.hedera.subprocess.ProcessUtils.destroySubProcessNodeFor;
 import static com.hedera.services.bdd.junit.hedera.subprocess.ProcessUtils.startSubProcessNodeFrom;
 import static com.hedera.services.bdd.junit.hedera.subprocess.StatusLookupAttempt.newLogAttempt;
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.ERROR_REDIRECT_FILE;
@@ -214,7 +214,7 @@ public class SubProcessNode extends AbstractLocalNode<SubProcessNode> implements
             final int configVersion, @NonNull final Map<String, String> envOverrides) {
         assertStopped();
         assertWorkingDirInitialized();
-        destroyAnySubProcessNodeWithId(metadata.nodeId());
+        destroySubProcessNodeFor(metadata);
         processHandle = startSubProcessNodeFrom(metadata, configVersion, envOverrides);
         return this;
     }
@@ -227,14 +227,17 @@ public class SubProcessNode extends AbstractLocalNode<SubProcessNode> implements
      * @param gossipPort the new gossip port
      * @param tlsGossipPort the new TLS gossip port
      * @param prometheusPort the new Prometheus port
+     * @param debugPort the new debug (JDWP) port
      */
     public void reassignPorts(
             final int grpcPort,
             final int grpcNodeOperatorPort,
             final int gossipPort,
             final int tlsGossipPort,
-            final int prometheusPort) {
-        metadata = metadata.withNewPorts(grpcPort, grpcNodeOperatorPort, gossipPort, tlsGossipPort, prometheusPort);
+            final int prometheusPort,
+            final int debugPort) {
+        metadata = metadata.withNewPorts(
+                grpcPort, grpcNodeOperatorPort, gossipPort, tlsGossipPort, prometheusPort, debugPort);
     }
 
     /**

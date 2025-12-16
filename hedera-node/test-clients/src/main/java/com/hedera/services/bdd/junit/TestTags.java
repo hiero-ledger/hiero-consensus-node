@@ -9,6 +9,9 @@ public class TestTags {
 
     public static final String MATS = "MATS";
 
+    public static final String CLPR = "CLPR";
+    public static final String MULTINETWORK = "MULTINETWORK";
+
     public static final String CRYPTO = "CRYPTO";
     public static final String SMART_CONTRACT = "SMART_CONTRACT";
     public static final String LONG_RUNNING = "LONG_RUNNING";
