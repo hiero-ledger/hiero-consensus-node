@@ -996,6 +996,10 @@ public class TestHelpers {
                 HederaEvmVersion.VERSION_051,
                 processor,
                 HederaEvmVersion.VERSION_065,
+                processor,
+                HederaEvmVersion.VERSION_066,
+                processor,
+                HederaEvmVersion.VERSION_067,
                 processor);
     }
 

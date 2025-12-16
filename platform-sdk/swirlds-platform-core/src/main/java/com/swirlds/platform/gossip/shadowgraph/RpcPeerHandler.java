@@ -10,7 +10,6 @@ import com.hedera.hapi.platform.event.GossipEvent;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.utility.throttle.RateLimiter;
 import com.swirlds.logging.legacy.LogMarker;
-import com.swirlds.platform.gossip.IntakeEventCounter;
 import com.swirlds.platform.gossip.permits.SyncGuard;
 import com.swirlds.platform.gossip.rpc.GossipRpcReceiver;
 import com.swirlds.platform.gossip.rpc.GossipRpcSender;
@@ -27,6 +26,7 @@ import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Hash;
+import org.hiero.consensus.event.IntakeEventCounter;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
@@ -214,8 +214,6 @@ public class RpcPeerHandler implements GossipRpcReceiver {
     public void cleanup() {
         clearInternalState();
         state.peerStillSendingEvents = false;
-        sharedShadowgraphSynchronizer.deregisterPeerHandler(this);
-        this.syncMetrics.reportSyncPhase(peerId, SyncPhase.OUTSIDE_OF_RPC);
     }
 
     // HANDLE INCOMING MESSAGES - all done on dispatch thread
@@ -239,6 +237,16 @@ public class RpcPeerHandler implements GossipRpcReceiver {
      */
     @Override
     public void receiveTips(@NonNull final List<Boolean> remoteTipKnowledge) {
+
+        if (state.mySyncData == null) {
+            throw new IllegalStateException("Received tips confirmation before sending sync data from " + peerId);
+        }
+
+        if (state.myTips == null) {
+            throw new IllegalStateException(
+                    "Internal inconsistency - sent sync data but no info about my tips, when receiving tips from "
+                            + peerId);
+        }
 
         if (state.remoteSyncData == null) {
             throw new IllegalStateException("Need sync data before receiving tips from " + peerId);
@@ -306,8 +314,7 @@ public class RpcPeerHandler implements GossipRpcReceiver {
 
         this.syncMetrics.eventWindow(state.mySyncData.eventWindow(), remoteEventWindow);
 
-        this.sharedShadowgraphSynchronizer.reportRoundDifference(
-                state.mySyncData.eventWindow(), remoteEventWindow, peerId);
+        this.sharedShadowgraphSynchronizer.reportSyncStatus(state.mySyncData.eventWindow(), remoteEventWindow, peerId);
 
         final FallenBehindStatus behindStatus =
                 fallenBehindMonitor.check(state.mySyncData.eventWindow(), state.remoteSyncData.eventWindow(), peerId);
@@ -360,7 +367,7 @@ public class RpcPeerHandler implements GossipRpcReceiver {
         state.shadowWindow = sharedShadowgraphSynchronizer.reserveEventWindow();
         state.myTips = sharedShadowgraphSynchronizer.getTips();
         final List<Hash> tipHashes =
-                state.myTips.stream().map(ShadowEvent::getEventBaseHash).collect(Collectors.toList());
+                state.myTips.stream().map(ShadowEvent::getBaseHash).collect(Collectors.toList());
         state.mySyncData = new SyncData(state.shadowWindow.getEventWindow(), tipHashes, ignoreIncomingEvents);
         sender.sendSyncData(state.mySyncData);
         this.syncMetrics.outgoingSyncRequestSent();

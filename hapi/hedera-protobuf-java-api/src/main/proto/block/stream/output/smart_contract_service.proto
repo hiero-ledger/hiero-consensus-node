@@ -28,11 +28,11 @@ import "services/contract_types.proto";
  * the original transaction.
  */
 message CallContractOutput {
-    /**
-     * An EVM transaction result. Contains just the information not already
-     * externalized in the matching transaction body.
-     */
-    proto.EvmTransactionResult evm_transaction_result = 1;
+  /**
+   * An EVM transaction result. Contains just the information not already
+   * externalized in the matching transaction body.
+   */
+  proto.EvmTransactionResult evm_transaction_result = 1;
 }
 
 /**
@@ -42,11 +42,11 @@ message CallContractOutput {
  * the original transaction.
  */
 message CreateContractOutput {
-    /**
-     * An EVM transaction result. Contains just the information not already
-     * externalized in the matching transaction body.
-     */
-    proto.EvmTransactionResult evm_transaction_result = 1;
+  /**
+   * An EVM transaction result. Contains just the information not already
+   * externalized in the matching transaction body.
+   */
+  proto.EvmTransactionResult evm_transaction_result = 1;
 }
 
 // no evm exec, only modified entity
@@ -90,19 +90,19 @@ message SystemDeleteContractOutput {}
  * the original transaction.
  */
 message EthereumOutput {
-    oneof transaction_result {
-        /**
-         * An EVM transaction result for an Ethereum transaction executed as a
-         * call. Contains just the information not already externalized in the
-         * matching transaction body.
-         */
-        proto.EvmTransactionResult evm_call_transaction_result = 1;
+  oneof transaction_result {
+    /**
+     * An EVM transaction result for an Ethereum transaction executed as a
+     * call. Contains just the information not already externalized in the
+     * matching transaction body.
+     */
+    proto.EvmTransactionResult evm_call_transaction_result = 1;
 
-        /**
-         * An EVM transaction result for an Ethereum transaction executed as a
-         * create. Contains just the information not already externalized in the
-         * matching transaction body.
-         */
-        proto.EvmTransactionResult evm_create_transaction_result = 2;
-    }
+    /**
+     * An EVM transaction result for an Ethereum transaction executed as a
+     * create. Contains just the information not already externalized in the
+     * matching transaction body.
+     */
+    proto.EvmTransactionResult evm_create_transaction_result = 2;
+  }
 }

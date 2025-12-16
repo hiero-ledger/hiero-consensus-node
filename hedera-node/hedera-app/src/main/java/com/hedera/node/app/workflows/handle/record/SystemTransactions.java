@@ -58,6 +58,7 @@ import com.hedera.node.app.spi.AppContext;
 import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.migrate.StartupNetworks;
+import com.hedera.node.app.spi.records.SelfNodeAccountIdManager;
 import com.hedera.node.app.spi.workflows.SystemContext;
 import com.hedera.node.app.state.HederaRecordCache;
 import com.hedera.node.app.state.recordcache.LegacyListRecordSource;
@@ -94,6 +95,7 @@ import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.List;
@@ -150,6 +152,7 @@ public class SystemTransactions {
     private final StartupNetworks startupNetworks;
     private final StakePeriodChanges stakePeriodChanges;
     private final ImmediateStateChangeListener immediateStateChangeListener;
+    private final SelfNodeAccountIdManager selfNodeAccountIdManager;
 
     private int nextDispatchNonce = 1;
 
@@ -171,7 +174,8 @@ public class SystemTransactions {
             @NonNull final HederaRecordCache recordCache,
             @NonNull final StartupNetworks startupNetworks,
             @NonNull final StakePeriodChanges stakePeriodChanges,
-            @NonNull final ImmediateStateChangeListener immediateStateChangeListener) {
+            @NonNull final ImmediateStateChangeListener immediateStateChangeListener,
+            @NonNull final SelfNodeAccountIdManager selfNodeAccountIdManager) {
         this.initTrigger = requireNonNull(initTrigger);
         this.fileService = requireNonNull(fileService);
         this.parentTxnFactory = requireNonNull(parentTxnFactory);
@@ -190,6 +194,7 @@ public class SystemTransactions {
         this.startupNetworks = requireNonNull(startupNetworks);
         this.stakePeriodChanges = requireNonNull(stakePeriodChanges);
         this.immediateStateChangeListener = requireNonNull(immediateStateChangeListener);
+        this.selfNodeAccountIdManager = requireNonNull(selfNodeAccountIdManager);
     }
 
     /**
@@ -362,12 +367,13 @@ public class SystemTransactions {
             final var nodeStore = new ReadableStoreFactory(state).getStore(ReadableNodeStore.class);
             fileService.updateAddressBookAndNodeDetailsAfterFreeze(systemContext, nodeStore);
         }
+        selfNodeAccountIdManager.setSelfNodeAccountId(networkInfo.selfNodeInfo().accountId());
 
         // And then we update the system files for fees schedules, throttles, override properties, and override
         // permissions from any upgrade files that are present in the configured directory
         final var filesConfig = config.getConfigData(FilesConfig.class);
         final var adminConfig = config.getConfigData(NetworkAdminConfig.class);
-        final List<AutoEntityUpdate<Bytes>> autoSysFileUpdates = List.of(
+        final List<AutoEntityUpdate<Bytes>> autoSysFileUpdates = new ArrayList<>(List.of(
                 new AutoEntityUpdate<>(
                         (ctx, bytes) ->
                                 dispatchSynthFileUpdate(ctx, createFileID(filesConfig.feeSchedules(), config), bytes),
@@ -387,9 +393,9 @@ public class SystemTransactions {
                         (ctx, bytes) -> dispatchSynthFileUpdate(
                                 ctx, createFileID(filesConfig.hapiPermissions(), config), bytes),
                         adminConfig.upgradePermissionOverridesFile(),
-                        in -> parseConfig("override HAPI permissions", in)));
+                        in -> parseConfig("override HAPI permissions", in))));
         final var feesConfig = config.getConfigData(FeesConfig.class);
-        if (feesConfig.simpleFeesEnabled()) {
+        if (feesConfig.createSimpleFeeSchedule()) {
             autoSysFileUpdates.add(new AutoEntityUpdate<>(
                     (ctx, bytes) -> dispatchSynthFileUpdate(
                             ctx, createFileID(filesConfig.simpleFeesSchedules(), config), bytes),

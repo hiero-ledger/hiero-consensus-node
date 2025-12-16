@@ -6,6 +6,7 @@ import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromPbj;
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.toPbj;
 import static java.lang.System.arraycopy;
 import static java.util.Objects.requireNonNull;
+import static org.hiero.base.crypto.Cryptography.NULL_HASH;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.primitives.Longs;
@@ -22,6 +23,7 @@ import com.hederahashgraph.api.proto.java.Timestamp;
 import com.hederahashgraph.api.proto.java.TransactionBody;
 import com.hederahashgraph.api.proto.java.TransactionOrBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
@@ -184,5 +186,22 @@ public final class CommonUtils {
         } catch (final ArithmeticException ae) {
             return addendA > 0 ? Long.MAX_VALUE : Long.MIN_VALUE;
         }
+    }
+
+    public static long clampedMultiply(final long a, final long b) {
+        try {
+            return Math.multiplyExact(a, b);
+        } catch (ArithmeticException ignore) {
+            return Long.signum(a) == Long.signum(b) ? Long.MAX_VALUE : Long.MIN_VALUE;
+        }
+    }
+
+    /**
+     * Returns the given hash if it is non-null and non-empty; otherwise, returns {@code NULL_HASH}
+     * @param maybeHash the possibly null or empty hash
+     * @return the given hash or {@code NULL_HASH} if the given hash is null or empty
+     */
+    public static Bytes inputOrNullHash(@Nullable final Bytes maybeHash) {
+        return (maybeHash != null && maybeHash.length() > 0) ? maybeHash : NULL_HASH.getBytes();
     }
 }

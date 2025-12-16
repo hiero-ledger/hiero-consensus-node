@@ -60,7 +60,7 @@ class BlockBufferRestartIntegrationTest extends BlockNodeCommunicationTestBase {
 
     private static final String TEST_DIR = "testBlockBufferRestart";
     private static final File TEST_DIR_FILE = new File(TEST_DIR);
-    private static final Duration BLOCK_TTL = Duration.ofMinutes(5);
+    private static final int MAX_BUFFERED_BLOCKS = 150;
     private static final Duration BLOCK_PERIOD = Duration.ofSeconds(2);
 
     // Reflection handles for accessing private fields
@@ -222,6 +222,9 @@ class BlockBufferRestartIntegrationTest extends BlockNodeCommunicationTestBase {
         verify(blockStreamMetrics, times(numBlocks)).recordLatestBlockOpened(anyLong());
         verify(blockStreamMetrics, times(numBlocks)).recordBlockClosed();
         verify(blockStreamMetrics).recordLatestBlockAcked(lastVerifiedBlock);
+        verify(blockStreamMetrics, times(70)).recordBlockItemBytes(anyLong());
+        verify(blockStreamMetrics, times(10)).recordBlockItemsPerBlock(anyInt());
+        verify(blockStreamMetrics, times(10)).recordBlockBytes(anyLong());
         verifyNoMoreInteractions(blockStreamMetrics);
         verifyNoInteractions(connectionManager);
     }
@@ -230,7 +233,7 @@ class BlockBufferRestartIntegrationTest extends BlockNodeCommunicationTestBase {
      * Test Case: Buffer is full (startup scenario)
      *
      * Scenario:
-     * When the node is restarted, at least one block which is unacknowledged is 5 minutes old.
+     * When the node is restarted, at least one unacknowledged block is 5 minutes old.
      * Node will startup, attempt to stream to a block node in order to get a BlockAcknowledgement
      * which would free up space in the buffer of unacknowledged blocks before starting the platform.
      */
@@ -243,14 +246,13 @@ class BlockBufferRestartIntegrationTest extends BlockNodeCommunicationTestBase {
         blockBufferService = initBufferService(configProvider);
 
         // Step 1: Create enough blocks to saturate the buffer
-        final int maxBufferSize = (int) BLOCK_TTL.dividedBy(BLOCK_PERIOD); // Should be 150 blocks
         final long startBlockNumber = 200L;
 
         // Create blocks with timestamps that make some of them > 5 minutes old
         final Instant now = Instant.now();
         final Instant sixMinutesAgo = now.minus(Duration.ofMinutes(6)); // Make them older than TTL
 
-        for (long blockNum = startBlockNumber; blockNum < startBlockNumber + maxBufferSize; blockNum++) {
+        for (long blockNum = startBlockNumber; blockNum < startBlockNumber + MAX_BUFFERED_BLOCKS; blockNum++) {
             blockBufferService.openBlock(blockNum);
 
             final List<BlockItem> items = generateBlockItems(3, blockNum, Set.of());
@@ -263,7 +265,7 @@ class BlockBufferRestartIntegrationTest extends BlockNodeCommunicationTestBase {
             assertThat(blockState).isNotNull();
 
             // Make first half of blocks "old" by manipulating their timestamps
-            if (blockNum < startBlockNumber + maxBufferSize / 2) {
+            if (blockNum < startBlockNumber + MAX_BUFFERED_BLOCKS / 2) {
                 // Use reflection to set older timestamp (simulating blocks that are 5+ minutes old)
                 blockState.closeBlock(sixMinutesAgo);
             }
@@ -271,7 +273,7 @@ class BlockBufferRestartIntegrationTest extends BlockNodeCommunicationTestBase {
 
         // Verify buffer is full
         final ConcurrentMap<Long, BlockState> buffer = blockBuffer();
-        assertThat(buffer).hasSize(maxBufferSize);
+        assertThat(buffer).hasSize(MAX_BUFFERED_BLOCKS);
 
         // Step 2: Persist buffer and simulate shutdown
         persistBufferHandle.invoke(blockBufferService);
@@ -289,7 +291,7 @@ class BlockBufferRestartIntegrationTest extends BlockNodeCommunicationTestBase {
 
         // Verify buffer was restored and is saturated
         final ConcurrentMap<Long, BlockState> restoredBuffer = blockBuffer();
-        assertThat(restoredBuffer).hasSize(maxBufferSize);
+        assertThat(restoredBuffer).hasSize(MAX_BUFFERED_BLOCKS);
 
         // Step 5: Simulate getting acknowledgments from block node to free up buffer space
         ForkJoinPool.commonPool().execute(() -> {
@@ -298,7 +300,7 @@ class BlockBufferRestartIntegrationTest extends BlockNodeCommunicationTestBase {
                 Thread.sleep(100);
 
                 // Simulate block node acknowledging half the blocks to free up space
-                final long ackedUpTo = startBlockNumber + maxBufferSize / 2;
+                final long ackedUpTo = startBlockNumber + MAX_BUFFERED_BLOCKS / 2;
                 blockBufferService.setLatestAcknowledgedBlock(ackedUpTo);
 
                 // Trigger buffer check to process acknowledgments and potentially enable backpressure relief
@@ -324,7 +326,7 @@ class BlockBufferRestartIntegrationTest extends BlockNodeCommunicationTestBase {
         }
 
         // Verify that acknowledgments were processed
-        final long expectedAckedUpTo = startBlockNumber + maxBufferSize / 2;
+        final long expectedAckedUpTo = startBlockNumber + MAX_BUFFERED_BLOCKS / 2;
         for (long blockNum = startBlockNumber; blockNum <= expectedAckedUpTo; blockNum++) {
             assertThat(blockBufferService.isAcked(blockNum)).isTrue();
         }
@@ -332,18 +334,21 @@ class BlockBufferRestartIntegrationTest extends BlockNodeCommunicationTestBase {
         // Verify that buffer contains the expected blocks after acknowledgments
         // After acknowledging half the blocks, we should have the remaining unacknowledged blocks
         final int currentBufferSize = restoredBuffer.size();
-        assertThat(currentBufferSize).isGreaterThanOrEqualTo(maxBufferSize / 2);
-        assertThat(currentBufferSize).isLessThanOrEqualTo(maxBufferSize);
+        assertThat(currentBufferSize).isGreaterThanOrEqualTo(MAX_BUFFERED_BLOCKS / 2);
+        assertThat(currentBufferSize).isLessThanOrEqualTo(MAX_BUFFERED_BLOCKS);
 
         verify(blockStreamMetrics).recordBackPressureDisabled();
         verify(blockStreamMetrics).recordBufferSaturation(anyDouble());
         verify(blockStreamMetrics).recordNumberOfBlocksPruned(anyInt());
         verify(blockStreamMetrics).recordBufferOldestBlock(anyLong());
         verify(blockStreamMetrics).recordBufferNewestBlock(anyLong());
-        verify(blockStreamMetrics, times(maxBufferSize)).recordBlockOpened();
-        verify(blockStreamMetrics, times(maxBufferSize)).recordLatestBlockOpened(anyLong());
-        verify(blockStreamMetrics, times(maxBufferSize)).recordBlockClosed();
+        verify(blockStreamMetrics, times(MAX_BUFFERED_BLOCKS)).recordBlockOpened();
+        verify(blockStreamMetrics, times(MAX_BUFFERED_BLOCKS)).recordLatestBlockOpened(anyLong());
+        verify(blockStreamMetrics, times(MAX_BUFFERED_BLOCKS)).recordBlockClosed();
         verify(blockStreamMetrics).recordLatestBlockAcked(expectedAckedUpTo);
+        verify(blockStreamMetrics, times(750)).recordBlockItemBytes(anyLong());
+        verify(blockStreamMetrics, times(150)).recordBlockItemsPerBlock(anyInt());
+        verify(blockStreamMetrics, times(150)).recordBlockBytes(anyLong());
         verifyNoMoreInteractions(blockStreamMetrics);
         verifyNoInteractions(connectionManager);
     }
@@ -421,7 +426,7 @@ class BlockBufferRestartIntegrationTest extends BlockNodeCommunicationTestBase {
                 .withValue("blockStream.writerMode", "GRPC")
                 .withValue("blockStream.streamMode", "BLOCKS")
                 .withValue("blockStream.blockPeriod", BLOCK_PERIOD)
-                .withValue("blockStream.buffer.blockTtl", BLOCK_TTL)
+                .withValue("blockStream.buffer.maxBlocks", MAX_BUFFERED_BLOCKS)
                 .withValue("blockStream.buffer.isBufferPersistenceEnabled", true)
                 .withValue("blockStream.buffer.bufferDirectory", TEST_DIR)
                 .withValue("blockStream.buffer.actionStageThreshold", 50.0)

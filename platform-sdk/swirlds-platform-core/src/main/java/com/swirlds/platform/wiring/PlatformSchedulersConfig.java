@@ -14,7 +14,6 @@ import java.time.Duration;
  * @param eventSignatureValidator              configuration for the event signature validator scheduler
  * @param orphanBuffer                         configuration for the orphan buffer scheduler
  * @param consensusEngine                      configuration for the consensus engine scheduler
- * @param eventCreationManager                 configuration for the event creation manager scheduler
  * @param stateSigner                          configuration for the state signer scheduler
  * @param pcesSequencer                        configuration for the preconsensus event sequencer scheduler
  * @param applicationTransactionPrehandler     configuration for the application transaction prehandler scheduler
@@ -28,7 +27,6 @@ import java.time.Duration;
  * @param stateGarbageCollector                configuration for the state garbage collector scheduler
  * @param stateGarbageCollectorHeartbeatPeriod the frequency that heartbeats should be sent to the state garbage
  *                                             collector
- * @param platformPublisher                    configuration for the platform publisher scheduler
  * @param consensusEventStream                 configuration for the consensus event stream scheduler
  * @param roundDurabilityBuffer                configuration for the round durability buffer scheduler
  * @param signedStateSentinel                  configuration for the signed state sentinel scheduler
@@ -55,8 +53,6 @@ public record PlatformSchedulersConfig(
                         defaultValue =
                                 "SEQUENTIAL_THREAD CAPACITY(500) FLUSHABLE SQUELCHABLE UNHANDLED_TASK_METRIC BUSY_FRACTION_METRIC")
                 TaskSchedulerConfiguration consensusEngine,
-        @ConfigProperty(defaultValue = "SEQUENTIAL CAPACITY(500) FLUSHABLE SQUELCHABLE UNHANDLED_TASK_METRIC")
-                TaskSchedulerConfiguration eventCreationManager,
         @ConfigProperty(defaultValue = "SEQUENTIAL_THREAD CAPACITY(20) UNHANDLED_TASK_METRIC")
                 TaskSchedulerConfiguration stateSnapshotManager,
         @ConfigProperty(defaultValue = "SEQUENTIAL CAPACITY(10) UNHANDLED_TASK_METRIC")
@@ -91,8 +87,6 @@ public record PlatformSchedulersConfig(
         @ConfigProperty(defaultValue = "SEQUENTIAL UNHANDLED_TASK_METRIC")
                 TaskSchedulerConfiguration signedStateSentinel,
         @ConfigProperty(defaultValue = "10s") Duration signedStateSentinelHeartbeatPeriod,
-        @ConfigProperty(defaultValue = "SEQUENTIAL CAPACITY(500) UNHANDLED_TASK_METRIC")
-                TaskSchedulerConfiguration platformPublisher,
         @ConfigProperty(defaultValue = "DIRECT_THREADSAFE") TaskSchedulerConfiguration consensusEventStream,
         @ConfigProperty(defaultValue = "SEQUENTIAL CAPACITY(5) FLUSHABLE UNHANDLED_TASK_METRIC")
                 TaskSchedulerConfiguration roundDurabilityBuffer,

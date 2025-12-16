@@ -11,6 +11,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSFER_ACCOUNT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TRANSACTION_REQUIRES_ZERO_HOOKS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.TRANSACTION_REQUIRES_ZERO_TOKEN_BALANCES;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.WRONG_HOOK_ENTITY_TYPE;
 import static com.hedera.node.app.hapi.utils.keys.KeyUtils.IMMUTABILITY_SENTINEL_KEY;
 import static com.hedera.node.app.spi.workflows.HandleException.validateFalse;
 import static com.hedera.node.app.spi.workflows.HandleException.validateTrue;
@@ -33,6 +34,7 @@ import com.hedera.node.app.service.token.impl.validators.StakingValidator;
 import com.hedera.node.app.spi.fees.Fees;
 import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.validation.ExpiryValidator;
+import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.record.DeleteCapableTransactionStreamBuilder;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.config.data.AccountsConfig;
@@ -316,7 +318,8 @@ public class TokenServiceApiImpl implements TokenServiceApi {
     }
 
     @Override
-    public void updateLambdaStorageSlots(@NonNull final AccountID accountId, final int netChangeInSlotsUsed) {
+    public void updateLambdaStorageSlots(
+            @NonNull final AccountID accountId, final int netChangeInSlotsUsed, final boolean requireContract) {
         requireNonNull(accountId);
         final var account = accountStore.get(accountId);
         if (account == null) {
@@ -330,6 +333,12 @@ public class TokenServiceApiImpl implements TokenServiceApi {
                     + netChangeInSlotsUsed
                     + " for account "
                     + accountId);
+        }
+        if (requireContract && !account.smartContract()) {
+            throw new HandleException(WRONG_HOOK_ENTITY_TYPE);
+        }
+        if (netChangeInSlotsUsed == 0) {
+            return;
         }
         accountStore.put(
                 account.copyBuilder().numberLambdaStorageSlots(newSlotsUsed).build());
@@ -459,8 +468,8 @@ public class TokenServiceApiImpl implements TokenServiceApi {
 
     @Override
     public long originalKvUsageFor(@NonNull final ContractID id) {
-        Account account = accountStore.getContractById(id);
-        final var oldAccount = account == null ? null : accountStore.getOriginalValue(account.accountId());
+        final var account = accountStore.getContractById(id);
+        final var oldAccount = account == null ? null : accountStore.getOriginalValue(account.accountIdOrThrow());
         return oldAccount == null ? 0 : oldAccount.contractKvPairsNumber();
     }
 

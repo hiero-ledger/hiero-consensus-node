@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.hapi.fees;
 
-import java.util.LinkedHashMap;
-import java.util.Map;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * The result of calculating a transaction fee. The fee
@@ -17,35 +17,31 @@ public class FeeResult {
     /** The network component in tinycents. */
     public long network = 0;
     /** Details about the fee, broken down by label. */
-    public Map<String, FeeDetail> details = new LinkedHashMap<>();
+    public List<FeeDetail> details = new ArrayList<>();
 
     /** Add a service fee with details.
-     * @param label a human-readable text description of the fee.
      * @param count the number of units for this fee.
      * @param cost the actual computed cost of this service fee in tinycents.
      * */
-    public void addServiceFee(String label, long count, long cost) {
-        details.put(label, new FeeDetail(count, cost));
-        service = clampedAdd(service, cost);
+    public void addServiceFee(long count, long cost) {
+        details.add(new FeeDetail(count, cost));
+        service = clampedAdd(service, count * cost);
     }
 
     /** Add a node fee with details.
-     * @param label a human-readable text description of the fee.
      * @param count the number of units for this fee.
      * @param cost the actual computed cost of this service fee in tinycents.
      * */
-    public void addNodeFee(String label, long count, long cost) {
-        details.put(label, new FeeDetail(count, cost));
-        node = clampedAdd(node, cost);
+    public void addNodeFee(long count, long cost) {
+        details.add(new FeeDetail(count, cost));
+        node = clampedAdd(node, count * cost);
     }
 
     /** Add a network fee with details.
-     * @param label a human-readable text description of the fee.
-     * @param count the number of units for this fee.
      * @param cost the actual computed cost of this service fee in tinycents.
      * */
-    public void addNetworkFee(String label, long count, long cost) {
-        details.put(label, new FeeDetail(count, cost));
+    public void addNetworkFee(long cost) {
+        details.add(new FeeDetail(1, cost));
         network = clampedAdd(network, cost);
     }
 

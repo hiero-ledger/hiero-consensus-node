@@ -588,12 +588,14 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
             throw new IllegalStateException("Tried calling endWriting with different thread to startWriting()");
         }
         final int size = oneTransactionsData.size();
-        logger.info(
-                MERKLE_DB.getMarker(),
-                "Finishing writing to {}, num of changed bins = {}, num of changed keys = {}",
-                storeName,
-                size,
-                oneTransactionsData.stream().mapToLong(BucketMutation::size).sum());
+        if (logger.isDebugEnabled(MERKLE_DB.getMarker())) {
+            logger.debug(
+                    MERKLE_DB.getMarker(),
+                    "Finishing writing to {}, num of changed bins = {}, num of changed keys = {}",
+                    storeName,
+                    size,
+                    oneTransactionsData.stream().mapToLong(BucketMutation::size).sum());
+        }
         final DataFileReader dataFileReader;
         try {
             if (size > 0) {
@@ -687,6 +689,20 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
         }
     }
 
+    // This is a helper method used in ReadUpdateBucketTask and StoreBucketTask, when a bucket
+    // is processed (either no updates to the bucket, or it has been written to disk).
+    private void bucketProcessed() {
+        // Let the current submit task know that a bucket is fully processed, and
+        // the task can be run
+        if (bucketPermits.getAndIncrement() == 0) {
+            // If a submit task is currently running in parallel, it must have already created
+            // a new "current" submit task and permits have been set to 0, otherwise the
+            // getAndIncrement() above couldn't return 0. It means, notifyBucketProcessed()
+            // will be called on a different submit task than the one currently running
+            currentSubmitTask.get().notifyBucketProcessed();
+        }
+    }
+
     /**
      * A task to read a bucket identified by the given idex from disk and apply a list of
      * updates to the keys to it. The task has no dependencies, it's executed right after
@@ -706,25 +722,36 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
             this.keyUpdates = keyUpdates;
         }
 
-        private void createAndScheduleStoreTask(final Bucket bucket) {
-            // Create a subsequent "store bucket" task for the bucket
-            final StoreBucketTask storeTask = new StoreBucketTask(getPool(), bucket);
-            // The last created "store bucket" task. storeTask above will be set as an
-            // output dependency for that task to make sure tasks are running only one at
-            // a time. See StoreBucketTask for details
-            final StoreBucketTask prevTask = lastStoreTask.getAndSet(storeTask);
-            if (prevTask != null) {
-                // This will trigger prevTask execution as soon as its prev task is complete
-                prevTask.setNext(storeTask);
+        private void createAndScheduleStoreTask(final Bucket bucket, final boolean bucketChanged) throws IOException {
+            if (bucketChanged) {
+                // Create a subsequent "store bucket" task for the bucket
+                final StoreBucketTask storeTask = new StoreBucketTask(getPool(), bucket);
+                // The last created "store bucket" task. storeTask above will be set as an
+                // output dependency for that task to make sure tasks are running only one at
+                // a time. See StoreBucketTask for details
+                final StoreBucketTask prevTask = lastStoreTask.getAndSet(storeTask);
+                if (prevTask != null) {
+                    // This will trigger prevTask execution as soon as its prev task is complete
+                    prevTask.setNext(storeTask);
+                } else {
+                    // The first task: no dependency on the prev task, can be executed rightaway
+                    storeTask.send();
+                }
             } else {
-                // The first task: no dependency on the prev task, can be executed rightaway
-                storeTask.send();
+                // Just close the bucket and mark it as processed
+                bucket.close();
+                bucketProcessed();
             }
             if (storeBucketTasksCreated.incrementAndGet() == updatedBucketsCount.get()) {
                 // The last task: no dependency on the next task, can be executed as soon as
                 // its prev task is complete, no need to wait until the next task dependency
                 // is set
-                lastStoreTask.get().setNext(notifyTaskRef.get());
+                final StoreBucketTask lastTask = lastStoreTask.get();
+                if (lastTask != null) {
+                    lastTask.setNext(notifyTaskRef.get());
+                } else {
+                    notifyTaskRef.get().send();
+                }
             }
         }
 
@@ -733,9 +760,19 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
             BufferedData bucketData = fileCollection.readDataItemUsingIndex(bucketIndexToBucketLocation, bucketIndex);
             // The bucket will be closed by StoreBucketTask
             final Bucket bucket = bucketPool.getBucket();
+            boolean bucketChanged = false;
             if (bucketData == null) {
                 // An empty bucket
                 bucket.setBucketIndex(bucketIndex);
+                // Add all entries
+                assert keyUpdates != null;
+                for (BucketMutation m = keyUpdates; m != null; m = m.getNext()) {
+                    assert m.getOldValue() == INVALID_VALUE;
+                    if (m.getValue() != INVALID_VALUE) {
+                        bucket.addValue(m.getKeyBytes(), m.getKeyHashCode(), m.getValue());
+                    }
+                }
+                bucketChanged = true;
             } else {
                 // Read from bytes
                 bucket.readFrom(bucketData);
@@ -744,7 +781,7 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
                             MERKLE_DB.getMarker(),
                             "Bucket index integrity check " + bucketIndex + " != " + bucket.getBucketIndex());
                     /*
-                       This is a workaround for the issue https://github.com/hiero-ledger/hiero-consensus-node/pull/18250,
+                       This is a workaround for issue https://github.com/hiero-ledger/hiero-consensus-node/pull/18250,
                        which caused possible corruption in snapshots.
                        If the snapshot is corrupted, the code may read a bucket from the file, and the bucket index
                        may be different from the expected one. In this case, we clear the bucket (as it contains garbage
@@ -752,13 +789,20 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
                     */
                     bucket.clear();
                 }
-                // Clear old bucket entries with wrong hash codes
-                bucket.sanitize(bucketIndex, bucketMaskBits.get());
+                // Apply all updates
+                for (BucketMutation m = keyUpdates; m != null; m = m.getNext()) {
+                    if (bucket.putValue(m.getKeyBytes(), m.getKeyHashCode(), m.getOldValue(), m.getValue())) {
+                        bucketChanged = true;
+                    }
+                }
+                // Sanitize the bucket only if there have been any updates to it
+                if (bucketChanged) {
+                    // Clear old bucket entries with wrong hash codes
+                    bucket.sanitize(bucketIndex, bucketMaskBits.get());
+                }
             }
-            // Apply all updates
-            keyUpdates.forEachKeyValue(bucket::putValue);
             // Schedule a "store bucket" task for this bucket
-            createAndScheduleStoreTask(bucket);
+            createAndScheduleStoreTask(bucket, bucketChanged);
             return true;
         }
 
@@ -817,15 +861,7 @@ public class HalfDiskHashMap implements AutoCloseable, Snapshotable, FileStatist
                 }
                 return true;
             } finally {
-                // Let the current submit task know that a bucket is fully processed, and
-                // the task can be run
-                if (bucketPermits.getAndIncrement() == 0) {
-                    // If a submit task is currently running in parallel, it must have already created
-                    // a new "current" submit task and permits have been set to 0, otherwise the
-                    // getAndIncrement() above couldn't return 0. It means, notifyBucketProcessed()
-                    // will be called on a different submit task than the one currently running
-                    currentSubmitTask.get().notifyBucketProcessed();
-                }
+                bucketProcessed();
                 next.send();
             }
         }

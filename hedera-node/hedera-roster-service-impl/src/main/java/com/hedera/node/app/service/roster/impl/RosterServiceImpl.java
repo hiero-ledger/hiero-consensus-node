@@ -5,7 +5,6 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.node.app.service.roster.impl.schemas.V0540RosterSchema;
-import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.service.PlatformStateService;
 import com.swirlds.state.State;
 import com.swirlds.state.lifecycle.SchemaRegistry;
@@ -42,17 +41,13 @@ public class RosterServiceImpl implements Service {
     @Deprecated
     private final Supplier<State> stateSupplier;
 
-    private final PlatformStateFacade platformStateFacade;
-
     public RosterServiceImpl(
             @NonNull final Predicate<Roster> canAdopt,
             @NonNull final BiConsumer<Roster, Roster> onAdopt,
-            @NonNull final Supplier<State> stateSupplier,
-            @NonNull final PlatformStateFacade platformStateFacade) {
+            @NonNull final Supplier<State> stateSupplier) {
         this.onAdopt = requireNonNull(onAdopt);
         this.canAdopt = requireNonNull(canAdopt);
         this.stateSupplier = requireNonNull(stateSupplier);
-        this.platformStateFacade = platformStateFacade;
     }
 
     @NonNull
@@ -69,7 +64,6 @@ public class RosterServiceImpl implements Service {
     @Override
     public void registerSchemas(@NonNull final SchemaRegistry registry) {
         requireNonNull(registry);
-        registry.register(
-                new V0540RosterSchema(onAdopt, canAdopt, WritableRosterStore::new, stateSupplier, platformStateFacade));
+        registry.register(new V0540RosterSchema(onAdopt, canAdopt, WritableRosterStore::new, stateSupplier));
     }
 }

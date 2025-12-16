@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.virtualmap.internal.reconnect;
 
-import com.swirlds.virtualmap.internal.merkle.VirtualRootNode;
+import com.swirlds.virtualmap.VirtualMap;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 import java.util.Objects;
@@ -10,7 +10,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * This iterator was designed specifically for use with {@link VirtualRootNode} during reconnect on the
+ * This iterator was designed specifically for use with {@link VirtualMap} during reconnect on the
  * learner, but in concept could be adapted for more general use. This class enables a publisher/subscriber
  * approach to an iterator. New items are added via {@link #supply(Object)}, while items are
  * consumed using {@link #next()}. {@link #hasNext()} will return true until there are no more items to

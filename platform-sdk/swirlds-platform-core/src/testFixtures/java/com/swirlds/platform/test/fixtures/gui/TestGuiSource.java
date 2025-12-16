@@ -55,8 +55,7 @@ public class TestGuiSource {
         this.eventStorage = new GuiEventStorage(platformContext.getConfiguration(), roster);
         this.guiSource = new StandardGuiSource(roster, eventStorage);
         this.eventProvider = eventProvider;
-        this.orphanBuffer = new DefaultOrphanBuffer(
-                platformContext.getConfiguration(), platformContext.getMetrics(), new NoOpIntakeEventCounter());
+        this.orphanBuffer = new DefaultOrphanBuffer(platformContext.getMetrics(), new NoOpIntakeEventCounter());
     }
 
     public void runGui() {

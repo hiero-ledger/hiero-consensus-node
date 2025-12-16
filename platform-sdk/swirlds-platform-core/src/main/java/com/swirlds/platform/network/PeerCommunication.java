@@ -82,7 +82,7 @@ public class PeerCommunication implements ConnectionTracker {
         this.selfPeer = Objects.requireNonNull(selfPeer);
         this.selfId = selfPeer.nodeId();
 
-        this.networkMetrics = new NetworkMetrics(platformContext.getMetrics(), selfPeer.nodeId());
+        this.networkMetrics = new NetworkMetrics(platformContext.getMetrics(), selfPeer.nodeId(), peers);
         platformContext.getMetrics().addUpdater(networkMetrics::update);
 
         this.topology = new StaticTopology(peers, selfPeer.nodeId());

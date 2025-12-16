@@ -5,6 +5,7 @@ import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.getGlo
 import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.getMetricsProvider;
 import static com.swirlds.platform.gui.internal.BrowserWindowManager.getPlatforms;
 import static com.swirlds.platform.state.iss.IssDetector.DO_NOT_IGNORE_ROUNDS;
+import static com.swirlds.platform.state.service.PlatformStateUtils.latestFreezeRoundOf;
 
 import com.swirlds.common.merkle.utility.SerializableLong;
 import com.swirlds.common.threading.manager.AdHocThreadManager;
@@ -68,11 +69,9 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Objects;
-import java.util.ServiceLoader;
 import org.hiero.consensus.crypto.DefaultEventHasher;
 import org.hiero.consensus.crypto.EventHasher;
 import org.hiero.consensus.crypto.PlatformSigner;
-import org.hiero.consensus.event.creator.EventCreatorModule;
 import org.hiero.consensus.model.event.CesEvent;
 
 /**
@@ -103,7 +102,6 @@ public class PlatformComponentBuilder {
     private EventSignatureValidator eventSignatureValidator;
     private StateGarbageCollector stateGarbageCollector;
     private OrphanBuffer orphanBuffer;
-    private EventCreatorModule eventCreator;
     private ConsensusEngine consensusEngine;
     private ConsensusEventStream consensusEventStream;
     private SignedStateSentinel signedStateSentinel;
@@ -259,11 +257,8 @@ public class PlatformComponentBuilder {
     @NonNull
     public InternalEventValidator buildInternalEventValidator() {
         if (internalEventValidator == null) {
-            final boolean singleNodeNetwork =
-                    blocks.rosterHistory().getCurrentRoster().rosterEntries().size() == 1;
             internalEventValidator = new DefaultInternalEventValidator(
                     blocks.platformContext(),
-                    singleNodeNetwork,
                     blocks.intakeEventCounter(),
                     blocks.execution().getTransactionLimits());
         }
@@ -381,10 +376,7 @@ public class PlatformComponentBuilder {
     @NonNull
     public OrphanBuffer buildOrphanBuffer() {
         if (orphanBuffer == null) {
-            orphanBuffer = new DefaultOrphanBuffer(
-                    blocks.platformContext().getConfiguration(),
-                    blocks.platformContext().getMetrics(),
-                    blocks.intakeEventCounter());
+            orphanBuffer = new DefaultOrphanBuffer(blocks.platformContext().getMetrics(), blocks.intakeEventCounter());
         }
         return orphanBuffer;
     }
@@ -404,50 +396,6 @@ public class PlatformComponentBuilder {
         this.orphanBuffer = Objects.requireNonNull(orphanBuffer);
 
         return this;
-    }
-
-    /**
-     * Provide an event creator in place of the platform's default event creator.
-     *
-     * @param eventCreator the event creator to use
-     * @return this builder
-     */
-    @NonNull
-    public PlatformComponentBuilder withEventCreator(@NonNull final EventCreatorModule eventCreator) {
-        throwIfAlreadyUsed();
-        if (this.eventCreator != null) {
-            throw new IllegalStateException("Event creation manager has already been set");
-        }
-        this.eventCreator = Objects.requireNonNull(eventCreator);
-        return this;
-    }
-
-    /**
-     * Build the event creator if it has not yet been built. If one has been provided via
-     * {@link #withEventCreator(EventCreatorModule)}, that creator will be used. If this method is called more than once,
-     * only the first call will build the event creator. Otherwise, the default creator will be created and returned.
-     *
-     * @return the event creator
-     */
-    @NonNull
-    public EventCreatorModule buildEventCreator() {
-        if (eventCreator == null) {
-            eventCreator = ServiceLoader.load(EventCreatorModule.class).stream()
-                    .findFirst()
-                    .orElseThrow(() -> new IllegalStateException("No EventCreatorModule implementation found!"))
-                    .get();
-        }
-        eventCreator.initialize(
-                blocks.platformContext().getConfiguration(),
-                blocks.platformContext().getMetrics(),
-                blocks.platformContext().getTime(),
-                blocks.secureRandomSupplier().get(),
-                blocks.keysAndCerts(),
-                blocks.rosterHistory().getCurrentRoster(),
-                blocks.selfId(),
-                blocks.execution(),
-                blocks.execution());
-        return eventCreator;
     }
 
     /**
@@ -726,8 +674,8 @@ public class PlatformComponentBuilder {
                             .validateInitialState()
                     ? DO_NOT_IGNORE_ROUNDS
                     : initialStateRound;
-            final long latestFreezeRound = blocks.platformStateFacade()
-                    .latestFreezeRoundOf(blocks.initialState().get().getState());
+            final long latestFreezeRound =
+                    latestFreezeRoundOf(blocks.initialState().get().getState());
 
             issDetector = new DefaultIssDetector(
                     blocks.platformContext(),
@@ -804,11 +752,9 @@ public class PlatformComponentBuilder {
                     blocks.rosterHistory().getCurrentRoster(),
                     blocks.selfId(),
                     blocks.appVersion(),
-                    blocks.swirldStateManager(),
+                    blocks.stateLifecycleManager(),
                     () -> blocks.getLatestCompleteStateReference().get().get(),
                     blocks.intakeEventCounter(),
-                    blocks.platformStateFacade(),
-                    blocks.createStateFromVirtualMap(),
                     blocks.fallenBehindMonitor(),
                     blocks.reservedSignedStateResultPromise());
         }
@@ -882,7 +828,7 @@ public class PlatformComponentBuilder {
                     actualMainClassName,
                     blocks.selfId(),
                     blocks.swirldName(),
-                    blocks.platformStateFacade());
+                    blocks.stateLifecycleManager());
         }
         return stateSnapshotManager;
     }
@@ -913,7 +859,7 @@ public class PlatformComponentBuilder {
     @NonNull
     public HashLogger buildHashLogger() {
         if (hashLogger == null) {
-            hashLogger = new DefaultHashLogger(blocks.platformContext(), blocks.platformStateFacade());
+            hashLogger = new DefaultHashLogger(blocks.platformContext());
         }
         return hashLogger;
     }
@@ -1042,10 +988,9 @@ public class PlatformComponentBuilder {
         if (transactionHandler == null) {
             transactionHandler = new DefaultTransactionHandler(
                     blocks.platformContext(),
-                    blocks.swirldStateManager(),
+                    blocks.stateLifecycleManager(),
                     blocks.statusActionSubmitterReference().get(),
                     blocks.appVersion(),
-                    blocks.platformStateFacade(),
                     blocks.consensusStateEventHandler(),
                     blocks.selfId());
         }

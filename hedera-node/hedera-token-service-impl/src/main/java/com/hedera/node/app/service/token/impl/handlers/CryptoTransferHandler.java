@@ -5,18 +5,17 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.CUSTOM_FEE_CHARGING_EXC
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE_FOR_CUSTOM_FEE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_SENDER_ACCOUNT_BALANCE_FOR_CUSTOM_FEE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TRANSACTION_BODY;
-import static com.hedera.hapi.node.base.SubType.CRYPTO_TRANSFER_WITH_HOOKS;
 import static com.hedera.hapi.node.base.SubType.DEFAULT;
 import static com.hedera.hapi.node.base.SubType.TOKEN_FUNGIBLE_COMMON;
 import static com.hedera.hapi.node.base.SubType.TOKEN_FUNGIBLE_COMMON_WITH_CUSTOM_FEES;
 import static com.hedera.hapi.node.base.SubType.TOKEN_NON_FUNGIBLE_UNIQUE;
 import static com.hedera.hapi.node.base.SubType.TOKEN_NON_FUNGIBLE_UNIQUE_WITH_CUSTOM_FEES;
 import static com.hedera.node.app.hapi.fees.usage.SingletonUsageProperties.USAGE_PROPERTIES;
-import static com.hedera.node.app.hapi.fees.usage.crypto.CryptoOpsUsage.HOUR_TO_SECOND_MULTIPLIER;
 import static com.hedera.node.app.hapi.fees.usage.crypto.CryptoOpsUsage.LONG_ACCOUNT_AMOUNT_BYTES;
 import static com.hedera.node.app.hapi.fees.usage.token.TokenOpsUsage.LONG_BASIC_ENTITY_ID_SIZE;
 import static com.hedera.node.app.hapi.fees.usage.token.entities.TokenEntitySizes.TOKEN_ENTITY_SIZES;
 import static com.hedera.node.app.hapi.utils.CommonUtils.clampedAdd;
+import static com.hedera.node.app.hapi.utils.CommonUtils.clampedMultiply;
 import static com.hedera.node.app.spi.workflows.PreCheckException.validateTruePreCheck;
 import static java.util.Objects.requireNonNull;
 
@@ -55,6 +54,7 @@ import com.hedera.node.app.spi.workflows.TransactionHandler;
 import com.hedera.node.app.spi.workflows.WarmupContext;
 import com.hedera.node.app.spi.workflows.record.StreamBuilder;
 import com.hedera.node.config.data.AccountsConfig;
+import com.hedera.node.config.data.ContractsConfig;
 import com.hedera.node.config.data.FeesConfig;
 import com.hedera.node.config.data.HooksConfig;
 import com.hedera.node.config.data.LedgerConfig;
@@ -74,6 +74,13 @@ import javax.inject.Singleton;
 public class CryptoTransferHandler extends TransferExecutor implements TransactionHandler {
     private final CryptoTransferValidator validator;
     private final boolean enforceMonoServiceRestrictionsOnAutoCreationCustomFeePayments;
+
+    /**
+     * Summary of hook usage and total gas.
+     */
+    public record HookInfo(int numHookInvocations, long totalGasLimitOfHooks) {
+        public static final HookInfo NO_HOOKS = new HookInfo(0, 0L);
+    }
 
     /**
      * Default constructor for injection.
@@ -283,23 +290,29 @@ public class CryptoTransferHandler extends TransferExecutor implements Transacti
                 totalTokenTransfers,
                 customFeeHbarTransfers,
                 customFeeTokenTransfers,
-                triedAndFailedToUseCustomFees,
-                hookInfo.usesHooks());
-        if (hookInfo.usesHooks()) {
-            return feeContext
-                    .feeCalculatorFactory()
-                    .feeCalculator(subType)
-                    .addVerificationsPerTransaction(Math.max(0, feeContext.numTxnSignatures() - 1))
-                    .addStorageBytesSeconds(HOUR_TO_SECOND_MULTIPLIER)
-                    .addGas(hookInfo.totalGasLimitOfHooks())
-                    .calculate();
-        }
-        return feeContext
+                triedAndFailedToUseCustomFees);
+        final var fees = feeContext
                 .feeCalculatorFactory()
                 .feeCalculator(subType)
                 .addBytesPerTransaction(bpt)
                 .addRamByteSeconds(rbs * USAGE_PROPERTIES.legacyReceiptStorageSecs())
                 .calculate();
+        if (hookInfo.numHookInvocations() > 0) {
+            final var hooksConfig = config.getConfigData(HooksConfig.class);
+            // Avoid overflow in by clamping effective limit (out-of-bound txs will be failed or throttled anyway)
+            final long effectiveGasLimit = Math.max(
+                    0,
+                    Math.min(
+                            config.getConfigData(ContractsConfig.class).maxGasPerSec(),
+                            hookInfo.totalGasLimitOfHooks()));
+
+            final var gasFees = clampedMultiply(effectiveGasLimit, feeContext.getGasPriceInTinycents());
+            final var hookFees =
+                    clampedMultiply(hookInfo.numHookInvocations(), hooksConfig.hookInvocationCostTinyCents());
+            final var tinyBarFees = feeContext.tinybarsFromTinycents(clampedAdd(gasFees, hookFees));
+            return fees.copyBuilder().addServiceFee(tinyBarFees).build();
+        }
+        return fees;
     }
 
     /**
@@ -334,16 +347,19 @@ public class CryptoTransferHandler extends TransferExecutor implements Transacti
             return HookInfo.NO_HOOKS;
         }
         long gas = 0L;
+        int numHooks = 0;
         if (hasPreTxHook) {
             gas = clampedAdd(
                     gas, aa.preTxAllowanceHookOrThrow().evmHookCallOrThrow().gasLimit());
+            numHooks++;
         }
         if (hasPrePostTxHook) {
             final long gasPerCall =
                     aa.prePostTxAllowanceHookOrThrow().evmHookCallOrThrow().gasLimit();
             gas = clampedAdd(clampedAdd(gas, gasPerCall), gasPerCall);
+            numHooks += 2;
         }
-        return new HookInfo(true, gas);
+        return new HookInfo(numHooks, gas);
     }
 
     /**
@@ -358,29 +374,34 @@ public class CryptoTransferHandler extends TransferExecutor implements Transacti
             return HookInfo.NO_HOOKS;
         }
         long gas = 0L;
+        int numHooks = 0;
         if (hasSenderPre) {
             gas = clampedAdd(
                     gas,
                     nft.preTxSenderAllowanceHookOrThrow().evmHookCallOrThrow().gasLimit());
+            numHooks++;
         }
         if (hasSenderPrePost) {
             final long gasPerCall = nft.prePostTxSenderAllowanceHookOrThrow()
                     .evmHookCallOrThrow()
                     .gasLimit();
             gas = clampedAdd(clampedAdd(gas, gasPerCall), gasPerCall);
+            numHooks += 2;
         }
         if (hasReceiverPre) {
             gas = clampedAdd(
                     gas,
                     nft.preTxReceiverAllowanceHookOrThrow().evmHookCallOrThrow().gasLimit());
+            numHooks++;
         }
         if (hasReceiverPrePost) {
             final long gasPerCall = nft.prePostTxReceiverAllowanceHookOrThrow()
                     .evmHookCallOrThrow()
                     .gasLimit();
             gas = clampedAdd(clampedAdd(gas, gasPerCall), gasPerCall);
+            numHooks += 2;
         }
-        return new HookInfo(true, gas);
+        return new HookInfo(numHooks, gas);
     }
 
     /**
@@ -402,11 +423,7 @@ public class CryptoTransferHandler extends TransferExecutor implements Transacti
             final int numFungibleTokenTransfers,
             final int customFeeHbarTransfers,
             final int customFeeTokenTransfers,
-            final boolean triedAndFailedToUseCustomFees,
-            final boolean withHooks) {
-        if (withHooks) {
-            return CRYPTO_TRANSFER_WITH_HOOKS;
-        }
+            final boolean triedAndFailedToUseCustomFees) {
         if (triedAndFailedToUseCustomFees) {
             return TOKEN_FUNGIBLE_COMMON_WITH_CUSTOM_FEES;
         }
@@ -429,14 +446,14 @@ public class CryptoTransferHandler extends TransferExecutor implements Transacti
      * Utility to merge two partial HookInfo results.
      */
     private static HookInfo merge(final HookInfo a, final HookInfo b) {
-        return new HookInfo(
-                a.usesHooks() || b.usesHooks(), clampedAdd(a.totalGasLimitOfHooks(), b.totalGasLimitOfHooks()));
-    }
-
-    /**
-     * Summary of hook usage and total gas.
-     */
-    public record HookInfo(boolean usesHooks, long totalGasLimitOfHooks) {
-        public static final HookInfo NO_HOOKS = new HookInfo(false, 0L);
+        if (a == HookInfo.NO_HOOKS) {
+            return b;
+        } else if (b == HookInfo.NO_HOOKS) {
+            return a;
+        } else {
+            return new HookInfo(
+                    a.numHookInvocations() + b.numHookInvocations(),
+                    clampedAdd(a.totalGasLimitOfHooks(), b.totalGasLimitOfHooks()));
+        }
     }
 }
