@@ -32,7 +32,6 @@ import com.swirlds.platform.components.DefaultSavedStateController;
 import com.swirlds.platform.components.EventWindowManager;
 import com.swirlds.platform.components.SavedStateController;
 import com.swirlds.platform.config.StateConfig;
-import com.swirlds.platform.consensus.EventWindowUtils;
 import com.swirlds.platform.event.EventCounter;
 import com.swirlds.platform.event.preconsensus.InlinePcesWriter;
 import com.swirlds.platform.event.preconsensus.PcesConfig;
@@ -72,11 +71,13 @@ import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.Signature;
 import org.hiero.consensus.crypto.PlatformSigner;
+import org.hiero.consensus.hashgraph.ConsensusConfig;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
+import org.hiero.consensus.round.EventWindowUtils;
 
 /**
  * The swirlds consensus node platform. Responsible for the creation, gossip, and consensus of events. Also manages the
@@ -153,7 +154,7 @@ public class SwirldsPlatform implements Platform {
      * Constructor.
      *
      * @param builder this object is responsible for building platform components and other things needed by the
-     *                platform
+     * platform
      */
     public SwirldsPlatform(@NonNull final PlatformComponentBuilder builder) {
         final PlatformBuildingBlocks blocks = builder.getBuildingBlocks();
@@ -307,8 +308,12 @@ public class SwirldsPlatform implements Platform {
             // We only load non-ancient events during start up, so the initial expired threshold will be
             // equal to the ancient threshold when the system first starts. Over time as we get more events,
             // the expired threshold will continue to expand until it reaches its full size.
+            final int roundsNonAncient = platformContext
+                    .getConfiguration()
+                    .getConfigData(ConsensusConfig.class)
+                    .roundsNonAncient();
             platformCoordinator.updateEventWindow(
-                    EventWindowUtils.createEventWindow(consensusSnapshot, platformContext.getConfiguration()));
+                    EventWindowUtils.createEventWindow(consensusSnapshot, roundsNonAncient));
             platformCoordinator.overrideIssDetectorState(initialState.reserve("initialize issDetector"));
         }
 
