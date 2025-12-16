@@ -58,7 +58,7 @@ public class BlockStreamMetrics {
     private LongGauge connRecv_latestBlockEndOfStreamGauge;
     private LongGauge connRecv_latestBlockSkipBlockGauge;
     private LongGauge connRecv_latestBlockResendBlockGauge;
-    private LongGauge connRecv_latestBlockNodeBehindPublisherGauge;
+    private LongGauge connRecv_latestBlockBehindPublisherGauge;
 
     // connectivity metrics
     private Counter conn_onCompleteCounter;
@@ -498,10 +498,9 @@ public class BlockStreamMetrics {
                 .withDescription("The latest block number received in a ResendBlock response");
         this.connRecv_latestBlockResendBlockGauge = metrics.getOrCreate(latestBlockResendCfg);
 
-        final LongGauge.Config latestBlockNodeBehindCfg = newLongGauge(
-                        GROUP_CONN_RECV, "latestBlockNodeBehindPublisher")
-                .withDescription("The latest block number received in a NodeBehindPublisher response");
-        this.connRecv_latestBlockNodeBehindPublisherGauge = metrics.getOrCreate(latestBlockNodeBehindCfg);
+        final LongGauge.Config latestBlockBehindCfg = newLongGauge(GROUP_CONN_RECV, "latestBlockBehindPublisher")
+                .withDescription("The latest block number received in a BehindPublisher response");
+        this.connRecv_latestBlockBehindPublisherGauge = metrics.getOrCreate(latestBlockBehindCfg);
     }
 
     /**
@@ -566,11 +565,11 @@ public class BlockStreamMetrics {
     }
 
     /**
-     * Record the latest block number received in a NodeBehindPublisher response.
+     * Record the latest block number received in a BehindPublisher response.
      * @param blockNumber the block number from the response
      */
-    public void recordLatestBlockNodeBehindPublisher(final long blockNumber) {
-        connRecv_latestBlockNodeBehindPublisherGauge.set(blockNumber);
+    public void recordLatestBlockBehindPublisher(final long blockNumber) {
+        connRecv_latestBlockBehindPublisherGauge.set(blockNumber);
     }
 
     // Connection SEND metrics -----------------------------------------------------------------------------------------

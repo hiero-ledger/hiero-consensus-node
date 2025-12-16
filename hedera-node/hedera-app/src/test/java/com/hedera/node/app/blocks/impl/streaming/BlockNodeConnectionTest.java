@@ -637,7 +637,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
 
         connection.onNext(response);
 
-        verify(metrics).recordLatestBlockNodeBehindPublisher(10L);
+        verify(metrics).recordLatestBlockBehindPublisher(10L);
         verify(metrics).recordResponseReceived(ResponseOneOfType.NODE_BEHIND_PUBLISHER);
         verify(bufferService).getBlockState(11L);
         verifyNoMoreInteractions(metrics);
@@ -654,7 +654,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         connection.updateConnectionState(ConnectionState.ACTIVE);
         connection.onNext(response);
 
-        verify(metrics).recordLatestBlockNodeBehindPublisher(10L);
+        verify(metrics).recordLatestBlockBehindPublisher(10L);
         verify(metrics).recordResponseReceived(ResponseOneOfType.NODE_BEHIND_PUBLISHER);
         verify(metrics).recordConnectionClosed();
         verify(metrics).recordActiveConnectionIp(-1L);
@@ -686,7 +686,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
         connection.updateConnectionState(ConnectionState.ACTIVE);
         connection.onNext(response);
 
-        verify(metrics).recordLatestBlockNodeBehindPublisher(10L);
+        verify(metrics).recordLatestBlockBehindPublisher(10L);
         verify(metrics).recordResponseReceived(ResponseOneOfType.NODE_BEHIND_PUBLISHER);
         verify(metrics).recordConnectionClosed();
         verify(metrics).recordActiveConnectionIp(-1L);
@@ -1652,7 +1652,7 @@ class BlockNodeConnectionTest extends BlockNodeCommunicationTestBase {
 
         connection.onNext(response);
 
-        verify(metrics).recordLatestBlockNodeBehindPublisher(Long.MAX_VALUE);
+        verify(metrics).recordLatestBlockBehindPublisher(Long.MAX_VALUE);
         verify(metrics).recordResponseReceived(ResponseOneOfType.NODE_BEHIND_PUBLISHER);
         verify(bufferService).getBlockState(0L);
         verifyNoMoreInteractions(metrics);

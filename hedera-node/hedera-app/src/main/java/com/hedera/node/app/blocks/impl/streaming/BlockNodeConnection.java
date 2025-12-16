@@ -563,23 +563,22 @@ public class BlockNodeConnection extends AbstractBlockNodeConnection implements 
         final long blockNumber = nodeBehind.blockNumber();
         logger.debug("{} Received BehindPublisher response for block {}.", this, blockNumber);
 
-        final long restartBlockNumber = blockNumber == Long.MAX_VALUE ? 0 : blockNumber + 1;
+        final long blockToStream = blockNumber == Long.MAX_VALUE ? 0 : blockNumber + 1;
         // The block node is behind us, check if we have the last verified block still available
-        // in order to restart the stream from there
-        if (blockBufferService.getBlockState(restartBlockNumber) != null) {
-            logger.info(
-                    "{} Block node reported it is behind. Will restart stream at block {}.", this, restartBlockNumber);
+        // to start streaming from there
+        if (blockBufferService.getBlockState(blockToStream) != null) {
+            logger.info("{} Block node reported it is behind. Will start streaming block {}.", this, blockToStream);
 
-            streamingBlockNumber.set(restartBlockNumber);
+            streamingBlockNumber.set(blockToStream);
         } else {
             // If we don't have the block state, we schedule retry for this connection
             // and establish new one with different block node
             logger.info("{} Block node is behind and block state is not available. Ending the stream.", this);
 
-            if (restartBlockNumber < blockBufferService.getEarliestAvailableBlockNumber()) {
+            if (blockToStream < blockBufferService.getEarliestAvailableBlockNumber()) {
                 // Indicate that the block node should catch up from another trustworthy block node
                 endStreamAndReschedule(TOO_FAR_BEHIND);
-            } else if (restartBlockNumber > blockBufferService.getLastBlockNumberProduced()) {
+            } else if (blockToStream > blockBufferService.getLastBlockNumberProduced()) {
                 endStreamAndReschedule(ERROR);
             }
         }
@@ -874,7 +873,7 @@ public class BlockNodeConnection extends AbstractBlockNodeConnection implements 
             handleResendBlock(response.resendBlock());
         } else if (response.hasNodeBehindPublisher()) {
             blockStreamMetrics.recordResponseReceived(response.response().kind());
-            blockStreamMetrics.recordLatestBlockNodeBehindPublisher(
+            blockStreamMetrics.recordLatestBlockBehindPublisher(
                     response.nodeBehindPublisher().blockNumber());
             handleBlockNodeBehind(response.nodeBehindPublisher());
         } else {

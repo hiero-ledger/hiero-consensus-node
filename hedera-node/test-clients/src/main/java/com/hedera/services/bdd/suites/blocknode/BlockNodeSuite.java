@@ -344,7 +344,7 @@ public class BlockNodeSuite {
                                 "/localhost:%s/ACTIVE] Received BehindPublisher response for block 9223372036854775807.",
                                 portNumbers.getFirst()),
                         String.format(
-                                "/localhost:%s/ACTIVE] Block node reported it is behind. Will restart stream at block 0.",
+                                "/localhost:%s/ACTIVE] Block node reported it is behind. Will start streaming block 0.",
                                 portNumbers.getFirst()))),
                 doingContextual(
                         spec -> LockSupport.parkNanos(Duration.ofSeconds(10).toNanos())));
@@ -912,7 +912,7 @@ public class BlockNodeSuite {
                                 "/localhost:%s/ACTIVE] Received BehindPublisher response for block 9223372036854775807.",
                                 portNumbers.getFirst()),
                         String.format(
-                                "/localhost:%s/ACTIVE] Block node reported it is behind. Will restart stream at block 0.",
+                                "/localhost:%s/ACTIVE] Block node reported it is behind. Will start streaming block 0.",
                                 portNumbers.getFirst()))),
                 waitUntilNextBlocks(1).withBackgroundTraffic(true),
                 blockNode(0).sendSkipBlockImmediately(Long.MAX_VALUE),
