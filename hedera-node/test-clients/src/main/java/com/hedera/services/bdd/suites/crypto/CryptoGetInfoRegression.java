@@ -253,7 +253,6 @@ public class CryptoGetInfoRegression {
             tokenNames.add("t" + i);
         }
         final var ops = new ArrayList<SpecOperation>();
-        ops.add(overridingThrottles("testSystemFiles/tiny-get-balance-throttle.json"));
         ops.add(overridingAllOf(Map.of("tokens.countingGetBalanceThrottleEnabled", "true")));
         ops.add(cryptoCreate(TARGET_ACC).withMatchingEvmAddress());
         tokenNames.forEach(t -> {

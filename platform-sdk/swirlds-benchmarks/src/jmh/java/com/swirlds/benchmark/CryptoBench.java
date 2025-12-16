@@ -440,9 +440,11 @@ public class CryptoBench extends VirtualMapBench {
     public static void main(String[] args) throws Exception {
         final CryptoBench bench = new CryptoBench();
         bench.setup();
+        bench.createLocal();
         bench.beforeTest();
         bench.transferPrefetch();
         bench.afterTest();
+        bench.destroyLocal();
         bench.destroy();
     }
 }

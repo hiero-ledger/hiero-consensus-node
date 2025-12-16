@@ -6,9 +6,12 @@ import com.hedera.node.app.service.file.FileService;
 import com.hedera.node.app.service.file.impl.calculator.FileAppendFeeCalculator;
 import com.hedera.node.app.service.file.impl.calculator.FileCreateFeeCalculator;
 import com.hedera.node.app.service.file.impl.calculator.FileDeleteFeeCalculator;
+import com.hedera.node.app.service.file.impl.calculator.FileGetContentsFeeCalculator;
+import com.hedera.node.app.service.file.impl.calculator.FileGetInfoFeeCalculator;
 import com.hedera.node.app.service.file.impl.calculator.FileUpdateFeeCalculator;
 import com.hedera.node.app.service.file.impl.schemas.V0490FileSchema;
 import com.hedera.node.app.spi.RpcService;
+import com.hedera.node.app.spi.fees.QueryFeeCalculator;
 import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
 import com.hedera.node.app.spi.workflows.SystemContext;
 import com.hedera.node.config.data.FeesConfig;
@@ -90,5 +93,10 @@ public final class FileServiceImpl implements FileService {
                 new FileUpdateFeeCalculator(),
                 new FileDeleteFeeCalculator(),
                 new FileAppendFeeCalculator());
+    }
+
+    @Override
+    public Set<QueryFeeCalculator> queryFeeCalculators() {
+        return Set.of(new FileGetContentsFeeCalculator(), new FileGetInfoFeeCalculator());
     }
 }
