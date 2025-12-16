@@ -7179,7 +7179,7 @@
           "disableTextWrap": false,
           "editorMode": "builder",
           "exemplar": false,
-          "expr": "max by(node) (blockStream_connRecv_latestBlockNodeBehindPublisher{node=~\"$NodeId\", environment=\"$environment\"})",
+          "expr": "max by(node) (blockStream_connRecv_latestBlockBehindPublisher{node=~\"$NodeId\", environment=\"$environment\"})",
           "fullMetaSearch": false,
           "includeNullMetadata": true,
           "instant": false,
