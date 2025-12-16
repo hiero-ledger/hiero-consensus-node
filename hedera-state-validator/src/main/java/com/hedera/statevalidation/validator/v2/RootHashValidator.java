@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.statevalidation.validator.v2;
 
+import static com.swirlds.platform.state.service.PlatformStateUtils.getInfoString;
+
 import com.hedera.statevalidation.util.ConfigUtils;
 import com.hedera.statevalidation.validator.v2.util.ValidationAssertions;
-import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.snapshot.DeserializedSignedState;
 import com.swirlds.state.MerkleNodeState;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -69,8 +70,7 @@ public class RootHashValidator implements Validator {
      */
     @Override
     public void validate() {
-        final PlatformStateFacade platformStateFacade = PlatformStateFacade.DEFAULT_PLATFORM_STATE_FACADE;
-        final String infoStringFromState = platformStateFacade.getInfoString(state, 1);
+        final String infoStringFromState = getInfoString(state, 1);
 
         final List<String> fullList = Arrays.asList(infoStringFromState.split("\n"));
         String actualRootHashLine = "";

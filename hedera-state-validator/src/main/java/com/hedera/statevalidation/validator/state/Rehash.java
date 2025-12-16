@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.statevalidation.validator.state;
 
-import static com.hedera.statevalidation.util.ParallelProcessingUtils.VALIDATOR_FORK_JOIN_POOL;
 import static com.swirlds.platform.state.service.PlatformStateUtils.getInfoString;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
