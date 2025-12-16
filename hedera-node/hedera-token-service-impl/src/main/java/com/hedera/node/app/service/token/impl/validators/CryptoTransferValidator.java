@@ -36,6 +36,7 @@ import com.hedera.hapi.node.base.TransferList;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.spi.workflows.HandleContext;
+import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.config.data.AccountsConfig;
 import com.hedera.node.config.data.HooksConfig;
@@ -116,19 +117,22 @@ public class CryptoTransferValidator {
 
         // Validate that there aren't too many hbar transfers
         final var hbarTransfers = transfers.accountAmounts();
-        final var isAdminPayer =
-                entityIdFactory.newAccountId(accountsConfig.systemAdmin()).equals(payer);
         // If the debit account is node rewards account or fee collection account, we are dispatching synthetic
         // node rewards or node fee distributions. So skip checking the limits.
-        if ((hbarTransfers.size() > ledgerConfig.transfersMaxLen()) && isAdminPayer) {
-            final var nodeRewardAccountId = entityIdFactory.newAccountId(accountsConfig.nodeRewardAccount());
-            final var feeCollectionAccountId = entityIdFactory.newAccountId(accountsConfig.feeCollectionAccount());
-            validateTrue(
-                    hbarTransfers.stream()
-                            .filter(aa -> aa.amount() < 0)
-                            .anyMatch(aa -> (nodeRewardAccountId.equals(aa.accountID())
-                                    || feeCollectionAccountId.equals(aa.accountID()))),
-                    TRANSFER_LIST_SIZE_LIMIT_EXCEEDED);
+        if (hbarTransfers.size() > ledgerConfig.transfersMaxLen()) {
+            // One special case allowing the system admin to distribute a large number of fee payments or rewards
+            if (entityIdFactory.newAccountId(accountsConfig.systemAdmin()).equals(payer)) {
+                final var nodeRewardAccountId = entityIdFactory.newAccountId(accountsConfig.nodeRewardAccount());
+                final var feeCollectionAccountId = entityIdFactory.newAccountId(accountsConfig.feeCollectionAccount());
+                validateTrue(
+                        hbarTransfers.stream()
+                                .filter(aa -> aa.amount() < 0)
+                                .anyMatch(aa -> (nodeRewardAccountId.equals(aa.accountID())
+                                        || feeCollectionAccountId.equals(aa.accountID()))),
+                        TRANSFER_LIST_SIZE_LIMIT_EXCEEDED);
+            } else {
+                throw new HandleException(TRANSFER_LIST_SIZE_LIMIT_EXCEEDED);
+            }
         }
 
         // The loop below will validate the counts for token transfers (both fungible and non-fungible)
