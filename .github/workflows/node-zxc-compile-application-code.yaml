@@ -396,30 +396,6 @@ jobs:
             hedera-node/test-clients/build/**/*.rcd.gz
           retention-days: 7
 
-      - name: List the files to upload as artifact
-        if: ${{ inputs.enable-hapi-tests-misc && !cancelled() && always() }}
-        run: |
-          echo "Contents of current directory:"
-          ls -lh .
-          echo "Contents of hedera-node/:"
-          ls -lh hedera-node/
-          echo Contents of hedera-node/test-clients/:
-          ls -lh hedera-node/test-clients/
-          echo "Contents of hedera-node/test-clients/build/:"
-          ls -lh hedera-node/test-clients/build/
-
-      - name: Upload Unit Test (Timing Sensitive) Failure Artifacts
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        # change this check to "failure" before merging
-        if: ${{ inputs.enable-hapi-tests-misc && steps.gradle-hapi-misc.conclusion == 'success' && !cancelled() }}
-        with:
-          name: HAPI Test (Misc) Failure Artifacts
-          path: |
-            hedera-node/test-clients/build/*.log
-            hedera-node/test-clients/build/*.blk.gz
-            hedera-node/test-clients/build/*.rcd.gz
-          retention-days: 7
-
       - name: HAPI Test (Misc Records)
         id: gradle-hapi-misc-records
         if: ${{ inputs.enable-hapi-tests-misc-records && steps.gradle-build.conclusion == 'success' && !cancelled() }}
@@ -672,22 +648,6 @@ jobs:
             hedera-node/test-clients/output/**
           retention-days: 7
 
-      - name: List the files to upload as artifact
-        if: ${{ inputs.enable-hapi-tests-restart && !cancelled() && always() }}
-        run: |
-          echo "Contents of current directory:"
-          ls -lh .
-          echo "Contents of hedera-node/:"
-          ls -lh hedera-node/
-          echo Contents of hedera-node/test-clients/:
-          ls -lh hedera-node/test-clients/
-          echo "Contents of hedera-node/test-clients/build/:"
-          ls -lh hedera-node/test-clients/build/
-          echo "Contents of hedera-node/test-clients/build/hapi-test/:"
-          ls -lh hedera-node/test-clients/build/hapi-test/
-          echo "Contents of hedera-node/test-clients/build/hapi-test/node0/data/blockStreams/block-11.12.3:"
-          ls -lh hedera-node/test-clients/build/hapi-test/node0/data/blockStreams/block-11.12.3/
-
       - name: Upload Unit Test (Timing Sensitive) Failure Artifacts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         # change this check to "failure" before merging
@@ -695,7 +655,6 @@ jobs:
         with:
           name: HAPI Test (Restart) Failure Artifacts
           path: |
-            hedera-node/test-clients/build/**/*.log
             hedera-node/test-clients/build/**/*.blk.gz
             hedera-node/test-clients/build/**/*.rcd.gz
           retention-days: 7
