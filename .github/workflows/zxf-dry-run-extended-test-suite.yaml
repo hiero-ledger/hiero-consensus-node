@@ -95,6 +95,13 @@ jobs:
           echo "helm-release-name=${HELM_NAME}" >> "${GITHUB_OUTPUT}"
           echo "solo-ge-0440=${SOLO_GE_0440}" >> "${GITHUB_OUTPUT}"
 
+  state-validator-uberjar:
+    name: Build & Publish Hedera State Validator Uber JAR
+    uses: ./.github/workflows/zxc-build-publish-state-validator.yaml
+    with:
+      ref: ${{ inputs.commit_sha }}
+      dry-run: true
+
   xts-execution:
     name: Execute XTS
     needs: parameters
