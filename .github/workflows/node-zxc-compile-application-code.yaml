@@ -651,6 +651,7 @@ jobs:
       - name: Upload Unit Test (Timing Sensitive) Failure Artifacts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         # change this check to "failure" before merging
+        # add a comment
         if: ${{ inputs.enable-hapi-tests-restart && steps.gradle-hapi-restart.conclusion == 'success' && !cancelled() }}
         with:
           name: HAPI Test (Restart) Failure Artifacts
