@@ -791,6 +791,41 @@ class TokenServiceApiImplTest {
             assertThat(exception.getStatus()).isEqualTo(TRANSFER_TO_FEE_COLLECTION_ACCOUNT_NOT_ALLOWED);
         }
 
+        @Test
+        void refundFeesWithFeeCollectionAccountEnabled() {
+            accountStore.put(Account.newBuilder()
+                    .accountId(FEE_COLLECTION_ACCOUNT_ID)
+                    .tinybarBalance(100L)
+                    .build());
+            accountStore.put(Account.newBuilder()
+                    .accountId(NODE_ACCOUNT_ID)
+                    .tinybarBalance(50L)
+                    .build());
+            accountStore.put(Account.newBuilder()
+                    .accountId(EOA_ACCOUNT_ID)
+                    .tinybarBalance(20L)
+                    .build());
+
+            final var config = configBuilder.getOrCreateConfig();
+            subject = new TokenServiceApiImpl(config, writableStates, customFeeTest, entityCounters);
+
+            // When we refund fees (with node fee)
+            final var fees = new Fees(10, 20, 20); // 10 node, 40 network+service
+            subject.refundFees(EOA_ACCOUNT_ID, NODE_ACCOUNT_ID, fees, rb, (amount) -> {});
+
+            // Then fee collection account balance is reduced by network+service fees
+            final var feeCollectionAccount = requireNonNull(accountState.get(FEE_COLLECTION_ACCOUNT_ID));
+            assertThat(feeCollectionAccount.tinybarBalance()).isEqualTo(60L); // 100 - 40
+
+            // And node account balance is reduced by node fee
+            final var nodeAccount = requireNonNull(accountState.get(NODE_ACCOUNT_ID));
+            assertThat(nodeAccount.tinybarBalance()).isEqualTo(40L); // 50 - 10
+
+            // And payer balance is increased by total refund
+            final var payerAccount = requireNonNull(accountState.get(EOA_ACCOUNT_ID));
+            assertThat(payerAccount.tinybarBalance()).isEqualTo(70L); // 20 + 50 (10 + 40)
+        }
+
         private static class TestNodeFeeAccumulator implements NodeFeeAccumulator {
             private final Map<AccountID, Long> accumulatedFees = new HashMap<>();
 
