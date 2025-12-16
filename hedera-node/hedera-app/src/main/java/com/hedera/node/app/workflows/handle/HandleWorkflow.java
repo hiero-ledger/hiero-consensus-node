@@ -306,8 +306,10 @@ public class HandleWorkflow {
             }
         }
         final var lastUsedConsTime = blockHashSigner.isReady()
-                ? blockStreamManager.lastUsedConsensusTime()
-                : blockRecordManager.lastUsedConsensusTime();
+                ? (streamMode == RECORDS
+                        ? blockRecordManager.lastUsedConsensusTime()
+                        : blockStreamManager.lastUsedConsensusTime())
+                : round.getConsensusTimestamp();
         // Using the last used consensus time, we need to add 2ns, in case this triggers stake periods side effects
         try {
             transactionsDispatched |=
