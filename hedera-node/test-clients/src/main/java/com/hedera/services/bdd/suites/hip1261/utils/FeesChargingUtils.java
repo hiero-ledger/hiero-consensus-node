@@ -209,32 +209,14 @@ public class FeesChargingUtils {
             long uniqueAccounts,
             long uniqueFungibleTokens,
             long uniqueNonFungibleTokens) {
-        // ----- node fees -----
-        final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
-        final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
-        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee;
 
-        // ----- network fees -----
-        final double networkFee = nodeFee * NETWORK_MULTIPLIER;
-
-        // ---- service fees -----
-        // unique hooks execution extras
-        final long hooksExecutionExtrasService = Math.max(0L, uniqueHooksExecuted - CRYPTO_TRANSFER_INCLUDED_HOOK_EXECUTION);
-        final double hooksExtrasFee = hooksExecutionExtrasService * HOOK_EXECUTION_FEE_USD;
-        // unique accounts extras
-        final long accountsExtrasService = Math.max(0L, uniqueAccounts - CRYPTO_TRANSFER_INCLUDED_ACCOUNTS);
-        final double accountsExtrasFee = accountsExtrasService * ACCOUNTS_FEE_USD;
-        // unique fungible tokens sent extras
-        final long uniqueFungibleTokensExtrasService = Math.max(0L, uniqueFungibleTokens - CRYPTO_TRANSFER_INCLUDED_FUNGIBLE_TOKENS);
-        final double uniqueFungibleTokensExtrasFee = uniqueFungibleTokensExtrasService * FUNGIBLE_TOKENS_FEE_USD;
-        // unique non-fungible tokens sent extras
-         final long uniqueNonFungibleTokensExtrasService = Math.max(0L, uniqueNonFungibleTokens - CRYPTO_TRANSFER_INCLUDED_NON_FUNGIBLE_TOKENS);
-         final double uniqueNonFungibleTokensExtrasFee = uniqueNonFungibleTokensExtrasService * NON_FUNGIBLE_TOKENS_FEE_USD;
-
-        final double serviceFee = CRYPTO_TRANSFER_BASE_FEE_USD + hooksExtrasFee + accountsExtrasFee
-                + uniqueFungibleTokensExtrasFee + uniqueNonFungibleTokensExtrasFee;
-
-        return nodeFee + networkFee + serviceFee;
+        return expectedCryptoTransferFullFeeUsd(
+                sigs,
+                uniqueHooksExecuted,
+                uniqueAccounts,
+                uniqueFungibleTokens,
+                uniqueNonFungibleTokens,
+                true, false, false);
     }
 
     public static double expectedCryptoTransferFTFullFeeUsd(
@@ -243,32 +225,14 @@ public class FeesChargingUtils {
             long uniqueAccounts,
             long uniqueFungibleTokens,
             long uniqueNonFungibleTokens) {
-        // ----- node fees -----
-        final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
-        final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
-        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee;
 
-        // ----- network fees -----
-        final double networkFee = nodeFee * NETWORK_MULTIPLIER;
-
-        // ---- service fees -----
-        // unique hooks execution extras
-        final long hooksExecutionExtrasService = Math.max(0L, uniqueHooksExecuted - CRYPTO_TRANSFER_INCLUDED_HOOK_EXECUTION);
-        final double hooksExtrasFee = hooksExecutionExtrasService * HOOK_EXECUTION_FEE_USD;
-        // unique accounts extras
-        final long accountsExtrasService = Math.max(0L, uniqueAccounts - CRYPTO_TRANSFER_INCLUDED_ACCOUNTS);
-        final double accountsExtrasFee = accountsExtrasService * ACCOUNTS_FEE_USD;
-        // unique fungible tokens sent extras
-        final long uniqueFungibleTokensExtrasService = Math.max(0L, uniqueFungibleTokens - CRYPTO_TRANSFER_INCLUDED_FUNGIBLE_TOKENS);
-        final double uniqueFungibleTokensExtrasFee = uniqueFungibleTokensExtrasService * FUNGIBLE_TOKENS_FEE_USD;
-        // unique non-fungible tokens sent extras
-        final long uniqueNonFungibleTokensExtrasService = Math.max(0L, uniqueNonFungibleTokens - CRYPTO_TRANSFER_INCLUDED_NON_FUNGIBLE_TOKENS);
-        final double uniqueNonFungibleTokensExtrasFee = uniqueNonFungibleTokensExtrasService * NON_FUNGIBLE_TOKENS_FEE_USD;
-
-        final double serviceFee = CRYPTO_TRANSFER_BASE_FUNGIBLE_FEE_USD + hooksExtrasFee + accountsExtrasFee
-                + uniqueFungibleTokensExtrasFee + uniqueNonFungibleTokensExtrasFee;
-
-        return nodeFee + networkFee + serviceFee;
+        return expectedCryptoTransferFullFeeUsd(
+                sigs,
+                uniqueHooksExecuted,
+                uniqueAccounts,
+                uniqueFungibleTokens,
+                uniqueNonFungibleTokens,
+                false, true, false);
     }
 
     public static double expectedCryptoTransferNFTFullFeeUsd(
@@ -277,32 +241,14 @@ public class FeesChargingUtils {
             long uniqueAccounts,
             long uniqueFungibleTokens,
             long uniqueNonFungibleTokens) {
-        // ----- node fees -----
-        final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
-        final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
-        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee;
 
-        // ----- network fees -----
-        final double networkFee = nodeFee * NETWORK_MULTIPLIER;
-
-        // ---- service fees -----
-        // unique hooks execution extras
-        final long hooksExecutionExtrasService = Math.max(0L, uniqueHooksExecuted - CRYPTO_TRANSFER_INCLUDED_HOOK_EXECUTION);
-        final double hooksExtrasFee = hooksExecutionExtrasService * HOOK_EXECUTION_FEE_USD;
-        // unique accounts extras
-        final long accountsExtrasService = Math.max(0L, uniqueAccounts - CRYPTO_TRANSFER_INCLUDED_ACCOUNTS);
-        final double accountsExtrasFee = accountsExtrasService * ACCOUNTS_FEE_USD;
-        // unique fungible tokens sent extras
-        final long uniqueFungibleTokensExtrasService = Math.max(0L, uniqueFungibleTokens - CRYPTO_TRANSFER_INCLUDED_FUNGIBLE_TOKENS);
-        final double uniqueFungibleTokensExtrasFee = uniqueFungibleTokensExtrasService * FUNGIBLE_TOKENS_FEE_USD;
-        // unique non-fungible tokens sent extras
-        final long uniqueNonFungibleTokensExtrasService = Math.max(0L, uniqueNonFungibleTokens - CRYPTO_TRANSFER_INCLUDED_NON_FUNGIBLE_TOKENS);
-        final double uniqueNonFungibleTokensExtrasFee = uniqueNonFungibleTokensExtrasService * NON_FUNGIBLE_TOKENS_FEE_USD;
-
-        final double serviceFee = CRYPTO_TRANSFER_BASE_NFT_FEE_USD + hooksExtrasFee + accountsExtrasFee
-                + uniqueFungibleTokensExtrasFee + uniqueNonFungibleTokensExtrasFee;
-
-        return nodeFee + networkFee + serviceFee;
+        return expectedCryptoTransferFullFeeUsd(
+                sigs,
+                uniqueHooksExecuted,
+                uniqueAccounts,
+                uniqueFungibleTokens,
+                uniqueNonFungibleTokens,
+                false, false, true);
     }
 
     public static double expectedCryptoTransferFTAndNFTFullFeeUsd(
@@ -311,32 +257,14 @@ public class FeesChargingUtils {
             long uniqueAccounts,
             long uniqueFungibleTokens,
             long uniqueNonFungibleTokens) {
-        // ----- node fees -----
-        final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
-        final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
-        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee;
 
-        // ----- network fees -----
-        final double networkFee = nodeFee * NETWORK_MULTIPLIER;
-
-        // ---- service fees -----
-        // unique hooks execution extras
-        final long hooksExecutionExtrasService = Math.max(0L, uniqueHooksExecuted - CRYPTO_TRANSFER_INCLUDED_HOOK_EXECUTION);
-        final double hooksExtrasFee = hooksExecutionExtrasService * HOOK_EXECUTION_FEE_USD;
-        // unique accounts extras
-        final long accountsExtrasService = Math.max(0L, uniqueAccounts - CRYPTO_TRANSFER_INCLUDED_ACCOUNTS);
-        final double accountsExtrasFee = accountsExtrasService * ACCOUNTS_FEE_USD;
-        // unique fungible tokens sent extras
-        final long uniqueFungibleTokensExtrasService = Math.max(0L, uniqueFungibleTokens - CRYPTO_TRANSFER_INCLUDED_FUNGIBLE_TOKENS);
-        final double uniqueFungibleTokensExtrasFee = uniqueFungibleTokensExtrasService * FUNGIBLE_TOKENS_FEE_USD;
-        // unique non-fungible tokens sent extras
-        final long uniqueNonFungibleTokensExtrasService = Math.max(0L, uniqueNonFungibleTokens - CRYPTO_TRANSFER_INCLUDED_NON_FUNGIBLE_TOKENS);
-        final double uniqueNonFungibleTokensExtrasFee = uniqueNonFungibleTokensExtrasService * NON_FUNGIBLE_TOKENS_FEE_USD;
-
-        final double serviceFee = CRYPTO_TRANSFER_BASE_FUNGIBLE_FEE_USD + CRYPTO_TRANSFER_BASE_NFT_FEE_USD +
-                hooksExtrasFee + accountsExtrasFee + uniqueFungibleTokensExtrasFee + uniqueNonFungibleTokensExtrasFee;
-
-        return nodeFee + networkFee + serviceFee;
+        return expectedCryptoTransferFullFeeUsd(
+                sigs,
+                uniqueHooksExecuted,
+                uniqueAccounts,
+                uniqueFungibleTokens,
+                uniqueNonFungibleTokens,
+                false, true, true);
     }
 
     public static double expectedCryptoTransferHBARAndFTAndNFTFullFeeUsd(
@@ -345,33 +273,14 @@ public class FeesChargingUtils {
             long uniqueAccounts,
             long uniqueFungibleTokens,
             long uniqueNonFungibleTokens) {
-        // ----- node fees -----
-        final long sigExtrasNode = Math.max(0L, sigs - NODE_INCLUDED_SIGNATURES);
-        final double nodeExtrasFee = sigExtrasNode * SIGNATURE_FEE_USD;
-        final double nodeFee = NODE_BASE_FEE_USD + nodeExtrasFee;
 
-        // ----- network fees -----
-        final double networkFee = nodeFee * NETWORK_MULTIPLIER;
-
-        // ---- service fees -----
-        // unique hooks execution extras
-        final long hooksExecutionExtrasService = Math.max(0L, uniqueHooksExecuted - CRYPTO_TRANSFER_INCLUDED_HOOK_EXECUTION);
-        final double hooksExtrasFee = hooksExecutionExtrasService * HOOK_EXECUTION_FEE_USD;
-        // unique accounts extras
-        final long accountsExtrasService = Math.max(0L, uniqueAccounts - CRYPTO_TRANSFER_INCLUDED_ACCOUNTS);
-        final double accountsExtrasFee = accountsExtrasService * ACCOUNTS_FEE_USD;
-        // unique fungible tokens sent extras
-        final long uniqueFungibleTokensExtrasService = Math.max(0L, uniqueFungibleTokens - CRYPTO_TRANSFER_INCLUDED_FUNGIBLE_TOKENS);
-        final double uniqueFungibleTokensExtrasFee = uniqueFungibleTokensExtrasService * FUNGIBLE_TOKENS_FEE_USD;
-        // unique non-fungible tokens sent extras
-        final long uniqueNonFungibleTokensExtrasService = Math.max(0L, uniqueNonFungibleTokens - CRYPTO_TRANSFER_INCLUDED_NON_FUNGIBLE_TOKENS);
-        final double uniqueNonFungibleTokensExtrasFee = uniqueNonFungibleTokensExtrasService * NON_FUNGIBLE_TOKENS_FEE_USD;
-
-        final double serviceFee = CRYPTO_TRANSFER_BASE_FEE_USD + CRYPTO_TRANSFER_BASE_FUNGIBLE_FEE_USD
-                + CRYPTO_TRANSFER_BASE_NFT_FEE_USD + hooksExtrasFee + accountsExtrasFee
-                + uniqueFungibleTokensExtrasFee + uniqueNonFungibleTokensExtrasFee;
-
-        return nodeFee + networkFee + serviceFee;
+        return expectedCryptoTransferFullFeeUsd(
+                sigs,
+                uniqueHooksExecuted,
+                uniqueAccounts,
+                uniqueFungibleTokens,
+                uniqueNonFungibleTokens,
+                true, true, true);
     }
 
 
