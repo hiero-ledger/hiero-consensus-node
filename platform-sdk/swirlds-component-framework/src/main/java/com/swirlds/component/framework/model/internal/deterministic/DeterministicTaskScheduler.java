@@ -3,10 +3,10 @@ package com.swirlds.component.framework.model.internal.deterministic;
 
 import com.swirlds.component.framework.counters.ObjectCounter;
 import com.swirlds.component.framework.model.TraceableWiringModel;
-import com.swirlds.component.framework.schedulers.ExceptionHandlers;
 import com.swirlds.component.framework.schedulers.TaskScheduler;
 import com.swirlds.component.framework.schedulers.builders.TaskSchedulerType;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.lang.Thread.UncaughtExceptionHandler;
 import java.util.Objects;
 import java.util.function.Consumer;
 
@@ -25,22 +25,25 @@ public class DeterministicTaskScheduler<OUT> extends TaskScheduler<OUT> {
     /**
      * Constructor.
      *
-     * @param model               the wiring model containing this task scheduler
-     * @param name                the name of the task scheduler
-     * @param type                the type of task scheduler
-     * @param onRamp              counts when things are added to this scheduler to be eventually handled
-     * @param offRamp             counts when things are handled by this scheduler
-     * @param capacity            the maximum desired capacity for this task scheduler
-     * @param flushEnabled        if true, then {@link #flush()} will be enabled, otherwise it will throw.
-     * @param squelchingEnabled   if true, then squelching will be enabled, otherwise trying to squelch will throw.
-     * @param insertionIsBlocking when data is inserted into this task scheduler, will it block until capacity is
-     *                            available?
-     * @param submitWork          a method where all work should be submitted
+     * @param model                    the wiring model containing this task scheduler
+     * @param name                     the name of the task scheduler
+     * @param type                     the type of task scheduler
+     * @param uncaughtExceptionHandler the uncaught exception handler
+     * @param onRamp                   counts when things are added to this scheduler to be eventually handled
+     * @param offRamp                  counts when things are handled by this scheduler
+     * @param capacity                 the maximum desired capacity for this task scheduler
+     * @param flushEnabled             if true, then {@link #flush()} will be enabled, otherwise it will throw.
+     * @param squelchingEnabled        if true, then squelching will be enabled, otherwise trying to squelch will
+     *                                 throw.
+     * @param insertionIsBlocking      when data is inserted into this task scheduler, will it block until capacity is
+     *                                 available?
+     * @param submitWork               a method where all work should be submitted
      */
     protected DeterministicTaskScheduler(
             @NonNull final TraceableWiringModel model,
             @NonNull final String name,
             @NonNull final TaskSchedulerType type,
+            @NonNull final UncaughtExceptionHandler uncaughtExceptionHandler,
             @NonNull final ObjectCounter onRamp,
             @NonNull final ObjectCounter offRamp,
             final long capacity,
@@ -48,14 +51,7 @@ public class DeterministicTaskScheduler<OUT> extends TaskScheduler<OUT> {
             final boolean squelchingEnabled,
             final boolean insertionIsBlocking,
             @NonNull final Consumer<Runnable> submitWork) {
-        super(
-                model,
-                name,
-                type,
-                ExceptionHandlers.RETHROW_UNCAUGHT_EXCEPTION,
-                flushEnabled,
-                squelchingEnabled,
-                insertionIsBlocking);
+        super(model, name, type, uncaughtExceptionHandler, flushEnabled, squelchingEnabled, insertionIsBlocking);
 
         this.onRamp = Objects.requireNonNull(onRamp);
         this.offRamp = Objects.requireNonNull(offRamp);
@@ -95,10 +91,7 @@ public class DeterministicTaskScheduler<OUT> extends TaskScheduler<OUT> {
     @Override
     protected void put(@NonNull final Consumer<Object> handler, @NonNull final Object data) {
         onRamp.onRamp();
-        submitWork.accept(() -> {
-            handler.accept(data);
-            offRamp.offRamp();
-        });
+        submitWork.accept(() -> doWork(handler, data));
     }
 
     /**
@@ -107,10 +100,7 @@ public class DeterministicTaskScheduler<OUT> extends TaskScheduler<OUT> {
     @Override
     protected boolean offer(@NonNull final Consumer<Object> handler, @NonNull final Object data) {
         if (onRamp.attemptOnRamp()) {
-            submitWork.accept(() -> {
-                handler.accept(data);
-                offRamp.offRamp();
-            });
+            submitWork.accept(() -> doWork(handler, data));
             return true;
         }
         return false;
@@ -122,9 +112,16 @@ public class DeterministicTaskScheduler<OUT> extends TaskScheduler<OUT> {
     @Override
     protected void inject(@NonNull final Consumer<Object> handler, @NonNull final Object data) {
         onRamp.forceOnRamp();
-        submitWork.accept(() -> {
+        submitWork.accept(() -> doWork(handler, data));
+    }
+
+    private void doWork(@NonNull final Consumer<Object> handler, @NonNull final Object data) {
+        try {
             handler.accept(data);
+        } catch (Exception e) {
+            getUncaughtExceptionHandler().uncaughtException(Thread.currentThread(), e);
+        } finally {
             offRamp.offRamp();
-        });
+        }
     }
 }
