@@ -8,7 +8,6 @@ import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.platform.Consensus;
 import com.swirlds.platform.ConsensusImpl;
-import com.swirlds.platform.consensus.EventWindowUtils;
 import com.swirlds.platform.event.linking.ConsensusLinker;
 import com.swirlds.platform.event.linking.DefaultLinkerLogsAndMetrics;
 import com.swirlds.platform.internal.EventImpl;
@@ -24,12 +23,13 @@ import java.util.Queue;
 import org.hiero.consensus.event.FutureEventBuffer;
 import org.hiero.consensus.event.FutureEventBufferingOption;
 import org.hiero.consensus.hashgraph.ConsensusConfig;
-import org.hiero.consensus.hashgraph.FreezeCheckHolder;
+import org.hiero.consensus.hashgraph.FreezePeriodChecker;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
+import org.hiero.consensus.round.EventWindowUtils;
 
 /**
  * The default implementation of the {@link ConsensusEngine} interface
@@ -67,12 +67,11 @@ public class DefaultConsensusEngine implements ConsensusEngine {
             @NonNull final PlatformContext platformContext,
             @NonNull final Roster roster,
             @NonNull final NodeId selfId,
-            @NonNull final FreezeCheckHolder freezeChecker) {
+            @NonNull final FreezePeriodChecker freezeChecker) {
 
         final ConsensusMetrics consensusMetrics = new ConsensusMetricsImpl(selfId, platformContext.getMetrics());
-        final ConsensusConfig consensusConfig =
-                platformContext.getConfiguration().getConfigData(ConsensusConfig.class);
-        consensus = new ConsensusImpl(consensusConfig, platformContext.getTime(), consensusMetrics, roster);
+        consensus = new ConsensusImpl(
+                platformContext.getConfiguration(), platformContext.getTime(), consensusMetrics, roster);
 
         linker = new ConsensusLinker(
                 new DefaultLinkerLogsAndMetrics(platformContext.getMetrics(), platformContext.getTime()));

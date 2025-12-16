@@ -161,6 +161,9 @@ public class TransactionDispatcher {
                     TOKEN_REJECT,
                     TOKEN_UNFREEZE,
                     TOKEN_UNPAUSE,
+                    TOKEN_AIRDROP,
+                    TOKEN_CLAIM_AIRDROP,
+                    TOKEN_CANCEL_AIRDROP,
                     TOKEN_UPDATE_NFTS,
                     TOKEN_WIPE -> true;
             default -> false;

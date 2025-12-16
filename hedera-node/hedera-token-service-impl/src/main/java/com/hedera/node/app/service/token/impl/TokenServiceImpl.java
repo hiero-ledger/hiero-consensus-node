@@ -11,8 +11,11 @@ import com.hedera.node.app.service.token.impl.calculator.CryptoDeleteAllowanceFe
 import com.hedera.node.app.service.token.impl.calculator.CryptoDeleteFeeCalculator;
 import com.hedera.node.app.service.token.impl.calculator.CryptoTransferFeeCalculator;
 import com.hedera.node.app.service.token.impl.calculator.CryptoUpdateFeeCalculator;
+import com.hedera.node.app.service.token.impl.calculator.TokenAirdropFeeCalculator;
 import com.hedera.node.app.service.token.impl.calculator.TokenAssociateFeeCalculator;
 import com.hedera.node.app.service.token.impl.calculator.TokenBurnFeeCalculator;
+import com.hedera.node.app.service.token.impl.calculator.TokenCancelAirdropFeeCalculator;
+import com.hedera.node.app.service.token.impl.calculator.TokenClaimAirdropFeeCalculator;
 import com.hedera.node.app.service.token.impl.calculator.TokenCreateFeeCalculator;
 import com.hedera.node.app.service.token.impl.calculator.TokenDeleteFeeCalculator;
 import com.hedera.node.app.service.token.impl.calculator.TokenDissociateFeeCalculator;
@@ -85,6 +88,11 @@ public class TokenServiceImpl implements TokenService {
                 new TokenRevokeKycFeeCalculator(),
                 new TokenUnpauseFeeCalculator(),
                 new TokenUnfreezeAccountFeeCalculator(),
+                new TokenBurnFeeCalculator(),
+                new TokenDeleteFeeCalculator(),
+                new TokenAirdropFeeCalculator(),
+                new TokenClaimAirdropFeeCalculator(),
+                new TokenCancelAirdropFeeCalculator());
                 new TokenUpdateNftsFeeCalculator(),
                 new TokenWipeFeeCalculator());
     }
