@@ -141,7 +141,7 @@ jobs:
           echo "Version: ${{ steps.version-and-artifact.outputs.full_ver }}" >> "${GITHUB_STEP_SUMMARY}"
           echo "File: ${{ steps.version-and-artifact.outputs.dest_name }}" >> "${GITHUB_STEP_SUMMARY}"
 
-          if [[ "${{ inputs.dry-run }}" == "true" ]]; then
+          if [[ "${{ inputs.dry-run-enabled }}" == "true" ]]; then
             echo "GCS URI: Publication skipped due to dry-run mode." >> "${GITHUB_STEP_SUMMARY}"
           else
             echo "GCS URI: ${{ steps.upload.outputs.gcs_uri }}" >> "${GITHUB_STEP_SUMMARY}"
