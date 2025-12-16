@@ -158,8 +158,7 @@ public class TokenServiceFeeCalculatorTests {
                         new TokenUnpauseFeeCalculator(),
                         new TokenUpdateNftsFeeCalculator(),
                         new TokenWipeFeeCalculator()),
-                Set.of(new TokenGetInfoFeeCalculator(),
-                        new TokenGetNftInfoFeeCalculator()));
+                Set.of(new TokenGetInfoFeeCalculator(), new TokenGetNftInfoFeeCalculator()));
     }
 
     @Test
@@ -389,12 +388,11 @@ public class TokenServiceFeeCalculatorTests {
         assertEquals(TOKEN_UPDATE_NFTS_BASE_FEE, result.total());
     }
 
-
     @Test
     void tokenGetInfo() {
         final var opBody = TokenGetInfoQuery.newBuilder().build();
         final var queryBody = Query.newBuilder().tokenGetInfo(opBody).build();
-        final var result = feeCalculator.calculateQueryFee(queryBody,queryContext);
+        final var result = feeCalculator.calculateQueryFee(queryBody, queryContext);
         assertEquals(TOKEN_GET_INFO_BASE_FEE, result);
     }
 
@@ -402,7 +400,7 @@ public class TokenServiceFeeCalculatorTests {
     void tokenGetNftInfo() {
         final var opBody = TokenGetNftInfoQuery.newBuilder().build();
         final var queryBody = Query.newBuilder().tokenGetNftInfo(opBody).build();
-        final var result = feeCalculator.calculateQueryFee(queryBody,queryContext);
+        final var result = feeCalculator.calculateQueryFee(queryBody, queryContext);
         assertEquals(TOKEN_GET_NFT_INFO_BASE_FEE, result);
     }
 
@@ -439,9 +437,8 @@ public class TokenServiceFeeCalculatorTests {
                         makeServiceFee(TOKEN_UPDATE_NFTS, TOKEN_UPDATE_NFTS_BASE_FEE),
                         makeServiceFee(TOKEN_UNFREEZE_ACCOUNT, TOKEN_UNFREEZE_BASE_FEE),
                         makeServiceFee(TOKEN_ACCOUNT_WIPE, TOKEN_WIPE_BASE_FEE),
-                        makeServiceFee(TOKEN_GET_INFO,TOKEN_GET_INFO_BASE_FEE),
-                        makeServiceFee(TOKEN_GET_NFT_INFO,TOKEN_GET_NFT_INFO_BASE_FEE)
-                        ))
+                        makeServiceFee(TOKEN_GET_INFO, TOKEN_GET_INFO_BASE_FEE),
+                        makeServiceFee(TOKEN_GET_NFT_INFO, TOKEN_GET_NFT_INFO_BASE_FEE)))
                 .build();
     }
 }

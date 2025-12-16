@@ -638,7 +638,7 @@ public class TokenServiceSimpleFeesSuite {
                                 .fee(ONE_HUNDRED_HBARS)
                                 .hasKnownStatus(SUCCESS),
                         tokenAssociate(OTHER, FUNGIBLE_TOKEN),
-                        //TODO: why do we need kyc to do the transfer?
+                        // TODO: why do we need kyc to do the transfer?
                         grantTokenKyc(FUNGIBLE_TOKEN, OTHER)
                                 .fee(ONE_HUNDRED_HBARS)
                                 .payingWith(OTHER),
@@ -649,8 +649,7 @@ public class TokenServiceSimpleFeesSuite {
                                 .fee(ONE_HUNDRED_HBARS)
                                 .signedBy(OTHER)
                                 .payingWith(OTHER)
-                                .via("token-reject-txn")
-                ),
+                                .via("token-reject-txn")),
                 "token-reject-txn",
                 0.001,
                 1,
@@ -710,7 +709,6 @@ public class TokenServiceSimpleFeesSuite {
                         newKeyNamed(FEE_SCHEDULE_KEY),
                         cryptoCreate(htsCollector),
                         tokenCreate(feeDenom).treasury(htsCollector),
-
                         cryptoCreate(PAYER).balance(ONE_BILLION_HBARS),
                         cryptoCreate(OTHER).balance(ONE_BILLION_HBARS).key(FEE_SCHEDULE_KEY),
                         tokenCreate(FUNGIBLE_TOKEN)
@@ -776,7 +774,8 @@ public class TokenServiceSimpleFeesSuite {
     @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
     @DisplayName("compare TokenGetInfoQuery")
     final Stream<DynamicTest> compareTokenGetInfo() {
-        return compareSimpleToOld(() -> Arrays.asList(
+        return compareSimpleToOld(
+                () -> Arrays.asList(
                         newKeyNamed(SUPPLY_KEY),
                         newKeyNamed(FREEZE_KEY),
                         cryptoCreate(PAYER).balance(ONE_BILLION_HBARS).key(SUPPLY_KEY),
@@ -788,18 +787,19 @@ public class TokenServiceSimpleFeesSuite {
                         getTokenInfo(FUNGIBLE_TOKEN)
                                 .hasTotalSupply(1000L)
                                 .via("get-token-info-query")
-                                .payingWith(PAYER)
-        ),
+                                .payingWith(PAYER)),
                 "get-token-info-query",
                 0.0001,
                 1,
                 0.0001,
                 1);
     }
+
     @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
     @DisplayName("compare TokenGetNftInfoQuery")
     final Stream<DynamicTest> compareTokenGetNftInfo() {
-        return compareSimpleToOld(() -> Arrays.asList(
+        return compareSimpleToOld(
+                () -> Arrays.asList(
                         newKeyNamed(SUPPLY_KEY),
                         cryptoCreate(PAYER).balance(ONE_BILLION_HBARS).key(SUPPLY_KEY),
                         tokenCreate(NFT_TOKEN)
@@ -818,13 +818,11 @@ public class TokenServiceSimpleFeesSuite {
                                 .hasCostAnswerPrecheck(OK)
                                 .payingWith(PAYER)
                                 .fee(ONE_HUNDRED_HBARS)
-                                .via("get-token-nft-info-query")
-                ),
+                                .via("get-token-nft-info-query")),
                 "get-token-nft-info-query",
                 0.0001,
                 1,
                 0.0001,
                 1);
     }
-
 }
