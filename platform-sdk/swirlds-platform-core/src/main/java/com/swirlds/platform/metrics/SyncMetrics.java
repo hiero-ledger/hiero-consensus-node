@@ -5,7 +5,6 @@ import static com.swirlds.metrics.api.FloatFormats.FORMAT_10_0;
 import static com.swirlds.metrics.api.FloatFormats.FORMAT_10_3;
 import static com.swirlds.metrics.api.FloatFormats.FORMAT_15_3;
 import static com.swirlds.metrics.api.FloatFormats.FORMAT_8_1;
-import static com.swirlds.metrics.api.FloatFormats.FORMAT_DECIMAL_3;
 import static com.swirlds.metrics.api.Metrics.INTERNAL_CATEGORY;
 import static com.swirlds.metrics.api.Metrics.PLATFORM_CATEGORY;
 
@@ -15,7 +14,11 @@ import com.swirlds.common.metrics.RunningAverageMetric;
 import com.swirlds.common.metrics.extensions.CountPerSecond;
 import com.swirlds.common.metrics.extensions.PhaseTimer;
 import com.swirlds.common.metrics.extensions.PhaseTimerBuilder;
-import com.swirlds.metrics.api.DoubleGauge;
+import com.swirlds.common.metrics.statistics.AverageAndMax;
+import com.swirlds.common.metrics.statistics.AverageAndMaxTimeStat;
+import com.swirlds.common.metrics.statistics.AverageStat;
+import com.swirlds.common.metrics.statistics.AverageTimeStat;
+import com.swirlds.common.metrics.statistics.MaxStat;
 import com.swirlds.metrics.api.FloatFormats;
 import com.swirlds.metrics.api.IntegerGauge;
 import com.swirlds.metrics.api.Metrics;
@@ -24,15 +27,12 @@ import com.swirlds.platform.gossip.shadowgraph.SyncPhase;
 import com.swirlds.platform.gossip.shadowgraph.SyncResult;
 import com.swirlds.platform.gossip.shadowgraph.SyncTiming;
 import com.swirlds.platform.network.Connection;
-import com.swirlds.platform.stats.AverageAndMax;
-import com.swirlds.platform.stats.AverageAndMaxTimeStat;
-import com.swirlds.platform.stats.AverageStat;
-import com.swirlds.platform.stats.AverageTimeStat;
-import com.swirlds.platform.stats.MaxStat;
+import com.swirlds.platform.network.PeerInfo;
 import com.swirlds.platform.system.PlatformStatNames;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.temporal.ChronoUnit;
+import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import org.hiero.consensus.model.hashgraph.EventWindow;
@@ -170,11 +170,6 @@ public class SyncMetrics {
                     Metrics.PLATFORM_CATEGORY, "syncs_in_progress")
             .withDescription("number of syncs running concurrently");
 
-    private final DoubleGauge.Config SYNC_LAG_BEHIND_CONFIG = new DoubleGauge.Config(
-                    Metrics.PLATFORM_CATEGORY, "sync_round_lag")
-            .withDescription("How many rounds on average are we lagging behind peers")
-            .withFormat(FORMAT_DECIMAL_3);
-
     private final RunningAverageMetric tipsPerSync;
 
     private final AverageStat syncIndicatorDiff;
@@ -200,16 +195,16 @@ public class SyncMetrics {
     private final IntegerGauge rpcWriteThreadRunning;
     private final IntegerGauge rpcDispatchThreadRunning;
     private final IntegerGauge syncsInProgress;
-    private final DoubleGauge syncLagBehind;
 
     /**
      * Constructor of {@code SyncMetrics}
      *
      * @param metrics a reference to the metrics-system
      * @param time    time source for the system
+     * @param peers   list of all peers to pre-create dynamic metrics
      * @throws IllegalArgumentException if {@code metrics} is {@code null}
      */
-    public SyncMetrics(final Metrics metrics, final Time time) {
+    public SyncMetrics(final Metrics metrics, final Time time, final List<PeerInfo> peers) {
         this.metrics = Objects.requireNonNull(metrics);
         this.time = Objects.requireNonNull(time);
         avgBytesPerSecSync = metrics.getOrCreate(AVG_BYTES_PER_SEC_SYNC_CONFIG);
@@ -324,7 +319,20 @@ public class SyncMetrics {
                 "amount of us spent sleeping waiting for poll to happen or timeout on rpc output queue",
                 FORMAT_10_0);
 
-        syncLagBehind = metrics.getOrCreate(SYNC_LAG_BEHIND_CONFIG);
+        precreateDynamicMetrics(peers);
+    }
+
+    /**
+     * Out metric csv report needs all the metrics upfront to not get confused
+     * @param peers list of all peers to pre-create dynamic metrics
+     */
+    private void precreateDynamicMetrics(final List<PeerInfo> peers) {
+        for (final PeerInfo peer : peers) {
+            final NodeId nodeId = peer.nodeId();
+            rpcInputQueueSize(nodeId, 0);
+            rpcOutputQueueSize(nodeId, 0);
+            reportSyncPhase(nodeId, SyncPhase.OUTSIDE_OF_RPC);
+        }
     }
 
     /**
@@ -649,9 +657,5 @@ public class SyncMetrics {
      */
     public void syncFinished() {
         syncsInProgress.add(-1);
-    }
-
-    public void reportMedianLag(final double medianLag) {
-        syncLagBehind.set(medianLag);
     }
 }

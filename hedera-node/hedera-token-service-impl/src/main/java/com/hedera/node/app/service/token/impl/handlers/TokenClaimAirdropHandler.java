@@ -162,7 +162,7 @@ public class TokenClaimAirdropHandler extends TransferExecutor implements Transa
      * @param context the handle context
      * @param op the token claim airdrop transaction body
      * @param accountStore the account store
-     * @return a list of validated pending airdrop ids using the {@code 0.0.X} reference for both sender and receiver
+     * @return a set of validated pending airdrop ids using the {@code 0.0.X} reference for both sender and receiver
      * @throws HandleException if the transaction is invalid
      */
     private Set<PendingAirdropId> validateSemantics(
@@ -194,6 +194,7 @@ public class TokenClaimAirdropHandler extends TransferExecutor implements Transa
         return standardAirdropIds;
     }
 
+    @NonNull
     @Override
     public Fees calculateFees(@NonNull FeeContext feeContext) {
         var tokensConfig = feeContext.configuration().getConfigData(TokensConfig.class);

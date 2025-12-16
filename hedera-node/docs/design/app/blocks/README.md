@@ -12,6 +12,7 @@ class or component and its role, including interactions with other components.
 | [BlockNodeConnection.md](BlockNodeConnection.md)               | BlockNodeConnection        | Internal design and behavior of the BlockNodeConnection class, representing an individual connection.  |
 | [BlockState.md](BlockState.md)                                 | BlockState                 | Internal design of the BlockState component, managing state information for blocks.                    |
 | [BlockBufferService.md](BlockBufferService.md)                 | BlockBufferService         | Internal design and responsibilities of BlockBufferService, handling stream state and synchronization. |
+| [block-nodes-json.md](block-nodes-json.md)                     | Configuration              | JSON structure and options for `block-nodes.json`, protocol overrides, and live reload behavior.       |
 
 ## Components Interaction Flow
 

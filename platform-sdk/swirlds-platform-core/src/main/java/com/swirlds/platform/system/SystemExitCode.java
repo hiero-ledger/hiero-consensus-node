@@ -30,10 +30,6 @@ public enum SystemExitCode {
      */
     NODE_ADDRESS_MISMATCH(205),
     /**
-     * An error occurred during emergency recovery
-     */
-    EMERGENCY_RECOVERY_ERROR(206),
-    /**
      * An exit was called but no code was supplied
      */
     NO_EXIT_CODE(254),

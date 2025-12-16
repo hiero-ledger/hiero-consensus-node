@@ -394,8 +394,15 @@ public class RecordStreamBuilder
     // ------------------------------------------------------------------------------------------------------------------------
     // base transaction data
 
+    @Override
     public RecordStreamBuilder parentConsensus(@NonNull final Instant parentConsensus) {
         this.parentConsensus = requireNonNull(parentConsensus, "parentConsensus must not be null");
+        return this;
+    }
+
+    @Override
+    public StreamBuilder triggeringParentConsensus(@NonNull final Instant parentConsensus) {
+        // No-op for backward compatibility with V6 record stream
         return this;
     }
 

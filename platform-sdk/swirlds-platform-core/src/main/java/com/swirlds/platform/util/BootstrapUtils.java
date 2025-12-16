@@ -3,6 +3,7 @@ package com.swirlds.platform.util;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
+import static com.swirlds.platform.state.service.PlatformStateUtils.creationSoftwareVersionOf;
 import static com.swirlds.platform.system.SystemExitCode.NODE_ADDRESS_MISMATCH;
 import static com.swirlds.platform.system.SystemExitUtils.exitSystem;
 import static com.swirlds.virtualmap.constructable.ConstructableUtils.registerVirtualMapConstructables;
@@ -31,7 +32,6 @@ import com.swirlds.platform.health.OSHealthChecker;
 import com.swirlds.platform.health.clock.OSClockSpeedSourceChecker;
 import com.swirlds.platform.health.entropy.OSEntropyChecker;
 import com.swirlds.platform.health.filesystem.OSFileSystemChecker;
-import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.swirldapp.AppLoaderException;
 import com.swirlds.platform.swirldapp.SwirldAppLoader;
@@ -182,9 +182,7 @@ public final class BootstrapUtils {
      * @return true if there is a software upgrade, false otherwise
      */
     public static boolean detectSoftwareUpgrade(
-            @NonNull final SemanticVersion appVersion,
-            @Nullable final SignedState loadedSignedState,
-            @NonNull final PlatformStateFacade platformStateFacade) {
+            @NonNull final SemanticVersion appVersion, @Nullable final SignedState loadedSignedState) {
         requireNonNull(appVersion, "The app version must not be null.");
 
         final SemanticVersion loadedSoftwareVersion;
@@ -192,7 +190,7 @@ public final class BootstrapUtils {
             loadedSoftwareVersion = null;
         } else {
             final State state = loadedSignedState.getState();
-            loadedSoftwareVersion = platformStateFacade.creationSoftwareVersionOf(state);
+            loadedSoftwareVersion = creationSoftwareVersionOf(state);
         }
         final int versionComparison = loadedSoftwareVersion == null
                 ? 1

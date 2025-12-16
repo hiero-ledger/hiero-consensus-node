@@ -1733,7 +1733,7 @@ enum ResponseCodeEnum {
      * The batch key is not valid
      */
     INVALID_BATCH_KEY = 394;
-    
+
     /**
      * The provided schedule expiry time is not configurable.
      */
@@ -1770,6 +1770,11 @@ enum ResponseCodeEnum {
      * A HAPI client cannot set the SignedTransaction#use_serialized_tx_message_hash_algorithm field.
      */
     INVALID_SERIALIZED_TX_MESSAGE_HASH_ALGORITHM = 401;
+
+    /**
+     * A LambdaSStore referenced a valid entity number but with the wrong entity type.
+     */
+    WRONG_HOOK_ENTITY_TYPE = 499;
 
     /**
      * An EVM hook execution was throttled due to high network gas utilization.

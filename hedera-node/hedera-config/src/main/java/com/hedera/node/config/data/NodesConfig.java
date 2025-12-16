@@ -31,7 +31,7 @@ public record NodesConfig(
         @ConfigProperty(defaultValue = "true") @NetworkProperty boolean gossipFqdnRestricted,
         @ConfigProperty(defaultValue = "true") @NetworkProperty boolean enableDAB,
         @ConfigProperty(defaultValue = "253") @NetworkProperty int maxFqdnSize,
-        @ConfigProperty(defaultValue = "false") @NetworkProperty boolean updateAccountIdAllowed,
+        @ConfigProperty(defaultValue = "true") @NetworkProperty boolean updateAccountIdAllowed,
         /* Node rewards HIP-1064 configurations */
         @ConfigProperty(defaultValue = "true") @NetworkProperty boolean nodeRewardsEnabled,
         @ConfigProperty(defaultValue = "0") @NetworkProperty long minPerPeriodNodeRewardUsd,

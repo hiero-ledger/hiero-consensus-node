@@ -310,7 +310,9 @@ public class AtomicBatchTest {
                     getReceipt(transferTxn).andAnyChildReceipts().hasChildAutoAccountCreations(1));
         }
 
-        @LeakyHapiTest(requirement = {THROTTLE_OVERRIDES})
+        @LeakyHapiTest(
+                requirement = {THROTTLE_OVERRIDES},
+                throttles = "testSystemFiles/artificial-limits.json")
         @DisplayName("Batch contract call with the TPS limit")
         //  BATCH_02
         public Stream<DynamicTest> contractCallTPSLimit() {
@@ -334,7 +336,7 @@ public class AtomicBatchTest {
                             .payingWith(payer));
         }
 
-        @LeakyHapiTest
+        @LeakyHapiTest(overrides = {"contracts.maxGasPerSec"})
         @DisplayName("Batch contract call with the gas limit")
         //  BATCH_03
         public Stream<DynamicTest> contractCallGasLimit() {

@@ -30,6 +30,7 @@ import java.util.List;
 import java.util.Random;
 import java.util.function.Consumer;
 import org.hiero.base.constructable.ConstructableRegistry;
+import org.hiero.consensus.model.gossip.SyncProgress;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.BeforeEach;
@@ -50,7 +51,7 @@ class RpcShadowgraphSynchronizerTest {
     private Consumer eventHandler;
     private GossipRpcSender gossipSender;
     private RpcShadowgraphSynchronizer synchronizer;
-    private Consumer<Double> lagReporter;
+    private Consumer<SyncProgress> syncProgressReporter;
 
     @BeforeEach
     void testSetup() throws Exception {
@@ -82,7 +83,7 @@ class RpcShadowgraphSynchronizerTest {
                 RandomRosterBuilder.create(new Random()).withSize(NUM_NODES).build(), configuration, new NoOpMetrics());
         this.eventHandler = mock(Consumer.class);
         this.gossipSender = mock(GossipRpcSender.class);
-        this.lagReporter = mock(Consumer.class);
+        this.syncProgressReporter = mock(Consumer.class);
         this.synchronizer = new RpcShadowgraphSynchronizer(
                 platformContext,
                 NUM_NODES,
@@ -91,7 +92,7 @@ class RpcShadowgraphSynchronizerTest {
                 fallenBehindManager,
                 new NoOpIntakeEventCounter(),
                 selfId,
-                lagReporter);
+                syncProgressReporter);
 
         this.synchronizer.updateEventWindow(EventWindow.getGenesisEventWindow());
     }
@@ -193,35 +194,23 @@ class RpcShadowgraphSynchronizerTest {
         conversation.checkForPeriodicActions(false, false);
         Mockito.verify(gossipSender).sendSyncData(any());
         conversation.receiveSyncData(new SyncData(new EventWindow(100, 101, 10, 5), List.of(), false));
-        Mockito.verify(lagReporter).accept(100.0);
+        Mockito.verify(syncProgressReporter)
+                .accept(new SyncProgress(otherNodeId, new EventWindow(0, 1, 1, 1), new EventWindow(100, 101, 10, 5)));
         Mockito.verify(gossipSender).breakConversation();
         Mockito.verifyNoMoreInteractions(gossipSender);
     }
 
     @Test
-    void testMedianLag() {
+    void testSyncProgressReporting() {
         for (int i = 2; i <= 5; i++) {
             var otherNodeId = NodeId.of(i);
             var conversation = synchronizer.createPeerHandler(gossipSender, otherNodeId);
             conversation.checkForPeriodicActions(false, false);
-            conversation.receiveSyncData(new SyncData(new EventWindow(20 + i, 20 + i, 10, 5), List.of(), false));
-            Mockito.verify(lagReporter).accept(21 + i / 2.0);
+            var eventWindow = new EventWindow(20 + i, 20 + i, 10, 5);
+            conversation.receiveSyncData(new SyncData(eventWindow, List.of(), false));
+            Mockito.verify(syncProgressReporter)
+                    .accept(new SyncProgress(otherNodeId, new EventWindow(0, 1, 1, 1), eventWindow));
         }
-    }
-
-    @Test
-    void testMedianLagDifferentOrder() {
-        for (int i = 5; i >= 2; i--) {
-            var otherNodeId = NodeId.of(i);
-            var conversation = synchronizer.createPeerHandler(gossipSender, otherNodeId);
-            conversation.checkForPeriodicActions(false, false);
-            conversation.receiveSyncData(new SyncData(new EventWindow(20 + i, 20 + i, 10, 5), List.of(), false));
-            if (i != 2) {
-                Mockito.reset(lagReporter);
-            }
-        }
-
-        Mockito.verify(lagReporter).accept(23.5);
     }
 
     @Test

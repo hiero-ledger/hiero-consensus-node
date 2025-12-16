@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures;
 
-import static org.assertj.core.api.Assertions.assertThat;
-
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
@@ -10,7 +8,6 @@ import com.swirlds.platform.config.PathsConfig_;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.file.Path;
-import java.util.Objects;
 import java.util.function.Function;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -76,40 +73,5 @@ public abstract class PlatformTest {
             platformContextModifier.apply(platformContextBuilder);
         }
         return platformContextBuilder.build();
-    }
-
-    /**
-     * Gets the temporary directory provided by JUnit
-     *
-     * @return the temporary directory
-     */
-    @NonNull
-    Path getTempDir() {
-        return Objects.requireNonNull(tempDir);
-    }
-
-    /**
-     * Gets the marker file directory
-     *
-     * @return the marker file directory
-     */
-    @NonNull
-    protected Path getMarkerFileDirectory() {
-        return Objects.requireNonNull(tempDir.resolve(TEST_MARKER_FILE_DIRECTORY));
-    }
-
-    /**
-     * checks for the presence of the marker file.
-     *
-     * @param markerFileName the name of the marker file
-     * @param exists         true if the marker file should exist, false otherwise
-     */
-    protected void assertMarkerFile(@NonNull final String markerFileName, final boolean exists) {
-        assertThat(exists)
-                .isEqualTo(getMarkerFileDirectory()
-                        .resolve(markerFileName)
-                        .toFile()
-                        .exists())
-                .withFailMessage("Marker file " + markerFileName + " should " + (exists ? "" : "not ") + "exist");
     }
 }

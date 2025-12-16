@@ -27,7 +27,7 @@ public class KeyUtilsTest {
         assertTrue(KeyUtils.isEmpty(Key.DEFAULT));
         assertTrue(KeyUtils.isEmpty(Key.newBuilder().keyList(KeyList.DEFAULT).build()));
         assertTrue(KeyUtils.isEmpty(
-                Key.newBuilder().keyList(KeyList.newBuilder().keys().build()).build()));
+                Key.newBuilder().keyList(KeyList.newBuilder().build()).build()));
         assertTrue(KeyUtils.isEmpty(
                 Key.newBuilder().thresholdKey(ThresholdKey.DEFAULT).build()));
         assertTrue(KeyUtils.isEmpty(Key.newBuilder()
@@ -36,7 +36,7 @@ public class KeyUtilsTest {
                 .build()));
         assertTrue(KeyUtils.isEmpty(Key.newBuilder()
                 .thresholdKey(ThresholdKey.newBuilder().threshold(1))
-                .keyList(KeyList.newBuilder().keys().build())
+                .keyList(KeyList.newBuilder().build())
                 .build()));
         assertTrue(KeyUtils.isEmpty(Key.newBuilder().ed25519(Bytes.EMPTY).build()));
         assertTrue(KeyUtils.isEmpty(Key.newBuilder().ecdsaSecp256k1(Bytes.EMPTY).build()));
@@ -55,7 +55,7 @@ public class KeyUtilsTest {
         assertFalse(KeyUtils.isValid(Key.DEFAULT));
         assertFalse(KeyUtils.isValid(Key.newBuilder().keyList(KeyList.DEFAULT).build()));
         assertFalse(KeyUtils.isValid(
-                Key.newBuilder().keyList(KeyList.newBuilder().keys().build()).build()));
+                Key.newBuilder().keyList(KeyList.newBuilder().build()).build()));
         assertFalse(KeyUtils.isValid(
                 Key.newBuilder().thresholdKey(ThresholdKey.DEFAULT).build()));
         assertFalse(KeyUtils.isValid(Key.newBuilder()
@@ -64,7 +64,7 @@ public class KeyUtilsTest {
                 .build()));
         assertFalse(KeyUtils.isValid(Key.newBuilder()
                 .thresholdKey(ThresholdKey.newBuilder().threshold(1))
-                .keyList(KeyList.newBuilder().keys().build())
+                .keyList(KeyList.newBuilder().build())
                 .build()));
         assertFalse(KeyUtils.isValid(Key.newBuilder().ed25519(Bytes.EMPTY).build()));
         assertFalse(

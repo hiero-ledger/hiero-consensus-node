@@ -2,6 +2,7 @@
 package com.swirlds.platform.state.hashlogger;
 
 import static com.swirlds.logging.legacy.LogMarker.STATE_HASH;
+import static com.swirlds.platform.state.service.PlatformStateService.NAME;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.mockito.ArgumentMatchers.any;
@@ -11,6 +12,8 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import com.hedera.hapi.node.base.SemanticVersion;
+import com.hedera.hapi.platform.state.PlatformState;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.test.fixtures.merkle.TestMerkleCryptoFactory;
@@ -20,11 +23,12 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.platform.config.StateConfig_;
 import com.swirlds.platform.state.PlatformStateAccessor;
-import com.swirlds.platform.state.service.PlatformStateFacade;
+import com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SignedState;
-import com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade;
 import com.swirlds.state.MerkleNodeState;
+import com.swirlds.state.spi.ReadableSingletonState;
+import com.swirlds.state.spi.ReadableStates;
 import java.util.ArrayList;
 import java.util.List;
 import org.apache.logging.log4j.Logger;
@@ -36,7 +40,6 @@ public class HashLoggerTest {
     private Logger mockLogger;
     private HashLogger hashLogger;
     private List<String> logged;
-    private TestPlatformStateFacade platformStateFacade;
 
     /**
      * Get a regex that will match a log message containing the given round number
@@ -51,12 +54,11 @@ public class HashLoggerTest {
     @BeforeEach
     public void setUp() {
         mockLogger = mock(Logger.class);
-        platformStateFacade = mock(TestPlatformStateFacade.class);
 
         final PlatformContext platformContext =
                 TestPlatformContextBuilder.create().build();
 
-        hashLogger = new DefaultHashLogger(platformContext, mockLogger, platformStateFacade);
+        hashLogger = new DefaultHashLogger(platformContext, mockLogger);
         logged = new ArrayList<>();
 
         doAnswer(invocation -> {
@@ -116,7 +118,7 @@ public class HashLoggerTest {
                 .withConfiguration(configuration)
                 .build();
 
-        hashLogger = new DefaultHashLogger(platformContext, mockLogger, platformStateFacade);
+        hashLogger = new DefaultHashLogger(platformContext, mockLogger);
         hashLogger.logHashes(createSignedState(1));
         assertThat(logged).isEmpty();
     }
@@ -125,10 +127,8 @@ public class HashLoggerTest {
     public void loggerWithDefaultConstructorWorks() {
         final PlatformContext platformContext =
                 TestPlatformContextBuilder.create().build();
-        final PlatformStateFacade platformStateFacade = mock(PlatformStateFacade.class);
-
         assertDoesNotThrow(() -> {
-            hashLogger = new DefaultHashLogger(platformContext, platformStateFacade);
+            hashLogger = new DefaultHashLogger(platformContext);
             hashLogger.logHashes(createSignedState(1));
         });
     }
@@ -139,11 +139,22 @@ public class HashLoggerTest {
         final SignedState signedState = mock(SignedState.class);
         final MerkleNodeState state = mock(MerkleNodeState.class);
         final MerkleNode stateRoot = mock(MerkleNode.class);
+        final ReadableStates readableStates = mock(ReadableStates.class);
         final PlatformStateAccessor platformState = mock(PlatformStateAccessor.class);
+        final ReadableSingletonState singletonState = mock(ReadableSingletonState.class);
+        when(singletonState.get())
+                .thenReturn(PlatformState.newBuilder()
+                        .creationSoftwareVersion(
+                                SemanticVersion.newBuilder().minor(1).build())
+                        .build());
+        when(state.getReadableStates(NAME)).thenReturn(readableStates);
+        when(readableStates.getSingleton(V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID))
+                .thenReturn(singletonState);
         when(platformState.getRound()).thenReturn(round);
         when(state.getRoot()).thenReturn(stateRoot);
         when(stateRoot.getRoute()).thenReturn(merkleNode.getRoute());
         when(state.getHash()).thenReturn(merkleNode.getHash());
+        when(state.getInfoJson()).thenReturn("testInfoJson");
 
         when(signedState.getState()).thenReturn(state);
         when(signedState.getRound()).thenReturn(round);

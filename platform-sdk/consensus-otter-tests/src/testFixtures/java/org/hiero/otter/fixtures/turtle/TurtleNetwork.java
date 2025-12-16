@@ -25,14 +25,12 @@ import org.hiero.otter.fixtures.Network;
 import org.hiero.otter.fixtures.TimeManager;
 import org.hiero.otter.fixtures.TransactionGenerator;
 import org.hiero.otter.fixtures.internal.AbstractNetwork;
-import org.hiero.otter.fixtures.internal.AbstractNode.LifeCycle;
 import org.hiero.otter.fixtures.internal.AbstractTimeManager.TimeTickReceiver;
-import org.hiero.otter.fixtures.internal.NodeProperties;
 import org.hiero.otter.fixtures.internal.network.ConnectionKey;
 import org.hiero.otter.fixtures.logging.context.ContextAwareThreadFactory;
 import org.hiero.otter.fixtures.logging.context.NodeLoggingContext;
 import org.hiero.otter.fixtures.logging.context.NodeLoggingContext.LoggingContextScope;
-import org.hiero.otter.fixtures.network.Topology.ConnectionData;
+import org.hiero.otter.fixtures.network.Topology.ConnectionState;
 import org.hiero.otter.fixtures.turtle.gossip.SimulatedNetwork;
 import org.hiero.otter.fixtures.turtle.logging.TurtleLogging;
 import org.hiero.otter.fixtures.util.OtterSavedStateUtils;
@@ -50,7 +48,6 @@ public class TurtleNetwork extends AbstractNetwork implements TimeTickReceiver {
     private final Path rootOutputDirectory;
     private final TurtleTransactionGenerator transactionGenerator;
     private final SimulatedNetwork simulatedNetwork;
-    private final NodeProperties nodeProperties;
 
     private ExecutorService executorService;
 
@@ -78,7 +75,6 @@ public class TurtleNetwork extends AbstractNetwork implements TimeTickReceiver {
         this.rootOutputDirectory = requireNonNull(rootOutputDirectory);
         this.transactionGenerator = requireNonNull(transactionGenerator);
         this.simulatedNetwork = new SimulatedNetwork(randotron);
-        this.nodeProperties = new NodeProperties(new TurtleNodeConfiguration(() -> LifeCycle.INIT));
     }
 
     /**
@@ -99,17 +95,11 @@ public class TurtleNetwork extends AbstractNetwork implements TimeTickReceiver {
         return transactionGenerator;
     }
 
-    @Override
-    @NonNull
-    protected NodeProperties nodeProperties() {
-        return nodeProperties;
-    }
-
     /**
      * {@inheritDoc}
      */
     @Override
-    protected void onConnectionsChanged(@NonNull final Map<ConnectionKey, ConnectionData> connections) {
+    protected void onConnectionsChanged(@NonNull final Map<ConnectionKey, ConnectionState> connections) {
         simulatedNetwork.setConnections(connections);
     }
 
@@ -121,7 +111,15 @@ public class TurtleNetwork extends AbstractNetwork implements TimeTickReceiver {
     protected TurtleNode doCreateNode(@NonNull final NodeId nodeId, @NonNull final KeysAndCerts keysAndCerts) {
         simulatedNetwork.addNode(nodeId);
         final Path outputDir = rootOutputDirectory.resolve(NODE_IDENTIFIER_FORMAT.formatted(nodeId.id()));
-        return new TurtleNode(randotron, timeManager, nodeId, keysAndCerts, simulatedNetwork, logging, outputDir);
+        return new TurtleNode(
+                randotron,
+                timeManager,
+                nodeId,
+                keysAndCerts,
+                simulatedNetwork,
+                logging,
+                outputDir,
+                networkConfiguration);
     }
 
     /**
@@ -134,7 +132,14 @@ public class TurtleNetwork extends AbstractNetwork implements TimeTickReceiver {
         simulatedNetwork.addNode(nodeId);
         final Path outputDir = rootOutputDirectory.resolve(NODE_IDENTIFIER_FORMAT.formatted(nodeId.id()));
         return new InstrumentedTurtleNode(
-                randotron, timeManager, nodeId, keysAndCerts, simulatedNetwork, logging, outputDir);
+                randotron,
+                timeManager,
+                nodeId,
+                keysAndCerts,
+                simulatedNetwork,
+                logging,
+                outputDir,
+                networkConfiguration);
     }
 
     @Override
@@ -145,7 +150,7 @@ public class TurtleNetwork extends AbstractNetwork implements TimeTickReceiver {
 
         // Synchronize FakeTime when starting from a saved state.
         // This ensures time never goes backward when starting from saved state.
-        final Path savedStateDirectory = nodeProperties.savedStateDirectory();
+        final Path savedStateDirectory = networkConfiguration.savedStateDirectory();
         if (savedStateDirectory != null) {
             synchronizeTimeWithSavedState(savedStateDirectory);
         }

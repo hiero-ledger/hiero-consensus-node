@@ -113,7 +113,7 @@ class UsageAccumulatorTest {
         assertEquals(sigUsage.numPayerKeys(), subject.getNumPayerKeys());
         // and:
         assertEquals(0, subject.getSbpr());
-        assertEquals(0, subject.getGas());
+        assertEquals(0, subject.getServiceGas());
         assertEquals(0, subject.getSbs());
     }
 
@@ -134,7 +134,7 @@ class UsageAccumulatorTest {
         assertEquals(2, subject.getBpr());
         assertEquals(3, subject.getSbpr());
         assertEquals(4, subject.getVpt());
-        assertEquals(5, subject.getGas());
+        assertEquals(5, subject.getServiceGas());
         assertEquals(6, subject.getRbs());
         assertEquals(7, subject.getSbs());
         assertEquals(8, subject.getNetworkRbs());

@@ -40,6 +40,7 @@ public class LeakyBucketDeterministicThrottle implements CongestibleThrottle {
      * throttled.
      */
     public boolean allow(@NonNull final Instant now, final long throttleLimit) {
+        requireNonNull(now);
         final var elapsedNanos = nanosBetween(lastDecisionTime, now);
         if (elapsedNanos < 0L) {
             throw new IllegalArgumentException(
@@ -50,6 +51,17 @@ public class LeakyBucketDeterministicThrottle implements CongestibleThrottle {
         }
         lastDecisionTime = now;
         return delegate.allow(throttleLimit, elapsedNanos);
+    }
+
+    /**
+     * Leaks the capacity from the bucket up to the provided instant.
+     * @param now - the instant up to which the capacity should be leaked.
+     */
+    public void leakUntil(@NonNull final Instant now) {
+        requireNonNull(now);
+        final var elapsedNanos = nanosBetween(lastDecisionTime, now);
+        lastDecisionTime = now;
+        delegate.leakFor(elapsedNanos);
     }
 
     /**

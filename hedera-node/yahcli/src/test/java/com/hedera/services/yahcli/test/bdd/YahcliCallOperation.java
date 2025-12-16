@@ -10,6 +10,10 @@ import com.hedera.services.bdd.spec.transactions.TxnUtils;
 import com.hedera.services.yahcli.Yahcli;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.io.IOException;
+import java.io.PrintStream;
+import java.io.PrintWriter;
+import java.io.Writer;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Optional;
@@ -31,7 +35,12 @@ public class YahcliCallOperation extends AbstractYahcliOperation<YahcliCallOpera
     @Nullable
     private Consumer<String> outputCb;
 
+    @Nullable
+    private Consumer<String> stderrCb;
+
     private String payer;
+
+    private String nodeAccount;
 
     private boolean schedule = false;
 
@@ -47,6 +56,19 @@ public class YahcliCallOperation extends AbstractYahcliOperation<YahcliCallOpera
     }
 
     /**
+     * Configures the Yahcli command to expose stderr output to a callback.
+     * This is useful for capturing validation errors and other error messages
+     * that are printed to stderr (e.g., CommandLine.ParameterException).
+     *
+     * @param stderrCb the callback to receive stderr content
+     * @return this operation instance for method chaining
+     */
+    public YahcliCallOperation exposingStderrTo(@NonNull final Consumer<String> stderrCb) {
+        this.stderrCb = requireNonNull(stderrCb);
+        return this;
+    }
+
+    /**
      * Configures the Yahcli command to use the specified account as the payer.
      * This adds the "-p" option to the command with the provided account ID.
      *
@@ -55,6 +77,18 @@ public class YahcliCallOperation extends AbstractYahcliOperation<YahcliCallOpera
      */
     public YahcliCallOperation payingWith(String payer) {
         this.payer = payer;
+        return this;
+    }
+
+    /**
+     * Configures the Yahcli command to use the specified node account.
+     * This adds the "-a" or "--node-account" option to the command with the provided account ID.
+     *
+     * @param nodeAccount the node account ID to use
+     * @return this operation instance for method chaining
+     */
+    public YahcliCallOperation withNodeAccount(String nodeAccount) {
+        this.nodeAccount = nodeAccount;
         return this;
     }
 
@@ -104,32 +138,83 @@ public class YahcliCallOperation extends AbstractYahcliOperation<YahcliCallOpera
         if (payer != null) {
             finalizedArgs = prepend(finalizedArgs, "-p", payer);
         }
+        if (nodeAccount != null) {
+            finalizedArgs = prepend(finalizedArgs, "-a", nodeAccount);
+        }
+
+        Path outputPath = null;
+        Path errPath = null;
+        final var originalErrStream = commandLine.getErr();
         try {
-            Path outputPath = null;
             if (outputCb != null) {
                 outputPath = Files.createTempFile(TxnUtils.randomUppercase(8), ".out");
                 finalizedArgs =
                         prepend(finalizedArgs, "-o", outputPath.toAbsolutePath().toString());
             }
-            final int rc = commandLine.execute(finalizedArgs);
-            if (rc != 0) {
-                final var msg =
-                        "Yahcli command <<" + String.join(" ", finalizedArgs) + ">> failed with exit code " + rc;
-                if (expectFail) {
-                    log.error(msg);
-                } else {
-                    Assertions.fail(msg);
-                }
+
+            // Capture stderr if callback is provided
+            if (stderrCb != null) {
+                errPath = executeCommandWithStderrCapture(commandLine, finalizedArgs);
+            } else {
+                executeCommand(commandLine, finalizedArgs);
             }
+
             if (outputPath != null) {
                 final var output = Files.readString(outputPath);
                 outputCb.accept(output);
-                Files.deleteIfExists(outputPath);
+            }
+
+            if (errPath != null) {
+                final var stderr = Files.readString(errPath);
+                stderrCb.accept(stderr);
             }
         } catch (Throwable t) {
             return Optional.of(t);
+        } finally {
+            // Restore original error stream
+            commandLine.setErr(originalErrStream);
+
+            if (outputPath != null) {
+                try {
+                    Files.deleteIfExists(outputPath);
+                } catch (Exception e) {
+                    log.warn("Failed to delete temporary output file: {}", outputPath, e);
+                }
+            }
+            if (errPath != null) {
+                try {
+                    Files.deleteIfExists(errPath);
+                } catch (Exception e) {
+                    log.warn("Failed to delete temporary error file: {}", errPath, e);
+                }
+            }
         }
         return Optional.empty();
+    }
+
+    private void executeCommand(final CommandLine commandLine, final String[] finalizedArgs) {
+        final int rc = commandLine.execute(finalizedArgs);
+        if (rc != 0) {
+            final var msg = "Yahcli command <<" + String.join(" ", finalizedArgs) + ">> failed with exit code " + rc;
+            if (expectFail) {
+                log.error(msg);
+            } else {
+                Assertions.fail(msg);
+            }
+        }
+    }
+
+    private Path executeCommandWithStderrCapture(final CommandLine commandLine, final String[] finalizedArgs)
+            throws IOException {
+        final var originalErr = System.err;
+        final Path errPath = Files.createTempFile(TxnUtils.randomUppercase(8), ".err");
+        try (final var fileWriter = new PrintWriter(Files.newBufferedWriter(errPath), true);
+                PrintWriter errorPrintWriter =
+                        new PrintWriter(new StderrCaptureWriter(fileWriter, originalErr), true)) {
+            commandLine.setErr(errorPrintWriter);
+            executeCommand(commandLine, finalizedArgs);
+        }
+        return errPath;
     }
 
     private boolean workingDirProvidedViaArgs() {
@@ -147,5 +232,38 @@ public class YahcliCallOperation extends AbstractYahcliOperation<YahcliCallOpera
             }
         }
         return false;
+    }
+
+    /**
+     * A Writer that captures stderr output to a file while simultaneously writing to the original System.err,
+     * allowing stderr to be captured for inspection while still being visible in the console.
+     */
+    private static class StderrCaptureWriter extends Writer {
+        private final PrintWriter fileWriter;
+        private final PrintStream originalErr;
+
+        StderrCaptureWriter(PrintWriter fileWriter, PrintStream originalErr) {
+            this.fileWriter = requireNonNull(fileWriter);
+            this.originalErr = requireNonNull(originalErr);
+        }
+
+        @Override
+        public void write(char[] cbuf, int off, int len) {
+            final var str = new String(cbuf, off, len);
+            fileWriter.print(str);
+            originalErr.print(str);
+            originalErr.flush(); // Immediate flush to console
+        }
+
+        @Override
+        public void flush() {
+            fileWriter.flush();
+            originalErr.flush();
+        }
+
+        @Override
+        public void close() {
+            fileWriter.close();
+        }
     }
 }

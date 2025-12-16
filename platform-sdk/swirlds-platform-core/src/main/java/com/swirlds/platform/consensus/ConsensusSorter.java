@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.consensus;
 
-import com.swirlds.platform.Utilities;
 import com.swirlds.platform.internal.EventImpl;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.List;
+import org.hiero.base.utility.ArrayUtils;
 
 /** Sorts consensus events into their consensus order */
 public class ConsensusSorter {
@@ -70,7 +70,7 @@ public class ConsensusSorter {
         }
 
         // subsort ties by whitened hashes
-        return Utilities.arrayCompare(
+        return ArrayUtils.arrayCompare(
                 e1.getBaseHash().getBytes(), e2.getBaseHash().getBytes(), whitening);
     }
 }

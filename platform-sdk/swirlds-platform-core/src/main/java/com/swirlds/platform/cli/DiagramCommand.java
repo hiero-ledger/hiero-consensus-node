@@ -13,6 +13,7 @@ import com.swirlds.component.framework.model.diagram.ModelManualLink;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.platform.builder.ApplicationCallbacks;
+import com.swirlds.platform.cli.helper.NoOpEventCreatorModule;
 import com.swirlds.platform.config.DefaultConfiguration;
 import com.swirlds.platform.util.VirtualTerminal;
 import com.swirlds.platform.wiring.PlatformComponents;
@@ -24,6 +25,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
+import org.hiero.consensus.event.creator.EventCreatorModule;
 import picocli.CommandLine;
 
 @CommandLine.Command(
@@ -107,9 +109,12 @@ public final class DiagramCommand extends AbstractCommand {
         final WiringModel model = WiringModelBuilder.create(platformContext.getMetrics(), platformContext.getTime())
                 .build();
 
-        final PlatformComponents platformComponents = PlatformComponents.create(platformContext, model, callbacks);
+        final EventCreatorModule eventCreatorModule = new NoOpEventCreatorModule(configuration, model);
 
-        PlatformWiring.wire(platformContext, new NoOpExecutionLayer(), platformComponents);
+        final PlatformComponents platformComponents =
+                PlatformComponents.create(platformContext, model, eventCreatorModule);
+
+        PlatformWiring.wire(platformContext, new NoOpExecutionLayer(), platformComponents, ApplicationCallbacks.EMPTY);
 
         final String diagramString =
                 model.generateWiringDiagram(parseGroups(), parseSubstitutions(), parseManualLinks(), !lessMystery);

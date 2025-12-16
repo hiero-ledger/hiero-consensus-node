@@ -4,7 +4,6 @@ package com.swirlds.virtualmap.datasource;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.file.Path;
-import org.hiero.base.io.SelfSerializable;
 
 /**
  * Manages {@link VirtualDataSource} instances. An instance of a data source builder is provided
@@ -15,7 +14,7 @@ import org.hiero.base.io.SelfSerializable;
  * implementations that store data on disk may have "storage directory" config, which is used,
  * together with requested data source labels, to build full data source disk paths.
  */
-public interface VirtualDataSourceBuilder extends SelfSerializable {
+public interface VirtualDataSourceBuilder {
 
     /**
      * Builds a new {@link VirtualDataSource} using the configuration of this builder and
@@ -24,20 +23,14 @@ public interface VirtualDataSourceBuilder extends SelfSerializable {
      * method. If the directory is not provided, an empty data source is created. Regardless of
      * the source directory, the new data source will use its own directory to store data files.
      *
-     * @param label
-     * 		The label. Cannot be null. Labels can be used in logs and stats, and also to build
-     * 		full disk paths to store data source files. This is builder implementation specific
-     * @param compactionEnabled
-     *      Indicates whether background compaction should be enabled in the data source copy
-     * @param offlineUse
-     *      Indicates that the copied data source should use as little resources as possible. Data
-     *      source copies created for offline use should not be used for performance critical tasks
-     * @return
-     * 		An opened {@link VirtualDataSource}.
+     * @param sourceDir         The directory of the snapshot the data source should be created from. Can be null, in this case it creates an empty data source
+     * @param compactionEnabled Indicates whether background compaction should be enabled in the data source copy
+     * @param offlineUse        Indicates that the copied data source should use as little resources as possible. Data
+     *                          source copies created for offline use should not be used for performance critical tasks
+     * @return An opened {@link VirtualDataSource}
      */
     @NonNull
-    VirtualDataSource build(
-            String label, @Nullable Path sourceDir, final boolean compactionEnabled, boolean offlineUse);
+    VirtualDataSource build(String label, @Nullable Path sourceDir, boolean compactionEnabled, boolean offlineUse);
 
     /**
      * Creates a snapshot of the given data source in the specified folder.

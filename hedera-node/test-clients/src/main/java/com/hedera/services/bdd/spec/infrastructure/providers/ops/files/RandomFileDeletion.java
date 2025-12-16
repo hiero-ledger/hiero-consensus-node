@@ -2,6 +2,7 @@
 package com.hedera.services.bdd.spec.infrastructure.providers.ops.files;
 
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.fileDelete;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BUSY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.FILE_DELETED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_FILE_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
@@ -16,7 +17,7 @@ import java.util.Optional;
 public class RandomFileDeletion implements OpProvider {
     private final RegistrySourcedNameProvider<FileID> files;
 
-    private final ResponseCodeEnum[] permissiblePrechecks = standardPrechecksAnd(FILE_DELETED, INVALID_FILE_ID);
+    private final ResponseCodeEnum[] permissiblePrechecks = standardPrechecksAnd(BUSY, FILE_DELETED, INVALID_FILE_ID);
     private final ResponseCodeEnum[] permissibleOutcomes =
             standardOutcomesAnd(FILE_DELETED, INVALID_FILE_ID, INVALID_SIGNATURE);
 

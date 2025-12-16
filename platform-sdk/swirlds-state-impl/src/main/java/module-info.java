@@ -16,7 +16,9 @@ module com.swirlds.state.impl {
     requires transitive com.swirlds.virtualmap;
     requires transitive org.hiero.base.crypto;
     requires transitive org.hiero.base.utility;
+    requires com.swirlds.logging;
     requires com.swirlds.merkledb;
     requires org.apache.logging.log4j;
+    requires org.json;
     requires static transitive com.github.spotbugs.annotations;
 }

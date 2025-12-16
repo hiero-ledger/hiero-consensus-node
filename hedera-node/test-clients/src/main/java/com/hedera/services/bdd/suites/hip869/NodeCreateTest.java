@@ -446,6 +446,7 @@ public class NodeCreateTest {
                         .adminKey(ED_25519_KEY)
                         .payingWith("payer")
                         .signedBy("payer")
+                        .sigMapPrefixes(uniqueWithFullPrefixesFor("payer"))
                         .setNode("4")
                         .gossipCaCertificate(gossipCertificates.getFirst().getEncoded())
                         .hasKnownStatus(UNAUTHORIZED)

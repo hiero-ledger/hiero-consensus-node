@@ -562,7 +562,9 @@ public class SavepointStackImpl implements HandleContext.SavepointStack, State {
 
             if (i > indexOfParentBuilder) {
                 switch (builder.category()) {
-                    case SCHEDULED -> builder.exchangeRate(exchangeRates);
+                    // In the block stream, we _do_ set a triggered tx's parent consensus time to the scheduling
+                    // transaction that triggered it; noop for streamMode=RECORDS, c.f. RecordStreamBuilder
+                    case SCHEDULED -> builder.exchangeRate(exchangeRates).triggeringParentConsensus(consensusTime);
                     case BATCH_INNER -> {
                         builder.parentConsensus(consensusTime).exchangeRate(null);
                         parentConsensusTime = consensusNow;

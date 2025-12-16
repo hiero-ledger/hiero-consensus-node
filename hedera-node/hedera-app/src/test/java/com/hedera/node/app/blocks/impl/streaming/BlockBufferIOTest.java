@@ -29,7 +29,7 @@ class BlockBufferIOTest {
     private static final String testDir = "testDir";
     private static final File testDirFile = new File(testDir);
 
-    private final BlockBufferIO bufferIO = new BlockBufferIO(testDir, Integer.MAX_VALUE); // 1 MB
+    private final BlockBufferIO bufferIO = new BlockBufferIO(testDir, 512);
 
     @BeforeEach
     void beforeEach() throws IOException {

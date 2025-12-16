@@ -3,6 +3,7 @@ package com.hedera.node.app.info;
 
 import static com.hedera.hapi.util.HapiUtils.parseAccountFromLegacy;
 import static com.swirlds.platform.builder.PlatformBuildConstants.DEFAULT_CONFIG_FILE_NAME;
+import static com.swirlds.platform.state.service.PlatformStateUtils.roundOf;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.consensus.roster.RosterRetriever.buildRoster;
 
@@ -26,7 +27,6 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.config.AddressBookConfig;
 import com.swirlds.platform.config.legacy.LegacyConfigPropertiesLoader;
 import com.swirlds.platform.crypto.CryptoStatic;
-import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
@@ -187,15 +187,12 @@ public class DiskStartupNetworks implements StartupNetworks {
      * @param path the path to write the JSON network information to.
      */
     public static void writeNetworkInfo(
-            @NonNull final State state,
-            @NonNull final Path path,
-            @NonNull final Set<InfoType> infoTypes,
-            @NonNull PlatformStateFacade platformStateFacade) {
+            @NonNull final State state, @NonNull final Path path, @NonNull final Set<InfoType> infoTypes) {
         requireNonNull(state);
         final var entityIdStore = new ReadableEntityIdStoreImpl(state.getReadableStates(EntityIdService.NAME));
         final var nodeStore =
                 new ReadableNodeStoreImpl(state.getReadableStates(AddressBookService.NAME), entityIdStore);
-        final long round = platformStateFacade.roundOf(state);
+        final long round = roundOf(state);
         Optional.ofNullable(RosterRetriever.retrieveActive(state, round)).ifPresent(activeRoster -> {
             final var network = Network.newBuilder();
             final List<NodeMetadata> nodeMetadata = new ArrayList<>();

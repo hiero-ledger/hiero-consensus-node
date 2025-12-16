@@ -123,8 +123,8 @@ public class ReconnectBench extends VirtualMapBaseBench {
         final List<VirtualMap> maps = new ArrayList<>();
 
         for (int mapIndex = 0; mapIndex < mapCount; mapIndex++) {
-            final AtomicReference<VirtualMap> teacherRef = new AtomicReference<>(createEmptyMap("teacher" + mapIndex));
-            final AtomicReference<VirtualMap> learnerRef = new AtomicReference<>(createEmptyMap("learner" + mapIndex));
+            final AtomicReference<VirtualMap> teacherRef = new AtomicReference<>(createEmptyMap());
+            final AtomicReference<VirtualMap> learnerRef = new AtomicReference<>(createEmptyMap());
 
             new StateBuilder(BenchmarkKey::longToKey, BenchmarkValue::new)
                     .buildState(
@@ -161,7 +161,7 @@ public class ReconnectBench extends VirtualMapBaseBench {
         learnerMaps = new ArrayList<>(mapCount);
         teacherMapCopies = new ArrayList<>(mapCount);
         for (int mapIndex = 0; mapIndex < mapCount; mapIndex++) {
-            VirtualMap teacherMap = restoreMap("teacher" + mapIndex);
+            VirtualMap teacherMap = restoreMap();
             if (teacherMap == null) {
                 throw new RuntimeException("Failed to restore the 'teacher' map #" + mapIndex);
             }
@@ -169,7 +169,7 @@ public class ReconnectBench extends VirtualMapBaseBench {
             BenchmarkMetrics.register(teacherMap::registerMetrics);
             teacherMaps.add(teacherMap);
 
-            VirtualMap learnerMap = restoreMap("learner" + mapIndex);
+            VirtualMap learnerMap = restoreMap();
             if (learnerMap == null) {
                 throw new RuntimeException("Failed to restore the 'learner' map #" + mapIndex);
             }

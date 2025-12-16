@@ -3,6 +3,7 @@ package com.swirlds.common.test.fixtures;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Random;
 import org.hiero.base.crypto.DigestType;
@@ -186,6 +187,48 @@ public final class Randotron extends Random {
     @NonNull
     public Instant nextInstant() {
         return Instant.ofEpochMilli(nextPositiveLong(2000000000000L));
+    }
+
+    /**
+     * Generates a random duration smaller than the supplied max duration
+     *
+     * @param maxDuration the upper bound, the returned duration will be smaller than this
+     * @return a random duration
+     * @throws IllegalArgumentException if maxDuration is negative or zero
+     */
+    @NonNull
+    public Duration nextDuration(@NonNull final Duration maxDuration) {
+        if (maxDuration.isNegative() || maxDuration.isZero()) {
+            throw new IllegalArgumentException("maxDuration must be positive");
+        }
+        return Duration.ofNanos(this.nextPositiveLong(maxDuration.toNanos()));
+    }
+
+    /**
+     * Generates a random duration between the supplied min and max durations
+     *
+     * @param minDuration the lower bound, the returned duration will be at least this long
+     * @param maxDuration the upper bound, the returned duration will be smaller than this
+     * @return a random duration
+     * @throws IllegalArgumentException if minDuration is negative or zero,
+     *                                  if maxDuration is negative or zero,
+     *                                  or if minDuration is greater than maxDuration
+     */
+    @NonNull
+    public Duration nextDuration(@NonNull final Duration minDuration, @NonNull final Duration maxDuration) {
+        if (minDuration.isNegative() || minDuration.isZero()) {
+            throw new IllegalArgumentException("minDuration must be positive");
+        }
+        if (maxDuration.isNegative() || maxDuration.isZero()) {
+            throw new IllegalArgumentException("maxDuration must be positive");
+        }
+        if (minDuration.compareTo(maxDuration) > 0) {
+            throw new IllegalArgumentException("minDuration must not be greater than maxDuration");
+        }
+        final long deltaNanos = maxDuration.toNanos() - minDuration.toNanos();
+        return deltaNanos == 0L
+                ? minDuration
+                : Duration.ofNanos(minDuration.toNanos() + this.nextPositiveLong(deltaNanos + 1));
     }
 
     /**

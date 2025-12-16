@@ -406,6 +406,81 @@ class ThrottleAccumulatorTest {
     }
 
     @Test
+    void worksAsExpectedForCountsAssociationsWhenAccountIsProvidedAsAliasInGetBalance()
+            throws IOException, ParseException {
+        // given
+        final var config = HederaTestConfigBuilder.create()
+                .withValue("tokens.countingGetBalanceThrottleEnabled", true)
+                .getOrCreateConfig();
+        given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1));
+        subject = new ThrottleAccumulator(
+                () -> CAPACITY_SPLIT,
+                configProvider::getConfiguration,
+                FRONTEND_THROTTLE,
+                throttleMetrics,
+                gasThrottle,
+                bytesThrottle,
+                opsDurationThrottle);
+        final var defs = getThrottleDefs("bootstrap/throttles.json");
+        subject.rebuildFor(defs);
+        // Use an alias for the account ID in the query
+        final var alias =
+                Bytes.wrap(new byte[] {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20});
+        final var aliasAccountId = AccountID.newBuilder().alias(alias).build();
+        final var aliasQuery = Query.newBuilder()
+                .cryptogetAccountBalance(CryptoGetAccountBalanceQuery.newBuilder()
+                        .accountID(aliasAccountId)
+                        .build())
+                .build();
+        // The underlying numeric account has 2 associations
+        final var account = Account.newBuilder().numberAssociations(2).build();
+        final var states = MapReadableStates.builder()
+                .state(new MapReadableKVState<>(ACCOUNTS_STATE_ID, ACCOUNTS_STATE_LABEL, Map.of(RECEIVER_ID, account)))
+                .state(new MapReadableKVState<>(
+                        ALIASES_STATE_ID,
+                        ALIASES_STATE_LABEL,
+                        Map.of(new com.hedera.hapi.node.state.primitives.ProtoBytes(alias), RECEIVER_ID)))
+                .build();
+        given(state.getReadableStates(TokenService.NAME)).willReturn(states);
+        final var entityIdStates = MapReadableStates.builder()
+                .state(new FunctionReadableSingletonState<>(
+                        ENTITY_ID_STATE_ID, ENTITY_ID_STATE_LABEL, () -> EntityNumber.newBuilder()
+                                .build()))
+                .state(new FunctionReadableSingletonState<>(
+                        ENTITY_COUNTS_STATE_ID, ENTITY_COUNTS_STATE_LABEL, () -> EntityCounts.newBuilder()
+                                .build()))
+                .build();
+        given(state.getReadableStates(EntityIdService.NAME)).willReturn(entityIdStates);
+
+        // when (alias path)
+        final var aliasResult = new boolean[] {
+            subject.checkAndEnforceThrottle(
+                    CRYPTO_GET_ACCOUNT_BALANCE, TIME_INSTANT.plusNanos(0), aliasQuery, state, PAYER_ID),
+            subject.checkAndEnforceThrottle(
+                    CRYPTO_GET_ACCOUNT_BALANCE, TIME_INSTANT.plusNanos(1), aliasQuery, state, PAYER_ID)
+        };
+
+        // then (alias path)
+        // With 2 associations, the first passes and the second is throttled
+        assertThat(aliasResult).containsExactly(false, true);
+
+        // And verify the numeric accountID path behaves equivalently
+        subject.rebuildFor(defs); // reset throttle capacity for a fresh comparison
+        final var numericQuery = Query.newBuilder()
+                .cryptogetAccountBalance(CryptoGetAccountBalanceQuery.newBuilder()
+                        .accountID(RECEIVER_ID)
+                        .build())
+                .build();
+        final var numericResult = new boolean[] {
+            subject.checkAndEnforceThrottle(
+                    CRYPTO_GET_ACCOUNT_BALANCE, TIME_INSTANT.plusNanos(0), numericQuery, state, PAYER_ID),
+            subject.checkAndEnforceThrottle(
+                    CRYPTO_GET_ACCOUNT_BALANCE, TIME_INSTANT.plusNanos(1), numericQuery, state, PAYER_ID)
+        };
+        assertThat(numericResult).containsExactly(false, true);
+    }
+
+    @Test
     void worksAsExpectedForUnknownQueries() throws IOException, ParseException {
         // given
         subject = new ThrottleAccumulator(

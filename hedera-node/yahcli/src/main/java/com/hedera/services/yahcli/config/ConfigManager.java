@@ -392,8 +392,33 @@ public class ConfigManager {
 
     private void assertDefaultNodeAccountIsKnown() {
         final var normalizedNodeAccount = normalizePossibleIdLiteral(this, yahcli.getNodeAccount());
-        defaultNodeAccount =
+        final var nodeAccountToUse =
                 Optional.ofNullable(normalizedNodeAccount).orElse(String.valueOf(targetNet.getDefaultNodeAccount()));
+
+        // Validate that the node account exists in the network configuration
+        if (normalizedNodeAccount != null) {
+            try {
+                final var accountNum = Long.parseLong(normalizedNodeAccount);
+                final var nodeExists = targetNet.getNodes().stream().anyMatch(node -> node.getAccount() == accountNum);
+                if (!nodeExists) {
+                    final var availableAccounts = targetNet.getNodes().stream()
+                            .map(NodeConfig::getAccount)
+                            .map(String::valueOf)
+                            .collect(Collectors.joining(", "));
+                    fail(String.format(
+                            "Node account '%s' does not exist in network '%s'. Available node accounts: %s",
+                            normalizedNodeAccount,
+                            targetName,
+                            availableAccounts.isEmpty() ? "(none)" : availableAccounts));
+                }
+            } catch (NumberFormatException e) {
+                fail(String.format(
+                        "Invalid node account format '%s' for network '%s'. Expected a numeric account ID.",
+                        normalizedNodeAccount, targetName));
+            }
+        }
+
+        defaultNodeAccount = nodeAccountToUse;
     }
 
     private void assertDefaultPayerIsKnown() {

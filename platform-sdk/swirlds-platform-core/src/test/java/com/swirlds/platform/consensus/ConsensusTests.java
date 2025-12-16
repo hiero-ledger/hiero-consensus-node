@@ -2,13 +2,11 @@
 package com.swirlds.platform.consensus;
 
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.platform.ConsensusImpl;
 import com.swirlds.platform.test.fixtures.PlatformTest;
 import com.swirlds.platform.test.fixtures.consensus.ConsensusTestParams;
 import com.swirlds.platform.test.fixtures.consensus.ConsensusTestRunner;
 import java.util.List;
 import org.hiero.base.utility.test.fixtures.tags.TestComponentTags;
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -22,24 +20,6 @@ class ConsensusTests extends PlatformTest {
      * topological orders, and check if they match.
      */
     private final int NUM_ITER = 1;
-
-    private boolean ignoreNoSuperMajorityMarkerFile = false;
-    private boolean ignoreNoJudgesMarkerFile = false;
-    private boolean ignoreCoinRoundMarkerFile = false;
-
-    @AfterEach
-    void checkForMarkerFiles() {
-        if (!ignoreNoSuperMajorityMarkerFile) {
-            assertMarkerFile(ConsensusImpl.NO_SUPER_MAJORITY_MARKER_FILE, false);
-        }
-        if (!ignoreNoJudgesMarkerFile) {
-            assertMarkerFile(ConsensusImpl.NO_JUDGES_MARKER_FILE, false);
-        }
-        if (!ignoreCoinRoundMarkerFile) {
-            assertMarkerFile(ConsensusImpl.COIN_ROUND_MARKER_FILE, false);
-        }
-        assertMarkerFile(ConsensusImpl.CONSENSUS_EXCEPTION_MARKER_FILE, false);
-    }
 
     /**
      * Create a list of platform contexts to use for testing.
@@ -103,10 +83,6 @@ class ConsensusTests extends PlatformTest {
                 .setContexts(contexts())
                 .setIterations(NUM_ITER)
                 .run();
-        // Some branching tests make too many branchers. When there is  > 1/3 nodes branching, both no super majority
-        // and possibly no judges can result. This is expected, so ignore the marker file generated for these tests.
-        ignoreNoSuperMajorityMarkerFile = true;
-        ignoreNoJudgesMarkerFile = true;
     }
 
     @ParameterizedTest

@@ -5,7 +5,6 @@ import static com.swirlds.logging.legacy.LogMarker.SYNC_INFO;
 import static org.hiero.base.CompareTo.isGreaterThan;
 
 import com.hedera.hapi.platform.event.GossipEvent;
-import com.swirlds.platform.gossip.IntakeEventCounter;
 import com.swirlds.platform.gossip.SyncException;
 import com.swirlds.platform.metrics.SyncMetrics;
 import com.swirlds.platform.network.ByteConstants;
@@ -37,6 +36,7 @@ import org.hiero.base.concurrent.ThrowingRunnable;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.io.streams.SerializableDataInputStream;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
+import org.hiero.consensus.event.IntakeEventCounter;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
@@ -69,7 +69,7 @@ public final class SyncUtils {
             @NonNull final List<ShadowEvent> tips) {
         return () -> {
             final List<Hash> tipHashes =
-                    tips.stream().map(ShadowEvent::getEventBaseHash).collect(Collectors.toList());
+                    tips.stream().map(ShadowEvent::getBaseHash).collect(Collectors.toList());
 
             serializeEventWindow(connection.getDos(), eventWindow);
 
@@ -478,7 +478,7 @@ public final class SyncUtils {
 
         final long minimumSearchThreshold =
                 Math.max(myEventWindow.expiredThreshold(), theirEventWindow.ancientThreshold());
-        return s -> s.getEvent().getBirthRound() >= minimumSearchThreshold && !knownShadows.contains(s);
+        return s -> s.getPlatformEvent().getBirthRound() >= minimumSearchThreshold && !knownShadows.contains(s);
     }
 
     /**
@@ -496,7 +496,7 @@ public final class SyncUtils {
         // Make a single O(N) where N is the number of tips including all branches. Typically, N will be equal to the
         // number of network nodes.
         for (final ShadowEvent tip : tips) {
-            tipCountByCreator.compute(tip.getEvent().getCreatorId(), (k, v) -> (v != null) ? (v + 1) : 1);
+            tipCountByCreator.compute(tip.getPlatformEvent().getCreatorId(), (k, v) -> (v != null) ? (v + 1) : 1);
         }
 
         // Walk the entrySet() which is O(N) where N is the number network nodes. This is still more efficient than a

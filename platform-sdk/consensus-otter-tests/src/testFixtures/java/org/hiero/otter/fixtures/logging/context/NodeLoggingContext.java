@@ -111,6 +111,25 @@ public final class NodeLoggingContext {
         return new ContextPropagatingScheduledExecutorService(delegate);
     }
 
+    /**
+     * Executes the supplied {@link Runnable} with the node ID removed from the current
+     * {@link ThreadContext}. The previous node ID is restored after execution. This is required to send
+     * logs to the console instead of the per-node log files.
+     *
+     * @param runnable the runnable to execute
+     */
+    public static void logToConsole(@NonNull final Runnable runnable) {
+        final String previousNodeId = ThreadContext.get(NODE_ID_KEY);
+        try {
+            ThreadContext.remove(NODE_ID_KEY);
+            runnable.run();
+        } finally {
+            if (previousNodeId != null) {
+                ThreadContext.put(NODE_ID_KEY, previousNodeId);
+            }
+        }
+    }
+
     static void runWithSnapshot(@NonNull final ContextSnapshot snapshot, @NonNull final Runnable runnable) {
         final ContextSnapshot previous = snapshot();
         apply(snapshot);

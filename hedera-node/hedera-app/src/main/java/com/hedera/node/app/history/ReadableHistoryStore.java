@@ -1,16 +1,21 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.history;
 
+import static com.hedera.hapi.util.HapiUtils.asInstant;
+import static com.hedera.hapi.util.HapiUtils.asTimestamp;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.state.history.HistoryProofConstruction;
 import com.hedera.hapi.node.state.history.HistoryProofVote;
-import com.hedera.hapi.node.state.history.HistorySignature;
+import com.hedera.hapi.node.state.history.WrapsMessageDetails;
+import com.hedera.hapi.node.state.history.WrapsMessageHistory;
+import com.hedera.hapi.node.state.history.WrapsPhase;
 import com.hedera.node.app.service.roster.impl.ActiveRosters;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -22,7 +27,6 @@ public interface ReadableHistoryStore {
     /**
      * The full record of a proof key publication, including the key, the time it was adopted, and the
      * submitting node id.
-     *
      * @param nodeId the node ID submitting the key
      * @param proofKey the proof key itself
      * @param adoptionTime the time at which the key was adopted
@@ -35,16 +39,45 @@ public interface ReadableHistoryStore {
     }
 
     /**
-     * The full record of a history signature, include the time the signature was published.
-     *
-     * @param nodeId the node ID submitting the signature
-     * @param signature the assembly signature
-     * @param at the time at which the signature was published
+     * The record of a WRAPS message publication, including the message, the WRAPS phase it was targeted for,
+     * the time it was received, and the submitting node id.
+     * @param message the WRAPS message
+     * @param phase the WRAPS phase
+     * @param nodeId the node ID submitting the WRAPS message
      */
-    record HistorySignaturePublication(long nodeId, @NonNull HistorySignature signature, @NonNull Instant at) {
-        public HistorySignaturePublication {
-            requireNonNull(signature);
-            requireNonNull(at);
+    record WrapsMessagePublication(
+            long nodeId, @NonNull Bytes message, @NonNull WrapsPhase phase, @NonNull Instant receiptTime)
+            implements Comparable<WrapsMessagePublication> {
+        public WrapsMessagePublication {
+            requireNonNull(message);
+            requireNonNull(phase);
+            requireNonNull(receiptTime);
+        }
+
+        @Override
+        public int compareTo(@NonNull final WrapsMessagePublication that) {
+            return Comparator.comparing(WrapsMessagePublication::receiptTime).compare(this, that);
+        }
+
+        /**
+         * Unwraps all the WRAPS message publications from the given history, scoped to the given node.
+         * @param nodeId the node ID
+         * @param history the history
+         * @return the WRAPS message publications
+         */
+        public static List<WrapsMessagePublication> allFromHistory(
+                final long nodeId, @NonNull final WrapsMessageHistory history) {
+            return history.messages().stream()
+                    .map(details -> new WrapsMessagePublication(
+                            nodeId, details.message(), details.phase(), asInstant(details.publicationTimeOrThrow())))
+                    .toList();
+        }
+
+        /**
+         * Returns this publication as a {@link WrapsMessageDetails}.
+         */
+        public WrapsMessageDetails asWrapsMessageDetails() {
+            return new WrapsMessageDetails(asTimestamp(receiptTime), phase, message);
         }
     }
 
@@ -53,6 +86,12 @@ public interface ReadableHistoryStore {
      */
     @Nullable
     Bytes getLedgerId();
+
+    /**
+     * Gets the construction with the given ID, throwing if it does not exist.
+     */
+    @NonNull
+    HistoryProofConstruction getConstructionOrThrow(long constructionId);
 
     /**
      * Returns the active construction.
@@ -102,11 +141,11 @@ public interface ReadableHistoryStore {
     List<ProofKeyPublication> getProofKeyPublications(@NonNull Set<Long> nodeIds);
 
     /**
-     * Returns the history signatures published by the given set of nodes for the given construction.
+     * Returns the WRAPS messages published by the given set of nodes for the given construction.
      * @param constructionId the construction id
      * @param nodeIds the node ids
-     * @return the {@link HistorySignaturePublication}s
+     * @return the {@link WrapsMessagePublication}s
      */
     @NonNull
-    List<HistorySignaturePublication> getSignaturePublications(long constructionId, @NonNull Set<Long> nodeIds);
+    List<WrapsMessagePublication> getWrapsMessagePublications(long constructionId, @NonNull Set<Long> nodeIds);
 }

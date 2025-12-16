@@ -24,6 +24,7 @@ import static com.hedera.services.bdd.suites.contract.Utils.defaultContractsRoot
 import static com.hedera.services.bdd.suites.contract.Utils.extractByteCode;
 import static com.hedera.services.bdd.suites.contract.Utils.getABIFor;
 import static com.hedera.services.bdd.suites.contract.Utils.getResourcePath;
+import static java.util.Objects.requireNonNull;
 import static org.apache.commons.lang3.StringUtils.EMPTY;
 
 import com.esaulpaugh.headlong.abi.Address;
@@ -844,5 +845,16 @@ public class TxnVerbs {
 
     public static HapiLambdaSStore accountLambdaSStore(@NonNull final String account, final long hookId) {
         return new HapiLambdaSStore(HookEntityId.EntityIdOneOfType.ACCOUNT_ID, account, hookId);
+    }
+
+    /**
+     * Returns a {@link HapiLambdaSStore} for the given contract and hook id.
+     * @param contract the contract
+     * @param hookId the hook id
+     * @return a {@link HapiLambdaSStore} for the given contract and hook id
+     */
+    public static HapiLambdaSStore contractLambdaSStore(@NonNull final String contract, final long hookId) {
+        requireNonNull(contract);
+        return new HapiLambdaSStore(HookEntityId.EntityIdOneOfType.CONTRACT_ID, contract, hookId);
     }
 }

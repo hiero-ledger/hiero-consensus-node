@@ -2,25 +2,22 @@
 package com.swirlds.platform;
 
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
+import static com.swirlds.platform.state.service.PlatformStateUtils.creationSoftwareVersionOf;
+import static com.swirlds.platform.state.service.PlatformStateUtils.getInfoString;
 import static com.swirlds.platform.system.InitTrigger.GENESIS;
 import static com.swirlds.platform.system.InitTrigger.RESTART;
 import static org.hiero.base.concurrent.interrupt.Uninterruptable.abortAndThrowIfInterrupted;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.merkle.MerkleNode;
-import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.config.StateConfig;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
-import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.state.MerkleNodeState;
-import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.concurrent.ExecutionException;
-import java.util.function.Function;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -46,8 +43,7 @@ public final class StateInitializer {
             @NonNull final Platform platform,
             @NonNull final PlatformContext platformContext,
             @NonNull final SignedState signedState,
-            @NonNull final ConsensusStateEventHandler consensusStateEventHandler,
-            @NonNull final PlatformStateFacade platformStateFacade) {
+            @NonNull final ConsensusStateEventHandler consensusStateEventHandler) {
 
         final SemanticVersion previousSoftwareVersion;
         final InitTrigger trigger;
@@ -56,7 +52,7 @@ public final class StateInitializer {
             previousSoftwareVersion = null;
             trigger = GENESIS;
         } else {
-            previousSoftwareVersion = platformStateFacade.creationSoftwareVersionOf(signedState.getState());
+            previousSoftwareVersion = creationSoftwareVersionOf(signedState.getState());
             trigger = RESTART;
         }
 
@@ -94,33 +90,6 @@ public final class StateInitializer {
                 """
                         The platform is using the following initial state:
                         {}""",
-                platformStateFacade.getInfoString(signedState.getState(), stateConfig.debugHashDepth()));
-    }
-
-    /**
-     * Initializes a {@link MerkleNodeState} from the given state root.
-     * <p>
-     * If the state root is an instance of {@link VirtualMap}, it means this is a "Mega Map" and provided function
-     * is used to create the {@code MerkleNodeState} (i.e. {@code HederaVirtualMapState}). Otherwise, it casts the state root directly
-     * to {@code MerkleNodeState}.
-     * </p>
-     *
-     * @deprecated This method should be removed together with {@code MerkleStateRoot}. Only state root function should be used then.
-     * @param createStateFromVirtualMap a function to instantiate the state object from a Virtual Map
-     * @param stateRoot                 the root of the state to initialize
-     * @param metrics                   the metrics
-     * @return the initialized {@code MerkleNodeState}
-     */
-    @Deprecated
-    public static MerkleNodeState initializeMerkleNodeState(
-            @NonNull final Function<VirtualMap, MerkleNodeState> createStateFromVirtualMap,
-            @NonNull final MerkleNode stateRoot,
-            @NonNull final Metrics metrics) {
-        if (stateRoot instanceof VirtualMap virtualMap) {
-            virtualMap.registerMetrics(metrics);
-            return createStateFromVirtualMap.apply(virtualMap);
-        } else {
-            return (MerkleNodeState) stateRoot;
-        }
+                getInfoString(signedState.getState(), stateConfig.debugHashDepth()));
     }
 }

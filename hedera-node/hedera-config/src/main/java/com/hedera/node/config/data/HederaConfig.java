@@ -20,8 +20,12 @@ public record HederaConfig(
         @ConfigProperty(defaultValue = "0") @NodeProperty long realm,
         @ConfigProperty(defaultValue = "0") @NodeProperty long shard,
         @ConfigProperty(value = "config.version", defaultValue = "0") @NetworkProperty int configVersion,
-        @ConfigProperty(value = "nodeTransaction.maxBytes", defaultValue = "2621440") @NetworkProperty
+        // 32MB limit for node txs to permit voting on uncompressed Nova proofs for TSS WRAPS proofs
+        @ConfigProperty(value = "nodeTransaction.maxBytes", defaultValue = "33554432") @NetworkProperty
                 int nodeTransactionMaxBytes,
+        @ConfigProperty(value = "transaction.maxTransactionBytesPerEvent", defaultValue = "33554432") @NetworkProperty
+                int maxTransactionBytesPerEvent,
+        // 6KB limit for user txs
         @ConfigProperty(value = "transaction.maxBytes", defaultValue = "6144") @NetworkProperty int transactionMaxBytes,
         @ConfigProperty(value = "transaction.maxMemoUtf8Bytes", defaultValue = "100") @NetworkProperty
                 int transactionMaxMemoUtf8Bytes,
@@ -48,6 +52,4 @@ public record HederaConfig(
         @ConfigProperty(value = "ingestThrottle.enabled", defaultValue = "true") @NetworkProperty
                 boolean ingestThrottleEnabled,
         @ConfigProperty(value = "transaction.throttleTransactionQueueSize", defaultValue = "100000") @NodeProperty
-                int throttleTransactionQueueSize,
-        @ConfigProperty(value = "transaction.maxTransactionBytesPerEvent", defaultValue = "2621440") @NetworkProperty
-                int maxTransactionBytesPerEvent) {}
+                int throttleTransactionQueueSize) {}

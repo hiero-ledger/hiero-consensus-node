@@ -2,10 +2,10 @@
 package com.swirlds.platform.state.hashlogger;
 
 import static com.swirlds.logging.legacy.LogMarker.STATE_HASH;
+import static com.swirlds.platform.state.service.PlatformStateUtils.getInfoString;
 
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.platform.config.StateConfig;
-import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SignedState;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -29,16 +29,14 @@ public class DefaultHashLogger implements HashLogger {
     private final int depth;
     private final Logger logOutput; // NOSONAR: selected logger to output to.
     private final boolean isEnabled;
-    private final PlatformStateFacade platformStateFacade;
 
     /**
      * Construct a HashLogger.
      *
      * @param platformContext the platform context
      */
-    public DefaultHashLogger(
-            @NonNull final PlatformContext platformContext, @NonNull final PlatformStateFacade platformStateFacade) {
-        this(platformContext, logger, platformStateFacade);
+    public DefaultHashLogger(@NonNull final PlatformContext platformContext) {
+        this(platformContext, logger);
     }
 
     /**
@@ -46,17 +44,12 @@ public class DefaultHashLogger implements HashLogger {
      *
      * @param platformContext the platform context
      * @param logOutput       the logger to write to
-     * @param platformStateFacade the facade to access the platform state
      */
-    DefaultHashLogger(
-            @NonNull final PlatformContext platformContext,
-            @NonNull final Logger logOutput,
-            @NonNull final PlatformStateFacade platformStateFacade) {
+    DefaultHashLogger(@NonNull final PlatformContext platformContext, @NonNull final Logger logOutput) {
         final StateConfig stateConfig = platformContext.getConfiguration().getConfigData(StateConfig.class);
         depth = stateConfig.debugHashDepth();
         isEnabled = stateConfig.enableHashStreamLogging();
         this.logOutput = Objects.requireNonNull(logOutput);
-        this.platformStateFacade = platformStateFacade;
     }
 
     /**
@@ -99,7 +92,7 @@ public class DefaultHashLogger implements HashLogger {
      */
     @NonNull
     private Message generateLogMessage(@NonNull final SignedState signedState) {
-        final String platformInfo = platformStateFacade.getInfoString(signedState.getState(), depth);
+        final String platformInfo = getInfoString(signedState.getState(), depth);
 
         return MESSAGE_FACTORY.newMessage(
                 """

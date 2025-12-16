@@ -33,7 +33,7 @@ class SignedStateNexusTest {
     }
 
     private static Stream<SignedStateNexus> raceConditionInstances() {
-        return Stream.of(new LockFreeStateNexus(), new EmergencyStateNexus());
+        return Stream.of(new LockFreeStateNexus());
     }
 
     @AfterEach

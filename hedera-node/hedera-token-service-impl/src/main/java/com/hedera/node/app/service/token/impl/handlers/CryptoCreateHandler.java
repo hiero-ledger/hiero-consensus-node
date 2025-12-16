@@ -51,6 +51,7 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.Duration;
 import com.hedera.hapi.node.base.HederaFunctionality;
+import com.hedera.hapi.node.base.HookEntityId;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.state.token.Account;
@@ -272,9 +273,11 @@ public class CryptoCreateHandler extends BaseCryptoHandler implements Transactio
         // Dispatch hook creation to contract service if there are any hooks to be created
         int updatedSlots = 0;
         if (!op.hookCreationDetails().isEmpty()) {
-            final var owner =
+            final var ownerId =
                     entityIdFactory.newAccountId(context.entityNumGenerator().peekAtNewEntityNum());
-            updatedSlots = dispatchHookCreations(context, op.hookCreationDetails(), null, owner);
+            final var hookEntityId =
+                    HookEntityId.newBuilder().accountId(ownerId).build();
+            updatedSlots = dispatchHookCreations(context, op.hookCreationDetails(), null, hookEntityId);
         }
 
         // Build the new account to be persisted based on the transaction body and save the newly created account

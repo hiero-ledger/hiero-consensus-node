@@ -174,7 +174,9 @@ public class PrivilegedOpsTest {
                                 .signedBy(SYSTEM_ADMIN, GENESIS));
     }
 
-    @LeakyHapiTest(requirement = THROTTLE_OVERRIDES)
+    @LeakyHapiTest(
+            requirement = {THROTTLE_OVERRIDES},
+            throttles = "testSystemFiles/only-mint-allowed.json")
     @Tag(MATS)
     final Stream<DynamicTest> systemAccountsAreNeverThrottled() {
         return hapiTest(flattened(

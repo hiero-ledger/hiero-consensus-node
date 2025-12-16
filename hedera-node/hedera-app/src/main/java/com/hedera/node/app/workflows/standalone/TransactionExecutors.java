@@ -14,10 +14,13 @@ import com.hedera.node.app.hints.impl.HintsServiceImpl;
 import com.hedera.node.app.history.impl.HistoryLibraryImpl;
 import com.hedera.node.app.history.impl.HistoryServiceImpl;
 import com.hedera.node.app.info.NodeInfoImpl;
+import com.hedera.node.app.records.impl.producers.formats.SelfNodeAccountIdManagerImpl;
+import com.hedera.node.app.service.consensus.impl.ConsensusServiceImpl;
 import com.hedera.node.app.service.contract.impl.ContractServiceImpl;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.file.impl.FileServiceImpl;
 import com.hedera.node.app.service.schedule.impl.ScheduleServiceImpl;
+import com.hedera.node.app.service.token.impl.TokenServiceImpl;
 import com.hedera.node.app.service.util.impl.UtilServiceImpl;
 import com.hedera.node.app.services.AppContextImpl;
 import com.hedera.node.app.signature.AppSignatureVerifier;
@@ -26,6 +29,7 @@ import com.hedera.node.app.signature.impl.SignatureVerifierImpl;
 import com.hedera.node.app.state.recordcache.LegacyListRecordSource;
 import com.hedera.node.app.throttle.AppThrottleFactory;
 import com.hedera.node.app.throttle.ThrottleAccumulator;
+import com.hedera.node.app.workflows.standalone.impl.StandaloneNetworkInfo;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.types.StreamMode;
@@ -293,12 +297,16 @@ public enum TransactionExecutors {
                 bootstrapConfig.getConfigData(BlockStreamConfig.class).blockPeriod());
         final var historyService = new HistoryServiceImpl(
                 NO_OP_METRICS, ForkJoinPool.commonPool(), appContext, new HistoryLibraryImpl(), bootstrapConfig);
+        final var standaloneNetworkInfo = new StandaloneNetworkInfo(configProvider);
+        standaloneNetworkInfo.initFrom(state);
         final var component = DaggerExecutorComponent.builder()
                 .appContext(appContext)
                 .configProviderImpl(configProvider)
                 .disableThrottles(disableThrottles)
                 .bootstrapConfigProviderImpl(bootstrapConfigProvider)
                 .fileServiceImpl(fileService)
+                .tokenServiceImpl(new TokenServiceImpl(appContext))
+                .consensusServiceImpl(new ConsensusServiceImpl())
                 .contractServiceImpl(contractService)
                 .utilServiceImpl(utilService)
                 .scheduleServiceImpl(scheduleService)
@@ -306,6 +314,8 @@ public enum TransactionExecutors {
                 .historyService(historyService)
                 .metrics(NO_OP_METRICS)
                 .throttleFactory(appContext.throttleFactory())
+                .selfNodeAccountIdManager(
+                        new SelfNodeAccountIdManagerImpl(configProvider, standaloneNetworkInfo, state))
                 .build();
         componentRef.set(component);
         return component;

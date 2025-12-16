@@ -13,16 +13,12 @@ import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.node.base.SemanticVersion;
-import com.swirlds.base.time.Time;
-import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.config.legacy.ConfigurationException;
 import com.swirlds.platform.config.legacy.LegacyConfigProperties;
 import com.swirlds.platform.config.legacy.LegacyConfigPropertiesLoader;
 import com.swirlds.platform.system.SystemExitUtils;
 import com.swirlds.state.MerkleNodeState;
-import com.swirlds.virtualmap.VirtualMap;
-import java.util.function.Function;
 import org.hiero.consensus.model.roster.AddressBook;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
@@ -94,21 +90,6 @@ final class ServicesMainTest {
         ServicesMain.initGlobal(hedera, metrics);
         given(hedera.newStateRoot()).willReturn(state);
         assertSame(state, subject.newStateRoot());
-    }
-
-    @Test
-    void createsStateRootFromVirtualMap() {
-        ServicesMain.initGlobal(hedera, metrics);
-        final VirtualMap virtualMapMock = mock(VirtualMap.class);
-        final Configuration configuration = mock(Configuration.class);
-        final Metrics metrics = mock(Metrics.class);
-        final Time time = mock(Time.class);
-        final Function<VirtualMap, MerkleNodeState> stateRootFromVirtualMapMock = mock(Function.class);
-
-        when(hedera.stateRootFromVirtualMap(metrics, time)).thenReturn(stateRootFromVirtualMapMock);
-        when(stateRootFromVirtualMapMock.apply(virtualMapMock)).thenReturn(state);
-
-        assertSame(state, subject.stateRootFromVirtualMap(metrics, time).apply(virtualMapMock));
     }
 
     private void withBadCommandLineArgs() {

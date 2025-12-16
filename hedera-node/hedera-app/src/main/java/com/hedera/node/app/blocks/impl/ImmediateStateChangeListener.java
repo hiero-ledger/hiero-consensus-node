@@ -39,6 +39,7 @@ import com.hedera.hapi.node.state.history.ConstructionNodeId;
 import com.hedera.hapi.node.state.history.HistoryProofVote;
 import com.hedera.hapi.node.state.history.ProofKeySet;
 import com.hedera.hapi.node.state.history.RecordedHistorySignature;
+import com.hedera.hapi.node.state.history.WrapsMessageHistory;
 import com.hedera.hapi.node.state.hooks.EvmHookState;
 import com.hedera.hapi.node.state.hooks.LambdaSlotKey;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
@@ -311,6 +312,9 @@ public class ImmediateStateChangeListener implements StateChangeListener {
                         MapChangeValue.ValueChoiceOneOfType.CRS_PUBLICATION_VALUE, crsPublicationTransactionBody));
             case EvmHookState evmHookState ->
                 new MapChangeValue(new OneOf<>(MapChangeValue.ValueChoiceOneOfType.EVM_HOOK_STATE_VALUE, evmHookState));
+            case WrapsMessageHistory wrapsMessageHistory ->
+                new MapChangeValue(new OneOf<>(
+                        MapChangeValue.ValueChoiceOneOfType.WRAPS_MESSAGE_HISTORY_VALUE, wrapsMessageHistory));
             default ->
                 throw new IllegalStateException(
                         "Unexpected value: " + value.getClass().getSimpleName());

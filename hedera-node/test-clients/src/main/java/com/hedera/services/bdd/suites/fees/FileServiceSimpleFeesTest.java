@@ -1,0 +1,187 @@
+// SPDX-License-Identifier: Apache-2.0
+package com.hedera.services.bdd.suites.fees;
+
+import static com.hedera.services.bdd.junit.TestTags.MATS;
+import static com.hedera.services.bdd.junit.TestTags.SIMPLE_FEES;
+import static com.hedera.services.bdd.spec.HapiSpec.customizedHapiTest;
+import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.getFileContents;
+import static com.hedera.services.bdd.spec.queries.QueryVerbs.getFileInfo;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.fileAppend;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.fileCreate;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.fileDelete;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.fileUpdate;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyListNamed;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
+import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
+import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
+import static com.hedera.services.bdd.suites.HapiSuite.THREE_MONTHS_IN_SECONDS;
+
+import com.hedera.services.bdd.junit.HapiTest;
+import com.hedera.services.bdd.spec.keys.KeyShape;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Stream;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Tag;
+
+@Tag(MATS)
+@Tag(SIMPLE_FEES)
+public class FileServiceSimpleFeesTest {
+    private static final String CIVILIAN = "civilian";
+    private static final String KEY = "key";
+    private static final double BASE_FEE_FILE_CREATE = 0.05;
+    private static final double BASE_FEE_FILE_UPDATE = 0.05;
+    private static final double BASE_FEE_FILE_DELETE = 0.007;
+    private static final double BASE_FEE_FILE_APPEND = 0.05;
+    private static final double SINGLE_BYTE_FEE = 0.000011;
+    private static final double SINGLE_KEY_FEE = 0.01;
+    private static final double SINGLE_SIGNATURE_COST = 0.0001;
+    private static final double BASE_FEE_FILE_GET_CONTENT = 0.0001;
+    private static final double BASE_FEE_FILE_GET_FILE = 0.0001;
+
+    @HapiTest
+    @DisplayName("USD base fee as expected for file create transaction")
+    final Stream<DynamicTest> fileCreateBaseUSDFee() {
+        var contents = "0".repeat(1000).getBytes();
+
+        return hapiTest(
+                newKeyNamed(KEY).shape(KeyShape.SIMPLE),
+                cryptoCreate(CIVILIAN).key(KEY).balance(ONE_HUNDRED_HBARS),
+                newKeyListNamed("WACL", List.of(CIVILIAN)),
+                fileCreate("test")
+                        .key("WACL")
+                        .contents(contents)
+                        .payingWith(CIVILIAN)
+                        .via("fileCreateBasic"),
+                validateChargedUsd("fileCreateBasic", BASE_FEE_FILE_CREATE));
+    }
+
+    @HapiTest
+    @DisplayName("USD fee as expected for file create transaction with extra bytes")
+    final Stream<DynamicTest> fileCreateExtraBytes() {
+        // included bytes are 1000 so we are 4000 above
+        final var contents = "0".repeat(5000).getBytes();
+        final var feeFromBytes = 4000 * SINGLE_BYTE_FEE;
+
+        return hapiTest(
+                newKeyNamed(KEY).shape(KeyShape.SIMPLE),
+                cryptoCreate(CIVILIAN).key(KEY).balance(ONE_HUNDRED_HBARS),
+                newKeyListNamed("WACL", List.of(CIVILIAN)),
+                fileCreate("test")
+                        .key("WACL")
+                        .contents(contents)
+                        .payingWith(CIVILIAN)
+                        .via("fileCreateExtraBytes"),
+                validateChargedUsd("fileCreateExtraBytes", BASE_FEE_FILE_CREATE + feeFromBytes));
+    }
+
+    @HapiTest
+    @DisplayName("USD fee as expected for file create transaction with extra keys")
+    final Stream<DynamicTest> fileCreateExtraKeys() {
+        final var contents = "0".repeat(50).getBytes();
+        final var extraKeys = 4;
+        final var feeFromKeys = extraKeys * SINGLE_KEY_FEE;
+        final var networkMultiplier = 9;
+        final var extraSignatures = 5;
+        final var feeFromSignatures = networkMultiplier * extraSignatures * SINGLE_SIGNATURE_COST;
+
+        return hapiTest(
+                newKeyNamed("key1").shape(KeyShape.SIMPLE),
+                newKeyNamed("key2").shape(KeyShape.SIMPLE),
+                newKeyNamed("key3").shape(KeyShape.SIMPLE),
+                newKeyNamed("key4").shape(KeyShape.SIMPLE),
+                newKeyNamed("key5").shape(KeyShape.SIMPLE),
+                newKeyListNamed("keyList", List.of("key1", "key2", "key3", "key4", "key5")),
+                cryptoCreate(CIVILIAN),
+                fileCreate("test")
+                        .key("keyList")
+                        .contents(contents)
+                        .payingWith(CIVILIAN)
+                        .via("fileCreateExtraKeys"),
+                validateChargedUsd("fileCreateExtraKeys", BASE_FEE_FILE_CREATE + feeFromKeys + feeFromSignatures));
+    }
+
+    @HapiTest
+    @DisplayName("USD base fee as expected for file update transaction")
+    final Stream<DynamicTest> fileUpdateBaseUSDFee() {
+        var contents = "0".repeat(1000).getBytes();
+
+        return hapiTest(
+                newKeyNamed("key").shape(KeyShape.SIMPLE),
+                cryptoCreate(CIVILIAN).key("key").balance(ONE_HUNDRED_HBARS),
+                newKeyListNamed("key", List.of(CIVILIAN)),
+                fileCreate("test").key("key").contents("ABC"),
+                fileUpdate("test").contents(contents).payingWith(CIVILIAN).via("fileUpdateBasic"),
+                validateChargedUsd("fileUpdateBasic", BASE_FEE_FILE_UPDATE));
+    }
+
+    @HapiTest
+    @DisplayName("USD base fee as expected for file delete transaction")
+    final Stream<DynamicTest> fileDeleteBaseUSDFee() {
+        return hapiTest(
+                newKeyNamed("key").shape(KeyShape.SIMPLE),
+                cryptoCreate(CIVILIAN).key("key").balance(ONE_HUNDRED_HBARS),
+                newKeyListNamed("WACL", List.of(CIVILIAN)),
+                fileCreate("test").key("WACL").contents("ABC"),
+                fileDelete("test")
+                        .blankMemo()
+                        .payingWith(CIVILIAN)
+                        .signedBy(CIVILIAN)
+                        .via("fileDeleteBasic"),
+                validateChargedUsd("fileDeleteBasic", BASE_FEE_FILE_DELETE));
+    }
+
+    @HapiTest
+    @DisplayName("USD base fee as expected for file append transaction")
+    final Stream<DynamicTest> fileAppendBaseUSDFee() {
+        final var civilian = "NonExemptPayer";
+
+        final var baseAppend = "baseAppend";
+        final var targetFile = "targetFile";
+        final var magicKey = "magicKey";
+        final var magicWacl = "magicWacl";
+
+        return hapiTest(
+                newKeyNamed(magicKey),
+                newKeyListNamed(magicWacl, List.of(magicKey)),
+                cryptoCreate(civilian).balance(ONE_HUNDRED_HBARS).key(magicKey),
+                fileCreate(targetFile)
+                        .key(magicWacl)
+                        .lifetime(THREE_MONTHS_IN_SECONDS)
+                        .contents("Nothing much!"),
+                fileAppend(targetFile)
+                        .fee(ONE_HBAR)
+                        .signedBy(magicKey)
+                        .blankMemo()
+                        .content("A".repeat(1000))
+                        .payingWith(civilian)
+                        .via(baseAppend),
+                validateChargedUsd(baseAppend, BASE_FEE_FILE_APPEND));
+    }
+
+    @HapiTest
+    @DisplayName("USD base fee as expected for file get content transaction")
+    final Stream<DynamicTest> fileGetContentBaseUSDFee() {
+        return customizedHapiTest(
+                Map.of("memo.useSpecName", "false"),
+                cryptoCreate(CIVILIAN).balance(5 * ONE_HUNDRED_HBARS),
+                fileCreate("ntb").key(CIVILIAN).contents("Nothing much!"),
+                getFileContents("ntb").payingWith(CIVILIAN).signedBy(CIVILIAN).via("getFileContentsBasic"),
+                validateChargedUsd("getFileContentsBasic", BASE_FEE_FILE_GET_CONTENT));
+    }
+
+    @HapiTest
+    @DisplayName("USD base fee as expected for file get info transaction")
+    final Stream<DynamicTest> fileGetInfoBaseUSDFee() {
+        return customizedHapiTest(
+                Map.of("memo.useSpecName", "false"),
+                cryptoCreate(CIVILIAN).balance(5 * ONE_HUNDRED_HBARS),
+                fileCreate("ntb").key(CIVILIAN).contents("Nothing much!"),
+                getFileInfo("ntb").payingWith(CIVILIAN).signedBy(CIVILIAN).via("getFileInfoBasic"),
+                validateChargedUsd("getFileInfoBasic", BASE_FEE_FILE_GET_FILE));
+    }
+}

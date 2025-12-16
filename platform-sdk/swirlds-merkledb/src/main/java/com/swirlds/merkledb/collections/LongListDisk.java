@@ -182,37 +182,34 @@ public class LongListDisk extends AbstractLongList<Long> {
         currentFileChannel = FileChannel.open(
                 tempFile, StandardOpenOption.CREATE, StandardOpenOption.READ, StandardOpenOption.WRITE);
 
-        super.readBodyFromFileChannelOnInit(sourceFileName, fileChannel, configuration);
+        if (minValidIndex.get() < 0) {
+            // Empty list, nothing to read
+            return;
+        }
+
+        final int firstChunkIndex = toIntExact(minValidIndex.get() / longsPerChunk);
+        final int lastChunkIndex = toIntExact(maxValidIndex.get() / longsPerChunk);
+        final int minValidIndexInChunk = toIntExact(minValidIndex.get() % longsPerChunk);
+
+        final long bytesTransferred = MerkleDbFileUtils.completelyTransferFrom(
+                currentFileChannel, // dst
+                fileChannel, // src
+                (long) minValidIndexInChunk * Long.BYTES, // the first chunk may not start from 0
+                fileChannel.size() - fileChannel.position()); // read what's available and check list size below
+        if (bytesTransferred != (maxValidIndex.get() - minValidIndex.get() + 1) * Long.BYTES) {
+            throw new IOException("Failed to init LongListDisk from file: " + sourceFileName);
+        }
+
+        for (int chunkIndex = firstChunkIndex; chunkIndex <= lastChunkIndex; chunkIndex++) {
+            final long chunk = ((long) (chunkIndex - firstChunkIndex) * memoryChunkSize);
+            setChunk(chunkIndex, chunk);
+        }
     }
 
     /** {@inheritDoc} */
     @Override
-    protected Long readChunkData(FileChannel fileChannel, int chunkIndex, int startIndex, int endIndex)
-            throws IOException {
-        // read from `fileChannel`
-        final ByteBuffer transferBuffer = initOrGetTransferBuffer();
-        fillBufferWithZeroes(transferBuffer);
-
-        readDataIntoBuffer(fileChannel, chunkIndex, startIndex, endIndex, transferBuffer);
-
-        final int firstChunkIndex = toIntExact(minValidIndex.get() / longsPerChunk);
-        final long chunk = ((long) (chunkIndex - firstChunkIndex) * memoryChunkSize);
-
-        // write to `currentFileChannel`
-        int startOffset = startIndex * Long.BYTES;
-        int endOffset = endIndex * Long.BYTES;
-
-        transferBuffer.position(startOffset);
-        transferBuffer.limit(endOffset);
-
-        int bytesToWrite = endOffset - startOffset;
-        long bytesWritten = MerkleDbFileUtils.completelyWrite(currentFileChannel, transferBuffer, chunk + startOffset);
-        if (bytesWritten != bytesToWrite) {
-            throw new IOException("Failed to write long list (disk) chunks, chunkIndex=" + chunkIndex + " expected="
-                    + bytesToWrite + " actual=" + bytesWritten);
-        }
-
-        return chunk;
+    protected Long readChunkData(FileChannel fileChannel, int chunkIndex, int startIndex, int endIndex) {
+        throw new UnsupportedOperationException("This method should not be called");
     }
 
     private void fillBufferWithZeroes(ByteBuffer transferBuffer) {

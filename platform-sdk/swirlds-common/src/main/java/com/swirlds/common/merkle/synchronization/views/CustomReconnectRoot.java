@@ -18,16 +18,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 public interface CustomReconnectRoot<T, L> extends MerkleNode {
 
     /**
-     * <p>
      * Build a view of this subtree to be used for reconnect by the teacher.
-     * </p>
-     *
-     * <p>
-     * It is ok if this view is not immediately ready for use, as long as the view eventually
-     * becomes ready for use (presumably when some background task has completed). If this is
-     * the case, then the {@link TeacherTreeView#waitUntilReady()} on the returned view should
-     * block until the view is ready to be used to perform a reconnect.
-     * </p>
      *
      * @return a view representing this subtree
      */

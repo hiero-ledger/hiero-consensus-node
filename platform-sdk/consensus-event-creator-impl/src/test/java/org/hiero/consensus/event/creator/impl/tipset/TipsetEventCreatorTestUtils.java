@@ -22,7 +22,6 @@ import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.event.orphan.DefaultOrphanBuffer;
 import com.swirlds.platform.event.orphan.OrphanBuffer;
-import com.swirlds.platform.gossip.IntakeEventCounter;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.security.NoSuchAlgorithmException;
@@ -37,8 +36,9 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Random;
 import java.util.stream.IntStream;
+import org.hiero.base.crypto.BytesSigner;
+import org.hiero.consensus.event.IntakeEventCounter;
 import org.hiero.consensus.event.creator.impl.EventCreator;
-import org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreator.HashSigner;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
@@ -61,14 +61,19 @@ public class TipsetEventCreatorTestUtils {
             @NonNull final Time time,
             @NonNull final Roster roster,
             @NonNull final NodeId nodeId,
-            @NonNull final EventTransactionSupplier transactionSupplier) {
+            @NonNull final EventTransactionSupplier transactionSupplier,
+            final int maxParents) {
 
-        final Configuration configuration =
-                ConfigurationBuilder.create().autoDiscoverExtensions().build();
+        final Configuration configuration = ConfigurationBuilder.create()
+                .autoDiscoverExtensions()
+                .withValue("event.creation.maxOtherParents", Integer.toString(maxParents))
+                .build();
+
         final Metrics metrics = new NoOpMetrics();
 
-        final HashSigner signer = mock(HashSigner.class);
-        when(signer.sign(any())).thenAnswer(invocation -> randomSignature(random));
+        final BytesSigner signer = mock(BytesSigner.class);
+        when(signer.sign(any()))
+                .thenAnswer(invocation -> randomSignature(random).getBytes());
 
         // Use SHA1PRNG for deterministic behavior
         final SecureRandom secureRandom;
@@ -101,7 +106,7 @@ public class TipsetEventCreatorTestUtils {
         for (final RosterEntry address : roster.rosterEntries()) {
 
             final NodeId selfId = NodeId.of(address.nodeId());
-            final EventCreator eventCreator = buildEventCreator(random, time, roster, selfId, transactionSupplier);
+            final EventCreator eventCreator = buildEventCreator(random, time, roster, selfId, transactionSupplier, 1);
 
             // Set a wide event window so that no events get stuck in the Future Event Buffer
             eventCreator.setEventWindow(EventWindow.getGenesisEventWindow());
@@ -111,8 +116,7 @@ public class TipsetEventCreatorTestUtils {
             final ChildlessEventTracker childlessEventTracker = new ChildlessEventTracker();
             final TipsetWeightCalculator tipsetWeightCalculator = new TipsetWeightCalculator(
                     configuration, time, roster, NodeId.of(address.nodeId()), tipsetTracker, childlessEventTracker);
-            final OrphanBuffer orphanBuffer =
-                    new DefaultOrphanBuffer(configuration, metrics, mock(IntakeEventCounter.class));
+            final OrphanBuffer orphanBuffer = new DefaultOrphanBuffer(metrics, mock(IntakeEventCounter.class));
 
             eventCreators.put(
                     selfId,
@@ -316,5 +320,10 @@ public class TipsetEventCreatorTestUtils {
     @NonNull
     public static List<Boolean> booleanValues() {
         return Arrays.asList(Boolean.FALSE, Boolean.TRUE);
+    }
+
+    @NonNull
+    public static List<Integer> maxParentSizes() {
+        return Arrays.asList(1, 2, 3, 4, 5, 6, 7, 8, 9, 10);
     }
 }

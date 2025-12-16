@@ -72,6 +72,31 @@ public class DispatchForResponseCodeHssCall extends AbstractCall {
     }
 
     /**
+     * Convenience overload that slightly eases construction for the common case that would also need a custom verification strategy.
+     *
+     * @param attempt               the attempt to translate to a dispatching
+     * @param syntheticBody         the synthetic body to dispatch
+     * @param verificationStrategy  the verification strategy to use
+     * @param dispatchGasCalculator the dispatch gas calculator to use
+     */
+    public DispatchForResponseCodeHssCall(
+            @NonNull final HssCallAttempt attempt,
+            @Nullable final TransactionBody syntheticBody,
+            @NonNull final VerificationStrategy verificationStrategy,
+            @NonNull final DispatchGasCalculator dispatchGasCalculator,
+            @NonNull final Set<Key> authorizingKeys) {
+        this(
+                attempt.enhancement(),
+                attempt.systemContractGasCalculator(),
+                attempt.addressIdConverter().convertSender(attempt.senderAddress()),
+                syntheticBody,
+                verificationStrategy,
+                dispatchGasCalculator,
+                authorizingKeys,
+                e -> ReturnTypes.encodedRc(e.status()));
+    }
+
+    /**
      * More general constructor, for cases where perhaps a custom {@link VerificationStrategy} is needed.
      *
      * @param enhancement           the enhancement to use

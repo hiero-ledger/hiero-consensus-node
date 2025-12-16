@@ -185,7 +185,7 @@ class AtomicEthereumSuite {
                                 .bytecode(TOKEN_CREATE_CONTRACT)
                                 .gasPrice(10L)
                                 .maxGasAllowance(ONE_HUNDRED_HBARS)
-                                .gasLimit(4_000_000L)
+                                .gasLimit(5_000_000L)
                                 .hasKnownStatusFrom(SUCCESS)
                                 .via("deployTokenCreateContract")
                                 .batchKey(BATCH_OPERATOR))

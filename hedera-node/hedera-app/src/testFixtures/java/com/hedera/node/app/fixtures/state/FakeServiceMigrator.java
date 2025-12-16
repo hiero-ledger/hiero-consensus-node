@@ -11,7 +11,6 @@ import com.hedera.node.app.services.ServiceMigrator;
 import com.hedera.node.app.services.ServicesRegistry;
 import com.hedera.node.app.spi.migrate.StartupNetworks;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.state.MerkleNodeState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -30,8 +29,7 @@ public class FakeServiceMigrator implements ServiceMigrator {
             @NonNull final Configuration platformConfig,
             @NonNull final StartupNetworks startupNetworks,
             @NonNull final StoreMetricsServiceImpl storeMetricsService,
-            @NonNull final ConfigProviderImpl configProvider,
-            @NonNull final PlatformStateFacade platformStateFacade) {
+            @NonNull final ConfigProviderImpl configProvider) {
         requireNonNull(state);
         requireNonNull(servicesRegistry);
         requireNonNull(currentVersion);

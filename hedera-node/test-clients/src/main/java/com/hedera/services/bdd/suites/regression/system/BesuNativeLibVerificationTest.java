@@ -4,7 +4,7 @@ package com.hedera.services.bdd.suites.regression.system;
 import static com.hedera.services.bdd.junit.TestTags.RESTART;
 import static com.hedera.services.bdd.junit.hedera.NodeSelector.allNodes;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertHgcaaLogContains;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertHgcaaLogContainsText;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.blockingOrder;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doAdhoc;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.freezeUpgrade;
@@ -49,14 +49,14 @@ public class BesuNativeLibVerificationTest implements LifecycleTest {
                         envOverrides, doAdhoc(() -> new SECP256K1().disableNative()), doAdhoc(() -> new SECP256R1()
                                 .disableNative())),
                 ifNotCi(
-                        assertHgcaaLogContains(allNodes(), "ERROR", Duration.ofSeconds(60)),
-                        assertHgcaaLogContains(allNodes(), "Native library", Duration.ZERO),
-                        assertHgcaaLogContains(
+                        assertHgcaaLogContainsText(allNodes(), "ERROR", Duration.ofSeconds(60)),
+                        assertHgcaaLogContainsText(allNodes(), "Native library", Duration.ZERO),
+                        assertHgcaaLogContainsText(
                                 allNodes(),
                                 "is not present with halt mode enabled! Shutting down node.",
                                 Duration.ZERO)),
                 ifCi(
-                        assertHgcaaLogContains(
+                        assertHgcaaLogContainsText(
                                 allNodes(),
                                 "Native library verification Halt mode is enabled",
                                 Duration.ofSeconds(300)),

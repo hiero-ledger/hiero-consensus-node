@@ -55,7 +55,8 @@ public class ConsensusBenchmark {
         events = emitter.emitEvents(numEvents);
 
         consensus = new ConsensusImpl(
-                platformContext,
+                platformContext.getConfiguration(),
+                platformContext.getTime(),
                 new NoOpConsensusMetrics(),
                 emitter.getGraphGenerator().getRoster());
     }

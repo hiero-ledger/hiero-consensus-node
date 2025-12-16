@@ -75,6 +75,11 @@ public final class NettyGrpcServerManager implements GrpcServerManager {
     private static final List<String> SUPPORTED_PROTOCOLS = List.of("TLSv1.2", "TLSv1.3");
 
     /**
+     * The max transaction size in bytes supported by gRPC.
+     */
+    public static final int MAX_TRANSACTION_SIZE = 133120; // 130 KB
+
+    /**
      * The set of {@link ServiceDescriptor}s for services that the gRPC server will expose
      */
     private final Set<ServerServiceDefinition> services;
@@ -423,15 +428,15 @@ public final class NettyGrpcServerManager implements GrpcServerManager {
             @NonNull final QueryWorkflow queryWorkflow,
             @NonNull final Metrics metrics) {
 
-        final var maxTxnSize = configProvider
+        final int maxTxnSize = configProvider
                 .getConfiguration()
                 .getConfigData(HederaConfig.class)
                 .transactionMaxBytes();
-        final var isJumboEnabled = configProvider
+        final boolean isJumboEnabled = configProvider
                 .getConfiguration()
                 .getConfigData(JumboTransactionsConfig.class)
                 .isEnabled();
-        final var jumboMaxTxnSize = isJumboEnabled
+        final int jumboMaxTxnSize = isJumboEnabled
                 ? configProvider
                         .getConfiguration()
                         .getConfigData(JumboTransactionsConfig.class)
@@ -441,7 +446,7 @@ public final class NettyGrpcServerManager implements GrpcServerManager {
         // set buffer capacity to be big enough to hold the largest transaction
         final var bufferCapacity = isJumboEnabled ? jumboMaxTxnSize + 1 : maxTxnSize + 1;
         // set capacity and max transaction size for both normal and jumbo transactions
-        final var dataBufferMarshaller = new DataBufferMarshaller(bufferCapacity, maxTxnSize);
+        final var dataBufferMarshaller = new DataBufferMarshaller(MAX_TRANSACTION_SIZE + 1, MAX_TRANSACTION_SIZE);
         final var jumboBufferMarshaller = new DataBufferMarshaller(bufferCapacity, jumboMaxTxnSize);
         return rpcServiceDefinitions
                 .get()

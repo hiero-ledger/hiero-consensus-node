@@ -2750,6 +2750,46 @@ class VirtualNodeCacheTest extends VirtualTestBase {
         assertEquals(Set.of(appleLeaf(1), bananaLeaf(2)), dirtyLeaves0F);
     }
 
+    @Test
+    @DisplayName("Check merged node cache memory overhead")
+    void mergedCachesMemoryOverhead() {
+        final VirtualNodeCache cache0 = new VirtualNodeCache(VIRTUAL_MAP_CONFIG);
+        cache0.putLeaf(appleLeaf(1));
+        final long cache0EstimatedSize = cache0.getEstimatedSize();
+
+        final VirtualNodeCache cache1 = cache0.copy();
+        cache1.putLeaf(bananaLeaf(2));
+        final long cache1EstimatedSize = cache1.getEstimatedSize();
+
+        final VirtualNodeCache cache2 = cache1.copy();
+        final long cache2EstimatedSize = cache2.getEstimatedSize();
+        assertEquals(0, cache2EstimatedSize); // empty
+
+        cache0.seal();
+        cache1.seal();
+        cache2.seal();
+
+        final int concurrentArraySubArrayCapacity = 1024; // keep in sync with ConcurrentArray
+        // One empty array (hashes) and two arrays with one element - total 3 sub-arrays
+        assertEquals(concurrentArraySubArrayCapacity * 3 * Long.BYTES + cache0EstimatedSize, cache0.getEstimatedSize());
+        assertEquals(concurrentArraySubArrayCapacity * 3 * Long.BYTES + cache1EstimatedSize, cache1.getEstimatedSize());
+        // Three empty sub-arrays in cache2
+        assertEquals(concurrentArraySubArrayCapacity * 3 * Long.BYTES, cache2.getEstimatedSize());
+
+        cache0.merge();
+        // Hashes arrays are empty. Two empty sub-arrays are merged into one empty sub-array
+        assertEquals(
+                concurrentArraySubArrayCapacity * 6 * Long.BYTES + cache0EstimatedSize + cache1EstimatedSize,
+                cache1.getEstimatedSize());
+
+        cache1.merge();
+        // Cache2 is empty, all its concurrent arrays / sub-arrays are empty. During merge, no new sub-arrays
+        // should be created
+        assertEquals(
+                concurrentArraySubArrayCapacity * 6 * Long.BYTES + cache0EstimatedSize + cache1EstimatedSize,
+                cache1.getEstimatedSize());
+    }
+
     // ----------------------------------------------------------------------
     // Test Utility methods
     // ----------------------------------------------------------------------

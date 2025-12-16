@@ -42,6 +42,7 @@ class HistoryServiceImplTest {
     private static final Bytes CURRENT_VK = Bytes.wrap("Z");
     private static final Metrics NO_OP_METRICS = new NoOpMetrics();
     private static final Instant CONSENSUS_NOW = Instant.ofEpochSecond(1_234_567L, 890);
+    private static final TssConfig DEFAULT_TSS_CONFIG = DEFAULT_CONFIG.getConfigData(TssConfig.class);
 
     @Mock
     private AppContext appContext;
@@ -54,9 +55,6 @@ class HistoryServiceImplTest {
 
     @Mock
     private ProofController controller;
-
-    @Mock
-    private TssConfig tssConfig;
 
     @Mock
     private ActiveRosters activeRosters;
@@ -118,19 +116,19 @@ class HistoryServiceImplTest {
     void handoffIsNoop() {
         withMockSubject();
         given(activeRosters.phase()).willReturn(HANDOFF);
-        subject.reconcile(activeRosters, Bytes.EMPTY, store, CONSENSUS_NOW, tssConfig, true, null);
+        subject.reconcile(activeRosters, Bytes.EMPTY, store, CONSENSUS_NOW, DEFAULT_TSS_CONFIG, true, null);
     }
 
     @Test
     void noopReconciliationIfBootstrapHasProof() {
         withMockSubject();
         given(activeRosters.phase()).willReturn(BOOTSTRAP);
-        given(store.getOrCreateConstruction(activeRosters, CONSENSUS_NOW, tssConfig))
+        given(store.getOrCreateConstruction(activeRosters, CONSENSUS_NOW, DEFAULT_TSS_CONFIG))
                 .willReturn(HistoryProofConstruction.newBuilder()
                         .targetProof(HistoryProof.DEFAULT)
                         .build());
 
-        subject.reconcile(activeRosters, null, store, CONSENSUS_NOW, tssConfig, true, null);
+        subject.reconcile(activeRosters, null, store, CONSENSUS_NOW, DEFAULT_TSS_CONFIG, true, null);
 
         verifyNoMoreInteractions(component);
     }
@@ -139,16 +137,23 @@ class HistoryServiceImplTest {
     void activeReconciliationIfTransitionHasNoProofYet() {
         withMockSubject();
         given(activeRosters.phase()).willReturn(TRANSITION);
-        given(store.getOrCreateConstruction(activeRosters, CONSENSUS_NOW, tssConfig))
+        given(store.getOrCreateConstruction(activeRosters, CONSENSUS_NOW, DEFAULT_TSS_CONFIG))
                 .willReturn(HistoryProofConstruction.DEFAULT);
+        given(store.getActiveConstruction()).willReturn(HistoryProofConstruction.DEFAULT);
         given(component.controllers()).willReturn(controllers);
         given(controllers.getOrCreateFor(
-                        activeRosters, HistoryProofConstruction.DEFAULT, store, HintsConstruction.DEFAULT, false))
+                        activeRosters,
+                        HistoryProofConstruction.DEFAULT,
+                        store,
+                        HintsConstruction.DEFAULT,
+                        HistoryProofConstruction.DEFAULT,
+                        DEFAULT_CONFIG.getConfigData(TssConfig.class)))
                 .willReturn(controller);
 
-        subject.reconcile(activeRosters, CURRENT_VK, store, CONSENSUS_NOW, tssConfig, true, HintsConstruction.DEFAULT);
+        subject.reconcile(
+                activeRosters, CURRENT_VK, store, CONSENSUS_NOW, DEFAULT_TSS_CONFIG, true, HintsConstruction.DEFAULT);
 
-        verify(controller).advanceConstruction(CONSENSUS_NOW, CURRENT_VK, store, true);
+        verify(controller).advanceConstruction(CONSENSUS_NOW, CURRENT_VK, store, true, DEFAULT_TSS_CONFIG);
     }
 
     @Test
@@ -156,7 +161,8 @@ class HistoryServiceImplTest {
         withMockSubject();
         given(activeRosters.phase()).willReturn(HANDOFF);
 
-        subject.reconcile(activeRosters, null, store, CONSENSUS_NOW, tssConfig, true, HintsConstruction.DEFAULT);
+        subject.reconcile(
+                activeRosters, null, store, CONSENSUS_NOW, DEFAULT_TSS_CONFIG, true, HintsConstruction.DEFAULT);
 
         verify(store, never()).getConstructionFor(activeRosters);
     }

@@ -2,11 +2,8 @@
 package com.hedera.services.bdd.suites.records;
 
 import static com.hedera.services.bdd.junit.ContextRequirement.SYSTEM_ACCOUNT_BALANCES;
-import static com.hedera.services.bdd.junit.EmbeddedReason.MANIPULATES_EVENT_VERSION;
 import static com.hedera.services.bdd.junit.EmbeddedReason.MUST_SKIP_INGEST;
-import static com.hedera.services.bdd.junit.EmbeddedReason.NEEDS_STATE_ACCESS;
 import static com.hedera.services.bdd.junit.TestTags.MATS;
-import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.assertions.AccountInfoAsserts.reducedFromSnapshot;
 import static com.hedera.services.bdd.spec.assertions.AssertUtils.inOrder;
@@ -22,15 +19,11 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uncheckedSubmit;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
-import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.mutateSingleton;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertHgcaaLogContains;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertHgcaaLogDoesNotContain;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.balanceSnapshot;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.usableTxnIdNamed;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.usingEventBirthRound;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.FUNDING;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
@@ -45,12 +38,8 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.NOT_SUPPORTED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import com.hedera.hapi.block.stream.output.protoc.StateIdentifier;
-import com.hedera.hapi.platform.state.PlatformState;
-import com.hedera.services.bdd.junit.EmbeddedHapiTest;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.LeakyEmbeddedHapiTest;
-import java.time.Duration;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
@@ -116,34 +105,6 @@ public class DuplicateManagementTest {
                                     "Costly (%d) should be 3x more expensive than" + " cheap (%d)!",
                                     costlyPrice, cheapPrice));
                 }));
-    }
-
-    @EmbeddedHapiTest(value = {NEEDS_STATE_ACCESS, MANIPULATES_EVENT_VERSION})
-    @DisplayName("only warns of missing creator if event birth round is greater than last freeze round")
-    final Stream<DynamicTest> onlyWarnsOfMissingCreatorIfCurrentVersion() {
-        return hapiTest(
-                mutateSingleton(
-                        "PlatformStateService",
-                        StateIdentifier.STATE_ID_PLATFORM_STATE_VALUE,
-                        (PlatformState platform) ->
-                                platform.copyBuilder().latestFreezeRound(10).build()),
-                cryptoTransfer(tinyBarsFromTo(GENESIS, FUNDING, ONE_HBAR))
-                        .setNode("666")
-                        .withSubmissionStrategy(usingEventBirthRound(0L))
-                        .hasAnyStatusAtAll(),
-                assertHgcaaLogDoesNotContain(
-                        byNodeId(0), "node 666 which is not in the address book", Duration.ofSeconds(1)),
-                cryptoTransfer(tinyBarsFromTo(GENESIS, FUNDING, ONE_HBAR))
-                        .setNode("666")
-                        .withSubmissionStrategy(usingEventBirthRound(42L))
-                        .hasAnyStatusAtAll(),
-                assertHgcaaLogContains(byNodeId(0), "node 666 which is not in the address book", Duration.ofSeconds(1)),
-                // Reset freeze round to default value
-                mutateSingleton(
-                        "PlatformStateService",
-                        StateIdentifier.STATE_ID_PLATFORM_STATE_VALUE,
-                        (PlatformState platform) ->
-                                platform.copyBuilder().latestFreezeRound(0).build()));
     }
 
     @LeakyEmbeddedHapiTest(reason = MUST_SKIP_INGEST, requirement = SYSTEM_ACCOUNT_BALANCES)

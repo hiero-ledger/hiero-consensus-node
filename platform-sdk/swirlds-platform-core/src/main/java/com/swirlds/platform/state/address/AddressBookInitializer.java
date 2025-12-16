@@ -3,6 +3,7 @@ package com.swirlds.platform.state.address;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
+import static com.swirlds.platform.state.service.PlatformStateUtils.roundOf;
 import static com.swirlds.platform.system.address.AddressBookUtils.addressBookConfigText;
 import static org.hiero.consensus.roster.RosterRetriever.retrieveActive;
 import static org.hiero.consensus.roster.RosterUtils.buildAddressBook;
@@ -10,7 +11,6 @@ import static org.hiero.consensus.roster.RosterUtils.buildAddressBook;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.platform.config.AddressBookConfig;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
-import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.system.address.AddressBookValidator;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -108,8 +108,7 @@ public class AddressBookInitializer {
             @NonNull final SignedState initialState,
             @NonNull final AddressBook configAddressBook,
             @NonNull final PlatformContext platformContext,
-            @NonNull final ConsensusStateEventHandler consensusStateEventHandler,
-            @NonNull final PlatformStateFacade platformStateFacade) {
+            @NonNull final ConsensusStateEventHandler consensusStateEventHandler) {
         this.selfId = Objects.requireNonNull(selfId, "The selfId must not be null.");
         this.softwareUpgrade = softwareUpgrade;
         this.configAddressBook = Objects.requireNonNull(configAddressBook, "The configAddressBook must not be null.");
@@ -119,7 +118,7 @@ public class AddressBookInitializer {
                 platformContext.getConfiguration().getConfigData(AddressBookConfig.class);
         this.initialState = Objects.requireNonNull(initialState, "The initialState must not be null.");
 
-        final long round = platformStateFacade.roundOf(initialState.getState());
+        final long round = roundOf(initialState.getState());
         final var book = buildAddressBook(retrieveActive(initialState.getState(), round));
         this.stateAddressBook = (book == null || book.getSize() == 0) ? null : book;
         if (stateAddressBook == null && !initialState.isGenesisState()) {

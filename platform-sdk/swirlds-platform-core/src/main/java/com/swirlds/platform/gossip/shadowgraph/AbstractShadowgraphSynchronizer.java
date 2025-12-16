@@ -5,26 +5,24 @@ import static com.swirlds.platform.gossip.shadowgraph.SyncUtils.filterLikelyDupl
 
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.platform.gossip.IntakeEventCounter;
 import com.swirlds.platform.gossip.sync.config.SyncConfig;
 import com.swirlds.platform.metrics.SyncMetrics;
 import com.swirlds.platform.reconnect.FallenBehindMonitor;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Hash;
+import org.hiero.consensus.event.IntakeEventCounter;
 import org.hiero.consensus.model.event.PlatformEvent;
+import org.hiero.consensus.model.gossip.SyncProgress;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
 
@@ -90,12 +88,7 @@ public class AbstractShadowgraphSynchronizer {
      */
     protected final int maximumEventsPerSync;
 
-    /**
-     * Keep track of how much behind or ahead we are compared to peers based on the latestConsensusRound
-     */
-    private final ConcurrentMap<NodeId, Long> consensusLag = new ConcurrentHashMap<>();
-
-    private final Consumer<Double> syncLagHandler;
+    private final Consumer<SyncProgress> syncProgressHandler;
 
     /**
      * Constructs a new ShadowgraphSynchronizer.
@@ -107,7 +100,7 @@ public class AbstractShadowgraphSynchronizer {
      * @param receivedEventHandler events that are received are passed here
      * @param fallenBehindMonitor  an instance of the fallenBehind Monitor which tracks if the node has fallen behind
      * @param intakeEventCounter   used for tracking events in the intake pipeline per peer
-     * @param syncLagHandler       callback for reporting median sync lag
+     * @param syncProgressHandler  callback for reporting sync progress
      */
     public AbstractShadowgraphSynchronizer(
             @NonNull final PlatformContext platformContext,
@@ -117,7 +110,7 @@ public class AbstractShadowgraphSynchronizer {
             @NonNull final Consumer<PlatformEvent> receivedEventHandler,
             @NonNull final FallenBehindMonitor fallenBehindMonitor,
             @NonNull final IntakeEventCounter intakeEventCounter,
-            @NonNull final Consumer<Double> syncLagHandler) {
+            @NonNull final Consumer<SyncProgress> syncProgressHandler) {
         Objects.requireNonNull(platformContext);
 
         this.time = platformContext.getTime();
@@ -134,7 +127,7 @@ public class AbstractShadowgraphSynchronizer {
 
         this.filterLikelyDuplicates = syncConfig.filterLikelyDuplicates();
         this.maximumEventsPerSync = syncConfig.maxSyncEventCount();
-        this.syncLagHandler = Objects.requireNonNull(syncLagHandler);
+        this.syncProgressHandler = Objects.requireNonNull(syncProgressHandler);
     }
 
     @NonNull
@@ -145,28 +138,9 @@ public class AbstractShadowgraphSynchronizer {
         return myTips;
     }
 
-    protected void reportRoundDifference(
+    protected void reportSyncStatus(
             @NonNull final EventWindow self, @NonNull final EventWindow other, @NonNull final NodeId nodeId) {
-        final long diff = other.getPendingConsensusRound() - self.getPendingConsensusRound();
-        consensusLag.put(nodeId, diff);
-
-        final var lagArray = consensusLag.values().toArray(Long[]::new);
-        final double medianLag;
-        if (lagArray.length > 0) {
-            Arrays.sort(lagArray);
-            if (lagArray.length % 2 == 1) {
-                medianLag = lagArray[lagArray.length / 2];
-            } else {
-                medianLag = (lagArray[lagArray.length / 2 - 1] + lagArray[lagArray.length / 2]) / 2.0;
-            }
-        } else {
-            medianLag = 0.0;
-        }
-
-        final double clampedMedianLag = Math.max(medianLag, 0);
-
-        syncMetrics.reportMedianLag(clampedMedianLag);
-        syncLagHandler.accept(clampedMedianLag);
+        syncProgressHandler.accept(new SyncProgress(nodeId, self, other));
     }
 
     /**
@@ -216,7 +190,7 @@ public class AbstractShadowgraphSynchronizer {
         sendSet.addAll(unknownTips);
 
         final List<PlatformEvent> eventsTheyMayNeed =
-                sendSet.stream().map(ShadowEvent::getEvent).collect(Collectors.toCollection(ArrayList::new));
+                sendSet.stream().map(ShadowEvent::getPlatformEvent).collect(Collectors.toCollection(ArrayList::new));
 
         SyncUtils.sort(eventsTheyMayNeed);
 

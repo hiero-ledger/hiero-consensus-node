@@ -47,7 +47,7 @@ public class AbstractNodeConfigurationTest {
     @ParameterizedTest
     @ValueSource(booleans = {true, false})
     void testBooleanProperty(final boolean value) {
-        subject.set("myBooleanValue", value);
+        subject.withConfigValue("myBooleanValue", value);
         final Configuration config = subject.current();
         final TestConfigData configData = config.getConfigData(TestConfigData.class);
         assertThat(configData.myBooleanValue()).isEqualTo(value);
@@ -56,7 +56,7 @@ public class AbstractNodeConfigurationTest {
     @ParameterizedTest
     @ValueSource(strings = {"test", "hello world", "", "äöüÄÖÜß", " \t\n\"", "特殊字符", "emoji 😊"})
     void testStringProperty(final String value) {
-        subject.set("myStringValue", value);
+        subject.withConfigValue("myStringValue", value);
         final Configuration config = subject.current();
         final TestConfigData configData = config.getConfigData(TestConfigData.class);
         assertThat(configData.myStringValue()).isEqualTo(value);
@@ -65,7 +65,7 @@ public class AbstractNodeConfigurationTest {
     @ParameterizedTest
     @ValueSource(ints = {0, 42, -100, Integer.MIN_VALUE, Integer.MAX_VALUE})
     void testIntProperty(final int value) {
-        subject.set("myIntValue", value);
+        subject.withConfigValue("myIntValue", value);
         final Configuration config = subject.current();
         final TestConfigData configData = config.getConfigData(TestConfigData.class);
         assertThat(configData.myIntValue()).isEqualTo(value);
@@ -83,7 +83,7 @@ public class AbstractNodeConfigurationTest {
                 Double.NEGATIVE_INFINITY
             })
     void testDoubleProperty(final double value) {
-        subject.set("myDoubleValue", value);
+        subject.withConfigValue("myDoubleValue", value);
         final Configuration config = subject.current();
         final TestConfigData configData = config.getConfigData(TestConfigData.class);
         assertThat(configData.myDoubleValue()).isEqualTo(value);
@@ -92,7 +92,7 @@ public class AbstractNodeConfigurationTest {
     @ParameterizedTest
     @ValueSource(longs = {0L, 987654321L, -1000L, Long.MIN_VALUE, Long.MAX_VALUE})
     void testLongProperty(final long value) {
-        subject.set("myLongValue", value);
+        subject.withConfigValue("myLongValue", value);
         final Configuration config = subject.current();
         final TestConfigData configData = config.getConfigData(TestConfigData.class);
         assertThat(configData.myLongValue()).isEqualTo(value);
@@ -102,7 +102,7 @@ public class AbstractNodeConfigurationTest {
     @ValueSource(strings = {"ACTIVE", "REPLAYING_EVENTS", "FREEZE_COMPLETE"})
     void testEnumProperty(final String value) {
         final PlatformStatus status = PlatformStatus.valueOf(value);
-        subject.set("myEnumValue", status);
+        subject.withConfigValue("myEnumValue", status);
         final Configuration config = subject.current();
         final TestConfigData configData = config.getConfigData(TestConfigData.class);
         assertThat(configData.myEnumValue()).isEqualTo(status);
@@ -112,7 +112,7 @@ public class AbstractNodeConfigurationTest {
     @ValueSource(strings = {"PT15M", "PT1H", "PT30S", "P1D", "PT0S", "P2DT3H4M"})
     void testDurationProperty(final String value) {
         final Duration duration = Duration.parse(value);
-        subject.set("myDurationValue", duration);
+        subject.withConfigValue("myDurationValue", duration);
         final Configuration config = subject.current();
         final TestConfigData configData = config.getConfigData(TestConfigData.class);
         assertThat(configData.myDurationValue()).isEqualTo(duration);
@@ -122,7 +122,7 @@ public class AbstractNodeConfigurationTest {
     @ValueSource(strings = {"foo,bar,baz", "single", ""})
     void testStringListProperty(final String value) {
         final List<String> list = value.isEmpty() ? List.of() : List.of(value.split(","));
-        subject.set("myStringList", list);
+        subject.withConfigValue("myStringList", list);
         final Configuration config = subject.current();
         final TestConfigData configData = config.getConfigData(TestConfigData.class);
         assertThat(configData.myStringList()).isEqualTo(list);
@@ -131,7 +131,7 @@ public class AbstractNodeConfigurationTest {
     @ParameterizedTest
     @MethodSource("taskSchedulerConfigurationProvider")
     void testTaskSchedulerConfigurationProperty(final TaskSchedulerConfiguration schedulerConfig) {
-        subject.set("mySchedulerConfiguration", schedulerConfig);
+        subject.withConfigValue("mySchedulerConfiguration", schedulerConfig);
         final Configuration config = subject.current();
         final TestConfigData configData = config.getConfigData(TestConfigData.class);
 
@@ -226,7 +226,7 @@ public class AbstractNodeConfigurationTest {
         @Override
         public Configuration current() {
             return new TestConfigBuilder()
-                    .withSource(new SimpleConfigSource(overriddenProperties))
+                    .withSource(new SimpleConfigSource(overrideProperties.properties()))
                     .withConfigDataType(TestConfigData.class)
                     .getOrCreateConfig();
         }

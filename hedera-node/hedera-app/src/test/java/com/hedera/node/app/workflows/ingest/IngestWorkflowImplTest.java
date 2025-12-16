@@ -30,6 +30,7 @@ import com.hedera.hapi.node.transaction.SignedTransaction;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.hapi.node.transaction.TransactionResponse;
 import com.hedera.node.app.fixtures.AppTestBase;
+import com.hedera.node.app.quiescence.TxPipelineTracker;
 import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.workflows.TransactionChecker;
 import com.hedera.node.app.workflows.TransactionInfo;
@@ -89,6 +90,9 @@ class IngestWorkflowImplTest extends AppTestBase {
     @Mock(strictness = LENIENT)
     IngestChecker ingestChecker;
 
+    @Mock
+    private TxPipelineTracker txPipelineTracker;
+
     @Mock(strictness = LENIENT)
     SubmissionManager submissionManager;
 
@@ -138,7 +142,8 @@ class IngestWorkflowImplTest extends AppTestBase {
                 .runAllChecks(eq(state), eq(requestBuffer), eq(configuration), any());
 
         // Create the workflow we are going to test with
-        workflow = new IngestWorkflowImpl(stateAccessor, ingestChecker, submissionManager, configProvider);
+        workflow = new IngestWorkflowImpl(
+                stateAccessor, ingestChecker, submissionManager, txPipelineTracker, configProvider);
     }
 
     @Test

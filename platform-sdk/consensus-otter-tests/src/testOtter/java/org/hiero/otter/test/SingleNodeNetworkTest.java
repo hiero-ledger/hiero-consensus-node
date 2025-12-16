@@ -40,7 +40,6 @@ public class SingleNodeNetworkTest {
         assertContinuouslyThat(theOnlyNode.newLogResult()).hasNoErrorLevelMessages();
         assertContinuouslyThat(theOnlyNode.newConsensusResult()).hasConsistentRounds();
         assertContinuouslyThat(theOnlyNode.newReconnectResult()).doesNotAttemptToReconnect();
-        assertContinuouslyThat(theOnlyNode.newMarkerFileResult()).hasNoMarkerFile();
 
         network.start();
         // Let the single node run for a short time

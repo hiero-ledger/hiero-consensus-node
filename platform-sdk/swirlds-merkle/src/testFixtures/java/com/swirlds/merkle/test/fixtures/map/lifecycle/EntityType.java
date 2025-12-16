@@ -10,10 +10,6 @@ public enum EntityType {
      */
     Crypto,
     /**
-     * If the entity is a FCQueue
-     */
-    FCQ,
-    /**
      * If the entity is an NFT
      */
     NFT,

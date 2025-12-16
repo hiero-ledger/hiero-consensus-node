@@ -24,13 +24,13 @@ public class SyncTestUtils {
 
     public static void printTipSet(final String nodeName, final SyncNode node) {
         System.out.printf("\n--- %s's tipSet ---%n", nodeName);
-        node.getShadowGraph().getTips().forEach(tip -> System.out.println(tip.getEvent()));
+        node.getShadowGraph().getTips().forEach(tip -> System.out.println(tip.getPlatformEvent()));
     }
 
     public static long getMaxIndicator(final List<ShadowEvent> tips) {
         long maxIndicator = ConsensusConstants.ROUND_FIRST;
         for (final ShadowEvent tip : tips) {
-            maxIndicator = Math.max(tip.getEvent().getBirthRound(), maxIndicator);
+            maxIndicator = Math.max(tip.getPlatformEvent().getBirthRound(), maxIndicator);
         }
         return maxIndicator;
     }
@@ -38,7 +38,7 @@ public class SyncTestUtils {
     public static long getMinIndicator(@NonNull final Set<ShadowEvent> events) {
         long minIndicator = Long.MAX_VALUE;
         for (final ShadowEvent event : events) {
-            minIndicator = Math.min(event.getEvent().getBirthRound(), minIndicator);
+            minIndicator = Math.min(event.getPlatformEvent().getBirthRound(), minIndicator);
         }
         return minIndicator == Long.MAX_VALUE ? ConsensusConstants.ROUND_FIRST : minIndicator;
     }

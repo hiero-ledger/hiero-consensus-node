@@ -190,6 +190,12 @@ public class ParentTxnFactory {
         final var readableStoreFactory = new ReadableStoreFactory(stack);
         final var preHandleResult = preHandleWorkflow.getCurrentPreHandleResult(
                 creatorInfo, platformTxn, readableStoreFactory, shortCircuitTxnCallback);
+        // In case we got this without a prehandle call, ensure there's metadata for quiescence controller
+        if (platformTxn.getMetadata() == null) {
+            log.error(
+                    "Transaction {} has no metadata (preHandleResult={}), creating one", platformTxn, preHandleResult);
+            platformTxn.setMetadata(preHandleResult);
+        }
         final var txnInfo = preHandleResult.txInfo();
         if (txnInfo == null) {
             log.error(

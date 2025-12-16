@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.event.linking;
 
-import com.swirlds.common.context.PlatformContext;
 import com.swirlds.platform.event.EventCounter;
 import com.swirlds.platform.internal.EventImpl;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -62,11 +61,10 @@ public class ConsensusLinker {
     /**
      * Constructor
      *
-     * @param platformContext the platform context
+     * @param logsAndMetrics logs and collects metrics in case of linking issues
      */
-    public ConsensusLinker(@NonNull final PlatformContext platformContext) {
-        this.logsAndMetrics = new LinkerLogsAndMetrics(platformContext.getMetrics(), platformContext.getTime());
-
+    public ConsensusLinker(@NonNull final LinkerLogsAndMetrics logsAndMetrics) {
+        this.logsAndMetrics = logsAndMetrics;
         this.eventWindow = EventWindow.getGenesisEventWindow();
         this.parentDescriptorMap =
                 new StandardSequenceMap<>(0, INITIAL_CAPACITY, true, EventDescriptorWrapper::birthRound);
@@ -85,14 +83,11 @@ public class ConsensusLinker {
             return null;
         }
 
-        final EventImpl selfParent = getParentToLink(event, event.getSelfParent());
-
-        // FUTURE WORK: Extend other parent linking to support multiple other parents.
-        // Until then, take the first parent in the list.
-        final List<EventDescriptorWrapper> otherParents = event.getOtherParents();
-        final EventImpl otherParent = otherParents.isEmpty() ? null : getParentToLink(event, otherParents.getFirst());
-
-        final EventImpl linkedEvent = new EventImpl(event, selfParent, otherParent);
+        final List<EventImpl> parents = event.getAllParents().stream()
+                .map(ed -> getParentToLink(event, ed))
+                .filter(Objects::nonNull)
+                .toList();
+        final EventImpl linkedEvent = new EventImpl(event, parents);
         EventCounter.incrementLinkedEventCount();
 
         final EventDescriptorWrapper eventDescriptorWrapper = event.getDescriptor();
@@ -118,6 +113,16 @@ public class ConsensusLinker {
             ancientEvents.add(event);
         });
         return ancientEvents;
+    }
+
+    /**
+     * Get all non-ancient events tracked by this linker.
+     *
+     * @return all non-ancient events
+     */
+    @NonNull
+    public List<EventImpl> getNonAncientEvents() {
+        return parentHashMap.values().stream().toList();
     }
 
     /**

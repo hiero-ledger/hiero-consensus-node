@@ -2,6 +2,7 @@
 module org.hiero.otter.fixtures {
     requires transitive com.hedera.node.hapi;
     requires transitive com.hedera.pbj.runtime;
+    requires transitive com.swirlds.base.test.fixtures;
     requires transitive com.swirlds.base;
     requires transitive com.swirlds.common.test.fixtures;
     requires transitive com.swirlds.common;
@@ -12,8 +13,6 @@ module org.hiero.otter.fixtures {
     requires transitive com.swirlds.platform.core;
     requires transitive com.swirlds.state.api;
     requires transitive com.swirlds.state.impl;
-    requires transitive com.swirlds.virtualmap;
-    requires transitive org.hiero.base.utility;
     requires transitive org.hiero.consensus.model;
     requires transitive com.google.common;
     requires transitive com.google.protobuf;
@@ -25,9 +24,10 @@ module org.hiero.otter.fixtures {
     requires transitive org.junit.jupiter.api;
     requires transitive org.testcontainers;
     requires com.hedera.node.app.hapi.utils;
-    requires com.swirlds.base.test.fixtures;
     requires com.swirlds.config.extensions;
     requires com.swirlds.platform.core.test.fixtures;
+    requires com.swirlds.virtualmap;
+    requires org.hiero.base.utility;
     requires org.hiero.consensus.utility;
     requires com.fasterxml.jackson.annotation;
     requires com.fasterxml.jackson.core;
@@ -45,19 +45,42 @@ module org.hiero.otter.fixtures {
 
     exports org.hiero.otter.fixtures;
     exports org.hiero.otter.fixtures.assertions;
+    exports org.hiero.otter.fixtures.chaosbot;
+    exports org.hiero.otter.fixtures.exceptions;
     exports org.hiero.otter.fixtures.junit;
     exports org.hiero.otter.fixtures.logging;
     exports org.hiero.otter.fixtures.network;
+    exports org.hiero.otter.fixtures.network.transactions;
     exports org.hiero.otter.fixtures.result;
-    exports org.hiero.otter.fixtures.container.proto;
-    exports org.hiero.otter.fixtures.app;
-    exports org.hiero.otter.fixtures.logging.internal to
-            org.hiero.consensus.otter.docker.app;
-    exports org.hiero.otter.fixtures.internal.helpers to
-            org.hiero.consensus.otter.docker.app;
+    exports org.hiero.otter.fixtures.specs;
     exports org.hiero.otter.fixtures.util;
+    exports org.hiero.otter.fixtures.app to
+            com.swirlds.config.extensions,
+            com.swirlds.config.impl,
+            org.hiero.otter.test,
+            org.hiero.consensus.otter.docker.app;
+    exports org.hiero.otter.fixtures.app.services.consistency to
+            com.swirlds.config.extensions,
+            com.swirlds.config.impl;
+    exports org.hiero.otter.fixtures.container to
+            com.swirlds.config.impl,
+            org.hiero.otter.fixtures.test;
+    exports org.hiero.otter.fixtures.container.proto to
+            org.hiero.consensus.otter.docker.app;
     exports org.hiero.otter.fixtures.container.utils to
             org.hiero.consensus.otter.docker.app;
-    exports org.hiero.otter.fixtures.network.utils;
-    exports org.hiero.otter.fixtures.app.state;
+    exports org.hiero.otter.fixtures.internal to
+            com.swirlds.config.impl,
+            org.hiero.consensus.otter.docker.app,
+            org.hiero.otter.fixtures.test;
+    exports org.hiero.otter.fixtures.internal.helpers to
+            org.hiero.consensus.otter.docker.app;
+    exports org.hiero.otter.fixtures.logging.internal to
+            org.hiero.consensus.otter.docker.app;
+    exports org.hiero.otter.fixtures.turtle to
+            org.apache.logging.log4j.core,
+            org.hiero.otter.fixtures.test;
+
+    opens org.hiero.otter.fixtures.container.network to
+            com.fasterxml.jackson.databind;
 }

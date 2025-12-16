@@ -194,6 +194,14 @@ public interface StreamBuilder {
     StreamBuilder parentConsensus(@NonNull Instant parentConsensus);
 
     /**
+     * Sets the parent consensus timestamp of a scheduled transaction with {@code wait_for_expiry = false} that
+     * was just triggered for execution.
+     * @param parentConsensus the consensus timestamp of the triggering transaction
+     * @return the builder
+     */
+    StreamBuilder triggeringParentConsensus(@NonNull Instant parentConsensus);
+
+    /**
      * Sets the exchange rate of this builder.
      * @param exchangeRate the exchange rate
      * @return this builder

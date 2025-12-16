@@ -7,8 +7,8 @@ import com.swirlds.common.test.fixtures.TransactionGenerator;
 import com.swirlds.platform.internal.EventImpl;
 import com.swirlds.platform.test.fixtures.event.DynamicValue;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
+import java.util.Collection;
 import java.util.Random;
 import org.hiero.consensus.model.node.NodeId;
 
@@ -85,17 +85,17 @@ public interface EventSource {
     /**
      * Generates a new event. Is responsible for populating IndexedEvent metadata fields.
      *
-     * @param random      a source of randomness
-     * @param eventIndex  the unique index of the event that will be generated
-     * @param otherParent the node that is contributing the "other parent" event
-     * @param timestamp   the creation timesetamp that the event should have
-     * @param birthRound  the pending consensus round when the event was created
+     * @param random       a source of randomness
+     * @param eventIndex   the unique index of the event that will be generated
+     * @param otherParents the node that is contributing the "other parent" event
+     * @param timestamp    the creation timesetamp that the event should have
+     * @param birthRound   the pending consensus round when the event was created
      * @return The random event that was generated.
      */
     EventImpl generateEvent(
             @NonNull final Random random,
             final long eventIndex,
-            @Nullable final EventSource otherParent,
+            @NonNull final Collection<EventSource> otherParents,
             @NonNull final Instant timestamp,
             final long birthRound);
 

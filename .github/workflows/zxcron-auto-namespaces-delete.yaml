@@ -93,7 +93,7 @@ jobs:
       - name: Install Teleport Client
         uses: teleport-actions/setup@176c25dfcd19cd31a252f275d579822b243e7b9c # v1.0.6
         with:
-          version: 18.1.4
+          version: 18.4.0
 
       - name: Authorize Teleport SSH Access
         id: auth-ssh
@@ -121,7 +121,7 @@ jobs:
             n="$(echo "${namespace}" | perl -ne 'print "$1\n" if /^solo\-.*d.*t\-n(\d+)$/')"
             env | grep ${clusterZone}_n${n}
             isChecked=$(env | grep ${clusterZone}_n${n} | awk -F= '{print $NF}')
-            if [ "${isChecked}" = "true" ]
+            if [[ "${isChecked}" = "true" ]]
             then
               echo "Deleting ${namespace}"
               sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt delete namespace ${namespace}
@@ -148,7 +148,7 @@ jobs:
             n="$(echo "${namespace}" | perl -ne 'print "$1\n" if /^solo\-.*d.*t\-n(\d+)$/')"
             env | grep ${clusterZone}_n${n}
             isChecked=$(env | grep ${clusterZone}_n${n} | awk -F= '{print $NF}')
-            if [ "${isChecked}" = "true" ]
+            if [[ "${isChecked}" = "true" ]]
             then
               echo "Deleting ${namespace}"
               sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt delete namespace ${namespace}

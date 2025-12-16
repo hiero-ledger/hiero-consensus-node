@@ -2,11 +2,13 @@
 package com.swirlds.platform.reconnect;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
+import static com.swirlds.platform.state.service.PlatformStateUtils.consensusTimestampOf;
+import static com.swirlds.platform.state.service.PlatformStateUtils.getInfoString;
+import static com.swirlds.platform.state.service.PlatformStateUtils.roundOf;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.platform.config.StateConfig;
-import com.swirlds.platform.state.service.PlatformStateFacade;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.state.signed.SignedStateInvalidException;
 import com.swirlds.platform.state.signed.SignedStateValidationData;
@@ -23,15 +25,12 @@ public class DefaultSignedStateValidator implements SignedStateValidator {
     private static final Logger logger = LogManager.getLogger(DefaultSignedStateValidator.class);
 
     private final int hashDepth;
-    private final PlatformStateFacade platformStateFacade;
 
-    public DefaultSignedStateValidator(
-            @NonNull final PlatformContext platformContext, @NonNull final PlatformStateFacade platformStateFacade) {
+    public DefaultSignedStateValidator(@NonNull final PlatformContext platformContext) {
         hashDepth = platformContext
                 .getConfiguration()
                 .getConfigData(StateConfig.class)
                 .debugHashDepth();
-        this.platformStateFacade = platformStateFacade;
     }
 
     /**
@@ -58,8 +57,8 @@ public class DefaultSignedStateValidator implements SignedStateValidator {
             throws SignedStateInvalidException {
 
         State state = signedState.getState();
-        if (platformStateFacade.roundOf(state) < previousStateData.round()
-                || platformStateFacade.consensusTimestampOf(state).isBefore(previousStateData.consensusTimestamp())) {
+        if (roundOf(state) < previousStateData.round()
+                || consensusTimestampOf(state).isBefore(previousStateData.consensusTimestamp())) {
             logger.error(
                     EXCEPTION.getMarker(),
                     """
@@ -67,7 +66,7 @@ public class DefaultSignedStateValidator implements SignedStateValidator {
                             {}
                             Original reconnect state:
                             {}""",
-                    platformStateFacade.getInfoString(state, hashDepth),
+                    getInfoString(state, hashDepth),
                     previousStateData.getInfoString());
             throw new SignedStateInvalidException(("Received signed state is for a round smaller than or a "
                             + "consensus earlier than what we started with. Original round %d, received round %d. "

@@ -274,7 +274,6 @@ class ReplaceAliasesWithIDsInOpTest extends StepsBase {
                                 AccountAmountUtils.aaWith(ownerId, -1_000),
                                 AccountAmountUtils.aaWith(unknownAliasedId, +1_000))
                         .build())
-                .tokenTransfers()
                 .build();
         txn = asTxn(body, payerId);
         given(handleContext.body()).willReturn(txn);

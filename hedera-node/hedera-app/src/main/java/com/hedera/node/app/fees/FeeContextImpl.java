@@ -12,6 +12,7 @@ import com.hedera.node.app.spi.fees.FeeCalculator;
 import com.hedera.node.app.spi.fees.FeeCalculatorFactory;
 import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.Fees;
+import com.hedera.node.app.spi.fees.SimpleFeeCalculator;
 import com.hedera.node.app.store.ReadableStoreFactory;
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
@@ -107,6 +108,11 @@ public class FeeContextImpl implements FeeContext {
         return this::createFeeCalculator;
     }
 
+    @Override
+    public SimpleFeeCalculator getSimpleFeeCalculator() {
+        return feeManager.getSimpleFeeCalculator();
+    }
+
     @NonNull
     @Override
     public <T> T readableStore(@NonNull Class<T> storeInterface) {
@@ -150,5 +156,10 @@ public class FeeContextImpl implements FeeContext {
     @Override
     public ExchangeRate activeRate() {
         return feeManager.getExchangeRateManager().activeRate(consensusTime);
+    }
+
+    @Override
+    public long getGasPriceInTinycents() {
+        return feeManager.getGasPriceInTinyCents(consensusTime);
     }
 }

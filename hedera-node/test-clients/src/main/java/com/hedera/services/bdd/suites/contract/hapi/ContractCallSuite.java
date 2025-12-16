@@ -2560,21 +2560,6 @@ public class ContractCallSuite {
     }
 
     @HapiTest
-    final Stream<DynamicTest> contractIdResultsInPrecheckFail(
-            final String contractName, final java.util.function.Function<HapiSpec, ContractID> contractId) {
-        final var NAME = "name";
-        final var ERC_721_ABI = "ERC721ABI";
-
-        return hapiTest(
-                withOpContext((spec, ctxLog) -> spec.registry().saveContractId(contractName, contractId.apply(spec))),
-                withOpContext((spec, ctxLog) -> allRunFor(
-                        spec,
-                        contractCallWithFunctionAbi(contractName, getABIFor(FUNCTION, NAME, ERC_721_ABI))
-                                .notTryingAsHexedliteral()
-                                .hasPrecheck(INVALID_CONTRACT_ID))));
-    }
-
-    @HapiTest
     final Stream<DynamicTest> badEvmAddressResultsInPrecheckFail() {
         final var address = "123456";
         final var contract = "badEvmAddressContract";
@@ -2604,6 +2589,20 @@ public class ContractCallSuite {
                 .setRealmNum(spec.realm())
                 .setEvmAddress(ByteString.copyFrom(Objects.requireNonNull(unhex(address))))
                 .build());
+    }
+
+    private Stream<DynamicTest> contractIdResultsInPrecheckFail(
+            final String contractName, final java.util.function.Function<HapiSpec, ContractID> contractId) {
+        final var NAME = "name";
+        final var ERC_721_ABI = "ERC721ABI";
+
+        return hapiTest(
+                withOpContext((spec, ctxLog) -> spec.registry().saveContractId(contractName, contractId.apply(spec))),
+                withOpContext((spec, ctxLog) -> allRunFor(
+                        spec,
+                        contractCallWithFunctionAbi(contractName, getABIFor(FUNCTION, NAME, ERC_721_ABI))
+                                .notTryingAsHexedliteral()
+                                .hasPrecheck(INVALID_CONTRACT_ID))));
     }
 
     private String getNestedContractAddress(final String contract, final HapiSpec spec) {

@@ -6,7 +6,6 @@ import com.hedera.node.app.service.roster.RosterService;
 import com.hedera.node.app.service.roster.RosterTransplantSchema;
 import com.hedera.node.app.service.roster.impl.RosterServiceImpl;
 import com.hedera.node.app.service.roster.impl.schemas.V0540RosterSchema;
-import com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade;
 import com.swirlds.state.State;
 import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.lifecycle.SchemaRegistry;
@@ -37,8 +36,7 @@ class RosterServiceImplTest {
 
     @BeforeEach
     void setUp() {
-        rosterService = new RosterServiceImpl(
-                canAdopt, onAdopt, stateSupplier, TestPlatformStateFacade.TEST_PLATFORM_STATE_FACADE);
+        rosterService = new RosterServiceImpl(canAdopt, onAdopt, stateSupplier);
     }
 
     @Test

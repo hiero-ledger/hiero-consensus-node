@@ -66,7 +66,7 @@ class ContainerNodeConfigurationTest {
         @Override
         public Configuration current() {
             return new TestConfigBuilder()
-                    .withSource(new SimpleConfigSource(overriddenProperties))
+                    .withSource(new SimpleConfigSource(overrideProperties.properties()))
                     .withConfigDataType(ContainerNodeConfigurationTest.TestConfigData.class)
                     .getOrCreateConfig();
         }

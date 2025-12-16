@@ -59,15 +59,10 @@ import com.hederahashgraph.api.proto.java.FeeData;
 import com.hederahashgraph.api.proto.java.Timestamp;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.util.HashMap;
-import java.util.Map;
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.hapi.fees.FeeModelRegistry;
-import org.hiero.hapi.fees.FeeResult;
-import org.hiero.hapi.support.fees.Extra;
 
 /**
  * This class contains all workflow-related functionality regarding {@link HederaFunctionality#CONSENSUS_UPDATE_TOPIC}.
@@ -77,6 +72,17 @@ public class ConsensusUpdateTopicHandler implements TransactionHandler {
     private static final Logger log = LogManager.getLogger(ConsensusUpdateTopicHandler.class);
 
     private final ConsensusCustomFeesValidator customFeesValidator;
+
+    /**
+     * The possible types of updates to a topic.
+     */
+    private enum UpdateType {
+        NOOP,
+        EXPIRY_ONLY,
+        ADMIN_MANAGED_ONLY,
+        FEE_SCHEDULE_MANAGED_ONLY,
+        ADMIN_AND_FEE_SCHEDULE_MANAGED,
+    }
 
     /**
      * Default constructor for injection.
@@ -115,43 +121,33 @@ public class ConsensusUpdateTopicHandler implements TransactionHandler {
         mustExist(topic, INVALID_TOPIC_ID);
         validateFalsePreCheck(topic.deleted(), INVALID_TOPIC_ID);
 
-        // Extending the expiry is the *only* update operation permitted without an admin key. So if that is the
-        // only thing this transaction is doing, then we don't need to worry about checking any additional keys.
-        if (onlyExtendsExpiry(op)) {
-            return;
+        final var updateType = classifyUpdate(op);
+        switch (updateType) {
+            case NOOP, EXPIRY_ONLY -> {
+                return;
+            }
+            case ADMIN_MANAGED_ONLY -> context.requireKeyOrThrow(topic.adminKey(), UNAUTHORIZED);
+            case FEE_SCHEDULE_MANAGED_ONLY -> {
+                validateTruePreCheck(topic.hasFeeScheduleKey(), FEE_SCHEDULE_KEY_NOT_SET);
+                context.requireKey(topic.feeScheduleKeyOrThrow());
+            }
+            case ADMIN_AND_FEE_SCHEDULE_MANAGED -> {
+                context.requireKeyOrThrow(topic.adminKey(), UNAUTHORIZED);
+                validateTruePreCheck(topic.hasFeeScheduleKey(), FEE_SCHEDULE_KEY_NOT_SET);
+                context.requireKey(topic.feeScheduleKeyOrThrow());
+            }
         }
-
-        // Any other modifications on this topic require the admin key.
-        context.requireKeyOrThrow(topic.adminKey(), UNAUTHORIZED);
-
         // If the transaction is setting a new admin key, then the transaction must also be signed by that new key
         if (op.hasAdminKey()) {
             context.requireKey(op.adminKeyOrThrow());
         }
-
-        // If the transaction is setting a new account for auto-renewals, then that account must also
-        // have signed the transaction
+        // New auto-renew accounts must also sign
         if (op.hasAutoRenewAccount()) {
             final var autoRenewAccountID = op.autoRenewAccountOrThrow();
             if (!designatesAccountRemoval(autoRenewAccountID)) {
                 context.requireKeyOrThrow(autoRenewAccountID, INVALID_AUTORENEW_ACCOUNT);
             }
         }
-
-        // If we change the custom fees the topic needs to have a fee schedule key, and it needs to sign the transaction
-        if (op.hasCustomFees()) {
-            validateTruePreCheck(topic.hasFeeScheduleKey(), FEE_SCHEDULE_KEY_NOT_SET);
-            context.requireKey(topic.feeScheduleKey());
-        }
-    }
-
-    private boolean onlyExtendsExpiry(@NonNull final ConsensusUpdateTopicTransactionBody op) {
-        return op.hasExpirationTime()
-                && !op.hasMemo()
-                && !op.hasAdminKey()
-                && !op.hasSubmitKey()
-                && !op.hasAutoRenewPeriod()
-                && !op.hasAutoRenewAccount();
     }
 
     /**
@@ -168,19 +164,20 @@ public class ConsensusUpdateTopicHandler implements TransactionHandler {
         final var op = txn.consensusUpdateTopicOrThrow();
 
         final var topicStore = handleContext.storeFactory().writableStore(WritableTopicStore.class);
-        final var topic = topicStore.getTopic(op.topicIDOrElse(TopicID.DEFAULT));
+        final var topic = requireNonNull(topicStore.getTopic(op.topicIDOrElse(TopicID.DEFAULT)));
         // preHandle already checks for topic existence, so topic should never be null.
 
-        // First validate this topic is mutable; and the pending mutations are allowed
-        if (wantsToMutateNonExpiryField(op)) {
-            validateTrue(topic.hasAdminKey(), UNAUTHORIZED);
-            final var opRemovesAutoRenewId =
-                    op.hasAutoRenewAccount() && designatesAccountRemoval(op.autoRenewAccount());
-            if (!opRemovesAutoRenewId && topic.hasAutoRenewAccountId()) {
-                validateFalse(
-                        !topic.hasAdminKey() || (op.hasAdminKey() && isEmpty(op.adminKey())),
-                        AUTORENEW_ACCOUNT_NOT_ALLOWED);
-            }
+        // For backward compatibility, don't allow removing the admin key if the topic will still have an auto-renew
+        // account (this is nonstandard relative to other entities, but must be preserved now)
+        final boolean removesAdminKey = op.hasAdminKey() && isEmpty(op.adminKey());
+        if (removesAdminKey) {
+            final boolean addsAutoRenewAccount =
+                    op.hasAutoRenewAccount() && !designatesAccountRemoval(op.autoRenewAccountOrThrow());
+            final boolean removesAutoRenewAccount =
+                    op.hasAutoRenewAccount() && designatesAccountRemoval(op.autoRenewAccountOrThrow());
+            final boolean endsWithAutoRenewAccount =
+                    addsAutoRenewAccount || (topic.hasAutoRenewAccountId() && !removesAutoRenewAccount);
+            validateFalse(endsWithAutoRenewAccount, AUTORENEW_ACCOUNT_NOT_ALLOWED);
         }
 
         validateMaybeNewAttributes(handleContext, op, topic);
@@ -206,17 +203,6 @@ public class ConsensusUpdateTopicHandler implements TransactionHandler {
                 .feeCalculatorFactory()
                 .feeCalculator(SubType.DEFAULT)
                 .legacyCalculate(sigValueObj -> usageGivenExplicit(op, sigValueObj, topic));
-    }
-
-    @Override
-    public @NonNull FeeResult calculateFeeResult(@NonNull FeeContext feeContext) {
-        final var entity = FeeModelRegistry.lookupModel(HederaFunctionality.CONSENSUS_UPDATE_TOPIC);
-        Map<Extra, Long> params = new HashMap<>();
-        params.put(Extra.SIGNATURES, (long) feeContext.numTxnSignatures());
-        params.put(Extra.KEYS, 0L);
-        return entity.computeFee(
-                params,
-                feeContext.feeCalculatorFactory().feeCalculator(SubType.DEFAULT).getSimpleFeesSchedule());
     }
 
     private void resolveMutableBuilderAttributes(
@@ -368,12 +354,11 @@ public class ConsensusUpdateTopicHandler implements TransactionHandler {
         final var configuration = handleContext.configuration();
         final var topicConfig = configuration.getConfigData(TopicsConfig.class);
 
+        final var keys = op.feeExemptKeyListOrThrow().keys();
         validateTrue(
-                op.feeExemptKeyList().keys().size() <= topicConfig.maxEntriesForFeeExemptKeyList(),
+                keys.size() <= topicConfig.maxEntriesForFeeExemptKeyList(),
                 MAX_ENTRIES_FOR_FEE_EXEMPT_KEY_LIST_EXCEEDED);
-        op.feeExemptKeyList()
-                .keys()
-                .forEach(key -> attributeValidator.validateKey(key, INVALID_KEY_IN_FEE_EXEMPT_KEY_LIST));
+        keys.forEach(key -> attributeValidator.validateKey(key, INVALID_KEY_IN_FEE_EXEMPT_KEY_LIST));
     }
 
     private void validateMaybeCustomFees(
@@ -392,18 +377,6 @@ public class ConsensusUpdateTopicHandler implements TransactionHandler {
                 op.customFees().fees().size() <= topicConfig.maxCustomFeeEntriesForTopics(), CUSTOM_FEES_LIST_TOO_LONG);
         customFeesValidator.validate(
                 accountStore, tokenRelStore, tokenStore, op.customFees().fees(), handleContext.expiryValidator());
-    }
-
-    /**
-     * @param op the transaction body of consensus update operation
-     * @return {@code true} if the operation wants to update a non-expiry field, {@code false} otherwise.
-     */
-    public static boolean wantsToMutateNonExpiryField(@NonNull final ConsensusUpdateTopicTransactionBody op) {
-        return op.hasMemo()
-                || op.hasAdminKey()
-                || op.hasSubmitKey()
-                || op.hasAutoRenewPeriod()
-                || op.hasAutoRenewAccount();
     }
 
     private boolean designatesAccountRemoval(AccountID id) {
@@ -431,5 +404,34 @@ public class ConsensusUpdateTopicHandler implements TransactionHandler {
             }
         }
         return getConsensusUpdateTopicFee(protoTxnBody, rbsIncrease, sigUsage);
+    }
+
+    /**
+     * Examines the fields set in the transaction body to determine the type of update.
+     * @param op the transaction body
+     * @return the type of update
+     */
+    private UpdateType classifyUpdate(@NonNull final ConsensusUpdateTopicTransactionBody op) {
+        final boolean hasExpiry = op.hasExpirationTime();
+        final boolean hasFeeScheduleManaged = op.hasCustomFees();
+        // No matter new fields are added in ConsensusUpdateTopicTransactionBody, we *default* to requiring
+        // admin key signature to authorize their updates...only expiration time (no sig required) and custom
+        // fees (fee schedule key required) are exceptions to the rule
+        final boolean hasAdminManaged = !op.equals(ConsensusUpdateTopicTransactionBody.newBuilder()
+                .topicID(op.topicID())
+                .expirationTime(op.expirationTime())
+                .customFees(op.customFees())
+                .build());
+        if (hasFeeScheduleManaged || hasAdminManaged) {
+            if (hasFeeScheduleManaged && hasAdminManaged) {
+                return UpdateType.ADMIN_AND_FEE_SCHEDULE_MANAGED;
+            } else if (hasFeeScheduleManaged) {
+                return UpdateType.FEE_SCHEDULE_MANAGED_ONLY;
+            } else {
+                return UpdateType.ADMIN_MANAGED_ONLY;
+            }
+        } else {
+            return hasExpiry ? UpdateType.EXPIRY_ONLY : UpdateType.NOOP;
+        }
     }
 }

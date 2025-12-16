@@ -10,6 +10,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.test.fixtures.Randotron;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SignedState;
@@ -49,7 +50,7 @@ public class StateSignerTests {
 
         final PlatformSigner platformSigner = mock(PlatformSigner.class);
         final Signature signature = randotron.nextSignature();
-        when(platformSigner.signImmutable(any())).thenReturn(signature.getBytes());
+        when(platformSigner.sign(any(Bytes.class))).thenReturn(signature.getBytes());
 
         final StateSigner stateSigner = new DefaultStateSigner(platformSigner);
 

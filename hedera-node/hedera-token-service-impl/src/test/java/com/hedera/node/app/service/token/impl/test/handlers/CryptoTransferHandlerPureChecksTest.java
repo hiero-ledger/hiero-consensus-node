@@ -323,8 +323,6 @@ class CryptoTransferHandlerPureChecksTest extends CryptoTransferHandlerTestBase 
         final var txn = newCryptoTransfer(TokenTransferList.newBuilder()
                 .token(TOKEN_2468)
                 // transfers and nftTransfers are intentionally empty (will result in a count of zero transfers)
-                .transfers()
-                .nftTransfers()
                 .build());
         given(pureChecksContext.body()).willReturn(txn);
 

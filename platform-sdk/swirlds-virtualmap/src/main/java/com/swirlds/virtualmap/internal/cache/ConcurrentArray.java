@@ -302,6 +302,29 @@ final class ConcurrentArray<T> {
     }
 
     /**
+     * Gets (estimated) memory overhead of this concurrent array. The overhead is from Java arrays
+     * used by SubArray objects to store elements of this array. Even when this array is empty, a
+     * single SubArray is allocated, which results in Long.BYTES * capacity bytes allocated.
+     *
+     * <p>Using Long.BYTES to estimate Java array size is conservative. On some systems (compressed
+     * ops enabled) each array element may use fewer bytes than Long.BYTES. In this case, estimated
+     * memory overhead will be more than real overhead, which will result in slightly more frequent
+     * flushes to disk. This is acceptable.
+     *
+     * @return Estimated memory overhead of this concurrent array, in bytes
+     */
+    long estimatedStorageMemoryOverhead() {
+        long subArrayCount;
+        if (size() == 0) {
+            // Even an empty concurrent array has one sub-array
+            subArrayCount = 1;
+        } else {
+            subArrayCount = (size() + subarrayCapacity - 1) / subarrayCapacity;
+        }
+        return subArrayCount * subarrayCapacity * Long.BYTES;
+    }
+
+    /**
      * Get a stream of all elements in this concurrent array.
      *
      * <p>This method can only be called on immutable instances. It may be called concurrently.

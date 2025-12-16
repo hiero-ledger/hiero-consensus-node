@@ -112,13 +112,45 @@ public class TeachingSynchronizer {
     }
 
     /**
+     * Create a new teaching synchronizer.
+     *
+     * @param threadManager   responsible for managing thread lifecycles
+     * @param in              the input stream
+     * @param out             the output stream
+     * @param view            the teacher tree view, used to access all tree nodes
+     * @param breakConnection a method that breaks the connection. Used iff an exception is encountered. Prevents
+     *                        deadlock if there is a thread stuck on a blocking IO operation that will never finish due
+     *                        to a failure.
+     * @param reconnectConfig reconnect configuration from platform
+     */
+    public TeachingSynchronizer(
+            @NonNull final Time time,
+            @NonNull final ThreadManager threadManager,
+            @NonNull final MerkleDataInputStream in,
+            @NonNull final MerkleDataOutputStream out,
+            @NonNull final TeacherTreeView<?> view,
+            @Nullable final Runnable breakConnection,
+            @NonNull final ReconnectConfig reconnectConfig) {
+
+        this.time = Objects.requireNonNull(time);
+        this.threadManager = Objects.requireNonNull(threadManager, "threadManager must not be null");
+        inputStream = Objects.requireNonNull(in, "in must not be null");
+        outputStream = Objects.requireNonNull(out, "out must not be null");
+
+        subtrees = new LinkedList<>();
+        subtrees.add(new TeacherSubtree(null, view));
+
+        this.breakConnection = breakConnection;
+        this.reconnectConfig = Objects.requireNonNull(reconnectConfig, "reconnectConfig must not be null");
+    }
+
+    /**
      * Perform synchronization in the role of the teacher.
      */
     public void synchronize() throws InterruptedException {
         try {
             while (!subtrees.isEmpty()) {
                 try (final TeacherSubtree subtree = subtrees.remove()) {
-                    subtree.getView().waitUntilReady();
                     sendTree(subtree.getRoot(), subtree.getView());
                 }
             }

@@ -18,6 +18,7 @@ import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
+import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.SECP_256K1_SHAPE;
 import static com.hedera.services.bdd.suites.contract.Utils.asSolidityAddress;
@@ -69,8 +70,8 @@ public class AirdropsFeatureFlagTest {
                     var hollowCreate = cryptoTransfer((s, b) -> b.setTransfers(TransferList.newBuilder()
                                     .addAccountAmounts(Utils.aaWith(s, treasuryAlias.get(), -3 * ONE_HBAR))
                                     .addAccountAmounts(Utils.aaWith(s, hollowAccountAlias.get(), +3 * ONE_HBAR))))
-                            .payingWith(TREASURY)
-                            .signedBy(TREASURY)
+                            .payingWith(GENESIS)
+                            .signedBy(GENESIS, TREASURY)
                             .via(transferHBARSToHollowAccountTxn);
 
                     final HapiGetTxnRecord hapiGetTxnRecord = getTxnRecord(transferHBARSToHollowAccountTxn)
@@ -104,8 +105,8 @@ public class AirdropsFeatureFlagTest {
                     var hollowCreate2 = cryptoTransfer((s, b) -> b.setTransfers(TransferList.newBuilder()
                                     .addAccountAmounts(Utils.aaWith(s, treasuryAlias.get(), -2 * ONE_HBAR))
                                     .addAccountAmounts(Utils.aaWith(s, hollowAccountAlias.get(), +2 * ONE_HBAR))))
-                            .payingWith(TREASURY)
-                            .signedBy(TREASURY)
+                            .payingWith(GENESIS)
+                            .signedBy(GENESIS, TREASURY)
                             .via(transferHBARSToHollowAccountTxn);
 
                     // Verify new hollow account is created and has no associations
@@ -165,8 +166,8 @@ public class AirdropsFeatureFlagTest {
                     var hollowCreate = cryptoTransfer((s, b) -> b.setTransfers(TransferList.newBuilder()
                                     .addAccountAmounts(Utils.aaWith(s, treasuryAlias.get(), -3 * ONE_HBAR))
                                     .addAccountAmounts(Utils.aaWith(s, hollowAccountAlias.get(), +3 * ONE_HBAR))))
-                            .payingWith(TREASURY)
-                            .signedBy(TREASURY)
+                            .payingWith(GENESIS)
+                            .signedBy(GENESIS, TREASURY)
                             .via(transferFtToHollowAccountTxn);
 
                     final HapiGetTxnRecord hapiGetTxnRecord = getTxnRecord(transferFtToHollowAccountTxn)
@@ -201,8 +202,8 @@ public class AirdropsFeatureFlagTest {
                                     .setToken(fungibleTokenId.get())
                                     .addTransfers(Utils.aaWith(s, treasuryAlias.get(), -1))
                                     .addTransfers(Utils.aaWith(s, hollowAccountAlias.get(), +1))))
-                            .payingWith(TREASURY)
-                            .signedBy(TREASURY)
+                            .payingWith(GENESIS)
+                            .signedBy(GENESIS, TREASURY)
                             .via(transferFtToHollowAccountTxn);
 
                     // Verify new hollow account is created and has an association

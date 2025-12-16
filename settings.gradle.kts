@@ -1,5 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
-plugins { id("org.hiero.gradle.build") version "0.5.1" }
+plugins {
+    id("org.hiero.gradle.build") version "0.6.2"
+    id("com.hedera.pbj.pbj-compiler") version "0.12.10" apply false
+}
 
 javaModules {
     // This "intermediate parent project" should be removed
@@ -54,7 +57,4 @@ javaModules {
 
     // Platform demo applications
     directory("platform-sdk/platform-apps/demos") { group = "com.hedera.hashgraph" }
-
-    // Platform test applications
-    directory("platform-sdk/platform-apps/tests") { group = "com.hedera.hashgraph" }
 }

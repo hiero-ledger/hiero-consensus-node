@@ -6,21 +6,34 @@ import static com.hedera.hapi.node.hooks.HookExtensionPoint.ACCOUNT_ALLOWANCE_HO
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.toPbj;
 import static com.hedera.node.app.hapi.utils.contracts.HookUtils.leftPad32;
 import static com.hedera.node.app.hapi.utils.contracts.HookUtils.slotKeyOfMappingEntry;
+import static com.hedera.node.app.service.contract.impl.handlers.LambdaSStoreHandler.NONZERO_INTO_NONZERO_GAS_COST;
+import static com.hedera.node.app.service.contract.impl.handlers.LambdaSStoreHandler.NONZERO_INTO_ZERO_GAS_COST;
+import static com.hedera.node.app.service.contract.impl.handlers.LambdaSStoreHandler.NOOP_NONZERO_INTO_NONZERO_GAS_COST;
+import static com.hedera.node.app.service.contract.impl.handlers.LambdaSStoreHandler.ZERO_INTO_NONZERO_GAS_COST;
+import static com.hedera.node.app.service.contract.impl.handlers.LambdaSStoreHandler.ZERO_INTO_ZERO_GAS_COST;
 import static com.hedera.node.app.service.contract.impl.schemas.V065ContractSchema.EVM_HOOK_STATES_STATE_ID;
+import static com.hedera.node.app.service.entityid.impl.schemas.V0590EntityIdSchema.ENTITY_COUNTS_STATE_ID;
 import static com.hedera.services.bdd.junit.RepeatableReason.NEEDS_STATE_ACCESS;
 import static com.hedera.services.bdd.junit.TestTags.INTEGRATION;
 import static com.hedera.services.bdd.junit.hedera.embedded.EmbeddedMode.REPEATABLE;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
+import static com.hedera.services.bdd.spec.transactions.TxnUtils.accountAllowanceHook;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.accountLambdaSStore;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
+import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.viewSingleton;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcingContextual;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedFee;
+import static com.hedera.services.bdd.suites.HapiSuite.CIVILIAN_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
+import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_DELETED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.HOOK_NOT_FOUND;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_HOOK_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.LAMBDA_STORAGE_UPDATE_BYTES_MUST_USE_MINIMAL_REPRESENTATION;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.MAX_STORAGE_IN_PRICE_REGIME_HAS_BEEN_USED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOO_MANY_LAMBDA_STORAGE_UPDATES;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -34,11 +47,13 @@ import com.hedera.hapi.node.hooks.HookCreation;
 import com.hedera.hapi.node.hooks.HookCreationDetails;
 import com.hedera.hapi.node.hooks.LambdaEvmHook;
 import com.hedera.hapi.node.hooks.LambdaMappingEntry;
+import com.hedera.hapi.node.state.entity.EntityCounts;
 import com.hedera.hapi.node.state.hooks.EvmHookState;
 import com.hedera.hapi.node.state.hooks.LambdaSlotKey;
 import com.hedera.node.app.service.contract.ContractService;
 import com.hedera.node.app.service.contract.impl.state.ReadableEvmHookStoreImpl;
 import com.hedera.node.app.service.contract.impl.state.WritableEvmHookStore;
+import com.hedera.node.app.service.entityid.EntityIdService;
 import com.hedera.pbj.runtime.OneOf;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
@@ -71,7 +86,7 @@ import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.TestMethodOrder;
 
-@Order(9)
+@Order(-2)
 @Tag(INTEGRATION)
 @HapiTestLifecycle
 @TargetEmbeddedMode(REPEATABLE)
@@ -79,7 +94,6 @@ import org.junit.jupiter.api.TestMethodOrder;
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 public class RepeatableLambdaSStoreTests {
 
-    private static final long PURE_HOOK_ID = 123L;
     private static final long LAMBDA_HOOK_ID = 124L;
     private static final long DELETED_HOOK_ID = 125L;
     private static final long MISSING_HOOK_ID = 126L;
@@ -243,6 +257,128 @@ public class RepeatableLambdaSStoreTests {
                 assertLambdaHasSlotUsage(LAMBDA_HOOK_WITH_ADMIN_ID, 0));
     }
 
+    @Order(10)
+    @RepeatableHapiTest(NEEDS_STATE_ACCESS)
+    Stream<DynamicTest> eachSStoreScenarioHasCorrectGasCostWithDirectSlotUpdates() {
+        final AtomicLong tinybarGasPrice = new AtomicLong();
+        return hapiTest(
+                cryptoCreate(CIVILIAN_PAYER)
+                        .balance(ONE_HUNDRED_HBARS)
+                        .withHook(accountAllowanceHook(1L, HOOK_CONTRACT.name())),
+                doingContextual(spec -> tinybarGasPrice.set(spec.ratesProvider().currentTinybarGasPrice())),
+                accountLambdaSStore(CIVILIAN_PAYER, 1L)
+                        .payingWith(CIVILIAN_PAYER)
+                        .signedBy(CIVILIAN_PAYER)
+                        .putSlot(A, Bytes.EMPTY)
+                        .via("zeroIntoZero"),
+                sourcing(() -> validateChargedFee("zeroIntoZero", ZERO_INTO_ZERO_GAS_COST * tinybarGasPrice.get())),
+                accountLambdaSStore(CIVILIAN_PAYER, 1L)
+                        .payingWith(CIVILIAN_PAYER)
+                        .signedBy(CIVILIAN_PAYER)
+                        .putSlot(A, F)
+                        .via("nonZeroIntoZero"),
+                sourcing(() ->
+                        validateChargedFee("nonZeroIntoZero", NONZERO_INTO_ZERO_GAS_COST * tinybarGasPrice.get())),
+                accountLambdaSStore(CIVILIAN_PAYER, 1L)
+                        .payingWith(CIVILIAN_PAYER)
+                        .signedBy(CIVILIAN_PAYER)
+                        .putSlot(A, E)
+                        .via("nonZeroIntoNonZero"),
+                sourcing(() -> validateChargedFee(
+                        "nonZeroIntoNonZero", NONZERO_INTO_NONZERO_GAS_COST * tinybarGasPrice.get())),
+                accountLambdaSStore(CIVILIAN_PAYER, 1L)
+                        .payingWith(CIVILIAN_PAYER)
+                        .signedBy(CIVILIAN_PAYER)
+                        .putSlot(A, E)
+                        .via("noopNonZeroIntoNonZero"),
+                sourcing(() -> validateChargedFee(
+                        "noopNonZeroIntoNonZero", NOOP_NONZERO_INTO_NONZERO_GAS_COST * tinybarGasPrice.get())),
+                accountLambdaSStore(CIVILIAN_PAYER, 1L)
+                        .payingWith(CIVILIAN_PAYER)
+                        .signedBy(CIVILIAN_PAYER)
+                        .putSlot(A, Bytes.EMPTY)
+                        .via("zeroIntoNonZero"),
+                sourcing(() ->
+                        validateChargedFee("zeroIntoNonZero", ZERO_INTO_NONZERO_GAS_COST * tinybarGasPrice.get())));
+    }
+
+    @Order(11)
+    @RepeatableHapiTest(NEEDS_STATE_ACCESS)
+    Stream<DynamicTest> eachSStoreScenarioHasCorrectGasCostWithMappingEntrySlotUpdates() {
+        final AtomicLong tinybarGasPrice = new AtomicLong();
+        return hapiTest(
+                cryptoCreate(CIVILIAN_PAYER)
+                        .balance(ONE_HUNDRED_HBARS)
+                        .withHook(accountAllowanceHook(1L, HOOK_CONTRACT.name())),
+                doingContextual(spec -> tinybarGasPrice.set(spec.ratesProvider().currentTinybarGasPrice())),
+                accountLambdaSStore(CIVILIAN_PAYER, 1L)
+                        .payingWith(CIVILIAN_PAYER)
+                        .signedBy(CIVILIAN_PAYER)
+                        .putMappingEntryWithKey(Bytes.EMPTY, A, Bytes.EMPTY)
+                        .via("zeroIntoZero"),
+                sourcing(() -> validateChargedFee("zeroIntoZero", ZERO_INTO_ZERO_GAS_COST * tinybarGasPrice.get())),
+                accountLambdaSStore(CIVILIAN_PAYER, 1L)
+                        .payingWith(CIVILIAN_PAYER)
+                        .signedBy(CIVILIAN_PAYER)
+                        .putMappingEntryWithKey(Bytes.EMPTY, A, F)
+                        .via("nonZeroIntoZero"),
+                sourcing(() ->
+                        validateChargedFee("nonZeroIntoZero", NONZERO_INTO_ZERO_GAS_COST * tinybarGasPrice.get())),
+                accountLambdaSStore(CIVILIAN_PAYER, 1L)
+                        .payingWith(CIVILIAN_PAYER)
+                        .signedBy(CIVILIAN_PAYER)
+                        .putMappingEntryWithKey(Bytes.EMPTY, A, E)
+                        .via("nonZeroIntoNonZero"),
+                sourcing(() -> validateChargedFee(
+                        "nonZeroIntoNonZero", NONZERO_INTO_NONZERO_GAS_COST * tinybarGasPrice.get())),
+                accountLambdaSStore(CIVILIAN_PAYER, 1L)
+                        .payingWith(CIVILIAN_PAYER)
+                        .signedBy(CIVILIAN_PAYER)
+                        .putMappingEntryWithKey(Bytes.EMPTY, A, E)
+                        .via("noopNonZeroIntoNonZero"),
+                sourcing(() -> validateChargedFee(
+                        "noopNonZeroIntoNonZero", NOOP_NONZERO_INTO_NONZERO_GAS_COST * tinybarGasPrice.get())),
+                accountLambdaSStore(CIVILIAN_PAYER, 1L)
+                        .payingWith(CIVILIAN_PAYER)
+                        .signedBy(CIVILIAN_PAYER)
+                        .putMappingEntryWithKey(Bytes.EMPTY, A, Bytes.EMPTY)
+                        .via("zeroIntoNonZero"),
+                sourcing(() ->
+                        validateChargedFee("zeroIntoNonZero", ZERO_INTO_NONZERO_GAS_COST * tinybarGasPrice.get())));
+    }
+
+    @Order(12)
+    @LeakyRepeatableHapiTest(
+            value = NEEDS_STATE_ACCESS,
+            overrides = {"hooks.maxLambdaStorageSlots"})
+    Stream<DynamicTest> lambdaSStoreLimitedToMaxStorageSlots() {
+        final var currentNumStorageSlots = new AtomicLong();
+        return hapiTest(
+                viewSingleton(
+                        EntityIdService.NAME,
+                        ENTITY_COUNTS_STATE_ID,
+                        (EntityCounts entityCounts) ->
+                                currentNumStorageSlots.set(entityCounts.numLambdaStorageSlots())),
+                sourcing(() -> overriding("hooks.maxLambdaStorageSlots", "" + (currentNumStorageSlots.get() + 1))),
+                cryptoCreate(CIVILIAN_PAYER)
+                        .balance(ONE_HUNDRED_HBARS)
+                        .withHook(accountAllowanceHook(1L, HOOK_CONTRACT.name())),
+                accountLambdaSStore(CIVILIAN_PAYER, 1L)
+                        .payingWith(CIVILIAN_PAYER)
+                        .signedBy(CIVILIAN_PAYER)
+                        .putMappingEntryWithKey(Bytes.EMPTY, A, F),
+                accountLambdaSStore(CIVILIAN_PAYER, 1L)
+                        .payingWith(CIVILIAN_PAYER)
+                        .signedBy(CIVILIAN_PAYER)
+                        .putMappingEntryWithKey(Bytes.EMPTY, B, F)
+                        .hasKnownStatus(MAX_STORAGE_IN_PRICE_REGIME_HAS_BEEN_USED),
+                viewSingleton(
+                        EntityIdService.NAME,
+                        ENTITY_COUNTS_STATE_ID,
+                        (EntityCounts entityCounts) ->
+                                assertEquals(currentNumStorageSlots.get() + 1, entityCounts.numLambdaStorageSlots())));
+    }
+
     @Order(99)
     @RepeatableHapiTest(NEEDS_STATE_ACCESS)
     Stream<DynamicTest> cannotManageStorageOfHooksOnceCreatorIsDeleted(@Account SpecAccount beneficiary) {
@@ -364,7 +500,7 @@ public class RepeatableLambdaSStoreTests {
                     .nextHookId(null)
                     .build();
             final var store = new WritableEvmHookStore(states, counters);
-            store.createEvmHook(creation);
+            store.createEvmHook(creation, Long.MAX_VALUE);
             if (deleteAfterwards) {
                 store.remove(new HookId(hookEntityId, creation.detailsOrThrow().hookId()));
             }

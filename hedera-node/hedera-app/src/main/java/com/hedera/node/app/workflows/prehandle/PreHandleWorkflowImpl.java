@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.workflows.prehandle;
 
+import static com.hedera.hapi.node.base.HederaFunctionality.STATE_SIGNATURE_TRANSACTION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.BATCH_KEY_SET_ON_NON_INNER_TRANSACTION;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_NODE_ACCOUNT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
@@ -122,18 +123,15 @@ public class PreHandleWorkflowImpl implements PreHandleWorkflow {
     @Override
     public void preHandle(
             @NonNull final ReadableStoreFactory readableStoreFactory,
-            @NonNull final NodeInfo creatorInfo,
+            @Nullable final NodeInfo creatorInfo,
             @NonNull final Stream<Transaction> transactions,
             @NonNull final BiConsumer<StateSignatureTransaction, Bytes> shortCircuitTxnCallback) {
-
         requireNonNull(readableStoreFactory);
-        requireNonNull(creatorInfo);
         requireNonNull(transactions);
         requireNonNull(shortCircuitTxnCallback);
 
-        // Used for looking up payer account information.
+        // We always need at least an account store to look for a payer account
         final var accountStore = readableStoreFactory.getStore(ReadableAccountStore.class);
-
         // In parallel, we will pre-handle each transaction.
         transactions.parallel().forEach(tx -> {
             try {
@@ -145,11 +143,11 @@ public class PreHandleWorkflowImpl implements PreHandleWorkflow {
                         null,
                         shortCircuitTxnCallback);
                 tx.setMetadata(result);
-            } catch (final Exception unexpectedException) {
+            } catch (final Exception e) {
                 // If some random exception happened, then we should not charge the node for it. Instead,
                 // we will just record the exception and try again during handle. Then if we fail again
                 // at handle, then we will throw away the transaction (hopefully, deterministically!)
-                logger.error("Unexpected Exception while running the pre-handle workflow", unexpectedException);
+                logger.error("Unexpected exception while running the pre-handle workflow", e);
                 tx.setMetadata(unknownFailure());
             }
         });
@@ -191,7 +189,7 @@ public class PreHandleWorkflowImpl implements PreHandleWorkflow {
                 // In particular, a null transaction info means we already know the transaction's final failure status
                 return previousResult;
             }
-            final var isStateSig = txInfo.functionality() == HederaFunctionality.STATE_SIGNATURE_TRANSACTION;
+            final var isStateSig = txInfo.functionality() == STATE_SIGNATURE_TRANSACTION;
             if (creatorInfo == null || isStateSig) {
                 final var bytes = txInfo.serializedSignedTx();
                 if (isStateSig) {
@@ -199,7 +197,6 @@ public class PreHandleWorkflowImpl implements PreHandleWorkflow {
                 } else {
                     shortCircuitTxnCallback.accept(null, bytes);
                 }
-
                 return PreHandleResult.shortCircuitingTransaction(txInfo);
             }
 

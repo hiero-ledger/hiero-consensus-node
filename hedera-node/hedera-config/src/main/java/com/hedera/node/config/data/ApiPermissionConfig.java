@@ -191,9 +191,9 @@ import java.util.function.Function;
  * @param tokenCancelAirdrop         the permission for {@link HederaFunctionality#TOKEN_CANCEL_AIRDROP} functionality
  * @param tokenClaimAirdrop          the permission for {@link HederaFunctionality#TOKEN_CLAIM_AIRDROP} functionality
  *
- * @param createNode                   the permission for {@link HederaFunctionality#NODE_CREATE} functionality
- * @param updateNode                   the permission for {@link HederaFunctionality#NODE_UPDATE} functionality
- * @param deleteNode                   the permission for {@link HederaFunctionality#NODE_DELETE} functionality
+ * @param createNode                  the permission for {@link HederaFunctionality#NODE_CREATE} functionality
+ * @param updateNode                  the permission for {@link HederaFunctionality#NODE_UPDATE} functionality
+ * @param deleteNode                  the permission for {@link HederaFunctionality#NODE_DELETE} functionality
  */
 @ConfigData
 public record ApiPermissionConfig(

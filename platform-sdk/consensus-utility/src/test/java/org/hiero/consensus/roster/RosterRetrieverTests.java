@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.roster;
 
+import static com.swirlds.platform.state.service.PlatformStateUtils.roundOf;
 import static com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID;
-import static com.swirlds.platform.test.fixtures.state.TestPlatformStateFacade.TEST_PLATFORM_STATE_FACADE;
 import static org.hiero.consensus.roster.RosterStateId.ROSTERS_STATE_ID;
 import static org.hiero.consensus.roster.RosterStateId.ROSTER_STATE_STATE_ID;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -117,7 +117,7 @@ public class RosterRetrieverTests {
 
     @Test
     void testGetRound() {
-        assertEquals(666L, TEST_PLATFORM_STATE_FACADE.roundOf(state));
+        assertEquals(666L, roundOf(state));
     }
 
     private static Stream<Arguments> provideArgumentsForGetActiveRosterHash() {
@@ -141,7 +141,7 @@ public class RosterRetrieverTests {
 
     @Test
     void testRetrieveActiveOrGenesisActiveRoster() {
-        assertEquals(ROSTER_666, RosterRetriever.retrieveActive(state, TEST_PLATFORM_STATE_FACADE.roundOf(state)));
+        assertEquals(ROSTER_666, RosterRetriever.retrieveActive(state, roundOf(state)));
     }
 
     private static Stream<Arguments> provideArgumentsForRetrieveActiveOrGenesisActiveParametrizedRoster() {
@@ -161,7 +161,7 @@ public class RosterRetrieverTests {
     @MethodSource("provideArgumentsForRetrieveActiveOrGenesisActiveParametrizedRoster")
     void testRetrieveActiveOrGenesisActiveParametrizedRoster(final long round, final Roster roster) {
         doReturn(round).when(consensusSnapshot).round();
-        assertEquals(roster, RosterRetriever.retrieveActive(state, TEST_PLATFORM_STATE_FACADE.roundOf(state)));
+        assertEquals(roster, RosterRetriever.retrieveActive(state, roundOf(state)));
     }
 
     private static Stream<Arguments> provideArgumentsForRetrieveActiveOrGenesisActiveForRoundRoster() {
@@ -187,14 +187,14 @@ public class RosterRetrieverTests {
     void testRetrieveActiveOrGenesisActiveAddressBookRoster() {
         // First try a very old round for which there's not a roster
         doReturn(554L).when(consensusSnapshot).round();
-        assertEquals(null, RosterRetriever.retrieveActive(state, TEST_PLATFORM_STATE_FACADE.roundOf(state)));
+        assertEquals(null, RosterRetriever.retrieveActive(state, roundOf(state)));
 
         // Then try a newer round, but remove the roster from the RosterMap
         doReturn(666L).when(consensusSnapshot).round();
         doReturn(null)
                 .when(rosterMap)
                 .get(eq(ProtoBytes.newBuilder().value(HASH_666).build()));
-        assertEquals(null, RosterRetriever.retrieveActive(state, TEST_PLATFORM_STATE_FACADE.roundOf(state)));
+        assertEquals(null, RosterRetriever.retrieveActive(state, roundOf(state)));
     }
 
     private static Bytes getCertBytes(X509Certificate certificate) {
