@@ -67,7 +67,6 @@ These metrics relate to responses received from a block node. They are identifie
 | `blockStream_connRecv_endStream_timeout`           | Counter      | Number of EndStream.Timeout responses received                 |
 | `blockStream_connRecv_endStream_duplicateBlock`    | Counter      | Number of EndStream.DuplicateBlock responses received          |
 | `blockStream_connRecv_endStream_badBlockProof`     | Counter      | Number of EndStream.BadBlockProof responses received           |
-| `blockStream_connRecv_endStream_behind`            | Counter      | Number of EndStream.Behind responses received                  |
 | `blockStream_connRecv_endStream_persistenceFailed` | Counter      | Number of EndStream.PersistenceFailed responses received       |
 
 ## Connection Send Metrics

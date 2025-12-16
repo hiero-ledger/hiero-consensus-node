@@ -561,7 +561,7 @@ public class BlockNodeConnection extends AbstractBlockNodeConnection implements 
     private void handleBlockNodeBehind(@NonNull final BehindPublisher nodeBehind) {
         requireNonNull(nodeBehind, "nodeBehind must not be null");
         final long blockNumber = nodeBehind.blockNumber();
-        logger.debug("{} Received BehindPublisher response for block {}.", this, blockNumber);
+        logger.info("{} Received BehindPublisher response for block {}.", this, blockNumber);
 
         final long blockToStream = blockNumber == Long.MAX_VALUE ? 0 : blockNumber + 1;
         // The block node is behind us, check if we have the last verified block still available
