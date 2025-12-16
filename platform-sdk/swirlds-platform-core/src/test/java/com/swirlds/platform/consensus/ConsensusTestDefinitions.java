@@ -609,7 +609,7 @@ public final class ConsensusTestDefinitions {
         // generate half of the events and validate
         orchestrator.generateEvents(0.5).validateAndClear(consensusOutputValidator);
         // freeze all the nodes
-        orchestrator.forEachNode(node -> node.getIntake().getFreezeCheckHolder().setFreezeCheckRef(i -> true));
+        orchestrator.forEachNode(node -> node.getIntake().setFreezeCheck(i -> true));
         // generate the rest of the events
         orchestrator.generateEvents(0.5);
         // validate that exactly 1 round reached consensus (the freeze round) and that its equal on all nodes

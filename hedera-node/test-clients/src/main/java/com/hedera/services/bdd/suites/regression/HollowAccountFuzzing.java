@@ -8,7 +8,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.flattened;
 import static com.hedera.services.bdd.suites.regression.factories.HollowAccountFuzzingFactory.hollowAccountFuzzingTest;
 import static com.hedera.services.bdd.suites.regression.factories.HollowAccountFuzzingFactory.initOperations;
 
-import com.hedera.services.bdd.junit.HapiTest;
+import com.hedera.services.bdd.junit.LeakyHapiTest;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DynamicTest;
@@ -18,7 +18,7 @@ import org.junit.jupiter.api.Tag;
 public class HollowAccountFuzzing {
     private static final String PROPERTIES = "hollow-account-fuzzing.properties";
 
-    @HapiTest
+    @LeakyHapiTest
     final Stream<DynamicTest> hollowAccountFuzzing() {
         return hapiTest(flattened(
                 initOperations(),
