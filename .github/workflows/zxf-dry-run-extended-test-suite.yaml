@@ -106,7 +106,7 @@ jobs:
     uses: ./.github/workflows/zxc-build-publish-state-validator.yaml
     with:
       ref: ${{ inputs.commit_sha }}
-      dry-run: true
+      dry-run-enabled: "true"
 
   xts-execution:
     name: Execute XTS
