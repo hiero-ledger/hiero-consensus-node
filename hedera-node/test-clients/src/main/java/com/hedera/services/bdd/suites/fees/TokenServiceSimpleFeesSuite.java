@@ -7,6 +7,7 @@ import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTokenInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTokenNftInfo;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.burnToken;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.grantTokenKyc;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.mintToken;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.revokeTokenKyc;
@@ -24,6 +25,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenUpdateNfts
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.wipeTokenAccount;
 import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fixedHbarFee;
 import static com.hedera.services.bdd.spec.transactions.token.HapiTokenReject.rejectingToken;
+import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.moving;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.compareSimpleToOld;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_BILLION_HBARS;
@@ -58,6 +60,7 @@ public class TokenServiceSimpleFeesSuite {
     private static final String PAUSE_KEY = "pauseKey";
     private static final String FREEZE_KEY = "freezeKey";
     private static final String PAYER = "payer";
+    private static final String TREASURY = "treasury";
     private static final String ADMIN = "admin";
     private static final String OTHER = "other";
     private static final String HBAR_COLLECTOR = "hbarCollector";
@@ -553,7 +556,7 @@ public class TokenServiceSimpleFeesSuite {
                         newKeyNamed(KYC_KEY),
                         cryptoCreate(ADMIN).balance(ONE_BILLION_HBARS),
                         cryptoCreate(PAYER).balance(ONE_BILLION_HBARS).key(SUPPLY_KEY),
-                        cryptoCreate(OTHER).balance(ONE_BILLION_HBARS),
+                        cryptoCreate(OTHER).balance(ONE_BILLION_HBARS).key(KYC_KEY),
                         tokenCreate(FUNGIBLE_TOKEN)
                                 .tokenType(FUNGIBLE_COMMON)
                                 .initialSupply(0L)
@@ -566,6 +569,7 @@ public class TokenServiceSimpleFeesSuite {
                         tokenAssociate(OTHER, FUNGIBLE_TOKEN),
                         grantTokenKyc(FUNGIBLE_TOKEN, OTHER)
                                 .fee(ONE_HUNDRED_HBARS)
+                                .signedBy(OTHER)
                                 .payingWith(OTHER)
                                 .via("token-grant-kyc-txn")),
                 "token-grant-kyc-txn",
@@ -584,7 +588,7 @@ public class TokenServiceSimpleFeesSuite {
                         newKeyNamed(KYC_KEY),
                         cryptoCreate(ADMIN).balance(ONE_BILLION_HBARS),
                         cryptoCreate(PAYER).balance(ONE_BILLION_HBARS).key(SUPPLY_KEY),
-                        cryptoCreate(OTHER).balance(ONE_BILLION_HBARS),
+                        cryptoCreate(OTHER).balance(ONE_BILLION_HBARS).key(KYC_KEY),
                         tokenCreate(FUNGIBLE_TOKEN)
                                 .tokenType(FUNGIBLE_COMMON)
                                 .initialSupply(0L)
@@ -600,6 +604,7 @@ public class TokenServiceSimpleFeesSuite {
                                 .payingWith(OTHER),
                         revokeTokenKyc(FUNGIBLE_TOKEN, OTHER)
                                 .fee(ONE_HUNDRED_HBARS)
+                                .signedBy(OTHER)
                                 .payingWith(OTHER)
                                 .via("token-revoke-kyc-txn")),
                 "token-revoke-kyc-txn",
@@ -616,12 +621,13 @@ public class TokenServiceSimpleFeesSuite {
                 () -> Arrays.asList(
                         newKeyNamed(SUPPLY_KEY),
                         newKeyNamed(KYC_KEY),
-                        cryptoCreate(ADMIN).balance(ONE_BILLION_HBARS),
+                        cryptoCreate(ADMIN).balance(ONE_BILLION_HBARS).key(KYC_KEY),
                         cryptoCreate(PAYER).balance(ONE_BILLION_HBARS).key(SUPPLY_KEY),
                         cryptoCreate(OTHER).balance(ONE_BILLION_HBARS),
                         tokenCreate(FUNGIBLE_TOKEN)
                                 .tokenType(FUNGIBLE_COMMON)
-                                .initialSupply(0L)
+                                .treasury(ADMIN)
+                                .initialSupply(1000L)
                                 .payingWith(PAYER)
                                 .adminKey(ADMIN)
                                 .supplyKey(SUPPLY_KEY)
@@ -629,9 +635,19 @@ public class TokenServiceSimpleFeesSuite {
                                 .fee(ONE_HUNDRED_HBARS)
                                 .hasKnownStatus(SUCCESS),
                         tokenAssociate(OTHER, FUNGIBLE_TOKEN),
+                        //TODO: why do we need kyc to do the transfer?
+                        grantTokenKyc(FUNGIBLE_TOKEN, OTHER)
+                                .fee(ONE_HUNDRED_HBARS)
+                                .payingWith(OTHER),
+                        cryptoTransfer(moving(100, FUNGIBLE_TOKEN).between(ADMIN, OTHER))
+                                .fee(ONE_HUNDRED_HBARS)
+                                .payingWith(ADMIN),
                         tokenReject(rejectingToken(FUNGIBLE_TOKEN))
+                                .fee(ONE_HUNDRED_HBARS)
+                                .signedBy(OTHER)
                                 .payingWith(OTHER)
-                                .via("token-reject-txn")),
+                                .via("token-reject-txn")
+                ),
                 "token-reject-txn",
                 0.001,
                 1,
