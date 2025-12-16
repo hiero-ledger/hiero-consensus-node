@@ -12,7 +12,6 @@ import com.swirlds.platform.test.fixtures.event.emitter.EventEmitterBuilder;
 import com.swirlds.platform.test.fixtures.event.emitter.StandardEventEmitter;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
-import org.hiero.consensus.hashgraph.ConsensusConfig;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -56,7 +55,7 @@ public class ConsensusBenchmark {
         events = emitter.emitEvents(numEvents);
 
         consensus = new ConsensusImpl(
-                platformContext.getConfiguration().getConfigData(ConsensusConfig.class),
+                platformContext.getConfiguration(),
                 platformContext.getTime(),
                 new NoOpConsensusMetrics(),
                 emitter.getGraphGenerator().getRoster());

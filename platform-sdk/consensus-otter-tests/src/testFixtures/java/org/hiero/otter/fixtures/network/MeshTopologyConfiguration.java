@@ -26,6 +26,12 @@ public record MeshTopologyConfiguration(
             new MeshTopologyConfiguration(Duration.ofMillis(200), Percentage.withPercentage(5), UNLIMITED_BANDWIDTH);
 
     /**
+     * Configuration with zero latency, zero jitter, and unlimited bandwidth.
+     */
+    public static final MeshTopologyConfiguration ZERO_LATENCY =
+            new MeshTopologyConfiguration(Duration.ZERO, Percentage.withPercentage(0), UNLIMITED_BANDWIDTH);
+
+    /**
      * Creates a MeshTopologyConfiguration with specified parameters.
      *
      * @param averageLatency the average latency for connections

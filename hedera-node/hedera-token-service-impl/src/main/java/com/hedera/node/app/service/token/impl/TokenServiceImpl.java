@@ -13,7 +13,10 @@ import com.hedera.node.app.service.token.impl.calculator.CryptoGetAccountRecords
 import com.hedera.node.app.service.token.impl.calculator.CryptoGetInfoFeeCalculator;
 import com.hedera.node.app.service.token.impl.calculator.CryptoTransferFeeCalculator;
 import com.hedera.node.app.service.token.impl.calculator.CryptoUpdateFeeCalculator;
+import com.hedera.node.app.service.token.impl.calculator.TokenAirdropFeeCalculator;
 import com.hedera.node.app.service.token.impl.calculator.TokenBurnFeeCalculator;
+import com.hedera.node.app.service.token.impl.calculator.TokenCancelAirdropFeeCalculator;
+import com.hedera.node.app.service.token.impl.calculator.TokenClaimAirdropFeeCalculator;
 import com.hedera.node.app.service.token.impl.calculator.TokenCreateFeeCalculator;
 import com.hedera.node.app.service.token.impl.calculator.TokenDeleteFeeCalculator;
 import com.hedera.node.app.service.token.impl.calculator.TokenFreezeAccountFeeCalculator;
@@ -70,7 +73,10 @@ public class TokenServiceImpl implements TokenService {
                 new TokenFreezeAccountFeeCalculator(),
                 new TokenUnfreezeAccountFeeCalculator(),
                 new TokenBurnFeeCalculator(),
-                new TokenDeleteFeeCalculator());
+                new TokenDeleteFeeCalculator(),
+                new TokenAirdropFeeCalculator(),
+                new TokenClaimAirdropFeeCalculator(),
+                new TokenCancelAirdropFeeCalculator());
     }
 
     @Override
