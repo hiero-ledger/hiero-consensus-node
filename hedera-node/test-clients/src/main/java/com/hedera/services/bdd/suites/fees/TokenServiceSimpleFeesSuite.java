@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.fees;
 
+import static com.google.protobuf.ByteString.copyFromUtf8;
 import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SIMPLE_FEES;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTokenInfo;
@@ -24,6 +25,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenUnpause;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenUpdateNfts;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.wipeTokenAccount;
 import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fixedHbarFee;
+import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fixedHtsFee;
 import static com.hedera.services.bdd.spec.transactions.token.HapiTokenReject.rejectingToken;
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.moving;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.compareSimpleToOld;
@@ -260,7 +262,7 @@ public class TokenServiceSimpleFeesSuite {
     }
 
     @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
-    @DisplayName("compare mint a unique token")
+    @DisplayName("compare mint multiple unique tokens")
     final Stream<DynamicTest> compareMintMultipleUniqueToken() {
         return compareSimpleToOld(
                 () -> Arrays.asList(
@@ -451,6 +453,7 @@ public class TokenServiceSimpleFeesSuite {
                                 .hasKnownStatus(SUCCESS),
                         burnToken(FUNGIBLE_TOKEN, 10)
                                 .payingWith(PAYER)
+                                .fee(ONE_HUNDRED_HBARS)
                                 .hasKnownStatus(SUCCESS)
                                 .via("burn-token-txn")),
                 "burn-token-txn",
@@ -664,10 +667,11 @@ public class TokenServiceSimpleFeesSuite {
                         newKeyNamed(WIPE_KEY),
                         cryptoCreate(ADMIN).balance(ONE_BILLION_HBARS),
                         cryptoCreate(PAYER).balance(ONE_BILLION_HBARS).key(SUPPLY_KEY),
-                        cryptoCreate(OTHER).balance(ONE_BILLION_HBARS),
+                        cryptoCreate(OTHER).balance(ONE_BILLION_HBARS).key(WIPE_KEY),
                         tokenCreate(FUNGIBLE_TOKEN)
                                 .tokenType(FUNGIBLE_COMMON)
-                                .initialSupply(0L)
+                                .treasury(ADMIN)
+                                .initialSupply(100L)
                                 .payingWith(PAYER)
                                 .adminKey(ADMIN)
                                 .wipeKey(WIPE_KEY)
@@ -680,8 +684,12 @@ public class TokenServiceSimpleFeesSuite {
                                 .signedBy(SUPPLY_KEY)
                                 .fee(ONE_HUNDRED_HBARS)
                                 .hasKnownStatus(SUCCESS),
+                        cryptoTransfer(moving(100, FUNGIBLE_TOKEN).between(ADMIN, OTHER))
+                                .fee(ONE_HUNDRED_HBARS)
+                                .payingWith(ADMIN),
                         wipeTokenAccount(FUNGIBLE_TOKEN, OTHER, 80)
                                 .payingWith(OTHER)
+                                .signedBy(OTHER)
                                 .fee(ONE_HUNDRED_HBARS)
                                 .via("token-wipe-txn")),
                 "token-wipe-txn",
@@ -694,27 +702,29 @@ public class TokenServiceSimpleFeesSuite {
     @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
     @DisplayName("compare token fee schedule update")
     final Stream<DynamicTest> compareTokenFeeScheduleUpdate() {
+        final var htsAmount = 2_345L;
+        final var feeDenom = "denom";
+        final var htsCollector = "denomFee";
         return compareSimpleToOld(
                 () -> Arrays.asList(
-                        newKeyNamed(SUPPLY_KEY),
-                        newKeyNamed(WIPE_KEY),
                         newKeyNamed(FEE_SCHEDULE_KEY),
-                        cryptoCreate(ADMIN).balance(ONE_BILLION_HBARS),
-                        cryptoCreate(PAYER).balance(ONE_BILLION_HBARS).key(SUPPLY_KEY),
-                        cryptoCreate(OTHER).balance(ONE_BILLION_HBARS),
+                        cryptoCreate(htsCollector),
+                        tokenCreate(feeDenom).treasury(htsCollector),
+
+                        cryptoCreate(PAYER).balance(ONE_BILLION_HBARS),
+                        cryptoCreate(OTHER).balance(ONE_BILLION_HBARS).key(FEE_SCHEDULE_KEY),
                         tokenCreate(FUNGIBLE_TOKEN)
                                 .tokenType(FUNGIBLE_COMMON)
                                 .initialSupply(0L)
                                 .payingWith(PAYER)
-                                .adminKey(ADMIN)
-                                .wipeKey(WIPE_KEY)
-                                .supplyKey(SUPPLY_KEY)
                                 .feeScheduleKey(FEE_SCHEDULE_KEY)
                                 .fee(ONE_HUNDRED_HBARS)
                                 .hasKnownStatus(SUCCESS),
                         tokenFeeScheduleUpdate(FUNGIBLE_TOKEN)
                                 .payingWith(OTHER)
+                                .signedBy(OTHER)
                                 .fee(ONE_HUNDRED_HBARS)
+                                .withCustom(fixedHtsFee(htsAmount, feeDenom, htsCollector))
                                 .via("token-fee-schedule-update-txn")),
                 "token-fee-schedule-update-txn",
                 0.001,
@@ -742,6 +752,16 @@ public class TokenServiceSimpleFeesSuite {
                                 .supplyKey(SUPPLY_KEY)
                                 .fee(ONE_HUNDRED_HBARS)
                                 .hasKnownStatus(SUCCESS),
+                        mintToken(
+                                NFT_TOKEN,
+                                List.of(
+                                        copyFromUtf8("a"),
+                                        copyFromUtf8("b"),
+                                        copyFromUtf8("c"),
+                                        copyFromUtf8("d"),
+                                        copyFromUtf8("e"),
+                                        copyFromUtf8("f"),
+                                        copyFromUtf8("g"))),
                         tokenUpdateNfts(NFT_TOKEN, NFT_TEST_METADATA, List.of(7L))
                                 .payingWith(PAYER)
                                 .fee(ONE_HUNDRED_HBARS)
@@ -796,6 +816,8 @@ public class TokenServiceSimpleFeesSuite {
                                 .hasMetadata(ByteString.copyFromUtf8("Bart Simpson"))
                                 .hasSerialNum(1L)
                                 .hasCostAnswerPrecheck(OK)
+                                .payingWith(PAYER)
+                                .fee(ONE_HUNDRED_HBARS)
                                 .via("get-token-nft-info-query")
                 ),
                 "get-token-nft-info-query",
