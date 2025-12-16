@@ -4,7 +4,6 @@ package com.swirlds.platform.test.fixtures.consensus.framework.validation;
 import static org.assertj.core.api.Assertions.fail;
 
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
-import com.swirlds.platform.consensus.RoundCalculationUtils;
 import com.swirlds.platform.test.fixtures.consensus.framework.ConsensusOutput;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Map;
@@ -13,6 +12,7 @@ import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.Hashable;
 import org.hiero.consensus.hashgraph.ConsensusConfig;
 import org.hiero.consensus.model.event.PlatformEvent;
+import org.hiero.consensus.round.RoundCalculationUtils;
 
 @SuppressWarnings("unused") // issue tracked #6998
 /**

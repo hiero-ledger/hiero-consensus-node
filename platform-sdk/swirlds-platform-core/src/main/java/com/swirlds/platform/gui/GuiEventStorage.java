@@ -10,7 +10,6 @@ import com.swirlds.common.context.PlatformContext;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.Consensus;
 import com.swirlds.platform.ConsensusImpl;
-import com.swirlds.platform.consensus.EventWindowUtils;
 import com.swirlds.platform.event.linking.ConsensusLinker;
 import com.swirlds.platform.event.linking.NoOpLinkerLogsAndMetrics;
 import com.swirlds.platform.internal.EventImpl;
@@ -24,6 +23,7 @@ import java.util.Objects;
 import org.hiero.consensus.hashgraph.ConsensusConfig;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
+import org.hiero.consensus.round.EventWindowUtils;
 
 /**
  * This class is responsible for storing events utilized by the GUI.
@@ -52,10 +52,8 @@ public class GuiEventStorage {
         this.configuration = Objects.requireNonNull(configuration);
         final PlatformContext platformContext = PlatformContext.create(configuration);
 
-        final ConsensusConfig consensusConfig =
-                platformContext.getConfiguration().getConfigData(ConsensusConfig.class);
-        this.consensus =
-                new ConsensusImpl(consensusConfig, platformContext.getTime(), new NoOpConsensusMetrics(), roster);
+        this.consensus = new ConsensusImpl(
+                platformContext.getConfiguration(), platformContext.getTime(), new NoOpConsensusMetrics(), roster);
         this.linker = new ConsensusLinker(NoOpLinkerLogsAndMetrics.getInstance());
     }
 

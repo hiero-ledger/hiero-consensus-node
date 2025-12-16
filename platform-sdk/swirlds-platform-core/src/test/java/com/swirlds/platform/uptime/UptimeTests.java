@@ -5,6 +5,7 @@ import static com.swirlds.platform.test.fixtures.addressbook.RosterTestUtils.add
 import static com.swirlds.platform.test.fixtures.addressbook.RosterTestUtils.dropRosterEntryFromRoster;
 import static com.swirlds.platform.uptime.UptimeData.NO_ROUND;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
+import static org.hiero.consensus.model.PbjConverters.toPbjTimestamp;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -27,7 +28,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Random;
 import java.util.Set;
-import org.hiero.base.utility.CommonUtils;
 import org.hiero.consensus.model.event.ConsensusEvent;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
@@ -83,7 +83,7 @@ class UptimeTests {
         final ConsensusRound round =
                 new ConsensusRound(roster, events, mock(EventWindow.class), snapshot, false, Instant.now());
         final Instant consensusTimestamp = events.get(events.size() - 1).getConsensusTimestamp();
-        when(snapshot.consensusTimestamp()).thenReturn(CommonUtils.toPbjTimestamp(consensusTimestamp));
+        when(snapshot.consensusTimestamp()).thenReturn(toPbjTimestamp(consensusTimestamp));
         when(snapshot.round()).thenReturn(roundNum);
         when(round.getRoundNum()).thenReturn(roundNum);
         return round;
