@@ -3,6 +3,7 @@ package org.hiero.otter.fixtures.app.services.platform;
 
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static com.swirlds.platform.state.service.PlatformStateUtils.isInFreezePeriod;
+import static org.hiero.consensus.model.PbjConverters.fromPbjTimestamp;
 
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
@@ -18,7 +19,6 @@ import java.time.Instant;
 import java.util.function.Consumer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.base.utility.CommonUtils;
 import org.hiero.consensus.model.event.ConsensusEvent;
 import org.hiero.consensus.model.event.Event;
 import org.hiero.consensus.model.hashgraph.Round;
@@ -100,7 +100,7 @@ public class PlatformStateService implements OtterService {
             @NonNull final WritableStates writableStates, @NonNull final OtterFreezeTransaction freezeTransaction) {
         final Timestamp freezeTime = CommonPbjConverters.toPbj(freezeTransaction.getFreezeTime());
         final WritablePlatformStateStore store = new WritablePlatformStateStore(writableStates);
-        store.setFreezeTime(CommonUtils.fromPbjTimestamp(freezeTime));
+        store.setFreezeTime(fromPbjTimestamp(freezeTime));
     }
 
     /**

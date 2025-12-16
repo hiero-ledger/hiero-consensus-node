@@ -13,7 +13,6 @@ import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.utility.Mnemonics;
 import com.swirlds.common.utility.throttle.RateLimiter;
 import com.swirlds.logging.legacy.payload.IssPayload;
-import com.swirlds.platform.config.PathsConfig;
 import com.swirlds.platform.config.StateConfig;
 import com.swirlds.platform.metrics.IssMetrics;
 import com.swirlds.platform.state.iss.internal.ConsensusHashFinder;
@@ -118,7 +117,6 @@ public class DefaultIssDetector implements IssDetector {
             final long ignoredRound,
             final long latestFreezeRound) {
         Objects.requireNonNull(platformContext);
-        final PathsConfig pathsConfig = platformContext.getConfiguration().getConfigData(PathsConfig.class);
 
         final ConsensusConfig consensusConfig =
                 platformContext.getConfiguration().getConfigData(ConsensusConfig.class);
