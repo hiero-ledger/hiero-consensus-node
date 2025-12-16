@@ -53,7 +53,6 @@ import java.net.InetSocketAddress;
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
-import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -66,9 +65,9 @@ class PrometheusEndpointTest {
 
     private static final String CATEGORY = "CaTeGoRy";
     private static final String NAME = "NaMe";
-    private static final NodeId NODE_ID_1 = NodeId.of(1L);
+    private static final Long NODE_ID_1 = 1L;
     private static final String LABEL_1 = NODE_ID_1.toString();
-    private static final NodeId NODE_ID_2 = NodeId.of(2L);
+    private static final Long NODE_ID_2 = 2L;
     private static final String LABEL_2 = NODE_ID_2.toString();
 
     private static final InetSocketAddress ADDRESS = new InetSocketAddress(0);

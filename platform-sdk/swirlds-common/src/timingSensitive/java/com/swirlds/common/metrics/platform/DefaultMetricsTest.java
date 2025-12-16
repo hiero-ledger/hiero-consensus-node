@@ -30,7 +30,6 @@ import java.util.Collection;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Consumer;
-import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -40,7 +39,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 class DefaultMetricsTest {
 
-    private static final NodeId NODE_ID = NodeId.of(42L);
+    private static final Long NODE_ID = 1L;
     private static final String CATEGORY_1 = "CaTeGoRy1";
     private static final String CATEGORY_1a = "CaTeGoRy1.a";
     private static final String CATEGORY_1b = "CaTeGoRy1.b";

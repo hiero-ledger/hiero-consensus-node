@@ -30,7 +30,6 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
-import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -42,8 +41,8 @@ import org.mockito.stubbing.Answer;
 @ExtendWith(MockitoExtension.class)
 class SnapshotServiceTest {
 
-    private static final NodeId NODE_ID_1 = NodeId.of(1L);
-    private static final NodeId NODE_ID_2 = NodeId.of(2L);
+    private static final Long NODE_ID_1 = 1L;
+    private static final Long NODE_ID_2 = 2L;
 
     @Mock
     private SnapshotableMetric globalMetric;

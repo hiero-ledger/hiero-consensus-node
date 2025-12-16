@@ -13,7 +13,6 @@ import com.swirlds.metrics.api.Metric;
 import com.swirlds.metrics.api.snapshot.Snapshot;
 import io.prometheus.client.Collector;
 import io.prometheus.client.CollectorRegistry;
-import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.Test;
 
 class DistributionAdapterTest {
@@ -140,7 +139,7 @@ class DistributionAdapterTest {
         final DistributionAdapter adapter = new DistributionAdapter(registry, metric, PLATFORM);
 
         // when
-        adapter.update(Snapshot.of(metric), NodeId.of(1L));
+        adapter.update(Snapshot.of(metric), 1L);
 
         // then
         assertThat(registry.getSampleValue(MAPPING_NAME, NODE_LABEL, new String[] {"1", "mean"}))
@@ -160,7 +159,7 @@ class DistributionAdapterTest {
         final PlatformRunningAverageMetric metric =
                 new PlatformRunningAverageMetric(new RunningAverageMetric.Config(CATEGORY, NAME));
         final DistributionAdapter adapter = new DistributionAdapter(registry, metric, PLATFORM);
-        final NodeId nodeId = NodeId.of(1L);
+        final Long nodeId = 1L;
 
         // then
         assertThatThrownBy(() -> adapter.update(null, null)).isInstanceOf(NullPointerException.class);

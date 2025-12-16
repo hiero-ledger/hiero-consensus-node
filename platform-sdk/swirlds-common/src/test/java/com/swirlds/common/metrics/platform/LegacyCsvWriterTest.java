@@ -33,14 +33,13 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.concurrent.ScheduledExecutorService;
-import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 class LegacyCsvWriterTest {
 
-    private static final NodeId NODE_ID = NodeId.of(42L);
+    private static final long NODE_ID = 42L;
     private Metrics metrics;
     private MetricsConfig metricsConfig;
     private Configuration configuration;
