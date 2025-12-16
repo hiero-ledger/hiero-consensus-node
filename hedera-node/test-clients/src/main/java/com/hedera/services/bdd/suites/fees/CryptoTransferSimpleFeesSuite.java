@@ -47,7 +47,7 @@ import org.junit.jupiter.api.Tag;
 public class CryptoTransferSimpleFeesSuite {
     // Fee tiers
     private static final double HBAR_TRANSFER_FEE = 0.0001;
-    private static final double TOKEN_TRANSFER_FEE = 0.001;
+    public static final double TOKEN_TRANSFER_FEE = 0.001;
     private static final double TOKEN_TRANSFER_CUSTOM_FEE = 0.002;
 
     // Extras
