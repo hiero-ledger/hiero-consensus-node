@@ -92,6 +92,8 @@ val prCheckTags =
             // MATS task → explicitly REQUIRE MATS
             put("$task$matsSuffix", "($tags)&MATS")
         }
+        put("hapiTestClpr", "CLPR");
+        put("hapiTestMultiNetwork", "MULTINETWORK");
     }
 
 val remoteCheckTags =
