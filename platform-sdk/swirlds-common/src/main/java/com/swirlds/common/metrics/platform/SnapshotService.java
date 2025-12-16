@@ -206,9 +206,9 @@ public class SnapshotService implements Startable {
                     .toList();
 
             logger.trace(() -> String.format(
-                    "Created %d snapshots for node %s", platformSnapshots.size(), platformMetrics.getNodeId()));
+                    "Created %d snapshots for node %s", platformSnapshots.size(), platformMetrics.getId()));
 
-            final SnapshotEvent platformEvent = new SnapshotEvent(platformMetrics.getNodeId(), platformSnapshots);
+            final SnapshotEvent platformEvent = new SnapshotEvent(platformMetrics.getId(), platformSnapshots);
             subscribers.forEach(subscriber -> subscriber.accept(platformEvent));
         }
 

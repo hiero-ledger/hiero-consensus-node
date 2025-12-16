@@ -3,7 +3,6 @@ package com.swirlds.common.metrics.platform.prometheus;
 
 import com.swirlds.metrics.api.snapshot.Snapshot;
 import io.prometheus.client.CollectorRegistry;
-import org.hiero.consensus.model.node.NodeId;
 
 /**
  * Common interface of all adapters, which synchronize a {@link com.swirlds.metrics.api.Metric}
@@ -17,10 +16,10 @@ public interface MetricAdapter {
      * @param snapshot
      * 		The snapshot, which value should be used for the update.
      * @param nodeId
-     * 		The {@link NodeId} in which context the metric is used. May be {@code null}, if it is a global metric.
+     * 		The node id in which context the metric is used. May be {@code null}, if it is a global metric.
      * @throws IllegalArgumentException if {@code snapshot} is {@code null}
      */
-    void update(final Snapshot snapshot, final NodeId nodeId);
+    void update(final Snapshot snapshot, final Long nodeId);
 
     /**
      * Increase the reference count

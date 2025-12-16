@@ -3,7 +3,6 @@ package com.swirlds.common.metrics;
 
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import org.hiero.consensus.model.node.NodeId;
 
 /**
  * A {@link Metrics} implementation that knows about the platform. This interface has been extracted from the
@@ -16,13 +15,13 @@ import org.hiero.consensus.model.node.NodeId;
 public interface PlatformMetrics extends Metrics {
 
     /**
-     * Returns the {@link NodeId} which metrics this {@code Metrics} manages. If this {@code Metrics} manages the global
+     * Returns the id of the instance whose metrics this {@code Metrics} manages. If this {@code Metrics} manages the global
      * metrics, this method returns {@code null}.
      *
-     * @return The {@code NodeId} or {@code null}
+     * @return The id or {@code null}
      */
     @Nullable
-    NodeId getNodeId();
+    Long getId();
 
     /**
      * Checks if this {@code Metrics} manages global metrics.
@@ -30,7 +29,7 @@ public interface PlatformMetrics extends Metrics {
      * @return {@code true} if this {@code Metrics} manages global metrics, {@code false} otherwise
      */
     default boolean isGlobalMetrics() {
-        return getNodeId() == null;
+        return getId() == null;
     }
 
     /**
@@ -39,6 +38,6 @@ public interface PlatformMetrics extends Metrics {
      * @return {@code true} if this {@code Metrics} manages platform metrics, {@code false} otherwise
      */
     default boolean isPlatformMetrics() {
-        return getNodeId() != null;
+        return getId() != null;
     }
 }

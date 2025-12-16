@@ -14,7 +14,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import org.hiero.consensus.model.node.NodeId;
 
 /**
  * A no-op {@link Metrics} implementation.
@@ -30,8 +29,8 @@ public class NoOpMetrics implements PlatformMetrics {
     private static final NoOpMetricsFactory FACTORY = new NoOpMetricsFactory();
 
     @Override
-    public NodeId getNodeId() {
-        return NodeId.of(42L);
+    public Long getId() {
+        return 42L;
     }
 
     @Override

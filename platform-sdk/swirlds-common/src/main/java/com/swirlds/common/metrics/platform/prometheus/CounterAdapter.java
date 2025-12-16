@@ -12,7 +12,6 @@ import io.prometheus.client.Collector;
 import io.prometheus.client.CollectorRegistry;
 import io.prometheus.client.Counter;
 import java.util.Objects;
-import org.hiero.consensus.model.node.NodeId;
 
 /**
  * Adapter that synchronizes a {@link Counter}
@@ -55,7 +54,7 @@ public class CounterAdapter extends AbstractMetricAdapter {
      * {@inheritDoc}
      */
     @Override
-    public void update(final Snapshot snapshot, final NodeId nodeId) {
+    public void update(final Snapshot snapshot, final Long nodeId) {
         Objects.requireNonNull(snapshot, "snapshot must not be null");
         final double newValue = ((Number) snapshot.getValue()).doubleValue();
         if (adapterType == GLOBAL) {
@@ -63,7 +62,7 @@ public class CounterAdapter extends AbstractMetricAdapter {
             counter.inc(newValue - oldValue);
         } else {
             Objects.requireNonNull(nodeId, "nodeId must not be null");
-            final Counter.Child child = counter.labels(nodeId.toString());
+            final Counter.Child child = counter.labels(String.valueOf(nodeId));
             final double oldValue = child.get();
             child.inc(newValue - oldValue);
         }

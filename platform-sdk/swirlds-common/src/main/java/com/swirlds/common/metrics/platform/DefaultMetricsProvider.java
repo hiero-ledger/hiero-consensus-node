@@ -30,7 +30,6 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.consensus.model.node.NodeId;
 
 /**
  * The default implementation of {@link PlatformMetricsProvider}
@@ -46,8 +45,8 @@ public class DefaultMetricsProvider implements PlatformMetricsProvider, Lifecycl
 
     private final @NonNull MetricKeyRegistry metricKeyRegistry = new MetricKeyRegistry();
     private final @NonNull DefaultPlatformMetrics globalMetrics;
-    private final @NonNull ConcurrentMap<NodeId, DefaultPlatformMetrics> platformMetrics = new ConcurrentHashMap<>();
-    private final @NonNull Map<NodeId, List<Runnable>> unsubscribers = new HashMap<>();
+    private final @NonNull ConcurrentMap<Long, DefaultPlatformMetrics> platformMetrics = new ConcurrentHashMap<>();
+    private final @NonNull Map<Long, List<Runnable>> unsubscribers = new HashMap<>();
     private final @Nullable PrometheusEndpoint prometheusEndpoint;
     private final @NonNull SnapshotService snapshotService;
     private final @NonNull MetricsConfig metricsConfig;
@@ -99,9 +98,7 @@ public class DefaultMetricsProvider implements PlatformMetricsProvider, Lifecycl
      * {@inheritDoc}
      */
     @Override
-    public @NonNull Metrics createPlatformMetrics(@NonNull final NodeId nodeId) {
-        Objects.requireNonNull(nodeId, "nodeId must not be null");
-
+    public @NonNull Metrics createPlatformMetrics(final long nodeId) {
         final DefaultPlatformMetrics newMetrics =
                 new DefaultPlatformMetrics(nodeId, metricKeyRegistry, executor, factory, metricsConfig);
 
@@ -142,9 +139,7 @@ public class DefaultMetricsProvider implements PlatformMetricsProvider, Lifecycl
      * {@inheritDoc}
      */
     @Override
-    public void removePlatformMetrics(@NonNull final NodeId nodeId) throws InterruptedException {
-        Objects.requireNonNull(nodeId, "nodeId must not be null");
-
+    public void removePlatformMetrics(final long nodeId) throws InterruptedException {
         final DefaultPlatformMetrics metrics = platformMetrics.get(nodeId);
         if (metrics == null) {
             throw new IllegalArgumentException(String.format("PlatformMetrics for %s does not exist", nodeId));

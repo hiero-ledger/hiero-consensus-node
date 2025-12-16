@@ -19,7 +19,7 @@ public interface PlatformMetricsFactory extends MetricsFactory {
      * @return the new {@link DurationGauge}
      * @throws IllegalArgumentException if {@code config} is {@code null}
      */
-    DurationGauge createDurationGauge(final DurationGauge.Config config);
+    DurationGauge createDurationGauge(@NonNull DurationGauge.Config config);
 
     /**
      * Creates a {@link FunctionGauge}
@@ -29,7 +29,7 @@ public interface PlatformMetricsFactory extends MetricsFactory {
      * @return the new {@code FunctionGauge}
      * @throws IllegalArgumentException if {@code config} is {@code null}
      */
-    <T> FunctionGauge<T> createFunctionGauge(final FunctionGauge.Config<T> config);
+    <T> FunctionGauge<T> createFunctionGauge(@NonNull FunctionGauge.Config<T> config);
 
     /**
      * Creates a {@link IntegerPairAccumulator}
@@ -40,7 +40,7 @@ public interface PlatformMetricsFactory extends MetricsFactory {
      * @throws IllegalArgumentException
      * 		if {@code config} is {@code null}
      */
-    <T> IntegerPairAccumulator<T> createIntegerPairAccumulator(IntegerPairAccumulator.Config<T> config);
+    <T> IntegerPairAccumulator<T> createIntegerPairAccumulator(@NonNull IntegerPairAccumulator.Config<T> config);
 
     /**
      * Creates a {@link RunningAverageMetric}
@@ -51,7 +51,7 @@ public interface PlatformMetricsFactory extends MetricsFactory {
      * @throws IllegalArgumentException
      * 		if {@code config} is {@code null}
      */
-    RunningAverageMetric createRunningAverageMetric(final RunningAverageMetric.Config config);
+    RunningAverageMetric createRunningAverageMetric(@NonNull RunningAverageMetric.Config config);
 
     /**
      * Creates a {@link SpeedometerMetric}
@@ -62,7 +62,7 @@ public interface PlatformMetricsFactory extends MetricsFactory {
      * @throws IllegalArgumentException
      * 		if {@code config} is {@code null}
      */
-    SpeedometerMetric createSpeedometerMetric(final SpeedometerMetric.Config config);
+    SpeedometerMetric createSpeedometerMetric(@NonNull SpeedometerMetric.Config config);
 
     /**
      * Creates a {@link StatEntry}
@@ -74,7 +74,7 @@ public interface PlatformMetricsFactory extends MetricsFactory {
      * 		if {@code config} is {@code null}
      */
     @SuppressWarnings("removal")
-    StatEntry createStatEntry(final StatEntry.Config<?> config);
+    StatEntry createStatEntry(@NonNull StatEntry.Config<?> config);
 
     /**
      * Creates a {@link Metric}.

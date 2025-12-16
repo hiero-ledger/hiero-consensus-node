@@ -13,7 +13,6 @@ import io.prometheus.client.Collector;
 import io.prometheus.client.CollectorRegistry;
 import io.prometheus.client.Gauge;
 import java.util.Objects;
-import org.hiero.consensus.model.node.NodeId;
 
 /**
  * Adapter that synchronizes {@link com.swirlds.common.metrics.RunningAverageMetric} and
@@ -55,7 +54,7 @@ public class DistributionAdapter extends AbstractMetricAdapter {
      * {@inheritDoc}
      */
     @Override
-    public void update(final Snapshot snapshot, final NodeId nodeId) {
+    public void update(final Snapshot snapshot, final Long nodeId) {
         Objects.requireNonNull(snapshot, "snapshot must not be null");
         if (adapterType != GLOBAL) {
             Objects.requireNonNull(nodeId, "nodeId must not be null");
@@ -69,7 +68,7 @@ public class DistributionAdapter extends AbstractMetricAdapter {
                         default -> "mean";
                     };
             final Gauge.Child child =
-                    adapterType == GLOBAL ? gauge.labels(valueType) : gauge.labels(nodeId.toString(), valueType);
+                    adapterType == GLOBAL ? gauge.labels(valueType) : gauge.labels(String.valueOf(nodeId), valueType);
             child.set(((Number) entry.value()).doubleValue());
         }
     }

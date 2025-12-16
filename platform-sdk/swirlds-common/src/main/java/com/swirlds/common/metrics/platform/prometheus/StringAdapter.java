@@ -12,7 +12,6 @@ import io.prometheus.client.Collector;
 import io.prometheus.client.CollectorRegistry;
 import io.prometheus.client.Info;
 import java.util.Objects;
-import org.hiero.consensus.model.node.NodeId;
 
 /**
  * Adapter that synchronizes a {@link Metric} with a single value of {@link Metric#getDataType() type} {@code String}
@@ -52,14 +51,14 @@ public class StringAdapter extends AbstractMetricAdapter {
      * {@inheritDoc}
      */
     @Override
-    public void update(final Snapshot snapshot, final NodeId nodeId) {
+    public void update(final Snapshot snapshot, final Long nodeId) {
         Objects.requireNonNull(snapshot, "snapshot must not be null");
         final String newValue = Objects.toString(snapshot.getValue());
         if (adapterType == GLOBAL) {
             info.info("value", newValue);
         } else {
             Objects.requireNonNull(nodeId, "nodeId must not be null");
-            final Info.Child child = info.labels(nodeId.toString());
+            final Info.Child child = info.labels(String.valueOf(nodeId));
             child.info("value", newValue);
         }
     }

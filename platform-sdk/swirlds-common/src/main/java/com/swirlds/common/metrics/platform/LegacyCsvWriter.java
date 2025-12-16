@@ -39,7 +39,6 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.consensus.model.node.NodeId;
 
 /**
  * A {@code LegacyCsvWriter} writes the current CSV-format. It is called "legacy", because we plan to replace the
@@ -69,7 +68,7 @@ public class LegacyCsvWriter {
     // category contains this substring should not be expanded even Settings.verboseStatistics is true
     private static final String EXCLUDE_CATEGORY = "info";
 
-    private final NodeId selfId;
+    private long selfId;
     // path and filename of the .csv file to write to
     private final Path csvFilePath;
     private final MetricsConfig metricsConfig;
@@ -87,20 +86,20 @@ public class LegacyCsvWriter {
     /**
      * Constructor of a {@code LegacyCsvWriter}
      *
-     * @param selfId        {@link NodeId} of the platform for which the CSV-file is written
+     * @param selfId        node id of the platform for which the CSV-file is written
      * @param folderPath    {@link Path} to the folder where the file should be stored
      * @param configuration the configuration
      */
     public LegacyCsvWriter(
-            @NonNull final NodeId selfId, @NonNull final Path folderPath, @NonNull final Configuration configuration) {
+            long selfId, @NonNull final Path folderPath, @NonNull final Configuration configuration) {
         Objects.requireNonNull(folderPath, "folderPath is null");
         Objects.requireNonNull(configuration, "configuration is null");
 
-        this.selfId = Objects.requireNonNull(selfId, "selfId is null");
+        this.selfId = selfId;
         metricsConfig = configuration.getConfigData(MetricsConfig.class);
         basicConfig = configuration.getConfigData(BasicCommonConfig.class);
 
-        final String fileName = String.format("%s%d.csv", metricsConfig.csvFileName(), selfId.id());
+        final String fileName = String.format("%s%d.csv", metricsConfig.csvFileName(), selfId);
         this.csvFilePath = folderPath.resolve(fileName);
     }
 
@@ -222,7 +221,7 @@ public class LegacyCsvWriter {
      * @param snapshotEvent the {@link SnapshotEvent}
      */
     public void handleSnapshots(final SnapshotEvent snapshotEvent) {
-        if (snapshotEvent.nodeId() != selfId) {
+        if (!Objects.equals(snapshotEvent.nodeId(), selfId)) {
             return;
         }
 

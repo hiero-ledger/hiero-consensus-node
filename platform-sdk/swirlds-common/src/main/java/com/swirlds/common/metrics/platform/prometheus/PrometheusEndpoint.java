@@ -31,7 +31,6 @@ import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.consensus.model.node.NodeId;
 
 /**
  * A Prometheus endpoint that shows all {@link Metric}s.
@@ -154,7 +153,7 @@ public class PrometheusEndpoint implements AutoCloseableNonThrowing {
     }
 
     @SuppressWarnings("removal")
-    private MetricAdapter doCreate(final NodeId nodeId, final Metric metric) {
+    private MetricAdapter doCreate(final Long nodeId, final Metric metric) {
         final AdapterType adapterType = nodeId == null ? GLOBAL : PLATFORM;
         if (metric instanceof Counter) {
             return new CounterAdapter(registry, metric, adapterType);

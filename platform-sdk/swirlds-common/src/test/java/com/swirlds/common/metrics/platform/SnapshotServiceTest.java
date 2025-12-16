@@ -81,13 +81,13 @@ class SnapshotServiceTest {
         when(platform1Metric.getName()).thenReturn("platform");
 
         when(platform1Metrics.isPlatformMetrics()).thenReturn(true);
-        when(platform1Metrics.getNodeId()).thenReturn(NODE_ID_1);
+        when(platform1Metrics.getId()).thenReturn(NODE_ID_1);
         when(platform1Metrics.getAll()).thenReturn(List.of(globalMetric, platform1Metric));
 
         when(platform2Metric.getName()).thenReturn("platform");
 
         when(platform2Metrics.isPlatformMetrics()).thenReturn(true);
-        when(platform2Metrics.getNodeId()).thenReturn(NODE_ID_2);
+        when(platform2Metrics.getId()).thenReturn(NODE_ID_2);
         when(platform2Metrics.getAll()).thenReturn(List.of(globalMetric, platform2Metric));
 
         when(executorService.schedule(any(Runnable.class), anyLong(), any()))

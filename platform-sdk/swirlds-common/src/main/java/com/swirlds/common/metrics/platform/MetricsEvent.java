@@ -3,9 +3,8 @@ package com.swirlds.common.metrics.platform;
 
 import com.swirlds.metrics.api.Metric;
 import java.util.Objects;
-import org.hiero.consensus.model.node.NodeId;
 
-public record MetricsEvent(Type type, NodeId nodeId, Metric metric) {
+public record MetricsEvent(Type type, Long nodeId, Metric metric) {
     public enum Type {
         ADDED,
         REMOVED

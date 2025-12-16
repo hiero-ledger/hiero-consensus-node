@@ -24,7 +24,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
-import org.hiero.consensus.model.node.NodeId;
 
 /**
  * Default implementation of the {@link Metrics} interface.
@@ -37,8 +36,8 @@ public class DefaultPlatformMetrics implements PlatformMetrics {
      */
     public static final int EXCEPTION_RATE_THRESHOLD = 10;
 
-    // A reference to the NodeId of the current node
-    private final @Nullable NodeId selfId;
+    // A reference to the node id of the current node
+    private final @Nullable Long selfId;
 
     // The MetricKeyRegistry ensures that no two conflicting metrics with the same key exist
     private final @NonNull MetricKeyRegistry metricKeyRegistry;
@@ -64,7 +63,7 @@ public class DefaultPlatformMetrics implements PlatformMetrics {
     /**
      * Constructor of {@code DefaultMetrics}
      *
-     * @param selfId            the {@link NodeId} of the platform, {@code null} if these are the global metrics
+     * @param selfId            the node id of the platform, {@code null} if these are the global metrics
      * @param metricKeyRegistry the {@link MetricKeyRegistry} that ensures no conflicting metrics are registered
      * @param executor          the {@link ScheduledExecutorService} that will be used by this {@code DefaultMetrics}
      * @param factory           the {@link PlatformMetricsFactory} that will be used to create new instances of
@@ -79,7 +78,7 @@ public class DefaultPlatformMetrics implements PlatformMetrics {
      *                              </ul>
      */
     public DefaultPlatformMetrics(
-            final @Nullable NodeId selfId,
+            final @Nullable Long selfId,
             final @NonNull MetricKeyRegistry metricKeyRegistry,
             final @NonNull ScheduledExecutorService executor,
             final @NonNull PlatformMetricsFactory factory,
@@ -99,7 +98,7 @@ public class DefaultPlatformMetrics implements PlatformMetrics {
      * {@inheritDoc}
      */
     @Override
-    public NodeId getNodeId() {
+    public Long getId() {
         return selfId;
     }
 

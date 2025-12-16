@@ -13,7 +13,6 @@ import io.prometheus.client.Collector;
 import io.prometheus.client.CollectorRegistry;
 import io.prometheus.client.Gauge;
 import java.util.Objects;
-import org.hiero.consensus.model.node.NodeId;
 
 /**
  * Adapter that synchronizes a {@link Metric} with a single value of {@link Metric#getDataType() type} {@code boolean}
@@ -55,14 +54,14 @@ public class BooleanAdapter extends AbstractMetricAdapter {
      * {@inheritDoc}
      */
     @Override
-    public void update(final Snapshot snapshot, final NodeId nodeId) {
+    public void update(final Snapshot snapshot, final Long nodeId) {
         Objects.requireNonNull(snapshot, "snapshot must not be null");
         final double newValue = TRUE.equals(snapshot.getValue()) ? TRUE_VALUE : FALSE_VALUE;
         if (adapterType == GLOBAL) {
             gauge.set(newValue);
         } else {
             Objects.requireNonNull(nodeId, "nodeId must not be null");
-            final Gauge.Child child = gauge.labels(nodeId.toString());
+            final Gauge.Child child = gauge.labels(String.valueOf(nodeId));
             child.set(newValue);
         }
     }
