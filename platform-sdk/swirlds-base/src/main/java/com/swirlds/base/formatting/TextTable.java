@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.common.formatting;
+package com.swirlds.base.formatting;
 
-import static com.swirlds.common.formatting.HorizontalAlignment.ALIGNED_CENTER;
-import static com.swirlds.common.formatting.HorizontalAlignment.ALIGNED_LEFT;
-import static com.swirlds.common.formatting.StringFormattingUtils.repeatedChar;
-import static com.swirlds.common.formatting.TextEffect.applyEffects;
-import static com.swirlds.common.formatting.TextEffect.getPrintableTextLength;
+import static com.swirlds.base.formatting.HorizontalAlignment.ALIGNED_CENTER;
+import static com.swirlds.base.formatting.HorizontalAlignment.ALIGNED_LEFT;
+import static com.swirlds.base.formatting.StringFormattingUtils.repeatedChar;
+import static com.swirlds.base.formatting.TextEffect.applyEffects;
+import static com.swirlds.base.formatting.TextEffect.getPrintableTextLength;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;

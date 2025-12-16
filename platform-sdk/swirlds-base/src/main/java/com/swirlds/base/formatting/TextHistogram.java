@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.common.formatting;
+package com.swirlds.base.formatting;
 
-import static com.swirlds.common.formatting.StringFormattingUtils.commaSeparatedNumber;
-import static com.swirlds.common.formatting.TextEffect.BRIGHT_RED;
-import static com.swirlds.common.formatting.TextEffect.BRIGHT_YELLOW;
-import static com.swirlds.common.formatting.TextEffect.GRAY;
+import static com.swirlds.base.formatting.StringFormattingUtils.commaSeparatedNumber;
+import static com.swirlds.base.formatting.TextEffect.BRIGHT_RED;
+import static com.swirlds.base.formatting.TextEffect.BRIGHT_YELLOW;
+import static com.swirlds.base.formatting.TextEffect.GRAY;
 
-import com.swirlds.common.units.DataUnit;
-import com.swirlds.common.units.Unit;
+import com.swirlds.base.units.DataUnit;
+import com.swirlds.base.units.Unit;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.List;
