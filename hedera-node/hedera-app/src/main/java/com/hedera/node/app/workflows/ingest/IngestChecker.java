@@ -64,6 +64,7 @@ import com.hedera.node.app.workflows.InnerTransaction;
 import com.hedera.node.app.workflows.OpWorkflowMetrics;
 import com.hedera.node.app.workflows.SolvencyPreCheck;
 import com.hedera.node.app.workflows.TransactionChecker;
+import com.hedera.node.app.workflows.TransactionPreCheck;
 import com.hedera.node.app.workflows.TransactionChecker.RequireMinValidLifetimeBuffer;
 import com.hedera.node.app.workflows.TransactionInfo;
 import com.hedera.node.app.workflows.dispatcher.TransactionDispatcher;
@@ -109,6 +110,7 @@ public final class IngestChecker {
 
     private final CurrentPlatformStatus currentPlatformStatus;
     private final BlockHashSigner blockHashSigner;
+    private final TransactionPreCheck transactionPreCheck;
     private final TransactionChecker transactionChecker;
     private final SolvencyPreCheck solvencyPreCheck;
     private final SignatureVerifier signatureVerifier;
@@ -157,6 +159,7 @@ public final class IngestChecker {
      * @param networkInfo the {@link NetworkInfo} that contains information about the network
      * @param currentPlatformStatus the {@link CurrentPlatformStatus} that contains the current status of the platform
      * @param blockHashSigner the {@link BlockHashSigner} that signs block hashes
+     * @param transactionPreCheck the {@link TransactionPreCheck} that performs early validation before full parsing
      * @param transactionChecker the {@link TransactionChecker} that pre-processes the bytes of a transaction
      * @param solvencyPreCheck the {@link SolvencyPreCheck} that checks payer balance
      * @param signatureExpander the {@link SignatureExpander} that expands signatures
@@ -173,6 +176,7 @@ public final class IngestChecker {
             @NonNull final NetworkInfo networkInfo,
             @NonNull final CurrentPlatformStatus currentPlatformStatus,
             @NonNull final BlockHashSigner blockHashSigner,
+            @NonNull final TransactionPreCheck transactionPreCheck,
             @NonNull final TransactionChecker transactionChecker,
             @NonNull final SolvencyPreCheck solvencyPreCheck,
             @NonNull final SignatureExpander signatureExpander,
@@ -188,6 +192,7 @@ public final class IngestChecker {
         this.networkInfo = requireNonNull(networkInfo, "networkInfo must not be null");
         this.currentPlatformStatus = requireNonNull(currentPlatformStatus, "currentPlatformStatus must not be null");
         this.blockHashSigner = blockHashSigner;
+        this.transactionPreCheck = requireNonNull(transactionPreCheck, "transactionPreCheck must not be null");
         this.transactionChecker = requireNonNull(transactionChecker, "transactionChecker must not be null");
         this.solvencyPreCheck = requireNonNull(solvencyPreCheck, "solvencyPreCheck must not be null");
         this.signatureVerifier = requireNonNull(signatureVerifier, "signatureVerifier must not be null");
@@ -255,6 +260,12 @@ public final class IngestChecker {
             @NonNull final InnerTransaction innerTransaction)
             throws PreCheckException {
         requireNonNull(result);
+
+        // 0. Early validation before full parsing (e.g., memo size check)
+        // This avoids wasting CPU cycles and GC pressure on large invalid transactions
+        if (innerTransaction == NO) {
+            transactionPreCheck.validateEarlyChecks(serializedTransaction);
+        }
 
         // During ingest we approximate consensus time with wall clock time
         final var consensusTime = instantSource.instant();
