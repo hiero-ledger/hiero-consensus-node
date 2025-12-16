@@ -80,6 +80,7 @@ public class BonnevilleEVM extends HEVM {
         if( op == 0xF0 ) return "Crat";
         if( op == 0xF1 ) return "Call";
         if( op == 0xF3 ) return "ret ";
+        if( op == 0xF4 ) return "0xF4";
         if( op == 0xFD ) return "revert ";
         if( op == 0xFF ) return "self-destruct ";
         return String.format("%x",op);
@@ -88,7 +89,7 @@ public class BonnevilleEVM extends HEVM {
         /* 00 */ "stop", "add ", "mul ", "sub ", "div ", "05  ", "06  ", "07  ", "08  ", "09  ", "exp ", "0B  ", "0C  ", "0D  ", "0E  ", "0F  ",
         /* 10 */ "ult ", "ugt ", "slt ", "sgt ", "eq  ", "eq0 ", "and ", "or  ", "18  ", "not ", "1A  ", "shl ", "shr ", "1D  ", "1E  ", "1F  ",
         /* 20 */ "kecc", "21  ", "22  ", "23  ", "24  ", "25  ", "26  ", "27  ", "28  ", "29  ", "2A  ", "2B  ", "2C  ", "2D  ", "2E  ", "2F  ",
-        /* 30 */ "30  ", "31  ", "32  ", "calr", "cVal", "Load", "Size", "Data", "cdSz", "Copy", "3A  ", "cExt", "3C  ", "retZ", "retC", "3F  ",
+        /* 30 */ "30  ", "31  ", "32  ", "calr", "cVal", "Load", "Size", "Data", "cdSz", "Copy", "3A  ", "gasP", "3C  ", "retZ", "retC", "hash",
         /* 40 */ "40  ", "41  ", "42  ", "43  ", "44  ", "45  ", "46  ", "47  ", "48  ", "49  ", "4A  ", "4B  ", "4C  ", "4D  ", "4E  ", "4F  ",
         /* 50 */ "pop ", "mld ", "mst ", "53  ", "Csld", "Csst", "jmp ", "jmpi", "58  ", "59  ", "gas ", "noop", "5C  ", "5D  ", "5E  ", "psh0",
         };
@@ -273,8 +274,8 @@ class BEVM {
         return push(x0,x1,x2,x3);
     }
     // TODO, common case, optimize
-    private ExceptionalHaltReason push32( byte[] src, int off ) {
-        return push(src,off,32);
+    private ExceptionalHaltReason push32( byte[] src ) {
+        return push(src,0,32);
     }
 
     // Misaligned long load, which might be short.
@@ -342,7 +343,7 @@ class BEVM {
     // -----------------------------------------------------------
     // Execute bytecodes until done
     ExceptionalHaltReason _run() {
-        SB trace = null; // = new SB();
+        SB trace = new SB();
         PrintStream oldSysOut = System.out;
         if( trace != null )
             System.setOut(new PrintStream(new FileOutputStream( FileDescriptor.out)));
@@ -388,9 +389,12 @@ class BEVM {
             case 0x37 -> callDataCopy();
             case 0x38 -> codeSize();
             case 0x39 -> codeCopy();
+            case 0x3A -> gasPrice();
             case 0x3B -> customExtCodeSize();
+            case 0x3C -> customExtCodeCopy();
             case 0x3D -> returnDataSize();
             case 0x3E -> returnDataCopy();
+            case 0x3F -> customExtCodeHash();
 
             case 0x50 -> pop();
 
@@ -451,6 +455,7 @@ class BEVM {
                 yield halt0;
             }
             case 0xF3 -> ret();
+            case 0xF4 -> customDelegateCall();
             case 0xFD -> revert();
             case 0xFF -> customSelfDestruct();
 
@@ -551,7 +556,7 @@ class BEVM {
             if( rbc0==1 )      shf =     Long.numberOfTrailingZeros(rhs0);
             else if( rbc1==1 ) shf =  64+Long.numberOfTrailingZeros(rhs1);
             else if( rbc2==1 ) shf = 128+Long.numberOfTrailingZeros(rhs2);
-            else               shf = 196+Long.numberOfTrailingZeros(rhs3);
+            else               shf = 192+Long.numberOfTrailingZeros(rhs3);
             return shl(shf,lhs0,lhs1,lhs2,lhs3);
         }
 
@@ -590,22 +595,35 @@ class BEVM {
         if( _sp < 2 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
         long lhs0 = STK0[--_sp], lhs1 = STK1[_sp], lhs2 = STK2[_sp], lhs3 = STK3[_sp];
         long rhs0 = STK0[--_sp], rhs1 = STK1[_sp], rhs2 = STK2[_sp], rhs3 = STK3[_sp];
-        while( true ) {
-            if( (rhs1 | rhs2 | rhs3) == 0 ) {
-                if( rhs0 == 0 ) // Divide by 0
-                    return push0(); // Div-by-0 is 0 in the EVM.
-                if( rhs0 == 1 ) // Divide by 1
-                    return push(lhs0,lhs1,lhs2,lhs3);
-                if( (lhs1 | lhs2 | lhs3)==0 )
-                    // Both sides are small.
-                    return push(Long.divideUnsigned(lhs0,rhs0));
-            }
-            // Reduce both sides by 2^64?
-            if( lhs0==0 && rhs0==0 ) {
-                lhs0 = lhs1; lhs1 = lhs2; lhs2 = lhs3; lhs3 = 0;
-                rhs0 = rhs1; rhs1 = rhs2; rhs2 = rhs3; rhs3 = 0;
-            } else break;
+        // Divide by 0,1,2^n shortcuts
+        if( (lhs1 | lhs2 | lhs3)==0 ) {
+            if( lhs0==0 ) return push0();
+            if( lhs0==1 ) return push(rhs0,rhs1,rhs2,rhs3);
         }
+        if( (rhs1 | rhs2 | rhs3)==0 ) {
+            if( rhs0==0 ) return push0();
+            if( rhs0==1 ) return push(lhs0,lhs1,lhs2,lhs3);
+        }
+
+        int lbc0 = Long.bitCount(lhs0), lbc1 = Long.bitCount(lhs1), lbc2 = Long.bitCount(lhs2), lbc3 = Long.bitCount(lhs3);
+        if( lbc0+lbc1+lbc2+lbc3 == 1 ) {
+            int shf;
+            if( lbc0==1 )      shf =     Long.numberOfTrailingZeros(lhs0);
+            else if( lbc1==1 ) shf =  64+Long.numberOfTrailingZeros(lhs1);
+            else if( lbc2==1 ) shf = 128+Long.numberOfTrailingZeros(lhs2);
+            else               shf = 192+Long.numberOfTrailingZeros(lhs3);
+            return shr(shf,rhs0,rhs1,rhs2,rhs3);
+        }
+        int rbc0 = Long.bitCount(rhs0), rbc1 = Long.bitCount(rhs1), rbc2 = Long.bitCount(rhs2), rbc3 = Long.bitCount(rhs3);
+        if( rbc0+rbc1+rbc2+rbc3 == 1 ) {
+            int shf;
+            if( rbc0==1 )      shf =     Long.numberOfTrailingZeros(rhs0);
+            else if( rbc1==1 ) shf =  64+Long.numberOfTrailingZeros(rhs1);
+            else if( rbc2==1 ) shf = 128+Long.numberOfTrailingZeros(rhs2);
+            else               shf = 192+Long.numberOfTrailingZeros(rhs3);
+            return shr(shf,lhs0,lhs1,lhs2,lhs3);
+        }
+
         throw new TODO();
     }
 
@@ -771,6 +789,9 @@ class BEVM {
         if( shf >= 256 )
             return push0();
         long val0 = STK0[--_sp], val1 = STK1[_sp], val2 = STK2[_sp], val3 = STK3[_sp];
+        return shr(shf,val0,val1,val2,val3);
+    }
+    private ExceptionalHaltReason shr( int shf, long val0, long val1, long val2, long val3 ) {
         // While shift is large, shift by whole registers
         while( shf >= 64 ) {
             val0 = val1;  val1 = val2;  val2 = val3;  val3 = 0;
@@ -799,7 +820,7 @@ class BEVM {
         Bytes keccak = Hash.keccak256(bytes);
         assert keccak.size()==32; // Base implementation has changed?
         byte[] kek = keccak.toArrayUnsafe();
-        return push32(kek, 0);
+        return push32(kek);
     }
 
 
@@ -833,7 +854,7 @@ class BEVM {
         // 32 bytes
         int len = Math.min(_callData.length-off,32);
         if( len == 32 )
-            return push32(_callData,off);
+            return push(_callData,off,32);
         // Big-endian: short data is placed high, and the low bytes are zero-filled
         long x3 = getLong(_callData, off, len);  if( 0 < len && len < 8 ) x3 <<= ((len+24)<<3); len -= 8;
         long x2 = getLong(_callData, off, len);  if( 0 < len && len < 8 ) x2 <<= ((len+24)<<3); len -= 8;
@@ -844,7 +865,7 @@ class BEVM {
 
     // Push size of call data
     private ExceptionalHaltReason callDataSize() {
-        var halt = useGas(_gasCalc.getVeryLowTierGasCost());
+        var halt = useGas(_gasCalc.getBaseTierGasCost());
         if( halt!=null ) return halt;
         return push( _callData.length );
     }
@@ -854,7 +875,7 @@ class BEVM {
         int dst = popInt();
         int src = popInt();
         int len = popInt();
-        var halt = useGas(copyCost(dst,len));
+        var halt = useGas(copyCost(dst,len,3));
         if( halt!=null ) return halt;
         _mem.write(dst, _frame.getInputData(), src, len );
         return null;
@@ -877,7 +898,7 @@ class BEVM {
             return ExceptionalHaltReason.INVALID_OPERATION;
         if( (memOff | srcOff | len) >= Integer.MAX_VALUE )
             return ExceptionalHaltReason.INSUFFICIENT_GAS;
-        var halt = useGas(copyCost(memOff, len));
+        var halt = useGas(copyCost(memOff, len,3));
         if( halt!=null ) return halt;
 
         _mem.write(memOff, _codes, srcOff, len);
@@ -913,11 +934,76 @@ class BEVM {
 
         Account acct = _frame.getWorldUpdater().get(address);
         if( acct == null ) return push0(); // No account, zero code size
-        Bytes code = acct.getCode();
-        int codeSize = code.size();
-        //if( enableEIP3540 && codeSize >= 2 && code.get(0) == EOFLayout.EOF_PREFIX_BYTE && code.get(1) == 0 )
-        //    codeSize = 2;
-        return push(codeSize);
+        return push(acct.getCode().size());
+    }
+
+    private ExceptionalHaltReason customExtCodeCopy() {
+        if( _sp < 4 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
+        Address address = popAddress();
+        int doff = popInt();
+        int soff = popInt();
+        int len  = popInt();
+
+        // Fail early, if we do not have cold-account gas
+        var gas = copyCost(doff,len,0)+ _gasCalc.getColdAccountAccessCost();
+        if( _gas < gas ) return ExceptionalHaltReason.INSUFFICIENT_GAS;
+        // Special behavior for long-zero addresses below 0.0.1001
+        if( _adrChk.isNonUserAccount(address) )
+            return push0();
+        if( FrameUtils.contractRequired(_frame, address, _flags) && !_adrChk.isPresent(address, _frame) ) {
+            //FrameUtils.invalidAddressContext(_frame).set(address, InvalidAddressContext.InvalidAddressType.NonCallTarget);
+            //return ExceptionalHaltReason.INVALID_SOLIDITY_ADDRESS;
+            throw new TODO();
+        }
+        return extCodeCopy(address,doff,soff,len);
+    }
+
+    private ExceptionalHaltReason extCodeCopy(Address address, int doff, int soff, int len) {
+        // Warmup address; true if already warm.  This is a per-transaction
+        // tracking and is only for gas costs.  The actual warming happens if
+        // we get past the gas test.
+        boolean isWarm = _frame.warmUpAddress(address) || _gasCalc.isPrecompile(address);
+        long gas = copyCost(doff,len,0) +
+            (isWarm ? _gasCalc.getWarmStorageReadCost() : _gasCalc.getColdAccountAccessCost());
+        var halt = useGas(gas);
+        if( halt!=null ) return halt;
+
+        Account acct = _frame.getWorldUpdater().get(address);
+        if( acct == null ) return null; // No account, zero code size
+        _mem.write(doff,acct.getCode().toArray(),soff,len);
+        return null;
+    }
+
+    private ExceptionalHaltReason customExtCodeHash() {
+        // Fail early, if we do not have cold-account gas
+        var gas = _gasCalc.getExtCodeSizeOperationGasCost() + _gasCalc.getColdAccountAccessCost();
+        if( _gas < gas ) return ExceptionalHaltReason.INSUFFICIENT_GAS;
+        if( _sp < 1 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
+        var address = popAddress();
+        // Special behavior for long-zero addresses below 0.0.1001
+        if( _adrChk.isNonUserAccount(address) )
+            return push0();
+        if( FrameUtils.contractRequired(_frame, address, _flags) && !_adrChk.isPresent(address, _frame) ) {
+        //    //FrameUtils.invalidAddressContext(_frame).set(address, InvalidAddressContext.InvalidAddressType.NonCallTarget);
+        //    //return ExceptionalHaltReason.INVALID_SOLIDITY_ADDRESS;
+            throw new TODO();
+        }
+        return extCodeHash(address);
+    }
+
+    private ExceptionalHaltReason extCodeHash(Address address) {
+        // Warmup address; true if already warm.  This is a per-transaction
+        // tracking and is only for gas costs.  The actual warming happens if
+        // we get past the gas test.
+        boolean isWarm = _frame.warmUpAddress(address) || _gasCalc.isPrecompile(address);
+        long gas = _gasCalc.getExtCodeSizeOperationGasCost() +
+            (isWarm ? _gasCalc.getWarmStorageReadCost() : _gasCalc.getColdAccountAccessCost());
+        var halt = useGas(gas);
+        if( halt!=null ) return halt;
+
+        Account acct = _frame.getWorldUpdater().get(address);
+        if( acct == null ) return push0(); // No account, zero code size
+        return push32(acct.getCodeHash().toArrayUnsafe());
     }
 
     private ExceptionalHaltReason returnDataSize() {
@@ -929,7 +1015,7 @@ class BEVM {
         int doff = popInt();
         int soff = popInt();
         int len  = popInt();
-        var halt = useGas(copyCost(doff,len));
+        var halt = useGas(copyCost(doff,len,3));
         if( halt!=null ) return halt;
         _mem.write(doff, _frame.getReturnData(), soff, len);
         return null;
@@ -963,6 +1049,28 @@ class BEVM {
         // Halt interpreter with no error
         return ExceptionalHaltReason.NONE;
     }
+
+    // Custom Delegate Call 6->1
+    private ExceptionalHaltReason customDelegateCall() {
+        if( FrameUtils.isHookExecution(_frame) && isRedirectFromNativeEntity() )
+            return ExceptionalHaltReason.INVALID_OPERATION;
+
+        // BasicCustomCall.executeChecked
+        if( _sp < 6 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
+        long stipend = popLong();
+        Address to = popAddress();
+        int srcOff = popInt();
+        int srcLen = popInt();
+        int dstOff = popInt();
+        int dstLen = popInt();
+        return _abstractCall(stipend,to,Wei.ZERO,false,srcOff,srcLen,dstOff,dstLen);
+    }
+    private boolean isRedirectFromNativeEntity() {
+        final var updater = (ProxyWorldUpdater) _frame.getWorldUpdater();
+        final var recipient = updater.getHederaAccount(_frame.getRecipientAddress());
+        return recipient.isTokenFacade() || recipient.isScheduleTxnFacade() || recipient.isRegularAccount();
+    }
+
 
     // Revert transaction
     private ExceptionalHaltReason revert() {
@@ -1034,6 +1142,13 @@ class BEVM {
         return push(_gas);
     }
 
+    private ExceptionalHaltReason gasPrice() {
+        var halt = useGas(_gasCalc.getBaseTierGasCost());
+        if( halt!=null ) return halt;
+        final UInt256 gasPrice = (UInt256)_frame.getGasPrice().toBytes();
+        return push(gasPrice);
+    }
+
     private ExceptionalHaltReason noop() {
         var halt = useGas(_gasCalc.getJumpDestOperationGasCost());
         if( halt!=null ) return halt;
@@ -1094,9 +1209,9 @@ class BEVM {
         return base + nwords*_gasCalc.getVeryLowTierGasCost()/*FrontierGasCalculator.MEMORY_WORD_GAS_COST*/;
     }
 
-    private long copyCost(int off, int len) {
+    private long copyCost(int off, int len, int base) {
         int nwords = (len+31)>>5;
-        return 3*nwords+3+ memoryExpansionGasCost(off, len);
+        return 3*nwords+base+ memoryExpansionGasCost(off, len);
     }
 
     // ---------------------
@@ -1393,8 +1508,8 @@ class BEVM {
     // CustomCallOperation
     private ExceptionalHaltReason customCall() {
         if( _sp < 7 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
-        long stipend = popLong(); //0x120EB, 73963
-        Address to = popAddress(); // 0x56df66a04a1667fe3ec0334aab62803786f62f9a
+        long stipend = popLong();
+        Address to = popAddress();
         long val0 = STK0[--_sp], val1 = STK1[_sp], val2 = STK2[_sp], val3 = STK3[_sp];
         Wei value = Wei.wrap(UI256.intern(val0,val1,val2,val3));
         boolean hasValue = (val0 | val1 | val2 | val3) != 0;
@@ -1402,7 +1517,10 @@ class BEVM {
         int srcLen = popInt();
         int dstOff = popInt();
         int dstLen = popInt();
+        return _abstractCall(stipend,to,value,hasValue,srcOff,srcLen,dstOff,dstLen);
+    }
 
+    private ExceptionalHaltReason _abstractCall(long stipend, Address to, Wei value, boolean hasValue, int srcOff, int srcLen, int dstOff, int dstLen ) {
         Account contract = _frame.getWorldUpdater().get(to);
 
         ProxyWorldUpdater updater = (ProxyWorldUpdater) _frame.getWorldUpdater();
@@ -1433,7 +1551,8 @@ class BEVM {
         }
 
         // CallOperation
-        if( _frame.isStatic() && hasValue ) return ExceptionalHaltReason.ILLEGAL_STATE_CHANGE;
+        if( _frame.isStatic() && hasValue )
+            return ExceptionalHaltReason.ILLEGAL_STATE_CHANGE;
 
         // AbstractCallOperation
 
@@ -1457,16 +1576,20 @@ class BEVM {
         if( value.compareTo(_recv.getBalance()) > 0 || _frame.getDepth() >= 1024 )
             // Unwind gas costs, minus child attempt, push LEGACY_FAILURE_STACK_ITEM and null return
             throw new TODO();
-
         Bytes src = _mem.asBytes(srcOff, srcLen);
 
-        // GetCode
+
+        // No contract, so child frame always returns success
         if( contract==null )
-            throw new TODO();
+            return push(1);
+
+        // GetCode
         Code code = _bevm.getCode(contract.getCodeHash(), contract.getCode());
         if( !code.isValid() )
             throw new TODO();
-
+        // No code, so child frame always returns success
+        if( code.getDataSize() == 0 )
+            return push(1);
 
         // ----------------------------
         // child frame is added to frame stack via build method
