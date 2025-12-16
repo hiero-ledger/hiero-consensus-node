@@ -1,10 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.consensus;
+package org.hiero.consensus.round;
 
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
-import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import org.hiero.consensus.hashgraph.ConsensusConfig;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 
 /**
@@ -16,16 +14,6 @@ public final class EventWindowUtils {
      * Private constructor to prevent instantiation.
      */
     private EventWindowUtils() {}
-
-    /**
-     * Same as {@link #createEventWindow(ConsensusSnapshot, int)} but uses the configuration to get the
-     *  {@code roundsNonAncient}.
-     */
-    public static @NonNull EventWindow createEventWindow(
-            @NonNull final ConsensusSnapshot snapshot, @NonNull final Configuration configuration) {
-        return createEventWindow(
-                snapshot, configuration.getConfigData(ConsensusConfig.class).roundsNonAncient());
-    }
 
     /**
      * Creates a new instance of {@link EventWindow} with the specified parameters.
