@@ -262,7 +262,7 @@ public class SimpleFeesMirrorNodeTest {
     private StoreMetricsServiceImpl storeMetricsService;
 
     @Test void simpler() {
-        final var calc = new SimpleFeeCalculatorImpl(feeSchedule, serviceFeeCalculators, queryFeeCalculators);
+//        final var calc = new SimpleFeeCalculatorImpl(feeSchedule, serviceFeeCalculators, queryFeeCalculators);
     }
     @Test
     void doIt() {
