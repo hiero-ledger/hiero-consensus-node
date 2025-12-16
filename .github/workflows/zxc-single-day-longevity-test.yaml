@@ -341,16 +341,16 @@ jobs:
       - name: Compile BN
         run: |
           cd "${{ github.workspace }}"/target_block_node
-          ./gradlew block-node-app:distTar
-          #produces ./block-node/app/build/distributions/block-node-app-0.18.0-SNAPSHOT.tar
+          ./gradlew app:distTar
+          #produces ./block-node/app/build/distributions/app-0.18.0-SNAPSHOT.tar
 
           if [ "${{ inputs.perf_analysis }}" == "true" ]
           then
             mkdir instrumentation
             cd instrumentation
-            tarfile=$(ls -1 ../block-node/app/build/distributions/block-node-app-*.tar)
+            tarfile=$(ls -1 ../block-node/app/build/distributions/app-*.tar)
             tar xf $tarfile
-            cd block-node-app-*
+            cd app-*
             pwd
             sh "${{ github.workspace }}"/performance-analysis-automation/performance_analysis_scripts/instrumentCoverage.sh \
             `find . -type f \( -name 'block*.jar' -o -name 'swirlds*.jar' -o -name 'facility-messaging*.jar' -o -name 'pbj*.jar' \) -print` > BNsources_init.txt 2>&1
@@ -360,9 +360,9 @@ jobs:
             cd ..
 
             rm $tarfile 
-            tar cvf $tarfile block-node-app-*
+            tar cvf $tarfile app-*
 
-            #tar cfz "${{ github.workspace }}"/report/BNinitial_ser.tgz `find block-node-app-* -type f -name '*.ser`
+            #tar cfz "${{ github.workspace }}"/report/BNinitial_ser.tgz `find app-* -type f -name '*.ser`
             #sh "${{ github.workspace }}"/.github/lib/scp.sh "${{ github.workspace }}"/report/BNinitial_ser.tgz /tmp/"BNinitial_ser${{ github.run_number }}".tgz
 
             cd ..
@@ -550,7 +550,7 @@ jobs:
           sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get svc > get_svc.txt
           sh "${{ github.workspace }}"/.github/workflows/support/citr/block_node_env.sh
 
-          BNtarname=$(ls -1 "${{ github.workspace }}"/target_block_node/block-node/app/build/distributions/block-node-app-*.tar)
+          BNtarname=$(ls -1 "${{ github.workspace }}"/target_block_node/block-node/app/build/distributions/app-*.tar)
 
           for i in `sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods | grep 'block-node-' | awk '{print $1}'`
           do
@@ -584,7 +584,7 @@ jobs:
               else
                 sleep 1
                 #sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" exec $i -- bash -c \
-                #  "cd /opt/hiero/block-node/; export JAVA_OPTS=\"-Xms48G -Xmx52G\"; bash ./block-node-app-*/bin/block-node-app > ./logs/block-node.log 2>&1 &"
+                #  "cd /opt/hiero/block-node/; export JAVA_OPTS=\"-Xms48G -Xmx52G\"; bash ./app-*/bin/app > ./logs/block-node.log 2>&1 &"
               fi
           done
           sleep 30
@@ -959,7 +959,7 @@ jobs:
                   "cd /opt/hiero/block-node/; . block_node.env; export BACKFILL_FETCH_BATCH_SIZE=10; export BACKFILL_BLOCK_NODE_SOURCES_PATH=\"/opt/hiero/block-node/backfill/block-node-sources.json\"; \
                   export SERVER_MAX_MESSAGE_SIZE_BYTES=\"4_194_304\"; export MESSAGING_BLOCK_ITEM_QUEUE_SIZE=512; export MESSAGING_BLOCK_NOTIFICATION_QUEUE_SIZE=16; \
                    export JAVA_OPTS=\"-XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/tmp -Xms48G -Xmx52G\"; \
-                   export BLOCK_NODE_EARLIEST_MANAGED_BLOCK=$lastBlock; bash ./block-node-app-*/bin/block-node-app > ./logs/block-node.log 2>&1 &"
+                   export BLOCK_NODE_EARLIEST_MANAGED_BLOCK=$lastBlock; bash ./app-*/bin/app > ./logs/block-node.log 2>&1 &"
               fi
           done
           for i in `sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" get pods | grep 'block-node-' | grep '\-p2\-' | awk '{print $1}'`
@@ -982,7 +982,7 @@ jobs:
                   "cd /opt/hiero/block-node/; . block_node.env; export BACKFILL_FETCH_BATCH_SIZE=10; export BACKFILL_BLOCK_NODE_SOURCES_PATH=\"/opt/hiero/block-node/backfill/block-node-sources.json\"; \
                    export SERVER_MAX_MESSAGE_SIZE_BYTES=\"4_194_304\"; export MESSAGING_BLOCK_ITEM_QUEUE_SIZE=512; export MESSAGING_BLOCK_NOTIFICATION_QUEUE_SIZE=16; \
                    export JAVA_OPTS=\"-XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/tmp -Xms48G -Xmx52G\"; \
-                   export BLOCK_NODE_EARLIEST_MANAGED_BLOCK=$lastBlock; bash ./block-node-app-*/bin/block-node-app > ./logs/block-node.log 2>&1 &" 
+                   export BLOCK_NODE_EARLIEST_MANAGED_BLOCK=$lastBlock; bash ./app-*/bin/app > ./logs/block-node.log 2>&1 &"
               fi
           done
 
