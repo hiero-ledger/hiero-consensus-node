@@ -277,6 +277,8 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
      */
     private final FileServiceImpl fileServiceImpl;
 
+    private final AddressBookServiceImpl addressBookServiceImpl;
+
     /**
      * The block stream service singleton, kept as a field here to reuse information learned
      * during the state migration phase in the later initialization phase.
@@ -493,6 +495,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
                 () -> HapiUtils.toString(version),
                 () -> HapiUtils.toString(hapiVersion));
         fileServiceImpl = new FileServiceImpl();
+        addressBookServiceImpl = new AddressBookServiceImpl();
 
         final Supplier<Configuration> configSupplier = () -> configProvider().getConfiguration();
         this.appContext = new AppContextImpl(
@@ -552,7 +555,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
                         new FeeService(),
                         new CongestionThrottleService(),
                         new NetworkServiceImpl(),
-                        new AddressBookServiceImpl(),
+                        addressBookServiceImpl,
                         new RosterServiceImpl(
                                 this::canAdoptRoster, this::onAdoptRoster, () -> requireNonNull(initState)),
                         PLATFORM_STATE_SERVICE)
@@ -1266,6 +1269,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
                 .tokenServiceImpl(tokenServiceImpl)
                 .consensusServiceImpl(consensusServiceImpl)
                 .scheduleService(scheduleServiceImpl)
+                .addressBookService(addressBookServiceImpl)
                 .initTrigger(trigger)
                 .softwareVersion(version)
                 .self(networkInfo.selfNodeInfo())

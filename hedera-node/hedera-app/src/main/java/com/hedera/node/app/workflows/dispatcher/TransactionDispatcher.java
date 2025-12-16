@@ -158,6 +158,7 @@ public class TransactionDispatcher {
                     TOKEN_AIRDROP,
                     TOKEN_CLAIM_AIRDROP,
                     TOKEN_CANCEL_AIRDROP -> true;
+            case NODE_CREATE, NODE_UPDATE, NODE_DELETE -> true;
             default -> false;
         };
     }
