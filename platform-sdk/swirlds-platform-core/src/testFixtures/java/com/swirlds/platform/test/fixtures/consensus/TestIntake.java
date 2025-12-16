@@ -19,7 +19,6 @@ import com.swirlds.platform.components.EventWindowManager;
 import com.swirlds.platform.components.consensus.ConsensusEngine;
 import com.swirlds.platform.components.consensus.ConsensusEngineOutput;
 import com.swirlds.platform.components.consensus.DefaultConsensusEngine;
-import com.swirlds.platform.consensus.EventWindowUtils;
 import com.swirlds.platform.consensus.SyntheticSnapshot;
 import com.swirlds.platform.event.orphan.DefaultOrphanBuffer;
 import com.swirlds.platform.event.orphan.OrphanBuffer;
@@ -41,6 +40,7 @@ import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.round.EventWindowUtils;
 
 /**
  * Event intake with consensus and shadowgraph, used for testing

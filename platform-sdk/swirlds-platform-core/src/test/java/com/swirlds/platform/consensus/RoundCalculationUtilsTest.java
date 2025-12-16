@@ -2,6 +2,7 @@
 package com.swirlds.platform.consensus;
 
 import org.hiero.consensus.model.event.EventConstants;
+import org.hiero.consensus.round.RoundCalculationUtils;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
