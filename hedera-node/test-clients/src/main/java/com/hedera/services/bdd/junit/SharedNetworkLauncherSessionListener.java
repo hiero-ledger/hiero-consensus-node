@@ -91,6 +91,9 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
         public void testPlanExecutionStarted(@NonNull final TestPlan testPlan) {
             REPEATABLE_KEY_GENERATOR.set(new RepeatableKeyGenerator());
             final boolean hasClprTests = hasTaggedTestNode(testPlan, Set.of(TestTags.CLPR));
+            final boolean clprSystemPropertyEnabled =
+                    Boolean.parseBoolean(System.getProperty("clpr.clprEnabled", "false"));
+            final boolean enableClprOverrides = hasClprTests || clprSystemPropertyEnabled;
 
             // Skip standard setup if any test in the plan uses HapiBlockNode
             if (hasAnnotatedTestNode(testPlan, Set.of(HapiBlockNode.class))) {
@@ -137,24 +140,22 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
                         case REPEATABLE -> EmbeddedNetwork.newSharedNetwork(EmbeddedMode.REPEATABLE);
                     };
             if (network != null) {
-                if (hasClprTests) {
-                    // Ensure CLPR is enabled before nodes start so CLPR suites see NOT_SUPPORTED only when expected
-                    System.setProperty("clpr.clprEnabled", "true");
-                    System.setProperty("clpr.devModeEnabled", "true");
-                    System.setProperty("clpr.publicizeClprEndpoints", "true");
-                    if (network instanceof SubProcessNetwork subProcessNetwork) {
-                        subProcessNetwork.nodes().forEach(node -> subProcessNetwork
-                                .getApplicationPropertyOverrides()
-                                .putIfAbsent(
-                                        node.getNodeId(),
-                                        List.of(
-                                                "clpr.clprEnabled",
-                                                "true",
-                                                "clpr.devModeEnabled",
-                                                "true",
-                                                "clpr.publicizeClprEndpoints",
-                                                "true")));
-                    }
+                if (enableClprOverrides && network instanceof SubProcessNetwork subProcessNetwork) {
+                    subProcessNetwork.nodes().forEach(node -> {
+                        final var overrides = subProcessNetwork.getApplicationPropertyOverrides();
+                        final var existing = overrides.getOrDefault(node.getNodeId(), List.of());
+                        final var updated = new ArrayList<>(existing);
+                        for (int i = 0; i + 1 < updated.size(); i += 2) {
+                            if ("clpr.clprEnabled".equals(updated.get(i))) {
+                                updated.set(i + 1, "true");
+                                overrides.put(node.getNodeId(), List.copyOf(updated));
+                                return;
+                            }
+                        }
+                        updated.add("clpr.clprEnabled");
+                        updated.add("true");
+                        overrides.put(node.getNodeId(), List.copyOf(updated));
+                    });
                 }
                 checkPrOverridesForBlockNodeStreaming(network);
                 network.start();

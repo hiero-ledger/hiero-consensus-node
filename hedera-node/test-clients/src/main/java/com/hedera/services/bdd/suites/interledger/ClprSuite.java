@@ -1,248 +1,258 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.interledger;
 
+import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
+import static com.hedera.services.bdd.junit.hedera.utils.AddressBookUtils.CLASSIC_NODE_NAMES;
+import static com.hedera.services.bdd.junit.hedera.utils.AddressBookUtils.classicFeeCollectorIdFor;
+import static com.hedera.services.bdd.junit.hedera.utils.AddressBookUtils.nodeIdsFrom;
+import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.VALID_CERT;
 import static com.hedera.services.bdd.spec.HapiSpec.customizedHapiTest;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeCreate;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeDelete;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateCandidateRoster;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
+import static java.util.Objects.requireNonNull;
+import static org.assertj.core.api.Assertions.assertThat;
 
-import com.hedera.hapi.node.base.ResponseCodeEnum;
-import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.HapiTest;
+import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.TestTags;
-import com.hedera.services.bdd.junit.hedera.ExternalPath;
-import com.hedera.services.bdd.spec.queries.QueryVerbs;
-import com.hedera.services.bdd.spec.transactions.TxnVerbs;
-import com.hederahashgraph.api.proto.java.Timestamp;
-import java.io.IOException;
+import com.hedera.services.bdd.junit.hedera.HederaNode;
+import com.hedera.services.bdd.junit.support.TestLifecycle;
+import com.hedera.services.bdd.spec.utilops.FakeNmt;
+import com.hedera.services.bdd.suites.HapiSuite;
+import com.hedera.services.bdd.suites.regression.system.LifecycleTest;
+import com.hederahashgraph.api.proto.java.ServiceEndpoint;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
-import org.hiero.hapi.interledger.state.clpr.ClprEndpoint;
-import org.hiero.hapi.interledger.state.clpr.ClprLedgerConfiguration;
-import org.hiero.hapi.interledger.state.clpr.ClprLedgerId;
+import org.hiero.hapi.interledger.state.clpr.protoc.ClprEndpoint;
+import org.hiero.hapi.interledger.state.clpr.protoc.ClprLedgerConfiguration;
 import org.hiero.interledger.clpr.impl.client.ClprClientImpl;
-import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
 @Tag(TestTags.CLPR)
-public class ClprSuite extends AbstractClprSuite {
-    @org.junit.jupiter.api.BeforeEach
-    void initDefaults() {
-        setConfigDefaults();
+@HapiTestLifecycle
+public class ClprSuite implements LifecycleTest {
+    private static final Map<String, String> CLPR_OVERRIDES = Map.of("clpr.clprEnabled", "true");
+    private static final long NODE_ID_TO_REMOVE = 3L;
+    private static final long REPLACEMENT_NODE_ID = 4L;
+    private static final String REPLACEMENT_NODE_NAME = CLASSIC_NODE_NAMES[(int) REPLACEMENT_NODE_ID];
+    private static final Map<String, String> PUBLICIZE_DISABLED = Map.of("clpr.publicizeNetworkAddresses", "false");
+    private static final Map<String, String> PUBLICIZE_ENABLED = Map.of("clpr.publicizeNetworkAddresses", "true");
+
+    @BeforeAll
+    static void beforeAll(final TestLifecycle testLifecycle) {
+        testLifecycle.overrideInClass(CLPR_OVERRIDES);
     }
 
-    private static final Duration CONFIG_APPLY_TIMEOUT = Duration.ofSeconds(10);
-    private static final Duration POLL_DELAY = Duration.ofMillis(200);
-    private static final Duration LOG_WAIT_TIMEOUT = Duration.ofSeconds(30);
-    private static final Duration LOG_POLL_INTERVAL = Duration.ofMillis(250);
-    private static final String ENDPOINT_SUCCESS_PREFIX = "CLPR Endpoint: Submitted configuration";
-    private static final String BOOTSTRAP_PREFIX = "CLPR Endpoint: Bootstrapped local ledger";
-    private static final String FETCH_FAILURE_MESSAGE = "CLPR Endpoint: Failed to fetch local configuration via client";
-    private static final String INVALID_STATUS_TOKEN = "(status=FAIL_INVALID)";
-    private static final String INVALID_BODY_STATUS_TOKEN = "(status=INVALID_TRANSACTION_BODY)";
-
+    @DisplayName("Roster change upgrade refreshes CLPR ledger configuration")
     @HapiTest
-    final Stream<DynamicTest> createsClprLedgerConfig() {
-        final var now = Instant.now();
+    final Stream<DynamicTest> rosterChangeUpgradeRefreshesLedgerConfig() {
+        /*
+         * What this test explicitly verifies:
+         * 1) With clpr.publicizeNetworkAddresses=true (default), the fetched CLPR ledger configuration
+         *    includes one endpoint per roster node, each with a network address and the node’s gRPC
+         *    gateway port (not the gossip port). Certificates must be present and consistent.
+         * 2) Remove one node and add a new node (with a fresh certificate); set
+         *    clpr.publicizeNetworkAddresses=false on all nodes; perform a freeze/upgrade; then fetch
+         *    the configuration. Expectations: same ledgerId, advanced timestamp, new roster size, and
+         *    all endpoints omit network addresses/ports when publicize=false.
+         * 3) Set clpr.publicizeNetworkAddresses=true again; perform another freeze/upgrade; then
+         *    fetch the configuration. Expectations: same ledgerId, advanced timestamp, roster size is
+         *    unchanged, endpoints contain network addresses/ports matching the gRPC gateways for the
+         *    current roster nodes, and certificates remain stable.
+         */
+
+        final AtomicReference<List<HederaNode>> activeNodes = new AtomicReference<>();
+        final AtomicReference<ClprLedgerConfiguration> baselineConfig = new AtomicReference<>();
+        final AtomicReference<ClprLedgerConfiguration> latestConfig = new AtomicReference<>();
         return customizedHapiTest(
-                Map.of("clpr.connectionFrequency", "60000"),
-                TxnVerbs.clprSetLedgerConfig("ledgerId")
-                        .timestamp(Timestamp.newBuilder()
-                                .setSeconds(now.getEpochSecond())
-                                .setNanos(now.getNano())
-                                .build()));
-    }
-
-    @HapiTest
-    @DisplayName("Updates configurations via ClprClientImpl")
-    final Stream<DynamicTest> updatesConfigurationsViaClprClientImpl() {
-        final var ledgerIdString = "clpr-ledger-" + Instant.now().toEpochMilli();
-        final var ledgerId = ClprLedgerId.newBuilder()
-                .ledgerId(Bytes.wrap(ledgerIdString.getBytes(StandardCharsets.UTF_8)))
-                .build();
-        final Instant baseInstant = Instant.now();
-        final Instant firstInstant = baseInstant.plusSeconds(1);
-        final Instant secondInstant = firstInstant.plusSeconds(1);
-        final Instant thirdInstant = secondInstant.plusSeconds(1);
-
-        return customizedHapiTest(
-                Map.of("clpr.connectionFrequency", "60000"),
-                withOpContext((spec, log) -> {
-                    final var node = spec.targetNetworkOrThrow().nodes().getFirst();
-                    final ServiceEndpoint serviceEndpoint;
-                    try {
-                        final var addressBytes =
-                                InetAddress.getByName(node.getHost()).getAddress();
-                        final int port = node.getGrpcPort();
-                        serviceEndpoint = ServiceEndpoint.newBuilder()
-                                .ipAddressV4(Bytes.wrap(addressBytes))
-                                .port(port)
-                                .build();
-                    } catch (final UnknownHostException e) {
-                        throw new IllegalStateException("Unable to resolve node host for CLPR endpoint", e);
-                    }
-                    final var payerAccountId = node.getAccountId();
-                    final var endpoints = List.of(ClprEndpoint.newBuilder()
-                            .endpoint(serviceEndpoint)
-                            .signingCertificate(Bytes.wrap("test-cert".getBytes(StandardCharsets.UTF_8)))
-                            .build());
-
-                    try (var client = new ClprClientImpl(serviceEndpoint)) {
-                        Assertions.assertNull(client.getConfiguration(ledgerId));
-
-                        final var firstConfig = buildConfiguration(ledgerId, firstInstant, endpoints);
-                        Assertions.assertEquals(
-                                ResponseCodeEnum.OK,
-                                client.setConfiguration(payerAccountId, node.getAccountId(), firstConfig));
-                        final var storedFirst = awaitConfiguration(client, ledgerId, firstConfig);
-                        assertConfigurationAtLeast(firstConfig, storedFirst);
-
-                        final var secondConfig = buildConfiguration(ledgerId, secondInstant, endpoints);
-                        Assertions.assertEquals(
-                                ResponseCodeEnum.OK,
-                                client.setConfiguration(payerAccountId, node.getAccountId(), secondConfig));
-                        final var storedSecond = awaitConfiguration(client, ledgerId, secondConfig);
-                        assertConfigurationAtLeast(secondConfig, storedSecond);
-
-                        final var thirdConfig = buildConfiguration(ledgerId, thirdInstant, endpoints);
-                        Assertions.assertEquals(
-                                ResponseCodeEnum.OK,
-                                client.setConfiguration(payerAccountId, node.getAccountId(), thirdConfig));
-                        final var storedThird = awaitConfiguration(client, ledgerId, thirdConfig);
-                        assertConfigurationAtLeast(thirdConfig, storedThird);
-                    } catch (final InterruptedException e) {
-                        Thread.currentThread().interrupt();
-                        throw new IllegalStateException("Interrupted while awaiting CLPR configuration", e);
-                    }
+                Map.of(),
+                withOpContext((spec, opLog) -> {
+                    final var nodes =
+                            List.copyOf(spec.subProcessNetworkOrThrow().nodes());
+                    assertThat(nodes)
+                            .as("Stage 1 expects a four-node subprocess network")
+                            .hasSize(4);
+                    activeNodes.set(nodes);
                 }),
-                sourcing(() -> QueryVerbs.getLedgerConfig(ledgerIdString).hasTimestamp(thirdInstant.getEpochSecond())));
+                withOpContext((spec, opLog) -> {
+                    final var nodes = requireNonNull(
+                            activeNodes.get(), "Active node metadata must be captured before querying CLPR state");
+                    final var config = fetchLedgerConfiguration(nodes);
+                    baselineConfig.set(config);
+                    latestConfig.set(config);
+                    final var endpoints = config.getEndpointsList();
+                    assertThat(endpoints)
+                            .as("CLPR ledger configuration should expose one endpoint per node")
+                            .hasSize(nodes.size());
+                    nodes.forEach(node -> assertThat(endpoints)
+                            .as("Expected CLPR endpoint for node {}", node.getNodeId())
+                            .anySatisfy(endpoint -> assertEndpointMatchesNode(endpoint, node)));
+                }),
+                nodeDelete(Long.toString(NODE_ID_TO_REMOVE)),
+                nodeCreate(REPLACEMENT_NODE_NAME, classicFeeCollectorIdFor(REPLACEMENT_NODE_ID))
+                        .adminKey(HapiSuite.DEFAULT_PAYER)
+                        .description(REPLACEMENT_NODE_NAME)
+                        .withAvailableSubProcessPorts()
+                        .gossipCaCertificate(VALID_CERT),
+                prepareFakeUpgrade(),
+                validateCandidateRoster(addressBook -> assertThat(nodeIdsFrom(addressBook))
+                        .as("Roster should replace node {}/{}", NODE_ID_TO_REMOVE, REPLACEMENT_NODE_ID)
+                        .contains(REPLACEMENT_NODE_ID)
+                        .contains(0L, 1L, 2L)
+                        .doesNotContain(NODE_ID_TO_REMOVE)),
+                upgradeToNextConfigVersion(
+                        PUBLICIZE_DISABLED,
+                        FakeNmt.removeNode(byNodeId(NODE_ID_TO_REMOVE)),
+                        FakeNmt.addNode(REPLACEMENT_NODE_ID)),
+                withOpContext((spec, opLog) -> {
+                    final var nodes =
+                            List.copyOf(spec.subProcessNetworkOrThrow().nodes());
+                    assertThat(nodes)
+                            .as("Roster change should keep a four-node network")
+                            .hasSize(4);
+                    assertThat(nodes.stream().map(HederaNode::getNodeId).toList())
+                            .as("Node {} should be replaced by {}", NODE_ID_TO_REMOVE, REPLACEMENT_NODE_ID)
+                            .doesNotContain(NODE_ID_TO_REMOVE)
+                            .contains(REPLACEMENT_NODE_ID);
+                    activeNodes.set(nodes);
+                    final var config = fetchLedgerConfiguration(nodes);
+                    final var baseline = requireNonNull(baselineConfig.get(), "Baseline configuration required");
+                    assertLedgerIdStable(baseline, config);
+                    assertTimestampAdvanced(baseline, config);
+                    assertThat(config.getEndpointsList())
+                            .as("CLPR endpoints should omit network addresses when publicize=false")
+                            .hasSize(nodes.size())
+                            .allSatisfy(endpoint -> {
+                                assertThat(endpoint.getSigningCertificate())
+                                        .as("CLPR endpoints must retain certificates")
+                                        .isNotEmpty();
+                                assertThat(endpoint.hasEndpoint())
+                                        .as("publicize=false should omit service endpoints")
+                                        .isFalse();
+                            });
+                    latestConfig.set(config);
+                }),
+                prepareFakeUpgrade(),
+                upgradeToNextConfigVersion(PUBLICIZE_ENABLED),
+                withOpContext((spec, opLog) -> {
+                    final var nodes =
+                            List.copyOf(spec.subProcessNetworkOrThrow().nodes());
+                    assertThat(nodes)
+                            .as("Publicize enablement should keep the four-node roster intact")
+                            .hasSize(4);
+                    assertThat(nodes.stream().map(HederaNode::getNodeId).toList())
+                            .as("Node {} should remain replaced by {}", NODE_ID_TO_REMOVE, REPLACEMENT_NODE_ID)
+                            .doesNotContain(NODE_ID_TO_REMOVE)
+                            .contains(REPLACEMENT_NODE_ID);
+                    activeNodes.set(nodes);
+                    final var config = fetchLedgerConfiguration(nodes);
+                    final var priorConfig = requireNonNull(latestConfig.get(), "Latest configuration required");
+                    assertLedgerIdStable(priorConfig, config);
+                    assertTimestampAdvanced(priorConfig, config);
+                    final var endpoints = config.getEndpointsList();
+                    assertThat(endpoints)
+                            .as("publicize=true should expose endpoint metadata for each node")
+                            .hasSize(nodes.size());
+                    nodes.forEach(node -> assertThat(endpoints)
+                            .as("Expected CLPR endpoint with network address for node {}", node.getNodeId())
+                            .anySatisfy(endpoint -> assertEndpointMatchesNode(endpoint, node)));
+                    latestConfig.set(config);
+                }));
     }
 
-    private static ClprLedgerConfiguration awaitConfiguration(
-            final ClprClientImpl client, final ClprLedgerId ledgerId, final ClprLedgerConfiguration expected)
-            throws InterruptedException {
-        final long deadlineNanos = System.nanoTime() + CONFIG_APPLY_TIMEOUT.toNanos();
-        ClprLedgerConfiguration current;
-        System.out.printf(
-                "CLPR await: expecting ledger %s ts %s endpoints %s%n",
-                expected.ledgerId().ledgerId(), expected.timestamp().seconds(), expected.endpoints());
-        String lastObserved = null;
-        while (true) {
-            current = client.getConfiguration(ledgerId);
-            final String summary = current == null ? "null" : summarize(current);
-            if (!summary.equals(lastObserved)) {
-                System.out.printf("CLPR await: observed %s%n", summary);
-                lastObserved = summary;
-            }
-            if (isAtLeastExpected(expected, current)) {
-                return current;
-            }
-            if (System.nanoTime() >= deadlineNanos) {
-                throw new IllegalStateException("Timed out waiting for CLPR configuration update");
-            }
-            Thread.sleep(POLL_DELAY.toMillis());
-        }
-    }
-
-    private static boolean isAtLeastExpected(
-            final ClprLedgerConfiguration expected, final ClprLedgerConfiguration current) {
-        if (current == null) {
-            return false;
-        }
-        if (!expected.ledgerId().equals(current.ledgerId())) {
-            return false;
-        }
-        if (!expected.endpoints().equals(current.endpoints())) {
-            return false;
-        }
-        final var expectedTs = expected.timestamp();
-        final var currentTs = current.timestamp();
-        return currentTs.seconds() > expectedTs.seconds()
-                || (currentTs.seconds() == expectedTs.seconds() && currentTs.nanos() >= expectedTs.nanos());
-    }
-
-    private static String summarize(final ClprLedgerConfiguration config) {
-        return "ledger="
-                + config.ledgerId().ledgerId()
-                + " ts="
-                + config.timestamp().seconds()
-                + "."
-                + config.timestamp().nanos()
-                + " endpoints="
-                + config.endpoints();
-    }
-
-    private static void assertConfigurationAtLeast(
-            final ClprLedgerConfiguration expected, final ClprLedgerConfiguration actual) {
-        Assertions.assertNotNull(actual, "CLPR configuration not present");
-        Assertions.assertEquals(expected.ledgerId(), actual.ledgerId(), "ledgerId mismatch");
-        Assertions.assertEquals(expected.endpoints(), actual.endpoints(), "endpoints mismatch");
-        final var expectedTs = expected.timestamp();
-        final var actualTs = actual.timestamp();
-        Assertions.assertTrue(
-                actualTs.seconds() > expectedTs.seconds()
-                        || (actualTs.seconds() == expectedTs.seconds() && actualTs.nanos() >= expectedTs.nanos()),
-                "timestamp did not advance to at least expected");
-    }
-
-    private static ClprLedgerConfiguration buildConfiguration(
-            final ClprLedgerId ledgerId, final Instant instant, final List<ClprEndpoint> endpoints) {
-        return ClprLedgerConfiguration.newBuilder()
-                .ledgerId(ledgerId)
-                .timestamp(com.hedera.hapi.node.base.Timestamp.newBuilder()
-                        .seconds(instant.getEpochSecond())
-                        .nanos(instant.getNano())
-                        .build())
-                .endpoints(endpoints)
-                .build();
-    }
-
-    private static void awaitLogContains(
-            final com.hedera.services.bdd.spec.HapiSpec spec, final String substring, final Duration timeout)
-            throws InterruptedException {
-        final Path logPath = swirldsLog(spec);
-        final long deadlineNanos = System.nanoTime() + timeout.toNanos();
-        while (System.nanoTime() < deadlineNanos) {
-            if (Files.exists(logPath)) {
-                try {
-                    if (Files.readString(logPath, StandardCharsets.UTF_8).contains(substring)) {
-                        return;
-                    }
-                } catch (final IOException e) {
-                    throw new IllegalStateException("Failed reading log file " + logPath, e);
+    private static ClprLedgerConfiguration fetchLedgerConfiguration(final List<HederaNode> nodes) {
+        final var deadline = Instant.now().plus(Duration.ofMinutes(1));
+        do {
+            for (final var node : nodes) {
+                final var config = tryFetchLedgerConfiguration(node);
+                if (config != null) {
+                    return config;
                 }
             }
-            Thread.sleep(LOG_POLL_INTERVAL.toMillis());
-        }
-        throw new IllegalStateException("Timed out waiting for log entry '" + substring + "' in " + logPath);
-    }
-
-    private static void assertLogDoesNotContain(
-            final com.hedera.services.bdd.spec.HapiSpec spec, final String substring) {
-        final Path logPath = swirldsLog(spec);
-        if (!Files.exists(logPath)) {
-            return;
-        }
-        try {
-            if (Files.readString(logPath, StandardCharsets.UTF_8).contains(substring)) {
-                throw new IllegalStateException("Observed unexpected log entry '" + substring + "' in " + logPath);
+            try {
+                Thread.sleep(1_000L);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                break;
             }
-        } catch (final IOException e) {
-            throw new IllegalStateException("Failed reading log file " + logPath, e);
+        } while (Instant.now().isBefore(deadline));
+        throw new IllegalStateException("Unable to fetch CLPR ledger configuration from any node");
+    }
+
+    private static void assertLedgerIdStable(
+            final ClprLedgerConfiguration baseline, final ClprLedgerConfiguration candidate) {
+        requireNonNull(candidate);
+        final var expectedLedgerId = baseline.getLedgerId().getLedgerId();
+        assertThat(candidate.getLedgerId().getLedgerId())
+                .as("LedgerId must remain stable across roster changes")
+                .isEqualTo(expectedLedgerId);
+    }
+
+    private static void assertTimestampAdvanced(
+            final ClprLedgerConfiguration baseline, final ClprLedgerConfiguration candidate) {
+        final var baselineInstant = Instant.ofEpochSecond(
+                baseline.getTimestamp().getSeconds(), baseline.getTimestamp().getNanos());
+        final var candidateInstant = Instant.ofEpochSecond(
+                candidate.getTimestamp().getSeconds(), candidate.getTimestamp().getNanos());
+        assertThat(candidateInstant)
+                .as("Ledger configuration timestamp must advance after roster change")
+                .isAfter(baselineInstant);
+    }
+
+    private static ClprLedgerConfiguration tryFetchLedgerConfiguration(final HederaNode node) {
+        try {
+            final var pbjEndpoint = com.hedera.hapi.node.base.ServiceEndpoint.newBuilder()
+                    .ipAddressV4(
+                            Bytes.wrap(InetAddress.getByName(node.getHost()).getAddress()))
+                    .port(node.getGrpcPort())
+                    .build();
+            final var client = new ClprClientImpl(pbjEndpoint);
+            final var pbjConfig = client.getConfiguration();
+            if (pbjConfig == null) {
+                return null;
+            }
+            final var configBytes =
+                    org.hiero.hapi.interledger.state.clpr.ClprLedgerConfiguration.PROTOBUF.toBytes(pbjConfig);
+            return ClprLedgerConfiguration.parseFrom(configBytes.toByteArray());
+        } catch (UnknownHostException | com.google.protobuf.InvalidProtocolBufferException e) {
+            throw new IllegalStateException("Unable to fetch CLPR ledger configuration", e);
         }
     }
 
-    private static Path swirldsLog(final com.hedera.services.bdd.spec.HapiSpec spec) {
-        return spec.targetNetworkOrThrow().nodes().getFirst().getExternalPath(ExternalPath.SWIRLDS_LOG);
+    private static void assertEndpointMatchesNode(final ClprEndpoint endpoint, final HederaNode node) {
+        assertThat(endpoint.hasEndpoint())
+                .as("Endpoint metadata should include a service endpoint")
+                .isTrue();
+        final var serviceEndpoint = endpoint.getEndpoint();
+        assertThat(endpoint.getSigningCertificate().isEmpty())
+                .as("CLPR endpoints must advertise a signing certificate for node {}", node.getNodeId())
+                .isFalse();
+        assertThat(serviceEndpoint.getPort())
+                .as("CLPR endpoint should use node {} gRPC port", node.getNodeId())
+                .isEqualTo(node.getGrpcPort());
+        assertThat(ipV4Of(serviceEndpoint))
+                .as("CLPR endpoint must advertise the node {} host", node.getNodeId())
+                .isEqualTo(node.getHost());
+    }
+
+    private static String ipV4Of(final ServiceEndpoint endpoint) {
+        try {
+            return InetAddress.getByAddress(endpoint.getIpAddressV4().toByteArray())
+                    .getHostAddress();
+        } catch (UnknownHostException e) {
+            throw new IllegalStateException("CLPR endpoint carried an invalid IPv4 address", e);
+        }
     }
 }

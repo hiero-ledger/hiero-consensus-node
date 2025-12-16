@@ -41,6 +41,7 @@ import com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.OnlyRoster;
 import com.hedera.services.bdd.spec.HapiPropertySource;
 import com.hedera.services.bdd.spec.TargetNetworkType;
 import com.hedera.services.bdd.spec.infrastructure.HapiClients;
+import com.hedera.services.bdd.spec.props.MapPropertySource;
 import com.hedera.services.bdd.spec.utilops.FakeNmt;
 import com.hederahashgraph.api.proto.java.ServiceEndpoint;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -56,6 +57,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.SplittableRandom;
@@ -110,6 +112,7 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
     private final List<Consumer<HederaNetwork>> onReadyListeners = new ArrayList<>();
     private BlockNodeMode blockNodeMode = BlockNodeMode.NONE;
     private final List<SimulatedBlockNodeServer> simulatedBlockNodes = new ArrayList<>();
+    private Map<String, String> bootstrapOverrides;
 
     @Nullable
     private UnaryOperator<Network> overrideCustomizer = null;
@@ -194,7 +197,7 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
         if (NetworkTargetingExtension.SHARED_NETWORK.get() != null) {
             throw new UnsupportedOperationException("Only one shared network allowed per launcher session");
         }
-        final var sharedNetwork = liveNetwork(networkName, size, shard, realm);
+        final var sharedNetwork = liveNetwork(networkName, size, shard, realm, -1);
         NetworkTargetingExtension.SHARED_NETWORK.set(sharedNetwork);
         return sharedNetwork;
     }
@@ -210,8 +213,17 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
      */
     public static synchronized SubProcessNetwork newIsolatedNetwork(
             @NonNull final String networkName, final int size, final long shard, final long realm) {
+        return newIsolatedNetwork(networkName, size, shard, realm, -1);
+    }
+
+    public static synchronized SubProcessNetwork newIsolatedNetwork(
+            @NonNull final String networkName,
+            final int size,
+            final long shard,
+            final long realm,
+            final int firstGrpcPort) {
         requireNonNull(networkName);
-        return liveNetwork(networkName, size, shard, realm);
+        return liveNetwork(networkName, size, shard, realm, firstGrpcPort);
     }
 
     /**
@@ -230,8 +242,9 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
      */
     @Override
     public void start() {
+        final var serviceEndpoints = currentGrpcServiceEndpoints();
         nodes.forEach(node -> {
-            node.initWorkingDir(configTxt);
+            node.initWorkingDir(configTxt, serviceEndpoints);
             executePostInitWorkingDirActions(node);
             node.start();
         });
@@ -417,7 +430,7 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
         nodes.add(insertionPoint, node);
         configTxt = configTxtForLocal(
                 networkName, nodes, nextInternalGossipPort, nextExternalGossipPort, latestCandidateWeights());
-        nodes.get(insertionPoint).initWorkingDir(configTxt);
+        nodes.get(insertionPoint).initWorkingDir(configTxt, currentGrpcServiceEndpoints());
         if (blockNodeMode.equals(BlockNodeMode.SIMULATOR)) {
             executePostInitWorkingDirActions(node);
         }
@@ -449,9 +462,20 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
         return endpointFor(nextGrpcPort + (int) nextNodeId * 2);
     }
 
+    private Map<Long, com.hedera.hapi.node.base.ServiceEndpoint> currentGrpcServiceEndpoints() {
+        return nodes().stream()
+                .collect(toMap(
+                        HederaNode::getNodeId,
+                        node -> HapiPropertySource.asServiceEndpoint(node.getHost() + ":" + node.getGrpcPort())));
+    }
+
     @Override
     protected HapiPropertySource networkOverrides() {
-        return WorkingDirUtils.hapiTestStartupProperties();
+        final var baseProperties = WorkingDirUtils.hapiTestStartupProperties();
+        if (bootstrapOverrides == null || bootstrapOverrides.isEmpty()) {
+            return baseProperties;
+        }
+        return HapiPropertySource.inPriorityOrder(new MapPropertySource(bootstrapOverrides), baseProperties);
     }
 
     /**
@@ -462,11 +486,19 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
      * @param size the number of nodes in the network
      * @return the network
      */
-    static synchronized SubProcessNetwork liveNetwork(
-            @NonNull final String name, final int size, final long shard, final long realm) {
+    private static synchronized SubProcessNetwork liveNetwork(
+            @NonNull final String name,
+            final int size,
+            final long shard,
+            final long realm,
+            final int firstGrpcPortOverride) {
         final int blockSize = Math.max(size, MAX_NODES_PER_NETWORK);
-        if (!nextPortsInitialized) {
-            initializeNextPortsForNetwork(blockSize);
+        if (!nextPortsInitialized || firstGrpcPortOverride > 0) {
+            if (firstGrpcPortOverride > 0) {
+                initializeNextPortsForNetwork(blockSize, firstGrpcPortOverride);
+            } else {
+                initializeNextPortsForNetwork(blockSize);
+            }
         }
         final int currentFirstGrpcPort = nextGrpcPort;
         final var network = new SubProcessNetwork(
@@ -508,7 +540,7 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
     private void refreshOverrideNetworks(@NonNull final ReassignPorts reassignPorts) {
         log.info("Refreshing override networks for '{}' - \n{}", name(), configTxt);
         nodes.forEach(node -> {
-            var overrideNetwork = WorkingDirUtils.networkFrom(configTxt, OnlyRoster.NO);
+            var overrideNetwork = WorkingDirUtils.networkFrom(configTxt, OnlyRoster.NO, currentGrpcServiceEndpoints());
             if (overrideCustomizer != null) {
                 // Apply the override customizer to the network
                 overrideNetwork = overrideCustomizer.apply(overrideNetwork);
@@ -532,14 +564,14 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
                 final var nodePorts = overrideNetwork.nodeMetadata().stream()
                         .map(NodeMetadata::rosterEntryOrThrow)
                         .collect(toMap(RosterEntry::nodeId, RosterEntry::gossipEndpoint));
+                final var updatedMetadata = genesisNetwork.nodeMetadata().stream()
+                        .map(metadata -> withReassignedPorts(
+                                metadata,
+                                nodePorts.get(metadata.rosterEntryOrThrow().nodeId())))
+                        .toList();
                 final var updatedNetwork = genesisNetwork
                         .copyBuilder()
-                        .nodeMetadata(genesisNetwork.nodeMetadata().stream()
-                                .map(metadata -> withReassignedPorts(
-                                        metadata,
-                                        nodePorts.get(
-                                                metadata.rosterEntryOrThrow().nodeId())))
-                                .toList())
+                        .nodeMetadata(updatedMetadata)
                         .build();
                 try {
                     Files.writeString(genesisNetworkPath, Network.JSON.toJSON(updatedNetwork));
@@ -815,5 +847,13 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
 
     public Map<Long, List<String>> getApplicationPropertyOverrides() {
         return applicationPropertyOverrides;
+    }
+
+    public void addBootstrapOverrides(@NonNull final Map<String, String> overrides) {
+        requireNonNull(overrides);
+        if (bootstrapOverrides == null) {
+            bootstrapOverrides = new LinkedHashMap<>();
+        }
+        bootstrapOverrides.putAll(overrides);
     }
 }

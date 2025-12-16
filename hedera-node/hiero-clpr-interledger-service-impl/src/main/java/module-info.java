@@ -20,6 +20,7 @@ module org.hiero.interledger.clpr.impl {
     requires com.hedera.pbj.runtime;
     requires com.swirlds.metrics.api;
     requires com.swirlds.state.impl;
+    requires org.hiero.consensus.utility;
     requires io.helidon.common.tls;
     requires org.apache.logging.log4j;
     requires static transitive com.github.spotbugs.annotations;

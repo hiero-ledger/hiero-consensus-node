@@ -24,7 +24,7 @@ import org.hiero.hapi.interledger.clpr.protoc.ClprSetLedgerConfigurationTransact
 import org.hiero.hapi.interledger.state.clpr.ClprEndpoint;
 import org.hiero.hapi.interledger.state.clpr.ClprLedgerConfiguration;
 import org.hiero.hapi.interledger.state.clpr.ClprLedgerId;
-import org.hiero.interledger.clpr.impl.ClprStateProofUtils;
+import org.hiero.interledger.clpr.ClprStateProofUtils;
 
 public class HapiSetLedgerConfig extends HapiTxnOp<HapiSetLedgerConfig> {
     static final Logger log = LogManager.getLogger(HapiSetLedgerConfig.class);
@@ -82,7 +82,7 @@ public class HapiSetLedgerConfig extends HapiTxnOp<HapiSetLedgerConfig> {
                 .build();
 
         // Wrap it in a dev-mode state proof using shared helper, then convert to protoc for the txn
-        final var pbjProof = ClprStateProofUtils.buildStateProof(pbjConfig);
+        final var pbjProof = ClprStateProofUtils.buildLocalClprStateProofWrapper(pbjConfig);
         final var stateProof = com.hedera.hapi.block.stream.protoc.StateProof.parseFrom(
                 com.hedera.hapi.block.stream.StateProof.PROTOBUF
                         .toBytes(pbjProof)

@@ -21,8 +21,8 @@ import javax.inject.Inject;
 import org.hiero.hapi.interledger.clpr.ClprGetLedgerConfigurationQuery;
 import org.hiero.hapi.interledger.clpr.ClprGetLedgerConfigurationResponse;
 import org.hiero.hapi.interledger.state.clpr.ClprLedgerId;
+import org.hiero.interledger.clpr.ClprStateProofUtils;
 import org.hiero.interledger.clpr.impl.ClprStateProofManager;
-import org.hiero.interledger.clpr.impl.ClprStateProofUtils;
 
 /**
  * Handles the {@link ClprGetLedgerConfigurationQuery} to retrieve the configuration of a CLPR ledger.

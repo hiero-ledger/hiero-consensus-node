@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.junit.extensions;
 
-import static com.hedera.services.bdd.junit.extensions.ExtensionUtils.hapiTestMethodOf;
 import static com.hedera.services.bdd.spec.HapiPropertySource.getConfigRealm;
 import static com.hedera.services.bdd.spec.HapiPropertySource.getConfigShard;
 
@@ -13,6 +12,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -36,15 +36,11 @@ public class MultiNetworkExtension implements BeforeEachCallback, AfterEachCallb
             ExtensionContext.Namespace.create(MultiNetworkExtension.class);
     private static final String RESOURCES_KEY = "multiNetworks";
     private static final String PARAM_INDEXES_KEY = "networkParameterIndexes";
-    private static final String PRIOR_CLPR_ENABLE_KEY = "priorClprEnable";
     private static final Duration STARTUP_TIMEOUT = Duration.ofMinutes(5);
 
     @Override
     public void beforeEach(@NonNull final ExtensionContext extensionContext) {
         findAnnotation(extensionContext).ifPresent(annotation -> {
-            // Multi-network suites should not start the CLPR service; disable it for the duration of the test.
-            store(extensionContext).put(PRIOR_CLPR_ENABLE_KEY, System.getProperty("clpr.clprEnabled"));
-            System.setProperty("clpr.clprEnabled", "false");
             final var networks = startNetworks(annotation.networks());
             store(extensionContext).put(RESOURCES_KEY, networks);
             store(extensionContext)
@@ -66,12 +62,6 @@ public class MultiNetworkExtension implements BeforeEachCallback, AfterEachCallb
             }
         }
         store(extensionContext).remove(PARAM_INDEXES_KEY);
-        final var priorClprEnable = (String) store(extensionContext).remove(PRIOR_CLPR_ENABLE_KEY);
-        if (priorClprEnable == null) {
-            System.clearProperty("clpr.clprEnabled");
-        } else {
-            System.setProperty("clpr.clprEnabled", priorClprEnable);
-        }
     }
 
     @Override
@@ -117,12 +107,16 @@ public class MultiNetworkExtension implements BeforeEachCallback, AfterEachCallb
 
         final List<SubProcessNetwork> networks = new ArrayList<>();
         for (final var config : networkConfigs) {
-            final var shard = perNetworkShard(config.name());
-            final var realm = perNetworkRealm(config.name());
-            final var network = SubProcessNetwork.newIsolatedNetwork(config.name(), config.size(), shard, realm);
-            // Disable CLPR in multi-network subprocesses to avoid competing CLPR endpoints/ports
+            final var shard = config.shard() >= 0 ? config.shard() : getConfigShard();
+            final var realm = config.realm() >= 0 ? config.realm() : getConfigRealm();
+            final var firstGrpcPort = config.firstGrpcPort() > 0 ? config.firstGrpcPort() : -1;
+            final var network =
+                    SubProcessNetwork.newIsolatedNetwork(config.name(), config.size(), shard, realm, firstGrpcPort);
+            final var bootstrapOverrides = buildBootstrapOverrides(config);
+            network.addBootstrapOverrides(bootstrapOverrides);
+            final var nodeOverrides = flattenOverrides(bootstrapOverrides);
             for (long nodeId = 0; nodeId < config.size(); nodeId++) {
-                network.getApplicationPropertyOverrides().put(nodeId, List.of("clpr.clprEnabled", "false"));
+                network.getApplicationPropertyOverrides().put(nodeId, nodeOverrides);
             }
             networks.add(network);
         }
@@ -170,18 +164,9 @@ public class MultiNetworkExtension implements BeforeEachCallback, AfterEachCallb
         return indexes;
     }
 
-    private long perNetworkShard(@NonNull final String networkName) {
-        final var override = System.getProperty("hapi.spec.multinet." + networkName + ".shard");
-        return override != null ? Long.parseLong(override) : getConfigShard();
-    }
-
-    private long perNetworkRealm(@NonNull final String networkName) {
-        final var override = System.getProperty("hapi.spec.multinet." + networkName + ".realm");
-        return override != null ? Long.parseLong(override) : getConfigRealm();
-    }
-
     private Optional<MultiNetworkHapiTest> findAnnotation(@NonNull final ExtensionContext extensionContext) {
-        final var methodAnnotation = hapiTestMethodOf(extensionContext)
+        final var methodAnnotation = extensionContext
+                .getTestMethod()
                 .map(method -> method.getAnnotation(MultiNetworkHapiTest.class))
                 .orElse(null);
         if (methodAnnotation != null) {
@@ -192,5 +177,25 @@ public class MultiNetworkExtension implements BeforeEachCallback, AfterEachCallb
 
     private ExtensionContext.Store store(@NonNull final ExtensionContext extensionContext) {
         return extensionContext.getStore(NAMESPACE);
+    }
+
+    private Map<String, String> buildBootstrapOverrides(@NonNull final Network config) {
+        final Map<String, String> overrides = new LinkedHashMap<>();
+        overrides.put("clpr.clprEnabled", "false");
+        if (config.setupOverrides().length > 0) {
+            for (final var override : config.setupOverrides()) {
+                overrides.put(override.key(), override.value());
+            }
+        }
+        return Map.copyOf(overrides);
+    }
+
+    private List<String> flattenOverrides(@NonNull final Map<String, String> overrides) {
+        final List<String> flattened = new ArrayList<>(overrides.size() * 2);
+        overrides.forEach((key, value) -> {
+            flattened.add(key);
+            flattened.add(value);
+        });
+        return List.copyOf(flattened);
     }
 }

@@ -19,9 +19,9 @@ import org.hiero.hapi.interledger.clpr.ClprSetLedgerConfigurationTransactionBody
 import org.hiero.hapi.interledger.state.clpr.ClprLedgerConfiguration;
 import org.hiero.hapi.interledger.state.clpr.ClprLedgerId;
 import org.hiero.interledger.clpr.ClprService;
+import org.hiero.interledger.clpr.ClprStateProofUtils;
 import org.hiero.interledger.clpr.impl.ClprStateProofManager;
-import org.hiero.interledger.clpr.impl.ClprStateProofUtils;
-import org.hiero.interledger.clpr.impl.schemas.V0650ClprSchema;
+import org.hiero.interledger.clpr.impl.schemas.V0700ClprSchema;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -48,8 +48,8 @@ class ClprStateProofManagerTest extends ClprTestBase {
         return new com.swirlds.state.lifecycle.StateMetadata<>(
                 ClprService.NAME,
                 com.swirlds.state.lifecycle.StateDefinition.onDisk(
-                        V0650ClprSchema.CLPR_LEDGER_CONFIGURATIONS_STATE_ID,
-                        V0650ClprSchema.CLPR_LEDGER_CONFIGURATIONS_STATE_KEY,
+                        V0700ClprSchema.CLPR_LEDGER_CONFIGURATIONS_STATE_ID,
+                        V0700ClprSchema.CLPR_LEDGER_CONFIGURATIONS_STATE_KEY,
                         ClprLedgerId.PROTOBUF,
                         ClprLedgerConfiguration.PROTOBUF,
                         50_000L));
@@ -97,7 +97,7 @@ class ClprStateProofManagerTest extends ClprTestBase {
 
     @Test
     void validateStateProofReturnsTrueForValidProof() {
-        final var stateProof = buildStateProof(remoteClprConfig);
+        final var stateProof = buildLocalClprStateProofWrapper(remoteClprConfig);
         final var txn = validTransaction(stateProof);
 
         assertTrue(manager.validateStateProof(txn));
@@ -124,11 +124,11 @@ class ClprStateProofManagerTest extends ClprTestBase {
 
     private VirtualMapState buildMerkleStateWithConfigurations(
             final java.util.Map<ClprLedgerId, ClprLedgerConfiguration> configurations) {
-        final var state = VirtualMapStateTestUtils.createTestStateWithLabel(ClprService.NAME);
+        final var state = VirtualMapStateTestUtils.createTestState();
         state.initializeState(ledgerConfigStateMetadata());
         final var writableStates = state.getWritableStates(ClprService.NAME);
         final var writableConfigurations = writableStates.<ClprLedgerId, ClprLedgerConfiguration>get(
-                V0650ClprSchema.CLPR_LEDGER_CONFIGURATIONS_STATE_ID);
+                V0700ClprSchema.CLPR_LEDGER_CONFIGURATIONS_STATE_ID);
         configurations.forEach(writableConfigurations::put);
         if (writableStates instanceof CommittableWritableStates committableStates) {
             committableStates.commit();

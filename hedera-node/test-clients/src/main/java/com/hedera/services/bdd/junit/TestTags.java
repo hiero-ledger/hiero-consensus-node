@@ -9,6 +9,9 @@ public class TestTags {
 
     public static final String MATS = "MATS";
 
+    public static final String CLPR = "CLPR";
+    public static final String MULTINETWORK = "MULTINETWORK";
+
     public static final String CRYPTO = "CRYPTO";
     public static final String SMART_CONTRACT = "SMART_CONTRACT";
     public static final String LONG_RUNNING = "LONG_RUNNING";
@@ -16,8 +19,6 @@ public class TestTags {
     public static final String RESTART = "RESTART";
     public static final String ND_RECONNECT = "ND_RECONNECT";
     public static final String UPGRADE = "UPGRADE";
-    public static final String CLPR = "CLPR";
-    public static final String MULTINETWORK = "MULTINETWORK";
     public static final String ISS = "ISS";
     public static final String BLOCK_NODE = "BLOCK_NODE";
     public static final String SIMPLE_FEES = "SIMPLE_FEES";

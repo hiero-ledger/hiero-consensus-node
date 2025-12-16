@@ -1,16 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.interledger.clpr.impl;
 
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.node.base.AccountID;
-import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.node.app.spi.info.NetworkInfo;
@@ -25,14 +22,12 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.List;
-import org.hiero.hapi.interledger.state.clpr.ClprLedgerConfiguration;
 import org.hiero.interledger.clpr.client.ClprClient;
 import org.hiero.interledger.clpr.impl.client.ClprConnectionManager;
 import org.hiero.interledger.clpr.impl.test.ClprTestBase;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
@@ -109,8 +104,8 @@ class ClprEndpointTest extends ClprTestBase {
     }
 
     @Test
-    void runOnceSkipsWhenDevModeDisabled() {
-        when(configuration.getConfigData(ClprConfig.class)).thenReturn(new ClprConfig(true, 5000, true, false));
+    void runOnceSkipsWhenClprDisabled() {
+        when(configuration.getConfigData(ClprConfig.class)).thenReturn(new ClprConfig(false, 5000, true, true));
 
         subject.runOnce();
 
@@ -121,12 +116,11 @@ class ClprEndpointTest extends ClprTestBase {
     void runOnceSkipsWhenLocalConfigMissing() throws UnknownHostException {
         when(connectionManager.createClient(localEndpoint)).thenReturn(localClient);
         when(localClient.getConfiguration()).thenReturn(null);
-        when(localClient.setConfiguration(any(), any(), any())).thenReturn(ResponseCodeEnum.SUCCESS);
 
         subject.runOnce();
 
         verify(localClient).getConfiguration();
-        verify(localClient).setConfiguration(eq(selfAccountId), eq(selfAccountId), any());
+        verify(localClient, never()).setConfiguration(any(), any(), any());
         verify(remoteClient, never()).setConfiguration(any(), any(), any());
     }
 
@@ -139,17 +133,11 @@ class ClprEndpointTest extends ClprTestBase {
 
         when(connectionManager.createClient(localEndpoint)).thenReturn(localClient);
         when(localClient.getConfiguration()).thenReturn(localConfig);
-        when(localClient.setConfiguration(any(), any(), any())).thenReturn(ResponseCodeEnum.SUCCESS);
 
         subject.runOnce();
 
-        final ArgumentCaptor<ClprLedgerConfiguration> captor = ArgumentCaptor.forClass(ClprLedgerConfiguration.class);
-        verify(localClient).setConfiguration(eq(selfAccountId), eq(selfAccountId), captor.capture());
-        final var submittedTimestamp = captor.getValue().timestampOrThrow();
-        final var existingTimestamp = localConfig.timestampOrThrow();
-        assertTrue(submittedTimestamp.seconds() > existingTimestamp.seconds()
-                || (submittedTimestamp.seconds() == existingTimestamp.seconds()
-                        && submittedTimestamp.nanos() > existingTimestamp.nanos()));
+        verify(localClient).getConfiguration();
+        verify(localClient, never()).setConfiguration(any(), any(), any());
         verifyNoInteractions(remoteClient);
     }
 }

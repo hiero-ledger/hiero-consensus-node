@@ -21,7 +21,7 @@ import org.hiero.hapi.interledger.clpr.ClprSetLedgerConfigurationTransactionBody
 import org.hiero.hapi.interledger.state.clpr.ClprLedgerConfiguration;
 import org.hiero.hapi.interledger.state.clpr.ClprLedgerId;
 import org.hiero.interledger.clpr.ClprService;
-import org.hiero.interledger.clpr.impl.schemas.V0650ClprSchema;
+import org.hiero.interledger.clpr.impl.schemas.V0700ClprSchema;
 
 /**
  * Manages access to CLPR state and validates incoming state proofs.
@@ -77,11 +77,11 @@ public class ClprStateProofManager {
         }
         final var state = snapshot.merkleState();
         final var readableStates = state.getReadableStates(ClprService.NAME);
-        if (!readableStates.contains(V0650ClprSchema.CLPR_LEDGER_CONFIGURATIONS_STATE_ID)) {
+        if (!readableStates.contains(V0700ClprSchema.CLPR_LEDGER_CONFIGURATIONS_STATE_ID)) {
             throw new IllegalStateException("State is not configured for CLPR");
         }
         final ReadableKVState<ClprLedgerId, ClprLedgerConfiguration> configsState =
-                readableStates.get(V0650ClprSchema.CLPR_LEDGER_CONFIGURATIONS_STATE_ID);
+                readableStates.get(V0700ClprSchema.CLPR_LEDGER_CONFIGURATIONS_STATE_ID);
         final Iterator<ClprLedgerId> keys = configsState.keys();
         while (keys.hasNext()) {
             final var candidateId = keys.next();
@@ -126,13 +126,13 @@ public class ClprStateProofManager {
 
         final var state = snapshot.merkleState();
         final var readableStates = state.getReadableStates(ClprService.NAME);
-        if (!readableStates.contains(V0650ClprSchema.CLPR_LEDGER_CONFIGURATIONS_STATE_ID)) {
+        if (!readableStates.contains(V0700ClprSchema.CLPR_LEDGER_CONFIGURATIONS_STATE_ID)) {
             throw new IllegalStateException(
                     "CLPR ledger configurations state not found - service may not be properly initialized");
         }
         // TODO: If the ledger id is blank, it's a query for the local ledger configuration. Add code to handle.
         return buildMerkleStateProof(
-                state, V0650ClprSchema.CLPR_LEDGER_CONFIGURATIONS_STATE_ID, ClprLedgerId.PROTOBUF.toBytes(ledgerId));
+                state, V0700ClprSchema.CLPR_LEDGER_CONFIGURATIONS_STATE_ID, ClprLedgerId.PROTOBUF.toBytes(ledgerId));
     }
 
     /**
@@ -153,11 +153,11 @@ public class ClprStateProofManager {
         }
         final var state = snapshot.merkleState();
         final var readableStates = state.getReadableStates(ClprService.NAME);
-        if (!readableStates.contains(V0650ClprSchema.CLPR_LEDGER_CONFIGURATIONS_STATE_ID)) {
+        if (!readableStates.contains(V0700ClprSchema.CLPR_LEDGER_CONFIGURATIONS_STATE_ID)) {
             return null;
         }
         final ReadableKVState<ClprLedgerId, ClprLedgerConfiguration> configsState =
-                readableStates.get(V0650ClprSchema.CLPR_LEDGER_CONFIGURATIONS_STATE_ID);
+                readableStates.get(V0700ClprSchema.CLPR_LEDGER_CONFIGURATIONS_STATE_ID);
         return configsState.get(ledgerId);
     }
 
