@@ -19,7 +19,6 @@ import com.swirlds.platform.components.EventWindowManager;
 import com.swirlds.platform.components.consensus.ConsensusEngine;
 import com.swirlds.platform.components.consensus.ConsensusEngineOutput;
 import com.swirlds.platform.components.consensus.DefaultConsensusEngine;
-import com.swirlds.platform.consensus.EventWindowUtils;
 import com.swirlds.platform.consensus.SyntheticSnapshot;
 import com.swirlds.platform.event.orphan.DefaultOrphanBuffer;
 import com.swirlds.platform.event.orphan.OrphanBuffer;
@@ -28,19 +27,22 @@ import com.swirlds.platform.test.fixtures.consensus.framework.ConsensusOutput;
 import com.swirlds.platform.wiring.components.PassThroughWiring;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
+import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Queue;
+import java.util.concurrent.atomic.AtomicReference;
 import org.hiero.consensus.crypto.DefaultEventHasher;
 import org.hiero.consensus.crypto.EventHasher;
 import org.hiero.consensus.event.IntakeEventCounter;
 import org.hiero.consensus.hashgraph.ConsensusConfig;
-import org.hiero.consensus.hashgraph.FreezeCheckHolder;
+import org.hiero.consensus.hashgraph.FreezePeriodChecker;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.round.EventWindowUtils;
 
 /**
  * Event intake with consensus and shadowgraph, used for testing
@@ -54,7 +56,7 @@ public class TestIntake {
     private final Queue<Throwable> componentExceptions = new LinkedList<>();
     private final DeterministicWiringModel model;
     private final int roundsNonAncient;
-    private final FreezeCheckHolder freezeCheckHolder;
+    private final AtomicReference<FreezePeriodChecker> freezeCheckHolder = new AtomicReference<>(i -> false);
     private final FakeTime time = new FakeTime(Duration.of(1, ChronoUnit.SECONDS));
 
     /**
@@ -86,10 +88,15 @@ public class TestIntake {
         orphanBufferWiring = new ComponentWiring<>(model, OrphanBuffer.class, scheduler("orphanBuffer"));
         orphanBufferWiring.bind(orphanBuffer);
 
-        freezeCheckHolder = new FreezeCheckHolder();
-        freezeCheckHolder.setFreezeCheckRef(i -> false);
+        final var localFreezeCheck = new FreezePeriodChecker() {
+            @Override
+            public boolean isInFreezePeriod(@NonNull final Instant timestamp) {
+                return freezeCheckHolder.get().isInFreezePeriod(timestamp);
+            }
+        };
+
         final ConsensusEngine consensusEngine =
-                new DefaultConsensusEngine(platformContext, roster, selfId, freezeCheckHolder);
+                new DefaultConsensusEngine(platformContext, roster, selfId, localFreezeCheck);
 
         consensusEngineWiring = new ComponentWiring<>(model, ConsensusEngine.class, scheduler("consensusEngine"));
         consensusEngineWiring.bind(consensusEngine);
@@ -159,11 +166,8 @@ public class TestIntake {
         return output;
     }
 
-    /**
-     * @return the freeze check holder
-     */
-    public @NonNull FreezeCheckHolder getFreezeCheckHolder() {
-        return freezeCheckHolder;
+    public void setFreezeCheck(@NonNull final FreezePeriodChecker freezeChecker) {
+        this.freezeCheckHolder.set(freezeChecker);
     }
 
     public void reset() {
