@@ -151,31 +151,16 @@ public class TransactionDispatcher {
                     TOKEN_FREEZE,
                     TOKEN_UNPAUSE,
                     TOKEN_UNFREEZE,
-                 TOKEN_AIRDROP,
-                 TOKEN_CLAIM_AIRDROP,
-                 TOKEN_CANCEL_AIRDROP -> true;
+                    TOKEN_AIRDROP,
+                    TOKEN_CLAIM_AIRDROP,
+                    TOKEN_CANCEL_AIRDROP -> true;
             case CONTRACT_CREATE_INSTANCE,
-                 CONTRACT_DELETE_INSTANCE,
-                 CONTRACT_CALL,
-                 CONTRACT_UPDATE_INSTANCE,
-                 ETHEREUM_TRANSACTION -> true;
+                    CONTRACT_DELETE_INSTANCE,
+                    CONTRACT_CALL,
+                    CONTRACT_UPDATE_INSTANCE,
+                    ETHEREUM_TRANSACTION -> true;
             default -> false;
         };
-    }
-
-    private static long tinycentsToTinybars(final long amount, final ExchangeRate rate) {
-        final var hbarEquiv = rate.getHbarEquiv();
-        if (productWouldOverflow(amount, hbarEquiv)) {
-            return FeeBuilder.getTinybarsFromTinyCents(rate, amount);
-        }
-        return amount * hbarEquiv / rate.getCentEquiv();
-    }
-
-    private static Fees feeResultToFees(FeeResult feeResult, ExchangeRate rate) {
-        return new Fees(
-                tinycentsToTinybars(feeResult.node, rate),
-                tinycentsToTinybars(feeResult.network, rate),
-                tinycentsToTinybars(feeResult.service, rate));
     }
 
     /**
