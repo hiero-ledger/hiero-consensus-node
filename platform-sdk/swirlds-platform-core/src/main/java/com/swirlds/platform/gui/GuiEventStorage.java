@@ -52,10 +52,8 @@ public class GuiEventStorage {
         this.configuration = Objects.requireNonNull(configuration);
         final PlatformContext platformContext = PlatformContext.create(configuration);
 
-        final ConsensusConfig consensusConfig =
-                platformContext.getConfiguration().getConfigData(ConsensusConfig.class);
-        this.consensus =
-                new ConsensusImpl(consensusConfig, platformContext.getTime(), new NoOpConsensusMetrics(), roster);
+        this.consensus = new ConsensusImpl(
+                platformContext.getConfiguration(), platformContext.getTime(), new NoOpConsensusMetrics(), roster);
         this.linker = new ConsensusLinker(NoOpLinkerLogsAndMetrics.getInstance());
     }
 
