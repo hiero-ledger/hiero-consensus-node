@@ -7,7 +7,7 @@ on:
         required: true
         description: "The commit sha, tag, or branch to check out"
       branch_name:
-        required: true
+        required: false
         description: "The branch name, for JRS Panel output"
       enable-extended-test-suite:
         required: true
@@ -44,6 +44,11 @@ on:
         type: boolean
         default: true
         description: "Run Block Node Regression Panel"
+      execute-state-validator-build:
+        required: true
+        type: boolean
+        default: true
+        description: "Execute the State Validator Uber JAR build job"
 
 permissions:
   id-token: write
@@ -97,6 +102,7 @@ jobs:
 
   state-validator-uberjar:
     name: Build & Publish Hedera State Validator Uber JAR
+    if: ${{ inputs.execute-state-validator-build == true }}
     uses: ./.github/workflows/zxc-build-publish-state-validator.yaml
     with:
       ref: ${{ inputs.commit_sha }}
