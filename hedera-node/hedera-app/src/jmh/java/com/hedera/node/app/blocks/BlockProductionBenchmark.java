@@ -1,12 +1,17 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.blocks;
 
+import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_ACCOUNTS;
 import static com.hedera.node.app.spi.workflows.HandleContext.TransactionCategory.USER;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.ReversingBehavior.REVERSIBLE;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.SignedTxCustomizer.NOOP_SIGNED_TX_CUSTOMIZER;
 
 import com.hedera.hapi.block.stream.BlockItem;
 import com.hedera.hapi.block.stream.output.BlockHeader;
+import com.hedera.hapi.block.stream.output.MapChangeKey;
+import com.hedera.hapi.block.stream.output.MapChangeValue;
+import com.hedera.hapi.block.stream.output.MapUpdateChange;
+import com.hedera.hapi.block.stream.output.StateChange;
 import com.hedera.hapi.node.base.AccountAmount;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.HederaFunctionality;
@@ -14,6 +19,7 @@ import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.base.TransferList;
+import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.transaction.ExchangeRate;
 import com.hedera.hapi.node.transaction.ExchangeRateSet;
 import com.hedera.hapi.node.transaction.SignedTransaction;
@@ -24,6 +30,8 @@ import com.hedera.node.app.blocks.utils.NoOpDependencies;
 import com.hedera.node.app.blocks.utils.TransactionGeneratorUtil;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 import org.openjdk.jmh.annotations.*;
 import org.openjdk.jmh.infra.Blackhole;
@@ -220,7 +228,36 @@ public class BlockProductionBenchmark {
                     .transactionFee(1000L)
                     .transferList(sampleTransferList);
 
-            //TODO create state change block item instead of null
+            // Create mock state changes for the accounts involved in the transfer
+            // This simulates account balance updates that would occur in a real CRYPTO_TRANSFER
+            List<StateChange> mockStateChanges = new ArrayList<>();
+            for (AccountAmount accountAmount : sampleTransferList.accountAmounts()) {
+                // Create a state change for each account with updated balance
+                // In a real transaction, these would reflect the actual account state after the transfer
+                Account mockAccount = Account.newBuilder()
+                        .accountId(accountAmount.accountIDOrThrow())
+                        .tinybarBalance(Math.max(0, 1000000L + accountAmount.amount())) // Mock balance
+                        .build();
+
+                StateChange stateChange = StateChange.newBuilder()
+                        .stateId(STATE_ID_ACCOUNTS.protoOrdinal())
+                        .mapUpdate(MapUpdateChange.newBuilder()
+                                .key(MapChangeKey.newBuilder()
+                                        .accountIdKey(accountAmount.accountIDOrThrow())
+                                        .build())
+                                .value(MapChangeValue.newBuilder()
+                                        .accountValue(mockAccount)
+                                        .build())
+                                .identical(false) // Balance changed, so not identical
+                                .build())
+                        .build();
+                mockStateChanges.add(stateChange);
+            }
+            builder.stateChanges(mockStateChanges);
+
+            // groupStateChanges is null because this benchmark tests individual transactions,
+            // not grouped transactions (atomic batch/hook dispatch). For grouped transactions,
+            // groupStateChanges would contain the aggregated state changes from the parent builder.
             BlockStreamBuilder.Output output = builder.build(false, null);
 
             // WRITE ITEMS via REAL BlockStreamManagerImpl.writeItem()
