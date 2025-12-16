@@ -122,13 +122,13 @@ public interface EventCreatorModule {
     InputWire<QuiescenceCommand> quiescenceCommandInputWire();
 
     /**
-     * Destroys the component.
+     * Destroys the module.
      */
     void destroy();
 
-    // *****************************************************************
-    // Temporary workaround to allow reuse of the EventCreator component
-    // *****************************************************************
+    // **************************************************************
+    // Temporary workaround to allow reuse of the EventCreator module
+    // **************************************************************
 
     /**
      * Starts squelching the internal event creation manager.
