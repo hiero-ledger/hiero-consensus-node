@@ -5,7 +5,6 @@ import static com.swirlds.logging.legacy.LogMarker.CONSENSUS_VOTING;
 
 import com.hedera.hapi.platform.state.MinimumJudgeInfo;
 import com.swirlds.common.utility.IntReference;
-import com.swirlds.platform.Utilities;
 import com.swirlds.platform.internal.EventImpl;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -17,6 +16,7 @@ import java.util.List;
 import java.util.Map;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.utility.ArrayUtils;
 import org.hiero.consensus.model.event.EventConstants;
 import org.hiero.consensus.model.event.NonDeterministicGeneration;
 import org.hiero.consensus.model.hashgraph.ConsensusConstants;
@@ -178,7 +178,9 @@ public class RoundElections {
         // if this creator forked, then the judge is the "unique" famous witness, which is the one
         // with minimum hash
         // (where "minimum" is the lexicographically-least signed byte array)
-        if (Utilities.arrayCompare(e1.getBaseHash().getBytes(), e2.getBaseHash().getBytes()) < 0) {
+        if (ArrayUtils.arrayCompare(
+                        e1.getBaseHash().getBytes(), e2.getBaseHash().getBytes())
+                < 0) {
             return e1;
         }
         return e2;
