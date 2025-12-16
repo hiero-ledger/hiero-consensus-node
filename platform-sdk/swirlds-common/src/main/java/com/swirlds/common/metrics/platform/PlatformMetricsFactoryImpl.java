@@ -46,7 +46,8 @@ public class PlatformMetricsFactoryImpl extends DefaultMetricsFactory implements
      * {@inheritDoc}
      */
     @Override
-    public <T> IntegerPairAccumulator<T> createIntegerPairAccumulator(@NonNull final IntegerPairAccumulator.Config<T> config) {
+    public <T> IntegerPairAccumulator<T> createIntegerPairAccumulator(
+            @NonNull final IntegerPairAccumulator.Config<T> config) {
         return new PlatformIntegerPairAccumulator<>(config);
     }
 

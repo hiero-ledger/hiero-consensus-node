@@ -37,8 +37,8 @@ public class MetricKeyRegistry {
      * @return {@code true} if the registration was successful, {@code false} otherwise
      */
     public synchronized boolean register(final Long id, final String key, final Class<? extends Metric> clazz) {
-        final Registration registration = registrations.computeIfAbsent(
-                key, k -> new Registration(id == null ? null : new HashSet<>(), clazz));
+        final Registration registration =
+                registrations.computeIfAbsent(key, k -> new Registration(id == null ? null : new HashSet<>(), clazz));
         if (registration.clazz == clazz) {
             if (id == null) {
                 return registration.nodeIds == null;

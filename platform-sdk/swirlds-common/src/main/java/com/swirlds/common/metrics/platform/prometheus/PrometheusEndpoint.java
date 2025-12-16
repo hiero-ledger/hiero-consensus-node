@@ -138,8 +138,8 @@ public class PrometheusEndpoint implements AutoCloseableNonThrowing {
             final MetricAdapter adapter = adapters.get(metricKey);
             if (adapter != null) {
                 try {
-                    adapter.update(snapshot, notification.nodeId());
-                } catch (RuntimeException ex) {
+                    adapter.update(snapshot, notification.id());
+                } catch (final RuntimeException ex) {
                     exceptionRateLimiter.handle(
                             ex,
                             error -> logger.error(
