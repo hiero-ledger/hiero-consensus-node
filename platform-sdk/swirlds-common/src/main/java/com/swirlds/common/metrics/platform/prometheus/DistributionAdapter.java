@@ -54,10 +54,10 @@ public class DistributionAdapter extends AbstractMetricAdapter {
      * {@inheritDoc}
      */
     @Override
-    public void update(final Snapshot snapshot, final Long nodeId) {
+    public void update(final Snapshot snapshot, final Long id) {
         Objects.requireNonNull(snapshot, "snapshot must not be null");
         if (adapterType != GLOBAL) {
-            Objects.requireNonNull(nodeId, "nodeId must not be null");
+            Objects.requireNonNull(id, "id must not be null");
         }
         for (final Snapshot.SnapshotEntry entry : snapshot.entries()) {
             final String valueType =
@@ -68,7 +68,7 @@ public class DistributionAdapter extends AbstractMetricAdapter {
                         default -> "mean";
                     };
             final Gauge.Child child =
-                    adapterType == GLOBAL ? gauge.labels(valueType) : gauge.labels(String.valueOf(nodeId), valueType);
+                    adapterType == GLOBAL ? gauge.labels(valueType) : gauge.labels(String.valueOf(id), valueType);
             child.set(((Number) entry.value()).doubleValue());
         }
     }

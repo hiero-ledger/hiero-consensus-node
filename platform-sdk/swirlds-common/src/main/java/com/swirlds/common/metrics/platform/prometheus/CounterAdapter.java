@@ -54,15 +54,15 @@ public class CounterAdapter extends AbstractMetricAdapter {
      * {@inheritDoc}
      */
     @Override
-    public void update(final Snapshot snapshot, final Long nodeId) {
+    public void update(final Snapshot snapshot, final Long id) {
         Objects.requireNonNull(snapshot, "snapshot must not be null");
         final double newValue = ((Number) snapshot.getValue()).doubleValue();
         if (adapterType == GLOBAL) {
             final double oldValue = counter.get();
             counter.inc(newValue - oldValue);
         } else {
-            Objects.requireNonNull(nodeId, "nodeId must not be null");
-            final Counter.Child child = counter.labels(String.valueOf(nodeId));
+            Objects.requireNonNull(id, "id must not be null");
+            final Counter.Child child = counter.labels(String.valueOf(id));
             final double oldValue = child.get();
             child.inc(newValue - oldValue);
         }

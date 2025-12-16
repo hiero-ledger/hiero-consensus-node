@@ -4,7 +4,7 @@ package com.swirlds.common.metrics.platform;
 import com.swirlds.metrics.api.Metric;
 import java.util.Objects;
 
-public record MetricsEvent(Type type, Long nodeId, Metric metric) {
+public record MetricsEvent(Type type, Long id, Metric metric) {
     public enum Type {
         ADDED,
         REMOVED

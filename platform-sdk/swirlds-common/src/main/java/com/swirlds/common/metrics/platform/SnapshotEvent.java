@@ -7,10 +7,10 @@ import java.util.Objects;
 
 /**
  * Represents a snapshot event that contains a collection of snapshots.
- * @param nodeId the node id
+ * @param id the instance id
  * @param snapshots the collection of snapshots
  */
-public record SnapshotEvent(Long nodeId, Collection<Snapshot> snapshots) {
+public record SnapshotEvent(Long id, Collection<Snapshot> snapshots) {
 
     /**
      * @throws NullPointerException in case {@code snapshots} parameter is {@code null}

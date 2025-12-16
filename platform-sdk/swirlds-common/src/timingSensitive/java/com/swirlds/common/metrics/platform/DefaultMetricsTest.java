@@ -39,7 +39,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 class DefaultMetricsTest {
 
-    private static final Long NODE_ID = 1L;
+    private static final Long ID = 1L;
     private static final String CATEGORY_1 = "CaTeGoRy1";
     private static final String CATEGORY_1a = "CaTeGoRy1.a";
     private static final String CATEGORY_1b = "CaTeGoRy1.b";
@@ -104,7 +104,7 @@ class DefaultMetricsTest {
                 .when(executor)
                 .scheduleAtFixedRate(any(), anyLong(), anyLong(), any());
 
-        metrics = new DefaultPlatformMetrics(NODE_ID, registry, executor, factory, metricsConfig);
+        metrics = new DefaultPlatformMetrics(ID, registry, executor, factory, metricsConfig);
         setupDefaultData();
         metrics.subscribe(subscriber);
         reset(subscriber);
@@ -155,11 +155,11 @@ class DefaultMetricsTest {
     void testConstructorWithNullParameter() {
         assertThatCode(() -> new DefaultPlatformMetrics(null, registry, executor, factory, metricsConfig))
                 .doesNotThrowAnyException();
-        assertThatThrownBy(() -> new DefaultPlatformMetrics(NODE_ID, null, executor, factory, metricsConfig))
+        assertThatThrownBy(() -> new DefaultPlatformMetrics(ID, null, executor, factory, metricsConfig))
                 .isInstanceOf(NullPointerException.class);
-        assertThatThrownBy(() -> new DefaultPlatformMetrics(NODE_ID, registry, null, factory, metricsConfig))
+        assertThatThrownBy(() -> new DefaultPlatformMetrics(ID, registry, null, factory, metricsConfig))
                 .isInstanceOf(NullPointerException.class);
-        assertThatThrownBy(() -> new DefaultPlatformMetrics(NODE_ID, registry, executor, null, metricsConfig))
+        assertThatThrownBy(() -> new DefaultPlatformMetrics(ID, registry, executor, null, metricsConfig))
                 .isInstanceOf(NullPointerException.class);
     }
 
@@ -292,7 +292,7 @@ class DefaultMetricsTest {
         metrics.subscribe(secondSubscriber);
 
         // then
-        verify(secondSubscriber, atLeastOnce()).accept(new MetricsEvent(ADDED, NODE_ID, metric));
+        verify(secondSubscriber, atLeastOnce()).accept(new MetricsEvent(ADDED, ID, metric));
     }
 
     @Test
@@ -301,7 +301,7 @@ class DefaultMetricsTest {
         final Metric metric = metrics.getOrCreate(new Counter.Config(CATEGORY_1, "New Counter"));
 
         // then
-        verify(subscriber, atLeastOnce()).accept(new MetricsEvent(ADDED, NODE_ID, metric));
+        verify(subscriber, atLeastOnce()).accept(new MetricsEvent(ADDED, ID, metric));
     }
 
     @Test
@@ -314,7 +314,7 @@ class DefaultMetricsTest {
         metrics.subscribe(secondSubscriber);
 
         // then
-        verify(secondSubscriber, never()).accept(new MetricsEvent(REMOVED, NODE_ID, metric));
+        verify(secondSubscriber, never()).accept(new MetricsEvent(REMOVED, ID, metric));
     }
 
     @Test
@@ -326,7 +326,7 @@ class DefaultMetricsTest {
         metrics.remove(CATEGORY_1, NAME_1);
 
         // then
-        verify(subscriber).accept(new MetricsEvent(REMOVED, NODE_ID, metric));
+        verify(subscriber).accept(new MetricsEvent(REMOVED, ID, metric));
     }
 
     @Test
@@ -339,7 +339,7 @@ class DefaultMetricsTest {
         metrics.subscribe(secondSubscriber);
 
         // then
-        verify(secondSubscriber, never()).accept(new MetricsEvent(REMOVED, NODE_ID, metric));
+        verify(secondSubscriber, never()).accept(new MetricsEvent(REMOVED, ID, metric));
     }
 
     @Test
@@ -351,7 +351,7 @@ class DefaultMetricsTest {
         metrics.remove(metric);
 
         // then
-        verify(subscriber).accept(new MetricsEvent(REMOVED, NODE_ID, metric));
+        verify(subscriber).accept(new MetricsEvent(REMOVED, ID, metric));
     }
 
     @Test
@@ -365,7 +365,7 @@ class DefaultMetricsTest {
         metrics.subscribe(secondSubscriber);
 
         // then
-        verify(secondSubscriber, never()).accept(new MetricsEvent(REMOVED, NODE_ID, metric));
+        verify(secondSubscriber, never()).accept(new MetricsEvent(REMOVED, ID, metric));
     }
 
     @Test
@@ -378,7 +378,7 @@ class DefaultMetricsTest {
         metrics.remove(config);
 
         // then
-        verify(subscriber).accept(new MetricsEvent(REMOVED, NODE_ID, metric));
+        verify(subscriber).accept(new MetricsEvent(REMOVED, ID, metric));
     }
 
     @Test
@@ -414,7 +414,7 @@ class DefaultMetricsTest {
         final String category = "SomeCategory";
         final String name = "SomeName";
         final String metricKey = DefaultPlatformMetrics.calculateMetricKey(category, name);
-        when(registry.register(NODE_ID, metricKey, Counter.class)).thenReturn(false);
+        when(registry.register(ID, metricKey, Counter.class)).thenReturn(false);
 
         // then
         final Counter.Config config = new Counter.Config(category, name);
@@ -430,7 +430,7 @@ class DefaultMetricsTest {
         // then
         final Collection<Metric> remaining = metrics.getAll();
         assertThat(remaining).containsExactly(counter_1_2, counter_1a_1, counter_1b_1, counter_11_1, counter_2_1);
-        verify(subscriber).accept(new MetricsEvent(REMOVED, NODE_ID, counter_1_1));
+        verify(subscriber).accept(new MetricsEvent(REMOVED, ID, counter_1_1));
     }
 
     @Test
@@ -460,7 +460,7 @@ class DefaultMetricsTest {
         // then
         final Collection<Metric> remaining = metrics.getAll();
         assertThat(remaining).containsExactly(counter_1_2, counter_1a_1, counter_1b_1, counter_11_1, counter_2_1);
-        verify(subscriber).accept(new MetricsEvent(REMOVED, NODE_ID, counter_1_1));
+        verify(subscriber).accept(new MetricsEvent(REMOVED, ID, counter_1_1));
     }
 
     @Test
@@ -509,7 +509,7 @@ class DefaultMetricsTest {
         // then
         final Collection<Metric> remaining = metrics.getAll();
         assertThat(remaining).containsExactly(counter_1_2, counter_1a_1, counter_1b_1, counter_11_1, counter_2_1);
-        verify(subscriber).accept(new MetricsEvent(REMOVED, NODE_ID, counter_1_1));
+        verify(subscriber).accept(new MetricsEvent(REMOVED, ID, counter_1_1));
     }
 
     @Test
@@ -565,7 +565,7 @@ class DefaultMetricsTest {
                 .getOrCreateConfig();
         metricsConfig = configuration.getConfigData(MetricsConfig.class);
         final DefaultPlatformMetrics metrics =
-                new DefaultPlatformMetrics(NODE_ID, registry, executor, factory, metricsConfig);
+                new DefaultPlatformMetrics(ID, registry, executor, factory, metricsConfig);
         metrics.addUpdater(updater);
 
         // when
@@ -585,7 +585,7 @@ class DefaultMetricsTest {
         // given
         final ScheduledExecutorService executor1 = Executors.newSingleThreadScheduledExecutor();
         final DefaultPlatformMetrics metrics =
-                new DefaultPlatformMetrics(NODE_ID, registry, executor1, factory, metricsConfig);
+                new DefaultPlatformMetrics(ID, registry, executor1, factory, metricsConfig);
         metrics.start();
 
         // when

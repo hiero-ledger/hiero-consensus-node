@@ -68,7 +68,7 @@ public class LegacyCsvWriter {
     // category contains this substring should not be expanded even Settings.verboseStatistics is true
     private static final String EXCLUDE_CATEGORY = "info";
 
-    private long selfId;
+    private final long id;
     // path and filename of the .csv file to write to
     private final Path csvFilePath;
     private final MetricsConfig metricsConfig;
@@ -86,19 +86,19 @@ public class LegacyCsvWriter {
     /**
      * Constructor of a {@code LegacyCsvWriter}
      *
-     * @param selfId        node id of the platform for which the CSV-file is written
+     * @param id        id of the instance for which the CSV-file is written
      * @param folderPath    {@link Path} to the folder where the file should be stored
      * @param configuration the configuration
      */
-    public LegacyCsvWriter(long selfId, @NonNull final Path folderPath, @NonNull final Configuration configuration) {
+    public LegacyCsvWriter(final long id, @NonNull final Path folderPath, @NonNull final Configuration configuration) {
         Objects.requireNonNull(folderPath, "folderPath is null");
         Objects.requireNonNull(configuration, "configuration is null");
 
-        this.selfId = selfId;
+        this.id = id;
         metricsConfig = configuration.getConfigData(MetricsConfig.class);
         basicConfig = configuration.getConfigData(BasicCommonConfig.class);
 
-        final String fileName = String.format("%s%d.csv", metricsConfig.csvFileName(), selfId);
+        final String fileName = String.format("%s%d.csv", metricsConfig.csvFileName(), id);
         this.csvFilePath = folderPath.resolve(fileName);
     }
 
@@ -167,7 +167,7 @@ public class LegacyCsvWriter {
                 // write to file
                 Files.writeString(csvFilePath, builder.toString(), CREATE, TRUNCATE_EXISTING);
             }
-        } catch (IOException ex) {
+        } catch (final IOException ex) {
             throw new UncheckedIOException(ex);
         }
     }
@@ -220,7 +220,7 @@ public class LegacyCsvWriter {
      * @param snapshotEvent the {@link SnapshotEvent}
      */
     public void handleSnapshots(final SnapshotEvent snapshotEvent) {
-        if (!Objects.equals(snapshotEvent.nodeId(), selfId)) {
+        if (!Objects.equals(snapshotEvent.id(), id)) {
             return;
         }
 
@@ -262,7 +262,7 @@ public class LegacyCsvWriter {
         // write to file
         try {
             Files.writeString(csvFilePath, builder.toString(), APPEND);
-        } catch (IOException ex) {
+        } catch (final IOException ex) {
             throw new UncheckedIOException(ex);
         }
     }
@@ -308,7 +308,7 @@ public class LegacyCsvWriter {
     private String format(final Metric metric, final Object value) {
         final String identifier = metric.getIdentifier();
 
-        if (value instanceof Number number && (isNaN(number.doubleValue()) || isInfinite(number.doubleValue()))) {
+        if (value instanceof final Number number && (isNaN(number.doubleValue()) || isInfinite(number.doubleValue()))) {
             warningRateLimiter.handle(
                     identifier,
                     id -> logger.warn(EXCEPTION.getMarker(), "Metric '{}' has illegal value: {}", id, value));

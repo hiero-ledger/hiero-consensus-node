@@ -41,8 +41,8 @@ import org.mockito.stubbing.Answer;
 @ExtendWith(MockitoExtension.class)
 class SnapshotServiceTest {
 
-    private static final Long NODE_ID_1 = 1L;
-    private static final Long NODE_ID_2 = 2L;
+    private static final Long ID_1 = 1L;
+    private static final Long ID_2 = 2L;
 
     @Mock
     private SnapshotableMetric globalMetric;
@@ -80,13 +80,13 @@ class SnapshotServiceTest {
         when(platform1Metric.getName()).thenReturn("platform");
 
         when(platform1Metrics.isPlatformMetrics()).thenReturn(true);
-        when(platform1Metrics.getId()).thenReturn(NODE_ID_1);
+        when(platform1Metrics.getId()).thenReturn(ID_1);
         when(platform1Metrics.getAll()).thenReturn(List.of(globalMetric, platform1Metric));
 
         when(platform2Metric.getName()).thenReturn("platform");
 
         when(platform2Metrics.isPlatformMetrics()).thenReturn(true);
-        when(platform2Metrics.getId()).thenReturn(NODE_ID_2);
+        when(platform2Metrics.getId()).thenReturn(ID_2);
         when(platform2Metrics.getAll()).thenReturn(List.of(globalMetric, platform2Metric));
 
         when(executorService.schedule(any(Runnable.class), anyLong(), any()))
@@ -144,7 +144,7 @@ class SnapshotServiceTest {
         // then
         final ArgumentCaptor<SnapshotEvent> notification = ArgumentCaptor.forClass(SnapshotEvent.class);
         verify(subscriber, times(2)).accept(notification.capture());
-        assertThat(notification.getValue().nodeId()).isEqualTo(NODE_ID_1);
+        assertThat(notification.getValue().nodeId()).isEqualTo(ID_1);
         assertThat(notification.getValue().snapshots())
                 .containsExactly(Snapshot.of(globalMetric), Snapshot.of(platform1Metric));
     }
@@ -159,7 +159,7 @@ class SnapshotServiceTest {
         // then
         final ArgumentCaptor<SnapshotEvent> notification = ArgumentCaptor.forClass(SnapshotEvent.class);
         verify(subscriber, times(3)).accept(notification.capture());
-        assertThat(notification.getValue().nodeId()).isEqualTo(NODE_ID_2);
+        assertThat(notification.getValue().nodeId()).isEqualTo(ID_2);
         assertThat(notification.getValue().snapshots())
                 .containsExactly(Snapshot.of(globalMetric), Snapshot.of(platform2Metric));
     }
@@ -175,7 +175,7 @@ class SnapshotServiceTest {
         // then
         final ArgumentCaptor<SnapshotEvent> notification = ArgumentCaptor.forClass(SnapshotEvent.class);
         verify(subscriber, times(2)).accept(notification.capture());
-        assertThat(notification.getValue().nodeId()).isEqualTo(NODE_ID_1);
+        assertThat(notification.getValue().nodeId()).isEqualTo(ID_1);
         assertThat(notification.getValue().snapshots())
                 .containsExactly(Snapshot.of(globalMetric), Snapshot.of(platform1Metric));
     }

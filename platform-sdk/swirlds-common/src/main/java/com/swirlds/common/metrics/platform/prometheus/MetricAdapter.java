@@ -14,12 +14,12 @@ public interface MetricAdapter {
      * Update the {@link io.prometheus.client.Collector} with the data of the given snapshot.
      *
      * @param snapshot
-     * 		The snapshot, which value should be used for the update.
-     * @param nodeId
-     * 		The node id in which context the metric is used. May be {@code null}, if it is a global metric.
+     * 		The snapshot, whose value should be used for the update.
+     * @param id
+     * 		The instance id in whose context the metric is used. May be {@code null}, if it is a global metric.
      * @throws IllegalArgumentException if {@code snapshot} is {@code null}
      */
-    void update(final Snapshot snapshot, final Long nodeId);
+    void update(final Snapshot snapshot, final Long id);
 
     /**
      * Increase the reference count

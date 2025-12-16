@@ -51,14 +51,14 @@ public class StringAdapter extends AbstractMetricAdapter {
      * {@inheritDoc}
      */
     @Override
-    public void update(final Snapshot snapshot, final Long nodeId) {
+    public void update(final Snapshot snapshot, final Long id) {
         Objects.requireNonNull(snapshot, "snapshot must not be null");
         final String newValue = Objects.toString(snapshot.getValue());
         if (adapterType == GLOBAL) {
             info.info("value", newValue);
         } else {
-            Objects.requireNonNull(nodeId, "nodeId must not be null");
-            final Info.Child child = info.labels(String.valueOf(nodeId));
+            Objects.requireNonNull(id, "id must not be null");
+            final Info.Child child = info.labels(String.valueOf(id));
             child.info("value", newValue);
         }
     }

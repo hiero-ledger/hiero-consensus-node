@@ -36,8 +36,8 @@ public class DefaultPlatformMetrics implements PlatformMetrics {
      */
     public static final int EXCEPTION_RATE_THRESHOLD = 10;
 
-    // A reference to the node id of the current node
-    private final @Nullable Long selfId;
+    // A reference to the id of the current instance
+    private final @Nullable Long id;
 
     // The MetricKeyRegistry ensures that no two conflicting metrics with the same key exist
     private final @NonNull MetricKeyRegistry metricKeyRegistry;
@@ -63,7 +63,7 @@ public class DefaultPlatformMetrics implements PlatformMetrics {
     /**
      * Constructor of {@code DefaultMetrics}
      *
-     * @param selfId            the node id of the platform, {@code null} if these are the global metrics
+     * @param id            the instance id these metrics track, {@code null} if these are the global metrics
      * @param metricKeyRegistry the {@link MetricKeyRegistry} that ensures no conflicting metrics are registered
      * @param executor          the {@link ScheduledExecutorService} that will be used by this {@code DefaultMetrics}
      * @param factory           the {@link PlatformMetricsFactory} that will be used to create new instances of
@@ -78,12 +78,12 @@ public class DefaultPlatformMetrics implements PlatformMetrics {
      *                              </ul>
      */
     public DefaultPlatformMetrics(
-            final @Nullable Long selfId,
+            final @Nullable Long id,
             final @NonNull MetricKeyRegistry metricKeyRegistry,
             final @NonNull ScheduledExecutorService executor,
             final @NonNull PlatformMetricsFactory factory,
             final @NonNull MetricsConfig metricsConfig) {
-        this.selfId = selfId;
+        this.id = id;
         this.metricKeyRegistry = Objects.requireNonNull(metricKeyRegistry, "metricsKeyRegistry must not be null");
         this.factory = Objects.requireNonNull(factory, "factory must not be null");
         Objects.requireNonNull(executor, "executor must not be null");
@@ -99,7 +99,7 @@ public class DefaultPlatformMetrics implements PlatformMetrics {
      */
     @Override
     public Long getId() {
-        return selfId;
+        return id;
     }
 
     /**
@@ -148,7 +148,7 @@ public class DefaultPlatformMetrics implements PlatformMetrics {
      */
     public @NonNull Runnable subscribe(final @NonNull Consumer<? super MetricsEvent> subscriber) {
         final Supplier<Stream<MetricsEvent>> previousEventsSupplier =
-                () -> metricMap.values().stream().map(metric -> new MetricsEvent(ADDED, selfId, metric));
+                () -> metricMap.values().stream().map(metric -> new MetricsEvent(ADDED, id, metric));
         return eventBus.subscribe(subscriber, previousEventsSupplier);
     }
 
@@ -166,7 +166,7 @@ public class DefaultPlatformMetrics implements PlatformMetrics {
         if (metric == null) {
             // no metric registered, therefore we will try to register it now
             // before anything else, we try to reserve the category and name
-            if (!metricKeyRegistry.register(selfId, key, config.getResultClass())) {
+            if (!metricKeyRegistry.register(id, key, config.getResultClass())) {
                 throw new IllegalStateException(String.format(
                         "A different metric with the category '%s' and name '%s' was already registered",
                         config.getCategory(), config.getName()));
@@ -179,7 +179,7 @@ public class DefaultPlatformMetrics implements PlatformMetrics {
             // (metric may be non-null at this point, if another metric was added concurrently)
             if (metric == null) {
                 // metric was definitely just added, we send out a notification
-                final MetricsEvent event = new MetricsEvent(ADDED, selfId, newMetric);
+                final MetricsEvent event = new MetricsEvent(ADDED, id, newMetric);
                 eventBus.submit(event);
                 return newMetric;
             }
@@ -204,8 +204,8 @@ public class DefaultPlatformMetrics implements PlatformMetrics {
         throwIfGlobal(metricKey);
         final Metric metric = metricMap.remove(metricKey);
         if (metric != null) {
-            metricKeyRegistry.unregister(selfId, metricKey);
-            final MetricsEvent event = new MetricsEvent(REMOVED, selfId, metric);
+            metricKeyRegistry.unregister(id, metricKey);
+            final MetricsEvent event = new MetricsEvent(REMOVED, id, metric);
             eventBus.submit(event);
         }
     }
@@ -220,8 +220,8 @@ public class DefaultPlatformMetrics implements PlatformMetrics {
         throwIfGlobal(metricKey);
         final boolean removed = metricMap.remove(metricKey, metric);
         if (removed) {
-            metricKeyRegistry.unregister(selfId, metricKey);
-            final MetricsEvent event = new MetricsEvent(REMOVED, selfId, metric);
+            metricKeyRegistry.unregister(id, metricKey);
+            final MetricsEvent event = new MetricsEvent(REMOVED, id, metric);
             eventBus.submit(event);
         }
     }
@@ -238,8 +238,8 @@ public class DefaultPlatformMetrics implements PlatformMetrics {
             if (!config.getResultClass().isInstance(oldValue)) {
                 return oldValue;
             }
-            metricKeyRegistry.unregister(selfId, key);
-            final MetricsEvent event = new MetricsEvent(REMOVED, selfId, oldValue);
+            metricKeyRegistry.unregister(id, key);
+            final MetricsEvent event = new MetricsEvent(REMOVED, id, oldValue);
             eventBus.submit(event);
             return null;
         });
@@ -293,7 +293,7 @@ public class DefaultPlatformMetrics implements PlatformMetrics {
     public boolean shutdown() throws InterruptedException {
         metricMap.entrySet().stream()
                 .filter(entry -> !globalMetricKeys.containsKey(entry.getKey()))
-                .map(entry -> new MetricsEvent(REMOVED, selfId, entry.getValue()))
+                .map(entry -> new MetricsEvent(REMOVED, id, entry.getValue()))
                 .forEach(eventBus::submit);
         return updateService == null || updateService.shutdown();
     }

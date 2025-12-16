@@ -51,14 +51,14 @@ public class NumberAdapter extends AbstractMetricAdapter {
      * {@inheritDoc}
      */
     @Override
-    public void update(final Snapshot snapshot, final Long nodeId) {
+    public void update(final Snapshot snapshot, final Long id) {
         Objects.requireNonNull(snapshot, "snapshot must not be null");
         final double newValue = ((Number) snapshot.getValue()).doubleValue();
         if (adapterType == GLOBAL) {
             gauge.set(newValue);
         } else {
-            Objects.requireNonNull(nodeId, "nodeId must not be null");
-            final Gauge.Child child = gauge.labels(String.valueOf(nodeId));
+            Objects.requireNonNull(id, "id must not be null");
+            final Gauge.Child child = gauge.labels(String.valueOf(id));
             child.set(newValue);
         }
     }

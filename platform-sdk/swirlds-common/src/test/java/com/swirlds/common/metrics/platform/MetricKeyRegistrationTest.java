@@ -10,7 +10,7 @@ import org.junit.jupiter.api.Test;
 
 class MetricKeyRegistrationTest {
 
-    private static final Long NODE_ID = 1L;
+    private static final Long ID = 1L;
     private static final String METRIC_KEY = calculateMetricKey("CaTeGoRy", "NaMe");
 
     @Test
@@ -39,9 +39,9 @@ class MetricKeyRegistrationTest {
         final MetricKeyRegistry registry = new MetricKeyRegistry();
 
         // when
-        final boolean result_1_1 = registry.register(NODE_ID, METRIC_KEY, Counter.class);
-        final boolean result_1_2 = registry.register(NODE_ID, metricKey1, Counter.class);
-        final boolean result_2_1 = registry.register(NODE_ID, metricKey2, Counter.class);
+        final boolean result_1_1 = registry.register(ID, METRIC_KEY, Counter.class);
+        final boolean result_1_2 = registry.register(ID, metricKey1, Counter.class);
+        final boolean result_2_1 = registry.register(ID, metricKey2, Counter.class);
 
         // then
         assertThat(result_1_1).isTrue();
@@ -66,10 +66,10 @@ class MetricKeyRegistrationTest {
     void testAddingExistingPlatformMetric() {
         // given
         final MetricKeyRegistry registry = new MetricKeyRegistry();
-        registry.register(NODE_ID, METRIC_KEY, Counter.class);
+        registry.register(ID, METRIC_KEY, Counter.class);
 
         // when
-        final boolean result = registry.register(NODE_ID, METRIC_KEY, Counter.class);
+        final boolean result = registry.register(ID, METRIC_KEY, Counter.class);
 
         // then
         assertThat(result).isTrue();
@@ -79,7 +79,7 @@ class MetricKeyRegistrationTest {
     void testAddingExistingPlatformMetricForOtherPlatform() {
         // given
         final MetricKeyRegistry registry = new MetricKeyRegistry();
-        registry.register(NODE_ID, METRIC_KEY, Counter.class);
+        registry.register(ID, METRIC_KEY, Counter.class);
 
         // when
         final boolean result = registry.register(111L, METRIC_KEY, Counter.class);
@@ -92,7 +92,7 @@ class MetricKeyRegistrationTest {
     void testAddingGlobalMetricWhenPlatformMetricExists() {
         // given
         final MetricKeyRegistry registry = new MetricKeyRegistry();
-        registry.register(NODE_ID, METRIC_KEY, Counter.class);
+        registry.register(ID, METRIC_KEY, Counter.class);
 
         // then
         final boolean result = registry.register(null, METRIC_KEY, Counter.class);
@@ -108,7 +108,7 @@ class MetricKeyRegistrationTest {
         registry.register(null, METRIC_KEY, Counter.class);
 
         // then
-        final boolean result = registry.register(NODE_ID, METRIC_KEY, Counter.class);
+        final boolean result = registry.register(ID, METRIC_KEY, Counter.class);
 
         // then
         assertThat(result).isFalse();
@@ -131,10 +131,10 @@ class MetricKeyRegistrationTest {
     void testAddingExistingPlatformMetricWithWrongType() {
         // given
         final MetricKeyRegistry registry = new MetricKeyRegistry();
-        registry.register(NODE_ID, METRIC_KEY, Counter.class);
+        registry.register(ID, METRIC_KEY, Counter.class);
 
         // then
-        final boolean result = registry.register(NODE_ID, METRIC_KEY, IntegerGauge.class);
+        final boolean result = registry.register(ID, METRIC_KEY, IntegerGauge.class);
 
         // then
         assertThat(result).isFalse();
@@ -144,8 +144,8 @@ class MetricKeyRegistrationTest {
     void testAddingGlobalMetricWhenPlatformMetricWasDeleted() {
         // given
         final MetricKeyRegistry registry = new MetricKeyRegistry();
-        registry.register(NODE_ID, METRIC_KEY, Counter.class);
-        registry.unregister(NODE_ID, METRIC_KEY);
+        registry.register(ID, METRIC_KEY, Counter.class);
+        registry.unregister(ID, METRIC_KEY);
 
         // then
         final boolean result = registry.register(null, METRIC_KEY, Counter.class);
@@ -162,7 +162,7 @@ class MetricKeyRegistrationTest {
         registry.unregister(null, METRIC_KEY);
 
         // then
-        final boolean result = registry.register(NODE_ID, METRIC_KEY, Counter.class);
+        final boolean result = registry.register(ID, METRIC_KEY, Counter.class);
 
         // then
         assertThat(result).isTrue();
@@ -173,9 +173,9 @@ class MetricKeyRegistrationTest {
         // given
         final Long nodeId2 = 111L;
         final MetricKeyRegistry registry = new MetricKeyRegistry();
-        registry.register(NODE_ID, METRIC_KEY, Counter.class);
+        registry.register(ID, METRIC_KEY, Counter.class);
         registry.register(nodeId2, METRIC_KEY, Counter.class);
-        registry.unregister(NODE_ID, METRIC_KEY);
+        registry.unregister(ID, METRIC_KEY);
 
         // then
         final boolean result = registry.register(null, METRIC_KEY, Counter.class);
@@ -202,11 +202,11 @@ class MetricKeyRegistrationTest {
     void testAddingDeletedPlatformMetricWithWrongType() {
         // given
         final MetricKeyRegistry registry = new MetricKeyRegistry();
-        registry.register(NODE_ID, METRIC_KEY, Counter.class);
-        registry.unregister(NODE_ID, METRIC_KEY);
+        registry.register(ID, METRIC_KEY, Counter.class);
+        registry.unregister(ID, METRIC_KEY);
 
         // then
-        final boolean result = registry.register(NODE_ID, METRIC_KEY, IntegerGauge.class);
+        final boolean result = registry.register(ID, METRIC_KEY, IntegerGauge.class);
 
         // then
         assertThat(result).isTrue();

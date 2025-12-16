@@ -112,7 +112,7 @@ public class PrometheusEndpoint implements AutoCloseableNonThrowing {
         }
 
         if (notification.type() == MetricsEvent.Type.ADDED) {
-            adapters.computeIfAbsent(metricKey, key -> doCreate(notification.nodeId(), metric))
+            adapters.computeIfAbsent(metricKey, key -> doCreate(notification.id(), metric))
                     .incAndGetReferenceCount();
         } else {
             final MetricAdapter adapter = adapters.get(metricKey);
