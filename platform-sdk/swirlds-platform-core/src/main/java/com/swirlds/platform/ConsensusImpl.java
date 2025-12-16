@@ -4,7 +4,10 @@ package com.swirlds.platform;
 import static com.swirlds.logging.legacy.LogMarker.CONSENSUS_VOTING;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
+import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.toSet;
+import static org.hiero.consensus.model.PbjConverters.fromPbjTimestamp;
+import static org.hiero.consensus.model.PbjConverters.toPbjTimestamp;
 import static org.hiero.consensus.model.hashgraph.ConsensusConstants.FIRST_CONSENSUS_NUMBER;
 
 import com.hedera.hapi.node.state.roster.Roster;
@@ -15,6 +18,7 @@ import com.hedera.hapi.util.HapiUtils;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.utility.Threshold;
 import com.swirlds.common.utility.throttle.RateLimitedLogger;
+import com.swirlds.config.api.Configuration;
 import com.swirlds.logging.legacy.LogMarker;
 import com.swirlds.platform.consensus.AncestorSearch;
 import com.swirlds.platform.consensus.CandidateWitness;
@@ -42,7 +46,6 @@ import java.util.Set;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Hash;
-import org.hiero.base.utility.CommonUtils;
 import org.hiero.consensus.hashgraph.ConsensusConfig;
 import org.hiero.consensus.model.event.NonDeterministicGeneration;
 import org.hiero.consensus.model.event.PlatformEvent;
@@ -202,17 +205,17 @@ public class ConsensusImpl implements Consensus {
     /**
      * Constructs an empty object (no events) to keep track of elections and calculate consensus.
      *
-     * @param consensusConfig the consensus configuration
+     * @param configuration the configuration
      * @param time the time source
      * @param consensusMetrics metrics related to consensus
      * @param roster the global address book, which never changes
      */
     public ConsensusImpl(
-            @NonNull final ConsensusConfig consensusConfig,
+            @NonNull final Configuration configuration,
             @NonNull final Time time,
             @NonNull final ConsensusMetrics consensusMetrics,
             @NonNull final Roster roster) {
-        this.config = consensusConfig;
+        this.config = requireNonNull(configuration).getConfigData(ConsensusConfig.class);
         this.time = time;
         this.consensusMetrics = consensusMetrics;
 
@@ -242,7 +245,7 @@ public class ConsensusImpl implements Consensus {
         initJudges = new InitJudges(snapshot.round(), judgeHashes);
         rounds.loadFromMinimumJudge(snapshot.minimumJudgeInfoList());
         numConsensus = snapshot.nextConsensusNumber();
-        lastConsensusTime = CommonUtils.fromPbjTimestamp(snapshot.consensusTimestamp());
+        lastConsensusTime = fromPbjTimestamp(snapshot.consensusTimestamp());
     }
 
     /** Reset this instance to a state of a newly created instance */
@@ -764,7 +767,7 @@ public class ConsensusImpl implements Consensus {
                         decidedRoundNumber,
                         rounds.getMinimumJudgeInfoList(),
                         numConsensus,
-                        CommonUtils.toPbjTimestamp(lastConsensusTime),
+                        toPbjTimestamp(lastConsensusTime),
                         judgeIds),
                 pcesMode,
                 time.now());
