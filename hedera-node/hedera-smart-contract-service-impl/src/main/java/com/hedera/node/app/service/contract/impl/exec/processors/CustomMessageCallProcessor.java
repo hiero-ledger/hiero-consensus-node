@@ -6,7 +6,6 @@ import static com.hedera.hapi.streams.ContractActionType.SYSTEM;
 import static com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason.*;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.HasSystemContract.HAS_EVM_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.HtsSystemContract.HTS_HOOKS_CONTRACT_ADDRESS;
-import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.AbstractNativeSystemContract.FUNCTION_SELECTOR_LENGTH;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.create.CreateCommons.createMethodsSet;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.*;
 import static com.hedera.node.app.service.contract.impl.hevm.HevmPropagatedCallFailure.MISSING_RECEIVER_SIGNATURE;
@@ -21,6 +20,7 @@ import com.hedera.node.app.service.contract.impl.exec.ActionSidecarContentTracer
 import com.hedera.node.app.service.contract.impl.exec.AddressChecks;
 import com.hedera.node.app.service.contract.impl.exec.FeatureFlags;
 import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
+import com.hedera.node.app.service.contract.impl.exec.systemcontracts.HasSystemContract;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.HederaSystemContract;
 import com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils;
 import com.hedera.node.app.service.contract.impl.state.ProxyEvmContract;
@@ -32,7 +32,6 @@ import java.util.Arrays;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.Set;
 import org.apache.tuweni.bytes.Bytes;
 import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.evm.EVM;
@@ -77,7 +76,8 @@ public class CustomMessageCallProcessor extends MessageCallProcessor {
             if (contractAccount != null) {
                 final var hasCodeDelegation = CodeDelegationHelper.hasCodeDelegation(contractAccount.getCode());
                 final var isEoa = contractAccount.getCode().isEmpty() || hasCodeDelegation;
-                final var isEligibleForHasRedirect = isPayloadEligibleForAccountServiceRedirect(frame.getInputData());
+                final var isEligibleForHasRedirect =
+                        HasSystemContract.isPayloadEligibleForHasProxyRedirect(frame.getInputData());
 
                 if (isEoa && isEligibleForHasRedirect) {
                     // HAS proxy calls have priority, even if code delegation is set
@@ -107,15 +107,6 @@ public class CustomMessageCallProcessor extends MessageCallProcessor {
                     FrameUtils.transfersValue(frame));
         }
     }
-
-    /**
-     * A set of call data prefixes (i.e. function selectors in the realm of Solidity)
-     * that are eligible for proxy redirection to the Hedera Account Service system contract.
-     */
-    private static final Set<Integer> ACCOUNT_PROXY_ELIGIBLE_CALL_DATA_PREFIXES = Set.of(
-            0xbbee989e, // hbarAllowance(address spender)
-            0x86aff07c, // hbarApprove(address spender, int256 amount)
-            0xf5677e99); // setUnlimitedAutomaticAssociations(bool enableAutoAssociations)
 
     private final FeatureFlags featureFlags;
     private final AddressChecks addressChecks;
@@ -464,10 +455,5 @@ public class CustomMessageCallProcessor extends MessageCallProcessor {
         } else {
             context.tracer.tracePostExecution(frame, new Operation.OperationResult(frame.getRemainingGas(), reason));
         }
-    }
-
-    private static boolean isPayloadEligibleForAccountServiceRedirect(Bytes payload) {
-        final int prefix = payload.size() >= FUNCTION_SELECTOR_LENGTH ? payload.getInt(0) : 0;
-        return ACCOUNT_PROXY_ELIGIBLE_CALL_DATA_PREFIXES.contains(prefix);
     }
 }
