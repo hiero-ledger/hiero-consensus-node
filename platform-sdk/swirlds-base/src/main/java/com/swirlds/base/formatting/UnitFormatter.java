@@ -1,9 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.common.formatting;
+package com.swirlds.base.formatting;
 
-import static com.swirlds.common.formatting.StringFormattingUtils.commaSeparatedNumber;
-
-import com.swirlds.common.units.Unit;
+import com.swirlds.base.units.Unit;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
 
@@ -243,7 +241,7 @@ public class UnitFormatter {
     private void formatWithUnsimplifiedUnit(@NonNull final StringBuilder stringBuilder) {
         final double quantity = longQuantity == null ? doubleQuantity : (double) longQuantity;
 
-        final String quantityString = commaSeparatedNumber(quantity, decimalPlaces);
+        final String quantityString = StringFormattingUtils.commaSeparatedNumber(quantity, decimalPlaces);
         stringBuilder.append(quantityString);
 
         if (showUnit) {
@@ -264,7 +262,8 @@ public class UnitFormatter {
             simplifiedQuantity = unit.simplify(longQuantity);
         }
 
-        final String quantityString = commaSeparatedNumber(simplifiedQuantity.quantity(), decimalPlaces);
+        final String quantityString =
+                StringFormattingUtils.commaSeparatedNumber(simplifiedQuantity.quantity(), decimalPlaces);
         stringBuilder.append(quantityString);
 
         if (showUnit) {
@@ -294,9 +293,9 @@ public class UnitFormatter {
 
         final String termString;
         if (simplifiedRemainder.unit().ordinal() < finalUnitOrdinal) {
-            termString = commaSeparatedNumber(startingQuantity.quantity(), decimalPlaces);
+            termString = StringFormattingUtils.commaSeparatedNumber(startingQuantity.quantity(), decimalPlaces);
         } else {
-            termString = commaSeparatedNumber(roundedDownQuantity, 0);
+            termString = StringFormattingUtils.commaSeparatedNumber(roundedDownQuantity, 0);
         }
 
         stringBuilder.append(termString);
