@@ -48,10 +48,26 @@ public class CryptoArgsProvider {
         final List<NodeId> nodeIds =
                 genAB.rosterEntries().stream().map(r -> NodeId.of(r.nodeId())).toList();
         final Map<NodeId, KeysAndCerts> genC = CryptoStatic.generateKeysAndCerts(nodeIds);
+
+        // Update the roster with the generated certificates
+        final ArrayList<RosterEntry> genRosterEntries = new ArrayList<>();
+        for (RosterEntry entry : genAB.rosterEntries()) {
+            try {
+                final RosterEntry newOne = entry.copyBuilder()
+                        .gossipCaCertificate(Bytes.wrap(
+                                genC.get(NodeId.of(entry.nodeId())).sigCert().getEncoded()))
+                        .build();
+                genRosterEntries.add(newOne);
+            } catch (CertificateEncodingException e) {
+                throw new RuntimeException(e);
+            }
+        }
+        final Roster genRoster = new Roster(genRosterEntries);
+
         start = Instant.now();
         return Stream.of(
                 Arguments.of(rosterAndCerts.roster(), rosterAndCerts.nodeIdKeysAndCertsMap()),
-                Arguments.of(genAB, genC));
+                Arguments.of(genRoster, genC));
     }
 
     public static Roster createAddressBook(final int size) {
