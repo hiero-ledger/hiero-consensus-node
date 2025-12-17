@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.component.framework.model.internal.monitor;
 
-import static com.swirlds.common.units.TimeUnit.UNIT_NANOSECONDS;
+import static com.swirlds.base.units.TimeUnit.UNIT_NANOSECONDS;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 
 import com.swirlds.base.time.Time;
