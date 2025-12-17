@@ -21,6 +21,7 @@ import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.contract.EthereumTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
+import com.hedera.node.app.hapi.utils.ethereum.EthTxData.EthTransactionType;
 import com.hedera.node.app.service.contract.impl.ContractServiceComponent;
 import com.hedera.node.app.service.contract.impl.exec.CallOutcome;
 import com.hedera.node.app.service.contract.impl.exec.ContextTransactionProcessor;
@@ -414,6 +415,7 @@ class EthereumTransactionHandlerTest {
             given(ethTxDataReturned.hasToAddress()).willReturn(true);
             final var toAddress = RECEIVER_ADDRESS.toByteArray();
             given(ethTxDataReturned.to()).willReturn(toAddress);
+            given(ethTxDataReturned.type()).willReturn(EthTransactionType.EIP2930);
             GasCharges gasCharges = TestHelpers.gasChargesFromIntrinsicGas(INTRINSIC_GAS_FOR_0_ARG_METHOD);
             given(gasCalculator.transactionGasRequirements(
                             org.apache.tuweni.bytes.Bytes.wrap(new byte[0]), false, 0L, 0L))
@@ -474,6 +476,7 @@ class EthereumTransactionHandlerTest {
             given(ethTxDataReturned.hasToAddress()).willReturn(true);
             final var toAddress = RECEIVER_ADDRESS.toByteArray();
             given(ethTxDataReturned.to()).willReturn(toAddress);
+            given(ethTxDataReturned.type()).willReturn(EthTransactionType.EIP2930);
             GasCharges gasCharges = TestHelpers.gasChargesFromIntrinsicGas(INTRINSIC_GAS_FOR_0_ARG_METHOD);
             given(gasCalculator.transactionGasRequirements(
                             org.apache.tuweni.bytes.Bytes.wrap(new byte[0]), false, 0L, 0L))
@@ -494,6 +497,7 @@ class EthereumTransactionHandlerTest {
             given(ethTxDataReturned.hasToAddress()).willReturn(true);
             final var toAddress = RECEIVER_ADDRESS.toByteArray();
             given(ethTxDataReturned.to()).willReturn(toAddress);
+            given(ethTxDataReturned.type()).willReturn(EthTransactionType.EIP2930);
             GasCharges gasCharges = TestHelpers.gasChargesFromIntrinsicGas(INTRINSIC_GAS_FOR_0_ARG_METHOD);
             given(gasCalculator.transactionGasRequirements(
                             org.apache.tuweni.bytes.Bytes.wrap(new byte[0]), false, 0L, 0L))
@@ -501,6 +505,24 @@ class EthereumTransactionHandlerTest {
             PreCheckException exception =
                     assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
             assertEquals(INSUFFICIENT_GAS, exception.responseCode());
+        }
+    }
+
+    @Test
+    void validatePureChecksNonEmptyAuthorizationListForType4() {
+        // check at least intrinsic gas for contract create (hasToAddress() == false)
+        try (MockedStatic<EthTxData> ethTxData = Mockito.mockStatic(EthTxData.class)) {
+            ethTxData.when(() -> EthTxData.populateEthTxData(any())).thenReturn(ethTxDataReturned);
+            given(pureChecksContext.body()).willReturn(ethTxWithTx());
+            given(ethTxDataReturned.value()).willReturn(BigInteger.ZERO);
+            given(ethTxDataReturned.hasToAddress()).willReturn(true);
+            final var toAddress = RECEIVER_ADDRESS.toByteArray();
+            given(ethTxDataReturned.to()).willReturn(toAddress);
+            given(ethTxDataReturned.type()).willReturn(EthTransactionType.EIP7702);
+            given(ethTxDataReturned.authorizationList()).willReturn(new byte[0]);
+            PreCheckException exception =
+                    assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
+            assertEquals(INVALID_ETHEREUM_TRANSACTION, exception.responseCode());
         }
     }
 
