@@ -495,6 +495,8 @@ public class RpcPeerProtocol implements PeerProtocol, GossipRpcSender {
                             overloadMonitor.reportPing(pingMillis);
                             break;
                     }
+
+                    connection.afterRead();
                 }
             }
         } finally {

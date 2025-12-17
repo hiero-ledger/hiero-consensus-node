@@ -10,6 +10,7 @@ import java.net.Socket;
 import java.net.SocketException;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
+import jdk.net.ExtendedSocketOptions;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.io.exceptions.BadIOException;
@@ -36,6 +37,7 @@ public class SocketConnection implements Connection {
     private final boolean outbound;
     private final String description;
     private final Configuration configuration;
+    private final boolean quickAck;
 
     /**
      * @param connectionTracker tracks open connections
@@ -71,6 +73,7 @@ public class SocketConnection implements Connection {
         this.dis = dis;
         this.dos = dos;
         this.configuration = configuration;
+        this.quickAck = configuration.getConfigData(SocketConfig.class).quickAck();
     }
 
     /**
@@ -196,5 +199,21 @@ public class SocketConnection implements Connection {
     @Override
     public String getDescription() {
         return description;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void afterRead() {
+        try {
+            if (quickAck) {
+                // quick ack has to be set after each read - it just sends instant acknowledgement
+                // it is NOT implemented on Mac as of 2025, but shouldn't hurt, except for some wasted cpu cycles
+                getSocket().setOption(ExtendedSocketOptions.TCP_QUICKACK, true);
+            }
+        } catch (final IOException e) {
+            // we can silently ignore it, as it is optional
+        }
     }
 }
