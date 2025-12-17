@@ -2,10 +2,19 @@
 package com.swirlds.common.metrics.platform;
 
 import com.swirlds.metrics.api.Metric;
+import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Objects;
-import org.hiero.consensus.model.node.NodeId;
 
-public record MetricsEvent(Type type, NodeId nodeId, Metric metric) {
+/**
+ * Represents a metrics event.
+ *
+ * @param <KEY> the type of the unique identifier for separate instances of metrics
+ * @param type the type of the event
+ * @param key the unique identifier (null for global metrics)
+ * @param metric the metric
+ */
+public record MetricsEvent<KEY>(@NonNull Type type, @Nullable KEY key, @NonNull Metric metric) {
     public enum Type {
         ADDED,
         REMOVED

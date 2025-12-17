@@ -23,6 +23,7 @@ import com.swirlds.metrics.api.Counter;
 import com.swirlds.metrics.api.Metric;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.metrics.api.snapshot.Snapshot;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import io.prometheus.client.CollectorRegistry;
 import io.prometheus.client.exporter.HTTPServer;
 import java.io.IOException;
@@ -31,12 +32,13 @@ import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.consensus.model.node.NodeId;
 
 /**
  * A Prometheus endpoint that shows all {@link Metric}s.
+ *
+ * @param <KEY> the type of the unique identifier for separate instances of metrics
  */
-public class PrometheusEndpoint implements AutoCloseableNonThrowing {
+public class PrometheusEndpoint<KEY> implements AutoCloseableNonThrowing {
 
     private static final Logger logger = LogManager.getLogger(PrometheusEndpoint.class);
 
@@ -55,7 +57,7 @@ public class PrometheusEndpoint implements AutoCloseableNonThrowing {
     }
 
     private final CollectorRegistry registry;
-    private final Map<String, MetricAdapter> adapters = new ConcurrentHashMap<>();
+    private final Map<String, MetricAdapter<KEY>> adapters = new ConcurrentHashMap<>();
     private final HTTPServer httpServer;
     private final ThresholdLimitingHandler<Throwable> exceptionRateLimiter =
             new ThresholdLimitingHandler<>(EXCEPTION_RATE_THRESHOLD);
@@ -101,7 +103,7 @@ public class PrometheusEndpoint implements AutoCloseableNonThrowing {
      * 		the {@link MetricsEvent}
      * @throws NullPointerException in case {@code notification} parameter is {@code null}
      */
-    public void handleMetricsChange(final MetricsEvent notification) {
+    public void handleMetricsChange(@NonNull final MetricsEvent<KEY> notification) {
         Objects.requireNonNull(notification, "notification must not be null");
 
         final Metric metric = notification.metric();
@@ -113,10 +115,10 @@ public class PrometheusEndpoint implements AutoCloseableNonThrowing {
         }
 
         if (notification.type() == MetricsEvent.Type.ADDED) {
-            adapters.computeIfAbsent(metricKey, key -> doCreate(notification.nodeId(), metric))
+            adapters.computeIfAbsent(metricKey, key -> doCreate(notification.key(), metric))
                     .incAndGetReferenceCount();
         } else {
-            final MetricAdapter adapter = adapters.get(metricKey);
+            final MetricAdapter<KEY> adapter = adapters.get(metricKey);
             if (adapter != null && adapter.decAndGetReferenceCount() == 0) {
                 adapter.unregister(registry);
                 adapters.remove(metricKey);
@@ -131,15 +133,15 @@ public class PrometheusEndpoint implements AutoCloseableNonThrowing {
      * @param notification
      * 		the {@link SnapshotEvent}
      */
-    public void handleSnapshots(final SnapshotEvent notification) {
+    public void handleSnapshots(@NonNull final SnapshotEvent<KEY> notification) {
         Objects.requireNonNull(notification, "notification must not be null");
 
         for (final Snapshot snapshot : notification.snapshots()) {
             final String metricKey = calculateMetricKey(snapshot.metric());
-            final MetricAdapter adapter = adapters.get(metricKey);
+            final MetricAdapter<KEY> adapter = adapters.get(metricKey);
             if (adapter != null) {
                 try {
-                    adapter.update(snapshot, notification.nodeId());
+                    adapter.update(snapshot, notification.key());
                 } catch (RuntimeException ex) {
                     exceptionRateLimiter.handle(
                             ex,
@@ -154,22 +156,22 @@ public class PrometheusEndpoint implements AutoCloseableNonThrowing {
     }
 
     @SuppressWarnings("removal")
-    private MetricAdapter doCreate(final NodeId nodeId, final Metric metric) {
-        final AdapterType adapterType = nodeId == null ? GLOBAL : PLATFORM;
+    private MetricAdapter<KEY> doCreate(final KEY key, final Metric metric) {
+        final AdapterType adapterType = key == null ? GLOBAL : PLATFORM;
         if (metric instanceof Counter) {
-            return new CounterAdapter(registry, metric, adapterType);
+            return new CounterAdapter<>(registry, metric, adapterType);
         } else if (metric instanceof RunningAverageMetric || metric instanceof SpeedometerMetric) {
-            return new DistributionAdapter(registry, metric, adapterType);
+            return new DistributionAdapter<>(registry, metric, adapterType);
         } else if (metric instanceof IntegerPairAccumulator<?>
                 || metric instanceof FunctionGauge<?>
                 || metric instanceof StatEntry) {
             return switch (metric.getDataType()) {
-                case STRING -> new StringAdapter(registry, metric, adapterType);
-                case BOOLEAN -> new BooleanAdapter(registry, metric, adapterType);
-                default -> new NumberAdapter(registry, metric, adapterType);
+                case STRING -> new StringAdapter<>(registry, metric, adapterType);
+                case BOOLEAN -> new BooleanAdapter<>(registry, metric, adapterType);
+                default -> new NumberAdapter<>(registry, metric, adapterType);
             };
         } else {
-            return new NumberAdapter(registry, metric, adapterType);
+            return new NumberAdapter<>(registry, metric, adapterType);
         }
     }
 

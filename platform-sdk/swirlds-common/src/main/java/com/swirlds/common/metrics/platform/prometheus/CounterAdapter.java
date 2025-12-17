@@ -8,17 +8,20 @@ import static com.swirlds.common.metrics.platform.prometheus.PrometheusEndpoint.
 import com.swirlds.common.metrics.platform.prometheus.PrometheusEndpoint.AdapterType;
 import com.swirlds.metrics.api.Metric;
 import com.swirlds.metrics.api.snapshot.Snapshot;
+import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import io.prometheus.client.Collector;
 import io.prometheus.client.CollectorRegistry;
 import io.prometheus.client.Counter;
 import java.util.Objects;
-import org.hiero.consensus.model.node.NodeId;
 
 /**
  * Adapter that synchronizes a {@link Counter}
  * with the corresponding Prometheus {@link Collector}.
+ *
+ * @param <KEY> the type of the unique identifier for separate instances of metrics
  */
-public class CounterAdapter extends AbstractMetricAdapter {
+public class CounterAdapter<KEY> extends AbstractMetricAdapter<KEY> {
 
     private final Counter counter;
 
@@ -55,15 +58,15 @@ public class CounterAdapter extends AbstractMetricAdapter {
      * {@inheritDoc}
      */
     @Override
-    public void update(final Snapshot snapshot, final NodeId nodeId) {
+    public void update(@NonNull final Snapshot snapshot, @Nullable final KEY key) {
         Objects.requireNonNull(snapshot, "snapshot must not be null");
         final double newValue = ((Number) snapshot.getValue()).doubleValue();
         if (adapterType == GLOBAL) {
             final double oldValue = counter.get();
             counter.inc(newValue - oldValue);
         } else {
-            Objects.requireNonNull(nodeId, "nodeId must not be null");
-            final Counter.Child child = counter.labels(nodeId.toString());
+            Objects.requireNonNull(key, "key must not be null");
+            final Counter.Child child = counter.labels(key.toString());
             final double oldValue = child.get();
             child.inc(newValue - oldValue);
         }

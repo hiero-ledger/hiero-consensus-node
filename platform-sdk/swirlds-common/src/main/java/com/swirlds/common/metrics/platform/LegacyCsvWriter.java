@@ -21,6 +21,7 @@ import com.swirlds.metrics.api.Metric.ValueType;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.metrics.api.snapshot.Snapshot;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
@@ -39,7 +40,6 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.consensus.model.node.NodeId;
 
 /**
  * A {@code LegacyCsvWriter} writes the current CSV-format. It is called "legacy", because we plan to replace the
@@ -62,14 +62,17 @@ import org.hiero.consensus.model.node.NodeId;
  *     <dt>verboseStatistics</dt>
  *     <dd>If {@code true}, also secondary values (e.g. minimum and maximum) are written to the CSV-file</dd>
  * </dl>
+ *
+ * @param <KEY> the type of the unique identifier for separate instances of metrics
  */
-public class LegacyCsvWriter {
+public class LegacyCsvWriter<KEY> {
 
     private static final Logger logger = LogManager.getLogger(LegacyCsvWriter.class);
     // category contains this substring should not be expanded even Settings.verboseStatistics is true
     private static final String EXCLUDE_CATEGORY = "info";
 
-    private final NodeId selfId;
+    @NonNull
+    private final KEY key;
     // path and filename of the .csv file to write to
     private final Path csvFilePath;
     private final MetricsConfig metricsConfig;
@@ -87,20 +90,20 @@ public class LegacyCsvWriter {
     /**
      * Constructor of a {@code LegacyCsvWriter}
      *
-     * @param selfId        {@link NodeId} of the platform for which the CSV-file is written
+     * @param key           the unique identifier of the platform for which the CSV-file is written
      * @param folderPath    {@link Path} to the folder where the file should be stored
      * @param configuration the configuration
      */
     public LegacyCsvWriter(
-            @NonNull final NodeId selfId, @NonNull final Path folderPath, @NonNull final Configuration configuration) {
+            @NonNull final KEY key, @NonNull final Path folderPath, @NonNull final Configuration configuration) {
         Objects.requireNonNull(folderPath, "folderPath is null");
         Objects.requireNonNull(configuration, "configuration is null");
 
-        this.selfId = Objects.requireNonNull(selfId, "selfId is null");
+        this.key = Objects.requireNonNull(key, "key is null");
         metricsConfig = configuration.getConfigData(MetricsConfig.class);
         basicConfig = configuration.getConfigData(BasicCommonConfig.class);
 
-        final String fileName = String.format("%s%d.csv", metricsConfig.csvFileName(), selfId.id());
+        final String fileName = String.format("%s%s.csv", metricsConfig.csvFileName(), key.toString());
         this.csvFilePath = folderPath.resolve(fileName);
     }
 
@@ -221,8 +224,8 @@ public class LegacyCsvWriter {
      *
      * @param snapshotEvent the {@link SnapshotEvent}
      */
-    public void handleSnapshots(final SnapshotEvent snapshotEvent) {
-        if (snapshotEvent.nodeId() != selfId) {
+    public void handleSnapshots(@NonNull final SnapshotEvent<KEY> snapshotEvent) {
+        if (!Objects.equals(snapshotEvent.key(), key)) {
             return;
         }
 

@@ -14,34 +14,47 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import org.hiero.consensus.model.node.NodeId;
 
 /**
  * A no-op {@link Metrics} implementation.
  *
+ * @param <KEY> the type of the unique identifier for separate instances of metrics
  * @deprecated This class serves as a temporary workaround and may be removed at a future time without notice. External
  * parties are warned not to rely on this class.
  */
 @Deprecated(forRemoval = true)
-public class NoOpMetrics implements PlatformMetrics {
+public class NoOpMetrics<KEY> implements PlatformMetrics<KEY> {
 
     private final Map<String /* category */, Map<String /* name */, Metric>> metrics = new HashMap<>();
 
     private static final NoOpMetricsFactory FACTORY = new NoOpMetricsFactory();
 
+    @Nullable
+    private final KEY key;
+
+    /**
+     * Constructor
+     *
+     * @param key the unique identifier (can be null for global metrics)
+     */
+    public NoOpMetrics(@Nullable final KEY key) {
+        this.key = key;
+    }
+
+    @Nullable
     @Override
-    public NodeId getNodeId() {
-        return NodeId.of(42L);
+    public KEY getKey() {
+        return key;
     }
 
     @Override
     public boolean isGlobalMetrics() {
-        return false;
+        return key == null;
     }
 
     @Override
     public boolean isPlatformMetrics() {
-        return true;
+        return key != null;
     }
 
     /**

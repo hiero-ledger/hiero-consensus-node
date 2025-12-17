@@ -10,6 +10,7 @@ import com.swirlds.metrics.api.Metric;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.metrics.api.snapshot.Snapshot;
 import com.swirlds.metrics.api.snapshot.SnapshotableMetric;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
@@ -39,17 +40,23 @@ import org.apache.logging.log4j.Logger;
  * The service is not automatically started, but has to be started manually with {@link #start()}. When done,
  * the service can be shutdown with {@link #shutdown()}.
  *
+ * @param <KEY> the type of the unique identifier for separate instances of metrics
  * @see LegacyCsvWriter
  * @see com.swirlds.common.metrics.platform.prometheus.PrometheusEndpoint
  */
-public class SnapshotService implements Startable {
+public class SnapshotService<KEY> implements Startable {
 
     private static final Logger logger = LogManager.getLogger(SnapshotService.class);
 
-    private final DefaultPlatformMetrics globalMetrics;
-    private final Queue<DefaultPlatformMetrics> platformMetricsList = new ConcurrentLinkedQueue<>();
+    @NonNull
+    private final DefaultPlatformMetrics<KEY> globalMetrics;
+
+    private final Queue<DefaultPlatformMetrics<KEY>> platformMetricsList = new ConcurrentLinkedQueue<>();
+
+    @NonNull
     private final ScheduledExecutorService executor;
-    private final Queue<Consumer<? super SnapshotEvent>> subscribers = new ConcurrentLinkedQueue<>();
+
+    private final Queue<Consumer<? super SnapshotEvent<KEY>>> subscribers = new ConcurrentLinkedQueue<>();
     private final AtomicBoolean running = new AtomicBoolean();
     private final Time time;
     private final long delayNanos;
@@ -74,18 +81,18 @@ public class SnapshotService implements Startable {
      *
      */
     public SnapshotService(
-            final DefaultPlatformMetrics globalMetrics,
-            final ScheduledExecutorService executor,
-            final Duration interval) {
+            @NonNull final DefaultPlatformMetrics<KEY> globalMetrics,
+            @NonNull final ScheduledExecutorService executor,
+            @NonNull final Duration interval) {
         this(globalMetrics, executor, interval, Time.getCurrent());
     }
 
     // This method is just for testing and will be removed from the public API at some point.
     public SnapshotService(
-            final DefaultPlatformMetrics globalMetrics,
-            final ScheduledExecutorService executor,
-            final Duration interval,
-            final Time time) {
+            @NonNull final DefaultPlatformMetrics<KEY> globalMetrics,
+            @NonNull final ScheduledExecutorService executor,
+            @NonNull final Duration interval,
+            @NonNull final Time time) {
         this.globalMetrics = Objects.requireNonNull(globalMetrics, "globalMetrics must not be null");
         if (!globalMetrics.isGlobalMetrics()) {
             throw new IllegalArgumentException("Trying to create SnapshotService with non-global Metrics");
@@ -106,7 +113,7 @@ public class SnapshotService implements Startable {
      * @throws IllegalArgumentException
      * 		if {@code platformMetrics} is {@code null} or not platform-specific
      */
-    public void addPlatformMetric(final DefaultPlatformMetrics platformMetrics) {
+    public void addPlatformMetric(@NonNull final DefaultPlatformMetrics<KEY> platformMetrics) {
         Objects.requireNonNull(platformMetrics, "platformMetric must not be null");
         if (!platformMetrics.isPlatformMetrics()) {
             throw new IllegalArgumentException("Trying to add non-platform Metrics");
@@ -124,7 +131,7 @@ public class SnapshotService implements Startable {
      * @throws IllegalArgumentException
      * 		if {@code platformMetrics} is {@code null} or not platform-specific
      */
-    public void removePlatformMetric(final DefaultPlatformMetrics platformMetrics) {
+    public void removePlatformMetric(@NonNull final DefaultPlatformMetrics<KEY> platformMetrics) {
         Objects.requireNonNull(platformMetrics, "platformMetric must not be null");
         if (!platformMetrics.isPlatformMetrics()) {
             throw new IllegalArgumentException("Trying to remove non-platform Metrics");
@@ -177,7 +184,8 @@ public class SnapshotService implements Startable {
      * 		the new {@code subscriber}
      * @return a {@link Runnable} that, when called, unsubscribes the subscriber
      */
-    public Runnable subscribe(final Consumer<? super SnapshotEvent> subscriber) {
+    @NonNull
+    public Runnable subscribe(@NonNull final Consumer<? super SnapshotEvent<KEY>> subscriber) {
         subscribers.add(subscriber);
         return () -> subscribers.remove(subscriber);
     }
@@ -196,19 +204,19 @@ public class SnapshotService implements Startable {
 
         logger.trace(() -> String.format("Created %d global snapshots", globalSnapshots.size()));
 
-        final SnapshotEvent globalEvent = new SnapshotEvent(null, globalSnapshots.values());
+        final SnapshotEvent<KEY> globalEvent = new SnapshotEvent<>(null, globalSnapshots.values());
         subscribers.forEach(subscriber -> subscriber.accept(globalEvent));
 
-        for (final DefaultPlatformMetrics platformMetrics : platformMetricsList) {
+        for (final DefaultPlatformMetrics<KEY> platformMetrics : platformMetricsList) {
             final List<Snapshot> platformSnapshots = platformMetrics.getAll().stream()
                     .map(metric -> globalSnapshots.getOrDefault(
                             calculateMetricKey(metric), Snapshot.of((SnapshotableMetric) metric)))
                     .toList();
 
             logger.trace(() -> String.format(
-                    "Created %d snapshots for node %s", platformSnapshots.size(), platformMetrics.getNodeId()));
+                    "Created %d snapshots for key %s", platformSnapshots.size(), platformMetrics.getKey()));
 
-            final SnapshotEvent platformEvent = new SnapshotEvent(platformMetrics.getNodeId(), platformSnapshots);
+            final SnapshotEvent<KEY> platformEvent = new SnapshotEvent<>(platformMetrics.getKey(), platformSnapshots);
             subscribers.forEach(subscriber -> subscriber.accept(platformEvent));
         }
 

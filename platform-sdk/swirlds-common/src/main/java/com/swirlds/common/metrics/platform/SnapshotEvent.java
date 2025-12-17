@@ -2,16 +2,19 @@
 package com.swirlds.common.metrics.platform;
 
 import com.swirlds.metrics.api.snapshot.Snapshot;
+import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Collection;
 import java.util.Objects;
-import org.hiero.consensus.model.node.NodeId;
 
 /**
  * Represents a snapshot event that contains a collection of snapshots.
- * @param nodeId the node identifier
+ *
+ * @param <KEY> the type of the unique identifier for separate instances of metrics
+ * @param key the unique identifier (null for global metrics)
  * @param snapshots the collection of snapshots
  */
-public record SnapshotEvent(NodeId nodeId, Collection<Snapshot> snapshots) {
+public record SnapshotEvent<KEY>(@Nullable KEY key, @NonNull Collection<Snapshot> snapshots) {
 
     /**
      * @throws NullPointerException in case {@code snapshots} parameter is {@code null}

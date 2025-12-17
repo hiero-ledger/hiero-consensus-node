@@ -24,39 +24,47 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
-import org.hiero.consensus.model.node.NodeId;
 
 /**
  * Default implementation of the {@link Metrics} interface.
  * FUTURE: Follow our naming patterns and rename to PlatformMetricsImpl
+ *
+ * @param <KEY> the type of the unique identifier for separate instances of metrics
  */
-public class DefaultPlatformMetrics implements PlatformMetrics {
+public class DefaultPlatformMetrics<KEY> implements PlatformMetrics<KEY> {
 
     /**
      * Threshold for the number of similar {@link Exception} that are thrown by regular metrics-tasks
      */
     public static final int EXCEPTION_RATE_THRESHOLD = 10;
 
-    // A reference to the NodeId of the current node
-    private final @Nullable NodeId selfId;
+    // A reference to the unique identifier of the current instance
+    @Nullable
+    private final KEY key;
 
     // The MetricKeyRegistry ensures that no two conflicting metrics with the same key exist
-    private final @NonNull MetricKeyRegistry metricKeyRegistry;
+    @NonNull
+    private final MetricKeyRegistry<KEY> metricKeyRegistry;
 
     // A map of metric-keys to metrics
-    private final @NonNull NavigableMap<String, Metric> metricMap = new ConcurrentSkipListMap<>();
+    @NonNull
+    private final NavigableMap<String, Metric> metricMap = new ConcurrentSkipListMap<>();
 
     // A read-only view of all registered metrics
-    private final @NonNull Collection<Metric> metricsView = Collections.unmodifiableCollection(metricMap.values());
+    @NonNull
+    private final Collection<Metric> metricsView = Collections.unmodifiableCollection(metricMap.values());
 
     // A map of all global metrics in the system (only used if this instance maintains platform metrics
-    private final @NonNull Map<String, String> globalMetricKeys = new ConcurrentHashMap<>();
+    @NonNull
+    private final Map<String, String> globalMetricKeys = new ConcurrentHashMap<>();
 
     // Factory that creates specific implementation of Metric
-    private final @NonNull PlatformMetricsFactory factory;
+    @NonNull
+    private final PlatformMetricsFactory factory;
 
     // Helper-class that implements the Observer-pattern for MetricsEvents
-    private final @NonNull MetricsEventBus<MetricsEvent> eventBus;
+    @NonNull
+    private final MetricsEventBus<MetricsEvent<KEY>> eventBus;
 
     // Helper class that maintains a list of all metrics, which need to be updated in regular intervals
     private final @Nullable MetricsUpdateService updateService;
@@ -64,7 +72,7 @@ public class DefaultPlatformMetrics implements PlatformMetrics {
     /**
      * Constructor of {@code DefaultMetrics}
      *
-     * @param selfId            the {@link NodeId} of the platform, {@code null} if these are the global metrics
+     * @param key               the unique identifier of the platform, {@code null} if these are the global metrics
      * @param metricKeyRegistry the {@link MetricKeyRegistry} that ensures no conflicting metrics are registered
      * @param executor          the {@link ScheduledExecutorService} that will be used by this {@code DefaultMetrics}
      * @param factory           the {@link PlatformMetricsFactory} that will be used to create new instances of
@@ -79,12 +87,12 @@ public class DefaultPlatformMetrics implements PlatformMetrics {
      *                              </ul>
      */
     public DefaultPlatformMetrics(
-            final @Nullable NodeId selfId,
-            final @NonNull MetricKeyRegistry metricKeyRegistry,
-            final @NonNull ScheduledExecutorService executor,
-            final @NonNull PlatformMetricsFactory factory,
-            final @NonNull MetricsConfig metricsConfig) {
-        this.selfId = selfId;
+            @Nullable final KEY key,
+            @NonNull final MetricKeyRegistry<KEY> metricKeyRegistry,
+            @NonNull final ScheduledExecutorService executor,
+            @NonNull final PlatformMetricsFactory factory,
+            @NonNull final MetricsConfig metricsConfig) {
+        this.key = key;
         this.metricKeyRegistry = Objects.requireNonNull(metricKeyRegistry, "metricsKeyRegistry must not be null");
         this.factory = Objects.requireNonNull(factory, "factory must not be null");
         Objects.requireNonNull(executor, "executor must not be null");
@@ -98,9 +106,10 @@ public class DefaultPlatformMetrics implements PlatformMetrics {
     /**
      * {@inheritDoc}
      */
+    @Nullable
     @Override
-    public NodeId getNodeId() {
-        return selfId;
+    public KEY getKey() {
+        return key;
     }
 
     /**
@@ -147,9 +156,10 @@ public class DefaultPlatformMetrics implements PlatformMetrics {
      * @param subscriber the new {@code subscriber}
      * @return a {@link Runnable} that, when called, unsubscribes the subscriber
      */
-    public @NonNull Runnable subscribe(final @NonNull Consumer<? super MetricsEvent> subscriber) {
-        final Supplier<Stream<MetricsEvent>> previousEventsSupplier =
-                () -> metricMap.values().stream().map(metric -> new MetricsEvent(ADDED, selfId, metric));
+    @NonNull
+    public Runnable subscribe(@NonNull final Consumer<? super MetricsEvent<KEY>> subscriber) {
+        final Supplier<Stream<MetricsEvent<KEY>>> previousEventsSupplier =
+                () -> metricMap.values().stream().map(metric -> new MetricsEvent<>(ADDED, key, metric));
         return eventBus.subscribe(subscriber, previousEventsSupplier);
     }
 
@@ -162,12 +172,12 @@ public class DefaultPlatformMetrics implements PlatformMetrics {
         Objects.requireNonNull(config, "config must not be null");
 
         // first we check the happy path, if the metric is already registered
-        final String key = calculateMetricKey(config);
-        Metric metric = metricMap.get(key);
+        final String metricKey = calculateMetricKey(config);
+        Metric metric = metricMap.get(metricKey);
         if (metric == null) {
             // no metric registered, therefore we will try to register it now
             // before anything else, we try to reserve the category and name
-            if (!metricKeyRegistry.register(selfId, key, config.getResultClass())) {
+            if (!metricKeyRegistry.register(key, metricKey, config.getResultClass())) {
                 throw new IllegalStateException(String.format(
                         "A different metric with the category '%s' and name '%s' was already registered",
                         config.getCategory(), config.getName()));
@@ -175,12 +185,12 @@ public class DefaultPlatformMetrics implements PlatformMetrics {
 
             // it is not registered, we prepare a new one and try to set it
             final T newMetric = factory.createMetric(config);
-            metric = metricMap.putIfAbsent(key, newMetric);
+            metric = metricMap.putIfAbsent(metricKey, newMetric);
             // Map.putIfAbsent() returns the old value, i.e. it is null, if there was none
             // (metric may be non-null at this point, if another metric was added concurrently)
             if (metric == null) {
                 // metric was definitely just added, we send out a notification
-                final MetricsEvent event = new MetricsEvent(ADDED, selfId, newMetric);
+                final MetricsEvent<KEY> event = new MetricsEvent<>(ADDED, key, newMetric);
                 eventBus.submit(event);
                 return newMetric;
             }
@@ -198,15 +208,15 @@ public class DefaultPlatformMetrics implements PlatformMetrics {
      * {@inheritDoc}
      */
     @Override
-    public void remove(final @NonNull String category, final @NonNull String name) {
+    public void remove(@NonNull final String category, @NonNull final String name) {
         Objects.requireNonNull(category, "category must not be null");
         Objects.requireNonNull(name, "name must not be null");
         final String metricKey = calculateMetricKey(category, name);
         throwIfGlobal(metricKey);
         final Metric metric = metricMap.remove(metricKey);
         if (metric != null) {
-            metricKeyRegistry.unregister(selfId, metricKey);
-            final MetricsEvent event = new MetricsEvent(REMOVED, selfId, metric);
+            metricKeyRegistry.unregister(key, metricKey);
+            final MetricsEvent<KEY> event = new MetricsEvent<>(REMOVED, key, metric);
             eventBus.submit(event);
         }
     }
@@ -215,14 +225,14 @@ public class DefaultPlatformMetrics implements PlatformMetrics {
      * {@inheritDoc}
      */
     @Override
-    public void remove(final @NonNull Metric metric) {
+    public void remove(@NonNull final Metric metric) {
         Objects.requireNonNull(metric, "metric must not be null");
         final String metricKey = calculateMetricKey(metric);
         throwIfGlobal(metricKey);
         final boolean removed = metricMap.remove(metricKey, metric);
         if (removed) {
-            metricKeyRegistry.unregister(selfId, metricKey);
-            final MetricsEvent event = new MetricsEvent(REMOVED, selfId, metric);
+            metricKeyRegistry.unregister(key, metricKey);
+            final MetricsEvent<KEY> event = new MetricsEvent<>(REMOVED, key, metric);
             eventBus.submit(event);
         }
     }
@@ -231,16 +241,16 @@ public class DefaultPlatformMetrics implements PlatformMetrics {
      * {@inheritDoc}
      */
     @Override
-    public void remove(final @NonNull MetricConfig<?, ?> config) {
+    public void remove(@NonNull final MetricConfig<?, ?> config) {
         Objects.requireNonNull(config, "config must not be null");
         final String metricKey = calculateMetricKey(config);
         throwIfGlobal(metricKey);
-        metricMap.computeIfPresent(metricKey, (key, oldValue) -> {
+        metricMap.computeIfPresent(metricKey, (mk, oldValue) -> {
             if (!config.getResultClass().isInstance(oldValue)) {
                 return oldValue;
             }
-            metricKeyRegistry.unregister(selfId, key);
-            final MetricsEvent event = new MetricsEvent(REMOVED, selfId, oldValue);
+            metricKeyRegistry.unregister(key, mk);
+            final MetricsEvent<KEY> event = new MetricsEvent<>(REMOVED, key, oldValue);
             eventBus.submit(event);
             return null;
         });
@@ -294,7 +304,7 @@ public class DefaultPlatformMetrics implements PlatformMetrics {
     public boolean shutdown() throws InterruptedException {
         metricMap.entrySet().stream()
                 .filter(entry -> !globalMetricKeys.containsKey(entry.getKey()))
-                .map(entry -> new MetricsEvent(REMOVED, selfId, entry.getValue()))
+                .map(entry -> new MetricsEvent<>(REMOVED, key, entry.getValue()))
                 .forEach(eventBus::submit);
         return updateService == null || updateService.shutdown();
     }
@@ -344,7 +354,7 @@ public class DefaultPlatformMetrics implements PlatformMetrics {
      *
      * @param event The {@link MetricsEvent} with information about the change
      */
-    public void handleGlobalMetrics(final @NonNull MetricsEvent event) {
+    public void handleGlobalMetrics(@NonNull final MetricsEvent<KEY> event) {
         final Metric metric = event.metric();
         final String metricKey = calculateMetricKey(metric);
         switch (event.type()) {

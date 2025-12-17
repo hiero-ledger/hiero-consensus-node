@@ -9,17 +9,20 @@ import static com.swirlds.common.metrics.platform.prometheus.PrometheusEndpoint.
 import com.swirlds.common.metrics.platform.prometheus.PrometheusEndpoint.AdapterType;
 import com.swirlds.metrics.api.Metric;
 import com.swirlds.metrics.api.snapshot.Snapshot;
+import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import io.prometheus.client.Collector;
 import io.prometheus.client.CollectorRegistry;
 import io.prometheus.client.Gauge;
 import java.util.Objects;
-import org.hiero.consensus.model.node.NodeId;
 
 /**
  * Adapter that synchronizes {@link com.swirlds.common.metrics.RunningAverageMetric} and
  * {@link com.swirlds.common.metrics.SpeedometerMetric} with the corresponding Prometheus {@link Collector}.
+ *
+ * @param <KEY> the type of the unique identifier for separate instances of metrics
  */
-public class DistributionAdapter extends AbstractMetricAdapter {
+public class DistributionAdapter<KEY> extends AbstractMetricAdapter<KEY> {
 
     private final Gauge gauge;
 
@@ -55,10 +58,10 @@ public class DistributionAdapter extends AbstractMetricAdapter {
      * {@inheritDoc}
      */
     @Override
-    public void update(final Snapshot snapshot, final NodeId nodeId) {
+    public void update(@NonNull final Snapshot snapshot, @Nullable final KEY key) {
         Objects.requireNonNull(snapshot, "snapshot must not be null");
         if (adapterType != GLOBAL) {
-            Objects.requireNonNull(nodeId, "nodeId must not be null");
+            Objects.requireNonNull(key, "key must not be null");
         }
         for (final Snapshot.SnapshotEntry entry : snapshot.entries()) {
             final String valueType =
@@ -69,7 +72,7 @@ public class DistributionAdapter extends AbstractMetricAdapter {
                         default -> "mean";
                     };
             final Gauge.Child child =
-                    adapterType == GLOBAL ? gauge.labels(valueType) : gauge.labels(nodeId.toString(), valueType);
+                    adapterType == GLOBAL ? gauge.labels(valueType) : gauge.labels(key.toString(), valueType);
             child.set(((Number) entry.value()).doubleValue());
         }
     }

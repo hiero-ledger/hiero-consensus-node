@@ -10,10 +10,17 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
-public abstract class AbstractMetricAdapter implements MetricAdapter {
+/**
+ * Abstract base class for metric adapters.
+ *
+ * @param <KEY> the type of the unique identifier for separate instances of metrics
+ */
+public abstract class AbstractMetricAdapter<KEY> implements MetricAdapter<KEY> {
     private static final Logger logger = LogManager.getLogger(AbstractMetricAdapter.class);
     protected final PrometheusEndpoint.AdapterType adapterType;
-    private final @NonNull AdaptedMetricCommonValues values;
+
+    @NonNull
+    private final AdaptedMetricCommonValues values;
 
     private final AtomicInteger referenceCount = new AtomicInteger();
 

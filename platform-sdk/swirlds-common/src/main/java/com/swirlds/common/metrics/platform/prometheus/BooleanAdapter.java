@@ -9,17 +9,20 @@ import static java.lang.Boolean.TRUE;
 import com.swirlds.common.metrics.platform.prometheus.PrometheusEndpoint.AdapterType;
 import com.swirlds.metrics.api.Metric;
 import com.swirlds.metrics.api.snapshot.Snapshot;
+import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import io.prometheus.client.Collector;
 import io.prometheus.client.CollectorRegistry;
 import io.prometheus.client.Gauge;
 import java.util.Objects;
-import org.hiero.consensus.model.node.NodeId;
 
 /**
  * Adapter that synchronizes a {@link Metric} with a single value of {@link Metric#getDataType() type} {@code boolean}
  * with the corresponding Prometheus {@link Collector}.
+ *
+ * @param <KEY> the type of the unique identifier for separate instances of metrics
  */
-public class BooleanAdapter extends AbstractMetricAdapter {
+public class BooleanAdapter<KEY> extends AbstractMetricAdapter<KEY> {
 
     private static final double TRUE_VALUE = 1.0;
     private static final double FALSE_VALUE = 0.0;
@@ -55,14 +58,14 @@ public class BooleanAdapter extends AbstractMetricAdapter {
      * {@inheritDoc}
      */
     @Override
-    public void update(final Snapshot snapshot, final NodeId nodeId) {
+    public void update(@NonNull final Snapshot snapshot, @Nullable final KEY key) {
         Objects.requireNonNull(snapshot, "snapshot must not be null");
         final double newValue = TRUE.equals(snapshot.getValue()) ? TRUE_VALUE : FALSE_VALUE;
         if (adapterType == GLOBAL) {
             gauge.set(newValue);
         } else {
-            Objects.requireNonNull(nodeId, "nodeId must not be null");
-            final Gauge.Child child = gauge.labels(nodeId.toString());
+            Objects.requireNonNull(key, "key must not be null");
+            final Gauge.Child child = gauge.labels(key.toString());
             child.set(newValue);
         }
     }

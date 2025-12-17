@@ -30,26 +30,41 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.consensus.model.node.NodeId;
 
 /**
  * The default implementation of {@link PlatformMetricsProvider}
  * FUTURE: Follow our naming patterns and rename to PlatformMetricsProviderImpl
+ *
+ * @param <KEY> the type of the unique identifier for separate instances of metrics
  */
-public class DefaultMetricsProvider implements PlatformMetricsProvider, Lifecycle {
+public class DefaultMetricsProvider<KEY> implements PlatformMetricsProvider<KEY>, Lifecycle {
 
     private static final Logger logger = LogManager.getLogger(DefaultMetricsProvider.class);
 
-    private final @NonNull PlatformMetricsFactory factory;
-    private final @NonNull ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor(
+    @NonNull
+    private final PlatformMetricsFactory factory;
+
+    @NonNull
+    private final ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor(
             getStaticThreadManager().createThreadFactory("platform-core", "MetricsThread"));
 
-    private final @NonNull MetricKeyRegistry metricKeyRegistry = new MetricKeyRegistry();
-    private final @NonNull DefaultPlatformMetrics globalMetrics;
-    private final @NonNull ConcurrentMap<NodeId, DefaultPlatformMetrics> platformMetrics = new ConcurrentHashMap<>();
-    private final @NonNull Map<NodeId, List<Runnable>> unsubscribers = new HashMap<>();
-    private final @Nullable PrometheusEndpoint prometheusEndpoint;
-    private final @NonNull SnapshotService snapshotService;
+    @NonNull
+    private final MetricKeyRegistry<KEY> metricKeyRegistry = new MetricKeyRegistry<>();
+
+    @NonNull
+    private final DefaultPlatformMetrics<KEY> globalMetrics;
+
+    @NonNull
+    private final ConcurrentMap<KEY, DefaultPlatformMetrics<KEY>> platformMetrics = new ConcurrentHashMap<>();
+
+    @NonNull
+    private final Map<KEY, List<Runnable>> unsubscribers = new HashMap<>();
+
+    @Nullable
+    private final PrometheusEndpoint<KEY> prometheusEndpoint;
+
+    @NonNull
+    private final SnapshotService<KEY> snapshotService;
     private final @NonNull MetricsConfig metricsConfig;
     private final @NonNull Configuration configuration;
 
@@ -65,18 +80,18 @@ public class DefaultMetricsProvider implements PlatformMetricsProvider, Lifecycl
         final PrometheusConfig prometheusConfig = configuration.getConfigData(PrometheusConfig.class);
         factory = new PlatformMetricsFactoryImpl(metricsConfig);
 
-        globalMetrics = new DefaultPlatformMetrics(null, metricKeyRegistry, executor, factory, metricsConfig);
+        globalMetrics = new DefaultPlatformMetrics<>(null, metricKeyRegistry, executor, factory, metricsConfig);
 
         // setup SnapshotService
-        snapshotService = new SnapshotService(globalMetrics, executor, metricsConfig.getMetricsSnapshotDuration());
+        snapshotService = new SnapshotService<>(globalMetrics, executor, metricsConfig.getMetricsSnapshotDuration());
 
         // setup Prometheus endpoint
-        PrometheusEndpoint endpoint = null;
+        PrometheusEndpoint<KEY> endpoint = null;
         if (!metricsConfig.disableMetricsOutput() && prometheusConfig.endpointEnabled()) {
             final InetSocketAddress address = new InetSocketAddress(prometheusConfig.endpointPortNumber());
             try {
                 final HttpServer httpServer = HttpServer.create(address, prometheusConfig.endpointMaxBacklogAllowed());
-                endpoint = new PrometheusEndpoint(httpServer);
+                endpoint = new PrometheusEndpoint<>(httpServer);
 
                 globalMetrics.subscribe(endpoint::handleMetricsChange);
                 snapshotService.subscribe(endpoint::handleSnapshots);
@@ -98,20 +113,21 @@ public class DefaultMetricsProvider implements PlatformMetricsProvider, Lifecycl
     /**
      * {@inheritDoc}
      */
+    @NonNull
     @Override
-    public @NonNull Metrics createPlatformMetrics(@NonNull final NodeId nodeId) {
-        Objects.requireNonNull(nodeId, "nodeId must not be null");
+    public Metrics createPlatformMetrics(@NonNull final KEY key) {
+        Objects.requireNonNull(key, "key must not be null");
 
-        final DefaultPlatformMetrics newMetrics =
-                new DefaultPlatformMetrics(nodeId, metricKeyRegistry, executor, factory, metricsConfig);
+        final DefaultPlatformMetrics<KEY> newMetrics =
+                new DefaultPlatformMetrics<>(key, metricKeyRegistry, executor, factory, metricsConfig);
 
-        final DefaultPlatformMetrics oldMetrics = platformMetrics.putIfAbsent(nodeId, newMetrics);
+        final DefaultPlatformMetrics<KEY> oldMetrics = platformMetrics.putIfAbsent(key, newMetrics);
         if (oldMetrics != null) {
-            throw new IllegalStateException(String.format("PlatformMetrics for %s already exists", nodeId));
+            throw new IllegalStateException(String.format("PlatformMetrics for %s already exists", key));
         }
 
         final Runnable unsubscribeGlobalMetrics = globalMetrics.subscribe(newMetrics::handleGlobalMetrics);
-        unsubscribers.put(nodeId, List.of(unsubscribeGlobalMetrics));
+        unsubscribers.put(key, List.of(unsubscribeGlobalMetrics));
 
         if (lifecyclePhase == LifecyclePhase.STARTED) {
             newMetrics.start();
@@ -124,9 +140,9 @@ public class DefaultMetricsProvider implements PlatformMetricsProvider, Lifecycl
 
             // setup LegacyCsvWriter
             if (!metricsConfig.csvFileName().isBlank()) {
-                final LegacyCsvWriter legacyCsvWriter = new LegacyCsvWriter(nodeId, folderPath, configuration);
+                final LegacyCsvWriter<KEY> legacyCsvWriter = new LegacyCsvWriter<>(key, folderPath, configuration);
                 final Runnable unsubscribeCsvWriter = snapshotService.subscribe(legacyCsvWriter::handleSnapshots);
-                unsubscribers.put(nodeId, List.of(unsubscribeCsvWriter, unsubscribeGlobalMetrics));
+                unsubscribers.put(key, List.of(unsubscribeCsvWriter, unsubscribeGlobalMetrics));
             }
 
             // setup Prometheus Endpoint
@@ -142,18 +158,18 @@ public class DefaultMetricsProvider implements PlatformMetricsProvider, Lifecycl
      * {@inheritDoc}
      */
     @Override
-    public void removePlatformMetrics(@NonNull final NodeId nodeId) throws InterruptedException {
-        Objects.requireNonNull(nodeId, "nodeId must not be null");
+    public void removePlatformMetrics(@NonNull final KEY key) throws InterruptedException {
+        Objects.requireNonNull(key, "key must not be null");
 
-        final DefaultPlatformMetrics metrics = platformMetrics.get(nodeId);
+        final DefaultPlatformMetrics<KEY> metrics = platformMetrics.get(key);
         if (metrics == null) {
-            throw new IllegalArgumentException(String.format("PlatformMetrics for %s does not exist", nodeId));
+            throw new IllegalArgumentException(String.format("PlatformMetrics for %s does not exist", key));
         }
 
         metrics.shutdown();
-        unsubscribers.remove(nodeId).forEach(Runnable::run);
+        unsubscribers.remove(key).forEach(Runnable::run);
         snapshotService.removePlatformMetric(metrics);
-        platformMetrics.remove(nodeId);
+        platformMetrics.remove(key);
     }
 
     @Override
@@ -168,7 +184,7 @@ public class DefaultMetricsProvider implements PlatformMetricsProvider, Lifecycl
     public void start() {
         if (lifecyclePhase == LifecyclePhase.NOT_STARTED) {
             globalMetrics.start();
-            for (final DefaultPlatformMetrics metrics : platformMetrics.values()) {
+            for (final DefaultPlatformMetrics<KEY> metrics : platformMetrics.values()) {
                 metrics.start();
             }
             snapshotService.start();

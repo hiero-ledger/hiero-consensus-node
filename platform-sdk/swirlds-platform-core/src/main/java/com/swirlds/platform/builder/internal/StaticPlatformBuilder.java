@@ -19,6 +19,7 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.file.Path;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * Static setup code for a platform. Logic in this class should gradually disappear as we move away from the use of
@@ -42,7 +43,7 @@ public final class StaticPlatformBuilder {
      */
     private static boolean staticSetupCompleted = false;
 
-    private static DefaultMetricsProvider metricsProvider;
+    private static DefaultMetricsProvider<NodeId> metricsProvider;
 
     private static Metrics globalMetrics;
 
@@ -71,7 +72,7 @@ public final class StaticPlatformBuilder {
      */
     public static void setupGlobalMetrics(@NonNull final Configuration configuration) {
         if (metricsProvider == null) {
-            metricsProvider = new DefaultMetricsProvider(configuration);
+            metricsProvider = new DefaultMetricsProvider<>(configuration);
             globalMetrics = metricsProvider.createGlobalMetrics();
             CryptoMetrics.registerMetrics(globalMetrics);
         }
@@ -105,7 +106,7 @@ public final class StaticPlatformBuilder {
      * Get the static metrics provider.
      */
     @NonNull
-    public static DefaultMetricsProvider getMetricsProvider() {
+    public static DefaultMetricsProvider<NodeId> getMetricsProvider() {
         if (metricsProvider == null) {
             throw new IllegalStateException("Metrics provider has not been initialized");
         }
