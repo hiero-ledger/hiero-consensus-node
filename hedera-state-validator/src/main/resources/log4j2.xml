@@ -1,11 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Configuration status="WARN">
     <Appenders>
-
-      <Console name="DebugTempAppender" target="SYSTEM_OUT">
-        <PatternLayout pattern="%msg%n%throwable"/>
-      </Console>
-
       <Console name="SummaryConsoleAppender" target="SYSTEM_OUT">
           <PatternLayout pattern="%msg%n%throwable"/>
       </Console>
@@ -34,10 +29,8 @@
       <Logger name="com.hedera.statevalidation.AnalyzeCommand" level="INFO">
           <AppenderRef ref="StateAnalysisFileAppender"/>
       </Logger>
-
       <Root level="DEBUG">
-          <AppenderRef ref="DebugTempAppender"/>
+          <AppenderRef ref="FileAppender"/>
       </Root>
-
     </Loggers>
 </Configuration>
