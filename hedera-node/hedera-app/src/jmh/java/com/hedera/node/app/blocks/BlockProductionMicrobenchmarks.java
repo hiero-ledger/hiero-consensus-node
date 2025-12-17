@@ -540,6 +540,11 @@ public class BlockProductionMicrobenchmarks {
     }
 
     public static void main(String[] args) throws Exception {
-        org.openjdk.jmh.Main.main(new String[] {"BlockProductionMicrobenchmarks"});
+        org.openjdk.jmh.Main.main(
+                new String[] {"BlockProductionMicrobenchmarks", "-v", "EXTRA", "-prof", "gc", "-prof", "jfr"});
     }
+    // use
+    // jfr print --events "jdk.SocketRead,jdk.GarbageCollection,jdk.JavaMonitorEnter" --json **/profile.jfr >
+    // analysis.json
+    // at profile.jfr location to convert output to json
 }

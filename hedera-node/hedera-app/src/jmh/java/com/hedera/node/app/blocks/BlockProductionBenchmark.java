@@ -360,6 +360,11 @@ public class BlockProductionBenchmark {
     }
 
     public static void main(String[] args) throws Exception {
-        org.openjdk.jmh.Main.main(new String[] {"BlockProductionBenchmark"});
+        org.openjdk.jmh.Main.main(
+                new String[] {"BlockProductionBenchmark", "-v", "EXTRA", "-prof", "gc", "-prof", "jfr"});
     }
+    // use
+    // jfr print --events "jdk.SocketRead,jdk.GarbageCollection,jdk.JavaMonitorEnter" --json **/profile.jfr >
+    // analysis.json
+    // at profile.jfr location to convert output to json
 }
