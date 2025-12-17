@@ -37,6 +37,7 @@ import org.hiero.consensus.transaction.TransactionLimits;
  */
 public class DefaultEventIntakeModule implements EventIntakeModule {
 
+    /** Transformer to dispatch event windows to components that need them. */
     @Nullable
     private WireTransformer<EventWindow, EventWindow> eventWindowDispatcher;
 
@@ -73,7 +74,7 @@ public class DefaultEventIntakeModule implements EventIntakeModule {
         // Set up wiring
         final EventIntakeWiringConfig wiringConfig = configuration.getConfigData(EventIntakeWiringConfig.class);
         this.eventWindowDispatcher =
-                new WireTransformer<>(model, "event window dispatcher", "event window", UnaryOperator.identity());
+                new WireTransformer<>(model, "EventWindowDispatcher", "event window", UnaryOperator.identity());
         this.eventHasherWiring = new ComponentWiring<>(model, EventHasher.class, wiringConfig.eventHasher());
         this.eventValidatorWiring =
                 new ComponentWiring<>(model, InternalEventValidator.class, wiringConfig.internalEventValidator());
