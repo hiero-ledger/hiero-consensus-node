@@ -60,4 +60,3 @@ public class TokenUpdateFeeCalculator implements ServiceFeeCalculator {
         return TransactionBody.DataOneOfType.TOKEN_UPDATE;
     }
 }
-

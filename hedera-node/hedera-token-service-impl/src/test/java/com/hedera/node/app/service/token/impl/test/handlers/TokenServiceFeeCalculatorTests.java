@@ -195,8 +195,7 @@ public class TokenServiceFeeCalculatorTests {
     void updateCommonToken() {
         lenient().when(calculatorState.numTxnSignatures()).thenReturn(1);
         final var body = TransactionBody.newBuilder()
-                .tokenUpdate(TokenUpdateTransactionBody.newBuilder()
-                        .build())
+                .tokenUpdate(TokenUpdateTransactionBody.newBuilder().build())
                 .build();
         final var result = feeCalculator.calculateTxFee(body, calculatorState);
         assertNotNull(result);
@@ -456,8 +455,7 @@ public class TokenServiceFeeCalculatorTests {
                         makeServiceFee(TOKEN_UNFREEZE_ACCOUNT, TOKEN_UNFREEZE_BASE_FEE),
                         makeServiceFee(TOKEN_UNPAUSE, TOKEN_UNPAUSE_BASE_FEE),
                         makeServiceFee(TOKEN_UPDATE, TOKEN_UPDATE_BASE_FEE, makeExtraIncluded(Extra.KEYS, 1)),
-                        makeServiceFee(TOKEN_UPDATE_NFTS, TOKEN_UPDATE_NFTS_BASE_FEE)
-                ))
+                        makeServiceFee(TOKEN_UPDATE_NFTS, TOKEN_UPDATE_NFTS_BASE_FEE)))
                 .build();
     }
 }

@@ -178,7 +178,7 @@ public class TokenServiceSimpleFeesSuite {
                         tokenUpdate(FUNGIBLE_TOKEN)
                                 .payingWith(PAYER)
                                 .fee(ONE_MILLION_HBARS)
-                                .signedBy(PAYER,SUPPLY_KEY, NEW_SUPPLY_KEY)
+                                .signedBy(PAYER, SUPPLY_KEY, NEW_SUPPLY_KEY)
                                 .supplyKey(NEW_SUPPLY_KEY)
                                 .hasKnownStatus(SUCCESS)
                                 .via("update-token-txn")),
@@ -187,12 +187,11 @@ public class TokenServiceSimpleFeesSuite {
                 // 1 key for the new supply key
                 // 3 sigs for the payer, old supply key, and new supply key
                 // 2 extra sigs = 0.002
-                0.001+0.002,
+                0.001 + 0.002,
                 1,
-                0.001+0.002,
+                0.001 + 0.002,
                 1);
     }
-
 
     @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
     @DisplayName("compare mint common token")
