@@ -1367,7 +1367,8 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
                 configProvider.getConfiguration().getConfigData(BlockRecordStreamConfig.class);
         if (recordStreamConfig.roundBoundaryClosingEnabled()) {
             // In round-boundary mode, endRound updates running hashes and closes files at period boundaries
-            return daggerApp.blockRecordManager().endRound(state, round.getConsensusTimestamp());
+            // using the same conditions as BlockStreamManagerImpl (round 1, freeze round, or elapsed time)
+            return daggerApp.blockRecordManager().endRound(state, round);
         }
         // Legacy mode: always return true to seal every round (endRound was already called in HandleWorkflow)
         return true;

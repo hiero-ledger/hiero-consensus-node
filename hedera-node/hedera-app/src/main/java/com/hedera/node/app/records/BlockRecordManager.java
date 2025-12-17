@@ -4,11 +4,12 @@ package com.hedera.node.app.records;
 import com.hedera.hapi.node.state.blockrecords.BlockInfo;
 import com.hedera.node.app.spi.records.BlockRecordInfo;
 import com.hedera.node.app.state.SingleTransactionRecord;
-import com.swirlds.platform.system.Round;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.stream.Stream;
+
+import org.hiero.consensus.model.hashgraph.Round;
 
 /**
  * {@link BlockRecordManager} is responsible for managing blocks and writing the block record stream. It manages:
@@ -125,15 +126,20 @@ public interface BlockRecordManager extends BlockRecordInfo, AutoCloseable {
     void endRound(@NonNull State state);
 
     /**
-     * Called at the end of a round with access to the round's consensus timestamp to make decisions
-     * about closing record files and to update running hashes in state. When round-boundary closing
-     * is enabled, this will close the record file if the period has completed.
+     * Called at the end of a round with access to the round to make decisions about closing record
+     * files and to update running hashes in state. When round-boundary closing is enabled, this will
+     * close the record file if any of these conditions are met:
+     * <ul>
+     *   <li>Round number is 1</li>
+     *   <li>Current round is the freeze round</li>
+     *   <li>Elapsed time since block start >= block period</li>
+     * </ul>
      *
      * @param state the state to update
-     * @param roundConsensusTimestamp the consensus timestamp reported for the round
+     * @param round the round being ended
      * @return true if a record file was closed during this round, false otherwise
      */
-    boolean endRound(@NonNull State state, @NonNull Instant roundConsensusTimestamp);
+    boolean endRound(@NonNull State state, @NonNull Round round);
 
     /**
      * Called at the start of a round to allow the record stream to open a new record file when

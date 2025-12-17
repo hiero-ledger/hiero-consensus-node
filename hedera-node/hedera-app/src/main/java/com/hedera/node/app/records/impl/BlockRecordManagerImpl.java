@@ -34,11 +34,11 @@ import com.swirlds.common.stream.LinkedObjectStreamUtilities;
 import com.swirlds.platform.state.service.PlatformStateService;
 import com.swirlds.platform.state.service.WritablePlatformStateStore;
 import com.swirlds.platform.system.Platform;
-import com.swirlds.platform.system.Round;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.WritableSingletonStateBase;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
@@ -48,6 +48,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.Hash;
+import org.hiero.consensus.model.hashgraph.Round;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 
 /**
@@ -68,10 +69,14 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
     private final int numBlockHashesToKeepBytes;
     /**
      * The number of seconds of consensus time in a block period, from configuration. This is computed based on the
-     * {@link BlockRecordStreamConfig#logPeriod()} setting. This setting is computed once at startup and used
-     * throughout.
+     * {@link BlockRecordStreamConfig#logPeriod()} setting.
      */
     private final long blockPeriodInSeconds;
+    /**
+     * The block period as a Duration for round-boundary mode. Uses the same value as blockPeriodInSeconds but stored
+     * as a Duration for elapsed-time based block closing (matching block stream behavior).
+     */
+    private final Duration blockPeriod;
     /**
      * The stream file producer we are using. This is set once during startup, and used throughout the execution of the
      * node. It would be nice to allow this to be a dynamic property, but it just isn't convenient to do so at this
@@ -134,6 +139,7 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
         // Get static configuration that is assumed not to change while the node is running
         final var recordStreamConfig = configProvider.getConfiguration().getConfigData(BlockRecordStreamConfig.class);
         this.blockPeriodInSeconds = recordStreamConfig.logPeriod();
+        this.blockPeriod = Duration.ofSeconds(recordStreamConfig.logPeriod());
         this.numBlockHashesToKeepBytes = recordStreamConfig.numOfBlockHashesInState() * HASH_SIZE;
         this.closeOnRoundBoundaries = recordStreamConfig.roundBoundaryClosingEnabled();
 
@@ -177,6 +183,11 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
 
     @Override
     public boolean willOpenNewBlock(@NonNull final Instant consensusTime, @NonNull final State state) {
+        // In round-boundary mode, blocks are opened at round start (startRound), not on user transactions
+        if (closeOnRoundBoundaries) {
+            return false;
+        }
+        // Legacy mode: check if this user transaction would open a new block
         if (EPOCH.equals(lastBlockInfo.firstConsTimeOfCurrentBlock())) {
             return true;
         }
@@ -197,29 +208,9 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
      * {@inheritDoc}
      */
     public boolean startUserTransaction(@NonNull final Instant consensusTime, @NonNull final State state) {
-        // In round-boundary mode, genesis and file opening are handled by startRound(),
-        // so we only check for freeze restart here.
+        // In round-boundary mode, genesis, file opening, and closing are handled by startRound()/endRound(),
+        // so there's nothing to do here
         if (closeOnRoundBoundaries) {
-            // Handle freeze restart even in round-boundary mode
-            final var platformState = state.getReadableStates(PlatformStateService.NAME)
-                    .<PlatformState>getSingleton(PLATFORM_STATE_STATE_ID)
-                    .get();
-            requireNonNull(platformState);
-            final var isFirstTransactionAfterFreezeRestart = platformState.freezeTime() != null
-                    && platformState.freezeTimeOrThrow().equals(platformState.lastFrozenTime());
-            if (isFirstTransactionAfterFreezeRestart) {
-                new WritablePlatformStateStore(state.getWritableStates(PlatformStateService.NAME)).setFreezeTime(null);
-                // Force a new record file for freeze restart
-                final var lastBlockHashBytes = streamFileProducer.getRunningHash();
-                final var justFinishedBlockNumber = lastBlockInfo.lastBlockNumber() + 1;
-                lastBlockInfo =
-                        infoOfJustFinished(lastBlockInfo, justFinishedBlockNumber, lastBlockHashBytes, consensusTime);
-                putLastBlockInfo(state);
-                switchBlocksAt(consensusTime);
-                recordFileOpen = true;
-                return true;
-            }
-            // In round-boundary mode, no other action needed here
             return false;
         }
 
@@ -239,7 +230,6 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
                 // No-op if quiescence is disabled
                 quiescenceController.startingBlock(0);
             }
-            recordFileOpen = true;
             return true;
         }
 
@@ -287,7 +277,6 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
             }
 
             switchBlocksAt(consensusTime);
-            recordFileOpen = true;
             return true;
         }
         return false;
@@ -367,14 +356,28 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
      */
     @Override
     public void endRound(@NonNull final State state) {
-        endRound(state, lastUsedConsensusTime());
+        // We get the latest running hash from the StreamFileProducer blocking if needed for it to be computed.
+        final var currentRunningHash = streamFileProducer.getRunningHash();
+        // Update running hashes in state with the latest running hash and the previous 3 running hashes.
+        final var states = state.getWritableStates(BlockRecordService.NAME);
+        final var runningHashesState = states.<RunningHashes>getSingleton(RUNNING_HASHES_STATE_ID);
+        final var existingRunningHashes = runningHashesState.get();
+        assert existingRunningHashes != null : "This cannot be null because genesis migration sets it";
+        final var runningHashes = new RunningHashes(
+                currentRunningHash,
+                existingRunningHashes.nMinus1RunningHash(),
+                existingRunningHashes.nMinus2RunningHash(),
+                existingRunningHashes.nMinus3RunningHash());
+        runningHashesState.put(runningHashes);
+        // Commit the changes to the merkle tree.
+        ((WritableSingletonStateBase<RunningHashes>) runningHashesState).commit();
     }
 
     /**
      * {@inheritDoc}
      */
     @Override
-    public boolean endRound(@NonNull final State state, @NonNull final Instant roundConsensusTimestamp) {
+    public boolean endRound(@NonNull final State state, @NonNull final Round round) {
         // We get the latest running hash from the StreamFileProducer blocking if needed for it to be computed.
         final var currentRunningHash = streamFileProducer.getRunningHash();
         // Update running hashes in state with the latest running hash and the previous 3 running hashes.
@@ -391,13 +394,28 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
         // Commit the changes to the merkle tree.
         ((WritableSingletonStateBase<RunningHashes>) runningHashesState).commit();
 
-        // In round-boundary mode, close the record file at end-of-round if period completed
+        // In round-boundary mode, close the record file if conditions are met (mirroring BlockStreamManagerImpl)
         if (closeOnRoundBoundaries && recordFileOpen) {
-            final var currentBlockPeriod = getBlockPeriod(lastBlockInfo.firstConsTimeOfCurrentBlock());
-            final var roundPeriod = getBlockPeriod(roundConsensusTimestamp);
-            if (roundPeriod > currentBlockPeriod) {
+            if (shouldCloseBlock(state, round)) {
+                final long blockNo = lastBlockInfo.lastBlockNumber() + 1;
                 // Close file now; the next open will occur at the start of the next round
                 streamFileProducer.finishCurrentBlock();
+                logger.info(
+                        """
+                                --- BLOCK UPDATE ---
+                                  Finished: #{} (started @ {}) with hash {}
+                                  Starting: #{} @ {}""",
+                        lastBlockInfo.lastBlockNumber(),
+                        lastBlockInfo.firstConsTimeOfCurrentBlock(),
+                        new Hash(streamFileProducer.getRunningHash(), DigestType.SHA_384),
+                        blockNo,
+                        round.getConsensusTimestamp());
+                if (streamMode == RECORDS) {
+                    // Notify quiescence that the in-progress block is done handling transactions
+                    quiescenceController.finishHandlingInProgressBlock();
+                    // Mark the block as fully signed (no async signing in record stream)
+                    quiescenceController.blockFullySigned(blockNo);
+                }
                 recordFileOpen = false;
                 return true;
             }
@@ -406,12 +424,43 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
     }
 
     /**
+     * Determines if the current block should be closed, using the same logic as BlockStreamManagerImpl.
+     *
+     * @param state the current state
+     * @param round the current round
+     * @return true if the block should be closed
+     */
+    private boolean shouldCloseBlock(@NonNull final State state, @NonNull final Round round) {
+        final long roundNumber = round.getRoundNum();
+        final var roundConsensusTimestamp = round.getConsensusTimestamp();
+
+        // Round 1 always closes the block
+        if (roundNumber == 1) {
+            return true;
+        }
+
+        // Check if this is a freeze round
+        final var platformState = state.getReadableStates(PlatformStateService.NAME)
+                .<PlatformState>getSingleton(PLATFORM_STATE_STATE_ID)
+                .get();
+        requireNonNull(platformState);
+        final long freezeRoundNumber = platformState.latestFreezeRound();
+        if (roundNumber == freezeRoundNumber) {
+            return true;
+        }
+
+        // Check if enough consensus time has elapsed (Duration.between approach like block streams)
+        final var blockStartTime = asInstant(lastBlockInfo.firstConsTimeOfCurrentBlockOrThrow());
+        final var elapsed = Duration.between(blockStartTime, roundConsensusTimestamp);
+        return elapsed.compareTo(blockPeriod) >= 0;
+    }
+
+    /**
      * {@inheritDoc}
      */
     @Override
     public void startRound(@NonNull final Round round, @NonNull final State state) {
         if (!closeOnRoundBoundaries) {
-            // Legacy mode: no action needed at round start
             return;
         }
 
@@ -420,9 +469,10 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
         // Handle genesis: open the very first record file
         if (EPOCH.equals(lastBlockInfo.firstConsTimeOfCurrentBlock())) {
             final var now = new Timestamp(roundConsensusTimestamp.getEpochSecond(), roundConsensusTimestamp.getNano());
+            // Only set firstConsTimeOfCurrentBlock - keep consTimeOfLastHandledTxn at EPOCH
+            // so that isGenesis check in HandleWorkflow works correctly
             lastBlockInfo = lastBlockInfo
                     .copyBuilder()
-                    .consTimeOfLastHandledTxn(now)
                     .firstConsTimeOfCurrentBlock(now)
                     .build();
             putLastBlockInfo(state);
@@ -443,7 +493,14 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
             lastBlockInfo = infoOfJustFinished(
                     lastBlockInfo, justFinishedBlockNumber, lastBlockHashBytes, roundConsensusTimestamp);
             putLastBlockInfo(state);
-            switchBlocksAt(roundConsensusTimestamp);
+            // Open the new record file
+            final long blockNo = lastBlockInfo.lastBlockNumber() + 1;
+            streamFileProducer.switchBlocks(lastBlockInfo.lastBlockNumber(), blockNo, roundConsensusTimestamp);
+            if (streamMode == RECORDS) {
+                // blockFullySigned was already called in endRound when the file closed,
+                // so we only need to switch tracker here
+                quiescenceController.switchTracker(blockNo);
+            }
             recordFileOpen = true;
         }
     }

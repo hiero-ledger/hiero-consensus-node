@@ -507,11 +507,22 @@ public class HandleWorkflow {
         final var consensusNow = txn.getConsensusTimestamp();
         var type = ORDINARY_TRANSACTION;
         stakePeriodManager.setCurrentStakePeriodFor(consensusNow);
+        final var recordStreamConfig =
+                configProvider.getConfiguration().getConfigData(BlockRecordStreamConfig.class);
         boolean startsNewRecordFile = false;
         if (streamMode != BLOCKS) {
-            startsNewRecordFile = blockRecordManager.willOpenNewBlock(consensusNow, state);
-            if (streamMode == RECORDS && startsNewRecordFile) {
-                type = typeOfBoundary(state);
+            if (recordStreamConfig.roundBoundaryClosingEnabled()) {
+                // In round-boundary mode, blocks are opened at round start, not on user transactions.
+                // But we still need to check for post-upgrade work based on migrationRecordsStreamed flag.
+                if (streamMode == RECORDS) {
+                    type = typeOfBoundary(state);
+                }
+            } else {
+                // Legacy mode: check if this transaction opens a new record file
+                startsNewRecordFile = blockRecordManager.willOpenNewBlock(consensusNow, state);
+                if (streamMode == RECORDS && startsNewRecordFile) {
+                    type = typeOfBoundary(state);
+                }
             }
         }
         if (streamMode != RECORDS) {
