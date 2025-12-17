@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.event.preconsensus;
 
-import static com.swirlds.common.formatting.StringFormattingUtils.parseSanitizedTimestamp;
-import static com.swirlds.common.formatting.StringFormattingUtils.sanitizeTimestamp;
+import static com.swirlds.base.formatting.StringFormattingUtils.parseSanitizedTimestamp;
+import static com.swirlds.base.formatting.StringFormattingUtils.sanitizeTimestamp;
 
 import com.swirlds.common.io.utility.RecycleBin;
 import edu.umd.cs.findbugs.annotations.NonNull;

@@ -1,29 +1,25 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.common.units;
+package com.swirlds.base.units;
 
-import static com.swirlds.base.units.UnitConstants.BYTES_TO_BITS;
-
-import com.swirlds.common.units.internal.UnitConverter;
+import com.swirlds.base.units.internal.UnitConverter;
 
 /**
- * Units for measurements of data quantity.
+ * Units for describing frequency.
  */
-public enum DataUnit implements Unit<DataUnit> {
-    UNIT_BITS(1, "bit", "b"),
-    UNIT_BYTES(BYTES_TO_BITS, "byte", "B"),
-    UNIT_KILOBYTES(1024, "kilobyte", "KB"),
-    UNIT_MEGABYTES(1024, "megabyte", "MB"),
-    UNIT_GIGABYTES(1024, "gigabyte", "GB"),
-    UNIT_TERABYTES(1024, "terabyte", "TB"),
-    UNIT_PETABYTES(1024, "petabyte", "PB");
+public enum FrequencyUnit implements Unit<FrequencyUnit> {
+    UNIT_HERTZ(1, "hertz", "Hz"),
+    UNIT_KILOHERTZ(1000, "kilohertz", "kHz"),
+    UNIT_MEGAHERTZ(1000, "megahertz", "MHz"),
+    UNIT_GIGAHERTZ(1000, "gigahertz", "GHz"),
+    UNIT_TERAHERTZ(1000, "terahertz", "THz");
 
-    private static final UnitConverter<DataUnit> converter = new UnitConverter<>(DataUnit.values());
+    private static final UnitConverter<FrequencyUnit> converter = new UnitConverter<>(FrequencyUnit.values());
 
     private final int conversionFactor;
     private final String name;
     private final String abbreviation;
 
-    DataUnit(final int conversionFactor, final String name, final String abbreviation) {
+    FrequencyUnit(final int conversionFactor, final String name, final String abbreviation) {
         this.conversionFactor = conversionFactor;
         this.name = name;
         this.abbreviation = abbreviation;
@@ -33,7 +29,7 @@ public enum DataUnit implements Unit<DataUnit> {
      * {@inheritDoc}
      */
     @Override
-    public SimplifiedQuantity<DataUnit> simplify(final double quantity) {
+    public SimplifiedQuantity<FrequencyUnit> simplify(final double quantity) {
         return converter.simplify(quantity, this);
     }
 
@@ -41,7 +37,7 @@ public enum DataUnit implements Unit<DataUnit> {
      * {@inheritDoc}
      */
     @Override
-    public double convertTo(final double quantity, final DataUnit to) {
+    public double convertTo(final double quantity, final FrequencyUnit to) {
         return converter.convertTo(quantity, this, to);
     }
 
@@ -49,7 +45,7 @@ public enum DataUnit implements Unit<DataUnit> {
      * {@inheritDoc}
      */
     @Override
-    public double convertTo(final long quantity, final DataUnit to) {
+    public double convertTo(final long quantity, final FrequencyUnit to) {
         return converter.convertTo(quantity, this, to);
     }
 
@@ -74,7 +70,7 @@ public enum DataUnit implements Unit<DataUnit> {
      */
     @Override
     public String getPluralName() {
-        return name + "s";
+        return name;
     }
 
     /**

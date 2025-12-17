@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.common.time;
+package com.swirlds.base.time;
 
-import com.swirlds.base.time.Time;
 import com.swirlds.base.units.UnitConstants;
 
 /**
