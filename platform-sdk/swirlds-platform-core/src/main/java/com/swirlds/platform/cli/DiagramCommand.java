@@ -109,8 +109,8 @@ public final class DiagramCommand extends AbstractCommand {
         final WiringModel model = WiringModelBuilder.create(platformContext.getMetrics(), platformContext.getTime())
                 .build();
 
-        final EventCreatorModule eventCreatorModule = new NoOpEventCreatorModule(model);
-        final EventIntakeModule eventIntakeModule = new NoOpEventIntakeModule(model);
+        final EventCreatorModule eventCreatorModule = new NoOpEventCreatorModule(model, configuration);
+        final EventIntakeModule eventIntakeModule = new NoOpEventIntakeModule(model, configuration);
 
         final PlatformComponents platformComponents =
                 PlatformComponents.create(platformContext, model, eventCreatorModule, eventIntakeModule);

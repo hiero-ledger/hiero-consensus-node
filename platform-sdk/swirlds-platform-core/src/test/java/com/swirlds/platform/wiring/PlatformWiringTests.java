@@ -12,6 +12,7 @@ import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.component.framework.model.WiringModelBuilder;
+import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.platform.builder.ApplicationCallbacks;
 import com.swirlds.platform.builder.ExecutionLayer;
@@ -90,8 +91,9 @@ class PlatformWiringTests {
         final WiringModel model =
                 WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent()).build();
 
-        final EventCreatorModule eventCreatorModule = new NoOpEventCreatorModule(model);
-        final EventIntakeModule eventIntakeModule = new NoOpEventIntakeModule(model);
+        final Configuration configuration = platformContext.getConfiguration();
+        final EventCreatorModule eventCreatorModule = new NoOpEventCreatorModule(model, configuration);
+        final EventIntakeModule eventIntakeModule = new NoOpEventIntakeModule(model, configuration);
 
         final PlatformComponents platformComponents =
                 PlatformComponents.create(platformContext, model, eventCreatorModule, eventIntakeModule);

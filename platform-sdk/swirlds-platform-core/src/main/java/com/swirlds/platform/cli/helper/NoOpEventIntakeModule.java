@@ -15,6 +15,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import org.hiero.consensus.event.IntakeEventCounter;
 import org.hiero.consensus.event.intake.EventIntakeModule;
+import org.hiero.consensus.event.intake.config.EventIntakeWiringConfig;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
@@ -31,11 +32,13 @@ public class NoOpEventIntakeModule implements EventIntakeModule {
     /**
      * Constructs a NoOpEventIntakeModule.
      *
-     * @param model         the wiring model
+     * @param model the wiring model
+     * @param configuration the configuration
      */
-    public NoOpEventIntakeModule(@NonNull final WiringModel model) {
-        componentWiring =
-                new ComponentWiring<>(model, EventIntakeModule.class, TaskSchedulerConfiguration.DIRECT_CONFIGURATION);
+    public NoOpEventIntakeModule(@NonNull final WiringModel model, @NonNull final Configuration configuration) {
+        final TaskSchedulerConfiguration taskSchedulerConfiguration =
+                configuration.getConfigData(EventIntakeWiringConfig.class).eventHasher();
+        componentWiring = new ComponentWiring<>(model, EventIntakeModule.class, taskSchedulerConfiguration);
         componentWiring.bind(this);
     }
 

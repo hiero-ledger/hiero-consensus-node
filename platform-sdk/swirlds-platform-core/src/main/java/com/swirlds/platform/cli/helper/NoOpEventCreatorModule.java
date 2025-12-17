@@ -14,6 +14,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.security.SecureRandom;
 import java.time.Duration;
 import org.hiero.consensus.event.creator.EventCreatorModule;
+import org.hiero.consensus.event.creator.config.EventCreationWiringConfig;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.gossip.SyncProgress;
 import org.hiero.consensus.model.hashgraph.EventWindow;
@@ -34,11 +35,13 @@ public class NoOpEventCreatorModule implements EventCreatorModule {
     /**
      * Constructs a NoOpEventCreatorModule.
      *
-     * @param model         the wiring model
+     * @param model the wiring model
+     * @param configuration the configuration
      */
-    public NoOpEventCreatorModule(@NonNull final WiringModel model) {
-        componentWiring =
-                new ComponentWiring<>(model, EventCreatorModule.class, TaskSchedulerConfiguration.DIRECT_CONFIGURATION);
+    public NoOpEventCreatorModule(@NonNull final WiringModel model, @NonNull final Configuration configuration) {
+        final TaskSchedulerConfiguration taskSchedulerConfiguration =
+                configuration.getConfigData(EventCreationWiringConfig.class).eventCreationManager();
+        componentWiring = new ComponentWiring<>(model, EventCreatorModule.class, taskSchedulerConfiguration);
         componentWiring.bind(this);
     }
 

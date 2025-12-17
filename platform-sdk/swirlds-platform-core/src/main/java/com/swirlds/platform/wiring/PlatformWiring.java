@@ -82,6 +82,9 @@ public class PlatformWiring {
                 .getSyncProgressOutput()
                 .solderTo(components.eventCreatorModule().syncProgressInputWire());
 
+        // Note: This is an intermediate step while migrating components to the new event intake module.
+        // Right now, the output wire does not provide validated events, but events that have only
+        // run through the components that have been migrated so far.
         components
                 .eventIntakeModule()
                 .validatedEventsOutputWire()
