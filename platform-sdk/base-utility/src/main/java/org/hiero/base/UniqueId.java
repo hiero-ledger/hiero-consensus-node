@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.consensus.model.status;
+package org.hiero.base;
 
 /**
  * Specifies that each instance has a unique identifier. Usually used for enums.
