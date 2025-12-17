@@ -9,6 +9,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.BAD_ENCODING;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.EXISTING_AUTOMATIC_ASSOCIATIONS_EXCEED_GIVEN_LIMIT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.EXPIRATION_REDUCTION_NOT_ALLOWED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ACCOUNT_ID;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_CONTRACT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_EXPIRATION_TIME;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_STAKING_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.MEMO_TOO_LONG;
@@ -20,6 +21,7 @@ import static com.hedera.node.app.spi.fixtures.Assertions.assertThrowsPreCheck;
 import static com.hedera.node.app.spi.fixtures.workflows.ExceptionConditions.responseCode;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThatNoException;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThatThrownBy;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertIterableEquals;
@@ -70,6 +72,7 @@ import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfigImpl;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import java.util.List;
 import java.util.Map;
@@ -224,6 +227,41 @@ class CryptoUpdateHandlerTest extends CryptoHandlerTestBase {
     }
 
     @Test
+    void wrongSizeDelegationAddressShouldFailPureChecks() throws PreCheckException {
+        final var txn = new CryptoUpdateBuilder()
+                .withDelegationAddress(Bytes.fromHex("1234"))
+                .build();
+        givenTxnWith(txn);
+        given(pureChecksContext.body()).willReturn(txn);
+
+        assertThatThrownBy(() -> subject.pureChecks(pureChecksContext))
+                .isInstanceOf(PreCheckException.class)
+                .has(responseCode(INVALID_CONTRACT_ID));
+    }
+
+    @Test
+    void zeroSizeDelegationAddressShouldPassPureChecks() throws PreCheckException {
+        final var txn =
+                new CryptoUpdateBuilder().withDelegationAddress(Bytes.EMPTY).build();
+        givenTxnWith(txn);
+        given(pureChecksContext.body()).willReturn(txn);
+
+        assertDoesNotThrow(() -> subject.pureChecks(pureChecksContext));
+    }
+
+    @Test
+    void addressSizeDelegationAddressShouldPassPureChecks() throws PreCheckException {
+        final Bytes LONG_ZERO_ADDRESS_BYTES = Bytes.fromHex("0000000000000000000000000000000000000123");
+        final var txn = new CryptoUpdateBuilder()
+                .withDelegationAddress(LONG_ZERO_ADDRESS_BYTES)
+                .build();
+        givenTxnWith(txn);
+        given(pureChecksContext.body()).willReturn(txn);
+
+        assertDoesNotThrow(() -> subject.pureChecks(pureChecksContext));
+    }
+
+    @Test
     void updatesStakedAccountNumberIfPresentAndEnabled() {
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(configuration, 1));
 
@@ -236,6 +274,32 @@ class CryptoUpdateHandlerTest extends CryptoHandlerTestBase {
         subject.handle(handleContext);
 
         assertEquals(id, writableStore.get(updateAccountId).stakedAccountId());
+    }
+
+    @Test
+    void setDelegationAddressToZeroTest() {
+        final var txn =
+                new CryptoUpdateBuilder().withDelegationAddress(Bytes.EMPTY).build();
+        givenTxnWith(txn);
+
+        subject.handle(handleContext);
+
+        assertEquals(Bytes.EMPTY, writableStore.get(updateAccountId).delegationAddress());
+    }
+
+    @Test
+    void setDelegationAddressToAddressTest() {
+        final Bytes LONG_ZERO_ADDRESS_BYTES = Bytes.fromHex("0000000000000000000000000000000000000123");
+        final var txn = new CryptoUpdateBuilder()
+                .withDelegationAddress(LONG_ZERO_ADDRESS_BYTES)
+                .build();
+        givenTxnWith(txn);
+
+        assertEquals(Bytes.EMPTY, writableStore.get(updateAccountId).delegationAddress());
+
+        subject.handle(handleContext);
+
+        assertEquals(LONG_ZERO_ADDRESS_BYTES, writableStore.get(updateAccountId).delegationAddress());
     }
 
     @Test
@@ -910,6 +974,7 @@ class CryptoUpdateHandlerTest extends CryptoHandlerTestBase {
         private String memo;
         private Key opKey;
         private AccountID target = updateAccountId;
+        private Bytes delegationAddress;
 
         public CryptoUpdateBuilder() {}
 
@@ -958,6 +1023,10 @@ class CryptoUpdateHandlerTest extends CryptoHandlerTestBase {
 
             if (opKey != null) {
                 builder.key(opKey);
+            }
+
+            if (delegationAddress != null) {
+                builder.delegationAddress(delegationAddress);
             }
 
             return TransactionBody.newBuilder()
@@ -1045,6 +1114,11 @@ class CryptoUpdateHandlerTest extends CryptoHandlerTestBase {
 
         public CryptoUpdateBuilder withPayer(AccountID payer) {
             this.payer = payer;
+            return this;
+        }
+
+        public CryptoUpdateBuilder withDelegationAddress(Bytes delegationAddress) {
+            this.delegationAddress = delegationAddress;
             return this;
         }
     }

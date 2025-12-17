@@ -6,6 +6,7 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.ALIAS_ALREADY_ASSIGNED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.AUTORENEW_DURATION_NOT_IN_RANGE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_PAYER_BALANCE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_ALIAS_KEY;
+import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_CONTRACT_ID;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_INITIAL_BALANCE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_MAX_AUTO_ASSOCIATIONS;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_PAYER_ACCOUNT_ID;
@@ -304,6 +305,41 @@ class CryptoCreateHandlerTest extends CryptoHandlerTestBase {
     }
 
     @Test
+    @DisplayName("pureChecks fail when delegation address is wrong size")
+    void wrongSizeDelegationAddressShouldFailPureChecks() throws PreCheckException {
+        final var txn = new CryptoCreateBuilder()
+                .withDelegationAddress(Bytes.fromHex("1234"))
+                .build();
+        given(pureChecksContext.body()).willReturn(txn);
+
+        assertThatThrownBy(() -> subject.pureChecks(pureChecksContext))
+                .isInstanceOf(PreCheckException.class)
+                .has(responseCode(INVALID_CONTRACT_ID));
+    }
+
+    @Test
+    @DisplayName("pureChecks succeed when delegation address is zero size")
+    void zeroSizeDelegationAddressShouldPassPureChecks() throws PreCheckException {
+        final var txn =
+                new CryptoCreateBuilder().withDelegationAddress(Bytes.EMPTY).build();
+        given(pureChecksContext.body()).willReturn(txn);
+
+        assertDoesNotThrow(() -> subject.pureChecks(pureChecksContext));
+    }
+
+    @Test
+    @DisplayName("pureChecks succeed when delegation address is evm address size")
+    void addressSizeDelegationAddressShouldPassPureChecks() throws PreCheckException {
+        final Bytes LONG_ZERO_ADDRESS_BYTES = Bytes.fromHex("0000000000000000000000000000000000000123");
+        final var txn = new CryptoCreateBuilder()
+                .withDelegationAddress(LONG_ZERO_ADDRESS_BYTES)
+                .build();
+        given(pureChecksContext.body()).willReturn(txn);
+
+        assertDoesNotThrow(() -> subject.pureChecks(pureChecksContext));
+    }
+
+    @Test
     @DisplayName("preHandle succeeds when initial balance is zero")
     void preHandleWorksWhenInitialBalanceIsZero() throws PreCheckException {
         txn = new CryptoCreateBuilder().withInitialBalance(0L).build();
@@ -429,6 +465,7 @@ class CryptoCreateHandlerTest extends CryptoHandlerTestBase {
         assertEquals(0, createdAccount.numberTreasuryTitles());
         assertFalse(createdAccount.expiredAndPendingRemoval());
         assertEquals(0, createdAccount.firstContractStorageKey().length());
+        assertEquals(Bytes.EMPTY, createdAccount.delegationAddress());
 
         // validate payer balance reduced
         assertEquals(9_900L, writableStore.get(id).tinybarBalance());
@@ -499,6 +536,7 @@ class CryptoCreateHandlerTest extends CryptoHandlerTestBase {
         assertEquals(0, createdAccount.numberTreasuryTitles());
         assertFalse(createdAccount.expiredAndPendingRemoval());
         assertEquals(0, createdAccount.firstContractStorageKey().length());
+        assertEquals(Bytes.EMPTY, createdAccount.delegationAddress());
 
         // validate payer balance reduced
         assertEquals(9_900L, writableStore.get(id).tinybarBalance());
@@ -611,6 +649,30 @@ class CryptoCreateHandlerTest extends CryptoHandlerTestBase {
         assertEquals(
                 Bytes.wrap(evmAddress),
                 writableStore.get(idFactory.newAccountId(1000L)).alias());
+    }
+
+    @Test
+    @DisplayName("handle commits delegation address mentioned in the transaction")
+    void handleCommitsDelegationAddress() {
+        final byte[] evmAddress = CommonUtils.unhex("6aeb3773ea468a814d954e6dec795bfee7d76e26");
+        txn = new CryptoCreateBuilder()
+                .withDelegationAddress(Bytes.wrap(evmAddress))
+                .withStakedAccountId(3)
+                .build();
+        given(handleContext.body()).willReturn(txn);
+        given(handleContext.payer()).willReturn(idFactory.newAccountId(id.accountNum()));
+
+        given(handleContext.consensusNow()).willReturn(consensusInstant);
+        given(entityNumGenerator.newEntityNum()).willReturn(1000L);
+
+        setupConfig();
+        setupExpiryValidator();
+
+        subject.handle(handleContext);
+
+        assertEquals(
+                Bytes.wrap(evmAddress),
+                writableStore.get(idFactory.newAccountId(1000L)).delegationAddress());
     }
 
     @Test
@@ -807,6 +869,7 @@ class CryptoCreateHandlerTest extends CryptoHandlerTestBase {
         private long shardId = 0;
         private long realmId = 0;
         private int maxAutoAssociations = -1;
+        private Bytes delegationAddress = null;
 
         private Key key = otherKey;
 
@@ -847,6 +910,9 @@ class CryptoCreateHandlerTest extends CryptoHandlerTestBase {
             }
             if (maxAutoAssociations != -1) {
                 createTxnBody.maxAutomaticTokenAssociations(maxAutoAssociations);
+            }
+            if (delegationAddress != null) {
+                createTxnBody.delegationAddress(delegationAddress);
             }
 
             return TransactionBody.newBuilder()
@@ -923,6 +989,11 @@ class CryptoCreateHandlerTest extends CryptoHandlerTestBase {
 
         public CryptoCreateBuilder withMaxAutoAssociations(final int maxAutoAssociations) {
             this.maxAutoAssociations = maxAutoAssociations;
+            return this;
+        }
+
+        public CryptoCreateBuilder withDelegationAddress(final Bytes delegationAddress) {
+            this.delegationAddress = delegationAddress;
             return this;
         }
     }
