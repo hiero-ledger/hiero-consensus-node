@@ -262,6 +262,7 @@ public class BlockStreamingBenchmark {
     }
 
     public static void main(String[] args) throws Exception {
-        org.openjdk.jmh.Main.main(new String[] {"BlockStreamingBenchmark", "-v", "EXTRA"});
+        org.openjdk.jmh.Main.main(
+                new String[] {"BlockStreamingBenchmark", "-v", "EXTRA", "-prof", "gc", "-prof", "jfr"});
     }
 }
