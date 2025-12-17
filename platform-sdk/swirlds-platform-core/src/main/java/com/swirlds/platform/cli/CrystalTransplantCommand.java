@@ -178,7 +178,7 @@ public class CrystalTransplantCommand extends AbstractCommand {
         this.platformContext = PlatformContext.create(
                 configuration,
                 Time.getCurrent(),
-                new NoOpMetrics(),
+                new NoOpMetrics<>(),
                 FileSystemManager.create(configuration),
                 new SimpleRecycleBin(),
                 MerkleCryptographyFactory.create(configuration));

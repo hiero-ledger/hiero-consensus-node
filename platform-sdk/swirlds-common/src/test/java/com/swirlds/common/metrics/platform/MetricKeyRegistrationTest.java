@@ -19,7 +19,7 @@ class MetricKeyRegistrationTest {
         // given
         final String metricKey1 = calculateMetricKey("CaTeGoRy", "NaMe");
         final String metricKey2 = calculateMetricKey("CaTeGoRy", "OtherName");
-        final MetricKeyRegistry registry = new MetricKeyRegistry();
+        final MetricKeyRegistry<NodeId> registry = new MetricKeyRegistry<>();
 
         // when
         final boolean result1 = registry.register(null, METRIC_KEY, Counter.class);
@@ -37,7 +37,7 @@ class MetricKeyRegistrationTest {
         // given
         final String metricKey1 = calculateMetricKey("CaTeGoRy", "NaMe");
         final String metricKey2 = calculateMetricKey("CaTeGoRy", "OtherName");
-        final MetricKeyRegistry registry = new MetricKeyRegistry();
+        final MetricKeyRegistry<NodeId> registry = new MetricKeyRegistry<>();
 
         // when
         final boolean result_1_1 = registry.register(NODE_ID, METRIC_KEY, Counter.class);
@@ -53,7 +53,7 @@ class MetricKeyRegistrationTest {
     @Test
     void testAddingExistingGlobalMetric() {
         // given
-        final MetricKeyRegistry registry = new MetricKeyRegistry();
+        final MetricKeyRegistry<NodeId> registry = new MetricKeyRegistry<>();
         registry.register(null, METRIC_KEY, Counter.class);
 
         // when
@@ -66,7 +66,7 @@ class MetricKeyRegistrationTest {
     @Test
     void testAddingExistingPlatformMetric() {
         // given
-        final MetricKeyRegistry registry = new MetricKeyRegistry();
+        final MetricKeyRegistry<NodeId> registry = new MetricKeyRegistry<>();
         registry.register(NODE_ID, METRIC_KEY, Counter.class);
 
         // when
@@ -79,7 +79,7 @@ class MetricKeyRegistrationTest {
     @Test
     void testAddingExistingPlatformMetricForOtherPlatform() {
         // given
-        final MetricKeyRegistry registry = new MetricKeyRegistry();
+        final MetricKeyRegistry<NodeId> registry = new MetricKeyRegistry<>();
         registry.register(NODE_ID, METRIC_KEY, Counter.class);
 
         // when
@@ -92,7 +92,7 @@ class MetricKeyRegistrationTest {
     @Test
     void testAddingGlobalMetricWhenPlatformMetricExists() {
         // given
-        final MetricKeyRegistry registry = new MetricKeyRegistry();
+        final MetricKeyRegistry<NodeId> registry = new MetricKeyRegistry<>();
         registry.register(NODE_ID, METRIC_KEY, Counter.class);
 
         // then
@@ -105,7 +105,7 @@ class MetricKeyRegistrationTest {
     @Test
     void testAddingPlatformMetricWhenGlobalMetricExists() {
         // given
-        final MetricKeyRegistry registry = new MetricKeyRegistry();
+        final MetricKeyRegistry<NodeId> registry = new MetricKeyRegistry<>();
         registry.register(null, METRIC_KEY, Counter.class);
 
         // then
@@ -118,7 +118,7 @@ class MetricKeyRegistrationTest {
     @Test
     void testAddingExistingGlobalMetricWithWrongType() {
         // given
-        final MetricKeyRegistry registry = new MetricKeyRegistry();
+        final MetricKeyRegistry<NodeId> registry = new MetricKeyRegistry<>();
         registry.register(null, METRIC_KEY, Counter.class);
 
         // then
@@ -131,7 +131,7 @@ class MetricKeyRegistrationTest {
     @Test
     void testAddingExistingPlatformMetricWithWrongType() {
         // given
-        final MetricKeyRegistry registry = new MetricKeyRegistry();
+        final MetricKeyRegistry<NodeId> registry = new MetricKeyRegistry<>();
         registry.register(NODE_ID, METRIC_KEY, Counter.class);
 
         // then
@@ -144,7 +144,7 @@ class MetricKeyRegistrationTest {
     @Test
     void testAddingGlobalMetricWhenPlatformMetricWasDeleted() {
         // given
-        final MetricKeyRegistry registry = new MetricKeyRegistry();
+        final MetricKeyRegistry<NodeId> registry = new MetricKeyRegistry<>();
         registry.register(NODE_ID, METRIC_KEY, Counter.class);
         registry.unregister(NODE_ID, METRIC_KEY);
 
@@ -158,7 +158,7 @@ class MetricKeyRegistrationTest {
     @Test
     void testAddingPlatformMetricWhenGlobalMetricWasDeleted() {
         // given
-        final MetricKeyRegistry registry = new MetricKeyRegistry();
+        final MetricKeyRegistry<NodeId> registry = new MetricKeyRegistry<>();
         registry.register(null, METRIC_KEY, Counter.class);
         registry.unregister(null, METRIC_KEY);
 
@@ -173,7 +173,7 @@ class MetricKeyRegistrationTest {
     void testAddingGlobalMetricWhenOnlyOnePlatformMetricWasDeleted() {
         // given
         final NodeId nodeId2 = NodeId.of(111L);
-        final MetricKeyRegistry registry = new MetricKeyRegistry();
+        final MetricKeyRegistry<NodeId> registry = new MetricKeyRegistry<>();
         registry.register(NODE_ID, METRIC_KEY, Counter.class);
         registry.register(nodeId2, METRIC_KEY, Counter.class);
         registry.unregister(NODE_ID, METRIC_KEY);
@@ -188,7 +188,7 @@ class MetricKeyRegistrationTest {
     @Test
     void testAddingDeletedGlobalMetricWithWrongType() {
         // given
-        final MetricKeyRegistry registry = new MetricKeyRegistry();
+        final MetricKeyRegistry<NodeId> registry = new MetricKeyRegistry<>();
         registry.register(null, METRIC_KEY, Counter.class);
         registry.unregister(null, METRIC_KEY);
 
@@ -202,7 +202,7 @@ class MetricKeyRegistrationTest {
     @Test
     void testAddingDeletedPlatformMetricWithWrongType() {
         // given
-        final MetricKeyRegistry registry = new MetricKeyRegistry();
+        final MetricKeyRegistry<NodeId> registry = new MetricKeyRegistry<>();
         registry.register(NODE_ID, METRIC_KEY, Counter.class);
         registry.unregister(NODE_ID, METRIC_KEY);
 

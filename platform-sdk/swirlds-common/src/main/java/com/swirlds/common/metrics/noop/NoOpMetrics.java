@@ -33,6 +33,13 @@ public class NoOpMetrics<KEY> implements PlatformMetrics<KEY> {
     private final KEY key;
 
     /**
+     * Constructor for global metrics
+     */
+    public NoOpMetrics() {
+        this.key = null;
+    }
+
+    /**
      * Constructor
      *
      * @param key the unique identifier (can be null for global metrics)

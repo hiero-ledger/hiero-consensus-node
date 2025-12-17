@@ -26,7 +26,7 @@ class DefaultPlatformContextTest {
         // given
         final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
         final NodeId nodeId = NodeId.of(3256733545L);
-        final PlatformMetricsProvider metricsProvider = new DefaultMetricsProvider(configuration);
+        final PlatformMetricsProvider<NodeId> metricsProvider = new DefaultMetricsProvider<>(configuration);
         metricsProvider.createGlobalMetrics();
         final MerkleCryptography merkleCryptography = mock(MerkleCryptography.class);
 

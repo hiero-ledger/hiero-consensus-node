@@ -40,7 +40,7 @@ public class HederaUtils {
             final Class<?> mainClass = Class.forName(HEDERA_MAIN_CLASS);
             Method newHederaMethod = mainClass.getDeclaredMethod("newHedera", Metrics.class, Configuration.class);
             return (SwirldMain<? extends MerkleNodeState>)
-                    newHederaMethod.invoke(null, new NoOpMetrics(), platformContext.getConfiguration());
+                    newHederaMethod.invoke(null, new NoOpMetrics<>(), platformContext.getConfiguration());
         } catch (final ClassNotFoundException
                 | NoSuchMethodException
                 | InvocationTargetException

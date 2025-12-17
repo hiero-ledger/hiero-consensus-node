@@ -29,7 +29,7 @@ import org.hiero.base.concurrent.ExecutorFactory;
  */
 public final class TestPlatformContextBuilder {
 
-    private static final Metrics defaultMetrics = new NoOpMetrics();
+    private static final Metrics defaultMetrics = new NoOpMetrics<>();
     private static final Configuration defaultConfig =
             ConfigurationBuilder.create().autoDiscoverExtensions().build();
     private static final MerkleCryptography defaultMerkleCryptography = MerkleCryptographyFactory.create(defaultConfig);

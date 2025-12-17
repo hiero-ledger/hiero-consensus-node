@@ -49,24 +49,24 @@ class SnapshotServiceTest {
     private SnapshotableMetric globalMetric;
 
     @Mock
-    private DefaultPlatformMetrics globalMetrics;
+    private DefaultPlatformMetrics<NodeId> globalMetrics;
 
     @Mock(strictness = LENIENT)
     private SnapshotableMetric platform1Metric;
 
     @Mock(strictness = LENIENT)
-    private DefaultPlatformMetrics platform1Metrics;
+    private DefaultPlatformMetrics<NodeId> platform1Metrics;
 
     @Mock(strictness = LENIENT)
     private SnapshotableMetric platform2Metric;
 
     @Mock(strictness = LENIENT)
-    private DefaultPlatformMetrics platform2Metrics;
+    private DefaultPlatformMetrics<NodeId> platform2Metrics;
 
     @Mock
-    private Consumer<SnapshotEvent> subscriber;
+    private Consumer<SnapshotEvent<NodeId>> subscriber;
 
-    private SnapshotService service;
+    private SnapshotService<NodeId> service;
 
     private MetricsConfig metricsConfig;
 
@@ -81,13 +81,13 @@ class SnapshotServiceTest {
         when(platform1Metric.getName()).thenReturn("platform");
 
         when(platform1Metrics.isPlatformMetrics()).thenReturn(true);
-        when(platform1Metrics.getNodeId()).thenReturn(NODE_ID_1);
+        when(platform1Metrics.getKey()).thenReturn(NODE_ID_1);
         when(platform1Metrics.getAll()).thenReturn(List.of(globalMetric, platform1Metric));
 
         when(platform2Metric.getName()).thenReturn("platform");
 
         when(platform2Metrics.isPlatformMetrics()).thenReturn(true);
-        when(platform2Metrics.getNodeId()).thenReturn(NODE_ID_2);
+        when(platform2Metrics.getKey()).thenReturn(NODE_ID_2);
         when(platform2Metrics.getAll()).thenReturn(List.of(globalMetric, platform2Metric));
 
         when(executorService.schedule(any(Runnable.class), anyLong(), any()))
@@ -97,7 +97,7 @@ class SnapshotServiceTest {
                 })
                 .thenAnswer(invocation -> mock(ScheduledFuture.class));
 
-        service = new SnapshotService(globalMetrics, executorService, Duration.ZERO);
+        service = new SnapshotService<>(globalMetrics, executorService, Duration.ZERO);
         service.subscribe(subscriber);
     }
 
@@ -130,9 +130,9 @@ class SnapshotServiceTest {
         service.start();
 
         // then
-        final ArgumentCaptor<SnapshotEvent> notification = ArgumentCaptor.forClass(SnapshotEvent.class);
+        final ArgumentCaptor<SnapshotEvent<NodeId>> notification = ArgumentCaptor.forClass(SnapshotEvent.class);
         verify(subscriber).accept(notification.capture());
-        assertThat(notification.getValue().nodeId()).isNull();
+        assertThat(notification.getValue().key()).isNull();
         assertThat(notification.getValue().snapshots()).containsExactly(Snapshot.of(globalMetric));
     }
 
@@ -143,9 +143,9 @@ class SnapshotServiceTest {
         service.start();
 
         // then
-        final ArgumentCaptor<SnapshotEvent> notification = ArgumentCaptor.forClass(SnapshotEvent.class);
+        final ArgumentCaptor<SnapshotEvent<NodeId>> notification = ArgumentCaptor.forClass(SnapshotEvent.class);
         verify(subscriber, times(2)).accept(notification.capture());
-        assertThat(notification.getValue().nodeId()).isEqualTo(NODE_ID_1);
+        assertThat(notification.getValue().key()).isEqualTo(NODE_ID_1);
         assertThat(notification.getValue().snapshots())
                 .containsExactly(Snapshot.of(globalMetric), Snapshot.of(platform1Metric));
     }
@@ -158,9 +158,9 @@ class SnapshotServiceTest {
         service.start();
 
         // then
-        final ArgumentCaptor<SnapshotEvent> notification = ArgumentCaptor.forClass(SnapshotEvent.class);
+        final ArgumentCaptor<SnapshotEvent<NodeId>> notification = ArgumentCaptor.forClass(SnapshotEvent.class);
         verify(subscriber, times(3)).accept(notification.capture());
-        assertThat(notification.getValue().nodeId()).isEqualTo(NODE_ID_2);
+        assertThat(notification.getValue().key()).isEqualTo(NODE_ID_2);
         assertThat(notification.getValue().snapshots())
                 .containsExactly(Snapshot.of(globalMetric), Snapshot.of(platform2Metric));
     }
@@ -174,9 +174,9 @@ class SnapshotServiceTest {
         service.start();
 
         // then
-        final ArgumentCaptor<SnapshotEvent> notification = ArgumentCaptor.forClass(SnapshotEvent.class);
+        final ArgumentCaptor<SnapshotEvent<NodeId>> notification = ArgumentCaptor.forClass(SnapshotEvent.class);
         verify(subscriber, times(2)).accept(notification.capture());
-        assertThat(notification.getValue().nodeId()).isEqualTo(NODE_ID_1);
+        assertThat(notification.getValue().key()).isEqualTo(NODE_ID_1);
         assertThat(notification.getValue().snapshots())
                 .containsExactly(Snapshot.of(globalMetric), Snapshot.of(platform1Metric));
     }
@@ -186,7 +186,7 @@ class SnapshotServiceTest {
         // given
         final Duration loopDelay = metricsConfig.getMetricsSnapshotDuration();
         final Time time = new FakeTime(Duration.ofMillis(100));
-        final SnapshotService service = new SnapshotService(globalMetrics, executorService, loopDelay, time);
+        final SnapshotService<NodeId> service = new SnapshotService<>(globalMetrics, executorService, loopDelay, time);
 
         // when
         service.start();
@@ -216,7 +216,7 @@ class SnapshotServiceTest {
         // given
         final Duration loopDelay = metricsConfig.getMetricsSnapshotDuration();
         final Time time = new FakeTime(Duration.ofSeconds(10 * metricsConfig.csvWriteFrequency()));
-        final SnapshotService service = new SnapshotService(globalMetrics, executorService, loopDelay, time);
+        final SnapshotService<NodeId> service = new SnapshotService<>(globalMetrics, executorService, loopDelay, time);
 
         final ArgumentCaptor<Runnable> mainLoop = ArgumentCaptor.forClass(Runnable.class);
         final ArgumentCaptor<Long> delay = ArgumentCaptor.forClass(Long.class);

@@ -51,7 +51,7 @@ public class VirtualMapStatisticsTest {
 
         final MetricKeyRegistry registry = mock(MetricKeyRegistry.class);
         when(registry.register(any(), any(), any())).thenReturn(true);
-        metrics = new DefaultPlatformMetrics(
+        metrics = new DefaultPlatformMetrics<>(
                 null,
                 registry,
                 mock(ScheduledExecutorService.class),

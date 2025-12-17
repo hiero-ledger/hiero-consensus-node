@@ -65,7 +65,7 @@ public class TestPlatformContexts {
                 .withValue(PcesConfig_.COMPACT_LAST_FILE_ON_STARTUP, false)
                 .getOrCreateConfig();
 
-        final Metrics metrics = new NoOpMetrics();
+        final Metrics metrics = new NoOpMetrics<>();
 
         final var recycleBin = Optional.ofNullable(recycleBinPath)
                 .<RecycleBin>map(p -> new RecycleBinImpl(

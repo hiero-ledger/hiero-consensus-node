@@ -25,7 +25,7 @@ class AccumulatedAverageTimeTest {
         final MetricsConfig metricsConfig = configuration.getConfigData(MetricsConfig.class);
         final MetricKeyRegistry registry = mock(MetricKeyRegistry.class);
         when(registry.register(any(), any(), any())).thenReturn(true);
-        final Metrics metrics = new DefaultPlatformMetrics(
+        final Metrics metrics = new DefaultPlatformMetrics<>(
                 null,
                 registry,
                 mock(ScheduledExecutorService.class),

@@ -49,7 +49,7 @@ class CycleMetricsTest {
     void accumulatedCycleMetricsTest() {
         final MetricKeyRegistry registry = mock(MetricKeyRegistry.class);
         when(registry.register(any(), any(), any())).thenReturn(true);
-        final Metrics metrics = new DefaultPlatformMetrics(
+        final Metrics metrics = new DefaultPlatformMetrics<>(
                 null,
                 registry,
                 mock(ScheduledExecutorService.class),
@@ -106,7 +106,7 @@ class CycleMetricsTest {
     void longIntervals() {
         final MetricKeyRegistry registry = mock(MetricKeyRegistry.class);
         when(registry.register(any(), any(), any())).thenReturn(true);
-        final Metrics metrics = new DefaultPlatformMetrics(
+        final Metrics metrics = new DefaultPlatformMetrics<>(
                 null,
                 registry,
                 mock(ScheduledExecutorService.class),
@@ -148,7 +148,7 @@ class CycleMetricsTest {
     void skipIntervals() {
         final MetricKeyRegistry registry = mock(MetricKeyRegistry.class);
         when(registry.register(any(), any(), any())).thenReturn(true);
-        final Metrics metrics = new DefaultPlatformMetrics(
+        final Metrics metrics = new DefaultPlatformMetrics<>(
                 null,
                 registry,
                 mock(ScheduledExecutorService.class),
@@ -192,7 +192,7 @@ class CycleMetricsTest {
     void badArgument() {
         final MetricKeyRegistry registry = mock(MetricKeyRegistry.class);
         when(registry.register(any(), any(), any())).thenReturn(true);
-        final Metrics metrics = new DefaultPlatformMetrics(
+        final Metrics metrics = new DefaultPlatformMetrics<>(
                 null,
                 registry,
                 mock(ScheduledExecutorService.class),

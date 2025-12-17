@@ -74,7 +74,7 @@ class AbstractQueueThreadConfigurationTest {
         final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
         final MetricsConfig metricsConfig = configuration.getConfigData(MetricsConfig.class);
         final PlatformMetricsFactory factory = new PlatformMetricsFactoryImpl(metricsConfig);
-        metrics = new DefaultPlatformMetrics(null, registry, executor, factory, metricsConfig);
+        metrics = new DefaultPlatformMetrics<>(null, registry, executor, factory, metricsConfig);
     }
 
     @Test

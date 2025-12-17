@@ -50,7 +50,7 @@ class DefaultMetricsTest {
     private static final String NAME_2 = "NaMe2";
 
     @Mock
-    private MetricKeyRegistry registry;
+    private MetricKeyRegistry<NodeId> registry;
 
     @Mock(strictness = LENIENT)
     private ScheduledExecutorService executor;
@@ -59,9 +59,9 @@ class DefaultMetricsTest {
     private PlatformMetricsFactory factory;
 
     @Mock
-    private Consumer<MetricsEvent> subscriber;
+    private Consumer<MetricsEvent<NodeId>> subscriber;
 
-    private DefaultPlatformMetrics metrics;
+    private DefaultPlatformMetrics<NodeId> metrics;
     private MetricsConfig metricsConfig;
 
     @Mock(strictness = LENIENT)
@@ -105,7 +105,7 @@ class DefaultMetricsTest {
                 .when(executor)
                 .scheduleAtFixedRate(any(), anyLong(), anyLong(), any());
 
-        metrics = new DefaultPlatformMetrics(NODE_ID, registry, executor, factory, metricsConfig);
+        metrics = new DefaultPlatformMetrics<>(NODE_ID, registry, executor, factory, metricsConfig);
         setupDefaultData();
         metrics.subscribe(subscriber);
         reset(subscriber);
@@ -154,13 +154,13 @@ class DefaultMetricsTest {
 
     @Test
     void testConstructorWithNullParameter() {
-        assertThatCode(() -> new DefaultPlatformMetrics(null, registry, executor, factory, metricsConfig))
+        assertThatCode(() -> new DefaultPlatformMetrics<>(null, registry, executor, factory, metricsConfig))
                 .doesNotThrowAnyException();
-        assertThatThrownBy(() -> new DefaultPlatformMetrics(NODE_ID, null, executor, factory, metricsConfig))
+        assertThatThrownBy(() -> new DefaultPlatformMetrics<>(NODE_ID, null, executor, factory, metricsConfig))
                 .isInstanceOf(NullPointerException.class);
-        assertThatThrownBy(() -> new DefaultPlatformMetrics(NODE_ID, registry, null, factory, metricsConfig))
+        assertThatThrownBy(() -> new DefaultPlatformMetrics<>(NODE_ID, registry, null, factory, metricsConfig))
                 .isInstanceOf(NullPointerException.class);
-        assertThatThrownBy(() -> new DefaultPlatformMetrics(NODE_ID, registry, executor, null, metricsConfig))
+        assertThatThrownBy(() -> new DefaultPlatformMetrics<>(NODE_ID, registry, executor, null, metricsConfig))
                 .isInstanceOf(NullPointerException.class);
     }
 
@@ -285,7 +285,7 @@ class DefaultMetricsTest {
     }
 
     @Test
-    void testSubscribeAfterAdd(@Mock final Consumer<MetricsEvent> secondSubscriber) {
+    void testSubscribeAfterAdd(@Mock final Consumer<MetricsEvent<NodeId>> secondSubscriber) {
         // given
         final Metric metric = metrics.getOrCreate(new Counter.Config(CATEGORY_1, "New Counter"));
 
@@ -293,7 +293,7 @@ class DefaultMetricsTest {
         metrics.subscribe(secondSubscriber);
 
         // then
-        verify(secondSubscriber, atLeastOnce()).accept(new MetricsEvent(ADDED, NODE_ID, metric));
+        verify(secondSubscriber, atLeastOnce()).accept(new MetricsEvent<>(ADDED, NODE_ID, metric));
     }
 
     @Test
@@ -302,11 +302,11 @@ class DefaultMetricsTest {
         final Metric metric = metrics.getOrCreate(new Counter.Config(CATEGORY_1, "New Counter"));
 
         // then
-        verify(subscriber, atLeastOnce()).accept(new MetricsEvent(ADDED, NODE_ID, metric));
+        verify(subscriber, atLeastOnce()).accept(new MetricsEvent<>(ADDED, NODE_ID, metric));
     }
 
     @Test
-    void testSubscribeAfterRemoveMetricKey(@Mock final Consumer<MetricsEvent> secondSubscriber) {
+    void testSubscribeAfterRemoveMetricKey(@Mock final Consumer<MetricsEvent<NodeId>> secondSubscriber) {
         // given
         final Metric metric = metrics.getOrCreate(new Counter.Config(CATEGORY_1, NAME_1));
         metrics.remove(CATEGORY_1, NAME_1);
@@ -315,7 +315,7 @@ class DefaultMetricsTest {
         metrics.subscribe(secondSubscriber);
 
         // then
-        verify(secondSubscriber, never()).accept(new MetricsEvent(REMOVED, NODE_ID, metric));
+        verify(secondSubscriber, never()).accept(new MetricsEvent<>(REMOVED, NODE_ID, metric));
     }
 
     @Test
@@ -327,11 +327,11 @@ class DefaultMetricsTest {
         metrics.remove(CATEGORY_1, NAME_1);
 
         // then
-        verify(subscriber).accept(new MetricsEvent(REMOVED, NODE_ID, metric));
+        verify(subscriber).accept(new MetricsEvent<>(REMOVED, NODE_ID, metric));
     }
 
     @Test
-    void testSubscribeAfterRemoveMetric(@Mock final Consumer<MetricsEvent> secondSubscriber) {
+    void testSubscribeAfterRemoveMetric(@Mock final Consumer<MetricsEvent<NodeId>> secondSubscriber) {
         // given
         final Metric metric = metrics.getOrCreate(new Counter.Config(CATEGORY_1, NAME_1));
         metrics.remove(metric);
@@ -340,7 +340,7 @@ class DefaultMetricsTest {
         metrics.subscribe(secondSubscriber);
 
         // then
-        verify(secondSubscriber, never()).accept(new MetricsEvent(REMOVED, NODE_ID, metric));
+        verify(secondSubscriber, never()).accept(new MetricsEvent<>(REMOVED, NODE_ID, metric));
     }
 
     @Test
@@ -352,11 +352,11 @@ class DefaultMetricsTest {
         metrics.remove(metric);
 
         // then
-        verify(subscriber).accept(new MetricsEvent(REMOVED, NODE_ID, metric));
+        verify(subscriber).accept(new MetricsEvent<>(REMOVED, NODE_ID, metric));
     }
 
     @Test
-    void testSubscribeAfterRemoveMetricConfig(@Mock final Consumer<MetricsEvent> secondSubscriber) {
+    void testSubscribeAfterRemoveMetricConfig(@Mock final Consumer<MetricsEvent<NodeId>> secondSubscriber) {
         // given
         final Counter.Config config = new Counter.Config(CATEGORY_1, NAME_1);
         final Metric metric = metrics.getOrCreate(config);
@@ -366,7 +366,7 @@ class DefaultMetricsTest {
         metrics.subscribe(secondSubscriber);
 
         // then
-        verify(secondSubscriber, never()).accept(new MetricsEvent(REMOVED, NODE_ID, metric));
+        verify(secondSubscriber, never()).accept(new MetricsEvent<>(REMOVED, NODE_ID, metric));
     }
 
     @Test
@@ -379,7 +379,7 @@ class DefaultMetricsTest {
         metrics.remove(config);
 
         // then
-        verify(subscriber).accept(new MetricsEvent(REMOVED, NODE_ID, metric));
+        verify(subscriber).accept(new MetricsEvent<>(REMOVED, NODE_ID, metric));
     }
 
     @Test
@@ -431,7 +431,7 @@ class DefaultMetricsTest {
         // then
         final Collection<Metric> remaining = metrics.getAll();
         assertThat(remaining).containsExactly(counter_1_2, counter_1a_1, counter_1b_1, counter_11_1, counter_2_1);
-        verify(subscriber).accept(new MetricsEvent(REMOVED, NODE_ID, counter_1_1));
+        verify(subscriber).accept(new MetricsEvent<>(REMOVED, NODE_ID, counter_1_1));
     }
 
     @Test
@@ -461,7 +461,7 @@ class DefaultMetricsTest {
         // then
         final Collection<Metric> remaining = metrics.getAll();
         assertThat(remaining).containsExactly(counter_1_2, counter_1a_1, counter_1b_1, counter_11_1, counter_2_1);
-        verify(subscriber).accept(new MetricsEvent(REMOVED, NODE_ID, counter_1_1));
+        verify(subscriber).accept(new MetricsEvent<>(REMOVED, NODE_ID, counter_1_1));
     }
 
     @Test
@@ -510,7 +510,7 @@ class DefaultMetricsTest {
         // then
         final Collection<Metric> remaining = metrics.getAll();
         assertThat(remaining).containsExactly(counter_1_2, counter_1a_1, counter_1b_1, counter_11_1, counter_2_1);
-        verify(subscriber).accept(new MetricsEvent(REMOVED, NODE_ID, counter_1_1));
+        verify(subscriber).accept(new MetricsEvent<>(REMOVED, NODE_ID, counter_1_1));
     }
 
     @Test
@@ -565,8 +565,8 @@ class DefaultMetricsTest {
                 .withValue(MetricsConfig_.METRICS_UPDATE_PERIOD_MILLIS, 0L)
                 .getOrCreateConfig();
         metricsConfig = configuration.getConfigData(MetricsConfig.class);
-        final DefaultPlatformMetrics metrics =
-                new DefaultPlatformMetrics(NODE_ID, registry, executor, factory, metricsConfig);
+        final DefaultPlatformMetrics<NodeId> metrics =
+                new DefaultPlatformMetrics<>(NODE_ID, registry, executor, factory, metricsConfig);
         metrics.addUpdater(updater);
 
         // when
@@ -585,8 +585,8 @@ class DefaultMetricsTest {
     void testUpdaterAddedAfterStart(@Mock final Runnable updater) {
         // given
         final ScheduledExecutorService executor1 = Executors.newSingleThreadScheduledExecutor();
-        final DefaultPlatformMetrics metrics =
-                new DefaultPlatformMetrics(NODE_ID, registry, executor1, factory, metricsConfig);
+        final DefaultPlatformMetrics<NodeId> metrics =
+                new DefaultPlatformMetrics<>(NODE_ID, registry, executor1, factory, metricsConfig);
         metrics.start();
 
         // when
@@ -602,8 +602,8 @@ class DefaultMetricsTest {
         when(newCounter.getCategory()).thenReturn(CATEGORY_1);
         when(newCounter.getName()).thenReturn("New Counter");
         when(factory.createMetric(any())).thenReturn(newCounter);
-        final DefaultPlatformMetrics globalMetric =
-                new DefaultPlatformMetrics(null, registry, executor, factory, metricsConfig);
+        final DefaultPlatformMetrics<NodeId> globalMetric =
+                new DefaultPlatformMetrics<>(null, registry, executor, factory, metricsConfig);
         globalMetric.subscribe(metrics::handleGlobalMetrics);
 
         // when
@@ -620,8 +620,8 @@ class DefaultMetricsTest {
         when(newCounter.getCategory()).thenReturn(CATEGORY_1);
         when(newCounter.getName()).thenReturn("New Counter");
         when(factory.createMetric(any())).thenReturn(newCounter);
-        final DefaultPlatformMetrics globalMetric =
-                new DefaultPlatformMetrics(null, registry, executor, factory, metricsConfig);
+        final DefaultPlatformMetrics<NodeId> globalMetric =
+                new DefaultPlatformMetrics<>(null, registry, executor, factory, metricsConfig);
         globalMetric.subscribe(metrics::handleGlobalMetrics);
         globalMetric.getOrCreate(new Counter.Config(CATEGORY_1, "New Counter"));
 

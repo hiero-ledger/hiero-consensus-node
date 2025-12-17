@@ -36,7 +36,7 @@ public interface PlatformContext {
      */
     @NonNull
     static PlatformContext create(@NonNull final Configuration configuration) {
-        final Metrics metrics = new NoOpMetrics();
+        final Metrics metrics = new NoOpMetrics<>();
         final FileSystemManager fileSystemManager = FileSystemManager.create(configuration);
         final Time time = Time.getCurrent();
         final MerkleCryptography merkleCryptography = MerkleCryptographyFactory.create(configuration);

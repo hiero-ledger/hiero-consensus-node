@@ -33,7 +33,7 @@ class CycleTimingStatTest {
     @MethodSource({"validConstructorArgs", "invalidConstructorArgs"})
     void testConstructor(
             final String name, final boolean validArgs, final List<String> detailedNames, final List<String> descList) {
-        final Metrics metrics = new NoOpMetrics();
+        final Metrics metrics = new NoOpMetrics<>();
         final Runnable constructor = () -> new CycleTimingStat(
                 metrics, ChronoUnit.MICROS, new CycleDefinition("cat", name, detailedNames, descList));
         if (validArgs) {

@@ -269,7 +269,7 @@ class RecycleBinTests {
 
     private RecycleBinImpl createRecycleBin(final Time time, final Duration minimumPeriod) {
         return new RecycleBinImpl(
-                new NoOpMetrics(),
+                new NoOpMetrics<>(),
                 getStaticThreadManager(),
                 time,
                 recycleBinDirectory,

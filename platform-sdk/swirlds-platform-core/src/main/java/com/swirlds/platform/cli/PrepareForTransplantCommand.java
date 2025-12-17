@@ -75,7 +75,7 @@ public class PrepareForTransplantCommand extends AbstractCommand {
         final PlatformContext platformContext = PlatformContext.create(
                 configuration,
                 Time.getCurrent(),
-                new NoOpMetrics(),
+                new NoOpMetrics<>(),
                 FileSystemManager.create(configuration),
                 new SimpleRecycleBin(),
                 MerkleCryptographyFactory.create(configuration));

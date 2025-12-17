@@ -34,7 +34,7 @@ public final class DiagramLegendCommand extends AbstractCommand {
     public Integer call() throws IOException {
 
         final WiringModel model =
-                WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent()).build();
+                WiringModelBuilder.create(new NoOpMetrics<>(), Time.getCurrent()).build();
 
         final TaskScheduler<Integer> sequentialScheduler = model.<Integer>schedulerBuilder("SequentialScheduler")
                 .withType(TaskSchedulerType.SEQUENTIAL)
