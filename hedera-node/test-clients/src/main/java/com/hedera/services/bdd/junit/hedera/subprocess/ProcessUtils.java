@@ -144,7 +144,10 @@ public class ProcessUtils {
         environment.put("grpc.port", Integer.toString(metadata.grpcPort()));
         environment.put("grpc.nodeOperatorPort", Integer.toString(metadata.grpcNodeOperatorPort()));
         environment.put("hedera.config.version", Integer.toString(configVersion));
+        environment.put("RUST_BACKTRACE", "full");
         environment.put("TSS_LIB_NUM_OF_CORES", Integer.toString(1));
+        // Use non-blank path to enable WRAPS prover
+        environment.put("TSS_LIB_WRAPS_ARTIFACTS_PATH", "");
         environment.put("hedera.shard", String.valueOf(metadata.accountId().shardNum()));
         environment.put("hedera.realm", String.valueOf(metadata.accountId().realmNum()));
         // Include an PR check overrides from build.gradle.kts

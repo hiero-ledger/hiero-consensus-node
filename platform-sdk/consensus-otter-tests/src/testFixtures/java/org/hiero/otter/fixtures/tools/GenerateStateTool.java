@@ -53,7 +53,7 @@ public class GenerateStateTool {
     private static final long SELF_ID = 0L;
 
     /** List of file which will be removed before moving the state */
-    private static final List<String> FILES_TO_CLEAN = List.of("emergencyRecovery.yaml", PCES_DIRECTORY);
+    private static final List<String> FILES_TO_CLEAN = List.of(PCES_DIRECTORY);
 
     /** Test environment used to create and control the ephemeral network. */
     private final TestEnvironment environment;

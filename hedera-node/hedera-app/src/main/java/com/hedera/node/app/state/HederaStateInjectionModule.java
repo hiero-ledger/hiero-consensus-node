@@ -1,14 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.state;
 
-import com.hedera.node.app.records.impl.producers.formats.SelfNodeAccountIdManagerImpl;
-import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.records.RecordCache;
-import com.hedera.node.app.spi.records.SelfNodeAccountIdManager;
 import com.hedera.node.app.spi.state.BlockProvenSnapshotProvider;
 import com.hedera.node.app.state.recordcache.DeduplicationCacheImpl;
 import com.hedera.node.app.state.recordcache.RecordCacheImpl;
-import com.hedera.node.config.ConfigProvider;
 import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.State;
 import dagger.Binds;
@@ -33,13 +29,6 @@ public interface HederaStateInjectionModule {
     @Singleton
     static WorkingStateAccessor provideWorkingStateAccessor() {
         return new WorkingStateAccessor();
-    }
-
-    @Provides
-    @Singleton
-    static SelfNodeAccountIdManager selfNodeAccountIdManager(
-            @NonNull final ConfigProvider configProvider, @NonNull final NetworkInfo networkInfo) {
-        return new SelfNodeAccountIdManagerImpl(configProvider, networkInfo);
     }
 
     @Provides

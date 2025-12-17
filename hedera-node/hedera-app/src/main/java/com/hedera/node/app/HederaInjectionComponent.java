@@ -43,6 +43,7 @@ import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.migrate.StartupNetworks;
 import com.hedera.node.app.spi.records.RecordCache;
+import com.hedera.node.app.spi.records.SelfNodeAccountIdManager;
 import com.hedera.node.app.spi.throttle.ScheduleThrottle;
 import com.hedera.node.app.state.HederaStateInjectionModule;
 import com.hedera.node.app.state.WorkingStateAccessor;
@@ -163,6 +164,8 @@ public interface HederaInjectionComponent {
 
     QuiescenceController quiescenceController();
 
+    SelfNodeAccountIdManager selfNodeAccountIdManager();
+
     ClprEndpoint clprEndpoint();
 
     @Component.Builder
@@ -250,6 +253,9 @@ public interface HederaInjectionComponent {
 
         @BindsInstance
         Builder appContext(AppContext appContext);
+
+        @BindsInstance
+        Builder selfNodeAccountIdManager(SelfNodeAccountIdManager selfNodeAccountIdManager);
 
         HederaInjectionComponent build();
     }

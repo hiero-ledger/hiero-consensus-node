@@ -26,6 +26,7 @@ import com.hedera.hapi.node.base.TransactionFeeSchedule;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.fees.congestion.CongestionMultipliers;
 import com.hedera.node.app.spi.fees.FeeCalculator;
+import com.hedera.node.app.spi.fees.QueryFeeCalculator;
 import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
 import com.hedera.node.app.spi.fees.SimpleFeeCalculator;
 import com.hedera.node.app.spi.fees.SimpleFeeCalculatorImpl;
@@ -62,6 +63,7 @@ public final class FeeManager {
     private SimpleFeeCalculator simpleFeeCalculator;
 
     private final Set<ServiceFeeCalculator> serviceFeeCalculators;
+    private final Set<QueryFeeCalculator> queryFeeCalculators;
 
     private record Entry(HederaFunctionality function, SubType subType) {}
 
@@ -102,10 +104,12 @@ public final class FeeManager {
     public FeeManager(
             @NonNull final ExchangeRateManager exchangeRateManager,
             @NonNull CongestionMultipliers congestionMultipliers,
-            @NonNull Set<ServiceFeeCalculator> serviceFeeCalculators) {
+            @NonNull Set<ServiceFeeCalculator> serviceFeeCalculators,
+            @NonNull Set<QueryFeeCalculator> queryFeeCalculators) {
         this.exchangeRateManager = requireNonNull(exchangeRateManager);
         this.congestionMultipliers = requireNonNull(congestionMultipliers);
         this.serviceFeeCalculators = requireNonNull(serviceFeeCalculators);
+        this.queryFeeCalculators = requireNonNull(queryFeeCalculators);
     }
 
     /**
@@ -186,7 +190,8 @@ public final class FeeManager {
                     org.hiero.hapi.support.fees.FeeSchedule.PROTOBUF.parse(bytes);
             if (isValid(schedule)) {
                 this.simpleFeesSchedule = schedule;
-                this.simpleFeeCalculator = new SimpleFeeCalculatorImpl(schedule, serviceFeeCalculators);
+                this.simpleFeeCalculator =
+                        new SimpleFeeCalculatorImpl(schedule, serviceFeeCalculators, queryFeeCalculators);
                 return SUCCESS;
             } else {
                 logger.warn("Unable to validate fee schedule.");

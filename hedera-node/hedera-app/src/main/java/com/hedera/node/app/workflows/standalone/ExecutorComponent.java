@@ -16,6 +16,7 @@ import com.hedera.node.app.service.token.impl.TokenServiceImpl;
 import com.hedera.node.app.service.util.impl.UtilServiceImpl;
 import com.hedera.node.app.services.ServicesInjectionModule;
 import com.hedera.node.app.spi.AppContext;
+import com.hedera.node.app.spi.records.SelfNodeAccountIdManager;
 import com.hedera.node.app.spi.throttle.ScheduleThrottle;
 import com.hedera.node.app.state.HederaStateInjectionModule;
 import com.hedera.node.app.throttle.ThrottleServiceManager;
@@ -96,6 +97,9 @@ public interface ExecutorComponent {
 
         @BindsInstance
         Builder appContext(AppContext appContext);
+
+        @BindsInstance
+        Builder selfNodeAccountIdManager(SelfNodeAccountIdManager selfNodeAccountIdManager);
 
         ExecutorComponent build();
     }
