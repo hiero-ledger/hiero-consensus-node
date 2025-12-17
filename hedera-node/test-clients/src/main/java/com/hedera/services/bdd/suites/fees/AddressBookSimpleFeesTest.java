@@ -25,7 +25,7 @@ import org.junit.jupiter.api.Tag;
 @Tag(MATS)
 @Tag(SIMPLE_FEES)
 public class AddressBookSimpleFeesTest {
-    private static final double NODE_CREATE_BASE_FEE = 0.001;
+    // node create is only allowed by fee exempt payers
     private static final double NODE_UPDATE_BASE_FEE = 0.001;
     private static final double NODE_DELETE_BASE_FEE = 0.001;
 
@@ -48,15 +48,13 @@ public class AddressBookSimpleFeesTest {
                         .adminKey("payer")
                         // we have to pay with privileged account
                         .payingWith(GENESIS)
-                        .signedBy("payer", GENESIS)
-                        .via("nodeCreateTxn"),
+                        .signedBy("payer", GENESIS),
                 nodeUpdate("testNode")
                         .payingWith("payer")
                         .signedBy("payer")
                         .description("newDesc")
                         .via("nodeUpdateTxn"),
                 nodeDelete("testNode").payingWith("payer").signedBy("payer").via("nodeDeleteTxn"),
-                validateChargedUsd("nodeCreateTxn", NODE_CREATE_BASE_FEE),
                 validateChargedUsd("nodeUpdateTxn", NODE_UPDATE_BASE_FEE),
                 validateChargedUsd("nodeDeleteTxn", NODE_DELETE_BASE_FEE));
     }
