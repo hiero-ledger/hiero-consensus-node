@@ -448,6 +448,7 @@ public class SystemTransactions {
                     feeCollectionAccount);
         }
     }
+
     /**
      * Dispatches a synthetic node fee payment crypto transfer for the current staking period.
      *

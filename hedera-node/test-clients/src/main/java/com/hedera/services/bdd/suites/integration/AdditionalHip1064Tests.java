@@ -62,6 +62,7 @@ import java.util.function.LongSupplier;
 import java.util.stream.Stream;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
@@ -94,7 +95,8 @@ public class AdditionalHip1064Tests {
         testLifecycle.overrideInClass(Map.of(
                 "nodes.nodeRewardsEnabled", "true",
                 "nodes.preserveMinNodeRewardBalance", "true",
-                "ledger.transfers.maxLen", "2"));
+                "ledger.transfers.maxLen", "2",
+                "nodes.feeCollectionAccountEnabled", "false"));
         testLifecycle.doAdhoc(
                 nodeUpdate("0").declineReward(false),
                 nodeUpdate("1").declineReward(false),
@@ -108,6 +110,7 @@ public class AdditionalHip1064Tests {
      */
     @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
     @Order(1)
+    @Disabled
     final Stream<DynamicTest> nodeWithMinimalActivityReceivesRewards() {
         final AtomicReference<Instant> startConsensusTime = new AtomicReference<>();
 

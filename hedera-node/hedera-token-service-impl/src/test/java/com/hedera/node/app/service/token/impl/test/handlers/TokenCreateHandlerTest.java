@@ -122,6 +122,8 @@ class TokenCreateHandlerTest extends CryptoTokenHandlerTestBase {
         refreshWritableStores();
         recordBuilder = new RecordStreamBuilder(REVERSIBLE, NOOP_SIGNED_TX_CUSTOMIZER, USER);
         tokenFieldsValidator = new TokenAttributesValidator();
+        given(configProvider.getConfiguration())
+                .willReturn(new VersionedConfigImpl(HederaTestConfigBuilder.createConfig(), 1));
         customFeesValidator = new CustomFeesValidator(new FakeEntityIdFactoryImpl(SHARD, REALM), configProvider);
         tokenCreateValidator = new TokenCreateValidator(tokenFieldsValidator);
         subject = new TokenCreateHandler(idFactory, customFeesValidator, tokenCreateValidator);
