@@ -12,7 +12,6 @@ import com.swirlds.platform.builder.ApplicationCallbacks;
 import com.swirlds.platform.components.AppNotifier;
 import com.swirlds.platform.components.EventWindowManager;
 import com.swirlds.platform.components.consensus.ConsensusEngine;
-import com.swirlds.platform.consensus.EventWindowUtils;
 import com.swirlds.platform.event.branching.BranchDetector;
 import com.swirlds.platform.event.branching.BranchReporter;
 import com.swirlds.platform.event.deduplication.EventDeduplicator;
@@ -36,11 +35,13 @@ import com.swirlds.state.MerkleNodeState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
 import org.hiero.consensus.event.creator.EventCreatorModule;
+import org.hiero.consensus.hashgraph.ConsensusConfig;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.roster.RosterUtils;
+import org.hiero.consensus.round.EventWindowUtils;
 
 /**
  * Responsible for coordinating activities through the component's wire for the platform.
@@ -69,7 +70,7 @@ public record PlatformCoordinator(@NonNull PlatformComponents components, @NonNu
         // lines without understanding the implications of doing so. Consult the wiring diagram when deciding
         // whether to change the order of these lines.
 
-        components.eventHasherWiring().flush();
+        components.eventIntakeModule().flush();
         components.internalEventValidatorWiring().flush();
         components.eventDeduplicatorWiring().flush();
         components.eventSignatureValidatorWiring().flush();
@@ -78,7 +79,7 @@ public record PlatformCoordinator(@NonNull PlatformComponents components, @NonNu
         components.gossipWiring().flush();
         components.consensusEngineWiring().flush();
         components.applicationTransactionPrehandlerWiring().flush();
-        components.eventCreationManagerWiring().flush();
+        components.eventCreatorModule().flush();
         components.branchDetectorWiring().flush();
     }
 
@@ -101,8 +102,8 @@ public record PlatformCoordinator(@NonNull PlatformComponents components, @NonNu
         // squelch is activated.
         components.consensusEngineWiring().startSquelching();
         components.consensusEngineWiring().flush();
-        components.eventCreationManagerWiring().startSquelching();
-        components.eventCreationManagerWiring().flush();
+        components.eventCreatorModule().startSquelching();
+        components.eventCreatorModule().flush();
 
         // Also squelch the transaction handler. It isn't strictly necessary to do this to prevent dataflow through
         // the system, but it prevents the transaction handler from wasting time handling rounds that don't need to
@@ -122,7 +123,7 @@ public record PlatformCoordinator(@NonNull PlatformComponents components, @NonNu
         // Phase 3: stop squelching
         // Once everything has been flushed out of the system, it's safe to stop squelching.
         components.consensusEngineWiring().stopSquelching();
-        components.eventCreationManagerWiring().stopSquelching();
+        components.eventCreatorModule().stopSquelching();
         components.transactionHandlerWiring().stopSquelching();
 
         // Phase 4: clear
@@ -137,10 +138,7 @@ public record PlatformCoordinator(@NonNull PlatformComponents components, @NonNu
                 .stateSignatureCollectorWiring()
                 .getInputWire(StateSignatureCollector::clear)
                 .inject(NoInput.getInstance());
-        components
-                .eventCreationManagerWiring()
-                .getInputWire(EventCreatorModule::clear)
-                .inject(NoInput.getInstance());
+        components.eventCreatorModule().clearCreationMangerInputWire().inject(NoInput.getInstance());
         components.branchDetectorWiring().getInputWire(BranchDetector::clear).inject(NoInput.getInstance());
         components.branchReporterWiring().getInputWire(BranchReporter::clear).inject(NoInput.getInstance());
     }
@@ -366,17 +364,14 @@ public record PlatformCoordinator(@NonNull PlatformComponents components, @NonNu
     }
 
     /**
-     * @see EventCreatorModule#quiescenceCommand(QuiescenceCommand)
+     * @see EventCreatorModule#quiescenceCommandInputWire()
      */
     public void quiescenceCommand(@NonNull final QuiescenceCommand quiescenceCommand) {
         components
                 .platformMonitorWiring()
                 .getInputWire(PlatformMonitor::quiescenceCommand)
                 .inject(quiescenceCommand);
-        components
-                .eventCreationManagerWiring()
-                .getInputWire(EventCreatorModule::quiescenceCommand)
-                .inject(quiescenceCommand);
+        components.eventCreatorModule().quiescenceCommandInputWire().inject(quiescenceCommand);
     }
 
     /**
@@ -403,7 +398,9 @@ public record PlatformCoordinator(@NonNull PlatformComponents components, @NonNu
         final RosterHistory rosterHistory = RosterUtils.createRosterHistory(state);
         this.injectRosterHistory(rosterHistory);
 
-        this.updateEventWindow(EventWindowUtils.createEventWindow(consensusSnapshot, configuration));
+        final int roundsNonAncient =
+                configuration.getConfigData(ConsensusConfig.class).roundsNonAncient();
+        this.updateEventWindow(EventWindowUtils.createEventWindow(consensusSnapshot, roundsNonAncient));
 
         final RunningEventHashOverride runningEventHashOverride =
                 new RunningEventHashOverride(legacyRunningEventHashOf(state), true);

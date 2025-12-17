@@ -33,6 +33,7 @@ import com.hedera.node.app.service.token.impl.TokenServiceImpl;
 import com.hedera.node.app.spi.AppContext;
 import com.hedera.node.app.spi.api.ServiceApiProvider;
 import com.hedera.node.app.spi.fees.FeeCharging;
+import com.hedera.node.app.spi.fees.QueryFeeCalculator;
 import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
 import com.hedera.node.app.state.WorkingStateAccessor;
 import com.hedera.node.app.store.ReadableStoreFactory;
@@ -96,6 +97,13 @@ public interface FacilityInitModule {
     @Provides
     @ElementsIntoSet
     @Singleton
+    static Set<QueryFeeCalculator> provideConsensusQueryFeeCalculators(ConsensusServiceImpl consensusService) {
+        return consensusService.queryFeeCalculators();
+    }
+
+    @Provides
+    @ElementsIntoSet
+    @Singleton
     static Set<ServiceFeeCalculator> provideScheduleServiceFeeCalculators(ScheduleServiceImpl scheduleService) {
         return scheduleService.serviceFeeCalculators();
     }
@@ -103,8 +111,22 @@ public interface FacilityInitModule {
     @Provides
     @ElementsIntoSet
     @Singleton
+    static Set<QueryFeeCalculator> provideScheduleQueryFeeCalculators(ScheduleServiceImpl scheduleService) {
+        return scheduleService.queryFeeCalculators();
+    }
+
+    @Provides
+    @ElementsIntoSet
+    @Singleton
     static Set<ServiceFeeCalculator> provideFileServiceFeeCalculators(FileServiceImpl fileService) {
         return fileService.serviceFeeCalculators();
+    }
+
+    @Provides
+    @ElementsIntoSet
+    @Singleton
+    static Set<QueryFeeCalculator> provideFileQueryFeeCalculators(FileServiceImpl fileService) {
+        return fileService.queryFeeCalculators();
     }
 
     @Provides

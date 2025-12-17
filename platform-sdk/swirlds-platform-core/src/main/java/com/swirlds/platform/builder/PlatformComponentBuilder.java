@@ -69,11 +69,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Objects;
-import java.util.ServiceLoader;
-import org.hiero.consensus.crypto.DefaultEventHasher;
-import org.hiero.consensus.crypto.EventHasher;
 import org.hiero.consensus.crypto.PlatformSigner;
-import org.hiero.consensus.event.creator.EventCreatorModule;
 import org.hiero.consensus.model.event.CesEvent;
 
 /**
@@ -98,13 +94,11 @@ public class PlatformComponentBuilder {
 
     private final PlatformBuildingBlocks blocks;
 
-    private EventHasher eventHasher;
     private InternalEventValidator internalEventValidator;
     private EventDeduplicator eventDeduplicator;
     private EventSignatureValidator eventSignatureValidator;
     private StateGarbageCollector stateGarbageCollector;
     private OrphanBuffer orphanBuffer;
-    private EventCreatorModule eventCreator;
     private ConsensusEngine consensusEngine;
     private ConsensusEventStream consensusEventStream;
     private SignedStateSentinel signedStateSentinel;
@@ -199,37 +193,6 @@ public class PlatformComponentBuilder {
         throwIfAlreadyUsed();
         this.metricsDocumentationEnabled = metricsDocumentationEnabled;
         return this;
-    }
-
-    /**
-     * Provide an event hasher in place of the platform's default event hasher.
-     *
-     * @param eventHasher the event hasher to use
-     * @return this builder
-     */
-    @NonNull
-    public PlatformComponentBuilder withEventHasher(@NonNull final EventHasher eventHasher) {
-        throwIfAlreadyUsed();
-        if (this.eventHasher != null) {
-            throw new IllegalStateException("Event hasher has already been set");
-        }
-        this.eventHasher = Objects.requireNonNull(eventHasher);
-        return this;
-    }
-
-    /**
-     * Build the event hasher if it has not yet been built. If one has been provided via
-     * {@link #withEventHasher(EventHasher)}, that hasher will be used. If this method is called more than once, only
-     * the first call will build the event hasher. Otherwise, the default hasher will be created and returned.
-     *
-     * @return the event hasher
-     */
-    @NonNull
-    public EventHasher buildEventHasher() {
-        if (eventHasher == null) {
-            eventHasher = new DefaultEventHasher();
-        }
-        return eventHasher;
     }
 
     /**
@@ -402,50 +365,6 @@ public class PlatformComponentBuilder {
     }
 
     /**
-     * Provide an event creator in place of the platform's default event creator.
-     *
-     * @param eventCreator the event creator to use
-     * @return this builder
-     */
-    @NonNull
-    public PlatformComponentBuilder withEventCreator(@NonNull final EventCreatorModule eventCreator) {
-        throwIfAlreadyUsed();
-        if (this.eventCreator != null) {
-            throw new IllegalStateException("Event creation manager has already been set");
-        }
-        this.eventCreator = Objects.requireNonNull(eventCreator);
-        return this;
-    }
-
-    /**
-     * Build the event creator if it has not yet been built. If one has been provided via
-     * {@link #withEventCreator(EventCreatorModule)}, that creator will be used. If this method is called more than once,
-     * only the first call will build the event creator. Otherwise, the default creator will be created and returned.
-     *
-     * @return the event creator
-     */
-    @NonNull
-    public EventCreatorModule buildEventCreator() {
-        if (eventCreator == null) {
-            eventCreator = ServiceLoader.load(EventCreatorModule.class).stream()
-                    .findFirst()
-                    .orElseThrow(() -> new IllegalStateException("No EventCreatorModule implementation found!"))
-                    .get();
-        }
-        eventCreator.initialize(
-                blocks.platformContext().getConfiguration(),
-                blocks.platformContext().getMetrics(),
-                blocks.platformContext().getTime(),
-                blocks.secureRandomSupplier().get(),
-                new PlatformSigner(blocks.keysAndCerts()),
-                blocks.rosterHistory().getCurrentRoster(),
-                blocks.selfId(),
-                blocks.execution(),
-                blocks.execution());
-        return eventCreator;
-    }
-
-    /**
      * Provide a consensus engine in place of the platform's default consensus engine.
      *
      * @param consensusEngine the consensus engine to use
@@ -475,7 +394,7 @@ public class PlatformComponentBuilder {
                     blocks.platformContext(),
                     blocks.rosterHistory().getCurrentRoster(),
                     blocks.selfId(),
-                    blocks.freezeCheckHolder());
+                    blocks.freezeChecker());
         }
         return consensusEngine;
     }
@@ -513,7 +432,7 @@ public class PlatformComponentBuilder {
                     (byte[] data) -> new PlatformSigner(blocks.keysAndCerts()).sign(data),
                     blocks.consensusEventStreamName(),
                     (CesEvent event) -> event.isLastInRoundReceived()
-                            && blocks.freezeCheckHolder()
+                            && blocks.freezeChecker()
                                     .isInFreezePeriod(event.getPlatformEvent().getConsensusTimestamp()));
         }
         return consensusEventStream;

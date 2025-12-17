@@ -63,6 +63,7 @@ import com.hedera.node.app.info.CurrentPlatformStatusImpl;
 import com.hedera.node.app.info.StateNetworkInfo;
 import com.hedera.node.app.metrics.StoreMetricsServiceImpl;
 import com.hedera.node.app.records.BlockRecordService;
+import com.hedera.node.app.records.impl.producers.formats.SelfNodeAccountIdManagerImpl;
 import com.hedera.node.app.service.addressbook.impl.AddressBookServiceImpl;
 import com.hedera.node.app.service.consensus.impl.ConsensusServiceImpl;
 import com.hedera.node.app.service.contract.impl.ContractServiceImpl;
@@ -1253,6 +1254,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
                 platform.getSelfId().id(), state, currentRoster, configProvider, () -> requireNonNull(
                                 genesisNetworkSupplier)
                         .get());
+        final var selfNodeAccountIdManager = new SelfNodeAccountIdManagerImpl(configProvider, networkInfo, state);
         hintsService.initCurrentRoster(currentRoster);
         final var blockHashSigner = blockHashSignerFactory.apply(hintsService, historyService, configProvider);
         // Fully qualified so as to not confuse javadoc
@@ -1280,6 +1282,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
                 .migrationStateChanges(migrationStateChanges != null ? migrationStateChanges : new ArrayList<>())
                 .initialStateHash(initialStateHash)
                 .networkInfo(networkInfo)
+                .selfNodeAccountIdManager(selfNodeAccountIdManager)
                 .startupNetworks(startupNetworks)
                 .hintsService(hintsService)
                 .historyService(historyService)

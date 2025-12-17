@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 import org.hiero.consensus.event.creator.EventCreatorModule;
+import org.hiero.consensus.event.intake.EventIntakeModule;
 
 /**
  * The Swirlds public API module used by platform applications.
  */
 module com.swirlds.platform.core {
     uses EventCreatorModule;
+    uses EventIntakeModule;
 
     /* Public Package Exports. This list should remain alphabetized. */
     exports com.swirlds.platform;
@@ -38,13 +40,7 @@ module com.swirlds.platform.core {
     exports com.swirlds.platform.network.communication;
     exports com.swirlds.platform.network.protocol;
     exports com.swirlds.platform.network.topology;
-    exports com.swirlds.platform.recovery;
     exports com.swirlds.platform.state;
-    exports com.swirlds.platform.stats;
-    exports com.swirlds.platform.stats.atomic;
-    exports com.swirlds.platform.stats.cycle;
-    exports com.swirlds.platform.state.editor;
-    exports com.swirlds.platform.stats.simple;
     exports com.swirlds.platform.state.signed;
     exports com.swirlds.platform.state.address;
     exports com.swirlds.platform.gossip.sync;
@@ -93,7 +89,6 @@ module com.swirlds.platform.core {
     exports com.swirlds.platform.gossip;
     exports com.swirlds.platform.reconnect;
     exports com.swirlds.platform.gossip.shadowgraph;
-    exports com.swirlds.platform.recovery.emergencyfile;
     exports com.swirlds.platform.event;
     exports com.swirlds.platform.wiring;
     exports com.swirlds.platform.wiring.components;
@@ -121,11 +116,10 @@ module com.swirlds.platform.core {
     requires transitive org.hiero.base.crypto;
     requires transitive org.hiero.base.utility;
     requires transitive org.hiero.consensus.event.creator;
+    requires transitive org.hiero.consensus.event.intake;
     requires transitive org.hiero.consensus.hashgraph;
     requires transitive org.hiero.consensus.model;
     requires transitive org.hiero.consensus.utility;
-    requires transitive com.fasterxml.jackson.annotation;
-    requires transitive com.fasterxml.jackson.databind;
     requires transitive info.picocli;
     requires transitive org.apache.logging.log4j;
     requires com.swirlds.config.extensions;
@@ -134,6 +128,7 @@ module com.swirlds.platform.core {
     requires com.swirlds.state.impl;
     requires com.swirlds.virtualmap;
     requires com.fasterxml.jackson.core;
+    requires com.fasterxml.jackson.databind;
     requires com.fasterxml.jackson.dataformat.yaml;
     requires com.github.spotbugs.annotations;
     requires com.google.common;

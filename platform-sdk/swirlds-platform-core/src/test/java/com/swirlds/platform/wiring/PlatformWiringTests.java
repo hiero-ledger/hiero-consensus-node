@@ -12,11 +12,14 @@ import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.component.framework.model.WiringModelBuilder;
+import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.platform.builder.ApplicationCallbacks;
 import com.swirlds.platform.builder.ExecutionLayer;
 import com.swirlds.platform.builder.PlatformBuildingBlocks;
 import com.swirlds.platform.builder.PlatformComponentBuilder;
+import com.swirlds.platform.cli.helper.NoOpEventCreatorModule;
+import com.swirlds.platform.cli.helper.NoOpEventIntakeModule;
 import com.swirlds.platform.components.AppNotifier;
 import com.swirlds.platform.components.EventWindowManager;
 import com.swirlds.platform.components.SavedStateController;
@@ -51,9 +54,9 @@ import java.security.NoSuchAlgorithmException;
 import java.security.NoSuchProviderException;
 import java.security.SecureRandom;
 import java.util.stream.Stream;
-import org.hiero.consensus.crypto.EventHasher;
 import org.hiero.consensus.crypto.SigningSchema;
 import org.hiero.consensus.event.creator.EventCreatorModule;
+import org.hiero.consensus.event.intake.EventIntakeModule;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.roster.RosterHistory;
@@ -85,12 +88,15 @@ class PlatformWiringTests {
     @MethodSource("testContexts")
     @DisplayName("Assert that all input wires are bound to something")
     void testBindings(final PlatformContext platformContext) {
-        final ApplicationCallbacks applicationCallbacks = new ApplicationCallbacks(x -> {}, x -> {}, x -> {});
-
         final WiringModel model =
                 WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent()).build();
 
-        final PlatformComponents platformComponents = PlatformComponents.create(platformContext, model);
+        final Configuration configuration = platformContext.getConfiguration();
+        final EventCreatorModule eventCreatorModule = new NoOpEventCreatorModule(model, configuration);
+        final EventIntakeModule eventIntakeModule = new NoOpEventIntakeModule(model, configuration);
+
+        final PlatformComponents platformComponents =
+                PlatformComponents.create(platformContext, model, eventCreatorModule, eventIntakeModule);
         PlatformWiring.wire(
                 platformContext, mock(ExecutionLayer.class), platformComponents, ApplicationCallbacks.EMPTY);
 
@@ -99,13 +105,11 @@ class PlatformWiringTests {
 
         final PlatformCoordinator coordinator = new PlatformCoordinator(platformComponents, ApplicationCallbacks.EMPTY);
         componentBuilder
-                .withEventHasher(mock(EventHasher.class))
                 .withInternalEventValidator(mock(InternalEventValidator.class))
                 .withEventDeduplicator(mock(EventDeduplicator.class))
                 .withEventSignatureValidator(mock(EventSignatureValidator.class))
                 .withStateGarbageCollector(mock(StateGarbageCollector.class))
                 .withOrphanBuffer(mock(OrphanBuffer.class))
-                .withEventCreator(mock(EventCreatorModule.class))
                 .withConsensusEngine(mock(ConsensusEngine.class))
                 .withConsensusEventStream(mock(ConsensusEventStream.class))
                 .withPlatformMonitor(mock(PlatformMonitor.class))

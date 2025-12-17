@@ -18,6 +18,7 @@ mainModuleInfo {
     annotationProcessor("com.google.auto.service.processor")
     runtimeOnly("com.swirlds.config.impl")
     runtimeOnly("org.hiero.consensus.event.creator.impl")
+    runtimeOnly("org.hiero.consensus.event.intake.impl")
 }
 
 jmhModuleInfo {
@@ -43,6 +44,7 @@ testModuleInfo {
     requires("org.hiero.base.crypto.test.fixtures")
     requires("org.hiero.base.utility.test.fixtures")
     requires("org.hiero.consensus.model.test.fixtures")
+    requires("org.hiero.base.concurrent.test.fixtures")
     requires("awaitility")
     requires("org.assertj.core")
     requires("org.junit.jupiter.api")
