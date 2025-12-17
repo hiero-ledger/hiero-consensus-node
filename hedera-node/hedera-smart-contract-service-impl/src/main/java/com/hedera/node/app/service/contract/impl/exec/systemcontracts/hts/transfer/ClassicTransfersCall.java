@@ -16,7 +16,9 @@ import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.co
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.NftTransfer;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
+import com.hedera.hapi.node.base.TokenTransferList;
 import com.hedera.hapi.node.base.TransferList;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
@@ -33,9 +35,12 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
+
 import org.hyperledger.besu.evm.frame.MessageFrame;
 
 /**
@@ -72,18 +77,18 @@ public class ClassicTransfersCall extends AbstractCall {
     private final SpecialRewardReceivers specialRewardReceivers;
 
     /**
-     * @param gasCalculator the gas calculator for the system contract
-     * @param enhancement the enhancement to be used
-     * @param selector the method selector
-     * @param senderId the account id of the sender
-     * @param preemptingFailureStatus the response code to revert with
-     * @param syntheticTransfer the body of synthetic transfer operation
-     * @param configuration the configuration to use
-     * @param approvalSwitchHelper the switcher between unauthorized debits to approvals in a synthetic transfer
-     * @param callStatusStandardizer the standardizer of failure statuses to an HTS transfer system contract
-     * @param verificationStrategy the verification strategy to use
+     * @param gasCalculator             the gas calculator for the system contract
+     * @param enhancement               the enhancement to be used
+     * @param selector                  the method selector
+     * @param senderId                  the account id of the sender
+     * @param preemptingFailureStatus   the response code to revert with
+     * @param syntheticTransfer         the body of synthetic transfer operation
+     * @param configuration             the configuration to use
+     * @param approvalSwitchHelper      the switcher between unauthorized debits to approvals in a synthetic transfer
+     * @param callStatusStandardizer    the standardizer of failure statuses to an HTS transfer system contract
+     * @param verificationStrategy      the verification strategy to use
      * @param systemAccountCreditScreen the helper to screen if a transfer tries to credit a system account
-     * @param specialRewardReceivers the special reward receiver
+     * @param specialRewardReceivers    the special reward receiver
      */
     // too many parameters
     @SuppressWarnings("java:S107")
@@ -137,6 +142,7 @@ public class ClassicTransfersCall extends AbstractCall {
                             .externalizePreemptedDispatch(
                                     syntheticTransfer, INVALID_RECEIVING_NODE_ACCOUNT, CRYPTO_TRANSFER));
         }
+        // TODO Glib: move to translator?
         if (executionIsNotSupported()) {
             return haltWith(
                     gasRequirement,
@@ -145,20 +151,20 @@ public class ClassicTransfersCall extends AbstractCall {
         }
         final var transferToDispatch = shouldRetryWithApprovals()
                 ? syntheticTransfer
-                        .copyBuilder()
-                        .cryptoTransfer(requireNonNull(approvalSwitchHelper)
-                                .switchToApprovalsAsNeededIn(
-                                        syntheticTransfer.cryptoTransferOrThrow(),
-                                        systemContractOperations().signatureTestWith(verificationStrategy),
-                                        nativeOperations(),
-                                        senderId))
-                        .build()
+                .copyBuilder()
+                .cryptoTransfer(requireNonNull(approvalSwitchHelper)
+                        .switchToApprovalsAsNeededIn(
+                                syntheticTransfer.cryptoTransferOrThrow(),
+                                systemContractOperations().signatureTestWith(verificationStrategy),
+                                nativeOperations(),
+                                senderId))
+                .build()
                 : syntheticTransfer;
         final var recordBuilder = systemContractOperations()
                 .dispatch(transferToDispatch, verificationStrategy, senderId, ContractCallStreamBuilder.class);
         final var op = transferToDispatch.cryptoTransferOrThrow();
         if (recordBuilder.status() == SUCCESS) {
-            maybeEmitErcLogsFor(op, frame);
+            emitErcLogEventsFor(op, frame);
             specialRewardReceivers.addInFrame(frame, op, recordBuilder.getAssessedCustomFees());
         } else {
             recordBuilder.status(callStatusStandardizer.codeForFailure(recordBuilder.status(), frame, op));
@@ -192,7 +198,7 @@ public class ClassicTransfersCall extends AbstractCall {
         // For fungible there are always at least two operations, so only charge half for each
         // operation
         final var baseUnitAdjustTinycentPrice = systemContractGasCalculator.canonicalPriceInTinycents(
-                        hasCustomFees ? DispatchType.TRANSFER_FUNGIBLE_CUSTOM_FEES : DispatchType.TRANSFER_FUNGIBLE)
+                hasCustomFees ? DispatchType.TRANSFER_FUNGIBLE_CUSTOM_FEES : DispatchType.TRANSFER_FUNGIBLE)
                 / 2;
         // NFTs are atomic, one line can do it.
         final var baseNftTransferTinycentsPrice = systemContractGasCalculator.canonicalPriceInTinycents(
@@ -269,16 +275,33 @@ public class ClassicTransfersCall extends AbstractCall {
                 && !configuration.getConfigData(ContractsConfig.class).precompileAtomicCryptoTransferEnabled();
     }
 
-    private void maybeEmitErcLogsFor(
+    //TODO Glib: check how bulk transfer is looks like
+    /**
+     * Emit ERC events for all non-HRAB token transfers
+     *
+     * @param op    the body of synthetic transfer operation
+     * @param frame the message frame
+     */
+    private void emitErcLogEventsFor(
             @NonNull final CryptoTransferTransactionBody op, @NonNull final MessageFrame frame) {
-        if (Arrays.equals(ClassicTransfersTranslator.TRANSFER_FROM.selector(), selector)) {
-            final var fungibleTransfers = op.tokenTransfers().getFirst();
-            logSuccessfulFungibleTransfer(
-                    fungibleTransfers.tokenOrThrow(), fungibleTransfers.transfers(), readableAccountStore(), frame);
-        } else if (Arrays.equals(ClassicTransfersTranslator.TRANSFER_NFT_FROM.selector(), selector)) {
-            final var nftTransfers = op.tokenTransfers().getFirst();
-            logSuccessfulNftTransfer(
-                    nftTransfers.tokenOrThrow(), nftTransfers.nftTransfers().getFirst(), readableAccountStore(), frame);
+        for (TokenTransferList transfer : op.tokenTransfers()) {
+            if (!transfer.transfers().isEmpty()) {
+                for (int i = 0; i < transfer.transfers().size(); i += 2) {
+                    logSuccessfulFungibleTransfer(
+                            transfer.tokenOrThrow(),
+                            List.of(
+                                    transfer.transfers().get(i), // credit
+                                    transfer.transfers().get(i + 1) // debit
+                            ),
+                            readableAccountStore(), frame);
+                }
+            }
+            if (!transfer.nftTransfers().isEmpty()) {
+                for (NftTransfer nftTransfer : transfer.nftTransfers()) {
+                    logSuccessfulNftTransfer(
+                            transfer.tokenOrThrow(), nftTransfer, readableAccountStore(), frame);
+                }
+            }
         }
     }
 }
