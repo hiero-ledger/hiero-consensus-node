@@ -30,7 +30,7 @@ import static com.hedera.services.bdd.spec.transactions.token.HapiTokenReject.re
 import static com.hedera.services.bdd.spec.transactions.token.TokenMovement.moving;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.compareSimpleToOld;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
-import static com.hedera.services.bdd.suites.HapiSuite.ONE_BILLION_HBARS;
+import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.THREE_MONTHS_IN_SECONDS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.OK;
@@ -72,12 +72,12 @@ public class TokenServiceSimpleFeesSuite {
     final Stream<DynamicTest> compareCreateFungibleToken() {
         return compareSimpleToOld(
                 () -> Arrays.asList(
-                        cryptoCreate(ADMIN).balance(ONE_BILLION_HBARS),
-                        cryptoCreate(PAYER).balance(ONE_BILLION_HBARS),
+                        cryptoCreate(ADMIN).balance(ONE_MILLION_HBARS),
+                        cryptoCreate(PAYER).balance(ONE_MILLION_HBARS),
                         tokenCreate(FUNGIBLE_TOKEN)
                                 .blankMemo()
                                 .payingWith(PAYER)
-                                .fee(ONE_BILLION_HBARS)
+                                .fee(ONE_MILLION_HBARS)
                                 .treasury(ADMIN)
                                 .tokenType(FUNGIBLE_COMMON)
                                 .autoRenewAccount(ADMIN)
@@ -102,8 +102,8 @@ public class TokenServiceSimpleFeesSuite {
         return compareSimpleToOld(
                 () -> Arrays.asList(
                         newKeyNamed(SUPPLY_KEY),
-                        cryptoCreate(ADMIN).balance(ONE_BILLION_HBARS),
-                        cryptoCreate(PAYER).balance(ONE_BILLION_HBARS),
+                        cryptoCreate(ADMIN).balance(ONE_MILLION_HBARS),
+                        cryptoCreate(PAYER).balance(ONE_MILLION_HBARS),
                         tokenCreate("uniqueNoFees")
                                 .blankMemo()
                                 .payingWith(PAYER)
@@ -134,8 +134,8 @@ public class TokenServiceSimpleFeesSuite {
         return compareSimpleToOld(
                 () -> Arrays.asList(
                         newKeyNamed(SUPPLY_KEY),
-                        cryptoCreate(ADMIN).balance(ONE_BILLION_HBARS),
-                        cryptoCreate(PAYER).balance(ONE_BILLION_HBARS),
+                        cryptoCreate(ADMIN).balance(ONE_MILLION_HBARS),
+                        cryptoCreate(PAYER).balance(ONE_MILLION_HBARS),
                         cryptoCreate(HBAR_COLLECTOR).balance(0L),
                         tokenCreate("commonCustomFees")
                                 .blankMemo()
@@ -164,8 +164,8 @@ public class TokenServiceSimpleFeesSuite {
         return compareSimpleToOld(
                 () -> Arrays.asList(
                         newKeyNamed(SUPPLY_KEY),
-                        cryptoCreate(ADMIN).balance(ONE_BILLION_HBARS),
-                        cryptoCreate(PAYER).balance(ONE_BILLION_HBARS).key(SUPPLY_KEY),
+                        cryptoCreate(ADMIN).balance(ONE_MILLION_HBARS),
+                        cryptoCreate(PAYER).balance(ONE_MILLION_HBARS).key(SUPPLY_KEY),
                         tokenCreate(FUNGIBLE_TOKEN)
                                 .tokenType(FUNGIBLE_COMMON)
                                 .initialSupply(0L)
@@ -198,8 +198,8 @@ public class TokenServiceSimpleFeesSuite {
         return compareSimpleToOld(
                 () -> Arrays.asList(
                         newKeyNamed(SUPPLY_KEY),
-                        cryptoCreate(ADMIN).balance(ONE_BILLION_HBARS),
-                        cryptoCreate(PAYER).balance(ONE_BILLION_HBARS).key(SUPPLY_KEY),
+                        cryptoCreate(ADMIN).balance(ONE_MILLION_HBARS),
+                        cryptoCreate(PAYER).balance(ONE_MILLION_HBARS).key(SUPPLY_KEY),
                         tokenCreate(FUNGIBLE_TOKEN)
                                 .tokenType(FUNGIBLE_COMMON)
                                 .initialSupply(0L)
@@ -233,8 +233,8 @@ public class TokenServiceSimpleFeesSuite {
                 () -> Arrays.asList(
                         newKeyNamed(SUPPLY_KEY),
                         newKeyNamed(METADATA_KEY),
-                        cryptoCreate(ADMIN).balance(ONE_BILLION_HBARS),
-                        cryptoCreate(PAYER).balance(ONE_BILLION_HBARS).key(SUPPLY_KEY),
+                        cryptoCreate(ADMIN).balance(ONE_MILLION_HBARS),
+                        cryptoCreate(PAYER).balance(ONE_MILLION_HBARS).key(SUPPLY_KEY),
                         tokenCreate(NFT_TOKEN)
                                 .tokenType(NON_FUNGIBLE_UNIQUE)
                                 .initialSupply(0L)
@@ -268,8 +268,8 @@ public class TokenServiceSimpleFeesSuite {
                 () -> Arrays.asList(
                         newKeyNamed(SUPPLY_KEY),
                         newKeyNamed(METADATA_KEY),
-                        cryptoCreate(ADMIN).balance(ONE_BILLION_HBARS),
-                        cryptoCreate(PAYER).balance(ONE_BILLION_HBARS).key(SUPPLY_KEY),
+                        cryptoCreate(ADMIN).balance(ONE_MILLION_HBARS),
+                        cryptoCreate(PAYER).balance(ONE_MILLION_HBARS).key(SUPPLY_KEY),
                         tokenCreate(NFT_TOKEN)
                                 .tokenType(NON_FUNGIBLE_UNIQUE)
                                 .initialSupply(0L)
@@ -310,7 +310,7 @@ public class TokenServiceSimpleFeesSuite {
                 () -> Arrays.asList(
                         newKeyNamed(SUPPLY_KEY),
                         newKeyNamed(PAUSE_KEY),
-                        cryptoCreate(PAYER).balance(ONE_BILLION_HBARS).key(SUPPLY_KEY),
+                        cryptoCreate(PAYER).balance(ONE_MILLION_HBARS).key(SUPPLY_KEY),
                         tokenCreate(FUNGIBLE_TOKEN)
                                 .tokenType(FUNGIBLE_COMMON)
                                 .initialSupply(0L)
@@ -340,7 +340,7 @@ public class TokenServiceSimpleFeesSuite {
         return compareSimpleToOld(
                 () -> Arrays.asList(
                         newKeyNamed(SUPPLY_KEY),
-                        cryptoCreate(PAYER).balance(ONE_BILLION_HBARS).key(SUPPLY_KEY),
+                        cryptoCreate(PAYER).balance(ONE_MILLION_HBARS).key(SUPPLY_KEY),
                         newKeyNamed(PAUSE_KEY),
                         tokenCreate(FUNGIBLE_TOKEN)
                                 .tokenType(FUNGIBLE_COMMON)
@@ -373,7 +373,7 @@ public class TokenServiceSimpleFeesSuite {
                 () -> Arrays.asList(
                         newKeyNamed(SUPPLY_KEY),
                         newKeyNamed(FREEZE_KEY),
-                        cryptoCreate(PAYER).balance(ONE_BILLION_HBARS).key(SUPPLY_KEY),
+                        cryptoCreate(PAYER).balance(ONE_MILLION_HBARS).key(SUPPLY_KEY),
                         cryptoCreate(OTHER),
                         tokenCreate(FUNGIBLE_TOKEN)
                                 .tokenType(FUNGIBLE_COMMON)
@@ -405,7 +405,7 @@ public class TokenServiceSimpleFeesSuite {
         return compareSimpleToOld(
                 () -> Arrays.asList(
                         newKeyNamed(SUPPLY_KEY),
-                        cryptoCreate(PAYER).balance(ONE_BILLION_HBARS).key(SUPPLY_KEY),
+                        cryptoCreate(PAYER).balance(ONE_MILLION_HBARS).key(SUPPLY_KEY),
                         cryptoCreate(OTHER),
                         newKeyNamed(FREEZE_KEY),
                         tokenCreate(FUNGIBLE_TOKEN)
@@ -439,7 +439,7 @@ public class TokenServiceSimpleFeesSuite {
         return compareSimpleToOld(
                 () -> Arrays.asList(
                         newKeyNamed(SUPPLY_KEY),
-                        cryptoCreate(PAYER).balance(ONE_BILLION_HBARS).key(SUPPLY_KEY),
+                        cryptoCreate(PAYER).balance(ONE_MILLION_HBARS).key(SUPPLY_KEY),
                         tokenCreate(FUNGIBLE_TOKEN)
                                 .tokenType(FUNGIBLE_COMMON)
                                 .initialSupply(0L)
@@ -469,8 +469,8 @@ public class TokenServiceSimpleFeesSuite {
         return compareSimpleToOld(
                 () -> Arrays.asList(
                         newKeyNamed(SUPPLY_KEY),
-                        cryptoCreate(ADMIN).balance(ONE_BILLION_HBARS),
-                        cryptoCreate(PAYER).balance(ONE_BILLION_HBARS).key(SUPPLY_KEY),
+                        cryptoCreate(ADMIN).balance(ONE_MILLION_HBARS),
+                        cryptoCreate(PAYER).balance(ONE_MILLION_HBARS).key(SUPPLY_KEY),
                         tokenCreate(FUNGIBLE_TOKEN)
                                 .tokenType(FUNGIBLE_COMMON)
                                 .initialSupply(0L)
@@ -502,9 +502,9 @@ public class TokenServiceSimpleFeesSuite {
         return compareSimpleToOld(
                 () -> Arrays.asList(
                         newKeyNamed(SUPPLY_KEY),
-                        cryptoCreate(ADMIN).balance(ONE_BILLION_HBARS),
-                        cryptoCreate(PAYER).balance(ONE_BILLION_HBARS).key(SUPPLY_KEY),
-                        cryptoCreate(OTHER).balance(ONE_BILLION_HBARS),
+                        cryptoCreate(ADMIN).balance(ONE_MILLION_HBARS),
+                        cryptoCreate(PAYER).balance(ONE_MILLION_HBARS).key(SUPPLY_KEY),
+                        cryptoCreate(OTHER).balance(ONE_MILLION_HBARS),
                         tokenCreate(FUNGIBLE_TOKEN)
                                 .tokenType(FUNGIBLE_COMMON)
                                 .initialSupply(0L)
@@ -530,9 +530,9 @@ public class TokenServiceSimpleFeesSuite {
         return compareSimpleToOld(
                 () -> Arrays.asList(
                         newKeyNamed(SUPPLY_KEY),
-                        cryptoCreate(ADMIN).balance(ONE_BILLION_HBARS),
-                        cryptoCreate(PAYER).balance(ONE_BILLION_HBARS).key(SUPPLY_KEY),
-                        cryptoCreate(OTHER).balance(ONE_BILLION_HBARS),
+                        cryptoCreate(ADMIN).balance(ONE_MILLION_HBARS),
+                        cryptoCreate(PAYER).balance(ONE_MILLION_HBARS).key(SUPPLY_KEY),
+                        cryptoCreate(OTHER).balance(ONE_MILLION_HBARS),
                         tokenCreate(FUNGIBLE_TOKEN)
                                 .tokenType(FUNGIBLE_COMMON)
                                 .initialSupply(0L)
@@ -557,9 +557,9 @@ public class TokenServiceSimpleFeesSuite {
                 () -> Arrays.asList(
                         newKeyNamed(SUPPLY_KEY),
                         newKeyNamed(KYC_KEY),
-                        cryptoCreate(ADMIN).balance(ONE_BILLION_HBARS),
-                        cryptoCreate(PAYER).balance(ONE_BILLION_HBARS).key(SUPPLY_KEY),
-                        cryptoCreate(OTHER).balance(ONE_BILLION_HBARS).key(KYC_KEY),
+                        cryptoCreate(ADMIN).balance(ONE_MILLION_HBARS),
+                        cryptoCreate(PAYER).balance(ONE_MILLION_HBARS).key(SUPPLY_KEY),
+                        cryptoCreate(OTHER).balance(ONE_MILLION_HBARS).key(KYC_KEY),
                         tokenCreate(FUNGIBLE_TOKEN)
                                 .tokenType(FUNGIBLE_COMMON)
                                 .initialSupply(0L)
@@ -589,9 +589,9 @@ public class TokenServiceSimpleFeesSuite {
                 () -> Arrays.asList(
                         newKeyNamed(SUPPLY_KEY),
                         newKeyNamed(KYC_KEY),
-                        cryptoCreate(ADMIN).balance(ONE_BILLION_HBARS),
-                        cryptoCreate(PAYER).balance(ONE_BILLION_HBARS).key(SUPPLY_KEY),
-                        cryptoCreate(OTHER).balance(ONE_BILLION_HBARS).key(KYC_KEY),
+                        cryptoCreate(ADMIN).balance(ONE_MILLION_HBARS),
+                        cryptoCreate(PAYER).balance(ONE_MILLION_HBARS).key(SUPPLY_KEY),
+                        cryptoCreate(OTHER).balance(ONE_MILLION_HBARS).key(KYC_KEY),
                         tokenCreate(FUNGIBLE_TOKEN)
                                 .tokenType(FUNGIBLE_COMMON)
                                 .initialSupply(0L)
@@ -624,9 +624,9 @@ public class TokenServiceSimpleFeesSuite {
                 () -> Arrays.asList(
                         newKeyNamed(SUPPLY_KEY),
                         newKeyNamed(KYC_KEY),
-                        cryptoCreate(ADMIN).balance(ONE_BILLION_HBARS).key(KYC_KEY),
-                        cryptoCreate(PAYER).balance(ONE_BILLION_HBARS).key(SUPPLY_KEY),
-                        cryptoCreate(OTHER).balance(ONE_BILLION_HBARS),
+                        cryptoCreate(ADMIN).balance(ONE_MILLION_HBARS).key(KYC_KEY),
+                        cryptoCreate(PAYER).balance(ONE_MILLION_HBARS).key(SUPPLY_KEY),
+                        cryptoCreate(OTHER).balance(ONE_MILLION_HBARS),
                         tokenCreate(FUNGIBLE_TOKEN)
                                 .tokenType(FUNGIBLE_COMMON)
                                 .treasury(ADMIN)
@@ -664,9 +664,9 @@ public class TokenServiceSimpleFeesSuite {
                 () -> Arrays.asList(
                         newKeyNamed(SUPPLY_KEY),
                         newKeyNamed(WIPE_KEY),
-                        cryptoCreate(ADMIN).balance(ONE_BILLION_HBARS),
-                        cryptoCreate(PAYER).balance(ONE_BILLION_HBARS).key(SUPPLY_KEY),
-                        cryptoCreate(OTHER).balance(ONE_BILLION_HBARS).key(WIPE_KEY),
+                        cryptoCreate(ADMIN).balance(ONE_MILLION_HBARS),
+                        cryptoCreate(PAYER).balance(ONE_MILLION_HBARS).key(SUPPLY_KEY),
+                        cryptoCreate(OTHER).balance(ONE_MILLION_HBARS).key(WIPE_KEY),
                         tokenCreate(FUNGIBLE_TOKEN)
                                 .tokenType(FUNGIBLE_COMMON)
                                 .treasury(ADMIN)
@@ -709,8 +709,8 @@ public class TokenServiceSimpleFeesSuite {
                         newKeyNamed(FEE_SCHEDULE_KEY),
                         cryptoCreate(htsCollector),
                         tokenCreate(feeDenom).treasury(htsCollector),
-                        cryptoCreate(PAYER).balance(ONE_BILLION_HBARS),
-                        cryptoCreate(OTHER).balance(ONE_BILLION_HBARS).key(FEE_SCHEDULE_KEY),
+                        cryptoCreate(PAYER).balance(ONE_MILLION_HBARS),
+                        cryptoCreate(OTHER).balance(ONE_MILLION_HBARS).key(FEE_SCHEDULE_KEY),
                         tokenCreate(FUNGIBLE_TOKEN)
                                 .tokenType(FUNGIBLE_COMMON)
                                 .initialSupply(0L)
@@ -740,9 +740,9 @@ public class TokenServiceSimpleFeesSuite {
                         newKeyNamed(SUPPLY_KEY),
                         newKeyNamed(WIPE_KEY),
                         newKeyNamed(FEE_SCHEDULE_KEY),
-                        cryptoCreate(ADMIN).balance(ONE_BILLION_HBARS),
-                        cryptoCreate(PAYER).balance(ONE_BILLION_HBARS).key(SUPPLY_KEY),
-                        cryptoCreate(OTHER).balance(ONE_BILLION_HBARS),
+                        cryptoCreate(ADMIN).balance(ONE_MILLION_HBARS),
+                        cryptoCreate(PAYER).balance(ONE_MILLION_HBARS).key(SUPPLY_KEY),
+                        cryptoCreate(OTHER).balance(ONE_MILLION_HBARS),
                         tokenCreate(NFT_TOKEN)
                                 .tokenType(NON_FUNGIBLE_UNIQUE)
                                 .initialSupply(0L)
@@ -778,7 +778,7 @@ public class TokenServiceSimpleFeesSuite {
                 () -> Arrays.asList(
                         newKeyNamed(SUPPLY_KEY),
                         newKeyNamed(FREEZE_KEY),
-                        cryptoCreate(PAYER).balance(ONE_BILLION_HBARS).key(SUPPLY_KEY),
+                        cryptoCreate(PAYER).balance(ONE_MILLION_HBARS).key(SUPPLY_KEY),
                         tokenCreate(FUNGIBLE_TOKEN)
                                 .treasury(PAYER)
                                 .tokenType(FUNGIBLE_COMMON)
@@ -801,7 +801,7 @@ public class TokenServiceSimpleFeesSuite {
         return compareSimpleToOld(
                 () -> Arrays.asList(
                         newKeyNamed(SUPPLY_KEY),
-                        cryptoCreate(PAYER).balance(ONE_BILLION_HBARS).key(SUPPLY_KEY),
+                        cryptoCreate(PAYER).balance(ONE_MILLION_HBARS).key(SUPPLY_KEY),
                         tokenCreate(NFT_TOKEN)
                                 .tokenType(NON_FUNGIBLE_UNIQUE)
                                 .initialSupply(0L)
