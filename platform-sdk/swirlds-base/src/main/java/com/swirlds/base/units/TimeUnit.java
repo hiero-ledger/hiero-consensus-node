@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.common.units;
+package com.swirlds.base.units;
 
 import static com.swirlds.base.units.UnitConstants.DAYS_TO_HOURS;
 import static com.swirlds.base.units.UnitConstants.HOURS_TO_MINUTES;
@@ -11,7 +11,7 @@ import static com.swirlds.base.units.UnitConstants.NANOSECOND_UNIT;
 import static com.swirlds.base.units.UnitConstants.SECONDS_TO_MILLISECONDS;
 import static com.swirlds.base.units.UnitConstants.SECOND_UNIT;
 
-import com.swirlds.common.units.internal.UnitConverter;
+import com.swirlds.base.units.internal.UnitConverter;
 
 /**
  * Units for measurements of time.

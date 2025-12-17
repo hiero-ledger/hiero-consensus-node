@@ -3,10 +3,10 @@ package com.swirlds.common.metrics.extensions;
 
 import static com.swirlds.base.ArgumentUtils.throwArgBlank;
 
+import com.swirlds.base.time.IntegerEpochTime;
 import com.swirlds.base.time.Time;
 import com.swirlds.base.units.UnitConstants;
 import com.swirlds.common.metrics.IntegerPairAccumulator;
-import com.swirlds.common.time.IntegerEpochTime;
 import com.swirlds.metrics.api.FloatFormats;
 import com.swirlds.metrics.api.Metrics;
 import java.util.Objects;
