@@ -53,7 +53,6 @@ import java.net.InetSocketAddress;
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
-import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -66,10 +65,10 @@ class PrometheusEndpointTest {
 
     private static final String CATEGORY = "CaTeGoRy";
     private static final String NAME = "NaMe";
-    private static final NodeId NODE_ID_1 = NodeId.of(1L);
-    private static final String LABEL_1 = NODE_ID_1.toString();
-    private static final NodeId NODE_ID_2 = NodeId.of(2L);
-    private static final String LABEL_2 = NODE_ID_2.toString();
+    private static final Long KEY_1 = 1L;
+    private static final String LABEL_1 = KEY_1.toString();
+    private static final Long KEY_2 = 2L;
+    private static final String LABEL_2 = KEY_2.toString();
 
     private static final InetSocketAddress ADDRESS = new InetSocketAddress(0);
 
@@ -91,10 +90,10 @@ class PrometheusEndpointTest {
     @Test
     void testMethodsWithIllegalParameters() throws IOException {
         // given
-        final PrometheusEndpoint<NodeId> endpoint = new PrometheusEndpoint<>(httpServer);
+        final PrometheusEndpoint<Long> endpoint = new PrometheusEndpoint<>(httpServer);
 
         // then
-        assertThatThrownBy(() -> new PrometheusEndpoint<NodeId>(null)).isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> new PrometheusEndpoint<Long>(null)).isInstanceOf(NullPointerException.class);
         assertThatThrownBy(() -> endpoint.handleMetricsChange(null)).isInstanceOf(NullPointerException.class);
         assertThatThrownBy(() -> endpoint.handleSnapshots(null)).isInstanceOf(NullPointerException.class);
     }
@@ -104,8 +103,8 @@ class PrometheusEndpointTest {
         // given
         final FunctionGauge<String> time = new PlatformFunctionGauge<>(
                 new FunctionGauge.Config<>(Metrics.INFO_CATEGORY, "time", String.class, () -> ""));
-        try (final PrometheusEndpoint<NodeId> endpoint = new PrometheusEndpoint<>(httpServer, registry)) {
-            final MetricsEvent<NodeId> event = new MetricsEvent<>(MetricsEvent.Type.ADDED, null, time);
+        try (final PrometheusEndpoint<Long> endpoint = new PrometheusEndpoint<>(httpServer, registry)) {
+            final MetricsEvent<Long> event = new MetricsEvent<>(MetricsEvent.Type.ADDED, null, time);
 
             // when
             endpoint.handleMetricsChange(event);
@@ -120,12 +119,12 @@ class PrometheusEndpointTest {
         // given
         final Counter metric = new DefaultCounter(new Counter.Config(CATEGORY, NAME));
 
-        try (final PrometheusEndpoint<NodeId> endpoint = new PrometheusEndpoint<>(httpServer, registry)) {
-            final MetricsEvent<NodeId> addEvent = new MetricsEvent<>(MetricsEvent.Type.ADDED, null, metric);
+        try (final PrometheusEndpoint<Long> endpoint = new PrometheusEndpoint<>(httpServer, registry)) {
+            final MetricsEvent<Long> addEvent = new MetricsEvent<>(MetricsEvent.Type.ADDED, null, metric);
             endpoint.handleMetricsChange(addEvent);
 
             // when
-            final MetricsEvent<NodeId> removeEvent = new MetricsEvent<>(MetricsEvent.Type.REMOVED, null, metric);
+            final MetricsEvent<Long> removeEvent = new MetricsEvent<>(MetricsEvent.Type.REMOVED, null, metric);
             endpoint.handleMetricsChange(removeEvent);
 
             // then
@@ -137,9 +136,9 @@ class PrometheusEndpointTest {
     void testAddMetricTwice() throws IOException {
         // given
         final Counter metric = new DefaultCounter(new Counter.Config(CATEGORY, NAME));
-        final MetricsEvent<NodeId> event = new MetricsEvent<>(MetricsEvent.Type.ADDED, null, metric);
+        final MetricsEvent<Long> event = new MetricsEvent<>(MetricsEvent.Type.ADDED, null, metric);
 
-        try (final PrometheusEndpoint<NodeId> endpoint = new PrometheusEndpoint<>(httpServer, registry)) {
+        try (final PrometheusEndpoint<Long> endpoint = new PrometheusEndpoint<>(httpServer, registry)) {
             endpoint.handleMetricsChange(event);
 
             // then
@@ -151,9 +150,9 @@ class PrometheusEndpointTest {
     void addRemoveNonExistingMetric() throws IOException {
         // given
         final Counter metric = new DefaultCounter(new Counter.Config(CATEGORY, NAME));
-        final MetricsEvent<NodeId> event = new MetricsEvent<>(MetricsEvent.Type.REMOVED, null, metric);
+        final MetricsEvent<Long> event = new MetricsEvent<>(MetricsEvent.Type.REMOVED, null, metric);
 
-        try (final PrometheusEndpoint<NodeId> endpoint = new PrometheusEndpoint<>(httpServer, registry)) {
+        try (final PrometheusEndpoint<Long> endpoint = new PrometheusEndpoint<>(httpServer, registry)) {
 
             // then
             assertThatCode(() -> endpoint.handleMetricsChange(event)).doesNotThrowAnyException();
@@ -165,10 +164,10 @@ class PrometheusEndpointTest {
         // given
         final DefaultCounter metric = new DefaultCounter(new Counter.Config(CATEGORY, NAME));
 
-        try (final PrometheusEndpoint<NodeId> endpoint = new PrometheusEndpoint<>(httpServer, registry)) {
+        try (final PrometheusEndpoint<Long> endpoint = new PrometheusEndpoint<>(httpServer, registry)) {
 
             // then
-            final SnapshotEvent<NodeId> snapshotEvent = new SnapshotEvent<>(NODE_ID_1, List.of(Snapshot.of(metric)));
+            final SnapshotEvent<Long> snapshotEvent = new SnapshotEvent<>(KEY_1, List.of(Snapshot.of(metric)));
             assertThatCode(() -> endpoint.handleSnapshots(snapshotEvent)).doesNotThrowAnyException();
         }
     }
@@ -178,10 +177,10 @@ class PrometheusEndpointTest {
         // given
         final DefaultCounter metric = new DefaultCounter(new Counter.Config(CATEGORY, NAME));
 
-        try (final PrometheusEndpoint<NodeId> endpoint = new PrometheusEndpoint<>(httpServer, registry)) {
+        try (final PrometheusEndpoint<Long> endpoint = new PrometheusEndpoint<>(httpServer, registry)) {
 
             // when
-            final MetricsEvent<NodeId> metricsEvent = new MetricsEvent<>(MetricsEvent.Type.ADDED, null, metric);
+            final MetricsEvent<Long> metricsEvent = new MetricsEvent<>(MetricsEvent.Type.ADDED, null, metric);
             endpoint.handleMetricsChange(metricsEvent);
             final ArgumentCaptor<Collector> captor = ArgumentCaptor.forClass(Collector.class);
             verify(registry).register(captor.capture());
@@ -192,7 +191,7 @@ class PrometheusEndpointTest {
 
             // when
             metric.add(42L);
-            final SnapshotEvent<NodeId> snapshotEvent = new SnapshotEvent<>(null, List.of(Snapshot.of(metric)));
+            final SnapshotEvent<Long> snapshotEvent = new SnapshotEvent<>(null, List.of(Snapshot.of(metric)));
             endpoint.handleSnapshots(snapshotEvent);
 
             // then
@@ -207,12 +206,12 @@ class PrometheusEndpointTest {
         final DefaultCounter metric1 = new DefaultCounter(config);
         final DefaultCounter metric2 = new DefaultCounter(config);
 
-        try (final PrometheusEndpoint<NodeId> endpoint = new PrometheusEndpoint<>(httpServer, registry)) {
+        try (final PrometheusEndpoint<Long> endpoint = new PrometheusEndpoint<>(httpServer, registry)) {
 
             // when
-            final MetricsEvent<NodeId> metricsEvent1 = new MetricsEvent<>(MetricsEvent.Type.ADDED, NODE_ID_1, metric1);
+            final MetricsEvent<Long> metricsEvent1 = new MetricsEvent<>(MetricsEvent.Type.ADDED, KEY_1, metric1);
             endpoint.handleMetricsChange(metricsEvent1);
-            final MetricsEvent<NodeId> metricsEvent2 = new MetricsEvent<>(MetricsEvent.Type.ADDED, NODE_ID_2, metric1);
+            final MetricsEvent<Long> metricsEvent2 = new MetricsEvent<>(MetricsEvent.Type.ADDED, KEY_2, metric1);
             endpoint.handleMetricsChange(metricsEvent2);
             final ArgumentCaptor<Collector> captor = ArgumentCaptor.forClass(Collector.class);
             verify(registry).register(captor.capture());
@@ -225,9 +224,9 @@ class PrometheusEndpointTest {
             // when
             metric1.add(3L);
             metric2.add(5L);
-            final SnapshotEvent<NodeId> snapshotEvent1 = new SnapshotEvent<>(NODE_ID_1, List.of(Snapshot.of(metric1)));
+            final SnapshotEvent<Long> snapshotEvent1 = new SnapshotEvent<>(KEY_1, List.of(Snapshot.of(metric1)));
             endpoint.handleSnapshots(snapshotEvent1);
-            final SnapshotEvent<NodeId> snapshotEvent2 = new SnapshotEvent<>(NODE_ID_2, List.of(Snapshot.of(metric2)));
+            final SnapshotEvent<Long> snapshotEvent2 = new SnapshotEvent<>(KEY_2, List.of(Snapshot.of(metric2)));
             endpoint.handleSnapshots(snapshotEvent2);
 
             // then
@@ -242,10 +241,10 @@ class PrometheusEndpointTest {
         final DoubleAccumulator.Config config = new DoubleAccumulator.Config(CATEGORY, NAME);
         final DefaultDoubleAccumulator metric = new DefaultDoubleAccumulator(config);
 
-        try (final PrometheusEndpoint<NodeId> endpoint = new PrometheusEndpoint<>(httpServer, registry)) {
+        try (final PrometheusEndpoint<Long> endpoint = new PrometheusEndpoint<>(httpServer, registry)) {
 
             // when
-            final MetricsEvent<NodeId> metricsEvent = new MetricsEvent<>(MetricsEvent.Type.ADDED, null, metric);
+            final MetricsEvent<Long> metricsEvent = new MetricsEvent<>(MetricsEvent.Type.ADDED, null, metric);
             endpoint.handleMetricsChange(metricsEvent);
             final ArgumentCaptor<Collector> captor = ArgumentCaptor.forClass(Collector.class);
             verify(registry).register(captor.capture());
@@ -256,7 +255,7 @@ class PrometheusEndpointTest {
 
             // when
             metric.update(Math.PI);
-            final SnapshotEvent<NodeId> snapshotEvent = new SnapshotEvent<>(null, List.of(Snapshot.of(metric)));
+            final SnapshotEvent<Long> snapshotEvent = new SnapshotEvent<>(null, List.of(Snapshot.of(metric)));
             endpoint.handleSnapshots(snapshotEvent);
 
             // then
@@ -271,12 +270,12 @@ class PrometheusEndpointTest {
         final DefaultDoubleAccumulator metric1 = new DefaultDoubleAccumulator(config);
         final DefaultDoubleAccumulator metric2 = new DefaultDoubleAccumulator(config);
 
-        try (final PrometheusEndpoint<NodeId> endpoint = new PrometheusEndpoint<>(httpServer, registry)) {
+        try (final PrometheusEndpoint<Long> endpoint = new PrometheusEndpoint<>(httpServer, registry)) {
 
             // when
-            final MetricsEvent<NodeId> metricsEvent1 = new MetricsEvent<>(MetricsEvent.Type.ADDED, NODE_ID_1, metric1);
+            final MetricsEvent<Long> metricsEvent1 = new MetricsEvent<>(MetricsEvent.Type.ADDED, KEY_1, metric1);
             endpoint.handleMetricsChange(metricsEvent1);
-            final MetricsEvent<NodeId> metricsEvent2 = new MetricsEvent<>(MetricsEvent.Type.ADDED, NODE_ID_2, metric1);
+            final MetricsEvent<Long> metricsEvent2 = new MetricsEvent<>(MetricsEvent.Type.ADDED, KEY_2, metric1);
             endpoint.handleMetricsChange(metricsEvent2);
             final ArgumentCaptor<Collector> captor = ArgumentCaptor.forClass(Collector.class);
             verify(registry).register(captor.capture());
@@ -289,9 +288,9 @@ class PrometheusEndpointTest {
             // when
             metric1.update(Math.PI);
             metric2.update(Math.E);
-            final SnapshotEvent<NodeId> snapshotEvent1 = new SnapshotEvent<>(NODE_ID_1, List.of(Snapshot.of(metric1)));
+            final SnapshotEvent<Long> snapshotEvent1 = new SnapshotEvent<>(KEY_1, List.of(Snapshot.of(metric1)));
             endpoint.handleSnapshots(snapshotEvent1);
-            final SnapshotEvent<NodeId> snapshotEvent2 = new SnapshotEvent<>(NODE_ID_2, List.of(Snapshot.of(metric2)));
+            final SnapshotEvent<Long> snapshotEvent2 = new SnapshotEvent<>(KEY_2, List.of(Snapshot.of(metric2)));
             endpoint.handleSnapshots(snapshotEvent2);
 
             // then
@@ -306,10 +305,10 @@ class PrometheusEndpointTest {
         final DoubleGauge.Config config = new DoubleGauge.Config(CATEGORY, NAME);
         final DefaultDoubleGauge metric = new DefaultDoubleGauge(config);
 
-        try (final PrometheusEndpoint<NodeId> endpoint = new PrometheusEndpoint<>(httpServer, registry)) {
+        try (final PrometheusEndpoint<Long> endpoint = new PrometheusEndpoint<>(httpServer, registry)) {
 
             // when
-            final MetricsEvent<NodeId> metricsEvent = new MetricsEvent<>(MetricsEvent.Type.ADDED, null, metric);
+            final MetricsEvent<Long> metricsEvent = new MetricsEvent<>(MetricsEvent.Type.ADDED, null, metric);
             endpoint.handleMetricsChange(metricsEvent);
             final ArgumentCaptor<Collector> captor = ArgumentCaptor.forClass(Collector.class);
             verify(registry).register(captor.capture());
@@ -320,7 +319,7 @@ class PrometheusEndpointTest {
 
             // when
             metric.set(Math.E);
-            final SnapshotEvent<NodeId> snapshotEvent = new SnapshotEvent<>(null, List.of(Snapshot.of(metric)));
+            final SnapshotEvent<Long> snapshotEvent = new SnapshotEvent<>(null, List.of(Snapshot.of(metric)));
             endpoint.handleSnapshots(snapshotEvent);
 
             // then
@@ -335,12 +334,12 @@ class PrometheusEndpointTest {
         final DefaultDoubleGauge metric1 = new DefaultDoubleGauge(config);
         final DefaultDoubleGauge metric2 = new DefaultDoubleGauge(config);
 
-        try (final PrometheusEndpoint<NodeId> endpoint = new PrometheusEndpoint<>(httpServer, registry)) {
+        try (final PrometheusEndpoint<Long> endpoint = new PrometheusEndpoint<>(httpServer, registry)) {
 
             // when
-            final MetricsEvent<NodeId> metricsEvent1 = new MetricsEvent<>(MetricsEvent.Type.ADDED, NODE_ID_1, metric1);
+            final MetricsEvent<Long> metricsEvent1 = new MetricsEvent<>(MetricsEvent.Type.ADDED, KEY_1, metric1);
             endpoint.handleMetricsChange(metricsEvent1);
-            final MetricsEvent<NodeId> metricsEvent2 = new MetricsEvent<>(MetricsEvent.Type.ADDED, NODE_ID_2, metric1);
+            final MetricsEvent<Long> metricsEvent2 = new MetricsEvent<>(MetricsEvent.Type.ADDED, KEY_2, metric1);
             endpoint.handleMetricsChange(metricsEvent2);
             final ArgumentCaptor<Collector> captor = ArgumentCaptor.forClass(Collector.class);
             verify(registry).register(captor.capture());
@@ -353,9 +352,9 @@ class PrometheusEndpointTest {
             // when
             metric1.set(Math.PI);
             metric2.set(Math.E);
-            final SnapshotEvent<NodeId> snapshotEvent1 = new SnapshotEvent<>(NODE_ID_1, List.of(Snapshot.of(metric1)));
+            final SnapshotEvent<Long> snapshotEvent1 = new SnapshotEvent<>(KEY_1, List.of(Snapshot.of(metric1)));
             endpoint.handleSnapshots(snapshotEvent1);
-            final SnapshotEvent<NodeId> snapshotEvent2 = new SnapshotEvent<>(NODE_ID_2, List.of(Snapshot.of(metric2)));
+            final SnapshotEvent<Long> snapshotEvent2 = new SnapshotEvent<>(KEY_2, List.of(Snapshot.of(metric2)));
             endpoint.handleSnapshots(snapshotEvent2);
 
             // then
@@ -370,10 +369,10 @@ class PrometheusEndpointTest {
         final DurationGauge.Config config = new DurationGauge.Config(CATEGORY, NAME, ChronoUnit.MILLIS);
         final PlatformDurationGauge metric = new PlatformDurationGauge(config);
 
-        try (final PrometheusEndpoint<NodeId> endpoint = new PrometheusEndpoint<>(httpServer, registry)) {
+        try (final PrometheusEndpoint<Long> endpoint = new PrometheusEndpoint<>(httpServer, registry)) {
 
             // when
-            final MetricsEvent<NodeId> metricsEvent = new MetricsEvent<>(MetricsEvent.Type.ADDED, null, metric);
+            final MetricsEvent<Long> metricsEvent = new MetricsEvent<>(MetricsEvent.Type.ADDED, null, metric);
             endpoint.handleMetricsChange(metricsEvent);
             final ArgumentCaptor<Collector> captor = ArgumentCaptor.forClass(Collector.class);
             verify(registry).register(captor.capture());
@@ -384,7 +383,7 @@ class PrometheusEndpointTest {
 
             // when
             metric.set(Duration.ofSeconds(1L));
-            final SnapshotEvent<NodeId> snapshotEvent = new SnapshotEvent<>(null, List.of(Snapshot.of(metric)));
+            final SnapshotEvent<Long> snapshotEvent = new SnapshotEvent<>(null, List.of(Snapshot.of(metric)));
             endpoint.handleSnapshots(snapshotEvent);
 
             // then
@@ -399,12 +398,12 @@ class PrometheusEndpointTest {
         final PlatformDurationGauge metric1 = new PlatformDurationGauge(config);
         final PlatformDurationGauge metric2 = new PlatformDurationGauge(config);
 
-        try (final PrometheusEndpoint<NodeId> endpoint = new PrometheusEndpoint<>(httpServer, registry)) {
+        try (final PrometheusEndpoint<Long> endpoint = new PrometheusEndpoint<>(httpServer, registry)) {
 
             // when
-            final MetricsEvent<NodeId> metricsEvent1 = new MetricsEvent<>(MetricsEvent.Type.ADDED, NODE_ID_1, metric1);
+            final MetricsEvent<Long> metricsEvent1 = new MetricsEvent<>(MetricsEvent.Type.ADDED, KEY_1, metric1);
             endpoint.handleMetricsChange(metricsEvent1);
-            final MetricsEvent<NodeId> metricsEvent2 = new MetricsEvent<>(MetricsEvent.Type.ADDED, NODE_ID_2, metric1);
+            final MetricsEvent<Long> metricsEvent2 = new MetricsEvent<>(MetricsEvent.Type.ADDED, KEY_2, metric1);
             endpoint.handleMetricsChange(metricsEvent2);
             final ArgumentCaptor<Collector> captor = ArgumentCaptor.forClass(Collector.class);
             verify(registry).register(captor.capture());
@@ -417,9 +416,9 @@ class PrometheusEndpointTest {
             // when
             metric1.set(Duration.ofNanos(1000L));
             metric2.set(Duration.ofNanos(1L));
-            final SnapshotEvent<NodeId> snapshotEvent1 = new SnapshotEvent<>(NODE_ID_1, List.of(Snapshot.of(metric1)));
+            final SnapshotEvent<Long> snapshotEvent1 = new SnapshotEvent<>(KEY_1, List.of(Snapshot.of(metric1)));
             endpoint.handleSnapshots(snapshotEvent1);
-            final SnapshotEvent<NodeId> snapshotEvent2 = new SnapshotEvent<>(NODE_ID_2, List.of(Snapshot.of(metric2)));
+            final SnapshotEvent<Long> snapshotEvent2 = new SnapshotEvent<>(KEY_2, List.of(Snapshot.of(metric2)));
             endpoint.handleSnapshots(snapshotEvent2);
 
             // then
@@ -437,10 +436,10 @@ class PrometheusEndpointTest {
                 new FunctionGauge.Config<>(CATEGORY, NAME, Boolean.class, () -> true);
         final PlatformFunctionGauge<Boolean> metric = new PlatformFunctionGauge<>(config);
 
-        try (final PrometheusEndpoint<NodeId> endpoint = new PrometheusEndpoint<>(httpServer, registry)) {
+        try (final PrometheusEndpoint<Long> endpoint = new PrometheusEndpoint<>(httpServer, registry)) {
 
             // when
-            final MetricsEvent<NodeId> metricsEvent = new MetricsEvent<>(MetricsEvent.Type.ADDED, null, metric);
+            final MetricsEvent<Long> metricsEvent = new MetricsEvent<>(MetricsEvent.Type.ADDED, null, metric);
             endpoint.handleMetricsChange(metricsEvent);
             final ArgumentCaptor<Collector> captor = ArgumentCaptor.forClass(Collector.class);
             verify(registry).register(captor.capture());
@@ -450,7 +449,7 @@ class PrometheusEndpointTest {
             assertThat(collector.get()).isEqualTo(0.0, within(EPSILON));
 
             // when
-            final SnapshotEvent<NodeId> snapshotEvent = new SnapshotEvent<>(null, List.of(Snapshot.of(metric)));
+            final SnapshotEvent<Long> snapshotEvent = new SnapshotEvent<>(null, List.of(Snapshot.of(metric)));
             endpoint.handleSnapshots(snapshotEvent);
 
             // then
@@ -468,12 +467,12 @@ class PrometheusEndpointTest {
                 new FunctionGauge.Config<>(CATEGORY, NAME, Boolean.class, () -> false);
         final PlatformFunctionGauge<Boolean> metric2 = new PlatformFunctionGauge<>(config2);
 
-        try (final PrometheusEndpoint<NodeId> endpoint = new PrometheusEndpoint<>(httpServer, registry)) {
+        try (final PrometheusEndpoint<Long> endpoint = new PrometheusEndpoint<>(httpServer, registry)) {
 
             // when
-            final MetricsEvent<NodeId> metricsEvent1 = new MetricsEvent<>(MetricsEvent.Type.ADDED, NODE_ID_1, metric1);
+            final MetricsEvent<Long> metricsEvent1 = new MetricsEvent<>(MetricsEvent.Type.ADDED, KEY_1, metric1);
             endpoint.handleMetricsChange(metricsEvent1);
-            final MetricsEvent<NodeId> metricsEvent2 = new MetricsEvent<>(MetricsEvent.Type.ADDED, NODE_ID_2, metric1);
+            final MetricsEvent<Long> metricsEvent2 = new MetricsEvent<>(MetricsEvent.Type.ADDED, KEY_2, metric1);
             endpoint.handleMetricsChange(metricsEvent2);
             final ArgumentCaptor<Collector> captor = ArgumentCaptor.forClass(Collector.class);
             verify(registry).register(captor.capture());
@@ -484,9 +483,9 @@ class PrometheusEndpointTest {
             assertThat(collector.labels(LABEL_2).get()).isEqualTo(0.0, within(EPSILON));
 
             // when
-            final SnapshotEvent<NodeId> snapshotEvent1 = new SnapshotEvent<>(NODE_ID_1, List.of(Snapshot.of(metric1)));
+            final SnapshotEvent<Long> snapshotEvent1 = new SnapshotEvent<>(KEY_1, List.of(Snapshot.of(metric1)));
             endpoint.handleSnapshots(snapshotEvent1);
-            final SnapshotEvent<NodeId> snapshotEvent2 = new SnapshotEvent<>(NODE_ID_2, List.of(Snapshot.of(metric2)));
+            final SnapshotEvent<Long> snapshotEvent2 = new SnapshotEvent<>(KEY_2, List.of(Snapshot.of(metric2)));
             endpoint.handleSnapshots(snapshotEvent2);
 
             // then
@@ -502,10 +501,10 @@ class PrometheusEndpointTest {
                 new FunctionGauge.Config<>(CATEGORY, NAME, Double.class, () -> Math.PI);
         final PlatformFunctionGauge<Double> metric = new PlatformFunctionGauge<>(config);
 
-        try (final PrometheusEndpoint<NodeId> endpoint = new PrometheusEndpoint<>(httpServer, registry)) {
+        try (final PrometheusEndpoint<Long> endpoint = new PrometheusEndpoint<>(httpServer, registry)) {
 
             // when
-            final MetricsEvent<NodeId> metricsEvent = new MetricsEvent<>(MetricsEvent.Type.ADDED, null, metric);
+            final MetricsEvent<Long> metricsEvent = new MetricsEvent<>(MetricsEvent.Type.ADDED, null, metric);
             endpoint.handleMetricsChange(metricsEvent);
             final ArgumentCaptor<Collector> captor = ArgumentCaptor.forClass(Collector.class);
             verify(registry).register(captor.capture());
@@ -515,7 +514,7 @@ class PrometheusEndpointTest {
             assertThat(collector.get()).isEqualTo(0.0, within(EPSILON));
 
             // when
-            final SnapshotEvent<NodeId> snapshotEvent = new SnapshotEvent<>(null, List.of(Snapshot.of(metric)));
+            final SnapshotEvent<Long> snapshotEvent = new SnapshotEvent<>(null, List.of(Snapshot.of(metric)));
             endpoint.handleSnapshots(snapshotEvent);
 
             // then
@@ -533,12 +532,12 @@ class PrometheusEndpointTest {
                 new FunctionGauge.Config<>(CATEGORY, NAME, Double.class, () -> Math.PI);
         final PlatformFunctionGauge<Double> metric2 = new PlatformFunctionGauge<>(config2);
 
-        try (final PrometheusEndpoint<NodeId> endpoint = new PrometheusEndpoint<>(httpServer, registry)) {
+        try (final PrometheusEndpoint<Long> endpoint = new PrometheusEndpoint<>(httpServer, registry)) {
 
             // when
-            final MetricsEvent<NodeId> metricsEvent1 = new MetricsEvent<>(MetricsEvent.Type.ADDED, NODE_ID_1, metric1);
+            final MetricsEvent<Long> metricsEvent1 = new MetricsEvent<>(MetricsEvent.Type.ADDED, KEY_1, metric1);
             endpoint.handleMetricsChange(metricsEvent1);
-            final MetricsEvent<NodeId> metricsEvent2 = new MetricsEvent<>(MetricsEvent.Type.ADDED, NODE_ID_2, metric1);
+            final MetricsEvent<Long> metricsEvent2 = new MetricsEvent<>(MetricsEvent.Type.ADDED, KEY_2, metric1);
             endpoint.handleMetricsChange(metricsEvent2);
             final ArgumentCaptor<Collector> captor = ArgumentCaptor.forClass(Collector.class);
             verify(registry).register(captor.capture());
@@ -549,9 +548,9 @@ class PrometheusEndpointTest {
             assertThat(collector.labels(LABEL_2).get()).isEqualTo(0.0, within(EPSILON));
 
             // when
-            final SnapshotEvent<NodeId> snapshotEvent1 = new SnapshotEvent<>(NODE_ID_1, List.of(Snapshot.of(metric1)));
+            final SnapshotEvent<Long> snapshotEvent1 = new SnapshotEvent<>(KEY_1, List.of(Snapshot.of(metric1)));
             endpoint.handleSnapshots(snapshotEvent1);
-            final SnapshotEvent<NodeId> snapshotEvent2 = new SnapshotEvent<>(NODE_ID_2, List.of(Snapshot.of(metric2)));
+            final SnapshotEvent<Long> snapshotEvent2 = new SnapshotEvent<>(KEY_2, List.of(Snapshot.of(metric2)));
             endpoint.handleSnapshots(snapshotEvent2);
 
             // then
@@ -567,10 +566,10 @@ class PrometheusEndpointTest {
                 new FunctionGauge.Config<>(CATEGORY, NAME, String.class, () -> "Hello");
         final PlatformFunctionGauge<String> metric = new PlatformFunctionGauge<>(config);
 
-        try (final PrometheusEndpoint<NodeId> endpoint = new PrometheusEndpoint<>(httpServer, registry)) {
+        try (final PrometheusEndpoint<Long> endpoint = new PrometheusEndpoint<>(httpServer, registry)) {
 
             // when
-            final MetricsEvent<NodeId> metricsEvent = new MetricsEvent<>(MetricsEvent.Type.ADDED, null, metric);
+            final MetricsEvent<Long> metricsEvent = new MetricsEvent<>(MetricsEvent.Type.ADDED, null, metric);
             endpoint.handleMetricsChange(metricsEvent);
             final ArgumentCaptor<Collector> captor = ArgumentCaptor.forClass(Collector.class);
             verify(registry).register(captor.capture());
@@ -580,7 +579,7 @@ class PrometheusEndpointTest {
             assertThat(collector.get()).isEmpty();
 
             // when
-            final SnapshotEvent<NodeId> snapshotEvent = new SnapshotEvent<>(null, List.of(Snapshot.of(metric)));
+            final SnapshotEvent<Long> snapshotEvent = new SnapshotEvent<>(null, List.of(Snapshot.of(metric)));
             endpoint.handleSnapshots(snapshotEvent);
 
             // then
@@ -598,12 +597,12 @@ class PrometheusEndpointTest {
                 new FunctionGauge.Config<>(CATEGORY, NAME, String.class, () -> "Goodbye");
         final PlatformFunctionGauge<String> metric2 = new PlatformFunctionGauge<>(config2);
 
-        try (final PrometheusEndpoint<NodeId> endpoint = new PrometheusEndpoint<>(httpServer, registry)) {
+        try (final PrometheusEndpoint<Long> endpoint = new PrometheusEndpoint<>(httpServer, registry)) {
 
             // when
-            final MetricsEvent<NodeId> metricsEvent1 = new MetricsEvent<>(MetricsEvent.Type.ADDED, NODE_ID_1, metric1);
+            final MetricsEvent<Long> metricsEvent1 = new MetricsEvent<>(MetricsEvent.Type.ADDED, KEY_1, metric1);
             endpoint.handleMetricsChange(metricsEvent1);
-            final MetricsEvent<NodeId> metricsEvent2 = new MetricsEvent<>(MetricsEvent.Type.ADDED, NODE_ID_2, metric1);
+            final MetricsEvent<Long> metricsEvent2 = new MetricsEvent<>(MetricsEvent.Type.ADDED, KEY_2, metric1);
             endpoint.handleMetricsChange(metricsEvent2);
             final ArgumentCaptor<Collector> captor = ArgumentCaptor.forClass(Collector.class);
             verify(registry).register(captor.capture());
@@ -614,9 +613,9 @@ class PrometheusEndpointTest {
             assertThat(collector.labels(LABEL_2).get()).isEmpty();
 
             // when
-            final SnapshotEvent<NodeId> snapshotEvent1 = new SnapshotEvent<>(NODE_ID_1, List.of(Snapshot.of(metric1)));
+            final SnapshotEvent<Long> snapshotEvent1 = new SnapshotEvent<>(KEY_1, List.of(Snapshot.of(metric1)));
             endpoint.handleSnapshots(snapshotEvent1);
-            final SnapshotEvent<NodeId> snapshotEvent2 = new SnapshotEvent<>(NODE_ID_2, List.of(Snapshot.of(metric2)));
+            final SnapshotEvent<Long> snapshotEvent2 = new SnapshotEvent<>(KEY_2, List.of(Snapshot.of(metric2)));
             endpoint.handleSnapshots(snapshotEvent2);
 
             // then
@@ -631,10 +630,10 @@ class PrometheusEndpointTest {
         final IntegerAccumulator.Config config = new IntegerAccumulator.Config(CATEGORY, NAME);
         final DefaultIntegerAccumulator metric = new DefaultIntegerAccumulator(config);
 
-        try (final PrometheusEndpoint<NodeId> endpoint = new PrometheusEndpoint<>(httpServer, registry)) {
+        try (final PrometheusEndpoint<Long> endpoint = new PrometheusEndpoint<>(httpServer, registry)) {
 
             // when
-            final MetricsEvent<NodeId> metricsEvent = new MetricsEvent<>(MetricsEvent.Type.ADDED, null, metric);
+            final MetricsEvent<Long> metricsEvent = new MetricsEvent<>(MetricsEvent.Type.ADDED, null, metric);
             endpoint.handleMetricsChange(metricsEvent);
             final ArgumentCaptor<Collector> captor = ArgumentCaptor.forClass(Collector.class);
             verify(registry).register(captor.capture());
@@ -645,7 +644,7 @@ class PrometheusEndpointTest {
 
             // when
             metric.update(42);
-            final SnapshotEvent<NodeId> snapshotEvent = new SnapshotEvent<>(null, List.of(Snapshot.of(metric)));
+            final SnapshotEvent<Long> snapshotEvent = new SnapshotEvent<>(null, List.of(Snapshot.of(metric)));
             endpoint.handleSnapshots(snapshotEvent);
 
             // then
@@ -660,12 +659,12 @@ class PrometheusEndpointTest {
         final DefaultIntegerAccumulator metric1 = new DefaultIntegerAccumulator(config);
         final DefaultIntegerAccumulator metric2 = new DefaultIntegerAccumulator(config);
 
-        try (final PrometheusEndpoint<NodeId> endpoint = new PrometheusEndpoint<>(httpServer, registry)) {
+        try (final PrometheusEndpoint<Long> endpoint = new PrometheusEndpoint<>(httpServer, registry)) {
 
             // when
-            final MetricsEvent<NodeId> metricsEvent1 = new MetricsEvent<>(MetricsEvent.Type.ADDED, NODE_ID_1, metric1);
+            final MetricsEvent<Long> metricsEvent1 = new MetricsEvent<>(MetricsEvent.Type.ADDED, KEY_1, metric1);
             endpoint.handleMetricsChange(metricsEvent1);
-            final MetricsEvent<NodeId> metricsEvent2 = new MetricsEvent<>(MetricsEvent.Type.ADDED, NODE_ID_2, metric1);
+            final MetricsEvent<Long> metricsEvent2 = new MetricsEvent<>(MetricsEvent.Type.ADDED, KEY_2, metric1);
             endpoint.handleMetricsChange(metricsEvent2);
             final ArgumentCaptor<Collector> captor = ArgumentCaptor.forClass(Collector.class);
             verify(registry).register(captor.capture());
@@ -678,9 +677,9 @@ class PrometheusEndpointTest {
             // when
             metric1.update(3);
             metric2.update(5);
-            final SnapshotEvent<NodeId> snapshotEvent1 = new SnapshotEvent<>(NODE_ID_1, List.of(Snapshot.of(metric1)));
+            final SnapshotEvent<Long> snapshotEvent1 = new SnapshotEvent<>(KEY_1, List.of(Snapshot.of(metric1)));
             endpoint.handleSnapshots(snapshotEvent1);
-            final SnapshotEvent<NodeId> snapshotEvent2 = new SnapshotEvent<>(NODE_ID_2, List.of(Snapshot.of(metric2)));
+            final SnapshotEvent<Long> snapshotEvent2 = new SnapshotEvent<>(KEY_2, List.of(Snapshot.of(metric2)));
             endpoint.handleSnapshots(snapshotEvent2);
 
             // then
@@ -695,10 +694,10 @@ class PrometheusEndpointTest {
         final IntegerGauge.Config config = new IntegerGauge.Config(CATEGORY, NAME);
         final DefaultIntegerGauge metric = new DefaultIntegerGauge(config);
 
-        try (final PrometheusEndpoint<NodeId> endpoint = new PrometheusEndpoint<>(httpServer, registry)) {
+        try (final PrometheusEndpoint<Long> endpoint = new PrometheusEndpoint<>(httpServer, registry)) {
 
             // when
-            final MetricsEvent<NodeId> metricsEvent = new MetricsEvent<>(MetricsEvent.Type.ADDED, null, metric);
+            final MetricsEvent<Long> metricsEvent = new MetricsEvent<>(MetricsEvent.Type.ADDED, null, metric);
             endpoint.handleMetricsChange(metricsEvent);
             final ArgumentCaptor<Collector> captor = ArgumentCaptor.forClass(Collector.class);
             verify(registry).register(captor.capture());
@@ -709,7 +708,7 @@ class PrometheusEndpointTest {
 
             // when
             metric.set(42);
-            final SnapshotEvent<NodeId> snapshotEvent = new SnapshotEvent<>(null, List.of(Snapshot.of(metric)));
+            final SnapshotEvent<Long> snapshotEvent = new SnapshotEvent<>(null, List.of(Snapshot.of(metric)));
             endpoint.handleSnapshots(snapshotEvent);
 
             // then
@@ -724,12 +723,12 @@ class PrometheusEndpointTest {
         final DefaultIntegerGauge metric1 = new DefaultIntegerGauge(config);
         final DefaultIntegerGauge metric2 = new DefaultIntegerGauge(config);
 
-        try (final PrometheusEndpoint<NodeId> endpoint = new PrometheusEndpoint<>(httpServer, registry)) {
+        try (final PrometheusEndpoint<Long> endpoint = new PrometheusEndpoint<>(httpServer, registry)) {
 
             // when
-            final MetricsEvent<NodeId> metricsEvent1 = new MetricsEvent<>(MetricsEvent.Type.ADDED, NODE_ID_1, metric1);
+            final MetricsEvent<Long> metricsEvent1 = new MetricsEvent<>(MetricsEvent.Type.ADDED, KEY_1, metric1);
             endpoint.handleMetricsChange(metricsEvent1);
-            final MetricsEvent<NodeId> metricsEvent2 = new MetricsEvent<>(MetricsEvent.Type.ADDED, NODE_ID_2, metric1);
+            final MetricsEvent<Long> metricsEvent2 = new MetricsEvent<>(MetricsEvent.Type.ADDED, KEY_2, metric1);
             endpoint.handleMetricsChange(metricsEvent2);
             final ArgumentCaptor<Collector> captor = ArgumentCaptor.forClass(Collector.class);
             verify(registry).register(captor.capture());
@@ -742,9 +741,9 @@ class PrometheusEndpointTest {
             // when
             metric1.set(3);
             metric2.set(5);
-            final SnapshotEvent<NodeId> snapshotEvent1 = new SnapshotEvent<>(NODE_ID_1, List.of(Snapshot.of(metric1)));
+            final SnapshotEvent<Long> snapshotEvent1 = new SnapshotEvent<>(KEY_1, List.of(Snapshot.of(metric1)));
             endpoint.handleSnapshots(snapshotEvent1);
-            final SnapshotEvent<NodeId> snapshotEvent2 = new SnapshotEvent<>(NODE_ID_2, List.of(Snapshot.of(metric2)));
+            final SnapshotEvent<Long> snapshotEvent2 = new SnapshotEvent<>(KEY_2, List.of(Snapshot.of(metric2)));
             endpoint.handleSnapshots(snapshotEvent2);
 
             // then
@@ -760,10 +759,10 @@ class PrometheusEndpointTest {
                 new IntegerPairAccumulator.Config<>(CATEGORY, NAME, Boolean.class, (a, b) -> a < b);
         final PlatformIntegerPairAccumulator<Boolean> metric = new PlatformIntegerPairAccumulator<>(config);
 
-        try (final PrometheusEndpoint<NodeId> endpoint = new PrometheusEndpoint<>(httpServer, registry)) {
+        try (final PrometheusEndpoint<Long> endpoint = new PrometheusEndpoint<>(httpServer, registry)) {
 
             // when
-            final MetricsEvent<NodeId> metricsEvent = new MetricsEvent<>(MetricsEvent.Type.ADDED, null, metric);
+            final MetricsEvent<Long> metricsEvent = new MetricsEvent<>(MetricsEvent.Type.ADDED, null, metric);
             endpoint.handleMetricsChange(metricsEvent);
             final ArgumentCaptor<Collector> captor = ArgumentCaptor.forClass(Collector.class);
             verify(registry).register(captor.capture());
@@ -774,7 +773,7 @@ class PrometheusEndpointTest {
 
             // when
             metric.update(3, 5);
-            final SnapshotEvent<NodeId> snapshotEvent = new SnapshotEvent<>(null, List.of(Snapshot.of(metric)));
+            final SnapshotEvent<Long> snapshotEvent = new SnapshotEvent<>(null, List.of(Snapshot.of(metric)));
             endpoint.handleSnapshots(snapshotEvent);
 
             // then
@@ -792,12 +791,12 @@ class PrometheusEndpointTest {
                 new IntegerPairAccumulator.Config<>(CATEGORY, NAME, Boolean.class, (a, b) -> a > b);
         final PlatformIntegerPairAccumulator<Boolean> metric2 = new PlatformIntegerPairAccumulator<>(config2);
 
-        try (final PrometheusEndpoint<NodeId> endpoint = new PrometheusEndpoint<>(httpServer, registry)) {
+        try (final PrometheusEndpoint<Long> endpoint = new PrometheusEndpoint<>(httpServer, registry)) {
 
             // when
-            final MetricsEvent<NodeId> metricsEvent1 = new MetricsEvent<>(MetricsEvent.Type.ADDED, NODE_ID_1, metric1);
+            final MetricsEvent<Long> metricsEvent1 = new MetricsEvent<>(MetricsEvent.Type.ADDED, KEY_1, metric1);
             endpoint.handleMetricsChange(metricsEvent1);
-            final MetricsEvent<NodeId> metricsEvent2 = new MetricsEvent<>(MetricsEvent.Type.ADDED, NODE_ID_2, metric1);
+            final MetricsEvent<Long> metricsEvent2 = new MetricsEvent<>(MetricsEvent.Type.ADDED, KEY_2, metric1);
             endpoint.handleMetricsChange(metricsEvent2);
             final ArgumentCaptor<Collector> captor = ArgumentCaptor.forClass(Collector.class);
             verify(registry).register(captor.capture());
@@ -810,9 +809,9 @@ class PrometheusEndpointTest {
             // when
             metric1.update(3, 5);
             metric2.update(7, 13);
-            final SnapshotEvent<NodeId> snapshotEvent1 = new SnapshotEvent<>(NODE_ID_1, List.of(Snapshot.of(metric1)));
+            final SnapshotEvent<Long> snapshotEvent1 = new SnapshotEvent<>(KEY_1, List.of(Snapshot.of(metric1)));
             endpoint.handleSnapshots(snapshotEvent1);
-            final SnapshotEvent<NodeId> snapshotEvent2 = new SnapshotEvent<>(NODE_ID_2, List.of(Snapshot.of(metric2)));
+            final SnapshotEvent<Long> snapshotEvent2 = new SnapshotEvent<>(KEY_2, List.of(Snapshot.of(metric2)));
             endpoint.handleSnapshots(snapshotEvent2);
 
             // then
@@ -828,10 +827,10 @@ class PrometheusEndpointTest {
                 new IntegerPairAccumulator.Config<>(CATEGORY, NAME, Double.class, (a, b) -> (double) a / b);
         final PlatformIntegerPairAccumulator<Double> metric = new PlatformIntegerPairAccumulator<>(config);
 
-        try (final PrometheusEndpoint<NodeId> endpoint = new PrometheusEndpoint<>(httpServer, registry)) {
+        try (final PrometheusEndpoint<Long> endpoint = new PrometheusEndpoint<>(httpServer, registry)) {
 
             // when
-            final MetricsEvent<NodeId> metricsEvent = new MetricsEvent<>(MetricsEvent.Type.ADDED, null, metric);
+            final MetricsEvent<Long> metricsEvent = new MetricsEvent<>(MetricsEvent.Type.ADDED, null, metric);
             endpoint.handleMetricsChange(metricsEvent);
             final ArgumentCaptor<Collector> captor = ArgumentCaptor.forClass(Collector.class);
             verify(registry).register(captor.capture());
@@ -842,7 +841,7 @@ class PrometheusEndpointTest {
 
             // when
             metric.update(3, 5);
-            final SnapshotEvent<NodeId> snapshotEvent = new SnapshotEvent<>(null, List.of(Snapshot.of(metric)));
+            final SnapshotEvent<Long> snapshotEvent = new SnapshotEvent<>(null, List.of(Snapshot.of(metric)));
             endpoint.handleSnapshots(snapshotEvent);
 
             // then
@@ -860,12 +859,12 @@ class PrometheusEndpointTest {
                 new IntegerPairAccumulator.Config<>(CATEGORY, NAME, Double.class, (a, b) -> (double) a * b);
         final PlatformIntegerPairAccumulator<Double> metric2 = new PlatformIntegerPairAccumulator<>(config2);
 
-        try (final PrometheusEndpoint<NodeId> endpoint = new PrometheusEndpoint<>(httpServer, registry)) {
+        try (final PrometheusEndpoint<Long> endpoint = new PrometheusEndpoint<>(httpServer, registry)) {
 
             // when
-            final MetricsEvent<NodeId> metricsEvent1 = new MetricsEvent<>(MetricsEvent.Type.ADDED, NODE_ID_1, metric1);
+            final MetricsEvent<Long> metricsEvent1 = new MetricsEvent<>(MetricsEvent.Type.ADDED, KEY_1, metric1);
             endpoint.handleMetricsChange(metricsEvent1);
-            final MetricsEvent<NodeId> metricsEvent2 = new MetricsEvent<>(MetricsEvent.Type.ADDED, NODE_ID_2, metric1);
+            final MetricsEvent<Long> metricsEvent2 = new MetricsEvent<>(MetricsEvent.Type.ADDED, KEY_2, metric1);
             endpoint.handleMetricsChange(metricsEvent2);
             final ArgumentCaptor<Collector> captor = ArgumentCaptor.forClass(Collector.class);
             verify(registry).register(captor.capture());
@@ -878,9 +877,9 @@ class PrometheusEndpointTest {
             // when
             metric1.update(3, 5);
             metric2.update(7, 13);
-            final SnapshotEvent<NodeId> snapshotEvent1 = new SnapshotEvent<>(NODE_ID_1, List.of(Snapshot.of(metric1)));
+            final SnapshotEvent<Long> snapshotEvent1 = new SnapshotEvent<>(KEY_1, List.of(Snapshot.of(metric1)));
             endpoint.handleSnapshots(snapshotEvent1);
-            final SnapshotEvent<NodeId> snapshotEvent2 = new SnapshotEvent<>(NODE_ID_2, List.of(Snapshot.of(metric2)));
+            final SnapshotEvent<Long> snapshotEvent2 = new SnapshotEvent<>(KEY_2, List.of(Snapshot.of(metric2)));
             endpoint.handleSnapshots(snapshotEvent2);
 
             // then
@@ -896,10 +895,10 @@ class PrometheusEndpointTest {
                 CATEGORY, NAME, String.class, (a, b) -> String.format("%d.%d", a, b));
         final PlatformIntegerPairAccumulator<String> metric = new PlatformIntegerPairAccumulator<>(config);
 
-        try (final PrometheusEndpoint<NodeId> endpoint = new PrometheusEndpoint<>(httpServer, registry)) {
+        try (final PrometheusEndpoint<Long> endpoint = new PrometheusEndpoint<>(httpServer, registry)) {
 
             // when
-            final MetricsEvent<NodeId> metricsEvent = new MetricsEvent<>(MetricsEvent.Type.ADDED, null, metric);
+            final MetricsEvent<Long> metricsEvent = new MetricsEvent<>(MetricsEvent.Type.ADDED, null, metric);
             endpoint.handleMetricsChange(metricsEvent);
             final ArgumentCaptor<Collector> captor = ArgumentCaptor.forClass(Collector.class);
             verify(registry).register(captor.capture());
@@ -910,7 +909,7 @@ class PrometheusEndpointTest {
 
             // when
             metric.update(3, 5);
-            final SnapshotEvent<NodeId> snapshotEvent = new SnapshotEvent<>(null, List.of(Snapshot.of(metric)));
+            final SnapshotEvent<Long> snapshotEvent = new SnapshotEvent<>(null, List.of(Snapshot.of(metric)));
             endpoint.handleSnapshots(snapshotEvent);
 
             // then
@@ -928,12 +927,12 @@ class PrometheusEndpointTest {
                 CATEGORY, NAME, String.class, (a, b) -> String.format("%d|%d", a, b));
         final PlatformIntegerPairAccumulator<String> metric2 = new PlatformIntegerPairAccumulator<>(config2);
 
-        try (final PrometheusEndpoint<NodeId> endpoint = new PrometheusEndpoint<>(httpServer, registry)) {
+        try (final PrometheusEndpoint<Long> endpoint = new PrometheusEndpoint<>(httpServer, registry)) {
 
             // when
-            final MetricsEvent<NodeId> metricsEvent1 = new MetricsEvent<>(MetricsEvent.Type.ADDED, NODE_ID_1, metric1);
+            final MetricsEvent<Long> metricsEvent1 = new MetricsEvent<>(MetricsEvent.Type.ADDED, KEY_1, metric1);
             endpoint.handleMetricsChange(metricsEvent1);
-            final MetricsEvent<NodeId> metricsEvent2 = new MetricsEvent<>(MetricsEvent.Type.ADDED, NODE_ID_2, metric1);
+            final MetricsEvent<Long> metricsEvent2 = new MetricsEvent<>(MetricsEvent.Type.ADDED, KEY_2, metric1);
             endpoint.handleMetricsChange(metricsEvent2);
             final ArgumentCaptor<Collector> captor = ArgumentCaptor.forClass(Collector.class);
             verify(registry).register(captor.capture());
@@ -946,9 +945,9 @@ class PrometheusEndpointTest {
             // when
             metric1.update(3, 5);
             metric2.update(7, 13);
-            final SnapshotEvent<NodeId> snapshotEvent1 = new SnapshotEvent<>(NODE_ID_1, List.of(Snapshot.of(metric1)));
+            final SnapshotEvent<Long> snapshotEvent1 = new SnapshotEvent<>(KEY_1, List.of(Snapshot.of(metric1)));
             endpoint.handleSnapshots(snapshotEvent1);
-            final SnapshotEvent<NodeId> snapshotEvent2 = new SnapshotEvent<>(NODE_ID_2, List.of(Snapshot.of(metric2)));
+            final SnapshotEvent<Long> snapshotEvent2 = new SnapshotEvent<>(KEY_2, List.of(Snapshot.of(metric2)));
             endpoint.handleSnapshots(snapshotEvent2);
 
             // then
@@ -963,10 +962,10 @@ class PrometheusEndpointTest {
         final LongAccumulator.Config config = new LongAccumulator.Config(CATEGORY, NAME);
         final DefaultLongAccumulator metric = new DefaultLongAccumulator(config);
 
-        try (final PrometheusEndpoint<NodeId> endpoint = new PrometheusEndpoint<>(httpServer, registry)) {
+        try (final PrometheusEndpoint<Long> endpoint = new PrometheusEndpoint<>(httpServer, registry)) {
 
             // when
-            final MetricsEvent<NodeId> metricsEvent = new MetricsEvent<>(MetricsEvent.Type.ADDED, null, metric);
+            final MetricsEvent<Long> metricsEvent = new MetricsEvent<>(MetricsEvent.Type.ADDED, null, metric);
             endpoint.handleMetricsChange(metricsEvent);
             final ArgumentCaptor<Collector> captor = ArgumentCaptor.forClass(Collector.class);
             verify(registry).register(captor.capture());
@@ -977,7 +976,7 @@ class PrometheusEndpointTest {
 
             // when
             metric.update(42L);
-            final SnapshotEvent<NodeId> snapshotEvent = new SnapshotEvent<>(null, List.of(Snapshot.of(metric)));
+            final SnapshotEvent<Long> snapshotEvent = new SnapshotEvent<>(null, List.of(Snapshot.of(metric)));
             endpoint.handleSnapshots(snapshotEvent);
 
             // then
@@ -992,12 +991,12 @@ class PrometheusEndpointTest {
         final DefaultLongAccumulator metric1 = new DefaultLongAccumulator(config);
         final DefaultLongAccumulator metric2 = new DefaultLongAccumulator(config);
 
-        try (final PrometheusEndpoint<NodeId> endpoint = new PrometheusEndpoint<>(httpServer, registry)) {
+        try (final PrometheusEndpoint<Long> endpoint = new PrometheusEndpoint<>(httpServer, registry)) {
 
             // when
-            final MetricsEvent<NodeId> metricsEvent1 = new MetricsEvent<>(MetricsEvent.Type.ADDED, NODE_ID_1, metric1);
+            final MetricsEvent<Long> metricsEvent1 = new MetricsEvent<>(MetricsEvent.Type.ADDED, KEY_1, metric1);
             endpoint.handleMetricsChange(metricsEvent1);
-            final MetricsEvent<NodeId> metricsEvent2 = new MetricsEvent<>(MetricsEvent.Type.ADDED, NODE_ID_2, metric1);
+            final MetricsEvent<Long> metricsEvent2 = new MetricsEvent<>(MetricsEvent.Type.ADDED, KEY_2, metric1);
             endpoint.handleMetricsChange(metricsEvent2);
             final ArgumentCaptor<Collector> captor = ArgumentCaptor.forClass(Collector.class);
             verify(registry).register(captor.capture());
@@ -1010,9 +1009,9 @@ class PrometheusEndpointTest {
             // when
             metric1.update(3L);
             metric2.update(5L);
-            final SnapshotEvent<NodeId> snapshotEvent1 = new SnapshotEvent<>(NODE_ID_1, List.of(Snapshot.of(metric1)));
+            final SnapshotEvent<Long> snapshotEvent1 = new SnapshotEvent<>(KEY_1, List.of(Snapshot.of(metric1)));
             endpoint.handleSnapshots(snapshotEvent1);
-            final SnapshotEvent<NodeId> snapshotEvent2 = new SnapshotEvent<>(NODE_ID_2, List.of(Snapshot.of(metric2)));
+            final SnapshotEvent<Long> snapshotEvent2 = new SnapshotEvent<>(KEY_2, List.of(Snapshot.of(metric2)));
             endpoint.handleSnapshots(snapshotEvent2);
 
             // then
@@ -1027,10 +1026,10 @@ class PrometheusEndpointTest {
         final LongGauge.Config config = new LongGauge.Config(CATEGORY, NAME);
         final DefaultLongGauge metric = new DefaultLongGauge(config);
 
-        try (final PrometheusEndpoint<NodeId> endpoint = new PrometheusEndpoint<>(httpServer, registry)) {
+        try (final PrometheusEndpoint<Long> endpoint = new PrometheusEndpoint<>(httpServer, registry)) {
 
             // when
-            final MetricsEvent<NodeId> metricsEvent = new MetricsEvent<>(MetricsEvent.Type.ADDED, null, metric);
+            final MetricsEvent<Long> metricsEvent = new MetricsEvent<>(MetricsEvent.Type.ADDED, null, metric);
             endpoint.handleMetricsChange(metricsEvent);
             final ArgumentCaptor<Collector> captor = ArgumentCaptor.forClass(Collector.class);
             verify(registry).register(captor.capture());
@@ -1041,7 +1040,7 @@ class PrometheusEndpointTest {
 
             // when
             metric.set(42L);
-            final SnapshotEvent<NodeId> snapshotEvent = new SnapshotEvent<>(null, List.of(Snapshot.of(metric)));
+            final SnapshotEvent<Long> snapshotEvent = new SnapshotEvent<>(null, List.of(Snapshot.of(metric)));
             endpoint.handleSnapshots(snapshotEvent);
 
             // then
@@ -1056,12 +1055,12 @@ class PrometheusEndpointTest {
         final DefaultLongGauge metric1 = new DefaultLongGauge(config);
         final DefaultLongGauge metric2 = new DefaultLongGauge(config);
 
-        try (final PrometheusEndpoint<NodeId> endpoint = new PrometheusEndpoint<>(httpServer, registry)) {
+        try (final PrometheusEndpoint<Long> endpoint = new PrometheusEndpoint<>(httpServer, registry)) {
 
             // when
-            final MetricsEvent<NodeId> metricsEvent1 = new MetricsEvent<>(MetricsEvent.Type.ADDED, NODE_ID_1, metric1);
+            final MetricsEvent<Long> metricsEvent1 = new MetricsEvent<>(MetricsEvent.Type.ADDED, KEY_1, metric1);
             endpoint.handleMetricsChange(metricsEvent1);
-            final MetricsEvent<NodeId> metricsEvent2 = new MetricsEvent<>(MetricsEvent.Type.ADDED, NODE_ID_2, metric1);
+            final MetricsEvent<Long> metricsEvent2 = new MetricsEvent<>(MetricsEvent.Type.ADDED, KEY_2, metric1);
             endpoint.handleMetricsChange(metricsEvent2);
             final ArgumentCaptor<Collector> captor = ArgumentCaptor.forClass(Collector.class);
             verify(registry).register(captor.capture());
@@ -1074,9 +1073,9 @@ class PrometheusEndpointTest {
             // when
             metric1.set(3L);
             metric2.set(5L);
-            final SnapshotEvent<NodeId> snapshotEvent1 = new SnapshotEvent<>(NODE_ID_1, List.of(Snapshot.of(metric1)));
+            final SnapshotEvent<Long> snapshotEvent1 = new SnapshotEvent<>(KEY_1, List.of(Snapshot.of(metric1)));
             endpoint.handleSnapshots(snapshotEvent1);
-            final SnapshotEvent<NodeId> snapshotEvent2 = new SnapshotEvent<>(NODE_ID_2, List.of(Snapshot.of(metric2)));
+            final SnapshotEvent<Long> snapshotEvent2 = new SnapshotEvent<>(KEY_2, List.of(Snapshot.of(metric2)));
             endpoint.handleSnapshots(snapshotEvent2);
 
             // then
@@ -1091,10 +1090,10 @@ class PrometheusEndpointTest {
         final RunningAverageMetric.Config config = new RunningAverageMetric.Config(CATEGORY, NAME);
         final PlatformRunningAverageMetric metric = new PlatformRunningAverageMetric(config);
 
-        try (final PrometheusEndpoint<NodeId> endpoint = new PrometheusEndpoint<>(httpServer, registry)) {
+        try (final PrometheusEndpoint<Long> endpoint = new PrometheusEndpoint<>(httpServer, registry)) {
 
             // when
-            final MetricsEvent<NodeId> metricsEvent = new MetricsEvent<>(MetricsEvent.Type.ADDED, null, metric);
+            final MetricsEvent<Long> metricsEvent = new MetricsEvent<>(MetricsEvent.Type.ADDED, null, metric);
             endpoint.handleMetricsChange(metricsEvent);
             final ArgumentCaptor<Collector> captor = ArgumentCaptor.forClass(Collector.class);
             verify(registry).register(captor.capture());
@@ -1108,7 +1107,7 @@ class PrometheusEndpointTest {
 
             // when
             metric.update(1000.0);
-            final SnapshotEvent<NodeId> snapshotEvent = new SnapshotEvent<>(null, List.of(Snapshot.of(metric)));
+            final SnapshotEvent<Long> snapshotEvent = new SnapshotEvent<>(null, List.of(Snapshot.of(metric)));
             endpoint.handleSnapshots(snapshotEvent);
 
             // then
@@ -1126,12 +1125,12 @@ class PrometheusEndpointTest {
         final PlatformRunningAverageMetric metric1 = new PlatformRunningAverageMetric(config);
         final PlatformRunningAverageMetric metric2 = new PlatformRunningAverageMetric(config);
 
-        try (final PrometheusEndpoint<NodeId> endpoint = new PrometheusEndpoint<>(httpServer, registry)) {
+        try (final PrometheusEndpoint<Long> endpoint = new PrometheusEndpoint<>(httpServer, registry)) {
 
             // when
-            final MetricsEvent<NodeId> metricsEvent1 = new MetricsEvent<>(MetricsEvent.Type.ADDED, NODE_ID_1, metric1);
+            final MetricsEvent<Long> metricsEvent1 = new MetricsEvent<>(MetricsEvent.Type.ADDED, KEY_1, metric1);
             endpoint.handleMetricsChange(metricsEvent1);
-            final MetricsEvent<NodeId> metricsEvent2 = new MetricsEvent<>(MetricsEvent.Type.ADDED, NODE_ID_2, metric1);
+            final MetricsEvent<Long> metricsEvent2 = new MetricsEvent<>(MetricsEvent.Type.ADDED, KEY_2, metric1);
             endpoint.handleMetricsChange(metricsEvent2);
             final ArgumentCaptor<Collector> captor = ArgumentCaptor.forClass(Collector.class);
             verify(registry).register(captor.capture());
@@ -1150,9 +1149,9 @@ class PrometheusEndpointTest {
             // when
             metric1.update(3000.0);
             metric2.update(5000.0);
-            final SnapshotEvent<NodeId> snapshotEvent1 = new SnapshotEvent<>(NODE_ID_1, List.of(Snapshot.of(metric1)));
+            final SnapshotEvent<Long> snapshotEvent1 = new SnapshotEvent<>(KEY_1, List.of(Snapshot.of(metric1)));
             endpoint.handleSnapshots(snapshotEvent1);
-            final SnapshotEvent<NodeId> snapshotEvent2 = new SnapshotEvent<>(NODE_ID_2, List.of(Snapshot.of(metric2)));
+            final SnapshotEvent<Long> snapshotEvent2 = new SnapshotEvent<>(KEY_2, List.of(Snapshot.of(metric2)));
             endpoint.handleSnapshots(snapshotEvent2);
 
             // then
@@ -1175,10 +1174,10 @@ class PrometheusEndpointTest {
         final FakeTime time = new FakeTime();
         final PlatformSpeedometerMetric metric = new PlatformSpeedometerMetric(config, time);
 
-        try (final PrometheusEndpoint<NodeId> endpoint = new PrometheusEndpoint<>(httpServer, registry)) {
+        try (final PrometheusEndpoint<Long> endpoint = new PrometheusEndpoint<>(httpServer, registry)) {
 
             // when
-            final MetricsEvent<NodeId> metricsEvent = new MetricsEvent<>(MetricsEvent.Type.ADDED, null, metric);
+            final MetricsEvent<Long> metricsEvent = new MetricsEvent<>(MetricsEvent.Type.ADDED, null, metric);
             endpoint.handleMetricsChange(metricsEvent);
             final ArgumentCaptor<Collector> captor = ArgumentCaptor.forClass(Collector.class);
             verify(registry).register(captor.capture());
@@ -1196,7 +1195,7 @@ class PrometheusEndpointTest {
             time.set(Duration.ofMillis(500));
             metric.cycle();
             time.set(Duration.ofMillis(1000));
-            final SnapshotEvent<NodeId> snapshotEvent = new SnapshotEvent<>(null, List.of(Snapshot.of(metric)));
+            final SnapshotEvent<Long> snapshotEvent = new SnapshotEvent<>(null, List.of(Snapshot.of(metric)));
             endpoint.handleSnapshots(snapshotEvent);
 
             // then
@@ -1216,12 +1215,12 @@ class PrometheusEndpointTest {
         final PlatformSpeedometerMetric metric1 = new PlatformSpeedometerMetric(config, time);
         final PlatformSpeedometerMetric metric2 = new PlatformSpeedometerMetric(config, time);
 
-        try (final PrometheusEndpoint<NodeId> endpoint = new PrometheusEndpoint<>(httpServer, registry)) {
+        try (final PrometheusEndpoint<Long> endpoint = new PrometheusEndpoint<>(httpServer, registry)) {
 
             // when
-            final MetricsEvent<NodeId> metricsEvent1 = new MetricsEvent<>(MetricsEvent.Type.ADDED, NODE_ID_1, metric1);
+            final MetricsEvent<Long> metricsEvent1 = new MetricsEvent<>(MetricsEvent.Type.ADDED, KEY_1, metric1);
             endpoint.handleMetricsChange(metricsEvent1);
-            final MetricsEvent<NodeId> metricsEvent2 = new MetricsEvent<>(MetricsEvent.Type.ADDED, NODE_ID_2, metric1);
+            final MetricsEvent<Long> metricsEvent2 = new MetricsEvent<>(MetricsEvent.Type.ADDED, KEY_2, metric1);
             endpoint.handleMetricsChange(metricsEvent2);
             final ArgumentCaptor<Collector> captor = ArgumentCaptor.forClass(Collector.class);
             verify(registry).register(captor.capture());
@@ -1245,9 +1244,9 @@ class PrometheusEndpointTest {
             metric1.cycle();
             metric2.update(100.0);
             time.set(Duration.ofMillis(1000));
-            final SnapshotEvent<NodeId> snapshotEvent1 = new SnapshotEvent<>(NODE_ID_1, List.of(Snapshot.of(metric1)));
+            final SnapshotEvent<Long> snapshotEvent1 = new SnapshotEvent<>(KEY_1, List.of(Snapshot.of(metric1)));
             endpoint.handleSnapshots(snapshotEvent1);
-            final SnapshotEvent<NodeId> snapshotEvent2 = new SnapshotEvent<>(NODE_ID_2, List.of(Snapshot.of(metric2)));
+            final SnapshotEvent<Long> snapshotEvent2 = new SnapshotEvent<>(KEY_2, List.of(Snapshot.of(metric2)));
             endpoint.handleSnapshots(snapshotEvent2);
 
             // then
@@ -1268,10 +1267,10 @@ class PrometheusEndpointTest {
         final StatEntry.Config<Boolean> config = new StatEntry.Config<>(CATEGORY, NAME, Boolean.class, () -> true);
         final PlatformStatEntry metric = new PlatformStatEntry(config);
 
-        try (final PrometheusEndpoint<NodeId> endpoint = new PrometheusEndpoint<>(httpServer, registry)) {
+        try (final PrometheusEndpoint<Long> endpoint = new PrometheusEndpoint<>(httpServer, registry)) {
 
             // when
-            final MetricsEvent<NodeId> metricsEvent = new MetricsEvent<>(MetricsEvent.Type.ADDED, null, metric);
+            final MetricsEvent<Long> metricsEvent = new MetricsEvent<>(MetricsEvent.Type.ADDED, null, metric);
             endpoint.handleMetricsChange(metricsEvent);
             final ArgumentCaptor<Collector> captor = ArgumentCaptor.forClass(Collector.class);
             verify(registry).register(captor.capture());
@@ -1281,7 +1280,7 @@ class PrometheusEndpointTest {
             assertThat(collector.get()).isEqualTo(0.0, within(EPSILON));
 
             // when
-            final SnapshotEvent<NodeId> snapshotEvent = new SnapshotEvent<>(null, List.of(Snapshot.of(metric)));
+            final SnapshotEvent<Long> snapshotEvent = new SnapshotEvent<>(null, List.of(Snapshot.of(metric)));
             endpoint.handleSnapshots(snapshotEvent);
 
             // then
@@ -1297,12 +1296,12 @@ class PrometheusEndpointTest {
         final StatEntry.Config<Boolean> config2 = new StatEntry.Config<>(CATEGORY, NAME, Boolean.class, () -> false);
         final PlatformStatEntry metric2 = new PlatformStatEntry(config2);
 
-        try (final PrometheusEndpoint<NodeId> endpoint = new PrometheusEndpoint<>(httpServer, registry)) {
+        try (final PrometheusEndpoint<Long> endpoint = new PrometheusEndpoint<>(httpServer, registry)) {
 
             // when
-            final MetricsEvent<NodeId> metricsEvent1 = new MetricsEvent<>(MetricsEvent.Type.ADDED, NODE_ID_1, metric1);
+            final MetricsEvent<Long> metricsEvent1 = new MetricsEvent<>(MetricsEvent.Type.ADDED, KEY_1, metric1);
             endpoint.handleMetricsChange(metricsEvent1);
-            final MetricsEvent<NodeId> metricsEvent2 = new MetricsEvent<>(MetricsEvent.Type.ADDED, NODE_ID_2, metric1);
+            final MetricsEvent<Long> metricsEvent2 = new MetricsEvent<>(MetricsEvent.Type.ADDED, KEY_2, metric1);
             endpoint.handleMetricsChange(metricsEvent2);
             final ArgumentCaptor<Collector> captor = ArgumentCaptor.forClass(Collector.class);
             verify(registry).register(captor.capture());
@@ -1313,9 +1312,9 @@ class PrometheusEndpointTest {
             assertThat(collector.labels(LABEL_2).get()).isEqualTo(0.0, within(EPSILON));
 
             // when
-            final SnapshotEvent<NodeId> snapshotEvent1 = new SnapshotEvent<>(NODE_ID_1, List.of(Snapshot.of(metric1)));
+            final SnapshotEvent<Long> snapshotEvent1 = new SnapshotEvent<>(KEY_1, List.of(Snapshot.of(metric1)));
             endpoint.handleSnapshots(snapshotEvent1);
-            final SnapshotEvent<NodeId> snapshotEvent2 = new SnapshotEvent<>(NODE_ID_2, List.of(Snapshot.of(metric2)));
+            final SnapshotEvent<Long> snapshotEvent2 = new SnapshotEvent<>(KEY_2, List.of(Snapshot.of(metric2)));
             endpoint.handleSnapshots(snapshotEvent2);
 
             // then
@@ -1330,10 +1329,10 @@ class PrometheusEndpointTest {
         final StatEntry.Config<Double> config = new StatEntry.Config<>(CATEGORY, NAME, Double.class, () -> Math.PI);
         final PlatformStatEntry metric = new PlatformStatEntry(config);
 
-        try (final PrometheusEndpoint<NodeId> endpoint = new PrometheusEndpoint<>(httpServer, registry)) {
+        try (final PrometheusEndpoint<Long> endpoint = new PrometheusEndpoint<>(httpServer, registry)) {
 
             // when
-            final MetricsEvent<NodeId> metricsEvent = new MetricsEvent<>(MetricsEvent.Type.ADDED, null, metric);
+            final MetricsEvent<Long> metricsEvent = new MetricsEvent<>(MetricsEvent.Type.ADDED, null, metric);
             endpoint.handleMetricsChange(metricsEvent);
             final ArgumentCaptor<Collector> captor = ArgumentCaptor.forClass(Collector.class);
             verify(registry).register(captor.capture());
@@ -1343,7 +1342,7 @@ class PrometheusEndpointTest {
             assertThat(collector.get()).isEqualTo(0.0, within(EPSILON));
 
             // when
-            final SnapshotEvent<NodeId> snapshotEvent = new SnapshotEvent<>(null, List.of(Snapshot.of(metric)));
+            final SnapshotEvent<Long> snapshotEvent = new SnapshotEvent<>(null, List.of(Snapshot.of(metric)));
             endpoint.handleSnapshots(snapshotEvent);
 
             // then
@@ -1359,12 +1358,12 @@ class PrometheusEndpointTest {
         final StatEntry.Config<Double> config2 = new StatEntry.Config<>(CATEGORY, NAME, Double.class, () -> Math.PI);
         final PlatformStatEntry metric2 = new PlatformStatEntry(config2);
 
-        try (final PrometheusEndpoint<NodeId> endpoint = new PrometheusEndpoint<>(httpServer, registry)) {
+        try (final PrometheusEndpoint<Long> endpoint = new PrometheusEndpoint<>(httpServer, registry)) {
 
             // when
-            final MetricsEvent<NodeId> metricsEvent1 = new MetricsEvent<>(MetricsEvent.Type.ADDED, NODE_ID_1, metric1);
+            final MetricsEvent<Long> metricsEvent1 = new MetricsEvent<>(MetricsEvent.Type.ADDED, KEY_1, metric1);
             endpoint.handleMetricsChange(metricsEvent1);
-            final MetricsEvent<NodeId> metricsEvent2 = new MetricsEvent<>(MetricsEvent.Type.ADDED, NODE_ID_2, metric1);
+            final MetricsEvent<Long> metricsEvent2 = new MetricsEvent<>(MetricsEvent.Type.ADDED, KEY_2, metric1);
             endpoint.handleMetricsChange(metricsEvent2);
             final ArgumentCaptor<Collector> captor = ArgumentCaptor.forClass(Collector.class);
             verify(registry).register(captor.capture());
@@ -1375,9 +1374,9 @@ class PrometheusEndpointTest {
             assertThat(collector.labels(LABEL_2).get()).isEqualTo(0.0, within(EPSILON));
 
             // when
-            final SnapshotEvent<NodeId> snapshotEvent1 = new SnapshotEvent<>(NODE_ID_1, List.of(Snapshot.of(metric1)));
+            final SnapshotEvent<Long> snapshotEvent1 = new SnapshotEvent<>(KEY_1, List.of(Snapshot.of(metric1)));
             endpoint.handleSnapshots(snapshotEvent1);
-            final SnapshotEvent<NodeId> snapshotEvent2 = new SnapshotEvent<>(NODE_ID_2, List.of(Snapshot.of(metric2)));
+            final SnapshotEvent<Long> snapshotEvent2 = new SnapshotEvent<>(KEY_2, List.of(Snapshot.of(metric2)));
             endpoint.handleSnapshots(snapshotEvent2);
 
             // then
@@ -1392,10 +1391,10 @@ class PrometheusEndpointTest {
         final StatEntry.Config<String> config = new StatEntry.Config<>(CATEGORY, NAME, String.class, () -> "Hello");
         final PlatformStatEntry metric = new PlatformStatEntry(config);
 
-        try (final PrometheusEndpoint<NodeId> endpoint = new PrometheusEndpoint<>(httpServer, registry)) {
+        try (final PrometheusEndpoint<Long> endpoint = new PrometheusEndpoint<>(httpServer, registry)) {
 
             // when
-            final MetricsEvent<NodeId> metricsEvent = new MetricsEvent<>(MetricsEvent.Type.ADDED, null, metric);
+            final MetricsEvent<Long> metricsEvent = new MetricsEvent<>(MetricsEvent.Type.ADDED, null, metric);
             endpoint.handleMetricsChange(metricsEvent);
             final ArgumentCaptor<Collector> captor = ArgumentCaptor.forClass(Collector.class);
             verify(registry).register(captor.capture());
@@ -1405,7 +1404,7 @@ class PrometheusEndpointTest {
             assertThat(collector.get()).isEmpty();
 
             // when
-            final SnapshotEvent<NodeId> snapshotEvent = new SnapshotEvent<>(null, List.of(Snapshot.of(metric)));
+            final SnapshotEvent<Long> snapshotEvent = new SnapshotEvent<>(null, List.of(Snapshot.of(metric)));
             endpoint.handleSnapshots(snapshotEvent);
 
             // then
@@ -1421,12 +1420,12 @@ class PrometheusEndpointTest {
         final StatEntry.Config<String> config2 = new StatEntry.Config<>(CATEGORY, NAME, String.class, () -> "Goodbye");
         final PlatformStatEntry metric2 = new PlatformStatEntry(config2);
 
-        try (final PrometheusEndpoint<NodeId> endpoint = new PrometheusEndpoint<>(httpServer, registry)) {
+        try (final PrometheusEndpoint<Long> endpoint = new PrometheusEndpoint<>(httpServer, registry)) {
 
             // when
-            final MetricsEvent<NodeId> metricsEvent1 = new MetricsEvent<>(MetricsEvent.Type.ADDED, NODE_ID_1, metric1);
+            final MetricsEvent<Long> metricsEvent1 = new MetricsEvent<>(MetricsEvent.Type.ADDED, KEY_1, metric1);
             endpoint.handleMetricsChange(metricsEvent1);
-            final MetricsEvent<NodeId> metricsEvent2 = new MetricsEvent<>(MetricsEvent.Type.ADDED, NODE_ID_2, metric1);
+            final MetricsEvent<Long> metricsEvent2 = new MetricsEvent<>(MetricsEvent.Type.ADDED, KEY_2, metric1);
             endpoint.handleMetricsChange(metricsEvent2);
             final ArgumentCaptor<Collector> captor = ArgumentCaptor.forClass(Collector.class);
             verify(registry).register(captor.capture());
@@ -1437,9 +1436,9 @@ class PrometheusEndpointTest {
             assertThat(collector.labels(LABEL_2).get()).isEmpty();
 
             // when
-            final SnapshotEvent<NodeId> snapshotEvent1 = new SnapshotEvent<>(NODE_ID_1, List.of(Snapshot.of(metric1)));
+            final SnapshotEvent<Long> snapshotEvent1 = new SnapshotEvent<>(KEY_1, List.of(Snapshot.of(metric1)));
             endpoint.handleSnapshots(snapshotEvent1);
-            final SnapshotEvent<NodeId> snapshotEvent2 = new SnapshotEvent<>(NODE_ID_2, List.of(Snapshot.of(metric2)));
+            final SnapshotEvent<Long> snapshotEvent2 = new SnapshotEvent<>(KEY_2, List.of(Snapshot.of(metric2)));
             endpoint.handleSnapshots(snapshotEvent2);
 
             // then

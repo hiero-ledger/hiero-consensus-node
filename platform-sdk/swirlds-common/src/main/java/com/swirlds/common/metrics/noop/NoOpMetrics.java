@@ -36,7 +36,7 @@ public class NoOpMetrics<KEY> implements PlatformMetrics<KEY> {
      * Constructor for global metrics
      */
     public NoOpMetrics() {
-        this.key = null;
+        this(null);
     }
 
     /**
