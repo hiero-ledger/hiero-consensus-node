@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.common.formatting;
+package com.swirlds.base.formatting;
 
-import static com.swirlds.common.formatting.HorizontalAlignment.ALIGNED_RIGHT;
+import static com.swirlds.base.formatting.HorizontalAlignment.ALIGNED_RIGHT;
 
 import java.time.Instant;
 import java.util.Iterator;
