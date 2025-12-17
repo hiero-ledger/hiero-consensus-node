@@ -34,6 +34,7 @@ import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import org.apache.logging.log4j.LogManager;
@@ -66,8 +67,8 @@ public class WritableEvmHookStore extends ReadableEvmHookStoreImpl {
 
     /**
      * Puts the given slot values for the given lambda, ensuring storage linked list pointers are preserved.
-     * If a new value is {@link Bytes#EMPTY}, the slot is removed.
-     *
+     * If a new value is {@link Bytes#EMPTY}, the slot is removed. If the same key is targeted multiple times in the
+     * updates, only the last update is applied.
      * @param hookId the lambda ID
      * @param updates the slot updates
      * @return the net change in number of storage slots used
@@ -373,7 +374,7 @@ public class WritableEvmHookStore extends ReadableEvmHookStoreImpl {
 
     /**
      * Applies the given storage mutations to the storage of the given lambda, ensuring linked list pointers
-     * are preserved.
+     * are preserved. If the same key appears multiple times in the keys list, only the last update is applied.
      *
      * @param hookId the lambda ID
      * @param keys the slot keys to update
@@ -383,13 +384,41 @@ public class WritableEvmHookStore extends ReadableEvmHookStoreImpl {
      */
     private int applyStorageMutations(
             @NonNull final HookId hookId, @NonNull final List<Bytes> keys, @NonNull final List<Bytes> values) {
-        final var view = getView(hookId, keys);
+        // Ensure we have a unique set of keys, preserving the last update for each key
+        final var skips = new boolean[keys.size()];
+        final Set<Bytes> seen = new HashSet<>();
+        int numSkipped = 0;
+        for (int i = keys.size() - 1; i >= 0; i--) {
+            final var key = keys.get(i);
+            if (!seen.add(key)) {
+                skips[i] = true;
+                numSkipped++;
+            }
+        }
+        final List<Bytes> uniqueKeys;
+        final List<Bytes> filteredValues;
+        if (numSkipped > 0) {
+            final int m = keys.size() - numSkipped;
+            uniqueKeys = new ArrayList<>(m);
+            filteredValues = new ArrayList<>(m);
+            for (int i = 0, n = keys.size(); i < n; i++) {
+                if (!skips[i]) {
+                    uniqueKeys.add(keys.get(i));
+                    filteredValues.add(values.get(i));
+                }
+            }
+        } else {
+            uniqueKeys = keys;
+            filteredValues = values;
+        }
+        // Now apply the filtered updates
+        final var view = getView(hookId, uniqueKeys);
         var firstKey = view.firstStorageKey();
         int removals = 0;
         int insertions = 0;
-        for (int i = 0, n = keys.size(); i < n; i++) {
+        for (int i = 0, n = uniqueKeys.size(); i < n; i++) {
             final var slot = view.selectedSlots().get(i);
-            final var update = SlotUpdate.from(slot, values.get(i));
+            final var update = SlotUpdate.from(slot, filteredValues.get(i));
             firstKey = switch (update.asAccessType()) {
                 case REMOVAL -> {
                     removals++;
