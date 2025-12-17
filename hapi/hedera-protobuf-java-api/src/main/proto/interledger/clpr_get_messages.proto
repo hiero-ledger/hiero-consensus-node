@@ -1,0 +1,70 @@
+/**
+ * #
+ *
+ * ### Keywords
+ * The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
+ * "SHOULD", "SHOULD NOT", "RECOMMENDED", "MAY", and "OPTIONAL" in this
+ * document are to be interpreted as described in
+ * [RFC2119](https://www.ietf.org/rfc/rfc2119) and clarified in
+ * [RFC8174](https://www.ietf.org/rfc/rfc8174).
+ */
+syntax = "proto3";
+
+package org.hiero.hapi.interledger.clpr;
+
+// SPDX-License-Identifier: Apache-2.0
+option java_package = "org.hiero.hapi.interledger.clpr.protoc";
+// <<<pbj.java_package = "org.hiero.hapi.interledger.clpr">>> This comment is special code for setting PBJ Compiler java package
+option java_multiple_files = true;
+
+import "services/basic_types.proto";
+import "services/query_header.proto";
+import "services/response_header.proto";
+import "interledger/state/clpr/clpr_ledger.proto";
+import "interledger/state/clpr/clpr_message_queue.proto";
+
+/**
+ *
+ */
+message ClprGetMessagesQuery {
+  /**
+   * Standard information sent with every query operation.<br/>
+   * This includes the signed payment and what kind of response is requested
+   * (cost, state proof, both, or neither).
+   */
+  proto.QueryHeader header = 1;
+
+  /**
+   * The ledger id of the CLPR ledger configuration desired.
+   */
+  org.hiero.hapi.interledger.state.clpr.ClprLedgerId ledger_id = 2;
+
+  /**
+   * The max number of messages
+   */
+  int32 max_number_of_messages = 3;
+
+  /**
+   * The max bundle length in bytes
+   */
+  int64 max_bundle_length = 4;
+}
+
+/**
+ * A response to a `ClprGetMessagesQuery`.
+ *
+ * This MAY return a `ClprMessageBundle`
+ */
+message ClprGetMessagesResponse {
+  /**
+   * The standard response information for queries.<br/>
+   * This includes the values requested in the `QueryHeader`
+   * (cost, state proof, both, or neither).
+   */
+  proto.ResponseHeader header = 1;
+
+  /**
+   *
+   */
+  org.hiero.hapi.interledger.state.clpr.ClprMessageBundle message_bundle = 2;
+}
