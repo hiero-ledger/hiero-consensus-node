@@ -1,16 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.event.deduplication;
+package org.hiero.consensus.event.intake.impl.deduplication;
 
 import static com.swirlds.metrics.api.FloatFormats.FORMAT_10_2;
 import static com.swirlds.metrics.api.Metrics.PLATFORM_CATEGORY;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.metrics.RunningAverageMetric;
 import com.swirlds.common.metrics.extensions.CountPerSecond;
 import com.swirlds.metrics.api.LongAccumulator;
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.platform.wiring.NoInput;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.HashSet;
@@ -71,15 +69,13 @@ public class StandardEventDeduplicator implements EventDeduplicator {
     /**
      * Constructor
      *
-     * @param platformContext    the platform context
+     * @param metrics the metrics system
      * @param intakeEventCounter keeps track of the number of events in the intake pipeline from each peer
      */
     public StandardEventDeduplicator(
-            @NonNull final PlatformContext platformContext, @NonNull final IntakeEventCounter intakeEventCounter) {
+            @NonNull final Metrics metrics, @NonNull final IntakeEventCounter intakeEventCounter) {
 
         this.intakeEventCounter = Objects.requireNonNull(intakeEventCounter);
-
-        final Metrics metrics = platformContext.getMetrics();
 
         this.disparateSignatureAccumulator = metrics.getOrCreate(DISPARATE_SIGNATURE_CONFIG);
         this.duplicateEventsPerSecond = new CountPerSecond(
@@ -140,7 +136,7 @@ public class StandardEventDeduplicator implements EventDeduplicator {
      * {@inheritDoc}
      */
     @Override
-    public void clear(@NonNull final NoInput ignored) {
+    public void clear() {
         observedEvents.clear();
     }
 }

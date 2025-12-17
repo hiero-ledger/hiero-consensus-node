@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.event.intake.impl;
 
+import static com.swirlds.component.framework.wires.SolderType.INJECT;
 import static java.util.Objects.requireNonNull;
 
 import com.swirlds.base.time.Time;
@@ -8,17 +9,21 @@ import com.swirlds.common.io.utility.RecycleBin;
 import com.swirlds.common.metrics.event.EventPipelineTracker;
 import com.swirlds.component.framework.component.ComponentWiring;
 import com.swirlds.component.framework.model.WiringModel;
+import com.swirlds.component.framework.transformers.WireTransformer;
 import com.swirlds.component.framework.wires.input.InputWire;
 import com.swirlds.component.framework.wires.output.OutputWire;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.util.function.UnaryOperator;
 import org.hiero.consensus.crypto.DefaultEventHasher;
 import org.hiero.consensus.crypto.EventHasher;
 import org.hiero.consensus.event.IntakeEventCounter;
 import org.hiero.consensus.event.intake.EventIntakeModule;
 import org.hiero.consensus.event.intake.config.EventIntakeWiringConfig;
+import org.hiero.consensus.event.intake.impl.deduplication.EventDeduplicator;
+import org.hiero.consensus.event.intake.impl.deduplication.StandardEventDeduplicator;
 import org.hiero.consensus.event.intake.impl.validation.DefaultInternalEventValidator;
 import org.hiero.consensus.event.intake.impl.validation.InternalEventValidator;
 import org.hiero.consensus.model.event.PlatformEvent;
@@ -33,10 +38,16 @@ import org.hiero.consensus.transaction.TransactionLimits;
 public class DefaultEventIntakeModule implements EventIntakeModule {
 
     @Nullable
+    private WireTransformer<EventWindow, EventWindow> eventWindowDispatcher;
+
+    @Nullable
     private ComponentWiring<EventHasher, PlatformEvent> eventHasherWiring;
 
     @Nullable
     private ComponentWiring<InternalEventValidator, PlatformEvent> eventValidatorWiring;
+
+    @Nullable
+    private ComponentWiring<EventDeduplicator, PlatformEvent> eventDeduplicatorWiring;
 
     /**
      * {@inheritDoc}
@@ -61,14 +72,24 @@ public class DefaultEventIntakeModule implements EventIntakeModule {
 
         // Set up wiring
         final EventIntakeWiringConfig wiringConfig = configuration.getConfigData(EventIntakeWiringConfig.class);
+        this.eventWindowDispatcher =
+                new WireTransformer<>(model, "event window dispatcher", "event window", UnaryOperator.identity());
         this.eventHasherWiring = new ComponentWiring<>(model, EventHasher.class, wiringConfig.eventHasher());
         this.eventValidatorWiring =
                 new ComponentWiring<>(model, InternalEventValidator.class, wiringConfig.internalEventValidator());
+        this.eventDeduplicatorWiring =
+                new ComponentWiring<>(model, EventDeduplicator.class, wiringConfig.eventDeduplicator());
 
         // Wire components
         eventHasherWiring
                 .getOutputWire()
                 .solderTo(eventValidatorWiring.getInputWire(InternalEventValidator::validateEvent));
+        eventValidatorWiring
+                .getOutputWire()
+                .solderTo(eventDeduplicatorWiring.getInputWire(EventDeduplicator::handleEvent));
+        eventWindowDispatcher
+                .getOutputWire()
+                .solderTo(this.eventDeduplicatorWiring.getInputWire(EventDeduplicator::setEventWindow), INJECT);
 
         // Wire metrics
         if (pipelineTracker != null) {
@@ -80,7 +101,14 @@ public class DefaultEventIntakeModule implements EventIntakeModule {
             this.eventValidatorWiring
                     .getOutputWire()
                     .solderForMonitoring(platformEvent -> pipelineTracker.recordEvent("validation", platformEvent));
+            pipelineTracker.registerMetric("deduplication");
+            this.eventDeduplicatorWiring
+                    .getOutputWire()
+                    .solderForMonitoring(platformEvent -> pipelineTracker.recordEvent("deduplication", platformEvent));
         }
+
+        // Force not soldered wires to be built
+        this.eventDeduplicatorWiring.getInputWire(EventDeduplicator::clear);
 
         // Create and bind components
         final EventHasher eventHasher = new DefaultEventHasher();
@@ -88,6 +116,8 @@ public class DefaultEventIntakeModule implements EventIntakeModule {
         final InternalEventValidator internalEventValidator =
                 new DefaultInternalEventValidator(metrics, time, intakeEventCounter, transactionLimits);
         eventValidatorWiring.bind(internalEventValidator);
+        final EventDeduplicator eventDeduplicator = new StandardEventDeduplicator(metrics, intakeEventCounter);
+        eventDeduplicatorWiring.bind(eventDeduplicator);
     }
 
     /**
@@ -96,7 +126,7 @@ public class DefaultEventIntakeModule implements EventIntakeModule {
     @Override
     @NonNull
     public OutputWire<PlatformEvent> validatedEventsOutputWire() {
-        return requireNonNull(eventValidatorWiring, "Not initialized").getOutputWire();
+        return requireNonNull(eventDeduplicatorWiring, "Not initialized").getOutputWire();
     }
 
     /**
@@ -124,7 +154,7 @@ public class DefaultEventIntakeModule implements EventIntakeModule {
     @Override
     @NonNull
     public InputWire<EventWindow> eventWindowInputWire() {
-        throw new UnsupportedOperationException("Not implemented yet");
+        return requireNonNull(eventWindowDispatcher, "Not initialized").getInputWire();
     }
 
     /**
@@ -155,6 +185,7 @@ public class DefaultEventIntakeModule implements EventIntakeModule {
     public void flush() {
         requireNonNull(eventHasherWiring, "Not initialized").flush();
         requireNonNull(eventValidatorWiring, "Not initialized").flush();
+        requireNonNull(eventDeduplicatorWiring, "Not initialized").flush();
     }
 
     /**
@@ -163,7 +194,7 @@ public class DefaultEventIntakeModule implements EventIntakeModule {
     @Override
     @NonNull
     public InputWire<Object> clearComponentsInputWire() {
-        throw new UnsupportedOperationException("Not implemented yet");
+        return requireNonNull(eventDeduplicatorWiring, "Not initialized").getInputWire(EventDeduplicator::clear);
     }
 
     /**
