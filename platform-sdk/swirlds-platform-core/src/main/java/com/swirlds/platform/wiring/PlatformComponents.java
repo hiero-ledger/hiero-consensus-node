@@ -64,13 +64,13 @@ import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
  */
 public record PlatformComponents(
         WiringModel model,
+        EventCreatorModule eventCreatorModule,
         ComponentWiring<EventHasher, PlatformEvent> eventHasherWiring,
         ComponentWiring<InternalEventValidator, PlatformEvent> internalEventValidatorWiring,
         ComponentWiring<EventDeduplicator, PlatformEvent> eventDeduplicatorWiring,
         ComponentWiring<EventSignatureValidator, PlatformEvent> eventSignatureValidatorWiring,
         ComponentWiring<OrphanBuffer, List<PlatformEvent>> orphanBufferWiring,
         ConsensusWiring consensusEngineWiring,
-        ComponentWiring<EventCreatorModule, PlatformEvent> eventCreationManagerWiring,
         ComponentWiring<TransactionPrehandler, Queue<ScopedSystemTransaction<StateSignatureTransaction>>>
                 applicationTransactionPrehandlerWiring,
         ComponentWiring<StateSignatureCollector, List<ReservedSignedState>> stateSignatureCollectorWiring,
@@ -136,7 +136,6 @@ public record PlatformComponents(
         } else {
             pcesInlineWriterWiring.bind(builder::buildInlinePcesWriter);
         }
-        eventCreationManagerWiring.bind(builder::buildEventCreator);
         stateSignatureCollectorWiring.bind(stateSignatureCollector);
         eventWindowManagerWiring.bind(eventWindowManager);
         applicationTransactionPrehandlerWiring.bind(builder::buildTransactionPrehandler);
@@ -166,7 +165,9 @@ public record PlatformComponents(
      * @param model                the wiring model
      */
     public static PlatformComponents create(
-            @NonNull final PlatformContext platformContext, @NonNull final WiringModel model) {
+            @NonNull final PlatformContext platformContext,
+            @NonNull final WiringModel model,
+            @NonNull final EventCreatorModule eventCreatorModule) {
 
         Objects.requireNonNull(platformContext);
         Objects.requireNonNull(model);
@@ -176,13 +177,13 @@ public record PlatformComponents(
 
         return new PlatformComponents(
                 model,
+                eventCreatorModule,
                 new ComponentWiring<>(model, EventHasher.class, config.eventHasher()),
                 new ComponentWiring<>(model, InternalEventValidator.class, config.internalEventValidator()),
                 new ComponentWiring<>(model, EventDeduplicator.class, config.eventDeduplicator()),
                 new ComponentWiring<>(model, EventSignatureValidator.class, config.eventSignatureValidator()),
                 new ComponentWiring<>(model, OrphanBuffer.class, config.orphanBuffer()),
                 ConsensusWiring.create(model, config.consensusEngine()),
-                new ComponentWiring<>(model, EventCreatorModule.class, config.eventCreationManager()),
                 new ComponentWiring<>(model, TransactionPrehandler.class, config.applicationTransactionPrehandler()),
                 new ComponentWiring<>(model, StateSignatureCollector.class, config.stateSignatureCollector()),
                 new ComponentWiring<>(model, StateSnapshotManager.class, config.stateSnapshotManager()),
