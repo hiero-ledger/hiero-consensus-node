@@ -85,6 +85,8 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.concurrent.atomic.AtomicBoolean;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * This class contains all workflow-related functionality regarding {@link HederaFunctionality#CRYPTO_CREATE}. A
@@ -92,6 +94,7 @@ import javax.inject.Singleton;
  */
 @Singleton
 public class CryptoCreateHandler extends BaseCryptoHandler implements TransactionHandler {
+    private static Logger log = LogManager.getLogger(CryptoCreateHandler.class);
     private static final long FIRST_SYSTEM_FILE_ENTITY = 101L;
     private static final long FIRST_POST_SYSTEM_FILE_ENTITY = 200L;
     private static final TransactionBody UPDATE_TXN_BODY_BUILDER = TransactionBody.newBuilder()
@@ -155,20 +158,7 @@ public class CryptoCreateHandler extends BaseCryptoHandler implements Transactio
         // There must be a key provided, and it must not be empty, unless in one very particular case, where the
         // transactionID is null. This code is very particular about which error code to throw in various cases.
         // FUTURE: Clean up the error codes to be consistent.
-        final var key = op.key();
-        final var isInternal =
-                !txn.hasTransactionID() || (systemEntitiesCreatedFlag != null && !systemEntitiesCreatedFlag.get());
-        final var keyIsEmpty = isEmpty(key);
-        if (!isInternal && keyIsEmpty) {
-            if (key == null) {
-                throw new PreCheckException(alias.length() > 0 ? INVALID_ALIAS_KEY : KEY_REQUIRED);
-            } else if (key.hasThresholdKey() || key.hasKeyList()) {
-                throw new PreCheckException(KEY_REQUIRED);
-            } else {
-                throw new PreCheckException(BAD_ENCODING);
-            }
-        }
-        validateTruePreCheck(key != null, KEY_NOT_PROVIDED);
+        // FUTURE: Move the validateKey check here in 0.71 after fee collection account creation
         // since pure evm hooks are being removed, just added validations for lambda evm hooks for now
         validateHookDuplicates(op.hookCreationDetails());
     }
@@ -335,9 +325,24 @@ public class CryptoCreateHandler extends BaseCryptoHandler implements Transactio
         final var ledgerConfig = context.configuration().getConfigData(LedgerConfig.class);
         final var entitiesConfig = context.configuration().getConfigData(EntitiesConfig.class);
         final var tokensConfig = context.configuration().getConfigData(TokensConfig.class);
-        final var accountConfig = context.configuration().getConfigData(AccountsConfig.class);
+        final var accountsConfig = context.configuration().getConfigData(AccountsConfig.class);
         final var hederaConfig = context.configuration().getConfigData(HederaConfig.class);
         final var alias = op.alias();
+
+        final var txn = context.body();
+        final var isAdminPayer = entityIdFactory
+                .newAccountId(accountsConfig.systemAdmin())
+                .equals(txn.transactionIDOrThrow().accountIDOrThrow());
+        final var isPostUpgradeSyntheticCreation =
+                txn.hasTransactionID() && txn.transactionIDOrThrow().nonce() != 0 && isAdminPayer;
+
+        // Move this check back to pureChecks in 0.71 after fee collection account creation.
+        // Remove the check for allowing creation with system admin
+        try {
+            validateKey(op, context.body(), alias, isPostUpgradeSyntheticCreation);
+        } catch (PreCheckException e) {
+            throw new HandleException(e.responseCode());
+        }
 
         // Don't allow creation of accounts that don't match the configured shard and realm
         if (op.hasShardID()) {
@@ -352,7 +357,7 @@ public class CryptoCreateHandler extends BaseCryptoHandler implements Transactio
 
         // We have a limit on the total maximum number of entities that can be created on the network, for different
         // types of entities. We need to verify that creating a new account won't exceed that number.
-        if (accountStore.getNumberOfAccounts() + 1 > accountConfig.maxNumber()) {
+        if (accountStore.getNumberOfAccounts() + 1 > accountsConfig.maxNumber()) {
             throw new HandleException(MAX_ENTITIES_IN_PRICE_REGIME_HAVE_BEEN_CREATED);
         }
 
@@ -394,7 +399,8 @@ public class CryptoCreateHandler extends BaseCryptoHandler implements Transactio
                 op.keyOrThrow(), // cannot be null by this point
                 context.attributeValidator(),
                 context.savepointStack().getBaseBuilder(StreamBuilder.class).isInternalDispatch()
-                        || stillCreatingSystemEntities);
+                        || stillCreatingSystemEntities
+                        || isPostUpgradeSyntheticCreation);
 
         // Validate the staking information included in this account creation.
         if (op.hasStakedAccountId() || op.hasStakedNodeId()) {
@@ -406,6 +412,29 @@ public class CryptoCreateHandler extends BaseCryptoHandler implements Transactio
                     accountStore,
                     context.networkInfo());
         }
+    }
+
+    private void validateKey(
+            final CryptoCreateTransactionBody op,
+            final TransactionBody txn,
+            final Bytes alias,
+            boolean isPostUpgradeSyntheticCreation)
+            throws PreCheckException {
+        final var key = op.key();
+        // FUTURE: Remove this check after fee collection account creation.
+        final var isInternal =
+                !txn.hasTransactionID() || (systemEntitiesCreatedFlag != null && !systemEntitiesCreatedFlag.get());
+        final var keyIsEmpty = isEmpty(key);
+        if ((!isInternal && !isPostUpgradeSyntheticCreation) && keyIsEmpty) {
+            if (key == null) {
+                throw new PreCheckException(alias.length() > 0 ? INVALID_ALIAS_KEY : KEY_REQUIRED);
+            } else if (key.hasThresholdKey() || key.hasKeyList()) {
+                throw new PreCheckException(KEY_REQUIRED);
+            } else {
+                throw new PreCheckException(BAD_ENCODING);
+            }
+        }
+        validateTruePreCheck(key != null, KEY_NOT_PROVIDED);
     }
 
     /**

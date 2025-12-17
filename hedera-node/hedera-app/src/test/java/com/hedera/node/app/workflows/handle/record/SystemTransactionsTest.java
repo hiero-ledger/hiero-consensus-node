@@ -134,7 +134,6 @@ class SystemTransactionsTest {
                 recordCache,
                 startupNetworks,
                 stakePeriodChanges,
-                immediateStateChangeListener,
                 selfNodeAccountIdManager);
     }
 
@@ -190,7 +189,6 @@ class SystemTransactionsTest {
                 recordCache,
                 startupNetworks,
                 stakePeriodChanges,
-                immediateStateChangeListener,
                 selfNodeAccountIdManager);
 
         final var result = subject.firstReservedSystemTimeFor(NOW);
@@ -396,7 +394,6 @@ class SystemTransactionsTest {
                 recordCache,
                 startupNetworks,
                 stakePeriodChanges,
-                immediateStateChangeListener,
                 selfNodeAccountIdManager);
 
         final var result = subject.firstReservedSystemTimeFor(NOW);
@@ -437,7 +434,6 @@ class SystemTransactionsTest {
                 recordCache,
                 startupNetworks,
                 stakePeriodChanges,
-                immediateStateChangeListener,
                 selfNodeAccountIdManager);
 
         final var result = subject.firstReservedSystemTimeFor(NOW);
