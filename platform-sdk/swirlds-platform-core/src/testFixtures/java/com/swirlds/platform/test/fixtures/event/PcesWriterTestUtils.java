@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures.event;
 
-import static com.swirlds.common.units.DataUnit.UNIT_BYTES;
-import static com.swirlds.common.units.DataUnit.UNIT_KILOBYTES;
+import static com.swirlds.base.units.DataUnit.UNIT_BYTES;
+import static com.swirlds.base.units.DataUnit.UNIT_KILOBYTES;
 import static com.swirlds.platform.system.transaction.TransactionWrapperUtils.createAppPayloadWrapper;
 import static org.hiero.base.CompareTo.isGreaterThanOrEqualTo;
 import static org.junit.jupiter.api.Assertions.assertEquals;
