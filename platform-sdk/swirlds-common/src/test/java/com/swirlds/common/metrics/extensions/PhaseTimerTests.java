@@ -16,10 +16,10 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.swirlds.base.test.fixtures.time.FakeTime;
+import com.swirlds.base.units.TimeUnit;
 import com.swirlds.common.metrics.FunctionGauge;
 import com.swirlds.common.metrics.FunctionGauge.Config;
 import com.swirlds.common.metrics.RunningAverageMetric;
-import com.swirlds.common.units.TimeUnit;
 import com.swirlds.metrics.api.Metric;
 import com.swirlds.metrics.api.MetricConfig;
 import com.swirlds.metrics.api.Metrics;
