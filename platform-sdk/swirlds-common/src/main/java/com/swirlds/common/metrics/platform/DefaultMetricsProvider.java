@@ -65,6 +65,7 @@ public class DefaultMetricsProvider<KEY> implements PlatformMetricsProvider<KEY>
 
     @NonNull
     private final SnapshotService<KEY> snapshotService;
+
     private final @NonNull MetricsConfig metricsConfig;
     private final @NonNull Configuration configuration;
 
