@@ -18,6 +18,7 @@ import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_REJECT;
 import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_REVOKE_KYC_FROM_ACCOUNT;
 import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_UNFREEZE_ACCOUNT;
 import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_UNPAUSE;
+import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_UPDATE;
 import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_UPDATE_NFTS;
 import static org.hiero.hapi.fees.FeeScheduleUtils.makeExtraDef;
 import static org.hiero.hapi.fees.FeeScheduleUtils.makeExtraIncluded;
@@ -49,6 +50,7 @@ import com.hedera.hapi.node.token.TokenRevokeKycTransactionBody;
 import com.hedera.hapi.node.token.TokenUnfreezeAccountTransactionBody;
 import com.hedera.hapi.node.token.TokenUnpauseTransactionBody;
 import com.hedera.hapi.node.token.TokenUpdateNftsTransactionBody;
+import com.hedera.hapi.node.token.TokenUpdateTransactionBody;
 import com.hedera.hapi.node.token.TokenWipeAccountTransactionBody;
 import com.hedera.hapi.node.transaction.Query;
 import com.hedera.hapi.node.transaction.TransactionBody;
@@ -70,6 +72,7 @@ import com.hedera.node.app.service.token.impl.calculator.TokenRejectFeeCalculato
 import com.hedera.node.app.service.token.impl.calculator.TokenRevokeKycFeeCalculator;
 import com.hedera.node.app.service.token.impl.calculator.TokenUnfreezeAccountFeeCalculator;
 import com.hedera.node.app.service.token.impl.calculator.TokenUnpauseFeeCalculator;
+import com.hedera.node.app.service.token.impl.calculator.TokenUpdateFeeCalculator;
 import com.hedera.node.app.service.token.impl.calculator.TokenUpdateNftsFeeCalculator;
 import com.hedera.node.app.service.token.impl.calculator.TokenWipeFeeCalculator;
 import com.hedera.node.app.spi.fees.FeeContext;
@@ -111,6 +114,7 @@ public class TokenServiceFeeCalculatorTests {
     private static final long TOKEN_REVOKE_KYC_BASE_FEE = 45;
     private static final long TOKEN_UNPAUSE_BASE_FEE = 40;
     private static final long TOKEN_UNFREEZE_BASE_FEE = 30;
+    private static final long TOKEN_UPDATE_BASE_FEE = 45;
     private static final long TOKEN_UPDATE_NFTS_BASE_FEE = 45;
     private static final long TOKEN_WIPE_BASE_FEE = 45;
     private static final short TOKEN_GET_INFO_BASE_FEE = 101;
@@ -156,6 +160,7 @@ public class TokenServiceFeeCalculatorTests {
                         new TokenRevokeKycFeeCalculator(),
                         new TokenUnfreezeAccountFeeCalculator(),
                         new TokenUnpauseFeeCalculator(),
+                        new TokenUpdateFeeCalculator(),
                         new TokenUpdateNftsFeeCalculator(),
                         new TokenWipeFeeCalculator()),
                 Set.of(new TokenGetInfoFeeCalculator(), new TokenGetNftInfoFeeCalculator()));
@@ -184,6 +189,18 @@ public class TokenServiceFeeCalculatorTests {
 
         assertNotNull(result);
         assertEquals(TOKEN_CREATE_BASE_FEE, result.total());
+    }
+
+    @Test
+    void updateCommonToken() {
+        lenient().when(calculatorState.numTxnSignatures()).thenReturn(1);
+        final var body = TransactionBody.newBuilder()
+                .tokenUpdate(TokenUpdateTransactionBody.newBuilder()
+                        .build())
+                .build();
+        final var result = feeCalculator.calculateTxFee(body, calculatorState);
+        assertNotNull(result);
+        assertEquals(TOKEN_UPDATE_BASE_FEE, result.total());
     }
 
     @Test
@@ -417,6 +434,7 @@ public class TokenServiceFeeCalculatorTests {
                 .network(NetworkFee.DEFAULT.copyBuilder().multiplier(2).build())
                 .services(makeService(
                         "Token",
+                        makeServiceFee(TOKEN_ACCOUNT_WIPE, TOKEN_WIPE_BASE_FEE),
                         makeServiceFee(TOKEN_ASSOCIATE_TO_ACCOUNT, TOKEN_ASSOCIATE_BASE_FEE),
                         makeServiceFee(TOKEN_BURN, TOKEN_BURN_BASE_FEE),
                         makeServiceFee(TOKEN_CREATE, TOKEN_CREATE_BASE_FEE, makeExtraIncluded(Extra.KEYS, 1)),
@@ -424,21 +442,22 @@ public class TokenServiceFeeCalculatorTests {
                         makeServiceFee(TOKEN_DISSOCIATE_FROM_ACCOUNT, TOKEN_DISSOCIATE_BASE_FEE),
                         makeServiceFee(TOKEN_FEE_SCHEDULE_UPDATE, TOKEN_FEE_SCHEDULE_UPDATE_BASE_FEE),
                         makeServiceFee(TOKEN_FREEZE_ACCOUNT, TOKEN_FREEZE_BASE_FEE),
+                        makeServiceFee(TOKEN_GET_INFO, TOKEN_GET_INFO_BASE_FEE),
+                        makeServiceFee(TOKEN_GET_NFT_INFO, TOKEN_GET_NFT_INFO_BASE_FEE),
                         makeServiceFee(TOKEN_GRANT_KYC_TO_ACCOUNT, TOKEN_GRANT_KYC_BASE_FEE),
-                        makeServiceFee(TOKEN_REVOKE_KYC_FROM_ACCOUNT, TOKEN_REVOKE_KYC_BASE_FEE),
                         makeServiceFee(
                                 TOKEN_MINT,
                                 TOKEN_MINT_BASE_FEE,
                                 makeExtraIncluded(Extra.KEYS, 1),
                                 makeExtraIncluded(Extra.TOKEN_MINT_NFT, 0)),
                         makeServiceFee(TOKEN_PAUSE, TOKEN_PAUSE_BASE_FEE),
-                        makeServiceFee(TOKEN_UNPAUSE, TOKEN_UNPAUSE_BASE_FEE),
                         makeServiceFee(TOKEN_REJECT, TOKEN_REJECT_BASE_FEE),
-                        makeServiceFee(TOKEN_UPDATE_NFTS, TOKEN_UPDATE_NFTS_BASE_FEE),
+                        makeServiceFee(TOKEN_REVOKE_KYC_FROM_ACCOUNT, TOKEN_REVOKE_KYC_BASE_FEE),
                         makeServiceFee(TOKEN_UNFREEZE_ACCOUNT, TOKEN_UNFREEZE_BASE_FEE),
-                        makeServiceFee(TOKEN_ACCOUNT_WIPE, TOKEN_WIPE_BASE_FEE),
-                        makeServiceFee(TOKEN_GET_INFO, TOKEN_GET_INFO_BASE_FEE),
-                        makeServiceFee(TOKEN_GET_NFT_INFO, TOKEN_GET_NFT_INFO_BASE_FEE)))
+                        makeServiceFee(TOKEN_UNPAUSE, TOKEN_UNPAUSE_BASE_FEE),
+                        makeServiceFee(TOKEN_UPDATE, TOKEN_UPDATE_BASE_FEE, makeExtraIncluded(Extra.KEYS, 1)),
+                        makeServiceFee(TOKEN_UPDATE_NFTS, TOKEN_UPDATE_NFTS_BASE_FEE)
+                ))
                 .build();
     }
 }

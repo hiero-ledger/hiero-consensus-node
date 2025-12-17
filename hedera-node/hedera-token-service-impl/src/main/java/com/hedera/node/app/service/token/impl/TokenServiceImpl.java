@@ -30,6 +30,7 @@ import com.hedera.node.app.service.token.impl.calculator.TokenRejectFeeCalculato
 import com.hedera.node.app.service.token.impl.calculator.TokenRevokeKycFeeCalculator;
 import com.hedera.node.app.service.token.impl.calculator.TokenUnfreezeAccountFeeCalculator;
 import com.hedera.node.app.service.token.impl.calculator.TokenUnpauseFeeCalculator;
+import com.hedera.node.app.service.token.impl.calculator.TokenUpdateFeeCalculator;
 import com.hedera.node.app.service.token.impl.calculator.TokenUpdateNftsFeeCalculator;
 import com.hedera.node.app.service.token.impl.calculator.TokenWipeFeeCalculator;
 import com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema;
@@ -89,6 +90,7 @@ public class TokenServiceImpl implements TokenService {
                 new TokenPauseFeeCalculator(),
                 new TokenRejectFeeCalculator(),
                 new TokenRevokeKycFeeCalculator(),
+                new TokenUpdateFeeCalculator(),
                 new TokenUpdateNftsFeeCalculator(),
                 new TokenUnfreezeAccountFeeCalculator(),
                 new TokenUnpauseFeeCalculator(),

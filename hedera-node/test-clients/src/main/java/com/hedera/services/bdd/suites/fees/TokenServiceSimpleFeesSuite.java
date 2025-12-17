@@ -22,6 +22,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenPause;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenReject;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenUnfreeze;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenUnpause;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenUpdate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenUpdateNfts;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.wipeTokenAccount;
 import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fixedHbarFee;
@@ -157,6 +158,41 @@ public class TokenServiceSimpleFeesSuite {
                 2,
                 1);
     }
+
+    @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
+    @DisplayName("compare update fungible token")
+    final Stream<DynamicTest> compareUpdateFungibleToken() {
+        final var NEW_SUPPLY_KEY = "NEW_SUPPLY_KEY";
+        return compareSimpleToOld(
+                () -> Arrays.asList(
+                        newKeyNamed(SUPPLY_KEY),
+                        newKeyNamed(NEW_SUPPLY_KEY),
+                        cryptoCreate(ADMIN).balance(ONE_MILLION_HBARS),
+                        cryptoCreate(PAYER).balance(ONE_MILLION_HBARS),
+                        tokenCreate(FUNGIBLE_TOKEN)
+                                .payingWith(PAYER)
+                                .fee(ONE_MILLION_HBARS)
+                                .supplyKey(SUPPLY_KEY)
+                                .tokenType(FUNGIBLE_COMMON)
+                                .hasKnownStatus(SUCCESS),
+                        tokenUpdate(FUNGIBLE_TOKEN)
+                                .payingWith(PAYER)
+                                .fee(ONE_MILLION_HBARS)
+                                .signedBy(PAYER,SUPPLY_KEY, NEW_SUPPLY_KEY)
+                                .supplyKey(NEW_SUPPLY_KEY)
+                                .hasKnownStatus(SUCCESS)
+                                .via("update-token-txn")),
+                "update-token-txn",
+                // base = 9000000,
+                // 1 key for the new supply key
+                // 3 sigs for the payer, old supply key, and new supply key
+                // 2 extra sigs = 0.002
+                0.001+0.002,
+                1,
+                0.001+0.002,
+                1);
+    }
+
 
     @LeakyHapiTest(overrides = {"fees.simpleFeesEnabled"})
     @DisplayName("compare mint common token")
