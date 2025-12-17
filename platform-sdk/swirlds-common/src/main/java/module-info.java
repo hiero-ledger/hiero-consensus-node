@@ -33,6 +33,7 @@ module com.swirlds.common {
     exports com.swirlds.common.merkle.utility;
     exports com.swirlds.common.metrics;
     exports com.swirlds.common.metrics.config;
+    exports com.swirlds.common.metrics.event;
     exports com.swirlds.common.metrics.noop;
     exports com.swirlds.common.metrics.platform;
     exports com.swirlds.common.metrics.platform.prometheus;
