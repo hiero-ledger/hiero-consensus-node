@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.event.validation;
+package org.hiero.consensus.event.intake.impl.validation;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.metrics.api.Metrics.PLATFORM_CATEGORY;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
-import com.swirlds.common.context.PlatformContext;
+import com.swirlds.base.time.Time;
 import com.swirlds.common.utility.throttle.RateLimitedLogger;
 import com.swirlds.metrics.api.LongAccumulator;
-import com.swirlds.platform.crypto.SignatureVerifier;
+import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.security.PublicKey;
@@ -18,6 +18,7 @@ import java.time.Duration;
 import java.util.Objects;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.crypto.SignatureVerifier;
 import org.hiero.consensus.event.IntakeEventCounter;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
@@ -71,13 +72,15 @@ public class DefaultEventSignatureValidator implements EventSignatureValidator {
     /**
      * Constructor
      *
-     * @param platformContext        the platform context
+     * @param metrics                the metrics system
+     * @param time                   the time source
      * @param signatureVerifier      a verifier for checking event signatures
      * @param rosterHistory          the complete roster history
      * @param intakeEventCounter     keeps track of the number of events in the intake pipeline from each peer
      */
     public DefaultEventSignatureValidator(
-            @NonNull final PlatformContext platformContext,
+            @NonNull final Metrics metrics,
+            @NonNull final Time time,
             @NonNull final SignatureVerifier signatureVerifier,
             @Nullable final RosterHistory rosterHistory,
             @NonNull final IntakeEventCounter intakeEventCounter) {
@@ -86,9 +89,9 @@ public class DefaultEventSignatureValidator implements EventSignatureValidator {
         this.rosterHistory = Objects.requireNonNull(rosterHistory);
         this.intakeEventCounter = Objects.requireNonNull(intakeEventCounter);
 
-        this.rateLimitedLogger = new RateLimitedLogger(logger, platformContext.getTime(), MINIMUM_LOG_PERIOD);
+        this.rateLimitedLogger = new RateLimitedLogger(logger, time, MINIMUM_LOG_PERIOD);
 
-        this.validationFailedAccumulator = platformContext.getMetrics().getOrCreate(VALIDATION_FAILED_CONFIG);
+        this.validationFailedAccumulator = metrics.getOrCreate(VALIDATION_FAILED_CONFIG);
 
         eventWindow = EventWindow.getGenesisEventWindow();
     }
@@ -112,7 +115,7 @@ public class DefaultEventSignatureValidator implements EventSignatureValidator {
         final RosterEntry rosterEntry;
         try {
             rosterEntry = RosterUtils.getRosterEntry(applicableRoster, eventCreatorId.id());
-        } catch (RosterEntryNotFoundException e) {
+        } catch (final RosterEntryNotFoundException e) {
             rateLimitedLogger.error(
                     EXCEPTION.getMarker(),
                     "Node {} doesn't exist in applicable roster. Event: {}",
