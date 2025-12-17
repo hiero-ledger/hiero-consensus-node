@@ -3,7 +3,7 @@ package com.swirlds.platform.system.address;
 
 import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.formatting.TextTable;
+import com.swirlds.base.formatting.TextTable;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.text.ParseException;
