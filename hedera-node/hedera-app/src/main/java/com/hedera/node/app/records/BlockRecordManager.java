@@ -8,7 +8,6 @@ import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.stream.Stream;
-
 import org.hiero.consensus.model.hashgraph.Round;
 
 /**

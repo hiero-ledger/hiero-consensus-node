@@ -273,23 +273,20 @@ public final class StreamFileProducerConcurrent implements BlockRecordStreamProd
         }
     }
 
-    /** {@inheritDoc} */
+    /**
+     * {@inheritDoc}
+     */
     @Override
-    public boolean finishCurrentBlock() {
+    public void finishCurrentBlock() {
         lock.lock();
         try {
             if (currentRecordFileWriter != null) {
-                // Close the current writer synchronously, but do NOT reset running hash state.
                 final var closeFuture = currentRecordFileWriter
                         .thenCombine(lastRecordHashingResult, TwoResults::new)
                         .thenAcceptAsync(twoResults -> closeWriter(twoResults.a(), twoResults.b()), executorService);
-                // Ensure writer is closed before returning, and mark writer as absent so the next switchBlocks()
-                // will take the "no writer" path and open a new file immediately.
                 currentRecordFileWriter = null;
                 closeFuture.join();
-                return true;
             }
-            return false;
         } finally {
             lock.unlock();
         }

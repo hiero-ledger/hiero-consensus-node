@@ -47,7 +47,6 @@ import com.hedera.node.app.quiescence.QuiescenceController;
 import com.hedera.node.app.records.BlockRecordManager;
 import com.hedera.node.app.records.BlockRecordService;
 import com.hedera.node.app.records.impl.BlockRecordManagerImpl;
-import com.hedera.node.config.data.BlockRecordStreamConfig;
 import com.hedera.node.app.service.entityid.EntityIdService;
 import com.hedera.node.app.service.entityid.impl.WritableEntityIdStoreImpl;
 import com.hedera.node.app.service.roster.RosterService;
@@ -79,6 +78,7 @@ import com.hedera.node.app.workflows.handle.steps.ParentTxn;
 import com.hedera.node.app.workflows.handle.steps.ParentTxnFactory;
 import com.hedera.node.app.workflows.handle.steps.StakePeriodChanges;
 import com.hedera.node.config.ConfigProvider;
+import com.hedera.node.config.data.BlockRecordStreamConfig;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.ConsensusConfig;
 import com.hedera.node.config.data.SchedulingConfig;
@@ -334,9 +334,7 @@ public class HandleWorkflow {
                     configProvider.getConfiguration().getConfigData(BlockRecordStreamConfig.class);
             // In round-boundary mode, endRound is called in Hedera.onSealConsensusRound (mirroring block streams).
             // In legacy mode, we call it here as before.
-            if (!recordStreamConfig.roundBoundaryClosingEnabled()
-                    && transactionsDispatched
-                    && streamMode != BLOCKS) {
+            if (!recordStreamConfig.roundBoundaryClosingEnabled() && transactionsDispatched && streamMode != BLOCKS) {
                 blockRecordManager.endRound(state);
             }
 
@@ -507,8 +505,7 @@ public class HandleWorkflow {
         final var consensusNow = txn.getConsensusTimestamp();
         var type = ORDINARY_TRANSACTION;
         stakePeriodManager.setCurrentStakePeriodFor(consensusNow);
-        final var recordStreamConfig =
-                configProvider.getConfiguration().getConfigData(BlockRecordStreamConfig.class);
+        final var recordStreamConfig = configProvider.getConfiguration().getConfigData(BlockRecordStreamConfig.class);
         boolean startsNewRecordFile = false;
         if (streamMode != BLOCKS) {
             if (recordStreamConfig.roundBoundaryClosingEnabled()) {
@@ -518,7 +515,6 @@ public class HandleWorkflow {
                     type = typeOfBoundary(state);
                 }
             } else {
-                // Legacy mode: check if this transaction opens a new record file
                 startsNewRecordFile = blockRecordManager.willOpenNewBlock(consensusNow, state);
                 if (streamMode == RECORDS && startsNewRecordFile) {
                     type = typeOfBoundary(state);

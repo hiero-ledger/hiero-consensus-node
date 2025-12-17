@@ -71,10 +71,6 @@ public interface BlockRecordStreamProducer extends AutoCloseable {
 
     /**
      * Finish the current block by closing the currently open record file synchronously, without opening the next one.
-     *
-     * <p>The next record file will be opened on the next call to {@link #switchBlocks(long, long, Instant)}.
-     *
-     * @return true if a file was closed, false otherwise (e.g. no file was open)
      */
-    boolean finishCurrentBlock();
+    void finishCurrentBlock();
 }

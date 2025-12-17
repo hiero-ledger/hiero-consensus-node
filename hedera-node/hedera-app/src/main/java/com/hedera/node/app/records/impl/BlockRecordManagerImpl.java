@@ -187,7 +187,6 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
         if (closeOnRoundBoundaries) {
             return false;
         }
-        // Legacy mode: check if this user transaction would open a new block
         if (EPOCH.equals(lastBlockInfo.firstConsTimeOfCurrentBlock())) {
             return true;
         }
@@ -471,10 +470,8 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
             final var now = new Timestamp(roundConsensusTimestamp.getEpochSecond(), roundConsensusTimestamp.getNano());
             // Only set firstConsTimeOfCurrentBlock - keep consTimeOfLastHandledTxn at EPOCH
             // so that isGenesis check in HandleWorkflow works correctly
-            lastBlockInfo = lastBlockInfo
-                    .copyBuilder()
-                    .firstConsTimeOfCurrentBlock(now)
-                    .build();
+            lastBlockInfo =
+                    lastBlockInfo.copyBuilder().firstConsTimeOfCurrentBlock(now).build();
             putLastBlockInfo(state);
             streamFileProducer.switchBlocks(-1, 0, roundConsensusTimestamp);
             if (streamMode == RECORDS) {
