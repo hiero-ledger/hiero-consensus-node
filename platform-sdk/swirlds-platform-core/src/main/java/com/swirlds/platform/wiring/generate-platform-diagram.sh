@@ -18,7 +18,6 @@ SCRIPT_PATH="$(dirname "$(readlink -f "$0")")"
     -s 'pcesReplayer:done streaming pces:✅' \
     -s 'InlinePcesWriter:events to gossip:📬' \
     -s 'extractOldestMinimumBirthRoundOnDisk:minimum identifier to store:📀' \
-    -s 'EventCreatorModule:non-validated events:🍎' \
     -s 'Mystery Input:mystery data:❔' \
     -s 'StateSigner:submit transaction:🖋️' \
     -s 'StateSigner:signature transactions:🖋️' \
@@ -37,7 +36,7 @@ SCRIPT_PATH="$(dirname "$(readlink -f "$0")")"
     -g 'State File Management:State Snapshot Manager,📀,💾' \
     -g 'State Signature Collector:StateSignatureCollector,reservedStateSplitter,allStatesReserver,completeStateFilter,completeStatesReserver,LatestCompleteStateNotifier' \
     -g 'State Signature Collection:State Signature Collector,LatestCompleteStateNexus,💢' \
-    -g 'Event Creation:EventCreatorModule,🍎' \
+    -g 'Event Creation:EventCreatorModule' \
     -g 'ISS Detector:IssDetector,IssDetectorSplitter,IssHandler' \
     -g 'PCES Replay:pcesReplayer,✅' \
     -g 'Transaction Handler:TransactionHandler,notNullStateFilter,postHandler_stateWithHashComplexityReserver,postHandler_stateWithHashComplexityToStateReserver,SavedStateController' \
