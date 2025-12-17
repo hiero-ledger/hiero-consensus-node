@@ -823,7 +823,7 @@ public class AdditionalHip1064Tests {
                                 .getAmount())),
 
                 // Expect normal fee distribution (above threshold)
-                validateRecordFees("notFree", List.of(3L, 98L, 800L, 801L)),
+                validateRecordFees("notFree", List.of(802L)),
                 doWithStartupConfig(
                         "nodes.targetYearlyNodeRewardsUsd",
                         target -> doWithStartupConfig(
