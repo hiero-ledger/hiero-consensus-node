@@ -4,6 +4,7 @@ package com.hedera.node.app.service.contract.impl.exec.processors;
 import static com.hedera.hapi.streams.ContractActionType.PRECOMPILE;
 import static com.hedera.hapi.streams.ContractActionType.SYSTEM;
 import static com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason.*;
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.HasSystemContract.HAS_EVM_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.HtsSystemContract.HTS_HOOKS_CONTRACT_ADDRESS;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.create.CreateCommons.createMethodsSet;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.*;
@@ -19,12 +20,14 @@ import com.hedera.node.app.service.contract.impl.exec.ActionSidecarContentTracer
 import com.hedera.node.app.service.contract.impl.exec.AddressChecks;
 import com.hedera.node.app.service.contract.impl.exec.FeatureFlags;
 import com.hedera.node.app.service.contract.impl.exec.metrics.ContractMetrics;
+import com.hedera.node.app.service.contract.impl.exec.systemcontracts.HasSystemContract;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.HederaSystemContract;
 import com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils;
 import com.hedera.node.app.service.contract.impl.state.ProxyEvmContract;
 import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
+import com.hedera.node.app.service.contract.impl.state.ScheduleEvmAccount;
+import com.hedera.node.app.service.contract.impl.state.TokenEvmAccount;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.Objects;
@@ -32,6 +35,7 @@ import java.util.Optional;
 import org.apache.tuweni.bytes.Bytes;
 import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.evm.EVM;
+import org.hyperledger.besu.evm.account.Account;
 import org.hyperledger.besu.evm.frame.ExceptionalHaltReason;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 import org.hyperledger.besu.evm.operation.Operation;
@@ -40,11 +44,12 @@ import org.hyperledger.besu.evm.precompile.PrecompiledContract;
 import org.hyperledger.besu.evm.precompile.PrecompiledContract.PrecompileContractResult;
 import org.hyperledger.besu.evm.processor.MessageCallProcessor;
 import org.hyperledger.besu.evm.tracing.OperationTracer;
+import org.hyperledger.besu.evm.worldstate.CodeDelegationHelper;
 
 /**
  * A {@link MessageCallProcessor} customized to,
  * <ol>
- *  <li>Call Hedera-specific precompiles.</li>
+ *  <li>Call Hedera-specific System Contracts and precompiles.</li>
  *  <li>Impose Hedera restrictions in the system account range.</li>
  *  <li>Do lazy creation when appropriate.</li>
  * </ol>
@@ -52,6 +57,57 @@ import org.hyperledger.besu.evm.tracing.OperationTracer;
  * and the core {@link MessageCallProcessor#process(MessageFrame, OperationTracer)} logic we inherit.
  */
 public class CustomMessageCallProcessor extends MessageCallProcessor {
+
+    private record CustomMessageCallContext(
+            @NonNull MessageFrame frame,
+            @NonNull OperationTracer tracer,
+            @NonNull Optional<Account> contractAccount,
+            // The address whose code is to be executed: either frame.getContractAddress(),
+            // EIP-7702 delegation target or HAS address (for account proxy redirect)
+            @NonNull Address executableCodeAddress,
+            boolean isCodeDelegation,
+            boolean transfersValue) {
+
+        static CustomMessageCallContext create(MessageFrame frame, OperationTracer tracer) {
+            final Account contractAccount = frame.getWorldUpdater().get(frame.getContractAddress());
+
+            final Address executableCodeAddress;
+            final boolean isCodeDelegation;
+            if (contractAccount != null) {
+                final var hasCodeDelegation = CodeDelegationHelper.hasCodeDelegation(contractAccount.getCode());
+                final var isEoa = contractAccount.getCode().isEmpty() || hasCodeDelegation;
+                final var isEligibleForHasRedirect =
+                        HasSystemContract.isPayloadEligibleForHasProxyRedirect(frame.getInputData());
+
+                if (isEoa && isEligibleForHasRedirect) {
+                    // HAS proxy calls have priority, even if code delegation is set
+                    // - this is a built-in redirect functionality, and it isn't considered code delegation.
+                    executableCodeAddress = Address.fromHexString(HAS_EVM_ADDRESS);
+                    isCodeDelegation = false;
+                } else if (hasCodeDelegation) {
+                    executableCodeAddress = Address.wrap(
+                            contractAccount.getCode().slice(CodeDelegationHelper.CODE_DELEGATION_PREFIX.size()));
+                    isCodeDelegation = true;
+                } else {
+                    executableCodeAddress = frame.getContractAddress();
+                    isCodeDelegation = false;
+                }
+            } else {
+                // Call target account doesn't exist
+                executableCodeAddress = frame.getContractAddress();
+                isCodeDelegation = false;
+            }
+
+            return new CustomMessageCallContext(
+                    frame,
+                    tracer,
+                    Optional.ofNullable(contractAccount),
+                    executableCodeAddress,
+                    isCodeDelegation,
+                    FrameUtils.transfersValue(frame));
+        }
+    }
+
     private final FeatureFlags featureFlags;
     private final AddressChecks addressChecks;
     private final PrecompileContractRegistry precompiles;
@@ -105,140 +161,59 @@ public class CustomMessageCallProcessor extends MessageCallProcessor {
      */
     @Override
     public void start(@NonNull final MessageFrame frame, @NonNull final OperationTracer tracer) {
-        final var codeAddress = frame.getContractAddress();
+        final var context = CustomMessageCallContext.create(frame, tracer);
+
         // This must be done first as the system contract address range overlaps with system
         // accounts. Note that unlike EVM precompiles, we do allow sending value "to" Hedera
         // system contracts because they sometimes require fees greater than be reasonably
         // paid using gas; for example, when creating a new token. But the system contract
         // only diverts this value to the network's fee collection accounts, instead of
         // actually receiving it.
-        // We do not allow sending value to Hedera system contracts except in the case of token creation.
-        if (systemContracts.containsKey(codeAddress)) {
-            if (!isTokenCreation(frame)) {
-                doHaltIfInvalidSystemCall(frame, tracer);
-                if (alreadyHalted(frame)) {
-                    return;
+
+        if (isSystemContractCall(context)) {
+            handleSystemContractCall(context);
+        } else if (isPrecompileCall(context)) {
+            handlePrecompileCall(context);
+        } else if (addressChecks.isSystemAccount(context.executableCodeAddress)) {
+            // Handle System Account that is neither System Contract nor Precompile
+            handleNonExtantSystemAccountCall(context);
+        } else {
+            handleRegularCall(context);
+        }
+    }
+
+    private boolean isSystemContractCall(@NonNull final CustomMessageCallContext context) {
+        return systemContracts.containsKey(context.executableCodeAddress);
+    }
+
+    private void handleSystemContractCall(@NonNull final CustomMessageCallContext context) {
+        if (context.isCodeDelegation) {
+            final var recipientIsTokenOrScheduleAccount = context.contractAccount.stream()
+                    .anyMatch(a -> a instanceof TokenEvmAccount || a instanceof ScheduleEvmAccount);
+
+            if (recipientIsTokenOrScheduleAccount) {
+                // Token and Schedule accounts are allowed to delegate code to an actual System Contract call,
+                // but value transfer isn't allowed.
+                if (context.transfersValue) {
+                    doHalt(context, INVALID_CONTRACT_ID);
+                } else {
+                    doExecuteSystemContract(context, systemContracts.get(context.executableCodeAddress));
+                }
+            } else {
+                // For any other Hedera accounts: code delegation to System Contracts is a no-op - so just succeed.
+                context.frame.setState(MessageFrame.State.CODE_SUCCESS);
+
+                // Even though execution is no-op, the call may still carry value transfer.
+                if (context.transfersValue) {
+                    doTransferValueOrHalt(context);
                 }
             }
-            doExecuteSystemContract(systemContracts.get(codeAddress), codeAddress, frame, tracer);
-            return;
-        }
-
-        var evmPrecompile = precompiles.get(codeAddress);
-        if (evmPrecompile != null && !isPrecompileEnabled(codeAddress, frame)) {
-            // disable precompile if so configured.
-            evmPrecompile = null;
-        }
-        // Check to see if the code address is a system account and possibly halt
-        // Note that we allow calls to the allowance hook address(0x16d) if the call is part of
-        // a hook dispatch; in that case, the allowance hook is being treated as a normal
-        // contract, not as a system account.
-        if (addressChecks.isSystemAccount(codeAddress) && isNotAllowanceHook(frame, codeAddress)) {
-            doHaltIfInvalidSystemCall(frame, tracer);
-            if (alreadyHalted(frame)) {
-                return;
-            }
-            if (evmPrecompile == null) {
-                handleNonExtantSystemAccount(frame, tracer);
-                return;
-            }
-        }
-        // Handle evm precompiles
-        if (evmPrecompile != null) {
-            doExecutePrecompile(evmPrecompile, frame, tracer);
-            return;
-        }
-        // Transfer value to the contract if required and possibly halt
-        if (transfersValue(frame)) {
-            doTransferValueOrHalt(frame, tracer);
-            if (alreadyHalted(frame)) {
-                return;
-            }
-        }
-        // For mono-service fidelity, we need to consider called contracts
-        // as a special case eligible for staking rewards
-        if (isTopLevelTransaction(frame)) {
-            final var maybeCalledContract = proxyUpdaterFor(frame).get(codeAddress);
-            if (maybeCalledContract instanceof ProxyEvmContract a) {
-                recordBuilderFor(frame).trackExplicitRewardSituation(a.hederaId());
-            }
-        }
-
-        frame.setState(MessageFrame.State.CODE_EXECUTING);
-    }
-    /**
-     * Checks if the message frame is not executing a hook dispatch and if the contract address is not
-     * the allowance hook address
-     *
-     * @param codeAddress the address of the precompile to check
-     * @param frame the current message frame
-     * @return true if the frame is not executing a hook dispatch or the code address is not the allowance hook
-     * address, false otherwise
-     */
-    private static boolean isNotAllowanceHook(final @NonNull MessageFrame frame, final Address codeAddress) {
-        return !FrameUtils.isHookExecution(frame) || !HTS_HOOKS_CONTRACT_ADDRESS.equals(codeAddress);
-    }
-
-    /**
-     * Checks if the given message frame is a token creation scenario.
-     *
-     * <p>This method inspects the first four bytes of the input data of the message frame
-     * to determine if it matches any of the known selectors for creating fungible or non-fungible tokens.
-     *
-     * @param frame the message frame to check
-     * @return true if the input data matches any of the known create selectors, false otherwise
-     */
-    private boolean isTokenCreation(MessageFrame frame) {
-        if (frame.getInputData().isEmpty()) {
-            return false;
-        }
-        var selector = frame.getInputData().slice(0, 4).toArray();
-        return createMethodsSet.stream().anyMatch(s -> Arrays.equals(s.selector(), selector));
-    }
-
-    /**
-     * @return whether the implicit creation is currently enabled
-     */
-    public boolean isImplicitCreationEnabled() {
-        return featureFlags.isImplicitCreationEnabled();
-    }
-
-    private void handleNonExtantSystemAccount(
-            @NonNull final MessageFrame frame, @NonNull final OperationTracer tracer) {
-        final PrecompileContractResult result = PrecompileContractResult.success(Bytes.EMPTY);
-        frame.clearGasRemaining();
-        finishPrecompileExecution(frame, result, PRECOMPILE, (ActionSidecarContentTracer) tracer);
-    }
-
-    private void doExecutePrecompile(
-            @NonNull final PrecompiledContract precompile,
-            @NonNull final MessageFrame frame,
-            @NonNull final OperationTracer tracer) {
-        final var gasRequirement = precompile.gasRequirement(frame.getInputData());
-        final PrecompileContractResult result;
-        if (frame.getRemainingGas() < gasRequirement) {
-            result = PrecompileContractResult.halt(Bytes.EMPTY, Optional.of(INSUFFICIENT_GAS));
+        } else if (context.transfersValue && !isTokenCreation(context.frame)) {
+            // System Contract calls that transfer value aren't allowed, unless they're token creation.
+            doHalt(context, INVALID_CONTRACT_ID);
         } else {
-            frame.decrementRemainingGas(gasRequirement);
-
-            final var opsDurationCounter = FrameUtils.opsDurationCounter(frame);
-            final var opsDurationSchedule = opsDurationCounter.schedule();
-            final var opsDurationCost = gasRequirement
-                    * opsDurationSchedule.precompileGasBasedDurationMultiplier()
-                    / opsDurationSchedule.multipliersDenominator();
-            opsDurationCounter.recordOpsDurationUnitsConsumed(opsDurationCost);
-            contractMetrics.opsDurationMetrics().recordPrecompileOpsDuration(precompile.getName(), opsDurationCost);
-
-            result = precompile.computePrecompile(frame.getInputData(), frame);
-            if (result.isRefundGas()) {
-                frame.incrementRemainingGas(gasRequirement);
-            }
+            doExecuteSystemContract(context, systemContracts.get(context.executableCodeAddress));
         }
-        // We must always call tracePrecompileResult() to ensure the tracer is in a consistent
-        // state, because AbstractMessageProcessor.process() will not invoke the tracer's
-        // tracePostExecution() method unless start() returns with a state of CODE_EXECUTING;
-        // but for a precompile call this never happens.
-        finishPrecompileExecution(frame, result, PRECOMPILE, (ActionSidecarContentTracer) tracer);
     }
 
     /**
@@ -246,15 +221,13 @@ public class CustomMessageCallProcessor extends MessageCallProcessor {
      * the call to computePrecompile. Thus, the logic for checking for sufficient gas must be done in a different
      * order vs normal precompiles.
      *
+     * @param context the current call context
      * @param systemContract the system contract to execute
-     * @param frame the current frame
-     * @param tracer the operation tracer
      */
     private void doExecuteSystemContract(
-            @NonNull final HederaSystemContract systemContract,
-            @NonNull final Address systemContractAddress,
-            @NonNull final MessageFrame frame,
-            @NonNull final OperationTracer tracer) {
+            @NonNull final CustomMessageCallContext context, @NonNull final HederaSystemContract systemContract) {
+        final var frame = context.frame;
+        final var systemContractAddress = context.executableCodeAddress;
         final var fullResult = systemContract.computeFully(
                 ContractID.newBuilder()
                         .contractNum(numberOfLongZero(systemContractAddress))
@@ -283,14 +256,14 @@ public class CustomMessageCallProcessor extends MessageCallProcessor {
 
             result = fullResult.result();
         }
-        finishPrecompileExecution(frame, result, SYSTEM, (ActionSidecarContentTracer) tracer);
+        finishPrecompileExecution(context, result, SYSTEM);
     }
 
     private void finishPrecompileExecution(
-            @NonNull final MessageFrame frame,
+            @NonNull final CustomMessageCallContext context,
             @NonNull final PrecompileContractResult result,
-            @NonNull final ContractActionType type,
-            @NonNull final ActionSidecarContentTracer tracer) {
+            @NonNull final ContractActionType type) {
+        final var frame = context.frame;
         if (result.state() == MessageFrame.State.REVERT) {
             frame.setRevertReason(result.output());
         } else {
@@ -298,16 +271,147 @@ public class CustomMessageCallProcessor extends MessageCallProcessor {
         }
         frame.setState(result.state());
         frame.setExceptionalHaltReason(result.haltReason());
-        tracer.tracePrecompileResult(frame, type);
+        ((ActionSidecarContentTracer) context.tracer).tracePrecompileResult(frame, type);
     }
 
-    private void doTransferValueOrHalt(
-            @NonNull final MessageFrame frame, @NonNull final OperationTracer operationTracer) {
+    private boolean isPrecompileCall(@NonNull final CustomMessageCallContext context) {
+        final var evmPrecompile = precompiles.get(context.executableCodeAddress);
+        return evmPrecompile != null && isPrecompileEnabled(context.executableCodeAddress, context.frame);
+    }
+
+    private void handlePrecompileCall(@NonNull final CustomMessageCallContext context) {
+        final var evmPrecompile = precompiles.get(context.executableCodeAddress);
+
+        if (context.isCodeDelegation) {
+            // Code delegation to Precompile is a no-op - so just succeed.
+            context.frame.setState(MessageFrame.State.CODE_SUCCESS);
+            // Even though execution is no-op, the call may still carry value transfer.
+            if (context.transfersValue) {
+                doTransferValueOrHalt(context);
+            }
+        } else if (context.transfersValue) {
+            // Value transfer isn't allowed for precompile calls.
+            doHalt(context, INVALID_CONTRACT_ID);
+        } else {
+            doExecutePrecompile(context, evmPrecompile);
+        }
+    }
+
+    private void doExecutePrecompile(
+            @NonNull final CustomMessageCallContext context, @NonNull final PrecompiledContract precompile) {
+        final var frame = context.frame;
+        final var gasRequirement = precompile.gasRequirement(frame.getInputData());
+        final PrecompileContractResult result;
+        if (frame.getRemainingGas() < gasRequirement) {
+            result = PrecompileContractResult.halt(Bytes.EMPTY, Optional.of(INSUFFICIENT_GAS));
+        } else {
+            frame.decrementRemainingGas(gasRequirement);
+
+            final var opsDurationCounter = FrameUtils.opsDurationCounter(frame);
+            final var opsDurationSchedule = opsDurationCounter.schedule();
+            final var opsDurationCost = gasRequirement
+                    * opsDurationSchedule.precompileGasBasedDurationMultiplier()
+                    / opsDurationSchedule.multipliersDenominator();
+            opsDurationCounter.recordOpsDurationUnitsConsumed(opsDurationCost);
+            contractMetrics.opsDurationMetrics().recordPrecompileOpsDuration(precompile.getName(), opsDurationCost);
+
+            result = precompile.computePrecompile(frame.getInputData(), frame);
+            if (result.isRefundGas()) {
+                frame.incrementRemainingGas(gasRequirement);
+            }
+        }
+        // We must always call tracePrecompileResult() to ensure the tracer is in a consistent
+        // state, because AbstractMessageProcessor.process() will not invoke the tracer's
+        // tracePostExecution() method unless start() returns with a state of CODE_EXECUTING;
+        // but for a precompile call this never happens.
+        finishPrecompileExecution(context, result, PRECOMPILE);
+    }
+
+    private void handleNonExtantSystemAccountCall(CustomMessageCallContext context) {
+        if (context.isCodeDelegation) {
+            // Code delegation is a no-op - so just succeed.
+            context.frame.setState(MessageFrame.State.CODE_SUCCESS);
+            // Even though execution is no-op, the call may still carry value transfer.
+            if (context.transfersValue) {
+                doTransferValueOrHalt(context);
+            }
+        } else if (isAllowanceHook(context.frame, context.executableCodeAddress)) {
+            // Allowance hook execution is explicitly allowed
+            context.frame.setState(MessageFrame.State.CODE_EXECUTING);
+        } else if (context.transfersValue) {
+            doHalt(context, INVALID_CONTRACT_ID);
+        } else {
+            final var result = PrecompileContractResult.success(Bytes.EMPTY);
+            context.frame.clearGasRemaining();
+            finishPrecompileExecution(context, result, PRECOMPILE);
+        }
+    }
+
+    private void handleRegularCall(@NonNull final CustomMessageCallContext context) {
+        if (context.transfersValue) {
+            doTransferValueOrHalt(context);
+            if (alreadyHalted(context.frame)) {
+                return;
+            }
+        }
+
+        // For mono-service fidelity, we need to consider called contracts
+        // as a special case eligible for staking rewards
+        if (isTopLevelTransaction(context.frame)) {
+            context.contractAccount
+                    .filter(ProxyEvmContract.class::isInstance)
+                    .map(ProxyEvmContract.class::cast)
+                    .ifPresent(contract ->
+                            recordBuilderFor(context.frame).trackExplicitRewardSituation(contract.hederaId()));
+        }
+
+        context.frame.setState(MessageFrame.State.CODE_EXECUTING);
+    }
+
+    /**
+     * Checks if the message frame is executing a hook dispatch and if the contract address is
+     * the allowance hook address
+     *
+     * @param codeAddress the address of the precompile to check
+     * @param frame the current message frame
+     * @return true if the frame is executing a hook dispatch and the code address is the allowance hook
+     * address, false otherwise
+     */
+    private static boolean isAllowanceHook(final @NonNull MessageFrame frame, final Address codeAddress) {
+        return FrameUtils.isHookExecution(frame) && HTS_HOOKS_CONTRACT_ADDRESS.equals(codeAddress);
+    }
+
+    /**
+     * Checks if the given message frame is a token creation scenario.
+     *
+     * <p>This method inspects the first four bytes of the input data of the message frame
+     * to determine if it matches any of the known selectors for creating fungible or non-fungible tokens.
+     *
+     * @param frame the message frame to check
+     * @return true if the input data matches any of the known create selectors, false otherwise
+     */
+    private boolean isTokenCreation(MessageFrame frame) {
+        if (frame.getInputData().isEmpty()) {
+            return false;
+        }
+        final var selector = frame.getInputData().slice(0, 4).toArray();
+        return createMethodsSet.stream().anyMatch(s -> Arrays.equals(s.selector(), selector));
+    }
+
+    /**
+     * @return whether the implicit creation is currently enabled
+     */
+    public boolean isImplicitCreationEnabled() {
+        return featureFlags.isImplicitCreationEnabled();
+    }
+
+    private void doTransferValueOrHalt(@NonNull final CustomMessageCallContext context) {
+        final var frame = context.frame;
         final var proxyWorldUpdater = (ProxyWorldUpdater) frame.getWorldUpdater();
         // Try to lazy-create the recipient address if it doesn't exist
         if (!addressChecks.isPresent(frame.getRecipientAddress(), frame)) {
             final var maybeReasonToHalt = proxyWorldUpdater.tryLazyCreation(frame.getRecipientAddress(), frame);
-            maybeReasonToHalt.ifPresent(reason -> doHaltOnFailedLazyCreation(frame, reason, operationTracer));
+            maybeReasonToHalt.ifPresent(reason -> doHaltOnFailedLazyCreation(context, reason));
         }
         if (!alreadyHalted(frame)) {
             final var maybeReasonToHalt = proxyWorldUpdater.tryTransfer(
@@ -319,37 +423,25 @@ public class CustomMessageCallProcessor extends MessageCallProcessor {
                 if (reason == INVALID_SIGNATURE) {
                     setPropagatedCallFailure(frame, MISSING_RECEIVER_SIGNATURE);
                 }
-                doHalt(frame, reason, operationTracer);
+                doHalt(context, reason);
             });
         }
     }
 
-    private void doHaltIfInvalidSystemCall(
-            @NonNull final MessageFrame frame, @NonNull final OperationTracer operationTracer) {
-        if (transfersValue(frame)) {
-            doHalt(frame, INVALID_CONTRACT_ID, operationTracer);
-        }
-    }
-
     private void doHaltOnFailedLazyCreation(
-            @NonNull final MessageFrame frame,
-            @NonNull final ExceptionalHaltReason reason,
-            @NonNull final OperationTracer tracer) {
-        doHalt(frame, reason, tracer, ForLazyCreation.YES);
+            @NonNull final CustomMessageCallContext context, @NonNull final ExceptionalHaltReason reason) {
+        doHalt(context, reason, ForLazyCreation.YES);
+    }
+
+    private void doHalt(@NonNull final CustomMessageCallContext context, @NonNull final ExceptionalHaltReason reason) {
+        doHalt(context, reason, ForLazyCreation.NO);
     }
 
     private void doHalt(
-            @NonNull final MessageFrame frame,
+            @NonNull final CustomMessageCallContext context,
             @NonNull final ExceptionalHaltReason reason,
-            @NonNull final OperationTracer tracer) {
-        doHalt(frame, reason, tracer, ForLazyCreation.NO);
-    }
-
-    private void doHalt(
-            @NonNull final MessageFrame frame,
-            @NonNull final ExceptionalHaltReason reason,
-            @Nullable final OperationTracer operationTracer,
             @NonNull final ForLazyCreation forLazyCreation) {
+        final var frame = context.frame;
         frame.setState(EXCEPTIONAL_HALT);
         frame.setExceptionalHaltReason(Optional.of(reason));
         if (forLazyCreation == ForLazyCreation.YES) {
@@ -358,13 +450,10 @@ public class CustomMessageCallProcessor extends MessageCallProcessor {
                 setPropagatedCallFailure(frame, RESULT_CANNOT_BE_EXTERNALIZED);
             }
         }
-        if (operationTracer != null) {
-            if (forLazyCreation == ForLazyCreation.YES) {
-                operationTracer.traceAccountCreationResult(frame, Optional.of(reason));
-            } else {
-                operationTracer.tracePostExecution(
-                        frame, new Operation.OperationResult(frame.getRemainingGas(), reason));
-            }
+        if (forLazyCreation == ForLazyCreation.YES) {
+            context.tracer.traceAccountCreationResult(frame, Optional.of(reason));
+        } else {
+            context.tracer.tracePostExecution(frame, new Operation.OperationResult(frame.getRemainingGas(), reason));
         }
     }
 }

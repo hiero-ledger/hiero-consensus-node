@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.test.exec.delegation;
 
+import static org.hyperledger.besu.evm.worldstate.CodeDelegationHelper.CODE_DELEGATION_PREFIX;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrowsExactly;
@@ -201,6 +202,7 @@ class CodeDelegationProcessorTest {
 
         final var authAddr = Address.fromHexString("0x00000000000000000000000000000000000000AA");
         final var contractAddr = Address.fromHexString("0x00000000000000000000000000000000000000BB");
+        final var expectedCode = Bytes.concatenate(CODE_DELEGATION_PREFIX, authAddr);
 
         when(tx.codeDelegations()).thenReturn(List.of(del));
         when(del.getChainId()).thenReturn(CHAIN_ID);
@@ -269,6 +271,7 @@ class CodeDelegationProcessorTest {
 
         final var authAddr = Address.fromHexString("0x00000000000000000000000000000000000000AC");
         final var contractAddr = Address.fromHexString("0x00000000000000000000000000000000000000BB");
+        final var expectedCode = Bytes.concatenate(CODE_DELEGATION_PREFIX, authAddr);
 
         when(tx.codeDelegations()).thenReturn(List.of(del));
         when(del.getChainId()).thenReturn(CHAIN_ID);

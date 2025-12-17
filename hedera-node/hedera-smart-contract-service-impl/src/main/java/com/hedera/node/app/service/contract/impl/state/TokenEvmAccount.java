@@ -1,17 +1,19 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.state;
 
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.HtsSystemContract.HTS_167_EVM_ADDRESS;
+import static org.hyperledger.besu.crypto.Hash.keccak256;
+import static org.hyperledger.besu.evm.worldstate.CodeDelegationHelper.CODE_DELEGATION_PREFIX;
+
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.apache.tuweni.bytes.Bytes;
 import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.datatypes.Hash;
-import org.hyperledger.besu.evm.Code;
 import org.hyperledger.besu.evm.account.Account;
 import org.hyperledger.besu.evm.account.MutableAccount;
-import org.hyperledger.besu.evm.code.CodeFactory;
 
 /**
- * An {@link Account} whose code proxies all calls to the {@code 0x167} system contract, and thus can
+ * An {@link Account} whose code is an EIP-7702 delegation to the {@code 0x167} system contract, and thus can
  * never change its storage or nonce.
  *
  * <p>It also cannot have a non-zero balance, as dispatching a {@code transferValue()} with a token
@@ -24,13 +26,15 @@ import org.hyperledger.besu.evm.code.CodeFactory;
  */
 public class TokenEvmAccount extends AbstractEvmEntityAccount {
 
+    // EIP-7702 delegation to HTS system contract
+    public static final Bytes CODE =
+            Bytes.concatenate(CODE_DELEGATION_PREFIX, Address.fromHexString(HTS_167_EVM_ADDRESS));
+    public static final Hash CODE_HASH = Hash.wrap(keccak256(CODE));
+
     public TokenEvmAccount(@NonNull final Address address, @NonNull final EvmFrameState state) {
         super(address, state);
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
     public boolean isTokenFacade() {
         return true;
@@ -38,16 +42,11 @@ public class TokenEvmAccount extends AbstractEvmEntityAccount {
 
     @Override
     public Bytes getCode() {
-        return state.getTokenRedirectCode(address);
-    }
-
-    @Override
-    public @NonNull Code getEvmCode(@NonNull final Bytes functionSelector, @NonNull final CodeFactory codeFactory) {
-        return codeFactory.createCode(getCode(), false);
+        return CODE;
     }
 
     @Override
     public Hash getCodeHash() {
-        return state.getTokenRedirectCodeHash(address);
+        return CODE_HASH;
     }
 }

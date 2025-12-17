@@ -846,7 +846,7 @@ class AtomicContractCreateSuite {
                             .getTransactionRecord(txn)
                             .getContractCreateResult()
                             .getGasUsed();
-                    assertEquals(117661, gasUsed);
+                    assertEquals(117683, gasUsed);
                 }));
     }
 
@@ -882,6 +882,7 @@ class AtomicContractCreateSuite {
                 BigInteger.ONE,
                 new byte[] {},
                 new byte[] {},
+                null,
                 null,
                 null,
                 0,

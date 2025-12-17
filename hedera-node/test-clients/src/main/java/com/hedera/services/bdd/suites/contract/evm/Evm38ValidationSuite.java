@@ -34,10 +34,8 @@ import static com.hedera.services.bdd.suites.contract.Utils.asHexedSolidityAddre
 import static com.hedera.services.bdd.suites.contract.Utils.captureOneChildCreate2MetaFor;
 import static com.hedera.services.bdd.suites.contract.Utils.getABIFor;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_DELETED;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_REVERT_EXECUTED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_CONTRACT_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SOLIDITY_ADDRESS;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.LOCAL_CALL_MODIFICATION_EXCEPTION;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -120,13 +118,13 @@ public class Evm38ValidationSuite {
                         .sending(ONE_HBAR)
                         .payingWith(TOKEN_TREASURY)
                         .via(internalViolation)
-                        .hasKnownStatus(CONTRACT_REVERT_EXECUTED)),
+                        .hasKnownStatus(INVALID_CONTRACT_ID)),
                 sourcing((() -> contractCall(tokenMirrorAddr.get())
                         .sending(1L)
                         .payingWith(TOKEN_TREASURY)
                         .refusingEthConversion()
                         .via(externalViolation)
-                        .hasKnownStatus(LOCAL_CALL_MODIFICATION_EXCEPTION))),
+                        .hasKnownStatus(INVALID_CONTRACT_ID))),
                 getTxnRecord(internalViolation).hasPriority(recordWith().feeGreaterThan(0L)),
                 getTxnRecord(externalViolation).hasPriority(recordWith().feeGreaterThan(0L)));
     }

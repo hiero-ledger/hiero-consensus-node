@@ -37,6 +37,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.evm.code.CodeFactory;
+import org.hyperledger.besu.evm.gascalculator.GasCalculator;
 import org.hyperledger.besu.evm.processor.ContractCreationProcessor;
 
 /**
@@ -52,6 +53,7 @@ public class TransactionProcessor {
     private final ContractCreationProcessor contractCreation;
     private final FeatureFlags featureFlags;
     private final CodeFactory codeFactory;
+    private final GasCalculator gasCalculator;
 
     public TransactionProcessor(
             @NonNull final FrameBuilder frameBuilder,
@@ -60,14 +62,16 @@ public class TransactionProcessor {
             @NonNull final CustomMessageCallProcessor messageCall,
             @NonNull final ContractCreationProcessor contractCreation,
             @NonNull final FeatureFlags featureFlags,
-            @NonNull final CodeFactory codeFactory) {
+            @NonNull final CodeFactory codeFactory,
+            @NonNull final GasCalculator gasCalculator) {
         this.frameBuilder = requireNonNull(frameBuilder);
         this.frameRunner = requireNonNull(frameRunner);
         this.gasCharging = requireNonNull(gasCharging);
         this.messageCall = requireNonNull(messageCall);
         this.contractCreation = requireNonNull(contractCreation);
         this.featureFlags = requireNonNull(featureFlags);
-        this.codeFactory = codeFactory;
+        this.codeFactory = requireNonNull(codeFactory);
+        this.gasCalculator = requireNonNull(gasCalculator);
     }
 
     /**
@@ -129,6 +133,7 @@ public class TransactionProcessor {
         final var gasCharges = transaction.hookOwnerAddress() != null
                 ? GasCharges.NONE
                 : gasCharging.chargeForGas(parties.sender(), parties.relayer(), context, updater, transaction);
+
         final var initialFrame = frameBuilder.buildInitialFrameWith(
                 transaction,
                 updater,
@@ -139,7 +144,8 @@ public class TransactionProcessor {
                 parties.sender().getAddress(),
                 parties.receiverAddress(),
                 gasCharges.intrinsicGas(),
-                codeFactory);
+                codeFactory,
+                gasCalculator);
 
         // Compute the result of running the frame to completion
         final var result = frameRunner.runToCompletion(
@@ -254,7 +260,14 @@ public class TransactionProcessor {
             }
         }
         if (transaction.isEthereumTransaction()) {
-            validateTrue(transaction.nonce() == parties.sender().getNonce(), WRONG_NONCE);
+            // For EIP-7702 transactions with code delegations, skip nonce check here
+            // because it was already checked in ContextTransactionProcessor before code delegations,
+            // and code delegations may have incremented the sender's nonce if they're an authority
+            final boolean hasCodeDelegations = transaction.codeDelegations() != null
+                    && !transaction.codeDelegations().isEmpty();
+            if (!hasCodeDelegations) {
+                validateTrue(transaction.nonce() == parties.sender().getNonce(), WRONG_NONCE);
+            }
         }
         return parties;
     }

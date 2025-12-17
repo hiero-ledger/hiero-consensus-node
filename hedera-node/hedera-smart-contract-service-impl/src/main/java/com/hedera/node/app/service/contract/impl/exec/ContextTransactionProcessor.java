@@ -150,6 +150,17 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
             return outcome;
         }
 
+        // For EIP-7702: Check sender's nonce BEFORE processing code delegations
+        // (code delegations may increment the sender's nonce if they're also an authority)
+        if (hevmTransaction.isEthereumTransaction()
+                && contractsConfig.evmPectraEnabled()
+                && hevmTransaction.codeDelegations() != null) {
+            final var sender = rootProxyWorldUpdater.getHederaAccount(hevmTransaction.senderId());
+            if (sender != null && hevmTransaction.nonce() != sender.getNonce()) {
+                throw new HandleException(WRONG_NONCE);
+            }
+        }
+
         possiblyProcessCodeDelegations(hevmTransaction);
 
         final ThrottleAdviser throttleAdviser =

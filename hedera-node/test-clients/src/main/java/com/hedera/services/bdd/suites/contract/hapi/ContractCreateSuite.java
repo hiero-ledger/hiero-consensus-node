@@ -909,7 +909,7 @@ public class ContractCreateSuite {
                             .getTransactionRecord(txn)
                             .getContractCreateResult()
                             .getGasUsed();
-                    assertEquals(117661, gasUsed);
+                    assertEquals(117683, gasUsed);
                 }));
     }
 
@@ -945,6 +945,7 @@ public class ContractCreateSuite {
                 BigInteger.ONE,
                 new byte[] {},
                 new byte[] {},
+                null,
                 null,
                 null,
                 0,

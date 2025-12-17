@@ -430,6 +430,7 @@ class EthTxDataTest {
                 oneByte,
                 null,
                 null,
+                null,
                 1,
                 oneByte,
                 oneByte,
@@ -450,6 +451,7 @@ class EthTxDataTest {
                 BigInteger.ONE,
                 oneByte,
                 oneByte,
+                null,
                 null,
                 null,
                 1,
@@ -515,6 +517,7 @@ class EthTxDataTest {
                 oneByte,
                 WEIBARS_IN_A_TINYBAR,
                 oneByte,
+                null,
                 null,
                 null,
                 null,
@@ -584,6 +587,7 @@ class EthTxDataTest {
                 new byte[] {1},
                 accessListAsRlp,
                 null,
+                null,
                 0,
                 new byte[] {1},
                 new byte[] {1},
@@ -626,6 +630,7 @@ class EthTxDataTest {
                 new byte[] {1},
                 accessListAsRlp,
                 null,
+                null,
                 0,
                 new byte[] {1},
                 new byte[] {1},
@@ -645,6 +650,7 @@ class EthTxDataTest {
                 new byte[] {1},
                 new byte[] {1},
                 differentAccessListAsRlp,
+                null,
                 null,
                 0,
                 new byte[] {1},
@@ -666,6 +672,7 @@ class EthTxDataTest {
                 new byte[] {1},
                 new byte[] {1},
                 accessListAsRlp,
+                null,
                 null,
                 0,
                 new byte[] {1},
@@ -701,6 +708,7 @@ class EthTxDataTest {
                         oneByte,
                         null,
                         null,
+                        null,
                         1,
                         oneByte,
                         oneByte,
@@ -732,6 +740,7 @@ class EthTxDataTest {
                 oneByte,
                 null,
                 null,
+                null,
                 1,
                 oneByte,
                 oneByte,
@@ -750,9 +759,27 @@ class EthTxDataTest {
         final var bigValue = BigInteger.valueOf(Long.MAX_VALUE);
 
         final var oneByte = new byte[] {1};
+        final var authListObject = new Object[] {new Object[] {oneByte}};
         final EthTxData ethTxData = new EthTxData(
-                oneByte, type, oneByte, 1, oneByte, oneByte, oneByte, 1, oneByte, bigValue, oneByte, null, null,
-                oneByte, 1, oneByte, oneByte, oneByte);
+                oneByte,
+                type,
+                oneByte,
+                1,
+                oneByte,
+                oneByte,
+                oneByte,
+                1,
+                oneByte,
+                bigValue,
+                oneByte,
+                null,
+                null,
+                oneByte,
+                authListObject,
+                1,
+                oneByte,
+                oneByte,
+                oneByte);
         final var encoded = ethTxData.encodeTx();
 
         final var populateEthTxData = EthTxData.populateEthTxData(encoded);

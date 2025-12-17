@@ -14,10 +14,8 @@ import com.hedera.node.app.service.contract.impl.state.EvmFrameState;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.apache.tuweni.bytes.Bytes;
-import org.apache.tuweni.units.bigints.UInt256;
 import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.datatypes.Hash;
-import org.hyperledger.besu.evm.Code;
 import org.hyperledger.besu.evm.code.CodeFactory;
 
 /**
@@ -50,11 +48,6 @@ public class ProxyEvmHook extends AbstractProxyEvmAccount {
     }
 
     @Override
-    public @NonNull Code getEvmCode(@NonNull final Bytes functionSelector, @NonNull final CodeFactory codeFactory) {
-        return codeFactory.createCode(getCode(), false);
-    }
-
-    @Override
     public Address getAddress() {
         return HTS_HOOKS_CONTRACT_ADDRESS;
     }
@@ -73,11 +66,6 @@ public class ProxyEvmHook extends AbstractProxyEvmAccount {
     @Override
     public @NonNull Hash getCodeHash() {
         return state.getCodeHash(hookState.hookContractIdOrThrow(), codeFactory);
-    }
-
-    @Override
-    public @NonNull UInt256 getStorageValue(@NonNull final UInt256 key) {
-        return state.getStorageValue(entityIdFactory.newContractId(HTS_HOOKS_CONTRACT_NUM), key);
     }
 
     @NonNull

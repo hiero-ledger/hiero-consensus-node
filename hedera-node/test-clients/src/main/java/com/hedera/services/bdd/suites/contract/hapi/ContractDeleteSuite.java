@@ -43,10 +43,9 @@ import static com.hedera.services.bdd.suites.HapiSuite.TOKEN_TREASURY;
 import static com.hedera.services.bdd.suites.contract.Utils.asHexedSolidityAddress;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_IS_TREASURY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_EXECUTION_EXCEPTION;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.CONTRACT_REVERT_EXECUTED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.FILE_DELETED;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_CONTRACT_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
-import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.LOCAL_CALL_MODIFICATION_EXCEPTION;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.MAX_CHILD_RECORDS_EXCEEDED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.MODIFYING_IMMUTABLE_CONTRACT;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.NOT_SUPPORTED;
@@ -169,13 +168,13 @@ public class ContractDeleteSuite {
                         .sending(ONE_HBAR)
                         .payingWith(TOKEN_TREASURY)
                         .via(internalViolation)
-                        .hasKnownStatus(CONTRACT_REVERT_EXECUTED)),
+                        .hasKnownStatus(INVALID_CONTRACT_ID)),
                 sourcing((() -> contractCall(tokenMirrorAddr.get())
                         .sending(1L)
                         .payingWith(TOKEN_TREASURY)
                         .refusingEthConversion()
                         .via(externalViolation)
-                        .hasKnownStatus(LOCAL_CALL_MODIFICATION_EXCEPTION))),
+                        .hasKnownStatus(INVALID_CONTRACT_ID))),
                 getTxnRecord(internalViolation).hasPriority(recordWith().feeGreaterThan(0L)),
                 getTxnRecord(externalViolation).hasPriority(recordWith().feeGreaterThan(0L)));
     }

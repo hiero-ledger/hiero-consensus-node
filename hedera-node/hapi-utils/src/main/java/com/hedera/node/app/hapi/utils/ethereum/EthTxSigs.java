@@ -112,6 +112,7 @@ public record EthTxSigs(byte[] publicKey, byte[] address) {
 
     // EIP7702 introduces the authorizationList field, which allows one to specify
     // a list of EOA addresses (via signatures) that are then associated with the code of a contract
+    // Like EIP1559, it uses maxPriorityGas and maxGas for fee control.
     // More details: https://eips.ethereum.org/EIPS/eip-7702
     static byte[] resolveEIP7702(final EthTxData ethTx) {
         return RLPEncoder.sequence(Integers.toBytes(4), new Object[] {
@@ -124,7 +125,7 @@ public record EthTxSigs(byte[] publicKey, byte[] address) {
             Integers.toBytesUnsigned(ethTx.value()),
             ethTx.callData(),
             ethTx.accessListAsRlp() != null ? ethTx.accessListAsRlp() : new Object[0],
-            ethTx.authorizationList()
+            ethTx.authorizationListAsRlp() != null ? ethTx.authorizationListAsRlp() : new Object[0]
         });
     }
 
