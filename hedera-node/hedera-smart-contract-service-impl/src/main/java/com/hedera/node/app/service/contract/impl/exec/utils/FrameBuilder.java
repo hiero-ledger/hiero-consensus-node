@@ -41,9 +41,12 @@ import org.apache.tuweni.bytes.Bytes;
 import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.datatypes.Wei;
 import org.hyperledger.besu.evm.Code;
+import org.hyperledger.besu.evm.account.Account;
 import org.hyperledger.besu.evm.code.CodeFactory;
 import org.hyperledger.besu.evm.code.CodeV0;
 import org.hyperledger.besu.evm.frame.MessageFrame;
+import org.hyperledger.besu.evm.gascalculator.GasCalculator;
+import org.hyperledger.besu.evm.worldstate.CodeDelegationHelper;
 
 /**
  * Infrastructure component that builds the initial {@link MessageFrame} instance for a transaction.
@@ -92,7 +95,8 @@ public class FrameBuilder {
             @NonNull final Address from,
             @NonNull final Address to,
             final long intrinsicGas,
-            @NonNull final CodeFactory codeFactory) {
+            @NonNull final CodeFactory codeFactory,
+            @NonNull final GasCalculator gasCalculator) {
         final var value = transaction.weiValue();
         final var ledgerConfig = config.getConfigData(LedgerConfig.class);
         final var nominalCoinbase = asLongZeroAddress(ledgerConfig.fundingAccount());
@@ -124,7 +128,8 @@ public class FrameBuilder {
                     transaction,
                     featureFlags,
                     config.getConfigData(ContractsConfig.class),
-                    codeFactory);
+                    codeFactory,
+                    gasCalculator);
         }
     }
 
@@ -185,8 +190,8 @@ public class FrameBuilder {
             @NonNull final HederaEvmTransaction transaction,
             @NonNull final FeatureFlags featureFlags,
             @NonNull final ContractsConfig config,
-            @NonNull final CodeFactory codeFactory) {
-        Code code = CodeV0.EMPTY_CODE;
+            @NonNull final CodeFactory codeFactory,
+            @NonNull final GasCalculator gasCalculator) {
         final var contractId = transaction.contractIdOrThrow();
         final var contractMustBePresent = contractMustBePresent(config, featureFlags, contractId);
 
@@ -199,26 +204,51 @@ public class FrameBuilder {
                     .address(to)
                     .contract(to)
                     .inputData(transaction.evmPayload())
-                    .code(code)
+                    .code(CodeV0.EMPTY_CODE)
                     .build();
         }
 
         final var account = worldUpdater.getHederaAccount(contractId);
+        final Code code;
         if (account != null) {
             // Hedera account for contract is present, get the byte code
-            code = account.getEvmCode(Bytes.wrap(transaction.payload().toByteArray()), codeFactory);
+            final var accountCode = account.getCode();
 
-            // If after getting the code, it is empty, then check if this is allowed
-            if (code.equals(CodeV0.EMPTY_CODE)) {
-                validateTrue(emptyCodePossiblyAllowed(contractMustBePresent, transaction), INVALID_CONTRACT_ID);
+            // TODO(Pectra): skip delegation processing for hooks! (i.e. if account is a proxy hook)
+            if (CodeDelegationHelper.hasCodeDelegation(accountCode)) {
+                // Resolve the target account of the delegation and use its code
+                final var targetAddress =
+                        Address.wrap(accountCode.slice(CodeDelegationHelper.CODE_DELEGATION_PREFIX.size()));
+
+                final Account targetAccount = worldUpdater.getHederaAccount(targetAddress);
+                if (targetAccount == null || gasCalculator.isPrecompile(targetAddress)) {
+                    code = CodeV0.EMPTY_CODE;
+                } else {
+                    code = codeFactory.createCode(targetAccount.getCode());
+                }
+            } else {
+                // No delegation, so try to resolve the code of the smart contract.
+                if (!accountCode.isEmpty()) {
+                    // A non-delegation code is there (it must be a regular smart contract), so just use it.
+                    code = codeFactory.createCode(accountCode);
+                } else {
+                    // The code is empty.
+                    // First validate if this is allowed, and if so, proceed.
+                    validateTrue(emptyCodePossiblyAllowed(contractMustBePresent, transaction), INVALID_CONTRACT_ID);
+                    code = CodeV0.EMPTY_CODE;
+                }
             }
         } else {
+            // The target account doesn't exist. Verify that it's allowed, and if so, proceed with empty code.
+
             // Only do this check if the contract must be present
             if (contractMustBePresent) {
                 validateTrue(transaction.permitsMissingContract(), INVALID_ETHEREUM_TRANSACTION);
             }
+            code = CodeV0.EMPTY_CODE;
         }
 
+        // TODO(Pectra): will we support access lists? If so, add EIP-7702 accessListWarmUpAddresses (see besu impl)
         return builder.type(MessageFrame.Type.MESSAGE_CALL)
                 .address(to)
                 .contract(to)
@@ -252,6 +282,8 @@ public class FrameBuilder {
 
     private boolean emptyCodePossiblyAllowed(
             final boolean contractMustBePresent, @NonNull final HederaEvmTransaction transaction) {
+        // TODO(Pectra): re-evaluate if this condition is still correct
+
         // Empty code is allowed if the transaction is an Ethereum transaction or has a value or the contract does not
         // have to be present via config
         return transaction.isEthereumTransaction() || transaction.hasValue() || !contractMustBePresent;

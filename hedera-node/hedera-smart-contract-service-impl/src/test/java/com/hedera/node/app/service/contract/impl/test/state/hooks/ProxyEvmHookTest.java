@@ -66,8 +66,7 @@ class ProxyEvmHookTest {
 
         final var subject = new ProxyEvmHook(state, hookState, CODE_FACTORY, entityIdFactory);
 
-        final var code = subject.getEvmCode(Bytes.wrap(new byte[] {1, 2, 3, 4}), CODE_FACTORY);
-        assertEquals(expectedCode, code);
+        assertEquals(expectedCode.getBytes(), subject.getCode());
         assertEquals(hookContractCode, subject.getCode());
         assertEquals(expectedHash, subject.getCodeHash());
         assertEquals(HTS_HOOKS_CONTRACT_ADDRESS, subject.getAddress());

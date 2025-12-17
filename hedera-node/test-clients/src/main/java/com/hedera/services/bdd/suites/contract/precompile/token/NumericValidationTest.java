@@ -486,10 +486,10 @@ public class NumericValidationTest {
             // see also HbarAllowanceApprovalTest.hrc632ApproveFromEOA test
             return Stream.of(
                             // java.lang.ArithmeticException: BigInteger out of long range
-                            new UintTestCase(MAX_LONG_PLUS_1_BIG_INT, SUCCESS),
+                            new UintTestCase(MAX_LONG_PLUS_1_BIG_INT, CONTRACT_REVERT_EXECUTED),
                             // NEGATIVE_ALLOWANCE_AMOUNT
-                            new UintTestCase(BigInteger.valueOf(-1), SUCCESS),
-                            new UintTestCase(BigInteger.ZERO, SUCCESS))
+                            new UintTestCase(BigInteger.valueOf(-1), CONTRACT_REVERT_EXECUTED),
+                            new UintTestCase(BigInteger.ZERO, CONTRACT_REVERT_EXECUTED))
                     .flatMap(testCase -> hapiTest(numericContract
                             .call("hbarApproveProxy", owner, spender, testCase.amount())
                             .gas(1_000_000L)

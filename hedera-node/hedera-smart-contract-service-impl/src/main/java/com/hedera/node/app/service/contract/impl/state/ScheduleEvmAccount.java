@@ -1,20 +1,19 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.state;
 
-import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.AbstractNativeSystemContract.FUNCTION_SELECTOR_LENGTH;
+import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.HssSystemContract.HSS_EVM_ADDRESS;
+import static org.hyperledger.besu.crypto.Hash.keccak256;
+import static org.hyperledger.besu.evm.worldstate.CodeDelegationHelper.CODE_DELEGATION_PREFIX;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.Set;
 import org.apache.tuweni.bytes.Bytes;
 import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.datatypes.Hash;
-import org.hyperledger.besu.evm.Code;
 import org.hyperledger.besu.evm.account.Account;
 import org.hyperledger.besu.evm.account.MutableAccount;
-import org.hyperledger.besu.evm.code.CodeFactory;
 
 /**
- * An {@link Account} whose code proxies all calls to the {@code 0x16b} system contract, and thus can
+ * An {@link Account} whose code is an EIP-7702 delegation to the {@code 0x16b} system contract, and thus can
  * never change its storage or nonce.
  *
  * <p>It also cannot have a non-zero balance, as dispatching a {@code transferValue()} with a schedule
@@ -27,25 +26,14 @@ import org.hyperledger.besu.evm.code.CodeFactory;
  */
 public class ScheduleEvmAccount extends AbstractEvmEntityAccount {
 
-    /*
-     * Four byte function selectors for the functions that are eligible for proxy redirection
-     * in the Hedera Schedule Service system contract
-     */
-    private static final Set<Integer> SCHEDULE_PROXY_FUNCTION_SELECTOR = Set.of(
-            // deleteSchedule()
-            0xc61dea85,
-            // signSchedule()
-            0x06d15889,
-            // getScheduledTransactionInfo()
-            0x88af14e3);
+    // EIP-7702 delegation to HSS system contract
+    public static final Bytes CODE = Bytes.concatenate(CODE_DELEGATION_PREFIX, Address.fromHexString(HSS_EVM_ADDRESS));
+    public static final Hash CODE_HASH = Hash.wrap(keccak256(CODE));
 
     public ScheduleEvmAccount(@NonNull final Address address, @NonNull final EvmFrameState state) {
         super(address, state);
     }
 
-    /**
-     * {@inheritDoc}
-     */
     @Override
     public boolean isScheduleTxnFacade() {
         return true;
@@ -53,22 +41,11 @@ public class ScheduleEvmAccount extends AbstractEvmEntityAccount {
 
     @Override
     public Bytes getCode() {
-        return state.getScheduleRedirectCode(address);
-    }
-
-    @Override
-    public @NonNull Code getEvmCode(@NonNull final Bytes functionSelector, @NonNull final CodeFactory codeFactory) {
-        // Check to see if the account needs to return the proxy redirect for schedule bytecode
-        final int selector = functionSelector.size() >= FUNCTION_SELECTOR_LENGTH ? functionSelector.getInt(0) : 0;
-
-        if (!SCHEDULE_PROXY_FUNCTION_SELECTOR.contains(selector)) {
-            return codeFactory.createCode(Bytes.EMPTY, false);
-        }
-        return codeFactory.createCode(getCode(), false);
+        return CODE;
     }
 
     @Override
     public Hash getCodeHash() {
-        return state.getScheduleRedirectCodeHash(address);
+        return CODE_HASH;
     }
 }
