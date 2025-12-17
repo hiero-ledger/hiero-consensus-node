@@ -108,6 +108,7 @@ class EthTxSigsTest {
                 ZERO_BYTES,
                 null,
                 null,
+                null,
                 3,
                 new byte[0],
                 allFs,
@@ -131,6 +132,7 @@ class EthTxSigsTest {
                 BigInteger.ZERO,
                 ZERO_BYTES,
                 ZERO_BYTES,
+                null,
                 null,
                 null,
                 1,
@@ -214,7 +216,6 @@ class EthTxSigsTest {
 
         final Object[] accessList =
                 new Object[] {new Object[] {fillBytes(20, 0x10), new Object[] {fillBytes(32, 0x01)}}};
-        final byte[] authorizationList = fillBytes(5, 0x70);
 
         when(ethTx.chainId()).thenReturn(chainId);
         when(ethTx.nonce()).thenReturn(nonce);
@@ -225,10 +226,11 @@ class EthTxSigsTest {
         when(ethTx.value()).thenReturn(BigInteger.valueOf(value));
         when(ethTx.callData()).thenReturn(callData);
         when(ethTx.accessListAsRlp()).thenReturn(accessList);
-        when(ethTx.authorizationList()).thenReturn(authorizationList);
+        when(ethTx.authorizationListAsRlp()).thenReturn(authListAsObject);
 
         final byte[] actual = EthTxSigs.resolveEIP7702(ethTx);
 
+        // Expected: authorizationList should be decoded and re-encoded as Object[] structure
         final byte[] expected = RLPEncoder.sequence(Integers.toBytes(4), new Object[] {
             chainId,
             Integers.toBytes(nonce),
@@ -239,7 +241,7 @@ class EthTxSigsTest {
             Integers.toBytesUnsigned(BigInteger.valueOf(value)),
             callData,
             accessList,
-            authorizationList
+            authListAsObject
         });
 
         assertArrayEquals(expected, actual);
@@ -258,8 +260,6 @@ class EthTxSigsTest {
         final long value = 1L;
         final var callData = new byte[0];
 
-        final byte[] authorizationList = fillBytes(5, 0x70);
-
         when(ethTx.chainId()).thenReturn(chainId);
         when(ethTx.nonce()).thenReturn(nonce);
         when(ethTx.maxPriorityGas()).thenReturn(maxPriorityGas);
@@ -269,7 +269,7 @@ class EthTxSigsTest {
         when(ethTx.value()).thenReturn(BigInteger.valueOf(value));
         when(ethTx.callData()).thenReturn(callData);
         when(ethTx.accessListAsRlp()).thenReturn(null); // triggers empty list
-        when(ethTx.authorizationList()).thenReturn(authorizationList);
+        when(ethTx.authorizationListAsRlp()).thenReturn(authListAsObject);
 
         final byte[] actual = EthTxSigs.resolveEIP7702(ethTx);
 
@@ -283,7 +283,7 @@ class EthTxSigsTest {
             Integers.toBytesUnsigned(BigInteger.valueOf(value)),
             callData,
             new Object[0], // empty access list
-            authorizationList
+            authListAsObject
         });
 
         assertArrayEquals(expected, actual);
@@ -337,4 +337,10 @@ class EthTxSigsTest {
             assertTrue(result.isPresent());
         }
     }
+
+    private static final Object[] authListAsObject = new Object[] {
+        new Object[] {
+            fillBytes(2, 0x01), fillBytes(20, 0x22), new byte[0], new byte[0], fillBytes(32, 0x33), fillBytes(32, 0x44)
+        }
+    };
 }

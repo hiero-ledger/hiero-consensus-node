@@ -341,6 +341,7 @@ public class HapiEthereumCall extends HapiBaseCall<HapiEthereumCall> {
                 new byte[] {},
                 null,
                 authorizationList,
+                new Object[] {},
                 0,
                 null,
                 null,

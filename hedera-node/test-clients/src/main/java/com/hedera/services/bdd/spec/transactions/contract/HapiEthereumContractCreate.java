@@ -282,6 +282,7 @@ public class HapiEthereumContractCreate extends HapiBaseContractCreate<HapiEther
                 new byte[] {},
                 null,
                 null,
+                null,
                 0,
                 null,
                 null,
