@@ -54,6 +54,7 @@ import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.HookEntityId;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.SubType;
+import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.token.CryptoCreateTransactionBody;
 import com.hedera.hapi.node.token.CryptoUpdateTransactionBody;
@@ -332,7 +333,7 @@ public class CryptoCreateHandler extends BaseCryptoHandler implements Transactio
         final var txn = context.body();
         final var isAdminPayer = entityIdFactory
                 .newAccountId(accountsConfig.systemAdmin())
-                .equals(txn.transactionIDOrThrow().accountIDOrThrow());
+                .equals(txn.transactionIDOrElse(TransactionID.DEFAULT).accountIDOrElse(AccountID.DEFAULT));
         final var isPostUpgradeSyntheticCreation =
                 txn.hasTransactionID() && txn.transactionIDOrThrow().nonce() != 0 && isAdminPayer;
 
