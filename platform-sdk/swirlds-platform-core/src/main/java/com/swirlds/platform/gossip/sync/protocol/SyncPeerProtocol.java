@@ -6,7 +6,6 @@ import static org.hiero.base.CompareTo.isGreaterThanOrEqualTo;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.threading.pool.ParallelExecutionException;
 import com.swirlds.platform.Utilities;
-import com.swirlds.platform.gossip.IntakeEventCounter;
 import com.swirlds.platform.gossip.SyncException;
 import com.swirlds.platform.gossip.permits.SyncPermitProvider;
 import com.swirlds.platform.gossip.shadowgraph.ShadowgraphSynchronizer;
@@ -22,6 +21,7 @@ import java.time.Instant;
 import java.util.Objects;
 import java.util.function.BooleanSupplier;
 import java.util.function.Supplier;
+import org.hiero.consensus.event.IntakeEventCounter;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
 
