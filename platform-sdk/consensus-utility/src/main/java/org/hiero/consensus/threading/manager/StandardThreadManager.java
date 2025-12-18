@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.common.threading.manager;
+package org.hiero.consensus.threading.manager;
 
 import com.swirlds.base.state.LifecyclePhase;
-import com.swirlds.common.threading.framework.config.ThreadConfiguration;
+import org.hiero.consensus.threading.framework.config.ThreadConfiguration;
 import java.util.concurrent.ThreadFactory;
 
 /**

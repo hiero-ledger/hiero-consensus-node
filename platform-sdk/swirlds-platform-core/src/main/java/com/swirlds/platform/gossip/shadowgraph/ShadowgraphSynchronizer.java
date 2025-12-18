@@ -12,10 +12,10 @@ import static com.swirlds.platform.gossip.shadowgraph.SyncUtils.writeMyTipsAndEv
 import static com.swirlds.platform.gossip.shadowgraph.SyncUtils.writeTheirTipsIHave;
 
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.threading.framework.Stoppable;
-import com.swirlds.common.threading.framework.Stoppable.StopBehavior;
-import com.swirlds.common.threading.pool.ParallelExecutionException;
-import com.swirlds.common.threading.pool.ParallelExecutor;
+import org.hiero.consensus.threading.framework.Stoppable;
+import org.hiero.consensus.threading.framework.Stoppable.StopBehavior;
+import org.hiero.consensus.threading.pool.ParallelExecutionException;
+import org.hiero.consensus.threading.pool.ParallelExecutor;
 import com.swirlds.platform.gossip.SyncException;
 import com.swirlds.platform.gossip.shadowgraph.SyncUtils.TipsInfo;
 import com.swirlds.platform.gossip.sync.config.SyncConfig;

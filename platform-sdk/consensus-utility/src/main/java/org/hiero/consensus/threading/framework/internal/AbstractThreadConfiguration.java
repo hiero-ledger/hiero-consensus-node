@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.common.threading.framework.internal;
+package org.hiero.consensus.threading.framework.internal;
 
-import static com.swirlds.common.threading.framework.config.ThreadConfiguration.captureThreadConfiguration;
+import static org.hiero.consensus.threading.framework.config.ThreadConfiguration.captureThreadConfiguration;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static java.util.Objects.requireNonNull;
 
 import com.swirlds.base.state.Mutable;
-import com.swirlds.common.threading.framework.ThreadSeed;
-import com.swirlds.common.threading.framework.config.ThreadConfiguration;
-import com.swirlds.common.threading.manager.ThreadManager;
+import org.hiero.consensus.threading.framework.ThreadSeed;
+import org.hiero.consensus.threading.framework.config.ThreadConfiguration;
+import org.hiero.consensus.threading.manager.ThreadManager;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.HashMap;

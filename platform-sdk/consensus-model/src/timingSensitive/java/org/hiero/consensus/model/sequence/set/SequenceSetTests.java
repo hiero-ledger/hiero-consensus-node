@@ -2,16 +2,16 @@
 package org.hiero.consensus.model.sequence.set;
 
 import static com.swirlds.common.test.fixtures.AssertionUtils.completeBeforeTimeout;
-import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticThreadManager;
+import static org.hiero.consensus.threading.manager.AdHocThreadManager.getStaticThreadManager;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
-import com.swirlds.common.threading.framework.Stoppable;
-import com.swirlds.common.threading.framework.StoppableThread;
-import com.swirlds.common.threading.framework.config.StoppableThreadConfiguration;
+import org.hiero.consensus.threading.framework.Stoppable;
+import org.hiero.consensus.threading.framework.StoppableThread;
+import org.hiero.consensus.threading.framework.config.StoppableThreadConfiguration;
 import java.time.Duration;
 import java.util.HashMap;
 import java.util.HashSet;

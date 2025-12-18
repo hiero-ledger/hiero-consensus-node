@@ -3,8 +3,8 @@ package com.swirlds.platform.network;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 
-import com.swirlds.common.threading.framework.config.ThreadConfiguration;
-import com.swirlds.common.threading.manager.ThreadManager;
+import org.hiero.consensus.threading.framework.config.ThreadConfiguration;
+import org.hiero.consensus.threading.manager.ThreadManager;
 import com.swirlds.platform.network.connectivity.InboundConnectionHandler;
 import com.swirlds.platform.network.connectivity.SocketFactory;
 import java.io.IOException;

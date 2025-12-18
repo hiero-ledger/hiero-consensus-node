@@ -5,6 +5,11 @@ module org.hiero.consensus.utility {
     exports org.hiero.consensus.event;
     exports org.hiero.consensus.exceptions;
     exports org.hiero.consensus.roster;
+    exports org.hiero.consensus.threading.framework;
+    exports org.hiero.consensus.threading.framework.config;
+    exports org.hiero.consensus.threading.framework.internal;
+    exports org.hiero.consensus.threading.manager;
+    exports org.hiero.consensus.threading.pool;
     exports org.hiero.consensus.transaction;
     exports org.hiero.consensus.round;
 

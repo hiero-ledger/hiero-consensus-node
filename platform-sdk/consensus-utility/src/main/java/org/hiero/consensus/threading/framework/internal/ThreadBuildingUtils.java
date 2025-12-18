@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.common.threading.framework.internal;
+package org.hiero.consensus.threading.framework.internal;
 
-import com.swirlds.common.threading.framework.config.QueueThreadMetricsConfiguration;
+import org.hiero.consensus.threading.framework.config.QueueThreadMetricsConfiguration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;

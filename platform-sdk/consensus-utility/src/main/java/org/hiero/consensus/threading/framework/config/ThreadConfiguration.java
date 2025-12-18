@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.common.threading.framework.config;
+package org.hiero.consensus.threading.framework.config;
 
-import com.swirlds.common.threading.framework.ThreadSeed;
-import com.swirlds.common.threading.framework.internal.AbstractThreadConfiguration;
-import com.swirlds.common.threading.manager.ThreadManager;
+import org.hiero.consensus.threading.framework.ThreadSeed;
+import org.hiero.consensus.threading.framework.internal.AbstractThreadConfiguration;
+import org.hiero.consensus.threading.manager.ThreadManager;
 import java.util.concurrent.ThreadFactory;
 
 /**

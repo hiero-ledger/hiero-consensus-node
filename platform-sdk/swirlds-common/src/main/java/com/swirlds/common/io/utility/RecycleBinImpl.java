@@ -9,9 +9,9 @@ import static java.nio.file.Files.exists;
 
 import com.swirlds.base.state.Stoppable;
 import com.swirlds.base.time.Time;
-import com.swirlds.common.threading.framework.StoppableThread;
-import com.swirlds.common.threading.framework.config.StoppableThreadConfiguration;
-import com.swirlds.common.threading.manager.ThreadManager;
+import org.hiero.consensus.threading.framework.StoppableThread;
+import org.hiero.consensus.threading.framework.config.StoppableThreadConfiguration;
+import org.hiero.consensus.threading.manager.ThreadManager;
 import com.swirlds.metrics.api.IntegerGauge;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;

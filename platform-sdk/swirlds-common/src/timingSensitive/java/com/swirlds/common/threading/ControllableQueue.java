@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.threading;
 
-import com.swirlds.common.threading.framework.internal.AbstractBlockingQueue;
+import org.hiero.consensus.threading.framework.internal.AbstractBlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;

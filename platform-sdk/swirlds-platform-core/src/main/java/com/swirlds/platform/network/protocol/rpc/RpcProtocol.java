@@ -3,8 +3,8 @@ package com.swirlds.platform.network.protocol.rpc;
 
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.threading.manager.ThreadManager;
-import com.swirlds.common.threading.pool.CachedPoolParallelExecutor;
+import org.hiero.consensus.threading.manager.ThreadManager;
+import org.hiero.consensus.threading.pool.CachedPoolParallelExecutor;
 import com.swirlds.platform.gossip.shadowgraph.RpcPeerHandler;
 import com.swirlds.platform.gossip.shadowgraph.RpcShadowgraphSynchronizer;
 import com.swirlds.platform.metrics.SyncMetrics;

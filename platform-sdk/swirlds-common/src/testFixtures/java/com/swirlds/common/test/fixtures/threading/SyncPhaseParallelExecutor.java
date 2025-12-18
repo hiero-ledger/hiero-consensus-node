@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.test.fixtures.threading;
 
-import com.swirlds.common.threading.manager.ThreadManager;
-import com.swirlds.common.threading.pool.ParallelExecutionException;
-import com.swirlds.common.threading.pool.ParallelExecutor;
+import org.hiero.consensus.threading.manager.ThreadManager;
+import org.hiero.consensus.threading.pool.ParallelExecutionException;
+import org.hiero.consensus.threading.pool.ParallelExecutor;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.List;

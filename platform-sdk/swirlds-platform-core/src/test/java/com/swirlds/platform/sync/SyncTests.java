@@ -2,7 +2,7 @@
 package com.swirlds.platform.sync;
 
 import static com.swirlds.common.test.fixtures.io.ResourceLoader.loadLog4jContext;
-import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticThreadManager;
+import static org.hiero.consensus.threading.manager.AdHocThreadManager.getStaticThreadManager;
 import static com.swirlds.platform.test.fixtures.event.EventUtils.integerPowerDistribution;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -11,9 +11,9 @@ import static org.junit.jupiter.api.Assertions.fail;
 
 import com.swirlds.common.test.fixtures.threading.ReplaceSyncPhaseParallelExecutor;
 import com.swirlds.common.test.fixtures.threading.SyncPhaseParallelExecutor;
-import com.swirlds.common.threading.pool.CachedPoolParallelExecutor;
-import com.swirlds.common.threading.pool.ParallelExecutionException;
-import com.swirlds.common.threading.pool.ParallelExecutor;
+import org.hiero.consensus.threading.pool.CachedPoolParallelExecutor;
+import org.hiero.consensus.threading.pool.ParallelExecutionException;
+import org.hiero.consensus.threading.pool.ParallelExecutor;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.platform.gossip.shadowgraph.ShadowEvent;
 import com.swirlds.platform.test.fixtures.event.emitter.EventEmitterFactory;

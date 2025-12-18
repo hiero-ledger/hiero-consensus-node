@@ -4,7 +4,7 @@ package com.swirlds.platform.gossip.sync.protocol;
 import static org.hiero.base.CompareTo.isGreaterThanOrEqualTo;
 
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.threading.pool.ParallelExecutionException;
+import org.hiero.consensus.threading.pool.ParallelExecutionException;
 import com.swirlds.platform.Utilities;
 import com.swirlds.platform.gossip.SyncException;
 import com.swirlds.platform.gossip.permits.SyncPermitProvider;

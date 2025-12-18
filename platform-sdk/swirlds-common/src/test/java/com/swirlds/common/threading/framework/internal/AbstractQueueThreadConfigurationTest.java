@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.common.threading.framework.internal;
+package org.hiero.consensus.threading.framework.internal;
 
 import static com.swirlds.metrics.api.Metrics.INTERNAL_CATEGORY;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -13,10 +13,10 @@ import com.swirlds.common.metrics.config.MetricsConfig;
 import com.swirlds.common.metrics.platform.DefaultPlatformMetrics;
 import com.swirlds.common.metrics.platform.MetricKeyRegistry;
 import com.swirlds.common.metrics.platform.PlatformMetricsFactoryImpl;
-import com.swirlds.common.threading.framework.QueueThread;
-import com.swirlds.common.threading.framework.StoppableThread;
-import com.swirlds.common.threading.framework.config.QueueThreadMetricsConfiguration;
-import com.swirlds.common.threading.manager.ThreadManager;
+import org.hiero.consensus.threading.framework.QueueThread;
+import org.hiero.consensus.threading.framework.StoppableThread;
+import org.hiero.consensus.threading.framework.config.QueueThreadMetricsConfiguration;
+import org.hiero.consensus.threading.manager.ThreadManager;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.metrics.api.IntegerAccumulator;

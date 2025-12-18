@@ -21,7 +21,7 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.statevalidation.report.SlackReportGenerator;
 import com.hedera.statevalidation.util.junit.StateResolver;
 import com.swirlds.base.utility.Pair;
-import com.swirlds.common.threading.manager.AdHocThreadManager;
+import org.hiero.consensus.threading.manager.AdHocThreadManager;
 import com.swirlds.platform.state.snapshot.DeserializedSignedState;
 import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.merkle.StateKeyUtils;

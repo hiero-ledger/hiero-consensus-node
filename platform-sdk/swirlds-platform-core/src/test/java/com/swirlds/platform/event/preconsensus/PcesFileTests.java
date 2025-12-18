@@ -2,7 +2,7 @@
 package com.swirlds.platform.event.preconsensus;
 
 import static com.swirlds.common.test.fixtures.io.FileManipulation.writeRandomBytes;
-import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticThreadManager;
+import static org.hiero.consensus.threading.manager.AdHocThreadManager.getStaticThreadManager;
 import static com.swirlds.platform.event.preconsensus.PcesFile.EVENT_FILE_SEPARATOR;
 import static com.swirlds.platform.event.preconsensus.PcesFile.MAXIMUM_BIRTH_ROUND_PREFIX;
 import static com.swirlds.platform.event.preconsensus.PcesFile.MINIMUM_BIRTH_ROUND_PREFIX;

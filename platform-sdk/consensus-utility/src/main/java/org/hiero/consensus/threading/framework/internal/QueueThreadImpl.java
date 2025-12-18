@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.common.threading.framework.internal;
+package org.hiero.consensus.threading.framework.internal;
 
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 
 import com.swirlds.base.utility.ToStringBuilder;
-import com.swirlds.common.threading.framework.QueueThread;
-import com.swirlds.common.threading.framework.StoppableThread;
-import com.swirlds.common.threading.framework.ThreadSeed;
+import org.hiero.consensus.threading.framework.QueueThread;
+import org.hiero.consensus.threading.framework.StoppableThread;
+import org.hiero.consensus.threading.framework.ThreadSeed;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;

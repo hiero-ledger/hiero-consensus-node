@@ -2,8 +2,8 @@
 package com.swirlds.common.stream;
 
 import com.swirlds.common.stream.internal.LinkedObjectStream;
-import com.swirlds.common.threading.framework.config.QueueThreadConfiguration;
-import com.swirlds.common.threading.manager.ThreadManager;
+import org.hiero.consensus.threading.framework.config.QueueThreadConfiguration;
+import org.hiero.consensus.threading.manager.ThreadManager;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
 import org.hiero.base.crypto.RunningHashable;

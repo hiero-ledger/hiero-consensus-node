@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.common.threading.framework.config;
+package org.hiero.consensus.threading.framework.config;
 
-import com.swirlds.common.threading.framework.StoppableThread;
-import com.swirlds.common.threading.framework.TypedStoppableThread;
-import com.swirlds.common.threading.framework.internal.AbstractStoppableThreadConfiguration;
-import com.swirlds.common.threading.manager.ThreadManager;
+import org.hiero.consensus.threading.framework.StoppableThread;
+import org.hiero.consensus.threading.framework.TypedStoppableThread;
+import org.hiero.consensus.threading.framework.internal.AbstractStoppableThreadConfiguration;
+import org.hiero.consensus.threading.manager.ThreadManager;
 import org.hiero.base.concurrent.interrupt.InterruptableRunnable;
 
 /**

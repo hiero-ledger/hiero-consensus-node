@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.common.threading.framework;
+package org.hiero.consensus.threading.framework;
 
 import java.util.concurrent.BlockingQueue;
 import org.hiero.base.Clearable;

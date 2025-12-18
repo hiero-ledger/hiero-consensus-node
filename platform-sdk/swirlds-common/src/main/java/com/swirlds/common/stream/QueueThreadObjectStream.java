@@ -4,7 +4,7 @@ package com.swirlds.common.stream;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 
 import com.swirlds.common.stream.internal.LinkedObjectStream;
-import com.swirlds.common.threading.framework.QueueThread;
+import org.hiero.consensus.threading.framework.QueueThread;
 import java.util.Queue;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;

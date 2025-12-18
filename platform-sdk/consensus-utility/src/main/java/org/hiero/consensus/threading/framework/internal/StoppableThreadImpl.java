@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.common.threading.framework.internal;
+package org.hiero.consensus.threading.framework.internal;
 
 import static com.swirlds.base.units.UnitConstants.NANOSECONDS_TO_MILLISECONDS;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
@@ -11,9 +11,9 @@ import static org.hiero.base.StackTrace.getStackTrace;
 import static org.hiero.base.concurrent.interrupt.Uninterruptable.retryIfInterrupted;
 
 import com.swirlds.base.utility.ToStringBuilder;
-import com.swirlds.common.threading.framework.Stoppable;
-import com.swirlds.common.threading.framework.ThreadSeed;
-import com.swirlds.common.threading.framework.TypedStoppableThread;
+import org.hiero.consensus.threading.framework.Stoppable;
+import org.hiero.consensus.threading.framework.ThreadSeed;
+import org.hiero.consensus.threading.framework.TypedStoppableThread;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.concurrent.CountDownLatch;
@@ -50,7 +50,7 @@ public class StoppableThreadImpl<T extends InterruptableRunnable> implements Typ
     /**
      * The amount of time in milliseconds to wait after setting the thread status to {@link Status#DYING} before
      * interrupting the thread if {@link #stopBehavior} is
-     * {@link com.swirlds.common.threading.framework.Stoppable.StopBehavior#INTERRUPTABLE INTERRUPTABLE}.
+     * {@link org.hiero.consensus.threading.framework.Stoppable.StopBehavior#INTERRUPTABLE INTERRUPTABLE}.
      */
     private final int joinWaitMs;
 
@@ -601,7 +601,7 @@ public class StoppableThreadImpl<T extends InterruptableRunnable> implements Typ
 
     /**
      * Perform the last cycle of work. Only called if {@link #stopBehavior} is
-     * {@link com.swirlds.common.threading.framework.Stoppable.StopBehavior#BLOCKING BLOCKING}.
+     * {@link org.hiero.consensus.threading.framework.Stoppable.StopBehavior#BLOCKING BLOCKING}.
      *
      * @throws InterruptedException if the thread running the work is interrupted
      */

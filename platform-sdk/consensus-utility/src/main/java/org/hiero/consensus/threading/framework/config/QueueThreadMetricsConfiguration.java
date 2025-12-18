@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.common.threading.framework.config;
+package org.hiero.consensus.threading.framework.config;
 
 import com.swirlds.base.time.Time;
 import com.swirlds.metrics.api.Metrics;
@@ -54,35 +54,6 @@ public class QueueThreadMetricsConfiguration {
      */
     public @NonNull QueueThreadMetricsConfiguration setTime(@NonNull final Time time) {
         this.time = time;
-        return this;
-    }
-
-    /**
-     * Enables the metric that tracks the maximum queue size
-     *
-     * @return this object
-     */
-    public @NonNull QueueThreadMetricsConfiguration enableMaxSizeMetric() {
-        this.maxSizeMetricEnabled = true;
-        return this;
-    }
-
-    /**
-     * Enables the metric that tracks the minimum queue size
-     *
-     * @return this object
-     */
-    public @NonNull QueueThreadMetricsConfiguration enableMinSizeMetric() {
-        this.minSizeMetricEnabled = true;
-        return this;
-    }
-
-    /**
-     * Enables the metric that tracks the busy time of the queue thread
-     * @return this object
-     */
-    public @NonNull QueueThreadMetricsConfiguration enableBusyTimeMetric() {
-        this.busyTimeMetricEnabled = true;
         return this;
     }
 

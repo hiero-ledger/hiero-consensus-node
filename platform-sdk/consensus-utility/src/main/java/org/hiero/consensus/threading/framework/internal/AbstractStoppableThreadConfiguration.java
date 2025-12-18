@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.common.threading.framework.internal;
+package org.hiero.consensus.threading.framework.internal;
 
 import static com.swirlds.base.units.UnitConstants.NANOSECONDS_TO_SECONDS;
 import static com.swirlds.base.units.UnitConstants.SECONDS_TO_NANOSECONDS;
 
-import com.swirlds.common.threading.framework.Stoppable;
-import com.swirlds.common.threading.framework.ThreadSeed;
-import com.swirlds.common.threading.framework.TypedStoppableThread;
-import com.swirlds.common.threading.manager.ThreadManager;
+import org.hiero.consensus.threading.framework.Stoppable;
+import org.hiero.consensus.threading.framework.ThreadSeed;
+import org.hiero.consensus.threading.framework.TypedStoppableThread;
+import org.hiero.consensus.threading.manager.ThreadManager;
 import java.time.Duration;
 import org.hiero.base.concurrent.interrupt.InterruptableRunnable;
 
@@ -121,7 +121,7 @@ public abstract class AbstractStoppableThreadConfiguration<
 
     /**
      * Get the method that will be run after the thread is stopped. Ignored if {@link #stopBehavior} is
-     * {@link com.swirlds.common.threading.framework.Stoppable.StopBehavior#INTERRUPTABLE INTERRUPTABLE}.
+     * {@link org.hiero.consensus.threading.framework.Stoppable.StopBehavior#INTERRUPTABLE INTERRUPTABLE}.
      */
     protected InterruptableRunnable getFinalCycleWork() {
         return finalCycleWork;
@@ -129,7 +129,7 @@ public abstract class AbstractStoppableThreadConfiguration<
 
     /**
      * Set the method that will be run after the thread is stopped. Ignored if {@link #stopBehavior} is
-     * {@link com.swirlds.common.threading.framework.Stoppable.StopBehavior#INTERRUPTABLE INTERRUPTABLE}.
+     * {@link org.hiero.consensus.threading.framework.Stoppable.StopBehavior#INTERRUPTABLE INTERRUPTABLE}.
      *
      * @return this object
      */

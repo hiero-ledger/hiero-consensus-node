@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.common.threading.framework.internal;
+package org.hiero.consensus.threading.framework.internal;
 
 import com.swirlds.common.metrics.extensions.FractionalTimer;
 import com.swirlds.common.metrics.extensions.StandardFractionalTimer;
-import com.swirlds.common.threading.framework.config.QueueThreadMetricsConfiguration;
+import org.hiero.consensus.threading.framework.config.QueueThreadMetricsConfiguration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 
 /**

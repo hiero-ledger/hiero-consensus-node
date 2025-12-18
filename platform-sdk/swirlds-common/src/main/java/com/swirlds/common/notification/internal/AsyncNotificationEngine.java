@@ -6,7 +6,7 @@ import com.swirlds.common.notification.DispatchOrder;
 import com.swirlds.common.notification.Listener;
 import com.swirlds.common.notification.NoListenersAvailableException;
 import com.swirlds.common.notification.NotificationResult;
-import com.swirlds.common.threading.manager.ThreadManager;
+import org.hiero.consensus.threading.manager.ThreadManager;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Future;

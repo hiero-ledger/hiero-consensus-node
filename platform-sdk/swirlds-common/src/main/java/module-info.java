@@ -41,10 +41,6 @@ module com.swirlds.common {
     exports com.swirlds.common.platform;
     exports com.swirlds.common.stream;
     exports com.swirlds.common.stream.internal;
-    exports com.swirlds.common.threading.framework;
-    exports com.swirlds.common.threading.framework.config;
-    exports com.swirlds.common.threading.manager;
-    exports com.swirlds.common.threading.pool;
     exports com.swirlds.common.utility;
     exports com.swirlds.common.utility.throttle;
     exports com.swirlds.common.jackson;
@@ -103,4 +99,5 @@ module com.swirlds.common {
     requires org.bouncycastle.provider;
     requires simpleclient.httpserver;
     requires static transitive com.github.spotbugs.annotations;
+    requires org.hiero.consensus.utility;
 }
