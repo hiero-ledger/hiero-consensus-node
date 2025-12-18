@@ -92,7 +92,7 @@ jobs:
         run: |
           if [[ "${{ steps.compile-source.outcome }}" == "success" ]] \
           && [[ "${{ steps.prepare-runner.outcome }}" == "success" ]]; then
-            echo "failure-mode=none" >> $GITHUB_OUTPUT
+            echo "failure-mode=none" >> "${GITHUB_OUTPUT}"
           else
-            echo "failure-mode=workflow" >> $GITHUB_OUTPUT
+            echo "failure-mode=workflow" >> "${GITHUB_OUTPUT}"
           fi
