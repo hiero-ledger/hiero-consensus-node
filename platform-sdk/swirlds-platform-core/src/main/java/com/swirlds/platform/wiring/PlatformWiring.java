@@ -442,6 +442,7 @@ public class PlatformWiring {
         final OutputWire<EventWindow> eventWindowOutputWire =
                 components.eventWindowManagerWiring().getOutputWire();
 
+        eventWindowOutputWire.solderTo(components.eventIntakeModule().eventWindowInputWire(), INJECT);
         eventWindowOutputWire.solderTo(
                 components.eventSignatureValidatorWiring().getInputWire(EventSignatureValidator::setEventWindow),
                 INJECT);
