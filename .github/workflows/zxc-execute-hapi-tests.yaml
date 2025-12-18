@@ -138,6 +138,7 @@ jobs:
           checkout: "true"
           checkout-ref: "${{ inputs.ref }}"
           checkout-fetch-depth: "1"
+          checkout-token: "${{ secrets.access-token }}"
           setup-java: "true"
           java-version: "${{ inputs.java-version }}"
           java-distribution: "${{ inputs.java-distribution }}"
@@ -191,6 +192,7 @@ jobs:
           checkout: "true"
           checkout-ref: "${{ inputs.ref }}"
           checkout-fetch-depth: "1"
+          checkout-token: "${{ secrets.access-token }}"
           setup-java: "true"
           java-version: "${{ inputs.java-version }}"
           java-distribution: "${{ inputs.java-distribution }}"
@@ -243,6 +245,7 @@ jobs:
           checkout: "true"
           checkout-ref: "${{ inputs.ref }}"
           checkout-fetch-depth: "1"
+          checkout-token: "${{ secrets.access-token }}"
           setup-java: "true"
           java-version: "${{ inputs.java-version }}"
           java-distribution: "${{ inputs.java-distribution }}"
@@ -295,6 +298,7 @@ jobs:
           checkout: "true"
           checkout-ref: "${{ inputs.ref }}"
           checkout-fetch-depth: "1"
+          checkout-token: "${{ secrets.access-token }}"
           setup-java: "true"
           java-version: "${{ inputs.java-version }}"
           java-distribution: "${{ inputs.java-distribution }}"
@@ -347,6 +351,7 @@ jobs:
           checkout: "true"
           checkout-ref: "${{ inputs.ref }}"
           checkout-fetch-depth: "1"
+          checkout-token: "${{ secrets.access-token }}"
           setup-java: "true"
           java-version: "${{ inputs.java-version }}"
           java-distribution: "${{ inputs.java-distribution }}"
@@ -399,6 +404,7 @@ jobs:
           checkout: "true"
           checkout-ref: "${{ inputs.ref }}"
           checkout-fetch-depth: "1"
+          checkout-token: "${{ secrets.access-token }}"
           setup-java: "true"
           java-version: "${{ inputs.java-version }}"
           java-distribution: "${{ inputs.java-distribution }}"
@@ -451,6 +457,7 @@ jobs:
           checkout: "true"
           checkout-ref: "${{ inputs.ref }}"
           checkout-fetch-depth: "1"
+          checkout-token: "${{ secrets.access-token }}"
           setup-java: "true"
           java-version: "${{ inputs.java-version }}"
           java-distribution: "${{ inputs.java-distribution }}"
@@ -503,6 +510,7 @@ jobs:
           checkout: "true"
           checkout-ref: "${{ inputs.ref }}"
           checkout-fetch-depth: "1"
+          checkout-token: "${{ secrets.access-token }}"
           setup-java: "true"
           java-version: "${{ inputs.java-version }}"
           java-distribution: "${{ inputs.java-distribution }}"
@@ -555,6 +563,7 @@ jobs:
           checkout: "true"
           checkout-ref: "${{ inputs.ref }}"
           checkout-fetch-depth: "1"
+          checkout-token: "${{ secrets.access-token }}"
           setup-java: "true"
           java-version: "${{ inputs.java-version }}"
           java-distribution: "${{ inputs.java-distribution }}"
@@ -607,6 +616,7 @@ jobs:
           checkout: "true"
           checkout-ref: "${{ inputs.ref }}"
           checkout-fetch-depth: "1"
+          checkout-token: "${{ secrets.access-token }}"
           setup-java: "true"
           java-version: "${{ inputs.java-version }}"
           java-distribution: "${{ inputs.java-distribution }}"
@@ -659,6 +669,7 @@ jobs:
           checkout: "true"
           checkout-ref: "${{ inputs.ref }}"
           checkout-fetch-depth: "1"
+          checkout-token: "${{ secrets.access-token }}"
           setup-java: "true"
           java-version: "${{ inputs.java-version }}"
           java-distribution: "${{ inputs.java-distribution }}"
@@ -718,10 +729,6 @@ jobs:
     steps:
       - name: Initialize GitHub Job
         uses: pandaswhocode/initialize-github-job@bfe0b1633012cee3033c757c7095d49c360e23a6 # v1.0.1
-        with:
-          checkout: "true"
-          checkout-ref: "${{ inputs.ref }}"
-          checkout-fetch-depth: "1"
 
       - name: Set Failure Mode
         id: set-failure-mode

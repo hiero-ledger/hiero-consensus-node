@@ -80,6 +80,7 @@ jobs:
           checkout: "true"
           checkout-ref: "${{ inputs.ref }}"
           checkout-fetch-depth: "1"
+          checkout-token: "${{ secrets.access-token }}"
           setup-java: "true"
           java-version: "${{ inputs.java-version }}"
           java-distribution: "${{ inputs.java-distribution }}"

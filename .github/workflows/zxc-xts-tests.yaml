@@ -362,10 +362,8 @@ jobs:
       - block-node-regression-panel
     if: ${{ !cancelled() && always() }} # always run unless cancelled
     steps:
-      - name: Harden Runner
-        uses: step-security/harden-runner@f4a75cfd619ee5ce8d5b864b0d183aff3c69b55a # v2.13.1
-        with:
-          egress-policy: audit
+      - name: Initialize GitHub Job
+        uses: pandaswhocode/initialize-github-job@bfe0b1633012cee3033c757c7095d49c360e23a6 # v1.0.1
 
       - name: Set Failure Mode
         id: set-failure-mode
