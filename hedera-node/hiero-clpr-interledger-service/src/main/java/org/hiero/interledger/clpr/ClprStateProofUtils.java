@@ -4,12 +4,18 @@ package org.hiero.interledger.clpr;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.block.stream.StateProof;
+import com.hedera.hapi.node.state.blockstream.MerkleLeaf;
 import com.hedera.hapi.platform.state.StateItem;
+import com.hedera.hapi.platform.state.StateKey;
 import com.hedera.hapi.platform.state.StateValue;
+import com.hedera.node.app.hapi.utils.blocks.MerklePathBuilder;
+import com.hedera.node.app.hapi.utils.blocks.StateProofBuilder;
 import com.hedera.node.app.hapi.utils.blocks.StateProofVerifier;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.hiero.hapi.interledger.state.clpr.ClprLedgerConfiguration;
+import org.hiero.hapi.interledger.state.clpr.ClprLedgerId;
+import org.hiero.hapi.interledger.state.clpr.ClprMessageQueueMetadata;
 
 /**
  * Utility class for extracting and validating CLPR ledger configurations from state proofs.
@@ -116,5 +122,52 @@ public final class ClprStateProofUtils {
         return com.hedera.node.app.hapi.utils.blocks.StateProofBuilder.newBuilder()
                 .addMerklePath(pathBuilder)
                 .build();
+    }
+
+    public static StateProof buildLocalClprStateProofWrapper(
+            @NonNull final ClprLedgerId ledgerId, @NonNull final ClprMessageQueueMetadata messageQueueMetadata) {
+        requireNonNull(messageQueueMetadata, "message queue metadata must not be null");
+
+        final var stateKey =
+                StateKey.newBuilder().clprServiceIMessageQueues(ledgerId).build();
+        final var stateValue = StateValue.newBuilder()
+                .clprServiceIMessageQueues(messageQueueMetadata)
+                .build();
+        final var stateItem = new StateItem(stateKey, stateValue);
+        final var stateItemBytes = StateItem.PROTOBUF.toBytes(stateItem);
+        final var leaf = MerkleLeaf.newBuilder().stateItem(stateItemBytes).build();
+        final var pathBuilder = new MerklePathBuilder();
+        pathBuilder.setLeaf(leaf);
+        return StateProofBuilder.newBuilder().addMerklePath(pathBuilder).build();
+    }
+
+    @NonNull
+    public static ClprMessageQueueMetadata extractMessageQueueMetadata(@NonNull final StateProof stateProof) {
+        requireNonNull(stateProof, "stateProof must not be null");
+
+        // Extract the leaf from the first path
+        final var paths = stateProof.paths();
+        if (paths.isEmpty()) {
+            throw new IllegalStateException("State proof contains no paths");
+        }
+
+        final var firstPath = paths.get(0);
+        if (!firstPath.hasLeaf()) {
+            throw new IllegalStateException("First path does not contain a leaf");
+        }
+
+        final var leaf = firstPath.leaf();
+        if (!leaf.hasStateItem()) {
+            throw new IllegalArgumentException("Leaf does not contain a state item");
+        }
+
+        // Deserialize the state item bytes into a ClprLedgerConfiguration
+        final Bytes stateItemBytes = requireNonNull(leaf.stateItem());
+        try {
+            final var stateItem = StateItem.PROTOBUF.parse(stateItemBytes);
+            return stateItem.valueOrThrow().clprServiceIMessageQueuesOrThrow();
+        } catch (final Exception e) {
+            throw new IllegalStateException("Failed to parse ClprLedgerConfiguration from state proof leaf", e);
+        }
     }
 }

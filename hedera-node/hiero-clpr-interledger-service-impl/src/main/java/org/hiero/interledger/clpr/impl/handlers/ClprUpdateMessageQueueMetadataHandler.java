@@ -14,6 +14,8 @@ import com.hedera.node.app.spi.workflows.TransactionHandler;
 import com.hedera.node.config.ConfigProvider;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import javax.inject.Inject;
+import org.hiero.interledger.clpr.ClprStateProofUtils;
+import org.hiero.interledger.clpr.WritableClprMessageQueueStore;
 import org.hiero.interledger.clpr.impl.ClprStateProofManager;
 
 /**
@@ -55,7 +57,13 @@ public class ClprUpdateMessageQueueMetadataHandler implements TransactionHandler
     @Override
     public void handle(@NonNull HandleContext context) throws HandleException {
         final var txn = context.body();
-        final var messageQueueMetadata = txn.clprUpdateMessageQueueMetadata();
+        final var body = txn.clprUpdateMessageQueueMetadata();
+        final var messageQueueMetadata =
+                ClprStateProofUtils.extractMessageQueueMetadata(body.messageQueueMetadataProof());
+        final var writableMessageQueueMetadataStore =
+                context.storeFactory().writableStore(WritableClprMessageQueueStore.class);
+        // try to update the state
+        writableMessageQueueMetadataStore.put(body.ledgerId(), messageQueueMetadata);
         // TODO: Implement handle;
     }
 }

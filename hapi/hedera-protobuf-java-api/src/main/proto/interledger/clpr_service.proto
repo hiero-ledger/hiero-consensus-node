@@ -49,4 +49,12 @@ service ClprService {
      * [ClprGetLedgerConfigurationResponse](#org.hiero.hapi.interledger.clpr.ClprGetLedgerConfigurationResponse)
      */
     rpc getLedgerConfiguration (proto.Query) returns (proto.Response);
+
+    rpc updateMessageQueueMetadata (proto.Transaction) returns (proto.TransactionResponse);
+
+    rpc getMessageQueueMetadata (proto.Query) returns (proto.Response);
+
+    rpc processMessageBundle (proto.Transaction) returns (proto.TransactionResponse);
+
+    rpc getMessages (proto.Query) returns (proto.Response);
 }
