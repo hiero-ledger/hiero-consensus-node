@@ -116,9 +116,9 @@ jobs:
       ref: ${{ github.ref }}
       custom-job-label: "${{ inputs.custom-job-labnel }} Compile Code"
     secrets:
-      access-token: ${{ secrets.GITHUB_TOKEN }}
-      gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
-      gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
+      access-token: ${{ secrets.access-token }}
+      gradle-cache-username: ${{ secrets.gradle-cache-username }}
+      gradle-cache-password: ${{ secrets.gradle-cache-password }}
 
   dependency-check:
     name: "${{ inputs.custom-job-labnel }} Dependency (Module Info)"
@@ -129,9 +129,9 @@ jobs:
     with:
       ref: ${{ github.ref }}
     secrets:
-      access-token: ${{ secrets.GITHUB_TOKEN }}
-      gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
-      gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
+      access-token: ${{ secrets.access-token }}
+      gradle-cache-username: ${{ secrets.gradle-cache-username }}
+      gradle-cache-password: ${{ secrets.gradle-cache-password }}
 
   spotless:
     name: "${{ inputs.custom-job-labnel }} Spotless"
@@ -143,9 +143,9 @@ jobs:
       ref: ${{ github.ref }}
       custom-job-label: "${{ inputs.custom-job-label }} Spotless"
     secrets:
-      access-token: ${{ secrets.GITHUB_TOKEN }}
-      gradle-cache-username: ${{ secrets.GRADLE_CACHE_USERNAME }}
-      gradle-cache-password: ${{ secrets.GRADLE_CACHE_PASSWORD }}
+      access-token: ${{ secrets.access-token }}
+      gradle-cache-username: ${{ secrets.gradle-cache-username }}
+      gradle-cache-password: ${{ secrets.gradle-cache-password }}
 
   mats-unit-tests:
     name: Unit Tests
