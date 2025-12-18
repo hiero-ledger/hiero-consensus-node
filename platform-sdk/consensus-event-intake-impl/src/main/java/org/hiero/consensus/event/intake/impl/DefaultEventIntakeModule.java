@@ -19,6 +19,8 @@ import org.hiero.consensus.crypto.EventHasher;
 import org.hiero.consensus.event.IntakeEventCounter;
 import org.hiero.consensus.event.intake.EventIntakeModule;
 import org.hiero.consensus.event.intake.config.EventIntakeWiringConfig;
+import org.hiero.consensus.event.intake.impl.validation.DefaultInternalEventValidator;
+import org.hiero.consensus.event.intake.impl.validation.InternalEventValidator;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
@@ -32,6 +34,9 @@ public class DefaultEventIntakeModule implements EventIntakeModule {
 
     @Nullable
     private ComponentWiring<EventHasher, PlatformEvent> eventHasherWiring;
+
+    @Nullable
+    private ComponentWiring<InternalEventValidator, PlatformEvent> eventValidatorWiring;
 
     /**
      * {@inheritDoc}
@@ -56,10 +61,14 @@ public class DefaultEventIntakeModule implements EventIntakeModule {
 
         // Set up wiring
         final EventIntakeWiringConfig wiringConfig = configuration.getConfigData(EventIntakeWiringConfig.class);
-
         this.eventHasherWiring = new ComponentWiring<>(model, EventHasher.class, wiringConfig.eventHasher());
+        this.eventValidatorWiring =
+                new ComponentWiring<>(model, InternalEventValidator.class, wiringConfig.internalEventValidator());
 
-        // Force not soldered wires to be built
+        // Wire components
+        eventHasherWiring
+                .getOutputWire()
+                .solderTo(eventValidatorWiring.getInputWire(InternalEventValidator::validateEvent));
 
         // Wire metrics
         if (pipelineTracker != null) {
@@ -67,11 +76,18 @@ public class DefaultEventIntakeModule implements EventIntakeModule {
             this.eventHasherWiring
                     .getOutputWire()
                     .solderForMonitoring(platformEvent -> pipelineTracker.recordEvent("hashing", platformEvent));
+            pipelineTracker.registerMetric("validation");
+            this.eventValidatorWiring
+                    .getOutputWire()
+                    .solderForMonitoring(platformEvent -> pipelineTracker.recordEvent("validation", platformEvent));
         }
 
         // Create and bind components
         final EventHasher eventHasher = new DefaultEventHasher();
         eventHasherWiring.bind(eventHasher);
+        final InternalEventValidator internalEventValidator =
+                new DefaultInternalEventValidator(metrics, time, intakeEventCounter, transactionLimits);
+        eventValidatorWiring.bind(internalEventValidator);
     }
 
     /**
@@ -80,7 +96,7 @@ public class DefaultEventIntakeModule implements EventIntakeModule {
     @Override
     @NonNull
     public OutputWire<PlatformEvent> validatedEventsOutputWire() {
-        return requireNonNull(eventHasherWiring, "Not initialized").getOutputWire();
+        return requireNonNull(eventValidatorWiring, "Not initialized").getOutputWire();
     }
 
     /**
@@ -98,7 +114,8 @@ public class DefaultEventIntakeModule implements EventIntakeModule {
     @Override
     @NonNull
     public InputWire<PlatformEvent> selfEventsInputWire() {
-        throw new UnsupportedOperationException("Not implemented yet");
+        return requireNonNull(eventValidatorWiring, "Not initialized")
+                .getInputWire(InternalEventValidator::validateEvent);
     }
 
     /**
@@ -137,6 +154,7 @@ public class DefaultEventIntakeModule implements EventIntakeModule {
     @Override
     public void flush() {
         requireNonNull(eventHasherWiring, "Not initialized").flush();
+        requireNonNull(eventValidatorWiring, "Not initialized").flush();
     }
 
     /**
