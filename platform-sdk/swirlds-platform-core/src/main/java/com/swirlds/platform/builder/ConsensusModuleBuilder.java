@@ -55,8 +55,8 @@ public class ConsensusModuleBuilder {
      * @param configuration the configuration
      * @return an initialized no-op instance of {@code EventCreatorModule}
      */
-    public static EventCreatorModule createNoOpEventCreatorModule(@NonNull final WiringModel model, @NonNull final
-            Configuration configuration) {
+    public static EventCreatorModule createNoOpEventCreatorModule(
+            @NonNull final WiringModel model, @NonNull final Configuration configuration) {
         final Metrics metrics = new NoOpMetrics();
         final Time time = Time.getCurrent();
         final NodeId selfId = NodeId.FIRST_NODE_ID;
@@ -72,16 +72,7 @@ public class ConsensusModuleBuilder {
 
         final EventCreatorModule eventCreatorModule = createEventCreatorModule();
         eventCreatorModule.initialize(
-                model,
-                configuration,
-                metrics,
-                time,
-                random,
-                keysAndCerts,
-                roster,
-                selfId,
-                List::of,
-                () -> false);
+                model, configuration, metrics, time, random, keysAndCerts, roster, selfId, List::of, () -> false);
         return eventCreatorModule;
     }
 
@@ -97,8 +88,8 @@ public class ConsensusModuleBuilder {
                 .orElseThrow(() -> new IllegalStateException("No EventIntakeModule implementation found!"));
     }
 
-    public static EventIntakeModule createNoOpEventIntakeModule(@NonNull final WiringModel model, @NonNull final
-            Configuration configuration) {
+    public static EventIntakeModule createNoOpEventIntakeModule(
+            @NonNull final WiringModel model, @NonNull final Configuration configuration) {
         final Metrics metrics = new NoOpMetrics();
         final Time time = Time.getCurrent();
         final NodeId selfId = NodeId.FIRST_NODE_ID;
@@ -113,7 +104,14 @@ public class ConsensusModuleBuilder {
         final EventPipelineTracker eventPipelineTracker = null;
 
         final EventIntakeModule eventIntakeModule = createEventIntakeModule();
-        eventIntakeModule.initialize(model, configuration, metrics, time, rosterHistory, selfId, intakeEventCounter,
+        eventIntakeModule.initialize(
+                model,
+                configuration,
+                metrics,
+                time,
+                rosterHistory,
+                selfId,
+                intakeEventCounter,
                 transactionLimits,
                 recycleBin,
                 startingRound,
