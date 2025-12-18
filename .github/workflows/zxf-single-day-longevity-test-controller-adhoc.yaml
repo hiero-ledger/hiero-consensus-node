@@ -50,6 +50,7 @@ on:
           - "1200"
           - "10080"
           - "20160"
+          - "604800"
       add-app-props:
         required: false
         default: ""
