@@ -157,18 +157,6 @@ jobs:
             /repos/hiero-ledger/hiero-consensus-node/actions/jobs/$job_id/logs >> run.log
           done
 
-      - name: List the files to upload as artifact
-        if: ${{ !cancelled() && always() }}
-        run: |
-          echo "Contents of current directory:"
-          ls -lh .
-          echo "Contents of hedera-node/:"
-          ls -lh hedera-node/
-          echo Contents of hedera-node/test-clients/:
-          ls -lh hedera-node/test-clients/
-          echo "Contents of hedera-node/test-clients/build/:"
-          ls -lh hedera-node/test-clients/build/
-
       - name: Upload log as artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: ${{ !cancelled() && always() }}
