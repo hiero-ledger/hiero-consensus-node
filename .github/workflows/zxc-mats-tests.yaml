@@ -221,7 +221,7 @@ jobs:
       java-version: ${{ inputs.java-version || '21.0.6' }}
       java-distribution: ${{ inputs.java-distribution || 'temurin' }}
       enable-fast-otter-tests: ${{ inputs.enable-otter-tests == 'true' }}
-      enable-network-log-capture: "true"
+      enable-network-log-capture: true
     secrets:
       access-token: ${{ secrets.access-token }}
       gradle-cache-username: ${{ secrets.gradle-cache-username }}

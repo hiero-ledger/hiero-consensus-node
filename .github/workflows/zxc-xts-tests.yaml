@@ -207,7 +207,7 @@ jobs:
     with:
       custom-job-label: "${{ inputs.custom-job-label }} Otter Tests"
       enable-full-otter-tests: true
-      enable-network-log-capture: "true"
+      enable-network-log-capture: true
       ref: ${{ inputs.commit_sha }}
     secrets:
       access-token: ${{ secrets.access-token }}
@@ -223,7 +223,7 @@ jobs:
     with:
       custom-job-label: "${{ inputs.custom-job-label }} Chaos Otter Tests"
       enable-chaos-otter-tests: true
-      enable-network-log-capture: "true"
+      enable-network-log-capture: true
       ref: ${{ inputs.commit_sha }}
     secrets:
       access-token: ${{ secrets.access-token }}
