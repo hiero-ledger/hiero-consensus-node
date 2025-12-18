@@ -10,6 +10,7 @@ import com.hedera.hapi.node.base.RealmID;
 import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.base.ShardID;
 import com.hedera.hapi.node.base.Timestamp;
+import com.hedera.hapi.node.base.TokenType;
 import com.hedera.hapi.node.base.TopicID;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.consensus.ConsensusSubmitMessageTransactionBody;
@@ -22,6 +23,7 @@ import com.hedera.hapi.node.state.blockrecords.BlockInfo;
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.file.File;
 import com.hedera.hapi.node.state.token.Account;
+import com.hedera.hapi.node.token.TokenCreateTransactionBody;
 import com.hedera.hapi.node.transaction.ThrottleDefinitions;
 import com.hedera.node.app.blocks.BlockStreamService;
 import com.hedera.node.app.config.BootstrapConfigProviderImpl;
@@ -57,6 +59,7 @@ import com.hedera.node.app.service.util.impl.UtilServiceImpl;
 import com.hedera.node.app.services.AppContextImpl;
 import com.hedera.node.app.services.ServicesRegistry;
 import com.hedera.node.app.spi.AppContext;
+import com.hedera.node.app.spi.fees.FeeContext;
 import com.hedera.node.app.spi.fees.SimpleFeeCalculatorImpl;
 import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.info.NodeInfo;
@@ -266,59 +269,31 @@ public class SimpleFeesMirrorNodeTest {
     }
     @Test
     void doIt() {
-
-        System.out.println("making the executor");
-
+        // set the overrides
         final var overrides = Map.of("hedera.transaction.maxMemoUtf8Bytes", "101","fees.simpleFeesEnabled","true");
-        // Construct a full implementation of the consensus node State API with all genesis accounts and files
+        // bring up the full state
         final var state = genesisState(overrides);
-        System.out.println("state is " + state);
-
-        // Get a standalone executor based on this state, with an override to allow slightly longer memos
-        final var executor = TRANSACTION_EXECUTORS.newExecutor(
-                TransactionExecutors.Properties.newBuilder()
-                        .state(state)
-                        .appProperties(overrides)
-                        .build(),
-                new AppEntityIdFactory(DEFAULT_CONFIG));
-
-        final var uploadOutput = executor.execute(uploadMultipurposeInitcode(), Instant.EPOCH);
-        final var uploadReceipt = uploadOutput.getFirst().transactionRecord().receiptOrThrow();
-        assertThat(uploadReceipt.fileIDOrThrow()).isEqualTo(EXPECTED_INITCODE_ID);
-
-
-        {
-//        final var fileNum = config.simpleFeesSchedules();
-//        final var fileID = FileID.newBuilder().fileNum(fileNum).build();
-//        final var txBody = TransactionBody.newBuilder()
-//                .transactionID(TransactionID.newBuilder()
-//                        .accountID(AccountID.newBuilder().accountNum(50L).build())
-//                        .build())
-//                .fileUpdate(FileUpdateTransactionBody.newBuilder().fileID(fileID)).build();
-//        final var feeScheduleOutput = executor.execute(txBody, Instant.EPOCH);
-//
-        }
-//        {
-//            final long topicEntityNum = 1L;
-//            final TopicID topicId =
-//                    TopicID.newBuilder().topicNum(topicEntityNum).build();
-//
-//            final var op = ConsensusSubmitMessageTransactionBody.newBuilder()
-//                    .topicID(topicId)
-//                    .message(Bytes.wrap("foo"))
-//                    .build();
-//            final var txnBody = TransactionBody.newBuilder()
-//                    .transactionID(TransactionID.newBuilder()
-//                            .transactionValidStart(new Timestamp(0, 0))
-//                            .accountID(TREASURY_ID)
-//                            .build())
-//                    .consensusSubmitMessage(op)
-//                    .nodeAccountID(NODE_ACCOUNT_ID)
-//                    .build();
-//
-//            final var output = executor.execute(txnBody, Instant.EPOCH);
-//            System.out.println("output is " + output);
-//        }
+        // config props
+        final var properties =  TransactionExecutors.Properties.newBuilder()
+                .state(state)
+                .appProperties(overrides)
+                .build();
+        // make an entity id factory
+        final var entityIdFactory = new AppEntityIdFactory(DEFAULT_CONFIG);
+        // load a new executor component
+        final var executorComponent = TRANSACTION_EXECUTORS.newExecutorJoshBetter(properties, entityIdFactory);
+        // grab the fee calculator
+        final var calc = executorComponent.feeManager().getSimpleFeeCalculator();
+        System.out.println("got the calculator " +calc);
+        final var body = TransactionBody.newBuilder()
+                .tokenCreation(TokenCreateTransactionBody.newBuilder()
+                        .tokenType(TokenType.FUNGIBLE_COMMON)
+                        .build())
+                .build();
+        final FeeContext feeContext = null;
+        final var result = calc.calculateTxFee(body,feeContext);
+        System.out.println("result is " + result);
+        assertThat(result.service).isEqualTo(9999000000L);
     }
 
     @Test
