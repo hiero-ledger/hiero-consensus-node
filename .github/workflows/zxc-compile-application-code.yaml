@@ -27,6 +27,9 @@ on:
         required: false
         default: "20"
     secrets:
+      access-token:
+        description: "The Github access token used to checkout the repository, submodules, and make GitHub API calls."
+        required: true
       gradle-cache-username:
         description: "The username used to authenticate with the Gradle Build Cache Node."
         required: true
