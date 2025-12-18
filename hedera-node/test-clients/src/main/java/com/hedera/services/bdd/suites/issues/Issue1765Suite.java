@@ -16,6 +16,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.takeBalanceSnapshots;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateTransferListForBalances;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
+import static com.hedera.services.bdd.suites.HapiSuite.FEE_COLLECTOR;
 import static com.hedera.services.bdd.suites.HapiSuite.FUNDING;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.NODE;
@@ -46,13 +47,13 @@ public class Issue1765Suite {
         return hapiTest(flattened(
                 withOpContext((spec, ctxLog) -> spec.registry().saveContractId(INVALID_CONTRACT, asContract(ACCOUNT))),
                 newKeyNamed(INVALID_CONTRACT),
-                takeBalanceSnapshots(FUNDING, GENESIS, NODE),
+                takeBalanceSnapshots(FUNDING, GENESIS, NODE, FEE_COLLECTOR),
                 contractUpdate(INVALID_CONTRACT)
                         .memo(THE_MEMO_IS)
                         .fee(ADEQUATE_FEE)
                         .via(INVALID_UPDATE_TXN)
                         .hasKnownStatus(ResponseCodeEnum.INVALID_CONTRACT_ID),
-                validateTransferListForBalances(INVALID_UPDATE_TXN, List.of(FUNDING, GENESIS, NODE)),
+                validateTransferListForBalances(INVALID_UPDATE_TXN, List.of(FUNDING, GENESIS, NODE, FEE_COLLECTOR)),
                 getTxnRecord(INVALID_UPDATE_TXN).hasPriority(recordWith().memo(THE_MEMO_IS))));
     }
 
@@ -66,13 +67,14 @@ public class Issue1765Suite {
                 withOpContext((spec, ctxLog) -> spec.registry()
                         .saveFileId(INVALID_FILE, asFile(asEntityString(spec.shard(), spec.realm(), 0)))),
                 newKeyNamed(INVALID_FILE).type(KeyFactory.KeyType.LIST),
-                takeBalanceSnapshots(FUNDING, GENESIS, STAKING_REWARD, NODE),
+                takeBalanceSnapshots(FUNDING, GENESIS, STAKING_REWARD, NODE, FEE_COLLECTOR),
                 fileUpdate(INVALID_FILE)
                         .memo(THE_MEMO_IS)
                         .fee(ADEQUATE_FEE)
                         .via(INVALID_UPDATE_TXN)
                         .hasKnownStatus(ResponseCodeEnum.INVALID_FILE_ID),
-                validateTransferListForBalances(INVALID_UPDATE_TXN, List.of(FUNDING, GENESIS, STAKING_REWARD, NODE)),
+                validateTransferListForBalances(
+                        INVALID_UPDATE_TXN, List.of(FUNDING, GENESIS, STAKING_REWARD, NODE, FEE_COLLECTOR)),
                 getTxnRecord(INVALID_UPDATE_TXN).hasPriority(recordWith().memo(THE_MEMO_IS))));
     }
 
@@ -87,14 +89,15 @@ public class Issue1765Suite {
                 withOpContext((spec, ctxLog) -> spec.registry()
                         .saveFileId(INVALID_FILE, asFile(asEntityString(spec.shard(), spec.realm(), 0)))),
                 newKeyNamed(INVALID_FILE).type(KeyFactory.KeyType.LIST),
-                takeBalanceSnapshots(FUNDING, GENESIS, STAKING_REWARD, NODE),
+                takeBalanceSnapshots(FUNDING, GENESIS, STAKING_REWARD, NODE, FEE_COLLECTOR),
                 fileAppend(INVALID_FILE)
                         .memo(THE_MEMO_IS)
                         .content("Some more content.")
                         .fee(ADEQUATE_FEE)
                         .via(INVALID_APPEND_TXN)
                         .hasKnownStatus(ResponseCodeEnum.INVALID_FILE_ID),
-                validateTransferListForBalances(INVALID_APPEND_TXN, List.of(FUNDING, GENESIS, STAKING_REWARD, NODE)),
+                validateTransferListForBalances(
+                        INVALID_APPEND_TXN, List.of(FUNDING, GENESIS, STAKING_REWARD, NODE, FEE_COLLECTOR)),
                 getTxnRecord(INVALID_APPEND_TXN).hasPriority(recordWith().memo(THE_MEMO_IS))));
     }
 }
