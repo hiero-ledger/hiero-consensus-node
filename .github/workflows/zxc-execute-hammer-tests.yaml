@@ -62,7 +62,7 @@ env:
 
 jobs:
   execute-hammer-tests:
-    name: ${{ inputs.custom-job-label || 'Execute Time Consuming Tests' }}
+    name: ${{ inputs.custom-job-label || 'Execute Hammer Tests' }}
     runs-on: hiero-network-node-large
     outputs:
       failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
