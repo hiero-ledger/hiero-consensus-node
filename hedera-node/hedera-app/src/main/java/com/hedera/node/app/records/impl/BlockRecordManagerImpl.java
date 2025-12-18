@@ -399,16 +399,6 @@ public final class BlockRecordManagerImpl implements BlockRecordManager {
                 final long blockNo = lastBlockInfo.lastBlockNumber() + 1;
                 // Close file now; the next open will occur at the start of the next round
                 streamFileProducer.finishCurrentBlock();
-                logger.info(
-                        """
-                                --- BLOCK UPDATE ---
-                                  Finished: #{} (started @ {}) with hash {}
-                                  Starting: #{} @ {}""",
-                        lastBlockInfo.lastBlockNumber(),
-                        lastBlockInfo.firstConsTimeOfCurrentBlock(),
-                        new Hash(streamFileProducer.getRunningHash(), DigestType.SHA_384),
-                        blockNo,
-                        round.getConsensusTimestamp());
                 if (streamMode == RECORDS) {
                     // Notify quiescence that the in-progress block is done handling transactions
                     quiescenceController.finishHandlingInProgressBlock();

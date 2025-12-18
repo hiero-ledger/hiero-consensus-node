@@ -121,12 +121,14 @@ final class BlockRecordManagerTest extends AppTestBase {
         blockRecordFormat = BlockRecordFormatV6.INSTANCE;
 
         // Configure the application configuration and state we want to test with
+        // Use legacy mode (roundBoundaryClosingEnabled = false) for these tests
         app = appBuilder()
                 .withConfigValue("hedera.recordStream.logDir", tempDir.toString())
                 .withConfigValue("hedera.recordStream.sidecarDir", "sidecar")
                 .withConfigValue("hedera.recordStream.recordFileVersion", 6)
                 .withConfigValue("hedera.recordStream.signatureFileVersion", 6)
                 .withConfigValue("hedera.recordStream.sidecarMaxSizeMb", 256)
+                .withConfigValue("hedera.recordStream.roundBoundaryClosingEnabled", false)
                 .withConfigValue("blockStream.streamMode", "BOTH")
                 .withService(new BlockRecordService())
                 .withService(PLATFORM_STATE_SERVICE)

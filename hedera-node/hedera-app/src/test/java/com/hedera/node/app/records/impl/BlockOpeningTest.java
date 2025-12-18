@@ -2,7 +2,6 @@
 package com.hedera.node.app.records.impl;
 
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
-import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_STATE_ID;
 import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.RUNNING_HASHES_STATE_ID;
 import static com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID;
@@ -24,6 +23,8 @@ import com.hedera.node.app.quiescence.QuiescedHeartbeat;
 import com.hedera.node.app.quiescence.QuiescenceController;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.VersionedConfigImpl;
+import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
+import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.ReadableSingletonState;
@@ -39,6 +40,20 @@ import org.mockito.junit.jupiter.MockitoExtension;
 class BlockOpeningTest {
 
     private static final Instant CONSENSUS_NOW = Instant.ofEpochSecond(1_234_567L, 890);
+
+    /**
+     * Config with legacy mode (roundBoundaryClosingEnabled = false)
+     */
+    private static final Configuration USER_TXN_CONFIG = HederaTestConfigBuilder.create()
+            .withValue("hedera.recordStream.roundBoundaryClosingEnabled", false)
+            .getOrCreateConfig();
+
+    /**
+     * Config with round-boundary mode (roundBoundaryClosingEnabled = true)
+     */
+    private static final Configuration ROUND_BOUNDARY_CONFIG = HederaTestConfigBuilder.create()
+            .withValue("hedera.recordStream.roundBoundaryClosingEnabled", true)
+            .getOrCreateConfig();
 
     @Mock
     private State state;
@@ -72,21 +87,23 @@ class BlockOpeningTest {
 
     private BlockRecordManagerImpl subject;
 
+    // ========== (roundBoundaryClosingEnabled = false) ==========
+
     @Test
-    void firstTransactionAlwaysOpensBlock() {
-        setupBlockInfo(Instant.EPOCH);
+    void legacyMode_firstTransactionAlwaysOpensBlock() {
+        setupBlockInfo(Instant.EPOCH, USER_TXN_CONFIG);
         assertTrue(subject.willOpenNewBlock(CONSENSUS_NOW, state));
     }
 
     @Test
-    void newPeriodOpensBlock() {
-        setupBlockInfo(CONSENSUS_NOW);
+    void legacyMode_newPeriodOpensBlock() {
+        setupBlockInfo(CONSENSUS_NOW, USER_TXN_CONFIG);
         assertTrue(subject.willOpenNewBlock(CONSENSUS_NOW.plusSeconds(86_400), state));
     }
 
     @Test
-    void samePeriodWithNoFreezeTimeDoesntOpenBlock() {
-        setupBlockInfo(CONSENSUS_NOW);
+    void legacyMode_samePeriodWithNoFreezeTimeDoesntOpenBlock() {
+        setupBlockInfo(CONSENSUS_NOW, USER_TXN_CONFIG);
         given(readableStates.<PlatformState>getSingleton(PLATFORM_STATE_STATE_ID))
                 .willReturn(platformState);
         given(platformState.get()).willReturn(PlatformState.DEFAULT);
@@ -94,8 +111,8 @@ class BlockOpeningTest {
     }
 
     @Test
-    void samePeriodWithFreezeTimeOpensBlock() {
-        setupBlockInfo(CONSENSUS_NOW);
+    void legacyMode_samePeriodWithFreezeTimeOpensBlock() {
+        setupBlockInfo(CONSENSUS_NOW, USER_TXN_CONFIG);
         given(readableStates.<PlatformState>getSingleton(PLATFORM_STATE_STATE_ID))
                 .willReturn(platformState);
         given(platformState.get())
@@ -106,9 +123,27 @@ class BlockOpeningTest {
         assertTrue(subject.willOpenNewBlock(CONSENSUS_NOW, state));
     }
 
+    // ========== Round-boundary mode tests (roundBoundaryClosingEnabled = true) ==========
+
+    @Test
+    void roundBoundaryMode_willOpenNewBlockAlwaysReturnsFalse() {
+        // In round-boundary mode, blocks are opened at round start, not on user transactions
+        setupBlockInfo(Instant.EPOCH, ROUND_BOUNDARY_CONFIG);
+        assertFalse(subject.willOpenNewBlock(CONSENSUS_NOW, state));
+    }
+
+    @Test
+    void roundBoundaryMode_newPeriodStillReturnsFalse() {
+        // Even with a new period, willOpenNewBlock returns false in round-boundary mode
+        setupBlockInfo(CONSENSUS_NOW, ROUND_BOUNDARY_CONFIG);
+        assertFalse(subject.willOpenNewBlock(CONSENSUS_NOW.plusSeconds(86_400), state));
+    }
+
+    // ========== Quiescence tests ==========
+
     @Test
     void maybeQuiesceStartsHeartbeatOnQuiesceCommandChange() {
-        setupBlockInfo(CONSENSUS_NOW);
+        setupBlockInfo(CONSENSUS_NOW, USER_TXN_CONFIG);
         given(quiescenceController.getQuiescenceStatus()).willReturn(QUIESCE);
 
         subject.maybeQuiesce(state);
@@ -120,7 +155,7 @@ class BlockOpeningTest {
 
     @Test
     void maybeQuiesceDoesNothingWhenCommandRemainsDontQuiesce() {
-        setupBlockInfo(CONSENSUS_NOW);
+        setupBlockInfo(CONSENSUS_NOW, USER_TXN_CONFIG);
         given(quiescenceController.getQuiescenceStatus()).willReturn(DONT_QUIESCE);
 
         subject.maybeQuiesce(state);
@@ -129,8 +164,9 @@ class BlockOpeningTest {
         verify(quiescedHeartbeat, never()).start(any(), any());
     }
 
-    private void setupBlockInfo(@NonNull final Instant firstConsTimeOfCurrentBlock) {
-        given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(DEFAULT_CONFIG, 1));
+    private void setupBlockInfo(
+            @NonNull final Instant firstConsTimeOfCurrentBlock, @NonNull final Configuration config) {
+        given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1));
         given(state.getReadableStates(any())).willReturn(readableStates);
         given(readableStates.<BlockInfo>getSingleton(BLOCKS_STATE_ID)).willReturn(blockInfoState);
         given(blockInfoState.get())
