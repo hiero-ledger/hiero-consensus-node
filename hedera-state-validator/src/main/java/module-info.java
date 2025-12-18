@@ -38,6 +38,7 @@ module com.hedera.state.validator {
     requires org.hiero.base.crypto;
     requires org.hiero.base.utility;
     requires org.hiero.consensus.model;
+    requires org.hiero.consensus.utility;
     requires com.fasterxml.jackson.databind;
     requires com.github.spotbugs.annotations;
     requires info.picocli;
