@@ -279,6 +279,9 @@ jobs:
       failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
       failed-tests: ${{ steps.set-failure-mode.outputs.failed-tests }}
     needs:
+      - build
+      - dependency-check
+      - spotless
       - mats-unit-tests
       - mats-integration-tests
       - mats-hapi-tests
@@ -297,6 +300,9 @@ jobs:
         id: set-failure-mode
         run: |
           job_statuses=(
+            ${{ needs.build.result || 'skipped' }}
+            ${{ needs.dependency-check.result || 'skipped' }}
+            ${{ needs.spotless.result || 'skipped' }}
             ${{ needs.mats-unit-tests.result || 'skipped' }}
             ${{ needs.mats-integration-tests.result || 'skipped' }}
             ${{ needs.mats-hapi-tests.result || 'skipped' }}
@@ -304,6 +310,9 @@ jobs:
             ${{ needs.mats-snyk-scan.result || 'skipped' }}
           )
           job_failure_modes=(
+            ${{ needs.build.outputs.failure-mode || 'none' }}
+            ${{ needs.dependency-check.outputs.failure-mode || 'none' }}
+            ${{ needs.spotless.outputs.failure-mode || 'none' }}
             ${{ needs.mats-unit-tests.outputs.failure-mode || 'none' }}
             ${{ needs.mats-integration-tests.outputs.failure-mode || 'none' }}
             ${{ needs.mats-hapi-tests.outputs.failure-mode || 'none' }}
@@ -311,6 +320,9 @@ jobs:
             ${{ needs.mats-snyk-scan.outputs.failure-mode || 'none' }}
           )
           job_names=(
+            "build"
+            "dependency-check"
+            "spotless"
             "mats-unit-tests"
             "mats-integration-tests"
             "mats-hapi-tests"
