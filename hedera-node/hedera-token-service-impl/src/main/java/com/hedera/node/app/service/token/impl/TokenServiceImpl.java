@@ -101,11 +101,10 @@ public class TokenServiceImpl implements TokenService {
 
     @Override
     public Set<QueryFeeCalculator> queryFeeCalculators() {
-        return Set.of(new TokenGetInfoFeeCalculator(), new TokenGetNftInfoFeeCalculator());
-    }
-
-    @Override
-    public Set<QueryFeeCalculator> queryFeeCalculators() {
-        return Set.of(new CryptoGetInfoFeeCalculator(), new CryptoGetAccountRecordsFeeCalculator());
+        return Set.of(
+                new CryptoGetAccountRecordsFeeCalculator(),
+                new CryptoGetInfoFeeCalculator(),
+                new TokenGetInfoFeeCalculator(),
+                new TokenGetNftInfoFeeCalculator());
     }
 }
