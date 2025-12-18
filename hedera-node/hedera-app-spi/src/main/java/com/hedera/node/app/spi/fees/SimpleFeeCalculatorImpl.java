@@ -77,7 +77,10 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
      */
     @NonNull
     @Override
-    public FeeResult calculateTxFee(@NonNull final TransactionBody txnBody, @Nullable final FeeContext feeContext, double congestionMultiplier) {
+    public FeeResult calculateTxFee(
+            @NonNull final TransactionBody txnBody,
+            @Nullable final FeeContext feeContext,
+            double congestionMultiplier) {
         // Extract primitive counts (no allocations)
         final long signatures = feeContext != null ? feeContext.numTxnSignatures() : 0;
         final var result = new FeeResult();
@@ -93,18 +96,28 @@ public class SimpleFeeCalculatorImpl implements SimpleFeeCalculator {
                 serviceFeeCalculators.get(txnBody.data().kind());
         serviceFeeCalculator.accumulateServiceFee(txnBody, feeContext, result, feeSchedule);
         if (useCongestionMultiplier(txnBody)) {
-            // modify FeeResult to make this prettier.
-            // ex: result = result.scale(congestionMultiplier)
-            result.node = (long) (result.node*congestionMultiplier);
-            result.network = (long) (result.network*congestionMultiplier);
-            result.service = (long) (result.service*congestionMultiplier);
+            // TODO: modify FeeResult to make this prettier. ex: result = result.scale(congestionMultiplier)
+            result.node = (long) (result.node * congestionMultiplier);
+            result.network = (long) (result.network * congestionMultiplier);
+            result.service = (long) (result.service * congestionMultiplier);
         }
         return result;
     }
 
     private boolean useCongestionMultiplier(TransactionBody txnBody) {
         return switch (txnBody.data().kind()) {
-            case CONSENSUS_CREATE_TOPIC, CONTRACT_CREATE_INSTANCE, CRYPTO_APPROVE_ALLOWANCE,CRYPTO_CREATE_ACCOUNT,FILE_CREATE,LAMBDA_SSTORE,SCHEDULE_CREATE,TOKEN_AIRDROP,TOKEN_ASSOCIATE,TOKEN_CREATION,TOKEN_CLAIM_AIRDROP,TOKEN_MINT -> true;
+            case CONSENSUS_CREATE_TOPIC,
+                    CONTRACT_CREATE_INSTANCE,
+                    CRYPTO_APPROVE_ALLOWANCE,
+                    CRYPTO_CREATE_ACCOUNT,
+                    FILE_CREATE,
+                    LAMBDA_SSTORE,
+                    SCHEDULE_CREATE,
+                    TOKEN_AIRDROP,
+                    TOKEN_ASSOCIATE,
+                    TOKEN_CREATION,
+                    TOKEN_CLAIM_AIRDROP,
+                    TOKEN_MINT -> true;
             default -> false;
         };
     }

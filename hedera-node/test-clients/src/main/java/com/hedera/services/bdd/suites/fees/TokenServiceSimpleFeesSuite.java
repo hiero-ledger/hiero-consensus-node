@@ -71,7 +71,7 @@ public class TokenServiceSimpleFeesSuite {
                 // fungible = 9999000000,
                 // node+network = 1000000
                 // total = 10000000000 = 1.0
-                1.0000*2,
+                1.0000 * 2,
                 1,
                 1,
                 1);
