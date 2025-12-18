@@ -1,4 +1,4 @@
-package com.hedera.node.app.fees;
+package com.hedera.services.bdd.junit.support;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
@@ -11,20 +11,17 @@ import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.base.ShardID;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.base.TokenType;
-import com.hedera.hapi.node.base.TopicID;
 import com.hedera.hapi.node.base.TransactionID;
-import com.hedera.hapi.node.consensus.ConsensusSubmitMessageTransactionBody;
 import com.hedera.hapi.node.contract.ContractCallTransactionBody;
 import com.hedera.hapi.node.contract.ContractCreateTransactionBody;
 import com.hedera.hapi.node.file.FileCreateTransactionBody;
-import com.hedera.hapi.node.file.FileUpdateTransactionBody;
 import com.hedera.hapi.node.state.addressbook.Node;
-import com.hedera.hapi.node.state.blockrecords.BlockInfo;
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.file.File;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.token.TokenCreateTransactionBody;
 import com.hedera.hapi.node.transaction.ThrottleDefinitions;
+import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.blocks.BlockStreamService;
 import com.hedera.node.app.config.BootstrapConfigProviderImpl;
 import com.hedera.node.app.config.ConfigProviderImpl;
@@ -60,7 +57,6 @@ import com.hedera.node.app.services.AppContextImpl;
 import com.hedera.node.app.services.ServicesRegistry;
 import com.hedera.node.app.spi.AppContext;
 import com.hedera.node.app.spi.fees.FeeContext;
-import com.hedera.node.app.spi.fees.SimpleFeeCalculatorImpl;
 import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.migrate.StartupNetworks;
@@ -78,6 +74,7 @@ import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.node.config.data.VersionConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
@@ -96,26 +93,18 @@ import org.hyperledger.besu.evm.frame.MessageFrame;
 import org.hyperledger.besu.evm.gascalculator.GasCalculator;
 import org.hyperledger.besu.evm.operation.AbstractOperation;
 import org.hyperledger.besu.evm.operation.Operation;
-import org.hyperledger.besu.evm.tracing.StandardJsonTracer;
 import org.junit.jupiter.api.Test;
-
-import com.hedera.hapi.node.transaction.TransactionBody;
-
-import com.hedera.pbj.runtime.io.buffer.Bytes;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.Mock;
 
 import java.io.IOException;
-import java.io.PrintWriter;
-import java.io.StringWriter;
 import java.io.UncheckedIOException;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.SecureRandom;
 import java.security.cert.CertificateEncodingException;
 import java.security.cert.X509Certificate;
-import java.time.Instant;
 import java.time.InstantSource;
 import java.util.List;
 import java.util.Map;
@@ -127,12 +116,9 @@ import java.util.stream.StreamSupport;
 
 import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
 import static com.hedera.node.app.hapi.utils.keys.KeyUtils.IMMUTABILITY_SENTINEL_KEY;
-import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_STATE_ID;
 import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema.NODES_STATE_ID;
 import static com.hedera.node.app.spi.AppContext.Gossip.UNAVAILABLE_GOSSIP;
 import static com.hedera.node.app.spi.fees.NoopFeeCharging.UNIVERSAL_NOOP_FEE_CHARGING;
-import static com.hedera.node.app.util.FileUtilities.createFileID;
-import static com.hedera.node.app.workflows.standalone.TransactionExecutors.MAX_SIGNED_TXN_SIZE_PROPERTY;
 import static com.hedera.node.app.workflows.standalone.TransactionExecutors.TRANSACTION_EXECUTORS;
 import static java.util.Objects.requireNonNull;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
@@ -168,7 +154,7 @@ is being submitted to so it can determine if there are custom fees applied.
  */
 
 @ExtendWith(MockitoExtension.class)
-public class SimpleFeesMirrorNodeTest {
+public class JoshTest2 {
 
 //    @Test
 //    public void doTest() throws IOException, ParseException {
@@ -210,7 +196,7 @@ public class SimpleFeesMirrorNodeTest {
 //        final var overrides = Map.of("hedera.transaction.maxMemoUtf8Bytes", "101");
 //        // Construct a full implementation of the consensus node State API with all genesis accounts and files
 //        final var state = test.genesisState(overrides);
-////            final MerkleNodeState state = test.genesisState(overrides);
+    ////            final MerkleNodeState state = test.genesisState(overrides);
 //        System.out.println("made the genesis state");
 //
 //        // Get a standalone executor based on this state, with an override to allow slightly longer memos
@@ -264,18 +250,18 @@ public class SimpleFeesMirrorNodeTest {
     @Mock
     private StoreMetricsServiceImpl storeMetricsService;
 
-//    @Test void simpler() throws IOException {
-//        final String record_path = "../../temp/2025-09-10T03_02_14.342128000Z.rcd";
-//        final String sidecar_path = "sidecar";
-//        final var records = StreamFileAccess.STREAM_FILE_ACCESS.readStreamDataFrom(record_path, sidecar_path);
-//        System.out.println("records ");
-//        records.records().stream()
-//                // pull out the record stream items
-//                .flatMap(recordWithSidecars -> recordWithSidecars.recordFile().getRecordStreamItemsList().stream())
-//                .forEach(item -> {
-//                    System.out.println("record " + item);
-//                });
-//    }
+    @Test void simpler() throws IOException {
+        final String record_path = "../../temp/2025-09-10T03_02_14.342128000Z.rcd";
+        final String sidecar_path = "sidecar";
+        final var records = StreamFileAccess.STREAM_FILE_ACCESS.readStreamDataFrom(record_path, sidecar_path);
+        System.out.println("records ");
+        records.records().stream()
+                // pull out the record stream items
+                .flatMap(recordWithSidecars -> recordWithSidecars.recordFile().getRecordStreamItemsList().stream())
+                .forEach(item -> {
+                    System.out.println("record " + item);
+                });
+    }
     @Test
     void doIt() {
         // set the overrides
