@@ -5,7 +5,6 @@ import static com.swirlds.common.metrics.platform.DefaultPlatformMetrics.EXCEPTI
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 
 import com.swirlds.base.state.Startable;
-import com.swirlds.common.utility.ThresholdLimitingHandler;
 import java.util.Objects;
 import java.util.Queue;
 import java.util.concurrent.CancellationException;
@@ -18,6 +17,7 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.utility.ThresholdLimitingHandler;
 
 /**
  * Maintains a list of updaters, that will be updated in regular intervals. The length of the interval is configurable.
