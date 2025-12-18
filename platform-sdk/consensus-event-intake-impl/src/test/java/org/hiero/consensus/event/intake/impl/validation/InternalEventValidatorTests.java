@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.event.validation;
+package org.hiero.consensus.event.intake.impl.validation;
 
 import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -16,10 +16,8 @@ import com.hedera.hapi.platform.event.EventDescriptor;
 import com.hedera.hapi.platform.event.GossipEvent;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.test.fixtures.time.FakeTime;
-import com.swirlds.base.time.Time;
-import com.swirlds.common.context.PlatformContext;
+import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.common.test.fixtures.Randotron;
-import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
@@ -59,12 +57,8 @@ class InternalEventValidatorTests {
                 .when(intakeEventCounter)
                 .eventExitedIntakePipeline(any());
 
-        final Time time = new FakeTime();
-
-        final PlatformContext platformContext =
-                TestPlatformContextBuilder.create().withTime(time).build();
-
-        validator = new DefaultInternalEventValidator(platformContext, intakeEventCounter, TRANSACTION_LIMITS);
+        validator = new DefaultInternalEventValidator(
+                new NoOpMetrics(), new FakeTime(), intakeEventCounter, TRANSACTION_LIMITS);
     }
 
     @Test

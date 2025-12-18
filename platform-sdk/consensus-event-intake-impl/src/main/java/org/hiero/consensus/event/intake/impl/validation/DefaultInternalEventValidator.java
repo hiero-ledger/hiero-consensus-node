@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.event.validation;
+package org.hiero.consensus.event.intake.impl.validation;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.metrics.api.Metrics.PLATFORM_CATEGORY;
@@ -9,9 +9,10 @@ import com.hedera.hapi.platform.event.EventCore;
 import com.hedera.hapi.platform.event.EventDescriptor;
 import com.hedera.hapi.platform.event.GossipEvent;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.context.PlatformContext;
+import com.swirlds.base.time.Time;
 import com.swirlds.common.utility.throttle.RateLimitedLogger;
 import com.swirlds.metrics.api.LongAccumulator;
+import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Duration;
@@ -59,48 +60,44 @@ public class DefaultInternalEventValidator implements InternalEventValidator {
     /**
      * Constructor
      *
-     * @param platformContext the platform context
+     * @param metrics the metrics system
+     * @param time the platform time
      * @param intakeEventCounter keeps track of the number of events in the intake pipeline from each peer
      * @param transactionLimits transaction size limits for validation
      */
     public DefaultInternalEventValidator(
-            @NonNull final PlatformContext platformContext,
+            @NonNull final Metrics metrics,
+            @NonNull final Time time,
             @NonNull final IntakeEventCounter intakeEventCounter,
             @NonNull final TransactionLimits transactionLimits) {
         this.intakeEventCounter = Objects.requireNonNull(intakeEventCounter);
 
         this.transactionLimits = Objects.requireNonNull(transactionLimits);
 
-        this.nullFieldLogger = new RateLimitedLogger(logger, platformContext.getTime(), MINIMUM_LOG_PERIOD);
-        this.fieldLengthLogger = new RateLimitedLogger(logger, platformContext.getTime(), MINIMUM_LOG_PERIOD);
-        this.tooManyTransactionBytesLogger =
-                new RateLimitedLogger(logger, platformContext.getTime(), MINIMUM_LOG_PERIOD);
-        this.invalidParentsLogger = new RateLimitedLogger(logger, platformContext.getTime(), MINIMUM_LOG_PERIOD);
-        this.invalidBirthRoundLogger = new RateLimitedLogger(logger, platformContext.getTime(), MINIMUM_LOG_PERIOD);
+        this.nullFieldLogger = new RateLimitedLogger(logger, time, MINIMUM_LOG_PERIOD);
+        this.fieldLengthLogger = new RateLimitedLogger(logger, time, MINIMUM_LOG_PERIOD);
+        this.tooManyTransactionBytesLogger = new RateLimitedLogger(logger, time, MINIMUM_LOG_PERIOD);
+        this.invalidParentsLogger = new RateLimitedLogger(logger, time, MINIMUM_LOG_PERIOD);
+        this.invalidBirthRoundLogger = new RateLimitedLogger(logger, time, MINIMUM_LOG_PERIOD);
 
-        this.nullFieldAccumulator = platformContext
-                .getMetrics()
-                .getOrCreate(new LongAccumulator.Config(PLATFORM_CATEGORY, "eventsWithNullFields")
+        this.nullFieldAccumulator =
+                metrics.getOrCreate(new LongAccumulator.Config(PLATFORM_CATEGORY, "eventsWithNullFields")
                         .withDescription("Events that had a null field")
                         .withUnit("events"));
-        this.fieldLengthAccumulator = platformContext
-                .getMetrics()
-                .getOrCreate(new LongAccumulator.Config(PLATFORM_CATEGORY, "eventsWithInvalidFieldLength")
+        this.fieldLengthAccumulator =
+                metrics.getOrCreate(new LongAccumulator.Config(PLATFORM_CATEGORY, "eventsWithInvalidFieldLength")
                         .withDescription("Events with an invalid field length")
                         .withUnit("events"));
-        this.tooManyTransactionBytesAccumulator = platformContext
-                .getMetrics()
-                .getOrCreate(new LongAccumulator.Config(PLATFORM_CATEGORY, "eventsWithTooManyTransactionBytes")
+        this.tooManyTransactionBytesAccumulator =
+                metrics.getOrCreate(new LongAccumulator.Config(PLATFORM_CATEGORY, "eventsWithTooManyTransactionBytes")
                         .withDescription("Events that had more transaction bytes than permitted")
                         .withUnit("events"));
-        this.invalidParentsAccumulator = platformContext
-                .getMetrics()
-                .getOrCreate(new LongAccumulator.Config(PLATFORM_CATEGORY, "eventsWithInvalidParents")
+        this.invalidParentsAccumulator =
+                metrics.getOrCreate(new LongAccumulator.Config(PLATFORM_CATEGORY, "eventsWithInvalidParents")
                         .withDescription("Events that have invalid parents")
                         .withUnit("events"));
-        this.invalidBirthRoundAccumulator = platformContext
-                .getMetrics()
-                .getOrCreate(new LongAccumulator.Config(PLATFORM_CATEGORY, "eventsWithInvalidBirthRound")
+        this.invalidBirthRoundAccumulator =
+                metrics.getOrCreate(new LongAccumulator.Config(PLATFORM_CATEGORY, "eventsWithInvalidBirthRound")
                         .withDescription("Events with an invalid birth round")
                         .withUnit("events"));
     }
