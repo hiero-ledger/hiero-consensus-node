@@ -8,7 +8,6 @@ import static com.swirlds.platform.state.iss.IssDetector.DO_NOT_IGNORE_ROUNDS;
 import static com.swirlds.platform.state.service.PlatformStateUtils.latestFreezeRoundOf;
 
 import com.swirlds.common.merkle.utility.SerializableLong;
-import org.hiero.consensus.threading.manager.AdHocThreadManager;
 import com.swirlds.component.framework.component.ComponentWiring;
 import com.swirlds.platform.SwirldsPlatform;
 import com.swirlds.platform.components.appcomm.DefaultLatestCompleteStateNotifier;
@@ -67,6 +66,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Objects;
+import org.hiero.consensus.concurrent.manager.AdHocThreadManager;
 import org.hiero.consensus.crypto.PlatformSigner;
 import org.hiero.consensus.model.event.CesEvent;
 

@@ -40,7 +40,7 @@ import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.consensus.roster.RosterHistory;
-import org.hiero.consensus.roster.RosterUtils;
+import org.hiero.consensus.roster.RosterStateUtils;
 import org.hiero.consensus.round.EventWindowUtils;
 
 /**
@@ -394,7 +394,7 @@ public record PlatformCoordinator(@NonNull PlatformComponents components, @NonNu
         final ConsensusSnapshot consensusSnapshot = Objects.requireNonNull(consensusSnapshotOf(state));
         this.consensusSnapshotOverride(consensusSnapshot);
 
-        final RosterHistory rosterHistory = RosterUtils.createRosterHistory(state);
+        final RosterHistory rosterHistory = RosterStateUtils.createRosterHistory(state);
         this.injectRosterHistory(rosterHistory);
 
         final int roundsNonAncient =

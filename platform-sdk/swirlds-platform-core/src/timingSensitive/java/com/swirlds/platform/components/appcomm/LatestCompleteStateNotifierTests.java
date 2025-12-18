@@ -2,8 +2,8 @@
 package com.swirlds.platform.components.appcomm;
 
 import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyEquals;
-import static org.hiero.consensus.threading.manager.AdHocThreadManager.getStaticThreadManager;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hiero.consensus.threading.manager.AdHocThreadManager.getStaticThreadManager;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;

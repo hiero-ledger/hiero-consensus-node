@@ -12,13 +12,13 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.swirlds.base.state.MutabilityException;
-import org.hiero.consensus.threading.framework.ThreadSeed;
-import org.hiero.consensus.threading.framework.config.ThreadConfiguration;
 import java.time.Duration;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.hiero.base.utility.test.fixtures.tags.TestComponentTags;
+import org.hiero.consensus.concurrent.framework.ThreadSeed;
+import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
 import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;

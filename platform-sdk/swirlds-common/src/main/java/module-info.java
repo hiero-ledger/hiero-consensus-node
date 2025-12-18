@@ -31,23 +31,13 @@ module com.swirlds.common {
     exports com.swirlds.common.merkle.synchronization.utility;
     exports com.swirlds.common.merkle.synchronization.views;
     exports com.swirlds.common.merkle.utility;
-    exports com.swirlds.common.metrics;
-    exports com.swirlds.common.metrics.config;
     exports com.swirlds.common.metrics.event;
-    exports com.swirlds.common.metrics.noop;
-    exports com.swirlds.common.metrics.platform;
-    exports com.swirlds.common.metrics.platform.prometheus;
     exports com.swirlds.common.notification;
     exports com.swirlds.common.platform;
     exports com.swirlds.common.stream;
     exports com.swirlds.common.stream.internal;
     exports com.swirlds.common.utility;
-    exports com.swirlds.common.utility.throttle;
     exports com.swirlds.common.jackson;
-    exports com.swirlds.common.metrics.extensions;
-    exports com.swirlds.common.metrics.statistics;
-    exports com.swirlds.common.metrics.statistics.internal to
-            com.swirlds.platform.core;
     exports com.swirlds.common.startup;
     exports com.swirlds.common.merkle.synchronization.stats;
     exports com.swirlds.common.io.streams.internal to
@@ -58,8 +48,6 @@ module com.swirlds.common {
     opens com.swirlds.common.merkle.utility to
             com.fasterxml.jackson.databind;
     opens com.swirlds.common.utility to
-            com.fasterxml.jackson.databind;
-    opens com.swirlds.common.utility.throttle to
             com.fasterxml.jackson.databind;
     opens com.swirlds.common.stream to
             com.fasterxml.jackson.databind;
@@ -85,7 +73,9 @@ module com.swirlds.common {
     requires transitive org.hiero.base.concurrent;
     requires transitive org.hiero.base.crypto;
     requires transitive org.hiero.base.utility;
+    requires transitive org.hiero.consensus.metrics;
     requires transitive org.hiero.consensus.model;
+    requires transitive org.hiero.consensus.utility;
     requires transitive com.fasterxml.jackson.core;
     requires transitive com.fasterxml.jackson.databind;
     requires transitive org.apache.logging.log4j;
@@ -99,5 +89,4 @@ module com.swirlds.common {
     requires org.bouncycastle.provider;
     requires simpleclient.httpserver;
     requires static transitive com.github.spotbugs.annotations;
-    requires org.hiero.consensus.utility;
 }

@@ -39,7 +39,7 @@ import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.roster.AddressBook;
 import org.hiero.consensus.roster.RosterRetriever;
-import org.hiero.consensus.roster.RosterUtils;
+import org.hiero.consensus.roster.RosterStateUtils;
 
 /**
  * Utilities for loading and manipulating state files at startup time.
@@ -367,7 +367,7 @@ public final class StartupStateUtils {
             v.setConsensusTimestamp(Instant.ofEpochSecond(0L));
         });
 
-        RosterUtils.setActiveRoster(state, RosterRetriever.buildRoster(addressBook), round);
+        RosterStateUtils.setActiveRoster(state, RosterRetriever.buildRoster(addressBook), round);
     }
 
     /**

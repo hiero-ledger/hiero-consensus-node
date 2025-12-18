@@ -59,6 +59,7 @@ import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.roster.RosterUtils;
+import org.hiero.consensus.roster.RosterStateUtils;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.NodeConfiguration;
 import org.hiero.otter.fixtures.ProfilerEvent;
@@ -254,9 +255,9 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
             // Set the active roster
             final ReadablePlatformStateStore store =
                     new ReadablePlatformStateStore(state.getReadableStates(PlatformStateService.NAME));
-            RosterUtils.setActiveRoster(state, roster(), store.getRound() + 1);
+            RosterStateUtils.setActiveRoster(state, roster(), store.getRound() + 1);
 
-            final RosterHistory rosterHistory = RosterUtils.createRosterHistory(state);
+            final RosterHistory rosterHistory = RosterStateUtils.createRosterHistory(state);
             final String eventStreamLoc = Long.toString(selfId.id());
 
             this.executionLayer = new OtterExecutionLayer(

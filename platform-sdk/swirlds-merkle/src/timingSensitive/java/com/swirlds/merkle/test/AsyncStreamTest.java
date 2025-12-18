@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.merkle.test;
 
-import static org.hiero.consensus.threading.manager.AdHocThreadManager.getStaticThreadManager;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static org.hiero.consensus.threading.manager.AdHocThreadManager.getStaticThreadManager;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
@@ -15,8 +15,6 @@ import com.swirlds.common.merkle.utility.SerializableLong;
 import com.swirlds.common.test.fixtures.merkle.dummy.BlockingInputStream;
 import com.swirlds.common.test.fixtures.merkle.dummy.BlockingOutputStream;
 import com.swirlds.common.test.fixtures.merkle.util.PairedStreams;
-import org.hiero.consensus.threading.framework.config.ThreadConfiguration;
-import org.hiero.consensus.threading.pool.StandardWorkGroup;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import java.io.ByteArrayInputStream;
@@ -26,6 +24,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.hiero.base.io.streams.SerializableDataInputStream;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
 import org.hiero.base.utility.test.fixtures.tags.TestComponentTags;
+import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
+import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;

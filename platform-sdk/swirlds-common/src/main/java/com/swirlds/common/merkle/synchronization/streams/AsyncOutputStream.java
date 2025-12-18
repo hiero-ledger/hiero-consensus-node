@@ -5,7 +5,6 @@ import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
 
 import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
 import com.swirlds.common.merkle.synchronization.utility.MerkleSynchronizationException;
-import org.hiero.consensus.threading.pool.StandardWorkGroup;
 import com.swirlds.common.utility.StopWatch;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
@@ -18,6 +17,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.io.SelfSerializable;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
+import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
 
 /**
  * <p>

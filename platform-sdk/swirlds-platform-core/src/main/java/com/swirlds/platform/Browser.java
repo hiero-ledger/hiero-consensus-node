@@ -3,7 +3,6 @@ package com.swirlds.platform;
 
 import static com.swirlds.common.io.utility.FileUtils.getAbsolutePath;
 import static com.swirlds.common.io.utility.FileUtils.rethrowIO;
-import static org.hiero.consensus.threading.manager.AdHocThreadManager.getStaticThreadManager;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static com.swirlds.platform.builder.PlatformBuildConstants.DEFAULT_CONFIG_FILE_NAME;
@@ -28,6 +27,7 @@ import static com.swirlds.platform.system.address.AddressBookUtils.initializeAdd
 import static com.swirlds.platform.util.BootstrapUtils.getNodesToRun;
 import static com.swirlds.platform.util.BootstrapUtils.loadSwirldMains;
 import static com.swirlds.platform.util.BootstrapUtils.setupBrowserWindow;
+import static org.hiero.consensus.threading.manager.AdHocThreadManager.getStaticThreadManager;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.util.HapiUtils;
@@ -37,7 +37,6 @@ import com.swirlds.common.io.filesystem.FileSystemManager;
 import com.swirlds.common.io.utility.RecycleBin;
 import com.swirlds.common.merkle.crypto.MerkleCryptography;
 import com.swirlds.common.merkle.crypto.MerkleCryptographyFactory;
-import org.hiero.consensus.threading.framework.config.ThreadConfiguration;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.config.extensions.sources.SystemEnvironmentConfigSource;
@@ -73,13 +72,14 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.CryptographyProvider;
+import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
 import org.hiero.consensus.crypto.CryptoConstants;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.roster.AddressBook;
 import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.roster.RosterRetriever;
-import org.hiero.consensus.roster.RosterUtils;
+import org.hiero.consensus.roster.RosterStateUtils;
 
 /**
  * The Browser that launches the Platforms that run the apps. This is used by the demo apps to launch the Platforms.
@@ -296,7 +296,7 @@ public class Browser {
             }
 
             // Build the platform with the given values
-            final RosterHistory rosterHistory = RosterUtils.createRosterHistory(state);
+            final RosterHistory rosterHistory = RosterStateUtils.createRosterHistory(state);
 
             final PlatformBuilder builder = PlatformBuilder.create(
                     appMain.getClass().getName(),

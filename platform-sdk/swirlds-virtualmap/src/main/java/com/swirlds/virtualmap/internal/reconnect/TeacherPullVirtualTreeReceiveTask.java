@@ -9,7 +9,6 @@ import com.swirlds.common.io.exceptions.MerkleSerializationException;
 import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
 import com.swirlds.common.merkle.synchronization.streams.AsyncOutputStream;
 import com.swirlds.common.merkle.synchronization.utility.MerkleSynchronizationException;
-import org.hiero.consensus.threading.pool.StandardWorkGroup;
 import com.swirlds.common.utility.throttle.RateLimiter;
 import com.swirlds.virtualmap.internal.Path;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -17,6 +16,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.io.streams.SerializableDataInputStream;
+import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
 
 /**
  * A task running on the teacher side, which is responsible for processing requests from the

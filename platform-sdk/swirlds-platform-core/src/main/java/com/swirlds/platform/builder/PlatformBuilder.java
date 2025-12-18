@@ -2,7 +2,6 @@
 package com.swirlds.platform.builder;
 
 import static com.swirlds.common.io.utility.FileUtils.getAbsolutePath;
-import static org.hiero.consensus.threading.manager.AdHocThreadManager.getStaticThreadManager;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static com.swirlds.platform.builder.PlatformBuildConstants.DEFAULT_CONFIG_FILE_NAME;
@@ -11,13 +10,13 @@ import static com.swirlds.platform.config.internal.PlatformConfigUtils.checkConf
 import static com.swirlds.platform.event.preconsensus.PcesUtilities.getDatabaseDirectory;
 import static com.swirlds.platform.state.service.PlatformStateUtils.isInFreezePeriod;
 import static java.util.Objects.requireNonNull;
+import static org.hiero.consensus.threading.manager.AdHocThreadManager.getStaticThreadManager;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.metrics.event.EventPipelineTracker;
 import com.swirlds.common.notification.NotificationEngine;
 import com.swirlds.component.framework.WiringConfig;
 import com.swirlds.component.framework.model.WiringModel;
@@ -65,6 +64,7 @@ import org.hiero.consensus.crypto.PlatformSigner;
 import org.hiero.consensus.event.IntakeEventCounter;
 import org.hiero.consensus.event.creator.EventCreatorModule;
 import org.hiero.consensus.event.intake.EventIntakeModule;
+import org.hiero.consensus.metrics.event.EventPipelineTracker;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;

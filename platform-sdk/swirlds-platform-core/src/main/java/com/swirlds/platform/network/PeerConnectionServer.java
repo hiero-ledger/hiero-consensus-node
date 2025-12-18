@@ -3,8 +3,6 @@ package com.swirlds.platform.network;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 
-import org.hiero.consensus.threading.framework.config.ThreadConfiguration;
-import org.hiero.consensus.threading.manager.ThreadManager;
 import com.swirlds.platform.network.connectivity.InboundConnectionHandler;
 import com.swirlds.platform.network.connectivity.SocketFactory;
 import java.io.IOException;
@@ -19,6 +17,8 @@ import java.util.concurrent.TimeUnit;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.concurrent.interrupt.InterruptableRunnable;
+import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
+import org.hiero.consensus.concurrent.manager.ThreadManager;
 
 /**
  * Listens on a server socket for incoming connections. All new connections are passed on to the supplied handler.

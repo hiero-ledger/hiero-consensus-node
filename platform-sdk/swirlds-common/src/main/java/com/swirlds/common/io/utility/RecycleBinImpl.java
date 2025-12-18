@@ -9,9 +9,6 @@ import static java.nio.file.Files.exists;
 
 import com.swirlds.base.state.Stoppable;
 import com.swirlds.base.time.Time;
-import org.hiero.consensus.threading.framework.StoppableThread;
-import org.hiero.consensus.threading.framework.config.StoppableThreadConfiguration;
-import org.hiero.consensus.threading.manager.ThreadManager;
 import com.swirlds.metrics.api.IntegerGauge;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -29,6 +26,9 @@ import org.hiero.base.CompareTo;
 import org.hiero.base.concurrent.locks.AutoClosableLock;
 import org.hiero.base.concurrent.locks.Locks;
 import org.hiero.base.concurrent.locks.locked.Locked;
+import org.hiero.consensus.concurrent.framework.StoppableThread;
+import org.hiero.consensus.concurrent.framework.config.StoppableThreadConfiguration;
+import org.hiero.consensus.concurrent.manager.ThreadManager;
 
 /**
  * A standard implementation of a {@link RecycleBin}.

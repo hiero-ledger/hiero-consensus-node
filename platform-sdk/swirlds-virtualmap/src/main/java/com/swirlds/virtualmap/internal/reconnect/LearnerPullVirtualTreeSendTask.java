@@ -6,7 +6,6 @@ import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
 import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
 import com.swirlds.common.merkle.synchronization.streams.AsyncOutputStream;
 import com.swirlds.common.merkle.synchronization.utility.MerkleSynchronizationException;
-import org.hiero.consensus.threading.pool.StandardWorkGroup;
 import com.swirlds.virtualmap.internal.Path;
 import java.time.Duration;
 import java.util.concurrent.CountDownLatch;
@@ -16,6 +15,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Hash;
+import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
 
 /**
  * A task running on the learner side, which is responsible for sending requests to the teacher.

@@ -69,13 +69,10 @@ import com.hedera.node.config.types.LongPair;
 import com.hedera.node.config.types.PermissionedAccountsRange;
 import com.hedera.node.config.validation.EmulatesMapValidator;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.config.BasicCommonConfig;
 import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.io.config.FileSystemManagerConfig;
 import com.swirlds.common.io.config.TemporaryFileConfig;
 import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
-import com.swirlds.common.metrics.config.MetricsConfig;
-import com.swirlds.common.metrics.platform.prometheus.PrometheusConfig;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.merkledb.config.MerkleDbConfig;
@@ -89,7 +86,10 @@ import com.swirlds.platform.system.status.PlatformStatusConfig;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.hiero.base.crypto.config.CryptoConfig;
+import org.hiero.consensus.config.BasicCommonConfig;
 import org.hiero.consensus.config.EventConfig;
+import org.hiero.consensus.metrics.config.MetricsConfig;
+import org.hiero.consensus.metrics.platform.prometheus.PrometheusConfig;
 
 /**
  * A builder for creating {@link TestConfigBuilder} instances, or {@link Configuration} instances for testing. The

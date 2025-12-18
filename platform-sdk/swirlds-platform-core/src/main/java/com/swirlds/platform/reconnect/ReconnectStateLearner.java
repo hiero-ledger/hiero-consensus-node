@@ -9,7 +9,6 @@ import com.swirlds.common.io.streams.MerkleDataInputStream;
 import com.swirlds.common.io.streams.MerkleDataOutputStream;
 import com.swirlds.common.merkle.synchronization.LearningSynchronizer;
 import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
-import org.hiero.consensus.threading.manager.ThreadManager;
 import com.swirlds.logging.legacy.payload.ReconnectDataUsagePayload;
 import com.swirlds.platform.crypto.CryptoStatic;
 import com.swirlds.platform.metrics.ReconnectMetrics;
@@ -28,6 +27,7 @@ import java.time.Duration;
 import java.util.Objects;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.concurrent.manager.ThreadManager;
 
 /**
  * This class encapsulates logic for receiving the up-to-date state from a peer when the local node's state is out-of-date.

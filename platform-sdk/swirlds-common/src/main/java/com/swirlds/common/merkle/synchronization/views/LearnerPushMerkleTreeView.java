@@ -17,7 +17,6 @@ import com.swirlds.common.merkle.synchronization.task.LearnerPushTask;
 import com.swirlds.common.merkle.synchronization.task.Lesson;
 import com.swirlds.common.merkle.synchronization.task.QueryResponse;
 import com.swirlds.common.merkle.synchronization.utility.MerkleSynchronizationException;
-import org.hiero.consensus.threading.pool.StandardWorkGroup;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.util.Iterator;
@@ -28,6 +27,7 @@ import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.io.streams.SerializableDataInputStream;
+import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
 
 /**
  * Implementation for a view of a standard in memory merkle tree.

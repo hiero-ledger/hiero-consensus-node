@@ -6,7 +6,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.swirlds.common.context.PlatformContext;
-import org.hiero.consensus.threading.manager.AdHocThreadManager;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.config.extensions.sources.SystemEnvironmentConfigSource;
@@ -30,6 +29,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.IntStream;
 import org.hiero.base.constructable.ConstructableRegistry;
+import org.hiero.consensus.concurrent.manager.AdHocThreadManager;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.AfterEach;

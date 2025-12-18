@@ -8,8 +8,6 @@ import com.swirlds.base.utility.Pair;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.test.fixtures.Randotron;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
-import org.hiero.consensus.threading.pool.CachedPoolParallelExecutor;
-import org.hiero.consensus.threading.pool.ParallelExecutor;
 import com.swirlds.platform.gossip.shadowgraph.ShadowEvent;
 import com.swirlds.platform.internal.EventImpl;
 import com.swirlds.platform.network.Connection;
@@ -28,6 +26,8 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import org.hiero.base.utility.test.fixtures.RandomUtils;
+import org.hiero.consensus.concurrent.pool.CachedPoolParallelExecutor;
+import org.hiero.consensus.concurrent.pool.ParallelExecutor;
 import org.hiero.consensus.model.test.fixtures.hashgraph.EventWindowBuilder;
 
 /**

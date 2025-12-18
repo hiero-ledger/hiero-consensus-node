@@ -7,7 +7,6 @@ import static com.swirlds.metrics.api.Metrics.PLATFORM_CATEGORY;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.utility.throttle.RateLimitedLogger;
 import com.swirlds.metrics.api.LongAccumulator;
 import com.swirlds.platform.crypto.SignatureVerifier;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -25,6 +24,7 @@ import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.roster.RosterEntryNotFoundException;
 import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.roster.RosterUtils;
+import org.hiero.consensus.utility.throttle.RateLimitedLogger;
 
 /**
  * Default implementation for verifying event signatures

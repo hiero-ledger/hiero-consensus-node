@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.metrics.extensions;
 
-import static com.swirlds.common.metrics.extensions.TestPhases.BAR;
-import static com.swirlds.common.metrics.extensions.TestPhases.BAZ;
-import static com.swirlds.common.metrics.extensions.TestPhases.FOO;
+import static org.hiero.consensus.metrics.extensions.TestPhases.BAR;
+import static org.hiero.consensus.metrics.extensions.TestPhases.BAZ;
+import static org.hiero.consensus.metrics.extensions.TestPhases.FOO;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -17,9 +17,6 @@ import static org.mockito.Mockito.when;
 
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.base.units.TimeUnit;
-import com.swirlds.common.metrics.FunctionGauge;
-import com.swirlds.common.metrics.FunctionGauge.Config;
-import com.swirlds.common.metrics.RunningAverageMetric;
 import com.swirlds.metrics.api.Metric;
 import com.swirlds.metrics.api.MetricConfig;
 import com.swirlds.metrics.api.Metrics;
@@ -32,6 +29,9 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
+import org.hiero.consensus.metrics.FunctionGauge;
+import org.hiero.consensus.metrics.FunctionGauge.Config;
+import org.hiero.consensus.metrics.RunningAverageMetric;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 

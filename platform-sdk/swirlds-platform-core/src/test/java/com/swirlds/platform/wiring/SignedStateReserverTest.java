@@ -10,7 +10,6 @@ import static org.mockito.Mockito.when;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.merkle.MerkleNode;
-import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.component.framework.model.WiringModelBuilder;
@@ -26,6 +25,7 @@ import java.util.List;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.hiero.base.ValueReference;
+import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.junit.jupiter.api.Test;
 
 class SignedStateReserverTest {

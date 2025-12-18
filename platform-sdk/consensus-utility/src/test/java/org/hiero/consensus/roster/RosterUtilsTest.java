@@ -168,7 +168,7 @@ public class RosterUtilsTest {
                 RandomRosterBuilder.create(random).withSize(3).build();
         RosterServiceStateMock.setup(state, currentRoster, 16L, previousRoster);
 
-        final RosterHistory rosterHistory = RosterUtils.createRosterHistory(state);
+        final RosterHistory rosterHistory = RosterStateUtils.createRosterHistory(state);
         assertEquals(previousRoster, rosterHistory.getPreviousRoster());
         assertEquals(currentRoster, rosterHistory.getCurrentRoster());
     }
@@ -183,7 +183,7 @@ public class RosterUtilsTest {
                 RandomRosterBuilder.create(random).withSize(3).build();
         RosterServiceStateMock.setup(state, currentRoster, 16L, previousRoster);
 
-        final RosterHistory rosterHistory = RosterUtils.createRosterHistory(state);
+        final RosterHistory rosterHistory = RosterStateUtils.createRosterHistory(state);
         assertEquals(currentRoster, rosterHistory.getCurrentRoster());
         assertEquals(previousRoster, rosterHistory.getPreviousRoster());
 
@@ -201,7 +201,7 @@ public class RosterUtilsTest {
         final MerkleNodeState state = mock(MerkleNodeState.class);
         when(state.getReadableStates(RosterStateId.SERVICE_NAME)).thenReturn(null);
 
-        assertThrows(NullPointerException.class, () -> RosterUtils.createRosterHistory(state));
+        assertThrows(NullPointerException.class, () -> RosterStateUtils.createRosterHistory(state));
     }
 
     @Test
@@ -209,7 +209,7 @@ public class RosterUtilsTest {
         final MerkleNodeState state = mock(MerkleNodeState.class);
         RosterServiceStateMock.setup(state, null, 16L, null);
 
-        assertThrows(IllegalArgumentException.class, () -> RosterUtils.createRosterHistory(state));
+        assertThrows(IllegalArgumentException.class, () -> RosterStateUtils.createRosterHistory(state));
     }
 
     @Test

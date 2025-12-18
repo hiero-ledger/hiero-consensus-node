@@ -11,10 +11,10 @@ import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.synchronization.TeachingSynchronizer;
 import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
 import com.swirlds.common.merkle.synchronization.streams.AsyncOutputStream;
-import org.hiero.consensus.threading.pool.StandardWorkGroup;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.hiero.base.io.SelfSerializable;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
+import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
 
 /**
  * A {@link TeachingSynchronizer} with simulated latency.

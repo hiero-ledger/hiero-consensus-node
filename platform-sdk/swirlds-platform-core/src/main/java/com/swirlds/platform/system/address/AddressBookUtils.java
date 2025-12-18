@@ -23,6 +23,7 @@ import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.roster.Address;
 import org.hiero.consensus.model.roster.AddressBook;
 import org.hiero.consensus.roster.RosterRetriever;
+import org.hiero.consensus.roster.RosterStateUtils;
 import org.hiero.consensus.roster.RosterUtils;
 
 /**
@@ -272,7 +273,7 @@ public class AddressBookUtils {
             // The active roster is already initialized when creating a genesis state, so only set it here
             // if it's not for the genesis state (round 0)
             if (initialState.get().getRound() > 0) {
-                RosterUtils.setActiveRoster(
+                RosterStateUtils.setActiveRoster(
                         state,
                         RosterRetriever.buildRoster(addressBookInitializer.getCurrentAddressBook()),
                         roundOf(state) + 1);

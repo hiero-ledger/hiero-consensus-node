@@ -5,7 +5,6 @@ import static java.util.Objects.requireNonNull;
 
 import com.swirlds.base.time.Time;
 import com.swirlds.common.io.utility.RecycleBin;
-import com.swirlds.common.metrics.event.EventPipelineTracker;
 import com.swirlds.component.framework.component.ComponentWiring;
 import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.component.framework.wires.input.InputWire;
@@ -21,6 +20,7 @@ import org.hiero.consensus.event.intake.EventIntakeModule;
 import org.hiero.consensus.event.intake.config.EventIntakeWiringConfig;
 import org.hiero.consensus.event.intake.impl.validation.DefaultInternalEventValidator;
 import org.hiero.consensus.event.intake.impl.validation.InternalEventValidator;
+import org.hiero.consensus.metrics.event.EventPipelineTracker;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;

@@ -6,7 +6,6 @@ import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.time.Time;
 import com.swirlds.base.utility.Pair;
-import com.swirlds.common.utility.throttle.RateLimitedLogger;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.logging.legacy.LogMarker;
 import com.swirlds.metrics.api.Metrics;
@@ -39,6 +38,7 @@ import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.consensus.model.transaction.EventTransactionSupplier;
 import org.hiero.consensus.model.transaction.TimestampedTransaction;
 import org.hiero.consensus.roster.RosterUtils;
+import org.hiero.consensus.utility.throttle.RateLimitedLogger;
 
 /**
  * Responsible for creating new events using the tipset algorithm.

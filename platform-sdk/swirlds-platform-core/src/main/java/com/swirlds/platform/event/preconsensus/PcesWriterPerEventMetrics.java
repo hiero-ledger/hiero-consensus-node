@@ -5,9 +5,9 @@ import static com.swirlds.common.metrics.IntegerPairAccumulator.AVERAGE;
 import static com.swirlds.metrics.api.Metrics.PLATFORM_CATEGORY;
 
 import com.swirlds.base.time.Time;
-import com.swirlds.common.metrics.IntegerPairAccumulator;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import org.hiero.consensus.metrics.IntegerPairAccumulator;
 
 /**
  * Used by {@link DefaultInlinePcesWriter} to keep track of the write and sync duration.

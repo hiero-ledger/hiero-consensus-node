@@ -12,13 +12,13 @@ import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import com.swirlds.common.metrics.IntegerPairAccumulator;
 import com.swirlds.metrics.api.IntegerGauge;
 import com.swirlds.metrics.api.Metric;
 import com.swirlds.metrics.api.snapshot.Snapshot.SnapshotEntry;
 import com.swirlds.metrics.impl.DefaultIntegerGauge;
 import java.util.List;
 import java.util.function.BiFunction;
+import org.hiero.consensus.metrics.IntegerPairAccumulator;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 

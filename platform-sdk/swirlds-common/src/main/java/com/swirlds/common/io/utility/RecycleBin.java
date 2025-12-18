@@ -6,12 +6,12 @@ import com.swirlds.base.state.Stoppable;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.io.config.FileSystemManagerConfig;
 import com.swirlds.common.io.filesystem.FileSystemManager;
-import org.hiero.consensus.threading.manager.ThreadManager;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Path;
+import org.hiero.consensus.concurrent.manager.ThreadManager;
 import org.hiero.consensus.model.node.NodeId;
 
 /**

@@ -9,7 +9,7 @@ import static org.mockito.Mockito.mock;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.base.time.Time;
-import com.swirlds.common.metrics.noop.NoOpMetrics;
+import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import com.swirlds.common.test.fixtures.Randotron;
 import com.swirlds.component.framework.model.TraceableWiringModel;
 import com.swirlds.component.framework.model.WiringModel;

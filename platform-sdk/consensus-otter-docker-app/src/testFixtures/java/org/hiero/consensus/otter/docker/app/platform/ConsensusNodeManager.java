@@ -48,6 +48,7 @@ import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
 import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.roster.RosterUtils;
+import org.hiero.consensus.roster.RosterStateUtils;
 import org.hiero.otter.fixtures.app.OtterApp;
 import org.hiero.otter.fixtures.app.OtterExecutionLayer;
 
@@ -136,9 +137,9 @@ public class ConsensusNodeManager {
         // Set active the roster
         final ReadablePlatformStateStore store =
                 new ReadablePlatformStateStore(state.getReadableStates(PlatformStateService.NAME));
-        RosterUtils.setActiveRoster(state, activeRoster, store.getRound() + 1);
+        RosterStateUtils.setActiveRoster(state, activeRoster, store.getRound() + 1);
 
-        final RosterHistory rosterHistory = RosterUtils.createRosterHistory(state);
+        final RosterHistory rosterHistory = RosterStateUtils.createRosterHistory(state);
         executionCallback = new OtterExecutionLayer(new Random(), metrics, time);
         final PlatformBuilder builder = PlatformBuilder.create(
                         OtterApp.APP_NAME,

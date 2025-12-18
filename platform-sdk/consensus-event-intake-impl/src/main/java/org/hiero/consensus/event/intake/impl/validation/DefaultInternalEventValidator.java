@@ -10,7 +10,6 @@ import com.hedera.hapi.platform.event.EventDescriptor;
 import com.hedera.hapi.platform.event.GossipEvent;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.time.Time;
-import com.swirlds.common.utility.throttle.RateLimitedLogger;
 import com.swirlds.metrics.api.LongAccumulator;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -26,6 +25,7 @@ import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.transaction.Transaction;
 import org.hiero.consensus.transaction.TransactionLimits;
+import org.hiero.consensus.utility.throttle.RateLimitedLogger;
 
 /**
  * A default implementation of the {@link InternalEventValidator} interface.

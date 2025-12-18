@@ -7,7 +7,6 @@ import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.utility.RecycleBin;
 import com.swirlds.common.io.utility.RecycleBinImpl;
-import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.common.test.fixtures.TestRecycleBin;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
@@ -17,6 +16,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.file.Path;
 import java.util.Optional;
+import org.hiero.consensus.metrics.noop.NoOpMetrics;
 
 /**
  * A utility class for generating PlatformContexts.

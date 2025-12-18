@@ -6,12 +6,12 @@ import static org.hiero.consensus.threading.manager.AdHocThreadManager.getStatic
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.common.test.fixtures.threading.SyncPhaseParallelExecutor;
-import org.hiero.consensus.threading.pool.ParallelExecutor;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.platform.gossip.shadowgraph.ShadowgraphSynchronizer;
 import com.swirlds.platform.gossip.sync.config.SyncConfig_;
 import com.swirlds.platform.network.Connection;
+import org.hiero.consensus.concurrent.pool.ParallelExecutor;
 
 /**
  * This class initiates a sync between a caller and listener node.

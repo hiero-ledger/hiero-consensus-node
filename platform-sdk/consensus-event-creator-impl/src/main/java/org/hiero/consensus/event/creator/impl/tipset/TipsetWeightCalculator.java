@@ -7,7 +7,6 @@ import static org.hiero.consensus.event.creator.impl.tipset.TipsetAdvancementWei
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.time.Time;
-import com.swirlds.common.utility.throttle.RateLimitedLogger;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
@@ -24,6 +23,7 @@ import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.roster.RosterUtils;
+import org.hiero.consensus.utility.throttle.RateLimitedLogger;
 
 /**
  * Calculates tipset advancement weights for events created by a node.

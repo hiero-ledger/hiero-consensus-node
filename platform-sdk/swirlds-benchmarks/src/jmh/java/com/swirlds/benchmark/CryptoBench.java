@@ -4,7 +4,6 @@ package com.swirlds.benchmark;
 import static org.hiero.consensus.threading.manager.AdHocThreadManager.getStaticThreadManager;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import org.hiero.consensus.threading.framework.config.ThreadConfiguration;
 import com.swirlds.metrics.api.LongGauge;
 import com.swirlds.virtualmap.VirtualMap;
 import java.util.ArrayDeque;
@@ -21,6 +20,7 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;

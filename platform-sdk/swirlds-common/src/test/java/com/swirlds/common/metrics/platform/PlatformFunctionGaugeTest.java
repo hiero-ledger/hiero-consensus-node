@@ -10,13 +10,13 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import com.swirlds.common.metrics.FunctionGauge;
 import com.swirlds.metrics.api.IntegerGauge;
 import com.swirlds.metrics.api.Metric;
 import com.swirlds.metrics.api.snapshot.Snapshot.SnapshotEntry;
 import com.swirlds.metrics.impl.DefaultIntegerGauge;
 import java.util.List;
 import java.util.function.Supplier;
+import org.hiero.consensus.metrics.FunctionGauge;
 import org.junit.jupiter.api.Test;
 
 class PlatformFunctionGaugeTest {

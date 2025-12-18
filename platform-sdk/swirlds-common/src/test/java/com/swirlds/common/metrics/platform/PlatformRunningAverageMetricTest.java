@@ -12,14 +12,14 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.swirlds.base.test.fixtures.time.FakeTime;
-import com.swirlds.common.metrics.RunningAverageMetric;
-import com.swirlds.common.metrics.config.MetricsConfig;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.metrics.api.IntegerGauge;
 import com.swirlds.metrics.api.snapshot.Snapshot.SnapshotEntry;
 import com.swirlds.metrics.impl.DefaultIntegerGauge;
 import java.time.Duration;
 import java.util.List;
+import org.hiero.consensus.metrics.RunningAverageMetric;
+import org.hiero.consensus.metrics.config.MetricsConfig;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 

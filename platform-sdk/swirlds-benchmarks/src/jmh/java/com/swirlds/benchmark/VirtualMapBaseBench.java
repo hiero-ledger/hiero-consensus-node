@@ -3,7 +3,6 @@ package com.swirlds.benchmark;
 
 import static org.hiero.consensus.threading.manager.AdHocThreadManager.getStaticThreadManager;
 
-import org.hiero.consensus.threading.framework.config.ThreadConfiguration;
 import com.swirlds.merkledb.MerkleDbDataSourceBuilder;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.virtualmap.VirtualMap;
@@ -21,6 +20,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
 import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.TearDown;
 

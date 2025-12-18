@@ -1,15 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.crypto;
 
-import static org.hiero.consensus.threading.manager.AdHocThreadManager.getStaticThreadManager;
 import static com.swirlds.logging.legacy.LogMarker.CERTIFICATES;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static com.swirlds.platform.crypto.KeyCertPurpose.SIGNING;
 import static org.hiero.consensus.crypto.CryptoConstants.PUBLIC_KEYS_FILE;
+import static org.hiero.consensus.threading.manager.AdHocThreadManager.getStaticThreadManager;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import org.hiero.consensus.threading.framework.config.ThreadConfiguration;
 import com.swirlds.common.utility.CommonUtils;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.logging.legacy.LogMarker;
@@ -64,6 +63,7 @@ import org.bouncycastle.operator.OperatorCreationException;
 import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder;
 import org.hiero.base.crypto.CryptographyException;
 import org.hiero.base.crypto.config.CryptoConfig;
+import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
 import org.hiero.consensus.crypto.CryptoConstants;
 import org.hiero.consensus.crypto.SigningFactory;
 import org.hiero.consensus.model.node.KeysAndCerts;

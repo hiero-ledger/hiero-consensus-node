@@ -12,8 +12,6 @@ import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
 import com.swirlds.common.merkle.synchronization.streams.AsyncOutputStream;
 import com.swirlds.common.merkle.synchronization.task.TeacherSubtree;
 import com.swirlds.common.merkle.synchronization.views.TeacherTreeView;
-import org.hiero.consensus.threading.manager.ThreadManager;
-import org.hiero.consensus.threading.pool.StandardWorkGroup;
 import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.internal.RecordAccessor;
 import com.swirlds.virtualmap.internal.merkle.VirtualMapMetadata;
@@ -24,6 +22,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
+import org.hiero.consensus.concurrent.manager.ThreadManager;
+import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
 
 /**
  * An implementation of {@link TeacherTreeView} designed for virtual merkle trees.

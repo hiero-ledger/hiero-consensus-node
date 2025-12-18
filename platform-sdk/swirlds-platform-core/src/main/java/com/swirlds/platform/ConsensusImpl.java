@@ -17,7 +17,6 @@ import com.hedera.hapi.platform.state.JudgeId;
 import com.hedera.hapi.util.HapiUtils;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.utility.Threshold;
-import com.swirlds.common.utility.throttle.RateLimitedLogger;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.logging.legacy.LogMarker;
 import com.swirlds.platform.consensus.AncestorSearch;
@@ -54,6 +53,7 @@ import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.roster.RosterUtils;
+import org.hiero.consensus.utility.throttle.RateLimitedLogger;
 
 /**
  * All the code for calculating the consensus for events in a hashgraph. This calculates the
