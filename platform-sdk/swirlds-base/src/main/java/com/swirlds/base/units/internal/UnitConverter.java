@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.common.units.internal;
+package com.swirlds.base.units.internal;
 
-import com.swirlds.common.units.Unit;
+import com.swirlds.base.units.Unit;
+import edu.umd.cs.findbugs.annotations.NonNull;
 
 /**
  * Boilerplate code for converting between units of the same type.
@@ -17,7 +18,7 @@ public class UnitConverter<T extends Unit<T>> {
      * @param factor the number which the previous unit must be multiplied by in order to reach this unit
      * @param <T>    the unit family type for this unit
      */
-    public record UnitConversion<T>(T type, long factor) {}
+    public record UnitConversion<T>(@NonNull T type, long factor) {}
 
     /**
      * An in-order sequence of units.
@@ -35,7 +36,7 @@ public class UnitConverter<T extends Unit<T>> {
      * @param units an in-order array of units
      */
     @SuppressWarnings("unchecked")
-    public UnitConverter(final T... units) {
+    public UnitConverter(@NonNull final T... units) {
         factors = new long[units.length * units.length];
         types = (T[]) new Unit[units.length];
 
@@ -43,7 +44,7 @@ public class UnitConverter<T extends Unit<T>> {
             types[from.ordinal()] = from;
             for (final T to : units) {
 
-                int index = getConversionFactorIndex(from, to);
+                final int index = getConversionFactorIndex(from, to);
                 factors[index] = 1;
 
                 if (from.ordinal() > to.ordinal()) {
@@ -66,7 +67,7 @@ public class UnitConverter<T extends Unit<T>> {
      * @param from the resulting unit
      * @return the factor that should be multiplied or divided for the conversion
      */
-    private int getConversionFactorIndex(final Unit<T> to, final Unit<T> from) {
+    private int getConversionFactorIndex(@NonNull final Unit<T> to, @NonNull final Unit<T> from) {
         return to.ordinal() * types.length + from.ordinal();
     }
 
@@ -77,7 +78,8 @@ public class UnitConverter<T extends Unit<T>> {
      * @param unit     the original unit
      * @return the new unit
      */
-    public Unit.SimplifiedQuantity<T> simplify(final double quantity, final T unit) {
+    @NonNull
+    public Unit.SimplifiedQuantity<T> simplify(final double quantity, @NonNull final T unit) {
         double currentQuantity = quantity;
         int currentIndex = unit.ordinal();
 
@@ -102,7 +104,7 @@ public class UnitConverter<T extends Unit<T>> {
      * @param to       the new unit
      * @return the new quantity
      */
-    public double convertTo(final double quantity, final T from, final T to) {
+    public double convertTo(final double quantity, @NonNull final T from, @NonNull final T to) {
         if (from == to) {
             return quantity;
         }
@@ -124,7 +126,7 @@ public class UnitConverter<T extends Unit<T>> {
      * @param to       the new unit
      * @return the new quantity
      */
-    public double convertTo(final long quantity, final T from, final T to) {
+    public double convertTo(final long quantity, @NonNull final T from, @NonNull final T to) {
         if (from == to) {
             return quantity;
         }

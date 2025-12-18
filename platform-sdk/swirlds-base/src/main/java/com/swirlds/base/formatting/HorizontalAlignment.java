@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.common.formatting;
+package com.swirlds.base.formatting;
 
-import static com.swirlds.common.formatting.StringFormattingUtils.repeatedChar;
-import static com.swirlds.common.formatting.TextEffect.getPrintableTextLength;
+import static com.swirlds.base.formatting.StringFormattingUtils.repeatedChar;
+import static com.swirlds.base.formatting.TextEffect.getPrintableTextLength;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 
@@ -64,8 +64,8 @@ public enum HorizontalAlignment {
                     sb.append(repeatedChar(padding, width - textLength));
                 }
             }
-            case ALIGNED_RIGHT -> sb.append(repeatedChar(padding, width - textLength))
-                    .append(text);
+            case ALIGNED_RIGHT ->
+                sb.append(repeatedChar(padding, width - textLength)).append(text);
             case ALIGNED_CENTER -> {
                 final int leftPadding = (width - textLength) / 2;
                 sb.append(repeatedChar(padding, leftPadding)).append(text);

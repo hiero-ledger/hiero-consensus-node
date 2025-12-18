@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.common.units;
+package com.swirlds.base.units;
 
-import com.swirlds.common.formatting.UnitFormatter;
+import com.swirlds.base.formatting.UnitFormatter;
 
 /**
  * An object capable of formatting a unit.
