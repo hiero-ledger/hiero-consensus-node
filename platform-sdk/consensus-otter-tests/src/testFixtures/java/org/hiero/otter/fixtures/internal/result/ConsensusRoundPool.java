@@ -153,7 +153,7 @@ public class ConsensusRoundPool {
      *
      * @return pool size
      */
-    public int size() {
-        return roundsByNumber.size();
+    public int size(final @NonNull NodeId nodeId) {
+        return currentConsensusRounds(0, nodeId).size();
     }
 }

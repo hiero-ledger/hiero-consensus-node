@@ -27,7 +27,6 @@ import org.hiero.otter.fixtures.result.SubscriberAction;
 public class NodeResultsCollector {
 
     private final NodeId nodeId;
-    // private final Queue<ConsensusRound> consensusRounds = new ConcurrentLinkedQueue<>();
     private final List<ConsensusRoundSubscriber> consensusRoundSubscribers = new CopyOnWriteArrayList<>();
     private final List<PlatformStatus> platformStatuses = new ArrayList<>();
     private final List<PlatformStatusSubscriber> platformStatusSubscribers = new CopyOnWriteArrayList<>();
@@ -133,7 +132,7 @@ public class NodeResultsCollector {
      * @return the count of consensus rounds
      */
     public int currentConsensusRoundsCount() {
-        return roundPool.size();
+        return roundPool.size(nodeId);
     }
 
     /**
