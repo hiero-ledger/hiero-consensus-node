@@ -88,6 +88,13 @@ public class ConsensusModuleBuilder {
                 .orElseThrow(() -> new IllegalStateException("No EventIntakeModule implementation found!"));
     }
 
+    /**
+     * Create and initialize a no-op instance of the {@link EventIntakeModule}.
+     *
+     * @param model the wiring model
+     * @param configuration the configuration
+     * @return an initialized no-op instance of {@code EventIntakeModule}
+     */
     public static EventIntakeModule createNoOpEventIntakeModule(
             @NonNull final WiringModel model, @NonNull final Configuration configuration) {
         final Metrics metrics = new NoOpMetrics();
