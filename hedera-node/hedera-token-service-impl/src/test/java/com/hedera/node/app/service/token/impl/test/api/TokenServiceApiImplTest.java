@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.test.api;
 
+import static com.hedera.hapi.node.base.ResponseCodeEnum.TRANSFER_TO_FEE_COLLECTION_ACCOUNT_NOT_ALLOWED;
 import static com.hedera.node.app.hapi.utils.keys.KeyUtils.IMMUTABILITY_SENTINEL_KEY;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_ID;
 import static com.hedera.node.app.service.entityid.impl.schemas.V0490EntityIdSchema.ENTITY_ID_STATE_LABEL;
@@ -41,6 +42,7 @@ import com.hedera.node.app.service.token.impl.WritableAccountStore;
 import com.hedera.node.app.service.token.impl.api.TokenServiceApiImpl;
 import com.hedera.node.app.service.token.impl.validators.StakingValidator;
 import com.hedera.node.app.spi.fees.Fees;
+import com.hedera.node.app.spi.fees.NodeFeeAccumulator;
 import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
@@ -666,6 +668,175 @@ class TokenServiceApiImplTest {
             assertThrows(
                     IllegalArgumentException.class,
                     () -> subject.chargeFees(EOA_ACCOUNT_ID, NODE_ACCOUNT_ID, fees, rb, null, onNodeFee));
+        }
+    }
+
+    @Nested
+    final class FeeCollectionAccountTests {
+        private static final long FEE_COLLECTION_ACCOUNT_NUM = 802L;
+        private static final AccountID FEE_COLLECTION_ACCOUNT_ID =
+                AccountID.newBuilder().accountNum(FEE_COLLECTION_ACCOUNT_NUM).build();
+        private static final AccountID NODE_ACCOUNT_ID =
+                AccountID.newBuilder().accountNum(666).build();
+        private static final AccountID FUNDING_ACCOUNT_ID =
+                AccountID.newBuilder().accountNum(12).build();
+        private static final AccountID STAKING_REWARD_ACCOUNT_ID =
+                AccountID.newBuilder().accountNum(13).build();
+        private static final AccountID NODE_REWARD_ACCOUNT_ID =
+                AccountID.newBuilder().accountNum(14).build();
+
+        private TestConfigBuilder configBuilder;
+        private FakeFeeRecordBuilder rb;
+
+        @BeforeEach
+        void setUp() {
+            configBuilder = HederaTestConfigBuilder.create()
+                    .withValue("staking.fees.nodeRewardPercentage", 10)
+                    .withValue("staking.fees.stakingRewardPercentage", 20)
+                    .withValue("hedera.shard", 0)
+                    .withValue("hedera.realm", 0)
+                    .withValue("ledger.fundingAccount", 12)
+                    .withValue("accounts.stakingRewardAccount", 13)
+                    .withValue("accounts.nodeRewardAccount", 14)
+                    .withValue("accounts.feeCollectionAccount", FEE_COLLECTION_ACCOUNT_NUM)
+                    .withValue("nodes.feeCollectionAccountEnabled", true);
+
+            accountStore.put(Account.newBuilder().accountId(FUNDING_ACCOUNT_ID).build());
+            accountStore.put(
+                    Account.newBuilder().accountId(STAKING_REWARD_ACCOUNT_ID).build());
+            accountStore.put(
+                    Account.newBuilder().accountId(NODE_REWARD_ACCOUNT_ID).build());
+            accountStore.put(Account.newBuilder().accountId(NODE_ACCOUNT_ID).build());
+            accountStore.put(Account.newBuilder()
+                    .accountId(FEE_COLLECTION_ACCOUNT_ID)
+                    .tinybarBalance(0L)
+                    .build());
+            accountStore.put(Account.newBuilder()
+                    .accountId(EOA_ACCOUNT_ID)
+                    .tinybarBalance(100L)
+                    .build());
+
+            rb = new FakeFeeRecordBuilder();
+        }
+
+        @Test
+        void chargeFeesWithFeeCollectionAccountEnabled() {
+            // Given fee collection is enabled
+            final var config = configBuilder
+                    .withValue("nodes.preserveMinNodeRewardBalance", false)
+                    .getOrCreateConfig();
+            final Map<AccountID, Long> adjustments = new HashMap<>();
+            final var nodeFeeAccumulator = new TestNodeFeeAccumulator();
+
+            subject =
+                    new TokenServiceApiImpl(config, writableStates, customFeeTest, entityCounters, nodeFeeAccumulator);
+
+            // When we charge fees
+            final var fees = new Fees(2, 5, 5); // 12 total
+            subject.chargeFees(
+                    EOA_ACCOUNT_ID,
+                    NODE_ACCOUNT_ID,
+                    fees,
+                    rb,
+                    (id, amount) -> adjustments.merge(id, amount, Long::sum),
+                    (amount) -> {});
+
+            // Then fees go to fee collection account
+            final var feeCollectionAccount = requireNonNull(accountState.get(FEE_COLLECTION_ACCOUNT_ID));
+            assertThat(feeCollectionAccount.tinybarBalance()).isEqualTo(12L);
+
+            // And node fees are accumulated
+            assertThat(nodeFeeAccumulator.getAccumulatedFees(NODE_ACCOUNT_ID)).isEqualTo(2L);
+        }
+
+        @Test
+        void refundFeeWithFeeCollectionAccountEnabled() {
+            // Given fee collection is enabled and has balance
+            accountStore.put(Account.newBuilder()
+                    .accountId(FEE_COLLECTION_ACCOUNT_ID)
+                    .tinybarBalance(100L)
+                    .build());
+            accountStore.put(Account.newBuilder()
+                    .accountId(EOA_ACCOUNT_ID)
+                    .tinybarBalance(50L)
+                    .build());
+
+            final var config = configBuilder.getOrCreateConfig();
+            subject = new TokenServiceApiImpl(config, writableStates, customFeeTest, entityCounters);
+
+            // When we refund fees
+            subject.refundFee(EOA_ACCOUNT_ID, 30L, rb);
+
+            // Then fee collection account balance is reduced
+            final var feeCollectionAccount = requireNonNull(accountState.get(FEE_COLLECTION_ACCOUNT_ID));
+            assertThat(feeCollectionAccount.tinybarBalance()).isEqualTo(70L);
+
+            // And payer balance is increased
+            final var payerAccount = requireNonNull(accountState.get(EOA_ACCOUNT_ID));
+            assertThat(payerAccount.tinybarBalance()).isEqualTo(80L);
+        }
+
+        @Test
+        void transferToFeeCollectionAccountNotAllowed() {
+            // Given fee collection is enabled
+            final var config = configBuilder.getOrCreateConfig();
+            subject = new TokenServiceApiImpl(config, writableStates, customFeeTest, entityCounters);
+
+            // When we try to transfer to fee collection account
+            final var exception = assertThrows(
+                    HandleException.class,
+                    () -> subject.transferFromTo(EOA_ACCOUNT_ID, FEE_COLLECTION_ACCOUNT_ID, 10L));
+
+            // Then we get the expected error
+            assertThat(exception.getStatus()).isEqualTo(TRANSFER_TO_FEE_COLLECTION_ACCOUNT_NOT_ALLOWED);
+        }
+
+        @Test
+        void refundFeesWithFeeCollectionAccountEnabled() {
+            accountStore.put(Account.newBuilder()
+                    .accountId(FEE_COLLECTION_ACCOUNT_ID)
+                    .tinybarBalance(100L)
+                    .build());
+            accountStore.put(Account.newBuilder()
+                    .accountId(NODE_ACCOUNT_ID)
+                    .tinybarBalance(50L)
+                    .build());
+            accountStore.put(Account.newBuilder()
+                    .accountId(EOA_ACCOUNT_ID)
+                    .tinybarBalance(20L)
+                    .build());
+
+            final var config = configBuilder.getOrCreateConfig();
+            subject = new TokenServiceApiImpl(config, writableStates, customFeeTest, entityCounters);
+
+            // When we refund fees (with node fee)
+            final var fees = new Fees(10, 20, 20); // 10 node, 40 network+service
+            subject.refundFees(EOA_ACCOUNT_ID, NODE_ACCOUNT_ID, fees, rb, (amount) -> {});
+
+            // Then fee collection account balance is reduced by network+service fees
+            final var feeCollectionAccount = requireNonNull(accountState.get(FEE_COLLECTION_ACCOUNT_ID));
+            assertThat(feeCollectionAccount.tinybarBalance()).isEqualTo(60L); // 100 - 40
+
+            // And node account balance is reduced by node fee
+            final var nodeAccount = requireNonNull(accountState.get(NODE_ACCOUNT_ID));
+            assertThat(nodeAccount.tinybarBalance()).isEqualTo(40L); // 50 - 10
+
+            // And payer balance is increased by total refund
+            final var payerAccount = requireNonNull(accountState.get(EOA_ACCOUNT_ID));
+            assertThat(payerAccount.tinybarBalance()).isEqualTo(70L); // 20 + 50 (10 + 40)
+        }
+
+        private static class TestNodeFeeAccumulator implements NodeFeeAccumulator {
+            private final Map<AccountID, Long> accumulatedFees = new HashMap<>();
+
+            @Override
+            public void accumulate(AccountID nodeAccountId, long amount) {
+                accumulatedFees.merge(nodeAccountId, amount, Long::sum);
+            }
+
+            public long getAccumulatedFees(AccountID nodeAccountId) {
+                return accumulatedFees.getOrDefault(nodeAccountId, 0L);
+            }
         }
     }
 }
