@@ -3,6 +3,7 @@ package org.hiero.consensus.event.intake;
 
 import com.swirlds.base.time.Time;
 import com.swirlds.common.io.utility.RecycleBin;
+import com.swirlds.common.metrics.event.EventPipelineTracker;
 import com.swirlds.component.framework.component.InputWireLabel;
 import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.component.framework.wires.input.InputWire;
@@ -10,6 +11,7 @@ import com.swirlds.component.framework.wires.output.OutputWire;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import org.hiero.consensus.event.IntakeEventCounter;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
@@ -47,7 +49,8 @@ public interface EventIntakeModule {
             @NonNull IntakeEventCounter intakeEventCounter,
             @NonNull TransactionLimits transactionLimits,
             @NonNull RecycleBin recycleBin,
-            long startingRound);
+            long startingRound,
+            @Nullable EventPipelineTracker eventPipelineTracker);
 
     /**
      * {@link OutputWire} for ordered, validated, and recorded events.
@@ -62,9 +65,9 @@ public interface EventIntakeModule {
      *
      * @return the {@link InputWire} for gossiped events
      */
-    @InputWireLabel("gossiped events")
+    @InputWireLabel("unhashed events")
     @NonNull
-    InputWire<PlatformEvent> gossipedEventsInputWire();
+    InputWire<PlatformEvent> unhashedEventsInputWire();
 
     /**
      * {@link InputWire} for self events created by this node.
