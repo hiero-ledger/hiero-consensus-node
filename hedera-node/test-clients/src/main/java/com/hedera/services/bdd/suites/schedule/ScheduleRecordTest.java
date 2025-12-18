@@ -19,14 +19,17 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.submitMessageTo
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.usableTxnIdNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.FUNDING;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
+import static com.hedera.services.bdd.suites.HapiSuite.NODE_REWARD;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
+import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.schedule.ScheduleUtils.ADMIN;
 import static com.hedera.services.bdd.suites.schedule.ScheduleUtils.BEGIN;
 import static com.hedera.services.bdd.suites.schedule.ScheduleUtils.CREATION;
@@ -46,6 +49,8 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TRANSACTION_ID_FIELD_NOT_ALLOWED;
 
 import com.hedera.services.bdd.junit.HapiTest;
+import com.hedera.services.bdd.junit.LeakyHapiTest;
+import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
 import com.hederahashgraph.api.proto.java.TransactionID;
 import java.security.SecureRandom;
 import java.util.Collections;
@@ -96,7 +101,7 @@ public class ScheduleRecordTest {
                                 .status(INSUFFICIENT_PAYER_BALANCE)));
     }
 
-    @HapiTest
+    @LeakyHapiTest(overrides = {"nodes.feeCollectionAccountEnabled"})
     @Tag(MATS)
     final Stream<DynamicTest> canScheduleChunkedMessages() {
         String ofGeneralInterest = "Scotch";
@@ -104,6 +109,9 @@ public class ScheduleRecordTest {
 
         // validation here is checking fees and staking, not message creation on the topic...
         return hapiTest(
+                overriding("nodes.feeCollectionAccountEnabled", "false"),
+                cryptoTransfer(TokenMovement.movingHbar(ONE_MILLION_HBARS + ONE_HUNDRED_HBARS)
+                        .between(GENESIS, NODE_REWARD)),
                 cryptoCreate(PAYING_SENDER).balance(ONE_HUNDRED_HBARS),
                 createTopic(ofGeneralInterest),
                 withOpContext((spec, opLog) -> {

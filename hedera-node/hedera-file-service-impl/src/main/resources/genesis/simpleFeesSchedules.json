@@ -130,6 +130,16 @@
           "name": "ConsensusGetTopicInfo",
           "baseFee": 0,
           "extras": []
+        },
+        {
+          "name": "CryptoGetInfo",
+          "baseFee": 0,
+          "extras": []
+        },
+        {
+          "name": "CryptoGetAccountRecords",
+          "baseFee": 0,
+          "extras": []
         }
       ]
     },
