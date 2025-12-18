@@ -799,6 +799,7 @@ public class AdditionalHip1064Tests {
 
                 // Start a new period
                 waitUntilStartOfNextStakingPeriod(1),
+                cryptoTransfer(TokenMovement.movingHbar(100000 * ONE_HBAR).between(GENESIS, NODE_REWARD)),
                 sleepForBlockPeriod(),
 
                 // Record initial balances
@@ -826,7 +827,7 @@ public class AdditionalHip1064Tests {
                                 .getAmount())),
 
                 // Expect normal fee distribution (above threshold)
-                validateRecordFees("notFree", List.of(802L)),
+                validateRecordFees("notFree", List.of(3L, 98L, 800L, 801L)),
                 doWithStartupConfig(
                         "nodes.targetYearlyNodeRewardsUsd",
                         target -> doWithStartupConfig(
@@ -876,6 +877,7 @@ public class AdditionalHip1064Tests {
                             .build();
                 }),
                 waitUntilStartOfNextStakingPeriod(1),
+                cryptoTransfer(TokenMovement.movingHbar(100000 * ONE_HBAR).between(GENESIS, NODE_REWARD)),
 
                 // Trigger reward payment
                 cryptoCreate("nobody").payingWith(GENESIS),

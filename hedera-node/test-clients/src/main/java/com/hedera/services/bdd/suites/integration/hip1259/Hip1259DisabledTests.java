@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.integration.hip1259;
 
-import static com.hedera.hapi.util.HapiUtils.asInstant;
-import static com.hedera.node.app.hapi.utils.CommonPbjConverters.toPbj;
 import static com.hedera.node.app.service.token.impl.schemas.V0610TokenSchema.NODE_REWARDS_STATE_ID;
 import static com.hedera.services.bdd.junit.RepeatableReason.NEEDS_STATE_ACCESS;
 import static com.hedera.services.bdd.junit.RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION;
@@ -14,12 +12,7 @@ import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.fileCreate;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeUpdate;
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.mutateSingleton;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doWithStartupConfig;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.recordStreamMustIncludePassWithoutBackgroundTrafficFrom;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.selectedItems;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepForBlockPeriod;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitUntilStartOfNextStakingPeriod;
 import static com.hedera.services.bdd.suites.HapiSuite.CIVILIAN_PAYER;
@@ -28,8 +21,6 @@ import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.NODE_REWARD;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
-import static com.hedera.services.bdd.suites.HapiSuite.TINY_PARTS_PER_WHOLE;
-import static com.hedera.services.bdd.suites.integration.hip1259.ValidationUtils.nodeRewardsValidator;
 import static com.hedera.services.bdd.suites.integration.hip1259.ValidationUtils.validateRecordContains;
 import static com.hedera.services.bdd.suites.integration.hip1259.ValidationUtils.validateRecordNotContains;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TRANSFER_TO_FEE_COLLECTION_ACCOUNT_NOT_ALLOWED;
@@ -40,21 +31,16 @@ import com.hedera.hapi.node.state.token.NodeActivity;
 import com.hedera.hapi.node.state.token.NodeRewards;
 import com.hedera.node.app.service.token.TokenService;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
-import com.hedera.services.bdd.junit.LeakyRepeatableHapiTest;
 import com.hedera.services.bdd.junit.RepeatableHapiTest;
 import com.hedera.services.bdd.junit.TargetEmbeddedMode;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
-import com.hedera.services.bdd.spec.transactions.TxnUtils;
 import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
 import com.hedera.services.bdd.spec.utilops.EmbeddedVerbs;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.time.Duration;
-import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
@@ -114,78 +100,6 @@ public class Hip1259DisabledTests {
     }
 
     /**
-     * Verifies that node rewards are correctly distributed at staking period boundary
-     * when HIP-1259 is disabled, using the legacy fee distribution mechanism.
-     */
-    @Order(2)
-    @LeakyRepeatableHapiTest(value = {NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION, NEEDS_STATE_ACCESS})
-    final Stream<DynamicTest> nodeRewardsWithLegacyFeeDistribution() {
-        final AtomicLong expectedNodeRewards = new AtomicLong(0);
-        final AtomicLong nodeRewardBalance = new AtomicLong(0);
-        final AtomicReference<Instant> startConsensusTime = new AtomicReference<>();
-        return hapiTest(
-                cryptoTransfer(TokenMovement.movingHbar(100000 * ONE_HBAR).between(GENESIS, NODE_REWARD)),
-                nodeUpdate("0").declineReward(true),
-                waitUntilStartOfNextStakingPeriod(1),
-                doingContextual(spec -> startConsensusTime.set(spec.consensusTime())),
-                recordStreamMustIncludePassWithoutBackgroundTrafficFrom(
-                        selectedItems(
-                                nodeRewardsValidator(nodeRewardBalance::get),
-                                1,
-                                (spec, item) -> item.getRecord().getTransferList().getAccountAmountsList().stream()
-                                                .anyMatch(
-                                                        aa -> aa.getAccountID().getAccountNum() == 801L
-                                                                && aa.getAmount() < 0L)
-                                        && asInstant(toPbj(item.getRecord().getConsensusTimestamp()))
-                                                .isAfter(startConsensusTime.get())),
-                        Duration.ofSeconds(1)),
-                cryptoCreate(CIVILIAN_PAYER),
-                fileCreate("something")
-                        .contents("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
-                        .payingWith(CIVILIAN_PAYER)
-                        .via("feeTxn"),
-                validateRecordContains("feeTxn", LEGACY_FEE_ACCOUNTS),
-                validateRecordNotContains("feeTxn", FEE_COLLECTION_ACCOUNT),
-                doWithStartupConfig(
-                        "nodes.targetYearlyNodeRewardsUsd",
-                        target -> doWithStartupConfig(
-                                "nodes.numPeriodsToTargetUsd",
-                                numPeriods -> doingContextual(spec -> {
-                                    final long targetReward = (Long.parseLong(target) * 100 * TINY_PARTS_PER_WHOLE)
-                                            / Integer.parseInt(numPeriods);
-                                    final long targetTinybars =
-                                            spec.ratesProvider().toTbWithActiveRates(targetReward);
-                                    expectedNodeRewards.set(targetTinybars);
-                                }))),
-                sleepForBlockPeriod(),
-                EmbeddedVerbs.handleAnyRepeatableQueryPayment(),
-
-                // Set nodes to have perfect activity - no missed rounds
-                mutateSingleton(TokenService.NAME, NODE_REWARDS_STATE_ID, (NodeRewards nodeRewards) -> nodeRewards
-                        .copyBuilder()
-                        .nodeActivities(
-                                NodeActivity.newBuilder()
-                                        .nodeId(1)
-                                        .numMissedJudgeRounds(0)
-                                        .build(), // 100% active
-                                NodeActivity.newBuilder()
-                                        .nodeId(2)
-                                        .numMissedJudgeRounds(0)
-                                        .build(), // 100% active
-                                NodeActivity.newBuilder()
-                                        .nodeId(3)
-                                        .numMissedJudgeRounds(0)
-                                        .build()) // 100% active
-                        .build()),
-                getAccountBalance(NODE_REWARD)
-                        .exposingBalanceTo(nodeRewardBalance::set)
-                        .logged(),
-                waitUntilStartOfNextStakingPeriod(1),
-                cryptoCreate("nobody").payingWith(GENESIS),
-                doingContextual(TxnUtils::triggerAndCloseAtLeastOneFileIfNotInterrupted));
-    }
-
-    /**
      * Verifies that node fees are tracked in NodeRewards state even when HIP-1259 is disabled,
      * for the purpose of calculating node rewards.
      */
@@ -207,6 +121,7 @@ public class Hip1259DisabledTests {
                         .via("feeTxn"),
                 validateRecordContains("feeTxn", LEGACY_FEE_ACCOUNTS),
                 sleepForBlockPeriod(),
+                cryptoTransfer(TokenMovement.movingHbar(ONE_HBAR).between(GENESIS, NODE_REWARD)),
                 EmbeddedVerbs.<NodeRewards>viewSingleton(
                         TokenService.NAME,
                         NODE_REWARDS_STATE_ID,

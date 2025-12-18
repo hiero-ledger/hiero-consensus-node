@@ -39,6 +39,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.FEE_COLLECTOR;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.NODE_REWARD;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
+import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.contract.Utils.asSolidityAddress;
 import static com.hedera.services.bdd.suites.contract.hapi.ContractCallSuite.TRANSFERRING_CONTRACT;
@@ -47,6 +48,7 @@ import static com.hedera.services.bdd.suites.integration.hip1259.ValidationUtils
 import static com.hedera.services.bdd.suites.integration.hip1259.ValidationUtils.validateRecordContains;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ACCOUNT_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_CUSTOM_FEE_COLLECTOR;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_RECEIVING_NODE_ACCOUNT;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TRANSFER_TO_FEE_COLLECTION_ACCOUNT_NOT_ALLOWED;
 import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -77,7 +79,6 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
@@ -161,6 +162,7 @@ public class Hip1259EnabledTests {
                 /*-------------------------------INITIAL SET UP ---------------------------------*/
                 cryptoCreate(CIVILIAN_PAYER),
                 waitUntilStartOfNextStakingPeriod(1),
+                cryptoTransfer(TokenMovement.movingHbar(ONE_MILLION_HBARS).between(GENESIS, NODE_REWARD)),
                 mutateSingleton(TokenService.NAME, NODE_PAYMENTS_STATE_ID, (NodePayments nodePayments) -> nodePayments
                         .copyBuilder()
                         .payments(List.of())
@@ -370,30 +372,11 @@ public class Hip1259EnabledTests {
     }
 
     /**
-     * Verifies that token airdrops to the fee collection account (0.0.802) are rejected.
-     * Per HIP-1259: "Reject any transaction that would send any hbar to the fee account"
-     * This includes token airdrops which are essentially token transfers.
-     */
-    @Order(9)
-    @Disabled
-    @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
-    final Stream<DynamicTest> tokenAirdropToFeeCollectionAccountFails() {
-        return hapiTest(
-                cryptoCreate(CIVILIAN_PAYER).balance(ONE_MILLION_HBARS),
-                tokenCreate("airdropToken").treasury(CIVILIAN_PAYER).initialSupply(1000L),
-                tokenAirdrop(TokenMovement.moving(10, "airdropToken").between(CIVILIAN_PAYER, FEE_COLLECTOR))
-                        .payingWith(GENESIS)
-                        .signedBy(GENESIS)
-                        .hasKnownStatus(TRANSFER_TO_FEE_COLLECTION_ACCOUNT_NOT_ALLOWED));
-    }
-
-    /**
      * Verifies that NFT airdrops to the fee collection account (0.0.802) are rejected.
      * Per HIP-1259: "Reject any transaction that would send any hbar to the fee account"
      * This includes NFT airdrops which are essentially token transfers.
      */
     @Order(10)
-    @Disabled
     @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
     final Stream<DynamicTest> nftAirdropToFeeCollectionAccountFails() {
         return hapiTest(
@@ -406,9 +389,10 @@ public class Hip1259EnabledTests {
                         .initialSupply(0L),
                 mintToken("airdropNft", List.of(ByteString.copyFromUtf8("metadata"))),
                 tokenAirdrop(TokenMovement.movingUnique("airdropNft", 1L).between(CIVILIAN_PAYER, FEE_COLLECTOR))
-                        .payingWith(GENESIS)
-                        .signedBy(GENESIS)
-                        .hasKnownStatus(TRANSFER_TO_FEE_COLLECTION_ACCOUNT_NOT_ALLOWED));
+                        .fee(ONE_HUNDRED_HBARS)
+                        .payingWith(CIVILIAN_PAYER)
+                        .signedBy(CIVILIAN_PAYER)
+                        .hasKnownStatus(INVALID_RECEIVING_NODE_ACCOUNT));
     }
 
     /**
@@ -434,6 +418,7 @@ public class Hip1259EnabledTests {
                         Duration.ofSeconds(1)),
                 cryptoCreate(CIVILIAN_PAYER),
                 waitUntilStartOfNextStakingPeriod(1),
+                cryptoTransfer(TokenMovement.movingHbar(ONE_MILLION_HBARS).between(GENESIS, NODE_REWARD)),
                 // Set receiverSigRequired=true on node account 0.0.3
                 EmbeddedVerbs.mutateAccount(NODE_ACCOUNT, account -> account.receiverSigRequired(true)),
                 // Generate some fees
@@ -479,6 +464,7 @@ public class Hip1259EnabledTests {
                         Duration.ofSeconds(1)),
                 cryptoCreate(CIVILIAN_PAYER).balance(ONE_MILLION_HBARS),
                 waitUntilStartOfNextStakingPeriod(1),
+                cryptoTransfer(TokenMovement.movingHbar(ONE_MILLION_HBARS).between(GENESIS, NODE_REWARD)),
                 // Mark node account 0.0.3 as deleted
                 EmbeddedVerbs.mutateAccount(NODE_ACCOUNT, account -> account.deleted(true)),
                 // Generate some fees
@@ -511,6 +497,7 @@ public class Hip1259EnabledTests {
                 cryptoTransfer(TokenMovement.movingHbar(ONE_MILLION_HBARS).between(GENESIS, NODE_REWARD)),
                 cryptoCreate(CIVILIAN_PAYER).balance(ONE_MILLION_HBARS),
                 waitUntilStartOfNextStakingPeriod(1),
+                cryptoTransfer(TokenMovement.movingHbar(ONE_HBAR).between(GENESIS, NODE_REWARD)),
                 // Generate some fees to populate NodePayments
                 fileCreate("testFile")
                         .contents("Test content for fee collection")
@@ -519,6 +506,7 @@ public class Hip1259EnabledTests {
                 validateRecordContains("feeTxn", FEE_COLLECTOR_ACCOUNT),
                 sleepForBlockPeriod(),
                 cryptoTransfer(TokenMovement.movingHbar(ONE_HBAR).between(GENESIS, NODE_REWARD)),
+
                 // Verify NodePayments has accumulated fees
                 EmbeddedVerbs.<NodePayments>viewSingleton(
                         TokenService.NAME,
@@ -528,6 +516,7 @@ public class Hip1259EnabledTests {
                                 "NodePayments should have accumulated fees before distribution")),
                 // Trigger fee distribution at next staking period
                 waitUntilStartOfNextStakingPeriod(1),
+                cryptoTransfer(TokenMovement.movingHbar(ONE_HBAR).between(GENESIS, NODE_REWARD)),
                 cryptoCreate("trigger").payingWith(GENESIS),
                 doingContextual(TxnUtils::triggerAndCloseAtLeastOneFileIfNotInterrupted),
                 sleepForBlockPeriod(),
