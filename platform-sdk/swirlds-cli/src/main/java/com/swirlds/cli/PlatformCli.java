@@ -4,10 +4,10 @@ package com.swirlds.cli;
 import static com.swirlds.cli.utility.CommandBuilder.buildCommandLine;
 import static com.swirlds.cli.utility.CommandBuilder.whitelistCliPackage;
 
+import com.swirlds.base.formatting.TextEffect;
 import com.swirlds.cli.utility.AbstractCommand;
 import com.swirlds.cli.utility.PlatformCliLogo;
 import com.swirlds.cli.utility.PlatformCliPreParser;
-import com.swirlds.common.formatting.TextEffect;
 import com.swirlds.common.startup.Log4jSetup;
 import java.nio.file.Path;
 import java.util.List;

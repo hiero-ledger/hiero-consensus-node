@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state.signed;
 
-import static com.swirlds.common.units.TimeUnit.UNIT_MICROSECONDS;
-import static com.swirlds.common.units.TimeUnit.UNIT_NANOSECONDS;
+import static com.swirlds.base.units.TimeUnit.UNIT_MICROSECONDS;
+import static com.swirlds.base.units.TimeUnit.UNIT_NANOSECONDS;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 
 import com.swirlds.common.context.PlatformContext;

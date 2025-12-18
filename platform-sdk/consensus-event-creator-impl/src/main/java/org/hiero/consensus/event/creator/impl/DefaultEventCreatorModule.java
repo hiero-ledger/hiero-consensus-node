@@ -70,7 +70,9 @@ public class DefaultEventCreatorModule implements EventCreatorModule {
 
         // Set up heartbeat wire
         model.buildHeartbeatWire(eventCreationConfig.creationAttemptRate())
-                .solderTo(eventCreationManagerWiring.getInputWire(EventCreationManager::maybeCreateEvent), OFFER);
+                .solderTo(
+                        eventCreationManagerWiring.getInputWire(EventCreationManager::maybeCreateEvent, "heartbeat"),
+                        OFFER);
 
         // Force not soldered wires to be built
         eventCreationManagerWiring.getInputWire(EventCreationManager::clear);
@@ -111,7 +113,7 @@ public class DefaultEventCreatorModule implements EventCreatorModule {
     @NonNull
     public InputWire<EventWindow> eventWindowInputWire() {
         return requireNonNull(eventCreationManagerWiring, "Not initialized")
-                .getInputWire(EventCreationManager::setEventWindow);
+                .getInputWire(EventCreationManager::setEventWindow, "event window");
     }
 
     /**
@@ -121,7 +123,7 @@ public class DefaultEventCreatorModule implements EventCreatorModule {
     @NonNull
     public InputWire<PlatformStatus> platformStatusInputWire() {
         return requireNonNull(eventCreationManagerWiring, "Not initialized")
-                .getInputWire(EventCreationManager::updatePlatformStatus);
+                .getInputWire(EventCreationManager::updatePlatformStatus, "PlatformStatus");
     }
 
     /**
@@ -131,7 +133,7 @@ public class DefaultEventCreatorModule implements EventCreatorModule {
     @NonNull
     public InputWire<Duration> healthStatusInputWire() {
         return requireNonNull(eventCreationManagerWiring, "Not initialized")
-                .getInputWire(EventCreationManager::reportUnhealthyDuration);
+                .getInputWire(EventCreationManager::reportUnhealthyDuration, "health info");
     }
 
     /**
