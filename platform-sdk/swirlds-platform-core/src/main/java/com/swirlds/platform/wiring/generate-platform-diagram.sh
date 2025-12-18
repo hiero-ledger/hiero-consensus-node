@@ -18,7 +18,7 @@ SCRIPT_PATH="$(dirname "$(readlink -f "$0")")"
     -s 'pcesReplayer:done streaming pces:✅' \
     -s 'InlinePcesWriter:events to gossip:📬' \
     -s 'extractOldestMinimumBirthRoundOnDisk:minimum identifier to store:📀' \
-    -s 'EventCreatorModule:non-validated events:🍎' \
+    -s 'EventCreationManager:non-validated events:🍎' \
     -s 'Mystery Input:mystery data:❔' \
     -s 'StateSigner:submit transaction:🖋️' \
     -s 'StateSigner:signature transactions:🖋️' \
@@ -31,13 +31,13 @@ SCRIPT_PATH="$(dirname "$(readlink -f "$0")")"
     -s 'PlatformMonitor:PlatformStatus:🚦' \
     -s 'HealthMonitor:health info:🏥' \
     -g 'Orphan Buffer:OrphanBuffer,OrphanBufferSplitter' \
-    -g 'Event Intake:EventHasher,InternalEventValidator,EventDeduplicator,EventSignatureValidator,Orphan Buffer,InlinePcesWriter' \
+    -g 'EventIntakeModule:EventHasher,InternalEventValidator,EventDeduplicator,EventSignatureValidator,Orphan Buffer,InlinePcesWriter,📬' \
     -g 'Consensus Engine:ConsensusEngine,EventWindowManager,ConsensusRounds,PreConsensusEvents,PreConsensusEventsSplitter,ConsensusRoundsSplitter,RoundsToCesEvents' \
     -g 'State Snapshot Manager:saveToDiskFilter,StateSnapshotManager,extractOldestMinimumBirthRoundOnDisk,toNotification' \
     -g 'State File Management:State Snapshot Manager,📀,💾' \
     -g 'State Signature Collector:StateSignatureCollector,reservedStateSplitter,allStatesReserver,completeStateFilter,completeStatesReserver,LatestCompleteStateNotifier' \
     -g 'State Signature Collection:State Signature Collector,LatestCompleteStateNexus,💢' \
-    -g 'Event Creation:EventCreatorModule,🍎' \
+    -g 'EventCreatorModule:EventCreationManager,🍎' \
     -g 'ISS Detector:IssDetector,IssDetectorSplitter,IssHandler' \
     -g 'PCES Replay:pcesReplayer,✅' \
     -g 'Transaction Handler:TransactionHandler,notNullStateFilter,postHandler_stateWithHashComplexityReserver,postHandler_stateWithHashComplexityToStateReserver,SavedStateController' \

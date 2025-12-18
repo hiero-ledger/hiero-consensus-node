@@ -25,7 +25,6 @@ import com.swirlds.platform.event.orphan.OrphanBuffer;
 import com.swirlds.platform.event.preconsensus.InlinePcesWriter;
 import com.swirlds.platform.event.stream.ConsensusEventStream;
 import com.swirlds.platform.event.validation.EventSignatureValidator;
-import com.swirlds.platform.event.validation.InternalEventValidator;
 import com.swirlds.platform.eventhandling.StateWithHashComplexity;
 import com.swirlds.platform.eventhandling.TransactionHandler;
 import com.swirlds.platform.eventhandling.TransactionHandlerResult;
@@ -88,12 +87,6 @@ public class PlatformWiring {
         components
                 .eventIntakeModule()
                 .validatedEventsOutputWire()
-                .solderTo(
-                        components.internalEventValidatorWiring().getInputWire(InternalEventValidator::validateEvent));
-
-        components
-                .internalEventValidatorWiring()
-                .getOutputWire()
                 .solderTo(components.eventDeduplicatorWiring().getInputWire(EventDeduplicator::handleEvent));
         components
                 .eventDeduplicatorWiring()
@@ -164,9 +157,7 @@ public class PlatformWiring {
         components
                 .eventCreatorModule()
                 .createdEventOutputWire()
-                .solderTo(
-                        components.internalEventValidatorWiring().getInputWire(InternalEventValidator::validateEvent),
-                        INJECT);
+                .solderTo(components.eventIntakeModule().nonValidatedEventsInputWire(), INJECT);
 
         if (callbacks.staleEventConsumer() != null) {
             final OutputWire<PlatformEvent> staleEvent = components
@@ -424,11 +415,6 @@ public class PlatformWiring {
     public static void wireMetrics(
             @NonNull final PlatformComponents components, @Nullable final EventPipelineTracker pipelineTracker) {
         if (pipelineTracker != null) {
-            pipelineTracker.registerMetric("validation");
-            components
-                    .internalEventValidatorWiring()
-                    .getOutputWire()
-                    .solderForMonitoring(platformEvent -> pipelineTracker.recordEvent("validation", platformEvent));
             pipelineTracker.registerMetric("deduplication");
             components
                     .eventDeduplicatorWiring()

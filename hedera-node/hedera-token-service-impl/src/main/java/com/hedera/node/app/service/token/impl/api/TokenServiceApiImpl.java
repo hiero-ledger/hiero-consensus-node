@@ -337,14 +337,14 @@ public class TokenServiceApiImpl implements TokenServiceApi {
         if (target == null) {
             throw new IllegalArgumentException("No contract found for ID " + contractID);
         }
-        final var newNumKvPairs = target.contractKvPairsNumber() + netChangeInSlotsUsed;
+        int newNumKvPairs = target.contractKvPairsNumber() + netChangeInSlotsUsed;
         if (newNumKvPairs < 0) {
-            throw new IllegalArgumentException("Cannot change # of storage slots (currently "
-                    + target.contractKvPairsNumber()
-                    + ") by "
-                    + netChangeInSlotsUsed
-                    + " for contract "
-                    + contractID);
+            logger.warn(
+                    "Asked to change # of storage slots (currently {}) by {} for contract {}; clipping to 0",
+                    target.contractKvPairsNumber(),
+                    netChangeInSlotsUsed,
+                    contractID);
+            newNumKvPairs = 0;
         }
         accountStore.put(target.copyBuilder()
                 .firstContractStorageKey(firstKey)
@@ -360,14 +360,14 @@ public class TokenServiceApiImpl implements TokenServiceApi {
         if (account == null) {
             throw new IllegalArgumentException("No account found for ID " + accountId);
         }
-        final long newSlotsUsed = account.numberLambdaStorageSlots() + netChangeInSlotsUsed;
+        long newSlotsUsed = account.numberLambdaStorageSlots() + netChangeInSlotsUsed;
         if (newSlotsUsed < 0) {
-            throw new IllegalArgumentException("Cannot change # of lambda storage slots (currently "
-                    + account.numberLambdaStorageSlots()
-                    + ") by "
-                    + netChangeInSlotsUsed
-                    + " for account "
-                    + accountId);
+            logger.warn(
+                    "Asked to change # of lambda storage slots (currently {}) by {} for account {}; clipping to 0",
+                    account.numberLambdaStorageSlots(),
+                    netChangeInSlotsUsed,
+                    accountId);
+            newSlotsUsed = 0;
         }
         if (requireContract && !account.smartContract()) {
             throw new HandleException(WRONG_HOOK_ENTITY_TYPE);
