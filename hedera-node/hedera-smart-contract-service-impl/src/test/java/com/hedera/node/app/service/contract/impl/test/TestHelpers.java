@@ -22,6 +22,7 @@ import static org.mockito.BDDMockito.given;
 import com.esaulpaugh.headlong.abi.Tuple;
 import com.hedera.hapi.block.stream.trace.ContractSlotUsage;
 import com.hedera.hapi.block.stream.trace.EvmTransactionLog;
+import com.hedera.hapi.node.base.AccountAmount;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.Duration;
@@ -29,11 +30,13 @@ import com.hedera.hapi.node.base.FileID;
 import com.hedera.hapi.node.base.Fraction;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.NftID;
+import com.hedera.hapi.node.base.NftTransfer;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
 import com.hedera.hapi.node.base.ScheduleID;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.base.TokenID;
 import com.hedera.hapi.node.base.TokenSupplyType;
+import com.hedera.hapi.node.base.TokenTransferList;
 import com.hedera.hapi.node.base.TokenType;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.contract.ContractCallTransactionBody;
@@ -47,6 +50,7 @@ import com.hedera.hapi.node.state.token.AccountApprovalForAllAllowance;
 import com.hedera.hapi.node.state.token.Nft;
 import com.hedera.hapi.node.state.token.Token;
 import com.hedera.hapi.node.state.token.TokenRelation;
+import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.hapi.node.transaction.CustomFee;
 import com.hedera.hapi.node.transaction.FixedFee;
 import com.hedera.hapi.node.transaction.FractionalFee;
@@ -98,6 +102,7 @@ import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Deque;
@@ -1066,6 +1071,45 @@ public class TestHelpers {
 
     public static TokenTransferListBuilder tokenTransferList() {
         return new TokenTransferListBuilder();
+    }
+
+    public record TestTokenTransfer(TokenID token, boolean isNft, AccountID sender, AccountID receiver, long amount) {}
+
+    public static CryptoTransferTransactionBody cryptoTransferTransaction(
+            @NonNull final List<TestTokenTransfer> tokenTransfers) {
+        final var builder = CryptoTransferTransactionBody.newBuilder();
+        builder.tokenTransfers(tokenTransfersLists(tokenTransfers));
+        return builder.build();
+    }
+
+    public static List<TokenTransferList> tokenTransfersLists(@NonNull final List<TestTokenTransfer> tokenTransfers) {
+        List<TokenTransferList> tokenTransferList = new ArrayList<>();
+        for (TestTokenTransfer tokenTransfer : tokenTransfers) {
+            if (!tokenTransfer.isNft()) {
+                tokenTransferList.add(TokenTransferList.newBuilder()
+                        .token(tokenTransfer.token())
+                        .transfers(List.of(
+                                AccountAmount.newBuilder()
+                                        .accountID(tokenTransfer.receiver())
+                                        .amount(tokenTransfer.amount())
+                                        .build(),
+                                AccountAmount.newBuilder()
+                                        .accountID(tokenTransfer.sender())
+                                        .amount(-tokenTransfer.amount())
+                                        .build()))
+                        .build());
+            } else {
+                tokenTransferList.add(TokenTransferList.newBuilder()
+                        .token(tokenTransfer.token())
+                        .nftTransfers(List.of(NftTransfer.newBuilder()
+                                .senderAccountID(tokenTransfer.sender())
+                                .receiverAccountID(tokenTransfer.receiver())
+                                .serialNumber(tokenTransfer.amount())
+                                .build()))
+                        .build());
+            }
+        }
+        return tokenTransferList;
     }
 
     private static HederaEvmTransactionResult explicitSuccessFrom(

@@ -119,7 +119,8 @@ public class Erc20TransfersCall extends AbstractCall {
             for (final var fungibleTransfers : op.tokenTransfers()) {
                 TransferEventLoggingUtils.logSuccessfulFungibleTransfer(
                         requireNonNull(tokenId),
-                        fungibleTransfers.transfers(),
+                        fungibleTransfers.transfers().getFirst(),
+                        fungibleTransfers.transfers().getLast(),
                         enhancement.nativeOperations().readableAccountStore(),
                         frame);
             }

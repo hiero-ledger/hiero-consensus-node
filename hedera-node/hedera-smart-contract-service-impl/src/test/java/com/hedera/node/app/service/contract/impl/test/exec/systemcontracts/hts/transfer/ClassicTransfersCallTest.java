@@ -2,7 +2,6 @@
 package com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.hts.transfer;
 
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_TRANSFER;
-import static com.hedera.hapi.node.base.HederaFunctionality.TOKEN_AIRDROP;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_RECEIVING_NODE_ACCOUNT;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_SIGNATURE;
@@ -14,7 +13,6 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.*;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.BDDMockito.given;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
 import com.esaulpaugh.headlong.abi.Tuple;
@@ -22,11 +20,7 @@ import com.esaulpaugh.headlong.abi.TupleType;
 import com.hedera.hapi.node.base.AccountAmount;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.Key;
-import com.hedera.hapi.node.base.NftTransfer;
-import com.hedera.hapi.node.base.TokenID;
-import com.hedera.hapi.node.base.TokenTransferList;
 import com.hedera.hapi.node.base.TransferList;
-import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason;
@@ -44,18 +38,13 @@ import com.hedera.node.app.service.contract.impl.records.ContractCallStreamBuild
 import com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.common.CallTestBase;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
-
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.function.Predicate;
-
 import org.hyperledger.besu.evm.frame.MessageFrame;
-import org.hyperledger.besu.evm.log.Log;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.Mock;
 import org.mockito.Mockito;
@@ -96,15 +85,15 @@ class ClassicTransfersCallTest extends CallTestBase {
     void transferHappyPathCompletesWithSuccessResponseCode() {
         givenRetryingSubject();
         given(systemContractOperations.dispatch(
-                any(TransactionBody.class),
-                eq(verificationStrategy),
-                eq(A_NEW_ACCOUNT_ID),
-                eq(ContractCallStreamBuilder.class)))
+                        any(TransactionBody.class),
+                        eq(verificationStrategy),
+                        eq(A_NEW_ACCOUNT_ID),
+                        eq(ContractCallStreamBuilder.class)))
                 .willReturn(recordBuilder);
         given(recordBuilder.status()).willReturn(SUCCESS);
         given(systemContractOperations.signatureTestWith(verificationStrategy)).willReturn(signatureTest);
         given(approvalSwitchHelper.switchToApprovalsAsNeededIn(
-                CryptoTransferTransactionBody.DEFAULT, signatureTest, nativeOperations, A_NEW_ACCOUNT_ID))
+                        CryptoTransferTransactionBody.DEFAULT, signatureTest, nativeOperations, A_NEW_ACCOUNT_ID))
                 .willReturn(CryptoTransferTransactionBody.DEFAULT);
 
         final var result = subject.execute(frame).fullResult().result();
@@ -126,15 +115,15 @@ class ClassicTransfersCallTest extends CallTestBase {
     void retryingTransferHappyPathCompletesWithSuccessResponseCode() {
         givenRetryingSubject();
         given(systemContractOperations.dispatch(
-                any(TransactionBody.class),
-                eq(verificationStrategy),
-                eq(A_NEW_ACCOUNT_ID),
-                eq(ContractCallStreamBuilder.class)))
+                        any(TransactionBody.class),
+                        eq(verificationStrategy),
+                        eq(A_NEW_ACCOUNT_ID),
+                        eq(ContractCallStreamBuilder.class)))
                 .willReturn(recordBuilder);
         given(recordBuilder.status()).willReturn(SUCCESS);
         given(systemContractOperations.signatureTestWith(verificationStrategy)).willReturn(signatureTest);
         given(approvalSwitchHelper.switchToApprovalsAsNeededIn(
-                CryptoTransferTransactionBody.DEFAULT, signatureTest, nativeOperations, A_NEW_ACCOUNT_ID))
+                        CryptoTransferTransactionBody.DEFAULT, signatureTest, nativeOperations, A_NEW_ACCOUNT_ID))
                 .willReturn(CryptoTransferTransactionBody.DEFAULT);
 
         final var result = subject.execute(frame).fullResult().result();
@@ -149,20 +138,20 @@ class ClassicTransfersCallTest extends CallTestBase {
     void retryingTransferInvalidSignatureCompletesWithStandardizedResponseCode() {
         givenRetryingSubject();
         given(systemContractOperations.dispatch(
-                any(TransactionBody.class),
-                eq(verificationStrategy),
-                eq(A_NEW_ACCOUNT_ID),
-                eq(ContractCallStreamBuilder.class)))
+                        any(TransactionBody.class),
+                        eq(verificationStrategy),
+                        eq(A_NEW_ACCOUNT_ID),
+                        eq(ContractCallStreamBuilder.class)))
                 .willReturn(recordBuilder);
         given(recordBuilder.status())
                 .willReturn(INVALID_SIGNATURE)
                 .willReturn(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE);
         given(systemContractOperations.signatureTestWith(verificationStrategy)).willReturn(signatureTest);
         given(approvalSwitchHelper.switchToApprovalsAsNeededIn(
-                CryptoTransferTransactionBody.DEFAULT, signatureTest, nativeOperations, A_NEW_ACCOUNT_ID))
+                        CryptoTransferTransactionBody.DEFAULT, signatureTest, nativeOperations, A_NEW_ACCOUNT_ID))
                 .willReturn(CryptoTransferTransactionBody.DEFAULT);
         given(callStatusStandardizer.codeForFailure(
-                INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE, frame, CryptoTransferTransactionBody.DEFAULT))
+                        INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE, frame, CryptoTransferTransactionBody.DEFAULT))
                 .willReturn(INVALID_FULL_PREFIX_SIGNATURE_FOR_PRECOMPILE);
 
         final var result = subject.execute(frame).fullResult().result();
@@ -176,7 +165,7 @@ class ClassicTransfersCallTest extends CallTestBase {
     void unsupportedV2transferHaltsWithNotSupportedReason() {
         givenV2SubjectWithV2Disabled();
         given(systemContractOperations.externalizePreemptedDispatch(
-                any(TransactionBody.class), eq(NOT_SUPPORTED), eq(CRYPTO_TRANSFER)))
+                        any(TransactionBody.class), eq(NOT_SUPPORTED), eq(CRYPTO_TRANSFER)))
                 .willReturn(recordBuilder);
         given(recordBuilder.status()).willReturn(NOT_SUPPORTED);
 
@@ -192,7 +181,7 @@ class ClassicTransfersCallTest extends CallTestBase {
         given(systemAccountCreditScreen.creditsToSystemAccount(CryptoTransferTransactionBody.DEFAULT))
                 .willReturn(true);
         given(systemContractOperations.externalizePreemptedDispatch(
-                any(TransactionBody.class), eq(INVALID_RECEIVING_NODE_ACCOUNT), eq(CRYPTO_TRANSFER)))
+                        any(TransactionBody.class), eq(INVALID_RECEIVING_NODE_ACCOUNT), eq(CRYPTO_TRANSFER)))
                 .willReturn(recordBuilder);
         given(recordBuilder.status()).willReturn(INVALID_RECEIVING_NODE_ACCOUNT);
 
@@ -206,10 +195,10 @@ class ClassicTransfersCallTest extends CallTestBase {
     void supportedV2transferCompletesWithNominalResponseCode() {
         givenV2SubjectWithV2Enabled();
         given(systemContractOperations.dispatch(
-                any(TransactionBody.class),
-                eq(verificationStrategy),
-                eq(A_NEW_ACCOUNT_ID),
-                eq(ContractCallStreamBuilder.class)))
+                        any(TransactionBody.class),
+                        eq(verificationStrategy),
+                        eq(A_NEW_ACCOUNT_ID),
+                        eq(ContractCallStreamBuilder.class)))
                 .willReturn(recordBuilder);
         given(recordBuilder.status()).willReturn(SPENDER_DOES_NOT_HAVE_ALLOWANCE);
 
@@ -299,11 +288,9 @@ class ClassicTransfersCallTest extends CallTestBase {
         final var config = HederaTestConfigBuilder.create()
                 .withValue("contracts.precompile.atomicCryptoTransfer.enabled", "true")
                 .getOrCreateConfig();
-        var body = TransactionBody.newBuilder()
-                .cryptoTransfer(cryptoTransfer)
-                .build();
+        var body = TransactionBody.newBuilder().cryptoTransfer(cryptoTransfer).build();
         given(approvalSwitchHelper.switchToApprovalsAsNeededIn(
-                cryptoTransfer, signatureTest, nativeOperations, A_NEW_ACCOUNT_ID))
+                        cryptoTransfer, signatureTest, nativeOperations, A_NEW_ACCOUNT_ID))
                 .willReturn(cryptoTransfer);
         given(systemContractOperations.signatureTestWith(verificationStrategy)).willReturn(signatureTest);
         return new ClassicTransfersCall(
@@ -321,13 +308,9 @@ class ClassicTransfersCallTest extends CallTestBase {
                 specialRewardReceivers);
     }
 
-    record TestHbarTransfer(AccountID sender, AccountID receiver, long amount) {
-    }
+    record TestHbarTransfer(AccountID sender, AccountID receiver, long amount) {}
 
-    record TestTokenTransfer(TokenID token, boolean isNft, AccountID sender, AccountID receiver, long amount) {
-    }
-
-    private ClassicTransfersCall givenSubject(final byte[] selector, final List<TestHbarTransfer> hbarTransfers, final List<TestTokenTransfer> tokenTransfers) {
+    private ClassicTransfersCall givenSubject(final byte[] selector, final List<TestHbarTransfer> hbarTransfers) {
         final var builder = CryptoTransferTransactionBody.newBuilder();
         if (hbarTransfers != null) {
             final var transferList = TransferList.newBuilder();
@@ -344,57 +327,24 @@ class ClassicTransfersCallTest extends CallTestBase {
             }
             builder.transfers(transferList.accountAmounts(list).build());
         }
-        if (tokenTransfers != null) {
-            List<TokenTransferList> tokenTransferList = new ArrayList<>();
-            for (TestTokenTransfer tokenTransfer : tokenTransfers) {
-                if (!tokenTransfer.isNft()) {
-                    tokenTransferList.add(TokenTransferList.newBuilder().token(tokenTransfer.token()).transfers(
-                            List.of(
-                                    AccountAmount.newBuilder()
-                                            .accountID(tokenTransfer.receiver())
-                                            .amount(tokenTransfer.amount())
-                                            .build(),
-                                    AccountAmount.newBuilder()
-                                            .accountID(tokenTransfer.sender())
-                                            .amount(-tokenTransfer.amount())
-                                            .build()
-                            )
-                    ).build());
-                } else {
-                    tokenTransferList.add(TokenTransferList.newBuilder().token(tokenTransfer.token()).nftTransfers(
-                            List.of(
-                                    NftTransfer.newBuilder()
-                                            .senderAccountID(tokenTransfer.sender())
-                                            .receiverAccountID(tokenTransfer.receiver())
-                                            .serialNumber(tokenTransfer.amount())
-                                            .build()
-                            )
-                    ).build());
-                }
-            }
-            builder.tokenTransfers(tokenTransferList);
-        }
 
         return givenSubject(selector, builder.build());
     }
 
     public static List<SystemContractMethod> ercEventsEmissionForHbarParams() {
-        return List.of(
-                ClassicTransfersTranslator.CRYPTO_TRANSFER,
-                ClassicTransfersTranslator.CRYPTO_TRANSFER_V2
-        );
+        return List.of(ClassicTransfersTranslator.CRYPTO_TRANSFER, ClassicTransfersTranslator.CRYPTO_TRANSFER_V2);
     }
 
     @ParameterizedTest
     @MethodSource("ercEventsEmissionForHbarParams")
     void ercEventsEmissionForHbar(SystemContractMethod function) {
-        final var localSubject = givenSubject(function.selector(),
-                List.of(new TestHbarTransfer(OWNER_ID, RECEIVER_ID, 123)), null);
+        final var localSubject =
+                givenSubject(function.selector(), List.of(new TestHbarTransfer(OWNER_ID, RECEIVER_ID, 123)));
         given(systemContractOperations.dispatch(
-                any(TransactionBody.class),
-                eq(verificationStrategy),
-                eq(A_NEW_ACCOUNT_ID),
-                eq(ContractCallStreamBuilder.class)))
+                        any(TransactionBody.class),
+                        eq(verificationStrategy),
+                        eq(A_NEW_ACCOUNT_ID),
+                        eq(ContractCallStreamBuilder.class)))
                 .willReturn(recordBuilder);
         given(recordBuilder.status()).willReturn(SUCCESS);
 
@@ -410,20 +360,21 @@ class ClassicTransfersCallTest extends CallTestBase {
         return List.of(
                 ClassicTransfersTranslator.TRANSFER_TOKENS,
                 ClassicTransfersTranslator.TRANSFER_TOKEN,
-                ClassicTransfersTranslator.TRANSFER_FROM
-        );
+                ClassicTransfersTranslator.TRANSFER_FROM);
     }
 
     @ParameterizedTest
     @MethodSource("ercEventsEmissionForFTParams")
     void ercEventsEmissionForFT(SystemContractMethod function) {
-        final var localSubject = givenSubject(function.selector(), null,
-                List.of(new TestTokenTransfer(FUNGIBLE_TOKEN_ID, false, OWNER_ID, RECEIVER_ID, 123)));
+        final var localSubject = givenSubject(
+                function.selector(),
+                cryptoTransferTransaction(
+                        List.of(new TestTokenTransfer(FUNGIBLE_TOKEN_ID, false, OWNER_ID, RECEIVER_ID, 123))));
         given(systemContractOperations.dispatch(
-                any(TransactionBody.class),
-                eq(verificationStrategy),
-                eq(A_NEW_ACCOUNT_ID),
-                eq(ContractCallStreamBuilder.class)))
+                        any(TransactionBody.class),
+                        eq(verificationStrategy),
+                        eq(A_NEW_ACCOUNT_ID),
+                        eq(ContractCallStreamBuilder.class)))
                 .willReturn(recordBuilder);
         given(recordBuilder.status()).willReturn(SUCCESS);
         given(nativeOperations.readableAccountStore()).willReturn(readableAccountStore);
@@ -442,20 +393,21 @@ class ClassicTransfersCallTest extends CallTestBase {
         return List.of(
                 ClassicTransfersTranslator.TRANSFER_NFTS,
                 ClassicTransfersTranslator.TRANSFER_NFT,
-                ClassicTransfersTranslator.TRANSFER_NFT_FROM
-        );
+                ClassicTransfersTranslator.TRANSFER_NFT_FROM);
     }
 
     @ParameterizedTest
     @MethodSource("ercEventsEmissionForNFTParams")
     void ercEventsEmissionForNFT(SystemContractMethod function) {
-        final var localSubject = givenSubject(function.selector(), null,
-                List.of(new TestTokenTransfer(FUNGIBLE_TOKEN_ID, true, OWNER_ID, RECEIVER_ID, 123)));
+        final var localSubject = givenSubject(
+                function.selector(),
+                cryptoTransferTransaction(
+                        List.of(new TestTokenTransfer(FUNGIBLE_TOKEN_ID, true, OWNER_ID, RECEIVER_ID, 123))));
         given(systemContractOperations.dispatch(
-                any(TransactionBody.class),
-                eq(verificationStrategy),
-                eq(A_NEW_ACCOUNT_ID),
-                eq(ContractCallStreamBuilder.class)))
+                        any(TransactionBody.class),
+                        eq(verificationStrategy),
+                        eq(A_NEW_ACCOUNT_ID),
+                        eq(ContractCallStreamBuilder.class)))
                 .willReturn(recordBuilder);
         given(recordBuilder.status()).willReturn(SUCCESS);
         given(nativeOperations.readableAccountStore()).willReturn(readableAccountStore);

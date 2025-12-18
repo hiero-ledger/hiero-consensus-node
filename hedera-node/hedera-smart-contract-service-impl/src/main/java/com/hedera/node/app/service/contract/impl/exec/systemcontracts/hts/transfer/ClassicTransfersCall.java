@@ -38,7 +38,6 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 
 import java.util.Arrays;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Set;
 
 import org.hyperledger.besu.evm.frame.MessageFrame;
@@ -275,7 +274,9 @@ public class ClassicTransfersCall extends AbstractCall {
                 && !configuration.getConfigData(ContractsConfig.class).precompileAtomicCryptoTransferEnabled();
     }
 
-    //TODO Glib: check how bulk transfer is looks like
+    // TODO Glib: check how bulk transfer is looks like
+    // TODO Glib: switch to recordBuilder? ((ChildStreamBuilder)recordBuilder).tokenTransferLists()
+
     /**
      * Emit ERC events for all non-HRAB token transfers
      *
@@ -289,17 +290,15 @@ public class ClassicTransfersCall extends AbstractCall {
                 for (int i = 0; i < transfer.transfers().size(); i += 2) {
                     logSuccessfulFungibleTransfer(
                             transfer.tokenOrThrow(),
-                            List.of(
-                                    transfer.transfers().get(i), // credit
-                                    transfer.transfers().get(i + 1) // debit
-                            ),
-                            readableAccountStore(), frame);
+                            transfer.transfers().get(i), // credit
+                            transfer.transfers().get(i + 1), // debit
+                            readableAccountStore(),
+                            frame);
                 }
             }
             if (!transfer.nftTransfers().isEmpty()) {
                 for (NftTransfer nftTransfer : transfer.nftTransfers()) {
-                    logSuccessfulNftTransfer(
-                            transfer.tokenOrThrow(), nftTransfer, readableAccountStore(), frame);
+                    logSuccessfulNftTransfer(transfer.tokenOrThrow(), nftTransfer, readableAccountStore(), frame);
                 }
             }
         }
