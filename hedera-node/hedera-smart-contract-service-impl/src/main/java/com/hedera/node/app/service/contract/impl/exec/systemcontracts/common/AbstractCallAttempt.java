@@ -74,9 +74,8 @@ public abstract class AbstractCallAttempt<T extends AbstractCallAttempt<T>> {
                         Optional.of(Address.fromHexString(abiCall.get(0).toString()));
                 this.input = Bytes.wrap((byte[]) abiCall.get(1));
             } else {
-                // TODO(Pectra): consider dropping support for proxy calls that don't confirm to ABI
-                this.maybeRedirectAddress = Optional.of(Address.wrap(input.slice(4, 20)));
-                this.input = input.slice(24);
+                this.maybeRedirectAddress = Optional.empty();
+                this.input = input;
             }
         } else {
             // A regular call; neither EIP-7702 redirect nor legacy redirect function. Process as-is.

@@ -7,7 +7,6 @@ import com.hedera.node.app.service.contract.impl.exec.AddressChecks;
 import com.hedera.node.app.service.contract.impl.exec.FeatureFlags;
 import com.hedera.node.app.service.contract.impl.exec.processors.CustomMessageCallProcessor;
 import com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils;
-import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.evm.EVM;
@@ -63,24 +62,10 @@ public class CustomDelegateCallOperation extends DelegateCallOperation implement
 
     @Override
     public OperationResult execute(@NonNull final MessageFrame frame, @NonNull final EVM evm) {
-        // Prevent delegate calls during hook execution. The only exception is calls to system contracts.
-        if (FrameUtils.isHookExecution(frame) && !isRedirectFromNativeEntity(frame)) {
+        // Prevent delegate calls during hook execution.
+        if (FrameUtils.isHookExecution(frame)) {
             return new OperationResult(0, ExceptionalHaltReason.INVALID_OPERATION);
         }
         return BasicCustomCallOperation.super.executeChecked(frame, evm);
-    }
-
-    /**
-     * Determines if the delegate call is being redirected from a native facade.
-     *
-     * @param frame the current message frame
-     * @return true if the call is redirected from a native entity, false otherwise
-     */
-    private boolean isRedirectFromNativeEntity(@NonNull final MessageFrame frame) {
-        final var updater = (ProxyWorldUpdater) frame.getWorldUpdater();
-        final var recipient = requireNonNull(updater.getHederaAccount(frame.getRecipientAddress()));
-        // TODO(Pectra): update the condition below. Specifically recipient.isRegularAccount() no longer holds.
-        // Consider adding a frame variable (e.g. isFacadeExecution) or a different mechanism.
-        return recipient.isTokenFacade() || recipient.isScheduleTxnFacade() || recipient.isRegularAccount();
     }
 }
