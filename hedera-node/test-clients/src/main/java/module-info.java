@@ -149,4 +149,5 @@ open module com.hedera.node.test.clients {
     requires static com.hedera.pbj.runtime;
     requires static com.github.spotbugs.annotations;
     requires static org.junit.platform.engine;
+    requires org.mockito.junit.jupiter;
 }

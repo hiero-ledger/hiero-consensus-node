@@ -368,7 +368,7 @@ public class TransactionExecutorsTest {
                 .transactionValidDuration(new Duration(minValidDuration));
     }
 
-    private MerkleNodeState genesisState(@NonNull final Map<String, String> overrides) {
+    public MerkleNodeState genesisState(@NonNull final Map<String, String> overrides) {
         final var state = new FakeState();
         final var configBuilder = HederaTestConfigBuilder.create();
         overrides.forEach(configBuilder::withValue);
