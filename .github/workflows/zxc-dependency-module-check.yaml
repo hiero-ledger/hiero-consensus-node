@@ -62,7 +62,7 @@ env:
 jobs:
   dependency-module-check:
     name: ${{ inputs.custom-job-label || 'Dependency Module Check' }}
-    runs-on: hiero-network-node-medium
+    runs-on: hiero-network-node-linux-medium
     outputs:
       failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
     steps:

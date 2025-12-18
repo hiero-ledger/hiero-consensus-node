@@ -130,7 +130,7 @@ jobs:
   hapi-tests-misc:
     name: "${{ inputs.custom-job-label }} (Misc)"
     if: ${{ inputs.enable-hapi-tests-misc == 'true' }}
-    runs-on: hiero-network-node-large
+    runs-on: hiero-hapi-linux-large
     steps:
       - name: Prepare Runner
         uses: pandaswhocode/initialize-github-job@bfe0b1633012cee3033c757c7095d49c360e23a6 # v1.0.1
@@ -194,7 +194,7 @@ jobs:
   hapi-tests-misc-records:
     name: "${{ inputs.custom-job-label }} (Misc Records)"
     if: ${{ inputs.enable-hapi-tests-misc-records == 'true' }}
-    runs-on: hiero-network-node-large
+    runs-on: hiero-hapi-linux-large
     steps:
       - name: Prepare Runner
         uses: pandaswhocode/initialize-github-job@bfe0b1633012cee3033c757c7095d49c360e23a6 # v1.0.1
@@ -257,7 +257,7 @@ jobs:
   hapi-tests-crypto:
     name: "${{ inputs.custom-job-label }} (Crypto)"
     if: ${{ inputs.enable-hapi-tests-crypto == 'true' }}
-    runs-on: hiero-network-node-large
+    runs-on: hiero-hapi-linux-large
     steps:
       - name: Prepare Runner
         uses: pandaswhocode/initialize-github-job@bfe0b1633012cee3033c757c7095d49c360e23a6 # v1.0.1
@@ -320,7 +320,7 @@ jobs:
   hapi-tests-simple-fees:
     name: "${{ inputs.custom-job-label }} (Simple Fees)"
     if: ${{ inputs.enable-hapi-tests-simplefees == 'true' }}
-    runs-on: hiero-network-node-large
+    runs-on: hiero-hapi-linux-large
     steps:
       - name: Prepare Runner
         uses: pandaswhocode/initialize-github-job@bfe0b1633012cee3033c757c7095d49c360e23a6 # v1.0.1
@@ -383,7 +383,7 @@ jobs:
   hapi-tests-token:
     name: "${{ inputs.custom-job-label }} (Token)"
     if: ${{ inputs.enable-hapi-tests-token == 'true' }}
-    runs-on: hiero-network-node-large
+    runs-on: hiero-hapi-linux-large
     steps:
       - name: Prepare Runner
         uses: pandaswhocode/initialize-github-job@bfe0b1633012cee3033c757c7095d49c360e23a6 # v1.0.1
@@ -446,7 +446,7 @@ jobs:
   hapi-tests-smart-contracts:
     name: "${{ inputs.custom-job-label }} (Smart Contracts)"
     if: ${{ inputs.enable-hapi-tests-smart-contract == 'true' }}
-    runs-on: hiero-network-node-large
+    runs-on: hiero-hapi-linux-large
     steps:
       - name: Prepare Runner
         uses: pandaswhocode/initialize-github-job@bfe0b1633012cee3033c757c7095d49c360e23a6 # v1.0.1
@@ -509,7 +509,7 @@ jobs:
   hapi-tests-time-consuming:
     name: "${{ inputs.custom-job-label }} (Time Consuming)"
     if: ${{ inputs.enable-hapi-tests-time-consuming == 'true' }}
-    runs-on: hiero-network-node-large
+    runs-on: hiero-hapi-linux-large
     steps:
       - name: Prepare Runner
         uses: pandaswhocode/initialize-github-job@bfe0b1633012cee3033c757c7095d49c360e23a6 # v1.0.1
@@ -572,7 +572,7 @@ jobs:
   hapi-tests-restart:
     name: "${{ inputs.custom-job-label }} (Restart)"
     if: ${{ inputs.enable-hapi-tests-restart == 'true' }}
-    runs-on: hiero-network-node-large
+    runs-on: hiero-hapi-linux-large
     steps:
       - name: Prepare Runner
         uses: pandaswhocode/initialize-github-job@bfe0b1633012cee3033c757c7095d49c360e23a6 # v1.0.1
@@ -635,7 +635,7 @@ jobs:
   hapi-tests-nd-reconnect:
     name: "${{ inputs.custom-job-label }} (ND Reconnect)"
     if: ${{ inputs.enable-hapi-tests-nd-reconnect == 'true' }}
-    runs-on: hiero-network-node-large
+    runs-on: hiero-hapi-linux-large
     steps:
       - name: Prepare Runner
         uses: pandaswhocode/initialize-github-job@bfe0b1633012cee3033c757c7095d49c360e23a6 # v1.0.1
@@ -698,7 +698,7 @@ jobs:
   hapi-tests-iss:
     name: "${{ inputs.custom-job-label }} (ISS)"
     if: ${{ inputs.enable-hapi-tests-iss == 'true' }}
-    runs-on: hiero-network-node-large
+    runs-on: hiero-hapi-linux-large
     steps:
       - name: Prepare Runner
         uses: pandaswhocode/initialize-github-job@bfe0b1633012cee3033c757c7095d49c360e23a6 # v1.0.1
@@ -761,7 +761,7 @@ jobs:
   hapi-tests-bn-comms:
     name: "${{ inputs.custom-job-label }} (BN Comms)"
     if: ${{ inputs.enable-hapi-tests-bn-communication == 'true' }}
-    runs-on: hiero-network-node-large
+    runs-on: hiero-hapi-linux-large
     steps:
       - name: Prepare Runner
         uses: pandaswhocode/initialize-github-job@bfe0b1633012cee3033c757c7095d49c360e23a6 # v1.0.1

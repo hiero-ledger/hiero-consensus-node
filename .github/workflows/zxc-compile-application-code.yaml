@@ -62,7 +62,7 @@ env:
 jobs:
   compile-application-code:
     name: ${{ inputs.custom-job-label || 'Compile Application Code' }}
-    runs-on: hiero-network-node-medium
+    runs-on: hiero-network-node-linux-medium
     outputs:
       failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
     steps:

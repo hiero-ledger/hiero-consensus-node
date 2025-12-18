@@ -63,7 +63,7 @@ env:
 jobs:
   execute-time-consuming-tests:
     name: ${{ inputs.custom-job-label || 'Execute Time Consuming Tests' }}
-    runs-on: hiero-network-node-large
+    runs-on: hiero-time-consuming-linux-large
     outputs:
       failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
     steps:

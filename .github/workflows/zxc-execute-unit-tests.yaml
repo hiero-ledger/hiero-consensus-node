@@ -69,7 +69,7 @@ env:
 jobs:
   execute-unit-tests:
     name: ${{ inputs.custom-job-label || 'Execute Unit Tests' }}
-    runs-on: hiero-network-node-large
+    runs-on: hiero-unit-test-linux-large
     outputs:
       failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
     steps:

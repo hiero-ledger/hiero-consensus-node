@@ -68,7 +68,7 @@ env:
 jobs:
   execute-integration-tests:
     name: ${{ inputs.custom-job-label || 'Execute Integration Tests' }}
-    runs-on: hiero-network-node-large
+    runs-on: hiero-integration-linux-large
     outputs:
       failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
     steps:

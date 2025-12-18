@@ -63,7 +63,7 @@ env:
 jobs:
   execute-timing-sensitive-tests:
     name: ${{ inputs.custom-job-label || 'Execute Timing Sensitive Tests' }}
-    runs-on: hiero-network-node-large
+    runs-on: hiero-timing-sensitive-linux-large
     outputs:
       failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
     steps:
