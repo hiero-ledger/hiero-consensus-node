@@ -22,7 +22,6 @@ import com.swirlds.platform.event.preconsensus.InlinePcesWriter;
 import com.swirlds.platform.event.preconsensus.PcesReplayer;
 import com.swirlds.platform.event.stream.ConsensusEventStream;
 import com.swirlds.platform.event.validation.EventSignatureValidator;
-import com.swirlds.platform.event.validation.InternalEventValidator;
 import com.swirlds.platform.eventhandling.StateWithHashComplexity;
 import com.swirlds.platform.eventhandling.TransactionHandler;
 import com.swirlds.platform.eventhandling.TransactionHandlerDataCounter;
@@ -50,8 +49,8 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
 import java.util.Objects;
 import java.util.Queue;
-import org.hiero.consensus.crypto.EventHasher;
 import org.hiero.consensus.event.creator.EventCreatorModule;
+import org.hiero.consensus.event.intake.EventIntakeModule;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.notification.IssNotification;
@@ -65,8 +64,7 @@ import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 public record PlatformComponents(
         WiringModel model,
         EventCreatorModule eventCreatorModule,
-        ComponentWiring<EventHasher, PlatformEvent> eventHasherWiring,
-        ComponentWiring<InternalEventValidator, PlatformEvent> internalEventValidatorWiring,
+        EventIntakeModule eventIntakeModule,
         ComponentWiring<EventDeduplicator, PlatformEvent> eventDeduplicatorWiring,
         ComponentWiring<EventSignatureValidator, PlatformEvent> eventSignatureValidatorWiring,
         ComponentWiring<OrphanBuffer, List<PlatformEvent>> orphanBufferWiring,
@@ -122,8 +120,6 @@ public record PlatformComponents(
             @NonNull final SavedStateController savedStateController,
             @NonNull final AppNotifier notifier) {
 
-        eventHasherWiring.bind(builder::buildEventHasher);
-        internalEventValidatorWiring.bind(builder::buildInternalEventValidator);
         eventDeduplicatorWiring.bind(builder::buildEventDeduplicator);
         eventSignatureValidatorWiring.bind(builder::buildEventSignatureValidator);
         orphanBufferWiring.bind(builder::buildOrphanBuffer);
@@ -167,7 +163,8 @@ public record PlatformComponents(
     public static PlatformComponents create(
             @NonNull final PlatformContext platformContext,
             @NonNull final WiringModel model,
-            @NonNull final EventCreatorModule eventCreatorModule) {
+            @NonNull final EventCreatorModule eventCreatorModule,
+            @NonNull final EventIntakeModule eventIntakeModule) {
 
         Objects.requireNonNull(platformContext);
         Objects.requireNonNull(model);
@@ -178,8 +175,7 @@ public record PlatformComponents(
         return new PlatformComponents(
                 model,
                 eventCreatorModule,
-                new ComponentWiring<>(model, EventHasher.class, config.eventHasher()),
-                new ComponentWiring<>(model, InternalEventValidator.class, config.internalEventValidator()),
+                eventIntakeModule,
                 new ComponentWiring<>(model, EventDeduplicator.class, config.eventDeduplicator()),
                 new ComponentWiring<>(model, EventSignatureValidator.class, config.eventSignatureValidator()),
                 new ComponentWiring<>(model, OrphanBuffer.class, config.orphanBuffer()),

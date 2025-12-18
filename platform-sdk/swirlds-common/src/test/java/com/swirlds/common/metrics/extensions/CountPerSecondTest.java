@@ -8,9 +8,9 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.swirlds.base.test.fixtures.time.FakeTime;
+import com.swirlds.base.time.IntegerEpochTime;
 import com.swirlds.common.metrics.IntegerPairAccumulator;
 import com.swirlds.common.metrics.platform.PlatformIntegerPairAccumulator;
-import com.swirlds.common.time.IntegerEpochTime;
 import com.swirlds.metrics.api.Metrics;
 import java.time.Duration;
 import java.time.Instant;

@@ -209,7 +209,7 @@ jobs:
 
       - name: Setup Gradle
         id: setup-gradle
-        uses: gradle/actions/setup-gradle@ac638b010cf58a27ee6c972d7336334ccaf61c96 # v4.4.1
+        uses: gradle/actions/setup-gradle@4d9f0ba0025fe599b4ebab900eb7f3a1d93ef4c2 # v5.0.0
         with:
           cache-read-only: false
 
@@ -474,7 +474,7 @@ jobs:
         env:
           LC_ALL: en.UTF-8
           LANG: en_US.UTF-8
-        run: ${GRADLE_EXEC} hapiTestSimpleFees${{ inputs.mats-suffix || '' }}
+        run: ${GRADLE_EXEC} hapiTestSimpleFees${{ inputs.mats-suffix || '' }} && ${GRADLE_EXEC} hapiEmbeddedSimpleFees${{ inputs.mats-suffix }}
 
       - name: Publish HAPI Test (Simple Fees) Report
         uses: step-security/publish-unit-test-result-action@5d195d4dec0b9fa7b51a3dbc4298362a021247c7 # v2.20.4

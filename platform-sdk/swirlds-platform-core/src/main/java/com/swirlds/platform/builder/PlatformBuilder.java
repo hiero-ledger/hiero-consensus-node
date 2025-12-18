@@ -17,6 +17,7 @@ import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.context.PlatformContext;
+import com.swirlds.common.metrics.event.EventPipelineTracker;
 import com.swirlds.common.notification.NotificationEngine;
 import com.swirlds.component.framework.WiringConfig;
 import com.swirlds.component.framework.model.WiringModel;
@@ -30,6 +31,7 @@ import com.swirlds.platform.event.preconsensus.PcesFileTracker;
 import com.swirlds.platform.gossip.DefaultIntakeEventCounter;
 import com.swirlds.platform.gossip.NoOpIntakeEventCounter;
 import com.swirlds.platform.gossip.sync.config.SyncConfig;
+import com.swirlds.platform.metrics.PlatformMetricsConfig;
 import com.swirlds.platform.reconnect.FallenBehindMonitor;
 import com.swirlds.platform.scratchpad.Scratchpad;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
@@ -41,6 +43,7 @@ import com.swirlds.platform.wiring.PlatformWiring;
 import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.StateLifecycleManager;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.lang.Thread.UncaughtExceptionHandler;
@@ -61,6 +64,7 @@ import org.hiero.base.crypto.Signature;
 import org.hiero.consensus.crypto.PlatformSigner;
 import org.hiero.consensus.event.IntakeEventCounter;
 import org.hiero.consensus.event.creator.EventCreatorModule;
+import org.hiero.consensus.event.intake.EventIntakeModule;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
@@ -87,6 +91,7 @@ public final class PlatformBuilder {
     private ExecutorFactory executorFactory;
 
     private EventCreatorModule eventCreatorModule;
+    private EventIntakeModule eventIntakeModule;
 
     private static final UncaughtExceptionHandler DEFAULT_UNCAUGHT_EXCEPTION_HANDLER =
             (t, e) -> logger.error(EXCEPTION.getMarker(), "Uncaught exception on thread {}: {}", t, e);
@@ -398,6 +403,42 @@ public final class PlatformBuilder {
     }
 
     /**
+     * Provide the consensus event intake to use for this platform.
+     *
+     * @param eventIntakeModule the consensus event intake module
+     * @return this
+     */
+    @NonNull
+    public PlatformBuilder withEventIntakeModule(@NonNull final EventIntakeModule eventIntakeModule) {
+        throwIfAlreadyUsed();
+        this.eventIntakeModule = requireNonNull(eventIntakeModule);
+        return this;
+    }
+
+    private void initializeEventIntakeModule(
+            @NonNull final IntakeEventCounter intakeEventCounter,
+            @Nullable final EventPipelineTracker pipelineTracker) {
+        if (this.eventIntakeModule == null) {
+            this.eventIntakeModule = ServiceLoader.load(EventIntakeModule.class)
+                    .findFirst()
+                    .orElseThrow(() -> new IllegalStateException("No EventIntakeModule implementation found!"));
+        }
+
+        eventIntakeModule.initialize(
+                model,
+                platformContext.getConfiguration(),
+                platformContext.getMetrics(),
+                platformContext.getTime(),
+                rosterHistory,
+                selfId,
+                intakeEventCounter,
+                execution.getTransactionLimits(),
+                platformContext.getRecycleBin(),
+                initialState.get().getRound(),
+                pipelineTracker);
+    }
+
+    /**
      * Throw an exception if this builder has been used to build a platform or a platform factory.
      */
     private void throwIfAlreadyUsed() {
@@ -487,12 +528,21 @@ public final class PlatformBuilder {
             };
         }
 
-        initializeEventCreatorModule();
+        final boolean eventPipelineMetricsEnabled = platformContext
+                .getConfiguration()
+                .getConfigData(PlatformMetricsConfig.class)
+                .eventPipelineMetricsEnabled();
+        final EventPipelineTracker pipelineTracker =
+                eventPipelineMetricsEnabled ? new EventPipelineTracker(platformContext.getMetrics()) : null;
 
-        var platformComponentWiring = PlatformComponents.create(platformContext, model, eventCreatorModule);
+        initializeEventCreatorModule();
+        initializeEventIntakeModule(intakeEventCounter, pipelineTracker);
+
+        final PlatformComponents platformComponentWiring =
+                PlatformComponents.create(platformContext, model, eventCreatorModule, eventIntakeModule);
 
         PlatformWiring.wire(platformContext, execution, platformComponentWiring, callbacks);
-        PlatformWiring.wireMetrics(platformContext, platformComponentWiring);
+        PlatformWiring.wireMetrics(platformComponentWiring, pipelineTracker);
 
         final PlatformBuildingBlocks buildingBlocks = new PlatformBuildingBlocks(
                 platformComponentWiring,
