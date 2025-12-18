@@ -37,11 +37,6 @@ public class QueueThreadImpl<T> extends AbstractBlockingQueue<T> implements Queu
     private final AtomicLong noWorkCount = new AtomicLong();
 
     /**
-     * Tracks metrics related to this queue thread
-     */
-    private final QueueThreadMetrics metrics;
-
-    /**
      * If not null, called periodically when the queue thread is idle.
      */
     private final InterruptableRunnable idleCallback;
@@ -86,7 +81,6 @@ public class QueueThreadImpl<T> extends AbstractBlockingQueue<T> implements Queu
         idleCallback = configuration.getIdleCallback();
         batchHandledCallback = configuration.getBatchHandledCallback();
         this.waitForWorkDuration = configuration.getWaitForWorkDuration();
-        metrics = new QueueThreadMetrics(configuration);
 
         stoppableThread = configuration
                 .setWork(this::doWork)
@@ -133,7 +127,6 @@ public class QueueThreadImpl<T> extends AbstractBlockingQueue<T> implements Queu
                     "can not start thread if it has already built a seed or if it has already been started");
         }
 
-        metrics.startingWork();
         stoppableThread.start();
     }
 
@@ -231,9 +224,7 @@ public class QueueThreadImpl<T> extends AbstractBlockingQueue<T> implements Queu
     private void doWork() throws InterruptedException {
         drainTo(buffer, bufferSize);
         if (buffer.size() == 0) {
-            metrics.finishedWork();
             final T item = waitForItem();
-            metrics.startingWork();
             if (item != null) {
                 handler.accept(item);
                 batchHandled();
@@ -268,9 +259,7 @@ public class QueueThreadImpl<T> extends AbstractBlockingQueue<T> implements Queu
         if (item == null) {
             noWorkCount.incrementAndGet();
             if (idleCallback != null) {
-                metrics.startingWork();
                 idleCallback.run();
-                metrics.finishedWork();
             }
         }
         return item;

@@ -9,7 +9,6 @@ import static org.hiero.consensus.threading.framework.internal.AbstractQueueThre
 import static org.hiero.consensus.threading.manager.AdHocThreadManager.getStaticThreadManager;
 import static com.swirlds.metrics.api.Metrics.INTERNAL_CATEGORY;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
-import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -20,8 +19,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
 import com.swirlds.base.state.MutabilityException;
-import com.swirlds.base.test.fixtures.time.FakeTime;
-import com.swirlds.common.metrics.FunctionGauge;
 import com.swirlds.common.metrics.PlatformMetricsFactory;
 import com.swirlds.common.metrics.config.MetricsConfig;
 import com.swirlds.common.metrics.platform.DefaultPlatformMetrics;
