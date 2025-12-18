@@ -13,6 +13,7 @@ import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.AL
 import static java.util.Objects.requireNonNull;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -182,15 +183,14 @@ class TokenServiceApiImplTest {
     }
 
     @Test
-    void refusesToSetNegativeKvPairCount() {
+    void clipsNegativeKvPairCountToZero() {
         accountStore.put(Account.newBuilder()
                 .accountId(CONTRACT_ACCOUNT_ID)
                 .contractKvPairsNumber(3)
                 .smartContract(true)
                 .build());
-
-        assertThrows(
-                IllegalArgumentException.class, () -> subject.updateStorageMetadata(CONTRACT_ID, SOME_STORE_KEY, -4));
+        assertDoesNotThrow(() -> subject.updateStorageMetadata(CONTRACT_ID, SOME_STORE_KEY, -4));
+        assertEquals(0, requireNonNull(accountState.get(CONTRACT_ACCOUNT_ID)).contractKvPairsNumber());
     }
 
     @Test
