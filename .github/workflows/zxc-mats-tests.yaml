@@ -108,20 +108,20 @@ defaults:
 
 jobs:
   build:
-    name: "${{ inputs.custom-job-labnel }} Compile Code"
+    name: "${{ inputs.custom-job-label }} Compile Code"
     uses: ./.github/workflows/zxc-compile-application-code.yaml
     with:
       java-version: "21.0.6"
       java-distribution: "temurin"
       ref: ${{ github.ref }}
-      custom-job-label: "${{ inputs.custom-job-labnel }} Compile Code"
+      custom-job-label: "${{ inputs.custom-job-label }} Compile Code"
     secrets:
       access-token: ${{ secrets.access-token }}
       gradle-cache-username: ${{ secrets.gradle-cache-username }}
       gradle-cache-password: ${{ secrets.gradle-cache-password }}
 
   dependency-check:
-    name: "${{ inputs.custom-job-labnel }} Dependency (Module Info)"
+    name: "${{ inputs.custom-job-label }} Dependency (Module Info)"
     if: ${{ inputs.enable-dependency-check == 'true' }}
     uses: ./.github/workflows/zxc-dependency-module-check.yaml
     needs:
@@ -134,7 +134,7 @@ jobs:
       gradle-cache-password: ${{ secrets.gradle-cache-password }}
 
   spotless:
-    name: "${{ inputs.custom-job-labnel }} Spotless"
+    name: "${{ inputs.custom-job-label }} Spotless"
     if: ${{ inputs.enable-spotless-check == 'true' }}
     uses: ./.github/workflows/zxc-spotless-check.yaml
     needs:
@@ -176,7 +176,7 @@ jobs:
       custom-job-label: "${{ inputs.custom-job-label }} Integration"
       java-version: ${{ inputs.java-version || '21.0.6' }}
       java-distribution: ${{ inputs.java-distribution || 'temurin' }}
-      enable-network-log-capture: true
+      enable-network-log-capture: "true"
     secrets:
       access-token: ${{ secrets.access-token }}
       gradle-cache-username: ${{ secrets.gradle-cache-username }}
@@ -221,7 +221,7 @@ jobs:
       java-version: ${{ inputs.java-version || '21.0.6' }}
       java-distribution: ${{ inputs.java-distribution || 'temurin' }}
       enable-fast-otter-tests: ${{ inputs.enable-otter-tests == 'true' }}
-      enable-network-log-capture: true
+      enable-network-log-capture: "true"
     secrets:
       access-token: ${{ secrets.access-token }}
       gradle-cache-username: ${{ secrets.gradle-cache-username }}

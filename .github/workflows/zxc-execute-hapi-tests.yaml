@@ -62,7 +62,7 @@ on:
         description: "HAPI Testing (smart contract) Enabled"
         type: string
         required: false
-        default: false
+        default: "false"
       enable-hapi-tests-time-consuming:
         description: "HAPI Testing (time consuming) Enabled"
         type: string
@@ -659,7 +659,7 @@ jobs:
           retention-days: 7
 
   hapi-tests-bn-comms:
-    name: "${{ inputs.custom-job-label }}  (BN Comms)"
+    name: "${{ inputs.custom-job-label }} (BN Comms)"
     if: ${{ inputs.enable-hapi-tests-bn-communication == 'true' }}
     runs-on: hiero-network-node-large
     steps:
@@ -751,7 +751,7 @@ jobs:
           failure_mode="none"
 
           has_failure() {
-            local arr("@")
+            local arr=("@")
             for status in "${arr[@]}"; do
               if [[ "${status}" == "failure" ]] && return 0
             done

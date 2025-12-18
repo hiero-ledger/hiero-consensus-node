@@ -29,9 +29,9 @@ on:
         default: "20"
       enable-network-log-capture:
         description: "Network Log Capture Enabled"
-        type: boolean
+        type: string
         required: false
-        default: false
+        default: "false"
     secrets:
       access-token:
         description: "The Github access token used to checkout the repository, submodules, and make GitHub API calls."
@@ -145,7 +145,7 @@ jobs:
           failure_mode="none"
 
           has_failure() {
-            local arr("@")
+            local arr=("@")
             for status in "${arr[@]}"; do
               if [[ "${status}" == "failure" ]] && return 0
             done

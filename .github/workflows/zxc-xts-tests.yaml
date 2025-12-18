@@ -207,7 +207,7 @@ jobs:
     with:
       custom-job-label: "${{ inputs.custom-job-label }} Otter Tests"
       enable-full-otter-tests: true
-      enable-network-log-capture: true
+      enable-network-log-capture: "true"
       ref: ${{ inputs.commit_sha }}
     secrets:
       access-token: ${{ secrets.access-token }}
@@ -223,7 +223,7 @@ jobs:
     with:
       custom-job-label: "${{ inputs.custom-job-label }} Chaos Otter Tests"
       enable-chaos-otter-tests: true
-      enable-network-log-capture: true
+      enable-network-log-capture: "true"
       ref: ${{ inputs.commit_sha }}
     secrets:
       access-token: ${{ secrets.access-token }}
@@ -369,12 +369,11 @@ jobs:
         id: set-failure-mode
         run: |
           job_statuses=(
-            ${{ needs.builds.result || 'skipped' }}
+            ${{ needs.build.result || 'skipped' }}
             ${{ needs.xts-timing-sensitive-tests.result || 'skipped' }}
             ${{ needs.xts-time-consuming-tests.result || 'skipped' }}
             ${{ needs.xts-hammer-tests.result || 'skipped' }}
             ${{ needs.xts-hapi-tests.result || 'skipped' }}
-            ${{ needs.xts-hapi-block-node-comms-tests.result || 'skipped' }}
             ${{ needs.xts-otter-tests.result || 'skipped' }}
           )
           job_failure_modes=(
