@@ -6,6 +6,7 @@ import java.net.MalformedURLException;
 import java.net.URL;
 
 public class GrpcPinger {
+
     public boolean isLive(final int port) {
         try {
             final var url = new URL("http://localhost:" + port + "/");

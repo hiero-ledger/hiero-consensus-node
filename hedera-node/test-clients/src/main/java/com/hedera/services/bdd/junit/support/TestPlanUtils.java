@@ -11,6 +11,7 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import org.junit.jupiter.api.Tag;
 import org.junit.platform.commons.support.AnnotationSupport;
 import org.junit.platform.engine.TestSource;
 import org.junit.platform.engine.support.descriptor.ClassSource;
@@ -47,6 +48,38 @@ public final class TestPlanUtils {
                 continue;
             }
             if (sourceHasAnyAnnotation(optSource.get(), types)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Returns true iff there exists a test node in the plan that carries any of the given JUnit {@link Tag} values.
+     * This checks both the tags reported by the {@code TestIdentifier} and any {@code @Tag} annotations present on
+     * the underlying class or method.
+     *
+     * @param plan the test plan to scan
+     * @param tagNames the tag values to look for
+     * @return whether a tagged test node exists
+     */
+    public static boolean hasTaggedTestNode(@NonNull final TestPlan plan, @NonNull final Collection<String> tagNames) {
+        final Set<String> tags = new HashSet<>(tagNames);
+        if (tags.isEmpty()) {
+            return false;
+        }
+        final var stack = new ArrayDeque<>(plan.getRoots());
+        while (!stack.isEmpty()) {
+            final var id = stack.pop();
+            plan.getChildren(id).forEach(stack::push);
+            if (!id.isTest()) {
+                continue;
+            }
+            if (id.getTags().stream().anyMatch(tags::contains)) {
+                return true;
+            }
+            final var optSource = id.getSource();
+            if (optSource.isPresent() && sourceHasAnyTag(optSource.get(), tags)) {
                 return true;
             }
         }
@@ -91,6 +124,46 @@ public final class TestPlanUtils {
                 return false;
             }
         }
+    }
+
+    private static boolean sourceHasAnyTag(@NonNull final TestSource source, @NonNull final Set<String> tags) {
+        switch (source) {
+            case MethodSource ms -> {
+                final var testClass = tryLoad(ms.getClassName());
+                if (testClass == null) {
+                    return false;
+                }
+                if (hasTag(testClass, tags)) {
+                    return true;
+                }
+                for (final var m : findCandidateMethods(testClass, ms.getMethodName())) {
+                    if (hasTag(m, tags)) {
+                        return true;
+                    }
+                }
+                return false;
+            }
+            case ClassSource cs -> {
+                final var testClass = tryLoad(cs.getClassName());
+                return testClass != null && hasTag(testClass, tags);
+            }
+            case CompositeTestSource composite -> {
+                for (final var nested : composite.getSources()) {
+                    if (sourceHasAnyTag(nested, tags)) {
+                        return true;
+                    }
+                }
+                return false;
+            }
+            default -> {
+                return false;
+            }
+        }
+    }
+
+    private static boolean hasTag(@NonNull final AnnotatedElement element, @NonNull final Set<String> tags) {
+        return AnnotationSupport.findRepeatableAnnotations(element, Tag.class).stream()
+                .anyMatch(tag -> tags.contains(tag.value()));
     }
 
     private static boolean isAnnotatedWithAny(
