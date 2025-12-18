@@ -212,6 +212,8 @@ jobs:
   mats-otter-tests:
     name: Otter Tests
     if: ${{ inputs.enable-otter-tests == 'true' }}
+    needs:
+      - build
     uses: ./.github/workflows/zxc-execute-otter-tests.yaml
     with:
       ref: ${{ inputs.ref || '' }}
@@ -228,6 +230,8 @@ jobs:
   mats-snyk-scan:
     name: Snyk Scan
     if: ${{ inputs.enable-snyk-scan == 'true' }}
+    needs:
+      - build
     uses: ./.github/workflows/zxc-snyk-scan.yaml
     with:
       ref: ${{ inputs.ref || '' }}
@@ -242,8 +246,10 @@ jobs:
 
   mats-gradle-determinism:
     name: Gradle Determinism
-    uses: ./.github/workflows/zxc-verify-gradle-build-determinism.yaml
     if: ${{ inputs.enable-gradle-determinism == 'true' }}
+    needs:
+      - build
+    uses: ./.github/workflows/zxc-verify-gradle-build-determinism.yaml
     with:
       ref: ${{ inputs.ref || '' }}
       java-version: ${{ inputs.java-version || '21.0.6' }}
@@ -254,8 +260,10 @@ jobs:
 
   mats-docker-determinism:
     name: Docker Determinism
-    uses: ./.github/workflows/zxc-verify-docker-build-determinism.yaml
     if: ${{ inputs.enable-docker-determinism == 'true' }}
+    needs:
+      - build
+    uses: ./.github/workflows/zxc-verify-docker-build-determinism.yaml
     with:
       ref: ${{ inputs.ref || '' }}
       java-version: ${{ inputs.java-version || '21.0.6' }}
