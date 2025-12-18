@@ -618,18 +618,18 @@ public class BlockStreamBuilder
                     // to their corresponding writes; so in the case of a reverted transaction, we need to swap
                     // the indexes back to the original keys before output
                     if (status == REVERTED_SUCCESS) {
-                        log.info("Replacing (# written keys={}) {}",
-                                slotUsages.stream().mapToInt(usage -> usage.writtenSlotKeysOrElse(WrittenSlotKeys.DEFAULT).keys().size()).sum(),
-                                slotUsages);
                         slotUsages = slotUsages.stream()
                                 .map(usage -> {
-                                    final var writtenKeys = usage.writtenSlotKeysOrElse(WrittenSlotKeys.DEFAULT).keys();
+                                    final var writtenKeys = usage.writtenSlotKeysOrElse(WrittenSlotKeys.DEFAULT)
+                                            .keys();
                                     var reads = usage.slotReads();
                                     if (!writtenKeys.isEmpty()) {
                                         final List<SlotRead> explicitReads = new ArrayList<>(reads.size());
                                         for (final var read : reads) {
                                             if (read.hasIndex()) {
-                                                explicitReads.add(read.copyBuilder().key(writtenKeys.get(read.indexOrThrow())).build());
+                                                explicitReads.add(read.copyBuilder()
+                                                        .key(writtenKeys.get(read.indexOrThrow()))
+                                                        .build());
                                             } else {
                                                 explicitReads.add(read);
                                             }
@@ -638,10 +638,10 @@ public class BlockStreamBuilder
                                     }
                                     return usage.copyBuilder()
                                             .slotReads(reads)
-                                            .writtenSlotKeys((WrittenSlotKeys) null).build();
+                                            .writtenSlotKeys((WrittenSlotKeys) null)
+                                            .build();
                                 })
                                 .toList();
-                        log.info("With {}", slotUsages);
                     }
                     // Nothing else to do if these slot usages already traced their written keys explicitly
                     builder.contractSlotUsages(slotUsages);

@@ -663,7 +663,8 @@ public class BaseTranslator {
                                             new LambdaSlotKey(executingHookId, minimalKey(slotKey.key())));
                                 }
                                 if (valueFromState == null) {
-                                    throw new IllegalStateException("No written value found for write to " + slotKey + " in " + remainingStateChanges);
+                                    throw new IllegalStateException("No written value found for write to " + slotKey
+                                            + " in " + remainingStateChanges);
                                 }
                                 value = HookUtils.minimalRepresentationOf(valueFromState);
                             }

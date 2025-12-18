@@ -321,7 +321,7 @@ public class RecordStreamBuilder
                                     .map(change -> change.copyBuilder()
                                             .storageChanges(change.storageChanges().stream()
                                                     .map(sc -> sc.copyBuilder()
-                                                            .valueWritten(Bytes.EMPTY)
+                                                            .valueWritten(null)
                                                             .build())
                                                     .toList())
                                             .build())
