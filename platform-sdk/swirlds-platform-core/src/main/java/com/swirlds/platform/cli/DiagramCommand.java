@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.cli;
 
+import static com.swirlds.platform.builder.ConsensusModuleBuilder.createNoOpEventCreatorModule;
+import static com.swirlds.platform.builder.ConsensusModuleBuilder.createNoOpEventIntakeModule;
+
 import com.swirlds.cli.PlatformCli;
 import com.swirlds.cli.utility.AbstractCommand;
 import com.swirlds.cli.utility.SubcommandOf;
@@ -13,8 +16,6 @@ import com.swirlds.component.framework.model.diagram.ModelManualLink;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.platform.builder.ApplicationCallbacks;
-import com.swirlds.platform.cli.helper.NoOpEventCreatorModule;
-import com.swirlds.platform.cli.helper.NoOpEventIntakeModule;
 import com.swirlds.platform.config.DefaultConfiguration;
 import com.swirlds.platform.util.VirtualTerminal;
 import com.swirlds.platform.wiring.PlatformComponents;
@@ -109,8 +110,8 @@ public final class DiagramCommand extends AbstractCommand {
         final WiringModel model = WiringModelBuilder.create(platformContext.getMetrics(), platformContext.getTime())
                 .build();
 
-        final EventCreatorModule eventCreatorModule = new NoOpEventCreatorModule(model, configuration);
-        final EventIntakeModule eventIntakeModule = new NoOpEventIntakeModule(model, configuration);
+        final EventCreatorModule eventCreatorModule = createNoOpEventCreatorModule(model, configuration);
+        final EventIntakeModule eventIntakeModule = createNoOpEventIntakeModule(model, configuration);
 
         final PlatformComponents platformComponents =
                 PlatformComponents.create(platformContext, model, eventCreatorModule, eventIntakeModule);
