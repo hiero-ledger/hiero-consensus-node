@@ -17,7 +17,7 @@ import java.util.stream.Collectors;
 import javax.security.auth.x500.X500Principal;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.hiero.consensus.utility.throttle.RateLimitedLogger;
+import org.hiero.consensus.concurrent.utility.throttle.RateLimitedLogger;
 
 /**
  * Identifies a connected peer from a list of trusted peers; it is used only to handle incoming connections

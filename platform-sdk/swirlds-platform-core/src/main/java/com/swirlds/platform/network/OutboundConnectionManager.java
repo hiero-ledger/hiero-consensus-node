@@ -30,9 +30,9 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.base.concurrent.locks.AutoClosableResourceLock;
 import org.hiero.base.concurrent.locks.Locks;
 import org.hiero.base.concurrent.locks.locked.LockedResource;
+import org.hiero.consensus.concurrent.utility.throttle.RateLimitedLogger;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.utility.throttle.RateLimitedLogger;
 
 public class OutboundConnectionManager implements ConnectionManager {
     private final PlatformContext platformContext;

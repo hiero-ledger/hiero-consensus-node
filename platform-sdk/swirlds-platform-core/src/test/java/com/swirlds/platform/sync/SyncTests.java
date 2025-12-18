@@ -3,7 +3,7 @@ package com.swirlds.platform.sync;
 
 import static com.swirlds.common.test.fixtures.io.ResourceLoader.loadLog4jContext;
 import static com.swirlds.platform.test.fixtures.event.EventUtils.integerPowerDistribution;
-import static org.hiero.consensus.threading.manager.AdHocThreadManager.getStaticThreadManager;
+import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;

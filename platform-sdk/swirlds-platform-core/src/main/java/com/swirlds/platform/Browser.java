@@ -27,7 +27,7 @@ import static com.swirlds.platform.system.address.AddressBookUtils.initializeAdd
 import static com.swirlds.platform.util.BootstrapUtils.getNodesToRun;
 import static com.swirlds.platform.util.BootstrapUtils.loadSwirldMains;
 import static com.swirlds.platform.util.BootstrapUtils.setupBrowserWindow;
-import static org.hiero.consensus.threading.manager.AdHocThreadManager.getStaticThreadManager;
+import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.util.HapiUtils;

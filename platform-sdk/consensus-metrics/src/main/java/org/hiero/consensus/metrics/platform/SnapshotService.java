@@ -25,6 +25,7 @@ import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.metrics.config.MetricsConfig;
+import org.hiero.consensus.metrics.platform.prometheus.PrometheusEndpoint;
 
 /**
  * Service that creates new snapshots in regular intervals and sends a {@link SnapshotEvent}.
@@ -40,7 +41,7 @@ import org.hiero.consensus.metrics.config.MetricsConfig;
  * the service can be shutdown with {@link #shutdown()}.
  *
  * @see LegacyCsvWriter
- * @see com.swirlds.common.metrics.platform.prometheus.PrometheusEndpoint
+ * @see PrometheusEndpoint
  */
 public class SnapshotService implements Startable {
 

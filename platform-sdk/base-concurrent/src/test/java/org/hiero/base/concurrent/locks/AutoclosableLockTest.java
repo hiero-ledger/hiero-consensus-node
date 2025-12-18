@@ -4,7 +4,7 @@ package org.hiero.base.concurrent.locks;
 import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyFalse;
 import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyTrue;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
-import static org.hiero.consensus.threading.manager.AdHocThreadManager.getStaticThreadManager;
+import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;

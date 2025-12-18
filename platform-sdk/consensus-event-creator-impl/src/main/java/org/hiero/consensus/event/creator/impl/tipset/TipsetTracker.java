@@ -12,13 +12,13 @@ import java.util.List;
 import java.util.Objects;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.concurrent.utility.throttle.RateLimitedLogger;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.sequence.map.SequenceMap;
 import org.hiero.consensus.model.sequence.map.StandardSequenceMap;
-import org.hiero.consensus.utility.throttle.RateLimitedLogger;
 
 /**
  * Computes and tracks tipsets for non-ancient events.

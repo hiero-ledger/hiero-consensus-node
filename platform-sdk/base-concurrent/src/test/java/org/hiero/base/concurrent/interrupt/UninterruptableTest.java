@@ -9,7 +9,7 @@ import static org.hiero.base.concurrent.interrupt.Uninterruptable.abortAndThrowI
 import static org.hiero.base.concurrent.interrupt.Uninterruptable.abortIfInterrupted;
 import static org.hiero.base.concurrent.interrupt.Uninterruptable.retryIfInterrupted;
 import static org.hiero.base.concurrent.interrupt.Uninterruptable.tryToSleep;
-import static org.hiero.consensus.threading.manager.AdHocThreadManager.getStaticThreadManager;
+import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;

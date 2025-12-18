@@ -3,6 +3,7 @@ package org.hiero.consensus.metrics.statistics;
 
 import com.swirlds.base.time.Time;
 import java.util.Objects;
+import org.hiero.consensus.metrics.SpeedometerMetric;
 import org.hiero.consensus.metrics.statistics.internal.StatsBuffer;
 
 /**
@@ -12,7 +13,7 @@ import org.hiero.consensus.metrics.statistics.internal.StatsBuffer;
  * <p>
  * The timer starts at instantiation, and can be reset with the reset() method.
  *
- * @deprecated Use {@link com.swirlds.common.metrics.SpeedometerMetric} instead
+ * @deprecated Use {@link SpeedometerMetric} instead
  */
 @Deprecated(forRemoval = true)
 public class StatsSpeedometer implements StatsBuffered {

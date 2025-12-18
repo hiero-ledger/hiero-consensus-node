@@ -11,11 +11,13 @@ module org.hiero.consensus.event.intake.impl {
     requires transitive com.swirlds.metrics.api;
     requires transitive org.hiero.consensus.event.intake;
     requires transitive org.hiero.consensus.model;
+    requires transitive org.hiero.consensus.roster;
     requires transitive org.hiero.consensus.utility;
     requires com.hedera.node.hapi;
     requires com.hedera.pbj.runtime;
     requires com.swirlds.logging;
     requires org.hiero.base.crypto;
+    requires org.hiero.consensus.concurrent;
     requires org.apache.logging.log4j;
     requires static transitive com.github.spotbugs.annotations;
 

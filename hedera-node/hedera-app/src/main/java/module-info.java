@@ -55,6 +55,9 @@ module com.hedera.node.app {
     requires com.swirlds.state.impl;
     requires com.swirlds.virtualmap;
     requires org.hiero.base.concurrent;
+    requires org.hiero.consensus.concurrent;
+    requires org.hiero.consensus.metrics;
+    requires org.hiero.consensus.roster;
     requires com.github.benmanes.caffeine;
     requires com.google.common;
     requires io.grpc.netty;

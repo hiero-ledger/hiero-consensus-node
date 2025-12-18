@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.metrics.platform.prometheus;
 
+import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
+import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static org.hiero.consensus.metrics.platform.DefaultPlatformMetrics.EXCEPTION_RATE_THRESHOLD;
 import static org.hiero.consensus.metrics.platform.DefaultPlatformMetrics.calculateMetricKey;
 import static org.hiero.consensus.metrics.platform.prometheus.PrometheusEndpoint.AdapterType.GLOBAL;
 import static org.hiero.consensus.metrics.platform.prometheus.PrometheusEndpoint.AdapterType.PLATFORM;
-import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
-import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 
 import com.sun.net.httpserver.HttpServer;
 import com.swirlds.base.utility.AutoCloseableNonThrowing;
@@ -95,7 +95,7 @@ public class PrometheusEndpoint implements AutoCloseableNonThrowing {
 
     /**
      * This method handles the addition and removal of {@link Metric}s. It should only be called by
-     * the {@link com.swirlds.common.notification.NotificationEngine}.
+     * the NotificationEngine.
      *
      * @param notification
      * 		the {@link MetricsEvent}
@@ -126,7 +126,7 @@ public class PrometheusEndpoint implements AutoCloseableNonThrowing {
 
     /**
      * This method handles new snapshots. It should only be called by
-     * the {@link com.swirlds.common.notification.NotificationEngine}.
+     * the NotificationEngine.
      *
      * @param notification
      * 		the {@link SnapshotEvent}

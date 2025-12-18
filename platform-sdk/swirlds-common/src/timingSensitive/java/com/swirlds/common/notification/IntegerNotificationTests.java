@@ -4,7 +4,7 @@ package com.swirlds.common.notification;
 import static com.swirlds.common.test.fixtures.AssertionUtils.completeBeforeTimeout;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static org.hiero.base.concurrent.interrupt.Uninterruptable.abortAndThrowIfInterrupted;
-import static org.hiero.consensus.threading.manager.AdHocThreadManager.getStaticThreadManager;
+import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;

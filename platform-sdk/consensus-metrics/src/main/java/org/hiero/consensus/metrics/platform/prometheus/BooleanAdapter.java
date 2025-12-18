@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.metrics.platform.prometheus;
 
+import static java.lang.Boolean.TRUE;
 import static org.hiero.consensus.metrics.platform.prometheus.PrometheusEndpoint.AdapterType.GLOBAL;
 import static org.hiero.consensus.metrics.platform.prometheus.PrometheusEndpoint.AdapterType.PLATFORM;
 import static org.hiero.consensus.metrics.platform.prometheus.PrometheusEndpoint.NODE_LABEL;
-import static java.lang.Boolean.TRUE;
 
 import com.swirlds.metrics.api.Metric;
 import com.swirlds.metrics.api.snapshot.Snapshot;

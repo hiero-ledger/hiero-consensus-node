@@ -2,7 +2,7 @@
 package com.swirlds.benchmark.reconnect;
 
 import static com.swirlds.common.merkle.copy.MerkleInitialize.initializeTreeAfterCopy;
-import static org.hiero.consensus.threading.manager.AdHocThreadManager.getStaticThreadManager;
+import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 
 import com.swirlds.base.time.Time;
 import com.swirlds.benchmark.BenchmarkMetrics;

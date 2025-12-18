@@ -2,7 +2,7 @@
 package com.swirlds.platform.test.fixtures.sync;
 
 import static org.assertj.core.api.Assertions.fail;
-import static org.hiero.consensus.threading.manager.AdHocThreadManager.getStaticThreadManager;
+import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 import static org.mockito.Mockito.mock;
 
 import com.swirlds.common.context.PlatformContext;

@@ -86,7 +86,7 @@ import com.swirlds.platform.system.status.PlatformStatusConfig;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.hiero.base.crypto.config.CryptoConfig;
-import org.hiero.consensus.config.BasicCommonConfig;
+import org.hiero.consensus.concurrent.config.BasicCommonConfig;
 import org.hiero.consensus.config.EventConfig;
 import org.hiero.consensus.metrics.config.MetricsConfig;
 import org.hiero.consensus.metrics.platform.prometheus.PrometheusConfig;

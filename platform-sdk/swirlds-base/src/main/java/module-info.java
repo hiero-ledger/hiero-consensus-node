@@ -21,7 +21,8 @@ module com.swirlds.base {
             com.swirlds.logging,
             com.swirlds.logging.test.fixtures,
             com.swirlds.common,
-            com.swirlds.platform.base.example;
+            com.swirlds.platform.base.example,
+            org.hiero.consensus.metrics;
     exports com.swirlds.base.internal.observe to
             com.swirlds.base.test.fixtures,
             com.swirlds.common,
@@ -31,7 +32,8 @@ module com.swirlds.base {
             com.swirlds.config.impl,
             com.swirlds.logging,
             com.swirlds.logging.test.fixtures,
-            com.swirlds.metrics.api;
+            com.swirlds.metrics.api,
+            org.hiero.consensus.metrics;
     exports com.swirlds.base.time.internal to
             org.hiero.consensus.event.creator.impl;
     exports com.swirlds.base.units.internal to

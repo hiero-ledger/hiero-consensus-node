@@ -4,7 +4,6 @@ module org.hiero.consensus.utility {
     exports org.hiero.consensus.crypto;
     exports org.hiero.consensus.event;
     exports org.hiero.consensus.exceptions;
-    exports org.hiero.consensus.roster;
     exports org.hiero.consensus.transaction;
     exports org.hiero.consensus.round;
 

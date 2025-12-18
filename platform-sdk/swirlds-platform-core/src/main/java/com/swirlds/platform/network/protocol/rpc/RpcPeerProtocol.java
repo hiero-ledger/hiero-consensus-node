@@ -15,7 +15,6 @@ import com.hedera.hapi.platform.message.GossipKnownTips;
 import com.hedera.hapi.platform.message.GossipPing;
 import com.hedera.hapi.platform.message.GossipSyncData;
 import com.swirlds.base.time.Time;
-import com.swirlds.common.utility.throttle.RateLimiter;
 import com.swirlds.platform.gossip.permits.SyncPermitProvider;
 import com.swirlds.platform.gossip.rpc.GossipRpcReceiver;
 import com.swirlds.platform.gossip.rpc.GossipRpcSender;
@@ -48,6 +47,7 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.base.concurrent.ThrowingRunnable;
 import org.hiero.consensus.concurrent.pool.ParallelExecutionException;
 import org.hiero.consensus.concurrent.pool.ParallelExecutor;
+import org.hiero.consensus.concurrent.utility.throttle.RateLimiter;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
 

@@ -5,8 +5,8 @@ import static com.swirlds.logging.legacy.LogMarker.CERTIFICATES;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static com.swirlds.platform.crypto.KeyCertPurpose.SIGNING;
+import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 import static org.hiero.consensus.crypto.CryptoConstants.PUBLIC_KEYS_FILE;
-import static org.hiero.consensus.threading.manager.AdHocThreadManager.getStaticThreadManager;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.utility.CommonUtils;

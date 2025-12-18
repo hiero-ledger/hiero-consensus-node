@@ -20,6 +20,7 @@ import java.time.Duration;
 import java.util.List;
 import org.hiero.consensus.metrics.SpeedometerMetric;
 import org.hiero.consensus.metrics.config.MetricsConfig;
+import org.hiero.consensus.metrics.platform.PlatformSpeedometerMetric;
 import org.hiero.consensus.metrics.statistics.StatsBuffered;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;

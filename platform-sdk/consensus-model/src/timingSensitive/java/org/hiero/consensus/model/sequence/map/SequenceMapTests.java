@@ -4,7 +4,7 @@ package org.hiero.consensus.model.sequence.map;
 import static com.swirlds.common.test.fixtures.AssertionUtils.completeBeforeTimeout;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
-import static org.hiero.consensus.threading.manager.AdHocThreadManager.getStaticThreadManager;
+import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;

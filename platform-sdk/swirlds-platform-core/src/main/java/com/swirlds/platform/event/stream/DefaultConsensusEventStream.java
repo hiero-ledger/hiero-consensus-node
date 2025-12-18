@@ -5,7 +5,7 @@ import static com.swirlds.base.units.UnitConstants.SECONDS_TO_MILLISECONDS;
 import static com.swirlds.logging.legacy.LogMarker.EVENT_STREAM;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.metrics.api.Metrics.INFO_CATEGORY;
-import static org.hiero.consensus.threading.manager.AdHocThreadManager.getStaticThreadManager;
+import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
@@ -30,11 +30,11 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.DigestType;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.crypto.Signer;
+import org.hiero.consensus.concurrent.utility.throttle.RateLimitedLogger;
 import org.hiero.consensus.config.EventConfig;
 import org.hiero.consensus.metrics.FunctionGauge;
 import org.hiero.consensus.model.event.CesEvent;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.utility.throttle.RateLimitedLogger;
 
 /**
  * This class is used for generating event stream files when enableEventStreaming is true, and for calculating

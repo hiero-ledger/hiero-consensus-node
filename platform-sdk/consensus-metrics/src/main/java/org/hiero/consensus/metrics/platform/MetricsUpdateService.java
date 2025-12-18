@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.metrics.platform;
 
-import static org.hiero.consensus.metrics.platform.DefaultPlatformMetrics.EXCEPTION_RATE_THRESHOLD;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
+import static org.hiero.consensus.metrics.platform.DefaultPlatformMetrics.EXCEPTION_RATE_THRESHOLD;
 
 import com.swirlds.base.state.Startable;
 import java.util.Objects;

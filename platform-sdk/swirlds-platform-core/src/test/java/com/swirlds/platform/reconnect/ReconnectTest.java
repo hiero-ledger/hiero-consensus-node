@@ -2,7 +2,7 @@
 package com.swirlds.platform.reconnect;
 
 import static com.swirlds.state.test.fixtures.merkle.VirtualMapStateTestUtils.createTestState;
-import static org.hiero.consensus.threading.manager.AdHocThreadManager.getStaticThreadManager;
+import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;

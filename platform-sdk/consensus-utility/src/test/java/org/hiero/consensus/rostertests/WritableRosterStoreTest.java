@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.consensus.roster;
+package org.hiero.consensus.rostertests;
 
 import static org.hiero.consensus.roster.WritableRosterStore.MAXIMUM_ROSTER_HISTORY_SIZE;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
@@ -31,6 +31,12 @@ import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Objects;
+import org.hiero.consensus.roster.InvalidRosterException;
+import org.hiero.consensus.roster.ReadableRosterStore;
+import org.hiero.consensus.roster.ReadableRosterStoreImpl;
+import org.hiero.consensus.roster.RosterStateId;
+import org.hiero.consensus.roster.RosterUtils;
+import org.hiero.consensus.roster.WritableRosterStore;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

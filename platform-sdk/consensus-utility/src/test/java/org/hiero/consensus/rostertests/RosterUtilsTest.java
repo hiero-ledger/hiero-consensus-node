@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.consensus.roster;
+package org.hiero.consensus.rostertests;
 
 import static org.hiero.consensus.roster.RosterRetriever.buildRoster;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -29,6 +29,10 @@ import org.hiero.base.utility.test.fixtures.RandomUtils;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.roster.Address;
 import org.hiero.consensus.model.roster.AddressBook;
+import org.hiero.consensus.roster.RosterHistory;
+import org.hiero.consensus.roster.RosterStateId;
+import org.hiero.consensus.roster.RosterStateUtils;
+import org.hiero.consensus.roster.RosterUtils;
 import org.junit.jupiter.api.Test;
 
 public class RosterUtilsTest {

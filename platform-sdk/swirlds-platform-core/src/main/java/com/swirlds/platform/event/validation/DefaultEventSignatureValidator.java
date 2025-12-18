@@ -17,6 +17,7 @@ import java.time.Duration;
 import java.util.Objects;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.concurrent.utility.throttle.RateLimitedLogger;
 import org.hiero.consensus.event.IntakeEventCounter;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
@@ -24,7 +25,6 @@ import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.roster.RosterEntryNotFoundException;
 import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.roster.RosterUtils;
-import org.hiero.consensus.utility.throttle.RateLimitedLogger;
 
 /**
  * Default implementation for verifying event signatures

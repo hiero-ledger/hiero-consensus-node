@@ -6,7 +6,7 @@ import com.swirlds.config.api.ConfigurationExtension;
 import com.swirlds.platform.base.example.server.BaseExampleRestApiConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Set;
-import org.hiero.consensus.config.BasicCommonConfig;
+import org.hiero.consensus.concurrent.config.BasicCommonConfig;
 import org.hiero.consensus.metrics.config.MetricsConfig;
 import org.hiero.consensus.metrics.platform.prometheus.PrometheusConfig;
 

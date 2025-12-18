@@ -5,6 +5,7 @@ import com.swirlds.base.time.Time;
 import com.swirlds.logging.legacy.LogMarker;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.metrics.RunningAverageMetric;
 import org.hiero.consensus.metrics.statistics.internal.StatsBuffer;
 
 /**
@@ -12,7 +13,7 @@ import org.hiero.consensus.metrics.statistics.internal.StatsBuffer;
  * a given half life. If it is always given the same value, then that value will be the average, regardless
  * of the timing.
  *
- * @deprecated Use {@link com.swirlds.common.metrics.RunningAverageMetric} instead
+ * @deprecated Use {@link RunningAverageMetric} instead
  */
 @Deprecated(forRemoval = true)
 public class StatsRunningAverage implements StatsBuffered {

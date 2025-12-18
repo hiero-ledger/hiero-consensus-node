@@ -11,7 +11,6 @@ import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.spi.CommittableWritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
-import org.hiero.consensus.roster.RosterUtils;
 import org.hiero.consensus.roster.RosterStateUtils;
 import org.hiero.otter.fixtures.app.state.OtterServiceStateSpecification;
 

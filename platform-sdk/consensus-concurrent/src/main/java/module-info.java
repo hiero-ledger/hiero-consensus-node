@@ -8,13 +8,13 @@ module org.hiero.consensus.concurrent {
     exports org.hiero.consensus.concurrent.pool;
     exports org.hiero.consensus.concurrent.utility.throttle;
 
+    requires transitive com.swirlds.base;
     requires transitive com.swirlds.config.api;
     requires transitive com.swirlds.metrics.api;
     requires transitive org.hiero.base.concurrent;
     requires transitive org.hiero.base.utility;
     requires transitive org.hiero.consensus.model;
-    requires com.swirlds.base;
+    requires transitive org.apache.logging.log4j;
     requires com.swirlds.logging;
-    requires org.apache.logging.log4j;
     requires static transitive com.github.spotbugs.annotations;
 }

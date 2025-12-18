@@ -20,12 +20,12 @@ import java.util.Objects;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.DigestType;
+import org.hiero.consensus.concurrent.utility.throttle.RateLimitedLogger;
 import org.hiero.consensus.event.IntakeEventCounter;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.transaction.Transaction;
 import org.hiero.consensus.transaction.TransactionLimits;
-import org.hiero.consensus.utility.throttle.RateLimitedLogger;
 
 /**
  * A default implementation of the {@link InternalEventValidator} interface.

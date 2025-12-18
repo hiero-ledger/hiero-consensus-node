@@ -13,18 +13,18 @@ module org.hiero.consensus.metrics {
     exports org.hiero.consensus.metrics.statistics.internal;
     exports org.hiero.consensus.metrics.statistics.simple;
 
+    requires com.swirlds.logging;
+    requires org.hiero.base.concurrent;
+    requires org.hiero.base.utility;
+    requires org.hiero.consensus.concurrent;
+    requires simpleclient.httpserver;
     requires transitive com.swirlds.base;
     requires transitive com.swirlds.config.api;
-    requires transitive com.swirlds.logging;
     requires transitive com.swirlds.metrics.api;
     requires transitive com.swirlds.metrics.impl;
-    requires transitive org.hiero.base.concurrent;
-    requires transitive org.hiero.base.utility;
-    requires transitive org.hiero.consensus.concurrent;
     requires transitive org.hiero.consensus.model;
-    requires transitive simpleclient.httpserver;
+    requires transitive jdk.httpserver;
     requires transitive simpleclient;
-    requires jdk.httpserver;
     requires org.apache.logging.log4j;
     requires static transitive com.github.spotbugs.annotations;
 }

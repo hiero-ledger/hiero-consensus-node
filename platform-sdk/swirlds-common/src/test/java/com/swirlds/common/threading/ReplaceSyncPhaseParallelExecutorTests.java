@@ -2,7 +2,7 @@
 package com.swirlds.common.threading;
 
 import static java.lang.String.format;
-import static org.hiero.consensus.threading.manager.AdHocThreadManager.getStaticThreadManager;
+import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.swirlds.common.test.fixtures.threading.ReplaceSyncPhaseParallelExecutor;

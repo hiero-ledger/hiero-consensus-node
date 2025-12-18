@@ -2,7 +2,7 @@
 package org.hiero.consensus.threading.pool;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.hiero.consensus.threading.manager.AdHocThreadManager.getStaticThreadManager;
+import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 import static org.junit.jupiter.api.Assertions.fail;
 
 import java.util.concurrent.CyclicBarrier;

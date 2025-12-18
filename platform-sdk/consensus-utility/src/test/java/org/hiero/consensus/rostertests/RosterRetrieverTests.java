@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.consensus.roster;
+package org.hiero.consensus.rostertests;
 
 import static com.swirlds.platform.state.service.PlatformStateUtils.roundOf;
 import static com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID;
@@ -26,6 +26,8 @@ import java.security.cert.CertificateEncodingException;
 import java.security.cert.X509Certificate;
 import java.util.List;
 import java.util.stream.Stream;
+import org.hiero.consensus.roster.RosterRetriever;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -136,7 +138,7 @@ public class RosterRetrieverTests {
     @ParameterizedTest
     @MethodSource("provideArgumentsForGetActiveRosterHash")
     void testGetActiveRosterHashForRound(final long round, final Bytes activeRosterHash) {
-        assertEquals(activeRosterHash, RosterRetriever.getActiveRosterHash(state, round));
+        Assertions.assertEquals(activeRosterHash, RosterRetriever.getActiveRosterHash(state, round));
     }
 
     @Test

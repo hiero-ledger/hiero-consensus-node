@@ -121,7 +121,7 @@ public abstract class AbstractStoppableThreadConfiguration<
 
     /**
      * Get the method that will be run after the thread is stopped. Ignored if {@link #stopBehavior} is
-     * {@link org.hiero.consensus.threading.framework.Stoppable.StopBehavior#INTERRUPTABLE INTERRUPTABLE}.
+     * {@link org.hiero.consensus.concurrent.framework.Stoppable.StopBehavior#INTERRUPTABLE INTERRUPTABLE}.
      */
     protected InterruptableRunnable getFinalCycleWork() {
         return finalCycleWork;
@@ -129,7 +129,7 @@ public abstract class AbstractStoppableThreadConfiguration<
 
     /**
      * Set the method that will be run after the thread is stopped. Ignored if {@link #stopBehavior} is
-     * {@link org.hiero.consensus.threading.framework.Stoppable.StopBehavior#INTERRUPTABLE INTERRUPTABLE}.
+     * {@link org.hiero.consensus.concurrent.framework.Stoppable.StopBehavior#INTERRUPTABLE INTERRUPTABLE}.
      *
      * @return this object
      */

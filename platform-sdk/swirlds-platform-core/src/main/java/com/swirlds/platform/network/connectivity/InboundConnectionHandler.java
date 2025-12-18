@@ -25,8 +25,8 @@ import javax.net.ssl.SSLSocket;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.concurrent.interrupt.InterruptableConsumer;
+import org.hiero.consensus.concurrent.utility.throttle.RateLimitedLogger;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.utility.throttle.RateLimitedLogger;
 
 /**
  * Accept inbound connections and executes the platform handshake. This class is thread-safe

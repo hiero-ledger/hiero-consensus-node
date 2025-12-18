@@ -12,12 +12,14 @@ import io.prometheus.client.Collector;
 import io.prometheus.client.CollectorRegistry;
 import io.prometheus.client.Gauge;
 import java.util.Objects;
+import org.hiero.consensus.metrics.RunningAverageMetric;
+import org.hiero.consensus.metrics.SpeedometerMetric;
 import org.hiero.consensus.metrics.platform.prometheus.PrometheusEndpoint.AdapterType;
 import org.hiero.consensus.model.node.NodeId;
 
 /**
- * Adapter that synchronizes {@link com.swirlds.common.metrics.RunningAverageMetric} and
- * {@link com.swirlds.common.metrics.SpeedometerMetric} with the corresponding Prometheus {@link Collector}.
+ * Adapter that synchronizes {@link RunningAverageMetric} and
+ * {@link SpeedometerMetric} with the corresponding Prometheus {@link Collector}.
  */
 public class DistributionAdapter extends AbstractMetricAdapter {
 

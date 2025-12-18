@@ -119,6 +119,7 @@ module com.swirlds.platform.core {
     requires transitive org.hiero.consensus.event.intake;
     requires transitive org.hiero.consensus.hashgraph;
     requires transitive org.hiero.consensus.model;
+    requires transitive org.hiero.consensus.roster;
     requires transitive org.hiero.consensus.utility;
     requires transitive info.picocli;
     requires transitive org.apache.logging.log4j;

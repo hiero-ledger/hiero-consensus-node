@@ -14,7 +14,7 @@ import java.util.Map;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.CompareTo;
-import org.hiero.consensus.utility.throttle.RateLimitedLogger;
+import org.hiero.consensus.concurrent.utility.throttle.RateLimitedLogger;
 
 /**
  * Encapsulates logging for the wiring health monitor.
