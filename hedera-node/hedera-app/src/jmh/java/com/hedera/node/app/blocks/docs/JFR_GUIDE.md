@@ -7,18 +7,35 @@ This guide explains the output of the `BlockStreamingBenchmark` and how to analy
 When you run the benchmark, you will see two primary outputs:
 
 1. **Console Output:** The benchmark results (throughput, latency) and GC allocation rates are printed directly to the console.
-2. **JFR Recording:** A binary recording file will be saved in a specific directory structure created by JMH to avoid overwriting results from different parameter combinations.
-   * **Location:** The file will be deeply nested in a folder named after the benchmark parameters, e.g.:
-     `./com.hedera.node.app.blocks.BlockStreamingBenchmark.streamBlocks-SingleShotTime-.../profile.jfr`
+2. **JFR Recording:** A binary recording file saved in:
 
-## 3. How to Generate JSON Analysis
+   ```
+   hedera-node/hedera-app/src/jmh/java/com/hedera/node/app/blocks/jfr/
+   ```
 
-The binary `.jfr` file is not human-readable. You must use the `jfr` tool (bundled with your JDK) to extract relevant events (Network IO, GC, Locks) into a readable JSON format.
+### JFR Filename Format
 
-### Command
+Files are named based on key parameters:
 
-Run the following command in your terminal. You can use a wildcard (`*`) to locate the JFR file without typing the full directory path:
+```
+bench-lat<latency>-bw<bandwidth>-buf<maxBlocks>-http<windowSize>-grpc<bufferSize>.jfr
+```
+
+Example: `bench-lat20-bw1000-buf150-http65535-grpc512.jfr`
+
+## How to Convert JFR Files to JSON
+
+The binary `.jfr` files are not human-readable. Use the `jfr` tool (bundled with your JDK) to convert them.
+
+### Convert All JFR Files to JSON
+
+In the JFR directory run:
 
 ```bash
-jfr print --events "jdk.SocketRead,jdk.GarbageCollection,jdk.JavaMonitorEnter" --json **/profile.jfr > analysis.json
+for f in *.jfr; do
+  jfr print --events "jdk.SocketRead,jdk.SocketWrite,jdk.GarbageCollection,jdk.JavaMonitorEnter" \
+    --json "$f" > "${f%.jfr}.json"
+done
 ```
+
+This creates a JSON file for each JFR file with the same name.
