@@ -1,11 +1,18 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.wiring;
 
+import static com.swirlds.platform.builder.ConsensusModuleBuilder.createEventCreatorModule;
+import static com.swirlds.platform.builder.ConsensusModuleBuilder.createEventIntakeModule;
+import static com.swirlds.platform.builder.ConsensusModuleBuilder.createNoOpEventCreatorModule;
+import static com.swirlds.platform.builder.ConsensusModuleBuilder.createNoOpEventIntakeModule;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.node.state.roster.Roster;
+import com.hedera.hapi.node.state.roster.RosterEntry;
+import com.hedera.hapi.node.state.roster.RoundRosterPair;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.metrics.noop.NoOpMetrics;
@@ -14,12 +21,11 @@ import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.component.framework.model.WiringModelBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
+import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.builder.ApplicationCallbacks;
 import com.swirlds.platform.builder.ExecutionLayer;
 import com.swirlds.platform.builder.PlatformBuildingBlocks;
 import com.swirlds.platform.builder.PlatformComponentBuilder;
-import com.swirlds.platform.cli.helper.NoOpEventCreatorModule;
-import com.swirlds.platform.cli.helper.NoOpEventIntakeModule;
 import com.swirlds.platform.components.AppNotifier;
 import com.swirlds.platform.components.EventWindowManager;
 import com.swirlds.platform.components.SavedStateController;
@@ -37,6 +43,7 @@ import com.swirlds.platform.event.stream.ConsensusEventStream;
 import com.swirlds.platform.event.validation.EventSignatureValidator;
 import com.swirlds.platform.eventhandling.DefaultTransactionHandler;
 import com.swirlds.platform.eventhandling.TransactionPrehandler;
+import com.swirlds.platform.gossip.NoOpIntakeEventCounter;
 import com.swirlds.platform.state.hasher.StateHasher;
 import com.swirlds.platform.state.hashlogger.HashLogger;
 import com.swirlds.platform.state.iss.IssDetector;
@@ -49,9 +56,12 @@ import com.swirlds.platform.state.signed.StateSignatureCollector;
 import com.swirlds.platform.state.signer.StateSigner;
 import com.swirlds.platform.state.snapshot.StateSnapshotManager;
 import com.swirlds.platform.system.PlatformMonitor;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.security.NoSuchAlgorithmException;
 import java.security.NoSuchProviderException;
 import java.security.SecureRandom;
+import java.util.List;
+import java.util.Map;
 import java.util.stream.Stream;
 import org.hiero.consensus.crypto.SigningSchema;
 import org.hiero.consensus.event.creator.EventCreatorModule;
@@ -59,6 +69,7 @@ import org.hiero.consensus.event.intake.EventIntakeModule;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.roster.RosterHistory;
+import org.hiero.consensus.transaction.TransactionLimits;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -91,8 +102,8 @@ class PlatformWiringTests {
                 WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent()).build();
 
         final Configuration configuration = platformContext.getConfiguration();
-        final EventCreatorModule eventCreatorModule = new NoOpEventCreatorModule(model, configuration);
-        final EventIntakeModule eventIntakeModule = new NoOpEventIntakeModule(model, configuration);
+        final EventCreatorModule eventCreatorModule = createNoOpEventCreatorModule(model, configuration);
+        final EventIntakeModule eventIntakeModule = createNoOpEventIntakeModule(model, configuration);
 
         final PlatformComponents platformComponents =
                 PlatformComponents.create(platformContext, model, eventCreatorModule, eventIntakeModule);
