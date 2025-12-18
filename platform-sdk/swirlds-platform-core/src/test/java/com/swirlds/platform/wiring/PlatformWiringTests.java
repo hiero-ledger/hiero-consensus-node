@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.wiring;
 
+import static com.swirlds.platform.builder.ConsensusModuleBuilder.createNoOpEventCreatorModule;
+import static com.swirlds.platform.builder.ConsensusModuleBuilder.createNoOpEventIntakeModule;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -18,8 +20,6 @@ import com.swirlds.platform.builder.ApplicationCallbacks;
 import com.swirlds.platform.builder.ExecutionLayer;
 import com.swirlds.platform.builder.PlatformBuildingBlocks;
 import com.swirlds.platform.builder.PlatformComponentBuilder;
-import com.swirlds.platform.cli.helper.NoOpEventCreatorModule;
-import com.swirlds.platform.cli.helper.NoOpEventIntakeModule;
 import com.swirlds.platform.components.AppNotifier;
 import com.swirlds.platform.components.EventWindowManager;
 import com.swirlds.platform.components.SavedStateController;
@@ -90,8 +90,8 @@ class PlatformWiringTests {
                 WiringModelBuilder.create(new NoOpMetrics(), Time.getCurrent()).build();
 
         final Configuration configuration = platformContext.getConfiguration();
-        final EventCreatorModule eventCreatorModule = new NoOpEventCreatorModule(model, configuration);
-        final EventIntakeModule eventIntakeModule = new NoOpEventIntakeModule(model, configuration);
+        final EventCreatorModule eventCreatorModule = createNoOpEventCreatorModule(model, configuration);
+        final EventIntakeModule eventIntakeModule = createNoOpEventIntakeModule(model, configuration);
 
         final PlatformComponents platformComponents =
                 PlatformComponents.create(platformContext, model, eventCreatorModule, eventIntakeModule);

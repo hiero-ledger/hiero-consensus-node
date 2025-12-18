@@ -13,7 +13,6 @@ import com.swirlds.common.merkle.synchronization.utility.MerkleSynchronizationEx
 import com.swirlds.common.merkle.synchronization.views.CustomReconnectRoot;
 import com.swirlds.common.merkle.synchronization.views.LearnerTreeView;
 import com.swirlds.common.threading.pool.StandardWorkGroup;
-import com.swirlds.common.utility.ThresholdLimitingHandler;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import java.util.Queue;
@@ -22,6 +21,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.crypto.Hash;
+import org.hiero.base.utility.ThresholdLimitingHandler;
 
 /**
  * This class manages the learner's work task for synchronization.
