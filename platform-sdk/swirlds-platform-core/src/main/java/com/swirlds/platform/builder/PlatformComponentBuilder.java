@@ -29,8 +29,6 @@ import com.swirlds.platform.event.preconsensus.PcesFileManager;
 import com.swirlds.platform.event.preconsensus.PcesUtilities;
 import com.swirlds.platform.event.stream.ConsensusEventStream;
 import com.swirlds.platform.event.stream.DefaultConsensusEventStream;
-import com.swirlds.platform.event.validation.DefaultEventSignatureValidator;
-import com.swirlds.platform.event.validation.EventSignatureValidator;
 import com.swirlds.platform.eventhandling.DefaultTransactionHandler;
 import com.swirlds.platform.eventhandling.DefaultTransactionPrehandler;
 import com.swirlds.platform.eventhandling.TransactionHandler;
@@ -64,7 +62,6 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Objects;
-import org.hiero.consensus.crypto.ConsensusCryptoUtils;
 import org.hiero.consensus.crypto.PlatformSigner;
 import org.hiero.consensus.model.event.CesEvent;
 
@@ -90,7 +87,6 @@ public class PlatformComponentBuilder {
 
     private final PlatformBuildingBlocks blocks;
 
-    private EventSignatureValidator eventSignatureValidator;
     private StateGarbageCollector stateGarbageCollector;
     private OrphanBuffer orphanBuffer;
     private ConsensusEngine consensusEngine;
@@ -187,43 +183,6 @@ public class PlatformComponentBuilder {
         throwIfAlreadyUsed();
         this.metricsDocumentationEnabled = metricsDocumentationEnabled;
         return this;
-    }
-
-    /**
-     * Provide an event signature validator in place of the platform's default event signature validator.
-     *
-     * @param eventSignatureValidator the event signature validator to use
-     * @return this builder
-     */
-    @NonNull
-    public PlatformComponentBuilder withEventSignatureValidator(
-            @NonNull final EventSignatureValidator eventSignatureValidator) {
-        throwIfAlreadyUsed();
-        if (this.eventSignatureValidator != null) {
-            throw new IllegalStateException("Event signature validator has already been set");
-        }
-        this.eventSignatureValidator = Objects.requireNonNull(eventSignatureValidator);
-
-        return this;
-    }
-
-    /**
-     * Build the event signature validator if it has not yet been built. If one has been provided via
-     * {@link #withEventSignatureValidator(EventSignatureValidator)}, that validator will be used. If this method is
-     * called more than once, only the first call will build the event signature validator. Otherwise, the default
-     * validator will be created and returned.
-     */
-    @NonNull
-    public EventSignatureValidator buildEventSignatureValidator() {
-        if (eventSignatureValidator == null) {
-            eventSignatureValidator = new DefaultEventSignatureValidator(
-                    blocks.platformContext().getMetrics(),
-                    blocks.platformContext().getTime(),
-                    ConsensusCryptoUtils::verifySignature,
-                    blocks.rosterHistory(),
-                    blocks.intakeEventCounter());
-        }
-        return eventSignatureValidator;
     }
 
     /**

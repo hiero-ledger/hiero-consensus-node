@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.event.validation;
+package org.hiero.consensus.event.intake.impl.validation;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.metrics.api.Metrics.PLATFORM_CATEGORY;
@@ -115,7 +115,7 @@ public class DefaultEventSignatureValidator implements EventSignatureValidator {
         final RosterEntry rosterEntry;
         try {
             rosterEntry = RosterUtils.getRosterEntry(applicableRoster, eventCreatorId.id());
-        } catch (RosterEntryNotFoundException e) {
+        } catch (final RosterEntryNotFoundException e) {
             rateLimitedLogger.error(
                     EXCEPTION.getMarker(),
                     "Node {} doesn't exist in applicable roster. Event: {}",
