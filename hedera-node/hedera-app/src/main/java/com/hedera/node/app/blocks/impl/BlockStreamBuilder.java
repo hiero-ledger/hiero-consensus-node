@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.blocks.impl;
 
-import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_LAMBDA_STORAGE;
+import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_EVM_HOOK_STORAGE;
 import static com.hedera.hapi.block.stream.output.StateIdentifier.STATE_ID_STORAGE;
 import static com.hedera.hapi.block.stream.trace.SlotRead.IdentifierOneOfType.INDEX;
 import static com.hedera.hapi.node.base.HederaFunctionality.CRYPTO_CREATE;
@@ -640,7 +640,7 @@ public class BlockStreamBuilder
                                         slotKey.contractID(), k -> new HashMap<>());
                                 indexes.put(slotKey.key(), indexes.size());
                             }
-                        } else if (stateChange.stateId() == STATE_ID_LAMBDA_STORAGE.protoOrdinal()) {
+                        } else if (stateChange.stateId() == STATE_ID_EVM_HOOK_STORAGE.protoOrdinal()) {
                             SlotKey slotKey = null;
                             if (stateChange.hasMapUpdate()
                                     && !stateChange.mapUpdateOrThrow().identical()) {
@@ -649,7 +649,7 @@ public class BlockStreamBuilder
                                         stateChange
                                                 .mapUpdateOrThrow()
                                                 .keyOrThrow()
-                                                .lambdaSlotKeyOrThrow()
+                                                .evmHookSlotKeyOrThrow()
                                                 .key());
                             } else if (stateChange.hasMapDelete()) {
                                 slotKey = new SlotKey(
@@ -657,7 +657,7 @@ public class BlockStreamBuilder
                                         stateChange
                                                 .mapDeleteOrThrow()
                                                 .keyOrThrow()
-                                                .lambdaSlotKeyOrThrow()
+                                                .evmHookSlotKeyOrThrow()
                                                 .key());
                             }
                             if (slotKey != null) {

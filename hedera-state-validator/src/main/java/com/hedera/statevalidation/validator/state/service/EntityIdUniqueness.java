@@ -180,7 +180,7 @@ public class EntityIdUniqueness {
         final AtomicLong contractStorageCount = new AtomicLong(0);
         final AtomicLong contractBytecodeCount = new AtomicLong(0);
         final AtomicLong hookCount = new AtomicLong(0);
-        final AtomicLong labmbdaStorageCount = new AtomicLong(0);
+        final AtomicLong evmHookStorageCount = new AtomicLong(0);
 
         ParallelProcessingUtils.processRange(metadata.getFirstLeafPath(), metadata.getLastLeafPath(), number -> {
                     VirtualLeafBytes leafRecord = vm.getRecords().findLeafRecord(number);
@@ -201,7 +201,7 @@ public class EntityIdUniqueness {
                             case CONTRACTSERVICE_I_STORAGE -> contractStorageCount.incrementAndGet();
                             case CONTRACTSERVICE_I_BYTECODE -> contractBytecodeCount.incrementAndGet();
                             case CONTRACTSERVICE_I_EVM_HOOK_STATES -> hookCount.incrementAndGet();
-                            case CONTRACTSERVICE_I_LAMBDA_STORAGE -> labmbdaStorageCount.incrementAndGet();
+                            case CONTRACTSERVICE_I_EVM_HOOK_STORAGE -> evmHookStorageCount.incrementAndGet();
                         }
                     } catch (ParseException e) {
                         throw new RuntimeException(e);
@@ -228,6 +228,6 @@ public class EntityIdUniqueness {
         assertEquals(entityCounts.numContractBytecodes(), contractBytecodeCount.get(), "Contract count is unexpected");
         assertEquals(entityCounts.numHooks(), hookCount.get(), "Hook count is unexpected");
         assertEquals(
-                entityCounts.numLambdaStorageSlots(), labmbdaStorageCount.get(), "Lambda slot count is unexpected");
+                entityCounts.numEvmHookStorageSlots(), evmHookStorageCount.get(), "Lambda slot count is unexpected");
     }
 }

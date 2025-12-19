@@ -13,7 +13,7 @@ import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountInfo;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.accountAllowanceHook;
-import static com.hedera.services.bdd.spec.transactions.TxnVerbs.accountLambdaSStore;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.accountEvmHookStore;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCallWithFunctionAbi;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
@@ -59,7 +59,7 @@ import static org.hiero.base.utility.CommonUtils.unhex;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.google.protobuf.ByteString;
-import com.hedera.hapi.node.hooks.LambdaMappingEntry;
+import com.hedera.hapi.node.hooks.EvmHookMappingEntry;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.EmbeddedHapiTest;
@@ -170,10 +170,10 @@ public class Hip1195EnabledTest {
                 getAccountInfo(OWNER),
                 withOpContext((spec, opLog) -> payerMirror.set(
                         unhex(asHexedSolidityAddress(spec.registry().getAccountID(PAYER))))),
-                sourcing(() -> accountLambdaSStore(OWNER, 123L)
+                sourcing(() -> accountEvmHookStore(OWNER, 123L)
                         .putMappingEntry(
                                 mappingSlot,
-                                LambdaMappingEntry.newBuilder()
+                                EvmHookMappingEntry.newBuilder()
                                         .key(Bytes.wrap(payerMirror.get()))
                                         .value(Bytes.wrap(new byte[] {(byte) 0x01}))
                                         .build())
@@ -203,10 +203,10 @@ public class Hip1195EnabledTest {
                 mintToken("token", 10),
                 withOpContext((spec, opLog) -> payerMirror.set(
                         unhex(asHexedSolidityAddress(spec.registry().getAccountID(PAYER))))),
-                sourcing(() -> accountLambdaSStore(OWNER, 123L)
+                sourcing(() -> accountEvmHookStore(OWNER, 123L)
                         .putMappingEntry(
                                 mappingSlot,
-                                LambdaMappingEntry.newBuilder()
+                                EvmHookMappingEntry.newBuilder()
                                         .key(Bytes.wrap(payerMirror.get()))
                                         .value(Bytes.wrap(new byte[] {(byte) 0x01}))
                                         .build())
@@ -245,10 +245,10 @@ public class Hip1195EnabledTest {
                 mintToken("token", 10),
                 withOpContext((spec, opLog) -> payerMirror.set(
                         unhex(asHexedSolidityAddress(spec.registry().getAccountID(PAYER))))),
-                sourcing(() -> accountLambdaSStore(OWNER, 123L)
+                sourcing(() -> accountEvmHookStore(OWNER, 123L)
                         .putMappingEntry(
                                 mappingSlot,
-                                LambdaMappingEntry.newBuilder()
+                                EvmHookMappingEntry.newBuilder()
                                         .key(Bytes.wrap(payerMirror.get()))
                                         .value(Bytes.wrap(new byte[] {(byte) 0x01}))
                                         .build())
@@ -878,10 +878,10 @@ public class Hip1195EnabledTest {
                                 .toList()),
                 withOpContext((spec, opLog) -> payerMirror.set(
                         unhex(asHexedSolidityAddress(spec.registry().getAccountID(PAYER))))),
-                sourcing(() -> accountLambdaSStore(OWNER, 128L)
+                sourcing(() -> accountEvmHookStore(OWNER, 128L)
                         .putMappingEntry(
                                 mappingSlot,
-                                LambdaMappingEntry.newBuilder()
+                                EvmHookMappingEntry.newBuilder()
                                         .key(Bytes.wrap(payerMirror.get()))
                                         .value(Bytes.wrap(new byte[] {(byte) 0x01}))
                                         .build())
@@ -921,10 +921,10 @@ public class Hip1195EnabledTest {
                                 .toList()),
                 withOpContext((spec, opLog) -> payerMirror.set(
                         unhex(asHexedSolidityAddress(spec.registry().getAccountID(PAYER))))),
-                sourcing(() -> accountLambdaSStore(OWNER, 129L)
+                sourcing(() -> accountEvmHookStore(OWNER, 129L)
                         .putMappingEntry(
                                 mappingSlot,
-                                LambdaMappingEntry.newBuilder()
+                                EvmHookMappingEntry.newBuilder()
                                         .key(Bytes.wrap(payerMirror.get()))
                                         .value(Bytes.wrap(new byte[] {(byte) 0x01}))
                                         .build())
@@ -1159,19 +1159,19 @@ public class Hip1195EnabledTest {
                 viewAccount(OWNER, (Account a) -> {
                     assertEquals(1L, a.firstHookId());
                     assertEquals(1, a.numberHooksInUse());
-                    assertEquals(0, a.numberLambdaStorageSlots());
+                    assertEquals(0, a.numberEvmHookStorageSlots());
                 }),
-                accountLambdaSStore(OWNER, 1L).putSlot(A, B).putSlot(C, D),
+                accountEvmHookStore(OWNER, 1L).putSlot(A, B).putSlot(C, D),
                 viewAccount(OWNER, (Account a) -> {
                     assertEquals(1L, a.firstHookId());
                     assertEquals(1, a.numberHooksInUse());
-                    assertEquals(2, a.numberLambdaStorageSlots());
+                    assertEquals(2, a.numberEvmHookStorageSlots());
                 }),
                 cryptoUpdate(OWNER).removingHooks(1L).hasKnownStatus(HOOK_DELETION_REQUIRES_ZERO_STORAGE_SLOTS),
                 viewAccount(OWNER, (Account a) -> {
                     assertEquals(1L, a.firstHookId());
                     assertEquals(1, a.numberHooksInUse());
-                    assertEquals(2, a.numberLambdaStorageSlots());
+                    assertEquals(2, a.numberEvmHookStorageSlots());
                 }));
     }
 

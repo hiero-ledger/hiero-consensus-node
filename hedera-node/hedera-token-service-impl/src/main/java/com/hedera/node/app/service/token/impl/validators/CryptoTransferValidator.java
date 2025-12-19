@@ -181,7 +181,7 @@ public class CryptoTransferValidator {
     }
 
     private void validateHookGasLimit(final CryptoTransferTransactionBody op, final HooksConfig hooksConfig) {
-        final var gasLimit = hooksConfig.lambdaIntrinsicGasCost();
+        final var gasLimit = hooksConfig.evmHookIntrinsicGasCost();
         for (final var aa : op.transfersOrElse(TransferList.DEFAULT).accountAmounts()) {
             validateFungibleTransferHooks(aa, gasLimit);
         }
