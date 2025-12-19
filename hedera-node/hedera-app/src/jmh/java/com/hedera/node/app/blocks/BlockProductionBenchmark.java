@@ -7,6 +7,7 @@ import static com.hedera.node.app.spi.workflows.record.StreamBuilder.ReversingBe
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.SignedTxCustomizer.NOOP_SIGNED_TX_CUSTOMIZER;
 
 import com.hedera.hapi.block.stream.BlockItem;
+import com.hedera.hapi.block.stream.input.RoundHeader;
 import com.hedera.hapi.block.stream.output.BlockHeader;
 import com.hedera.hapi.block.stream.output.MapChangeKey;
 import com.hedera.hapi.block.stream.output.MapChangeValue;
@@ -29,18 +30,23 @@ import com.hedera.node.app.blocks.utils.BlockStreamManagerWrapper;
 import com.hedera.node.app.blocks.utils.NoOpDependencies;
 import com.hedera.node.app.blocks.utils.TransactionGeneratorUtil;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import java.nio.file.Paths;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import jdk.jfr.Configuration;
+import jdk.jfr.Recording;
 import org.openjdk.jmh.annotations.*;
 import org.openjdk.jmh.infra.Blackhole;
 
 /**
  * Block production benchmark using BlockStreamManagerImpl.
  *
- * This benchmark uses the actual production BlockStreamManagerImpl class with NoOpDependencies
- * to provide all required dependencies. This provides the most realistic performance measurement
+ * This benchmark uses the actual production BlockStreamManagerImpl class with
+ * NoOpDependencies
+ * to provide all required dependencies. This provides the most realistic
+ * performance measurement
  * as it uses the exact production code path.
  *
  * PRODUCTION COMPONENTS TESTED:
@@ -83,7 +89,6 @@ public class BlockProductionBenchmark {
     private long benchmarkStartTime;
     private long benchmarkEndTime;
     private int totalTransactionsProcessed;
-    private long totalBytesGenerated;
 
     // Transaction tracking
     private int totalTransactionsGenerated = 0;
@@ -94,11 +99,18 @@ public class BlockProductionBenchmark {
     private BlockStreamManagerWrapper blockStreamManager;
 
     // Template data
+    // BENCHMARK LIMITATION: Same transaction template is reused for all
+    // transactions.
+    // This improves benchmark performance but doesn't reflect production diversity.
+    // TODO: Add parameter to control transaction diversity (different types, sizes,
+    // accounts)
     private SignedTransaction signedTxTemplate;
     private Bytes serializedSignedTxTemplate;
     private TransactionBody txBodyTemplate;
     private ExchangeRateSet exchangeRates;
     private TransferList sampleTransferList;
+
+    private Recording jfrRecording;
 
     @Setup(Level.Trial)
     public void setupTrial() {
@@ -138,6 +150,20 @@ public class BlockProductionBenchmark {
         System.out.printf(
                 ">>> Mode: %s%n", enableRateLimiting ? "Rate-limited (target TPS)" : "MAX CAPACITY STRESS TEST");
         System.out.printf(">>> Using REAL BlockStreamManagerImpl with NoOpDependencies%n");
+
+        // Start JFR recording
+        try {
+            String projectRoot = System.getProperty("user.dir");
+            String jfrPath = String.format(
+                    "%s/hedera-node/hedera-app/src/jmh/java/com/hedera/node/app/blocks/jfr/block-prod-tps%d-size%d.jfr",
+                    projectRoot, targetTPS, transactionSizeBytes);
+            jfrRecording = new Recording(Configuration.getConfiguration("profile"));
+            jfrRecording.setDestination(Paths.get(jfrPath));
+            jfrRecording.start();
+            System.out.println(">>> JFR recording started: " + jfrPath);
+        } catch (Exception e) {
+            System.err.println(">>> Failed to start JFR recording: " + e.getMessage());
+        }
     }
 
     @Setup(Level.Iteration)
@@ -145,7 +171,6 @@ public class BlockProductionBenchmark {
         benchmarkStartTime = 0;
         benchmarkEndTime = 0;
         totalTransactionsProcessed = 0;
-        totalBytesGenerated = 0;
         totalTransactionsGenerated = 0;
         totalBlockItemsInBlocks = 0;
         totalTimeSpentWaiting = 0;
@@ -201,9 +226,7 @@ public class BlockProductionBenchmark {
 
         // Add round header
         blockStreamManager.writeItem(BlockItem.newBuilder()
-                .roundHeader(com.hedera.hapi.block.stream.input.RoundHeader.newBuilder()
-                        .roundNumber(blockNumber)
-                        .build())
+                .roundHeader(RoundHeader.newBuilder().roundNumber(blockNumber).build())
                 .build());
 
         Instant consensusNow = timestamp;
@@ -211,9 +234,6 @@ public class BlockProductionBenchmark {
 
         // PROCESS TRANSACTIONS
         while (txInBlock < maxTransactionsPerBlock) {
-            if (enableRateLimiting && (System.currentTimeMillis() - blockStartTime >= blockTimeMs)) {
-                break;
-            }
 
             BlockStreamBuilder builder = new BlockStreamBuilder(REVERSIBLE, NOOP_SIGNED_TX_CUSTOMIZER, USER);
 
@@ -228,15 +248,18 @@ public class BlockProductionBenchmark {
                     .transactionFee(1000L)
                     .transferList(sampleTransferList);
 
-            // Create mock state changes for the accounts involved in the transfer
-            // This simulates account balance updates that would occur in a real CRYPTO_TRANSFER
+            // BENCHMARK LIMITATION: State changes are simplified for performance testing.
+            // In production, HandleWorkflow would provide actual state mutations from
+            // transaction execution.
+            // This benchmark focuses on block production performance, not transaction
+            // execution.
+            // The state changes below are minimal but structurally correct for benchmarking
+            // purposes.
             List<StateChange> mockStateChanges = new ArrayList<>();
             for (AccountAmount accountAmount : sampleTransferList.accountAmounts()) {
-                // Create a state change for each account with updated balance
-                // In a real transaction, these would reflect the actual account state after the transfer
+                // Create minimal state change (no hardcoded balances - just structure)
                 Account mockAccount = Account.newBuilder()
                         .accountId(accountAmount.accountIDOrThrow())
-                        .tinybarBalance(Math.max(0, 1000000L + accountAmount.amount())) // Mock balance
                         .build();
 
                 StateChange stateChange = StateChange.newBuilder()
@@ -248,16 +271,17 @@ public class BlockProductionBenchmark {
                                 .value(MapChangeValue.newBuilder()
                                         .accountValue(mockAccount)
                                         .build())
-                                .identical(false) // Balance changed, so not identical
+                                .identical(false)
                                 .build())
                         .build();
                 mockStateChanges.add(stateChange);
             }
             builder.stateChanges(mockStateChanges);
 
-            // groupStateChanges is null because this benchmark tests individual transactions,
-            // not grouped transactions (atomic batch/hook dispatch). For grouped transactions,
-            // groupStateChanges would contain the aggregated state changes from the parent builder.
+            // BENCHMARK LIMITATION: groupStateChanges is null because this benchmark tests
+            // individual transactions only, not grouped transactions (atomic batch/hook
+            // dispatch).
+            // TODO: Add separate benchmark variant for grouped transaction scenarios.
             BlockStreamBuilder.Output output = builder.build(false, null);
 
             // WRITE ITEMS via REAL BlockStreamManagerImpl.writeItem()
@@ -268,7 +292,10 @@ public class BlockProductionBenchmark {
             txInBlock++;
             txGeneratedThisBlock++;
             totalTransactionsProcessed++;
-            consensusNow = consensusNow.plusNanos(1);
+
+            // Realistic timestamp spacing based on target TPS (not 1ns increments)
+            long nanosBetweenTx = TimeUnit.SECONDS.toNanos(1) / targetTPS;
+            consensusNow = consensusNow.plusNanos(nanosBetweenTx);
 
             // Rate limiting
             if (enableRateLimiting) {
@@ -359,12 +386,25 @@ public class BlockProductionBenchmark {
         System.gc();
     }
 
-    public static void main(String[] args) throws Exception {
-        org.openjdk.jmh.Main.main(
-                new String[] {"BlockProductionBenchmark", "-v", "EXTRA", "-prof", "gc", "-prof", "jfr"});
+    @TearDown(Level.Trial)
+    public void teardownTrial() {
+        // Stop JFR recording
+        if (jfrRecording != null) {
+            try {
+                jfrRecording.stop();
+                jfrRecording.close();
+                System.out.println(">>> JFR recording stopped and saved.");
+            } catch (Exception e) {
+                System.err.println(">>> Failed to stop JFR recording: " + e.getMessage());
+            }
+        }
     }
-    // use
-    // jfr print --events "jdk.SocketRead,jdk.GarbageCollection,jdk.JavaMonitorEnter" --json **/profile.jfr >
-    // analysis.json
-    // at profile.jfr location to convert output to json
+
+    public static void main(String[] args) throws Exception {
+        // JFR profiling managed manually in setupTrial/teardownTrial
+        // Files saved to: hedera-app/src/jmh/java/com/hedera/node/app/blocks/jfr/
+        // Filename format: block-prod-tps<tps>-size<bytes>.jfr
+        // Same parameter combinations will overwrite previous runs
+        org.openjdk.jmh.Main.main(new String[] {"BlockProductionBenchmark", "-v", "EXTRA" /* , "-prof", "gc" */});
+    }
 }

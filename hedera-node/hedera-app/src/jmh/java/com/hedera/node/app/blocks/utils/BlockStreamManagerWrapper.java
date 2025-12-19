@@ -424,8 +424,8 @@ public class BlockStreamManagerWrapper {
     /** WritableStates implementation that also implements CommittableWritableStates */
     private static class CommittableBlockStreamWritableStates implements WritableStates, CommittableWritableStates {
         private final AtomicReference<BlockStreamInfo> blockStreamInfoRef;
-        private Bytes lastStateReadHash = Bytes.EMPTY; // Prevent DCE of state read simulation
-        private Bytes lastStateCommitHash = Bytes.EMPTY; // Prevent DCE of state commit simulation
+        private Bytes lastStateReadHash = Bytes.EMPTY; // Prevent Dead Code Elimination of state read simulation
+        private Bytes lastStateCommitHash = Bytes.EMPTY; // Prevent Dead Code Elimination of state commit simulation
 
         CommittableBlockStreamWritableStates(AtomicReference<BlockStreamInfo> blockStreamInfoRef) {
             this.blockStreamInfoRef = blockStreamInfoRef;
@@ -459,7 +459,7 @@ public class BlockStreamManagerWrapper {
                     hash = digest.digest();
                 }
 
-                // Prevent DCE: Store result
+                // Prevent Dead Code Elimination: Store result
                 lastStateReadHash = Bytes.wrap(hash);
             } catch (Exception e) {
                 // Ignore - simulation failure shouldn't break benchmark

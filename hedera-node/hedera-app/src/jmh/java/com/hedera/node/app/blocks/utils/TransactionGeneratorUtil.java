@@ -22,6 +22,7 @@ import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.Duration;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.base.TransactionID;
+import com.hedera.hapi.node.base.TransferList;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -174,7 +175,7 @@ public final class TransactionGeneratorUtil {
     private static Bytes createTransaction(int targetSizeBytes) {
         // Simple HBAR transfer (1000 tinybars from sender to receiver)
         var cryptoTransfer = CryptoTransferTransactionBody.newBuilder()
-                .transfers(com.hedera.hapi.node.base.TransferList.newBuilder()
+                .transfers(TransferList.newBuilder()
                         .accountAmounts(
                                 AccountAmount.newBuilder()
                                         .accountID(SENDER)
