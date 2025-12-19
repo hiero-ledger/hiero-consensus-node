@@ -9,4 +9,5 @@ module org.hiero.consensus.hashgraph {
     requires static com.github.spotbugs.annotations;
 
     exports org.hiero.consensus.hashgraph;
+    exports org.hiero.consensus.hashgraph.config;
 }

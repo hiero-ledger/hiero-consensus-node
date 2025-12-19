@@ -33,7 +33,7 @@ import org.hiero.consensus.config.EventConfig;
 import org.hiero.consensus.event.creator.config.EventCreationConfig;
 import org.hiero.consensus.event.creator.config.EventCreationWiringConfig;
 import org.hiero.consensus.event.intake.config.EventIntakeWiringConfig;
-import org.hiero.consensus.hashgraph.ConsensusConfig;
+import org.hiero.consensus.hashgraph.config.ConsensusConfig;
 import org.hiero.consensus.metrics.config.MetricsConfig;
 import org.hiero.consensus.metrics.platform.prometheus.PrometheusConfig;
 import org.hiero.consensus.model.node.NodeId;

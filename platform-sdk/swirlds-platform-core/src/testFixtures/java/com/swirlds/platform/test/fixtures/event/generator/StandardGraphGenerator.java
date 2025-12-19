@@ -38,7 +38,7 @@ import java.util.Objects;
 import java.util.Random;
 import org.hiero.consensus.crypto.DefaultEventHasher;
 import org.hiero.consensus.event.IntakeEventCounter;
-import org.hiero.consensus.hashgraph.ConsensusConfig;
+import org.hiero.consensus.hashgraph.config.ConsensusConfig;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusConstants;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;

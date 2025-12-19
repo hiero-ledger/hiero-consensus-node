@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.hashgraph.impl;
 
+import com.swirlds.component.framework.component.ComponentWiring;
+import org.hiero.consensus.hashgraph.config.ConsensusConfig;
+import org.hiero.consensus.hashgraph.config.HashgraphWiringConfig;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.base.time.Time;
@@ -10,17 +13,30 @@ import com.swirlds.component.framework.wires.output.OutputWire;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import org.hiero.consensus.hashgraph.FreezePeriodChecker;
 import org.hiero.consensus.hashgraph.HashgraphModule;
+import org.hiero.consensus.hashgraph.impl.metrics.EventCounter;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
 
+import static java.util.Objects.requireNonNull;
+
 /**
- * The default implementation of the {@link HashgraphModule}
+ * Default implementation of the {@link HashgraphModule}.
  */
 public class DefaultHashgraphModule implements HashgraphModule {
+
+    @Nullable
+    private ComponentWiring<ConsensusEngine, ConsensusEngineOutput> consensusEngineWiring;
+    @Nullable
+    private OutputWire<ConsensusRound> consensusRoundOutputWire;
+    @Nullable
+    private OutputWire<PlatformEvent> preconsensusEventOutputWire;
+    @Nullable
+    private OutputWire<PlatformEvent> staleEventOutputWire;
 
     /**
      * {@inheritDoc}
@@ -34,7 +50,37 @@ public class DefaultHashgraphModule implements HashgraphModule {
             @NonNull final Roster roster,
             @NonNull final NodeId selfId,
             @NonNull final FreezePeriodChecker freezeChecker) {
-        throw new UnsupportedOperationException("Not yet implemented.");
+
+        //noinspection VariableNotUsedInsideIf
+        if (consensusEngineWiring != null) {
+            throw new IllegalStateException("Already initialized");
+        }
+
+        final HashgraphWiringConfig wiringConfig = configuration.getConfigData(HashgraphWiringConfig.class);
+
+        this.consensusEngineWiring =
+                new ComponentWiring<>(model, ConsensusEngine.class, wiringConfig.consensusEngine());
+
+        this.consensusRoundOutputWire = consensusEngineWiring.getOutputWire()
+                .buildTransformer("consensusRounds", "consensusEngineOutput", ConsensusEngineOutput::consensusRounds)
+                .buildSplitter("ConsensusRoundsSplitter", "consensus rounds");
+        this.preconsensusEventOutputWire = consensusEngineWiring.getOutputWire()
+                .buildTransformer("preconsensusEvents", "consensusRounds", ConsensusEngineOutput::preConsensusEvents)
+                .buildSplitter("PreconsensusEventsSplitter", "preconsensus events");
+        this.staleEventOutputWire = consensusEngineWiring.getOutputWire()
+                .buildTransformer("staleEvents", "consensusEngineOutput", ConsensusEngineOutput::staleEvents)
+                .buildSplitter("staleEventsSplitter", "stale events");
+
+        // Force not soldered wires to be built
+        consensusEngineWiring.getInputWire(ConsensusEngine::outOfBandSnapshotUpdate);
+
+        EventCounter.registerEventCounterMetrics(metrics);
+
+        // Create and bind components
+        final ConsensusConfig consensusConfig = configuration.getConfigData(ConsensusConfig.class);
+        final ConsensusEngine consensusEngine = new DefaultConsensusEngine(consensusConfig, metrics, time, roster,
+                selfId, freezeChecker);
+        consensusEngineWiring.bind(consensusEngine);
     }
 
     /**
@@ -43,7 +89,7 @@ public class DefaultHashgraphModule implements HashgraphModule {
     @NonNull
     @Override
     public InputWire<PlatformEvent> eventInputWire() {
-        return null;
+        return requireNonNull(consensusEngineWiring, "Not initialized").getInputWire(ConsensusEngine::addEvent);
     }
 
     /**
@@ -52,7 +98,7 @@ public class DefaultHashgraphModule implements HashgraphModule {
     @NonNull
     @Override
     public OutputWire<ConsensusRound> consensusRoundOutputWire() {
-        throw new UnsupportedOperationException("Not yet implemented.");
+        return requireNonNull(consensusRoundOutputWire, "Not initialized");
     }
 
     /**
@@ -61,7 +107,7 @@ public class DefaultHashgraphModule implements HashgraphModule {
     @NonNull
     @Override
     public OutputWire<PlatformEvent> preconsensusEventOutputWire() {
-        throw new UnsupportedOperationException("Not yet implemented.");
+        return requireNonNull(preconsensusEventOutputWire, "Not initialized");
     }
 
     /**
@@ -70,7 +116,7 @@ public class DefaultHashgraphModule implements HashgraphModule {
     @NonNull
     @Override
     public OutputWire<PlatformEvent> staleEventOutputWire() {
-        throw new UnsupportedOperationException("Not yet implemented.");
+        return requireNonNull(staleEventOutputWire, "Not initialized");
     }
 
     /**
@@ -79,7 +125,8 @@ public class DefaultHashgraphModule implements HashgraphModule {
     @NonNull
     @Override
     public InputWire<PlatformStatus> platformStatusInputWire() {
-        throw new UnsupportedOperationException("Not yet implemented.");
+        return requireNonNull(consensusEngineWiring, "Not initialized")
+                .getInputWire(ConsensusEngine::updatePlatformStatus);
     }
 
     /**
@@ -88,6 +135,22 @@ public class DefaultHashgraphModule implements HashgraphModule {
     @NonNull
     @Override
     public InputWire<ConsensusSnapshot> consensusSnapshotInputWire() {
-        throw new UnsupportedOperationException("Not yet implemented.");
+        return requireNonNull(consensusEngineWiring, "Not initialized")
+                .getInputWire(ConsensusEngine::outOfBandSnapshotUpdate);
+    }
+
+    @Override
+    public void startSquelching() {
+
+    }
+
+    @Override
+    public void stopSquelching() {
+
+    }
+
+    @Override
+    public void flush() {
+
     }
 }

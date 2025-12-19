@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.consensus.hashgraph.impl.consensus;
+package org.hiero.consensus.hashgraph.impl;
 
 import static org.hiero.consensus.model.status.PlatformStatus.REPLAYING_EVENTS;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
-import org.hiero.consensus.hashgraph.impl.EventImpl;
+import com.swirlds.base.time.Time;
+import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.LinkedList;
@@ -14,19 +15,21 @@ import java.util.Objects;
 import java.util.Queue;
 import org.hiero.consensus.event.FutureEventBuffer;
 import org.hiero.consensus.event.FutureEventBufferingOption;
-import org.hiero.consensus.hashgraph.ConsensusConfig;
 import org.hiero.consensus.hashgraph.FreezePeriodChecker;
-import org.hiero.consensus.hashgraph.impl.linking.ConsensusLinker;
-import org.hiero.consensus.hashgraph.impl.linking.DefaultLinkerLogsAndMetrics;
+import org.hiero.consensus.hashgraph.config.ConsensusConfig;
+import org.hiero.consensus.hashgraph.impl.consensus.Consensus;
+import org.hiero.consensus.hashgraph.impl.consensus.ConsensusImpl;
 import org.hiero.consensus.hashgraph.impl.metrics.ConsensusEngineMetrics;
 import org.hiero.consensus.hashgraph.impl.metrics.ConsensusMetrics;
 import org.hiero.consensus.hashgraph.impl.metrics.ConsensusMetricsImpl;
+import org.hiero.consensus.round.EventWindowUtils;
+import org.hiero.consensus.hashgraph.impl.linking.ConsensusLinker;
+import org.hiero.consensus.hashgraph.impl.linking.DefaultLinkerLogsAndMetrics;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
-import org.hiero.consensus.round.EventWindowUtils;
 
 /**
  * The default implementation of the {@link ConsensusEngine} interface
@@ -48,38 +51,37 @@ public class DefaultConsensusEngine implements ConsensusEngine {
 
     private final int roundsNonAncient;
 
-    private final ConsensusEngineMetrics metrics;
+    private final ConsensusEngineMetrics consensusMetrics;
 
     private final FreezeRoundController freezeRoundController;
 
     /**
      * Constructor
      *
-     * @param platformContext the platform context
+     * @param consensusConfig the configuration for the consensus algorithm
+     * @param metrics metrics provider for the consensus layer
+     * @param time the source of time
      * @param roster the current roster
      * @param selfId the ID of the node
      * @param freezeChecker checks if the consensus time has reached the freeze period
      */
     public DefaultConsensusEngine(
-            @NonNull final PlatformContext platformContext,
+            @NonNull final ConsensusConfig consensusConfig,
+            @NonNull final Metrics metrics,
+            @NonNull final Time time,
             @NonNull final Roster roster,
             @NonNull final NodeId selfId,
             @NonNull final FreezePeriodChecker freezeChecker) {
 
-        final ConsensusMetrics consensusMetrics = new ConsensusMetricsImpl(selfId, platformContext.getMetrics());
-        consensus = new ConsensusImpl(
-                platformContext.getConfiguration(), platformContext.getTime(), consensusMetrics, roster);
+        final ConsensusMetrics consensusMetrics = new ConsensusMetricsImpl(selfId, metrics);
+        consensus = new ConsensusImpl(consensusConfig, time, consensusMetrics, roster);
 
-        linker = new ConsensusLinker(
-                new DefaultLinkerLogsAndMetrics(platformContext.getMetrics(), platformContext.getTime()));
-        futureEventBuffer = new FutureEventBuffer(
-                platformContext.getMetrics(), FutureEventBufferingOption.PENDING_CONSENSUS_ROUND, "consensus");
-        roundsNonAncient = platformContext
-                .getConfiguration()
-                .getConfigData(ConsensusConfig.class)
-                .roundsNonAncient();
+        linker = new ConsensusLinker(new DefaultLinkerLogsAndMetrics(metrics, time));
+        futureEventBuffer =
+                new FutureEventBuffer(metrics, FutureEventBufferingOption.PENDING_CONSENSUS_ROUND, "consensus");
+        roundsNonAncient = consensusConfig.roundsNonAncient();
 
-        metrics = new ConsensusEngineMetrics(selfId, platformContext.getMetrics());
+        this.consensusMetrics = new ConsensusEngineMetrics(selfId, metrics);
         this.freezeRoundController = new FreezeRoundController(freezeChecker);
     }
 
@@ -133,7 +135,7 @@ public class DefaultConsensusEngine implements ConsensusEngine {
             // check if we have found init judges after adding the event
             final boolean waitingForJudgesAfterAdd = consensus.waitingForInitJudges();
 
-            metrics.eventAdded(linkedEvent);
+            consensusMetrics.eventAdded(linkedEvent);
 
             if (waitingForJudgesAfterAdd) {
                 // If we haven't found all the init judges yet, we should return an empty output.
@@ -186,7 +188,7 @@ public class DefaultConsensusEngine implements ConsensusEngine {
         // If multiple rounds reach consensus and multiple rounds are in the freeze period,
         // we need to freeze on the first one. this means discarding the rest of the rounds.
         final List<ConsensusRound> modifiedRounds = freezeRoundController.filterAndModify(allConsensusRounds);
-        staleEvents.forEach(metrics::reportStaleEvent);
+        staleEvents.forEach(consensusMetrics::reportStaleEvent);
         return new ConsensusEngineOutput(modifiedRounds, preConsensusEvents, staleEvents);
     }
 

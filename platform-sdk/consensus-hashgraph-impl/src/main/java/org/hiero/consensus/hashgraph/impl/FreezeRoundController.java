@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.consensus.hashgraph.impl.consensus;
+package org.hiero.consensus.hashgraph.impl;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;

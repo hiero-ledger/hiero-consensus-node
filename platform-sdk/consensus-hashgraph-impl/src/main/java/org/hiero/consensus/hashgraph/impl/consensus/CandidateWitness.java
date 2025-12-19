@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.consensus;
+package org.hiero.consensus.hashgraph.impl.consensus;
 
 import static com.swirlds.logging.legacy.LogMarker.CONSENSUS_VOTING;
 
 import com.swirlds.common.utility.IntReference;
-import com.swirlds.platform.internal.EventImpl;
+import org.hiero.consensus.hashgraph.impl.EventImpl;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
 import org.apache.logging.log4j.LogManager;

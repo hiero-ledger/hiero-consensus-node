@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.consensus;
+package org.hiero.consensus.hashgraph.impl.consensus;
 
 import com.swirlds.common.utility.RandomAccessDeque;
 import com.swirlds.logging.legacy.LogMarker;

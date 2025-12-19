@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.consensus;
+package org.hiero.consensus.hashgraph.impl.consensus;
 
 /**
  * The outcome of the counting vote in consensus. Since there are only 4 outcomes, there is no need

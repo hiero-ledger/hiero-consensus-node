@@ -42,7 +42,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import org.hiero.base.crypto.Hash;
-import org.hiero.consensus.hashgraph.ConsensusConfig;
+import org.hiero.consensus.hashgraph.config.ConsensusConfig;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.notification.IssNotification;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;

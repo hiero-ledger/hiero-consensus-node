@@ -163,7 +163,7 @@ Change all protobuf `Roster` usages to `RosterData`. After this task is complete
   * `org.hiero.consensus.event.creator.impl.tipset.Tipset`
   * `org.hiero.consensus.event.creator.impl.tipset.TipsetMetrics`
 * ConsensusImpl support code:
-  * `com.swirlds.platform.consensus.ConsensusRounds`
+  * `org.hiero.consensus.hashgraph.impl.consensus.ConsensusRounds`
   * `org.hiero.consensus.model.hashgraph.ConsensusRound`
   * `org.hiero.consensus.model.hashgraph.Round`
 * SyncGossipModular support code
