@@ -157,7 +157,7 @@ public class PlatformWiring {
         components
                 .eventCreatorModule()
                 .createdEventOutputWire()
-                .solderTo(components.eventIntakeModule().selfEventsInputWire(), INJECT);
+                .solderTo(components.eventIntakeModule().nonValidatedEventsInputWire(), INJECT);
 
         if (callbacks.staleEventConsumer() != null) {
             final OutputWire<PlatformEvent> staleEvent = components

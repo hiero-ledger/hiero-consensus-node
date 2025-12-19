@@ -4,7 +4,6 @@ package com.swirlds.platform.state.signed;
 import static com.swirlds.common.merkle.utility.MerkleUtils.rehashTree;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
-import static com.swirlds.platform.state.service.PlatformStateUtils.bulkUpdateOf;
 import static com.swirlds.platform.state.service.PlatformStateUtils.creationSoftwareVersionOf;
 import static com.swirlds.platform.state.signed.ReservedSignedState.createNullReservation;
 import static com.swirlds.platform.state.snapshot.SignedStateFileReader.readState;
@@ -24,22 +23,17 @@ import com.swirlds.platform.state.snapshot.DeserializedSignedState;
 import com.swirlds.platform.state.snapshot.SavedStateInfo;
 import com.swirlds.platform.state.snapshot.SignedStateFilePath;
 import com.swirlds.state.MerkleNodeState;
-import com.swirlds.state.State;
 import com.swirlds.state.StateLifecycleManager;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.time.Instant;
 import java.util.List;
 import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Hash;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.model.roster.AddressBook;
-import org.hiero.consensus.roster.RosterRetriever;
-import org.hiero.consensus.roster.RosterStateUtils;
 
 /**
  * Utilities for loading and manipulating state files at startup time.
@@ -49,65 +43,6 @@ public final class StartupStateUtils {
     private static final Logger logger = LogManager.getLogger(StartupStateUtils.class);
 
     private StartupStateUtils() {}
-
-    /**
-     * Used exclusively by {@link com.swirlds.platform.Browser} to get the initial state to be used by this node.
-     * May return a state loaded from disk, or may return a genesis state if no valid state is found on disk.
-     *
-     * @param softwareVersion     the software version of the app
-     * @param genesisStateBuilder a supplier that can build a genesis state
-     * @param mainClassName       the name of the app's SwirldMain class
-     * @param swirldName          the name of this swirld
-     * @param selfId              the node id of this node
-     * @param configAddressBook   the address book from config.txt
-     * @param platformContext     the platform context
-     * @param stateLifecycleManager state lifecycle manager
-     * @return the initial state to be used by this node
-     * @throws SignedStateLoadingException if there was a problem parsing states on disk and we are not configured to
-     *                                     delete malformed states
-     */
-    @NonNull
-    @Deprecated(forRemoval = true)
-    public static HashedReservedSignedState getInitialState(
-            @NonNull final RecycleBin recycleBin,
-            @NonNull final SemanticVersion softwareVersion,
-            @NonNull final Supplier<MerkleNodeState> genesisStateBuilder,
-            @NonNull final String mainClassName,
-            @NonNull final String swirldName,
-            @NonNull final NodeId selfId,
-            @NonNull final AddressBook configAddressBook,
-            @NonNull final PlatformContext platformContext,
-            @NonNull final StateLifecycleManager stateLifecycleManager)
-            throws SignedStateLoadingException {
-
-        requireNonNull(mainClassName);
-        requireNonNull(swirldName);
-        requireNonNull(selfId);
-        requireNonNull(configAddressBook);
-        requireNonNull(platformContext);
-        requireNonNull(platformContext.getConfiguration());
-
-        final ReservedSignedState loadedState = StartupStateUtils.loadStateFile(
-                recycleBin, selfId, mainClassName, swirldName, softwareVersion, platformContext, stateLifecycleManager);
-
-        try (loadedState) {
-            if (loadedState.isNotNull()) {
-                logger.info(
-                        STARTUP.getMarker(),
-                        new SavedStateLoadedPayload(
-                                loadedState.get().getRound(), loadedState.get().getConsensusTimestamp()));
-
-                return copyInitialSignedState(loadedState.get(), platformContext);
-            }
-        }
-
-        final ReservedSignedState genesisState =
-                buildGenesisState(configAddressBook, softwareVersion, genesisStateBuilder.get(), platformContext);
-
-        try (genesisState) {
-            return copyInitialSignedState(genesisState.get(), platformContext);
-        }
-    }
 
     /**
      * Looks at the states on disk, chooses one to load, and then loads the chosen state.
@@ -317,57 +252,6 @@ public final class StartupStateUtils {
         } catch (final IOException e) {
             throw new UncheckedIOException("unable to recycle state", e);
         }
-    }
-
-    /**
-     * Build and initialize a genesis state.
-     * <p>
-     * <b>Important:</b> Only used by {@link com.swirlds.platform.Browser}.
-     * @param addressBook           the current address book
-     * @param appVersion            the software version of the app
-     * @param stateRoot             the merkle root node of the state
-     * @return a reserved genesis signed state
-     */
-    private static ReservedSignedState buildGenesisState(
-            @NonNull final AddressBook addressBook,
-            @NonNull final SemanticVersion appVersion,
-            @NonNull final MerkleNodeState stateRoot,
-            @NonNull final PlatformContext platformContext) {
-        initGenesisState(platformContext.getConfiguration(), stateRoot, addressBook, appVersion);
-
-        final SignedState signedState = new SignedState(
-                platformContext.getConfiguration(),
-                CryptoStatic::verifySignature,
-                stateRoot,
-                "genesis state",
-                false,
-                false,
-                false);
-        return signedState.reserve("initial reservation on genesis state");
-    }
-
-    /**
-     * Initializes a genesis platform state and RosterService state.
-     * @param configuration the configuration for this node
-     * @param state the State instance to initialize
-     * @param addressBook the current address book
-     * @param appVersion the software version of the app
-     */
-    private static void initGenesisState(
-            final Configuration configuration,
-            final State state,
-            final AddressBook addressBook,
-            final SemanticVersion appVersion) {
-        final long round = 0L;
-
-        bulkUpdateOf(state, v -> {
-            v.setCreationSoftwareVersion(appVersion);
-            v.setRound(round);
-            v.setLegacyRunningEventHash(null);
-            v.setConsensusTimestamp(Instant.ofEpochSecond(0L));
-        });
-
-        RosterStateUtils.setActiveRoster(state, RosterRetriever.buildRoster(addressBook), round);
     }
 
     /**

@@ -74,9 +74,9 @@ public interface EventIntakeModule {
      *
      * @return the {@link InputWire} for self events
      */
-    @InputWireLabel("self-events")
+    @InputWireLabel("non-validated events")
     @NonNull
-    InputWire<PlatformEvent> selfEventsInputWire();
+    InputWire<PlatformEvent> nonValidatedEventsInputWire();
 
     /**
      * {@link InputWire} for the event window received from the {@code Hashgraph} component.

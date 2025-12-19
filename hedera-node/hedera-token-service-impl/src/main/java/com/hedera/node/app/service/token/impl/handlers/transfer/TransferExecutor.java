@@ -211,7 +211,7 @@ public class TransferExecutor extends BaseTokenHandler {
 
         for (final var t : txns) {
             new AssociateTokenRecipientsStep(t).doIn(transferContext);
-            new AdjustHbarChangesStep(t, topLevelPayer).doIn(transferContext);
+            new AdjustHbarChangesStep(t, topLevelPayer, entityIdFactory).doIn(transferContext);
             new AdjustFungibleTokenChangesStep(t.tokenTransfers(), topLevelPayer).doIn(transferContext);
             new NFTOwnersChangeStep(t.tokenTransfers(), topLevelPayer).doIn(transferContext);
         }
@@ -359,7 +359,8 @@ public class TransferExecutor extends BaseTokenHandler {
         // so we can adjust balance changes, that are related ONLY to the custom fees
         for (int i = 1, n = transferBodies.size(); i < n; i++) {
             // adjust balances
-            var adjustHbarChangesStep = new AdjustHbarChangesStep(transferBodies.get(i), topLevelPayer);
+            var adjustHbarChangesStep =
+                    new AdjustHbarChangesStep(transferBodies.get(i), topLevelPayer, entityIdFactory);
             adjustHbarChangesStep.doIn(transferContext);
             var adjustFungibleChangesStep =
                     new AdjustFungibleTokenChangesStep(transferBodies.get(i).tokenTransfers(), topLevelPayer);
