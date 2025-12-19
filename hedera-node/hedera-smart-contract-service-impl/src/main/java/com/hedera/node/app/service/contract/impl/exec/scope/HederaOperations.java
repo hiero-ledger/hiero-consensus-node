@@ -306,4 +306,12 @@ public interface HederaOperations {
 
     @Nullable
     ContractMetrics contractMetrics();
+
+    /**
+     * Sets the account code delegation to the given address for the given account ID.
+     * @param accountID the account ID to set the delegation for
+     * @param delegationAddress the address to set as the delegation indicator
+     * @return true if the code delegation was set successfully, false otherwise
+     */
+    boolean setAccountCodeDelegation(@NonNull final AccountID accountID, @NonNull final Address delegationAddress);
 }

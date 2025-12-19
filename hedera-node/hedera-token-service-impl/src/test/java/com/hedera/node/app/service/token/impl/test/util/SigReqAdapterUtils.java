@@ -496,6 +496,7 @@ public class SigReqAdapterUtils {
                 0,
                 0L,
                 0L,
-                0L);
+                0L,
+                null);
     }
 }

@@ -23,6 +23,7 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.contract.EthereumTransactionBody;
+import com.hedera.node.app.hapi.utils.ethereum.EthTxData.EthTransactionType;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxSigs;
 import com.hedera.node.app.service.contract.impl.ContractServiceComponent;
 import com.hedera.node.app.service.contract.impl.exec.TransactionComponent;
@@ -115,8 +116,16 @@ public class EthereumTransactionHandler extends AbstractContractTransactionHandl
             final byte[] callData = ethTxData.hasCallData() ? ethTxData.callData() : new byte[0];
             final var isContractCreate = !ethTxData.hasToAddress();
             // TODO: Revisit baselineGas with Pectra support epic
+            // Ensure that type 4 transactions have at least one authorization in the list
+            if (ethTxData.type().equals(EthTransactionType.EIP7702)) {
+                validateTruePreCheck(
+                        ethTxData.authorizationList() != null && ethTxData.authorizationList().length > 0,
+                        INVALID_ETHEREUM_TRANSACTION);
+            }
+            final var authorizationListSize =
+                    ethTxData.authorizationList() == null ? 0L : ethTxData.authorizationList().length;
             final var gasRequirements = gasCalculator.transactionGasRequirements(
-                    org.apache.tuweni.bytes.Bytes.wrap(callData), isContractCreate, 0L);
+                    org.apache.tuweni.bytes.Bytes.wrap(callData), isContractCreate, 0L, authorizationListSize);
             validateTruePreCheck(ethTxData.gasLimit() >= gasRequirements.minimumGasUsed(), INSUFFICIENT_GAS);
         } catch (@NonNull final Exception e) {
             bumpExceptionMetrics(ETHEREUM_TRANSACTION, e);
