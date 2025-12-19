@@ -31,10 +31,13 @@ jobs:
       ref: ${{ github.event.pull_request.head.sha }}
       enable-dependency-check: "true"
       enable-spotless-check: "true"
+      enable-snyk-scan: "true"
       enable-unit-tests: "true"
       enable-integration-tests: "true"
       enable-hapi-tests: "true"
       enable-otter-tests: "true"
+      enable-gradle-determinism: "true"
+      enable-docker-determinism: "true"
       java-version: "21.0.6"
       java-distribution: "temurin"
       custom-job-label: "Standard"
