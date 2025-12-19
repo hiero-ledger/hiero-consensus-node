@@ -829,6 +829,7 @@ jobs:
       - hapi-tests-nd-reconnect
       - hapi-tests-iss
       - hapi-tests-bn-comms
+    if: ${{ always() }}
     outputs:
       failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
     steps:
