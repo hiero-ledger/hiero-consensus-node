@@ -113,7 +113,7 @@ public class DefaultEventIntakeModule implements EventIntakeModule {
      */
     @Override
     @NonNull
-    public InputWire<PlatformEvent> selfEventsInputWire() {
+    public InputWire<PlatformEvent> nonValidatedEventsInputWire() {
         return requireNonNull(eventValidatorWiring, "Not initialized")
                 .getInputWire(InternalEventValidator::validateEvent);
     }
