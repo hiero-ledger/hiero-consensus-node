@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.consensus.rostertests;
+package org.hiero.consensus.roster;
 
 import static org.hiero.consensus.roster.WritableRosterStore.MAXIMUM_ROSTER_HISTORY_SIZE;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
@@ -9,8 +9,6 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
@@ -31,22 +29,17 @@ import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Objects;
-import org.hiero.consensus.roster.InvalidRosterException;
-import org.hiero.consensus.roster.ReadableRosterStore;
-import org.hiero.consensus.roster.ReadableRosterStoreImpl;
-import org.hiero.consensus.roster.RosterStateId;
-import org.hiero.consensus.roster.RosterUtils;
-import org.hiero.consensus.roster.WritableRosterStore;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
 
 /**
  * Tests for the {@link WritableRosterStore} class.
  */
 class WritableRosterStoreTest {
 
-    private final WritableStates writableStates = mock(WritableStates.class);
+    private final WritableStates writableStates = Mockito.mock(WritableStates.class);
     private WritableRosterStore writableRosterStore;
     private ReadableRosterStore readableRosterStore;
 
@@ -57,9 +50,9 @@ class WritableRosterStoreTest {
         final WritableKVState<ProtoBytes, Roster> rosters = MapWritableKVState.<ProtoBytes, Roster>builder(
                         RosterStateId.ROSTERS_STATE_ID, RosterStateId.ROSTERS_STATE_LABEL)
                 .build();
-        when(writableStates.<ProtoBytes, Roster>get(RosterStateId.ROSTERS_STATE_ID))
+        Mockito.when(writableStates.<ProtoBytes, Roster>get(RosterStateId.ROSTERS_STATE_ID))
                 .thenReturn(rosters);
-        when(writableStates.<RosterState>getSingleton(RosterStateId.ROSTER_STATE_STATE_ID))
+        Mockito.when(writableStates.<RosterState>getSingleton(RosterStateId.ROSTER_STATE_STATE_ID))
                 .thenReturn(new OnDiskWritableSingletonState<>(
                         RosterStateId.ROSTER_STATE_STATE_ID,
                         RosterStateId.ROSTER_STATE_STATE_LABEL,

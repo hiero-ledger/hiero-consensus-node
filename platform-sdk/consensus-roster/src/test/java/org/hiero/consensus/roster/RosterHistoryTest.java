@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.consensus.rostertests;
+package org.hiero.consensus.roster;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -11,8 +11,6 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
-import org.hiero.consensus.roster.RosterHistory;
-import org.hiero.consensus.roster.RosterUtils;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;

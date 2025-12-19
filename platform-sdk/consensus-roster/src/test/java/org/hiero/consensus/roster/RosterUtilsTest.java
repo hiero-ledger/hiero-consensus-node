@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.consensus.rostertests;
+package org.hiero.consensus.roster;
 
 import static org.hiero.consensus.roster.RosterRetriever.buildRoster;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -7,8 +7,6 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.state.roster.Roster;
@@ -28,12 +26,10 @@ import org.hiero.base.utility.test.fixtures.RandomUtils;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.roster.Address;
 import org.hiero.consensus.model.roster.AddressBook;
-import org.hiero.consensus.roster.RosterHistory;
-import org.hiero.consensus.roster.RosterStateId;
-import org.hiero.consensus.roster.RosterStateUtils;
-import org.hiero.consensus.roster.RosterUtils;
 import org.hiero.consensus.test.fixtures.crypto.PreGeneratedX509Certs;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
 
 public class RosterUtilsTest {
 
@@ -162,9 +158,9 @@ public class RosterUtilsTest {
     @Test
     void testCreateRosterHistory() {
         final Random random = new Random();
-        final MerkleNodeState state = mock(MerkleNodeState.class);
-        final ReadableStates readableStates = mock(ReadableStates.class);
-        when(state.getReadableStates(PlatformStateService.NAME)).thenReturn(readableStates);
+        final MerkleNodeState state = Mockito.mock(MerkleNodeState.class);
+        final ReadableStates readableStates = Mockito.mock(ReadableStates.class);
+        Mockito.when(state.getReadableStates(PlatformStateService.NAME)).thenReturn(readableStates);
 
         final Roster currentRoster =
                 RandomRosterBuilder.create(random).withSize(4).build();
@@ -180,7 +176,7 @@ public class RosterUtilsTest {
     @Test
     void testCreateRosterHistoryVerifyRound() {
         final Random random = RandomUtils.getRandomPrintSeed();
-        final MerkleNodeState state = mock(MerkleNodeState.class);
+        final MerkleNodeState state = Mockito.mock(MerkleNodeState.class);
         final Roster currentRoster =
                 RandomRosterBuilder.create(random).withSize(4).build();
         final Roster previousRoster =
@@ -202,15 +198,15 @@ public class RosterUtilsTest {
 
     @Test
     void testCreateRosterHistoryNoActiveRosters() {
-        final MerkleNodeState state = mock(MerkleNodeState.class);
-        when(state.getReadableStates(RosterStateId.SERVICE_NAME)).thenReturn(null);
+        final MerkleNodeState state = Mockito.mock(MerkleNodeState.class);
+        Mockito.when(state.getReadableStates(RosterStateId.SERVICE_NAME)).thenReturn(null);
 
         assertThrows(NullPointerException.class, () -> RosterStateUtils.createRosterHistory(state));
     }
 
     @Test
     void testCreateRosterHistoryNoRosters() {
-        final MerkleNodeState state = mock(MerkleNodeState.class);
+        final MerkleNodeState state = Mockito.mock(MerkleNodeState.class);
         RosterServiceStateMock.setup(state, null, 16L, null);
 
         assertThrows(IllegalArgumentException.class, () -> RosterStateUtils.createRosterHistory(state));
@@ -219,7 +215,7 @@ public class RosterUtilsTest {
     @Test
     void testFetchingCertificates() throws CertificateEncodingException {
         // Positive Case
-        assertEquals(
+        Assertions.assertEquals(
                 PreGeneratedX509Certs.getSigCert(0).getCertificate(),
                 RosterUtils.fetchGossipCaCertificate(RosterEntry.newBuilder()
                         .gossipCaCertificate(Bytes.wrap(PreGeneratedX509Certs.getSigCert(0)
@@ -299,8 +295,9 @@ public class RosterUtilsTest {
     @Test
     void testEndpointForInvalidIpAddressConvertsToDomainName() {
         final String invalidIpAddress = "192.168.is.bad";
-        assertEquals(
+        Assertions.assertEquals(
                 Bytes.EMPTY, AddressBookUtils.endpointFor(invalidIpAddress, 2).ipAddressV4());
-        assertEquals(AddressBookUtils.endpointFor(invalidIpAddress, 2).domainName(), invalidIpAddress);
+        Assertions.assertEquals(
+                AddressBookUtils.endpointFor(invalidIpAddress, 2).domainName(), invalidIpAddress);
     }
 }
