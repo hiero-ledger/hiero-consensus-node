@@ -25,7 +25,6 @@ import com.swirlds.platform.state.signed.SigSet;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.state.signed.SignedStateInvalidException;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
-import com.swirlds.platform.test.fixtures.crypto.PreGeneratedX509Certs;
 import com.swirlds.platform.test.fixtures.state.RandomSignedStateGenerator;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.security.PublicKey;
@@ -42,6 +41,7 @@ import java.util.stream.IntStream;
 import org.hiero.base.crypto.Signature;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.roster.RosterUtils;
+import org.hiero.consensus.test.fixtures.crypto.PreGeneratedX509Certs;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -496,32 +496,5 @@ class StateSigningTests {
         assertEquals(0, sigSet.size());
         assertEquals(0, signedState.getSigningWeight());
         assertFalse(signedState.isComplete());
-    }
-
-    @ParameterizedTest
-    @ValueSource(booleans = {true, false})
-    @DisplayName("Recovery State Is Complete Test")
-    void recoveryStateIsCompleteTest(final boolean evenWeighting) {
-        final Random random = getRandomPrintSeed();
-
-        final int nodeCount = random.nextInt(10, 20);
-
-        final Roster roster = RandomRosterBuilder.create(random)
-                .withWeightGenerator(
-                        evenWeighting ? WeightGenerators.BALANCED_1000_PER_NODE : WeightGenerators.GAUSSIAN)
-                .withSize(nodeCount)
-                .build();
-
-        final SignedState signedState = new RandomSignedStateGenerator(random)
-                .setRoster(roster)
-                .setSignatures(new HashMap<>())
-                .build();
-
-        assertFalse(signedState.isComplete());
-
-        signedState.markAsRecoveryState();
-
-        // Recovery states are considered to be complete regardless of signature count
-        assertTrue(signedState.isComplete());
     }
 }

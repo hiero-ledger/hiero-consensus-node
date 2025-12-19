@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.virtualmap;
 
+import static com.hedera.pbj.runtime.Codec.DEFAULT_MAX_DEPTH;
 import static com.swirlds.common.io.streams.StreamDebugUtils.deserializeAndDebugOnFailure;
 import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticThreadManager;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
@@ -159,6 +160,8 @@ import org.hiero.base.io.streams.SerializableDataOutputStream;
 @ConstructableClass(value = CLASS_ID, constructorType = VirtualMapConstructor.class)
 public final class VirtualMap extends PartialBinaryMerkleInternal
         implements ExternalSelfSerializable, Labeled, MerkleInternal, VirtualRoot {
+
+    private static final int MAX_PBJ_RECORD_SIZE = 33554432;
 
     /**
      * Hardcoded virtual map label
@@ -683,7 +686,14 @@ public final class VirtualMap extends PartialBinaryMerkleInternal
         requireNonNull(valueCodec);
         Bytes removedValueBytes = remove(key);
         try {
-            return removedValueBytes == null ? null : valueCodec.parse(removedValueBytes);
+            return removedValueBytes == null
+                    ? null
+                    : valueCodec.parse(
+                            removedValueBytes.toReadableSequentialData(),
+                            false,
+                            false,
+                            DEFAULT_MAX_DEPTH,
+                            MAX_PBJ_RECORD_SIZE);
         } catch (final ParseException e) {
             throw new RuntimeException("Failed to deserialize a value from bytes", e);
         }

@@ -159,14 +159,12 @@ jobs:
 
       - name: Upload log as artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: ${{ !cancelled() && always() }}
         continue-on-error: true
         with:
           retention-days: 7
           path: |
             run.log
-            hedera-node/test-clients/build/*.log
-            hedera-node/test-clients/build/*.blk.gz
-            hedera-node/test-clients/build/*.rcd.gz
 
       - name: Get Commit Information
         id: fetch-commit-info

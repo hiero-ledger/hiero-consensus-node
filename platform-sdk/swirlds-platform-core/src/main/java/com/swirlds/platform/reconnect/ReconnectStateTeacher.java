@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.reconnect;
 
-import static com.swirlds.common.formatting.StringFormattingUtils.formattedList;
+import static com.swirlds.base.formatting.StringFormattingUtils.formattedList;
 import static com.swirlds.logging.legacy.LogMarker.RECONNECT;
 import static com.swirlds.platform.reconnect.ReconnectStateLearner.endReconnectHandshake;
 import static com.swirlds.platform.state.service.PlatformStateUtils.getInfoString;
@@ -46,7 +46,7 @@ public class ReconnectStateTeacher {
     private final Connection connection;
     private final Duration reconnectSocketTimeout;
 
-    private final TeacherTreeView<?> teacherView;
+    private final TeacherTreeView<Long> teacherView;
     private final SigSet signatures;
     private final long signingWeight;
     private final Roster roster;

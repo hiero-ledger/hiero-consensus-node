@@ -5,6 +5,7 @@ import static com.hedera.services.bdd.spec.infrastructure.providers.ops.hollow.R
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoDelete;
 import static com.hedera.services.bdd.suites.crypto.AutoAccountCreationSuite.CRYPTO_TRANSFER_RECEIVER;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.ACCOUNT_DELETED;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.BUSY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ACCOUNT_ID;
 
 import com.hedera.services.bdd.spec.HapiSpecOperation;
@@ -16,7 +17,8 @@ import java.util.Optional;
 
 public class RandomHollowAccountDeletion implements OpProvider {
     private final RegistrySourcedNameProvider<AccountID> accounts;
-    private final ResponseCodeEnum[] permissiblePrechecks = standardPrechecksAnd(ACCOUNT_DELETED, INVALID_ACCOUNT_ID);
+    private final ResponseCodeEnum[] permissiblePrechecks =
+            standardPrechecksAnd(BUSY, ACCOUNT_DELETED, INVALID_ACCOUNT_ID);
     private final ResponseCodeEnum[] permissibleOutcomes = standardOutcomesAnd(ACCOUNT_DELETED, INVALID_ACCOUNT_ID);
 
     public RandomHollowAccountDeletion(RegistrySourcedNameProvider<AccountID> accounts) {
