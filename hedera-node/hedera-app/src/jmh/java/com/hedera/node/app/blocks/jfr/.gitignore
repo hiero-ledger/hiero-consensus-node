@@ -1,0 +1,6 @@
+# JFR (Java Flight Recorder) profiling output files
+*.jfr
+*.json
+
+# Keep this directory in git
+!.gitignore

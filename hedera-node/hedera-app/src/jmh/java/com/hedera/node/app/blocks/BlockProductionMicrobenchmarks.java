@@ -28,19 +28,23 @@ import com.hedera.node.app.blocks.utils.TransactionGeneratorUtil;
 import com.hedera.node.app.hapi.utils.CommonUtils;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import java.nio.ByteBuffer;
+import java.nio.file.Paths;
 import java.security.MessageDigest;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.TimeUnit;
+import jdk.jfr.Configuration;
+import jdk.jfr.Recording;
 import org.openjdk.jmh.annotations.*;
 import org.openjdk.jmh.infra.Blackhole;
 
 /**
  * Component-level microbenchmarks for block production pipeline.
  *
- * Each benchmark tests a specific production component in isolation to identify bottlenecks.
+ * Each benchmark tests a specific production component in isolation to identify
+ * bottlenecks.
  * These benchmarks use production classes without mocking or simulation.
  *
  * COMPONENTS TESTED:
@@ -48,7 +52,8 @@ import org.openjdk.jmh.infra.Blackhole;
  * 2. BlockItem hashing (SHA-384) - How fast can we hash serialized BlockItems?
  * 3. ConcurrentStreamingTreeHasher - How fast are merkle tree operations?
  * 4. IncrementalStreamingHasher - How fast is the previousBlockHashes tree?
- * 5. BlockStreamBuilder - How fast can we translate execution results to BlockItems?
+ * 5. BlockStreamBuilder - How fast can we translate execution results to
+ * BlockItems?
  * 6. Block hash combining - How fast is the 10x SHA-384 combine operation?
  * 7. Block serialization - How fast can we serialize final blocks?
  * 8. Running hash (n-3) - How fast is the running hash computation?
@@ -96,9 +101,13 @@ public class BlockProductionMicrobenchmarks {
         BlockItem transactionResultItem;
         BlockItem signedTransactionItem;
         BlockItem stateChangesItem;
+        Recording jfrRecording;
 
         @Setup(Level.Trial)
         public void setup() {
+            // Start JFR recording
+            jfrRecording = startJfr("micro-serialize.jfr");
+
             // Create realistic BlockItems
             Instant now = Instant.now();
 
@@ -125,6 +134,11 @@ public class BlockProductionMicrobenchmarks {
                             .build())
                     .build();
         }
+
+        @TearDown(Level.Trial)
+        public void tearDown() {
+            stopJfr(jfrRecording);
+        }
     }
 
     /**
@@ -147,9 +161,13 @@ public class BlockProductionMicrobenchmarks {
     @State(Scope.Thread)
     public static class HashingState {
         Bytes serializedItem;
+        Recording jfrRecording;
 
         @Setup(Level.Trial)
         public void setup() {
+            // Start JFR recording
+            jfrRecording = startJfr("micro-hashing.jfr");
+
             BlockItem item = BlockItem.newBuilder()
                     .transactionResult(TransactionResult.newBuilder()
                             .consensusTimestamp(Timestamp.newBuilder()
@@ -160,6 +178,11 @@ public class BlockProductionMicrobenchmarks {
                             .build())
                     .build();
             serializedItem = BlockItem.PROTOBUF.toBytes(item);
+        }
+
+        @TearDown(Level.Trial)
+        public void tearDown() {
+            stopJfr(jfrRecording);
         }
     }
 
@@ -189,9 +212,13 @@ public class BlockProductionMicrobenchmarks {
 
         List<ByteBuffer> precomputedHashes;
         ForkJoinPool executor;
+        Recording jfrRecording;
 
         @Setup(Level.Trial)
         public void setup() {
+            // Start JFR recording
+            jfrRecording = startJfr(String.format("micro-merkle-%d.jfr", numLeaves));
+
             executor = new ForkJoinPool(Runtime.getRuntime().availableProcessors());
             precomputedHashes = new ArrayList<>();
 
@@ -210,8 +237,17 @@ public class BlockProductionMicrobenchmarks {
 
         @TearDown(Level.Trial)
         public void tearDown() {
-            // Shutdown executor to prevent resource leaks
-            executor.shutdown();
+            // Proper executor cleanup with timeout
+            executor.shutdownNow();
+            try {
+                if (!executor.awaitTermination(5, TimeUnit.SECONDS)) {
+                    System.err.println("Executor did not terminate in time");
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+
+            stopJfr(jfrRecording);
         }
     }
 
@@ -240,9 +276,13 @@ public class BlockProductionMicrobenchmarks {
         int numBlocks;
 
         List<byte[]> blockHashes;
+        Recording jfrRecording;
 
         @Setup(Level.Trial)
         public void setup() {
+            // Start JFR recording
+            jfrRecording = startJfr(String.format("micro-incremental-%d.jfr", numBlocks));
+
             blockHashes = new ArrayList<>();
             try {
                 MessageDigest digest = sha384DigestOrThrow();
@@ -254,6 +294,11 @@ public class BlockProductionMicrobenchmarks {
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
+        }
+
+        @TearDown(Level.Trial)
+        public void tearDown() {
+            stopJfr(jfrRecording);
         }
     }
 
@@ -295,9 +340,13 @@ public class BlockProductionMicrobenchmarks {
         TransferList transferList;
         TransactionID txId;
         String memo;
+        Recording jfrRecording;
 
         @Setup(Level.Trial)
         public void setup() {
+            // Start JFR recording
+            jfrRecording = startJfr(String.format("micro-builder-size%d.jfr", transactionSizeBytes));
+
             try {
                 Bytes txBodyBytes = TransactionGeneratorUtil.generateTransaction(transactionSizeBytes);
                 TransactionBody txBody = TransactionBody.PROTOBUF.parse(txBodyBytes);
@@ -338,6 +387,11 @@ public class BlockProductionMicrobenchmarks {
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
+        }
+
+        @TearDown(Level.Trial)
+        public void tearDown() {
+            stopJfr(jfrRecording);
         }
     }
 
@@ -385,9 +439,13 @@ public class BlockProductionMicrobenchmarks {
         Bytes hash1, hash2, hash3, hash4, hash5, hash6, hash7, hash8;
         Bytes nullHash;
         Bytes timestampBytes;
+        Recording jfrRecording;
 
         @Setup(Level.Trial)
         public void setup() {
+            // Start JFR recording
+            jfrRecording = startJfr("micro-combine.jfr");
+
             try {
                 MessageDigest digest = sha384DigestOrThrow();
 
@@ -418,6 +476,11 @@ public class BlockProductionMicrobenchmarks {
                 throw new RuntimeException(e);
             }
         }
+
+        @TearDown(Level.Trial)
+        public void tearDown() {
+            stopJfr(jfrRecording);
+        }
     }
 
     /**
@@ -438,13 +501,18 @@ public class BlockProductionMicrobenchmarks {
         int itemsPerBlock;
 
         List<BlockItem> blockItems;
+        Recording jfrRecording;
 
         @Setup(Level.Trial)
         public void setup() {
+            // Start JFR recording
+            jfrRecording = startJfr(String.format("micro-block-items%d.jfr", itemsPerBlock));
+
             blockItems = new ArrayList<>();
             Instant now = Instant.now();
 
-            // Create realistic BlockItems (alternating SIGNED_TRANSACTION and TRANSACTION_RESULT)
+            // Create realistic BlockItems (alternating SIGNED_TRANSACTION and
+            // TRANSACTION_RESULT)
             for (int i = 0; i < itemsPerBlock; i++) {
                 if (i % 2 == 0) {
                     blockItems.add(BlockItem.newBuilder()
@@ -463,6 +531,11 @@ public class BlockProductionMicrobenchmarks {
                             .build());
                 }
             }
+        }
+
+        @TearDown(Level.Trial)
+        public void tearDown() {
+            stopJfr(jfrRecording);
         }
     }
 
@@ -503,9 +576,13 @@ public class BlockProductionMicrobenchmarks {
 
         List<ByteBuffer> resultHashes;
         byte[] initialHash;
+        Recording jfrRecording;
 
         @Setup(Level.Trial)
         public void setup() {
+            // Start JFR recording
+            jfrRecording = startJfr(String.format("micro-running-hash-%d.jfr", numResults));
+
             try {
                 MessageDigest digest = sha384DigestOrThrow();
                 initialHash = new byte[48]; // Start with zeros
@@ -520,11 +597,45 @@ public class BlockProductionMicrobenchmarks {
                 throw new RuntimeException(e);
             }
         }
+
+        @TearDown(Level.Trial)
+        public void tearDown() {
+            stopJfr(jfrRecording);
+        }
     }
 
     // ============================================================================
     // HELPER METHODS (utility methods for block hash combining)
     // ============================================================================
+
+    private static Recording startJfr(String filenameSuffix) {
+        try {
+            String projectRoot = System.getProperty("user.dir");
+            String jfrPath = String.format(
+                    "%s/hedera-node/hedera-app/src/jmh/java/com/hedera/node/app/blocks/jfr/%s",
+                    projectRoot, filenameSuffix);
+            Recording recording = new Recording(Configuration.getConfiguration("profile"));
+            recording.setDestination(Paths.get(jfrPath));
+            recording.start();
+            System.out.println(">>> JFR recording started: " + jfrPath);
+            return recording;
+        } catch (Exception e) {
+            System.err.println(">>> Failed to start JFR recording: " + e.getMessage());
+            return null;
+        }
+    }
+
+    private static void stopJfr(Recording recording) {
+        if (recording != null) {
+            try {
+                recording.stop();
+                recording.close();
+                System.out.println(">>> JFR recording stopped and saved.");
+            } catch (Exception e) {
+                System.err.println(">>> Failed to stop JFR recording: " + e.getMessage());
+            }
+        }
+    }
 
     private static Bytes combineSha384(Bytes leftHash, Bytes rightHash) {
         MessageDigest digest = sha384DigestOrThrow();
@@ -540,11 +651,12 @@ public class BlockProductionMicrobenchmarks {
     }
 
     public static void main(String[] args) throws Exception {
-        org.openjdk.jmh.Main.main(
-                new String[] {"BlockProductionMicrobenchmarks", "-v", "EXTRA", "-prof", "gc", "-prof", "jfr"});
+        org.openjdk.jmh.Main.main(new String[] {"BlockProductionMicrobenchmarks", "-v", "EXTRA" /* , "-prof", "gc" */});
     }
     // use
-    // jfr print --events "jdk.SocketRead,jdk.GarbageCollection,jdk.JavaMonitorEnter" --json **/profile.jfr >
+    // jfr print --events
+    // "jdk.SocketRead,jdk.GarbageCollection,jdk.JavaMonitorEnter" --json
+    // **/profile.jfr >
     // analysis.json
     // at profile.jfr location to convert output to json
 }
