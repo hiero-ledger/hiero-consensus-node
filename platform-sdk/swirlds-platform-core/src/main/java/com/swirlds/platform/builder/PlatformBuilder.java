@@ -26,7 +26,6 @@ import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.component.framework.model.WiringModelBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.SwirldsPlatform;
-import com.swirlds.platform.crypto.CryptoStatic;
 import com.swirlds.platform.event.preconsensus.PcesConfig;
 import com.swirlds.platform.event.preconsensus.PcesFileReader;
 import com.swirlds.platform.event.preconsensus.PcesFileTracker;
@@ -62,6 +61,7 @@ import org.hiero.base.concurrent.BlockingResourceProvider;
 import org.hiero.base.concurrent.ExecutorFactory;
 import org.hiero.base.crypto.CryptoUtils;
 import org.hiero.base.crypto.Signature;
+import org.hiero.consensus.crypto.ConsensusCryptoUtils;
 import org.hiero.consensus.crypto.PlatformSigner;
 import org.hiero.consensus.event.IntakeEventCounter;
 import org.hiero.consensus.event.creator.EventCreatorModule;
@@ -325,7 +325,7 @@ public final class PlatformBuilder {
         final String testString = "testString";
         final Bytes testBytes = Bytes.wrap(testString.getBytes());
         final Signature signature = platformSigner.sign(testBytes.toByteArray());
-        if (!CryptoStatic.verifySignature(
+        if (!ConsensusCryptoUtils.verifySignature(
                 testBytes, signature.getBytes(), keysAndCerts.sigCert().getPublicKey())) {
             throw new IllegalStateException("The signing certificate does not match the signing private key.");
         }
