@@ -15,6 +15,7 @@ import com.hedera.node.config.ConfigProvider;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import javax.inject.Inject;
 import org.hiero.interledger.clpr.ClprStateProofUtils;
+import org.hiero.interledger.clpr.ReadableClprMessageQueueStore;
 import org.hiero.interledger.clpr.WritableClprMessageQueueStore;
 import org.hiero.interledger.clpr.impl.ClprStateProofManager;
 
@@ -64,6 +65,11 @@ public class ClprUpdateMessageQueueMetadataHandler implements TransactionHandler
                 context.storeFactory().writableStore(WritableClprMessageQueueStore.class);
         // try to update the state
         writableMessageQueueMetadataStore.put(body.ledgerId(), messageQueueMetadata);
-        // TODO: Implement handle;
+
+        final var readableMessageQueueMetadataSotre =
+                context.storeFactory().readableStore(ReadableClprMessageQueueStore.class);
+        // try to find it
+        final var metadata = readableMessageQueueMetadataSotre.get(body.ledgerId());
+        final var test = metadata.toString();
     }
 }

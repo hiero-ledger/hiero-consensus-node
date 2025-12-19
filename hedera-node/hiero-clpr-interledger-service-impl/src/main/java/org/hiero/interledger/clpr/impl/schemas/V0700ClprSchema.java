@@ -28,11 +28,11 @@ public class V0700ClprSchema extends Schema<SemanticVersion> {
     public static final int CLPR_LEDGER_METADATA_STATE_ID = SingletonType.CLPRSERVICE_I_METADATA.protoOrdinal();
 
     // MessageQueue state
-    public static final String CLPR_MESSAGE_QUEUES_STATE_LABEL =
-            StateKey.KeyOneOfType.CLPRSERVICE_I_MESSAGE_QUEUES.toString();
-    public static final int CLPR_MESSAGE_QUEUES_STATE_ID =
-            StateKey.KeyOneOfType.CLPRSERVICE_I_MESSAGE_QUEUES.protoOrdinal();
-    private static final long MAX_MESSAGE_QUEUES = 50_000L;
+    public static final String CLPR_MESSAGE_QUEUE_METADATA_STATE_LABEL =
+            StateKey.KeyOneOfType.CLPRSERVICE_I_MESSAGE_QUEUE_METADATA.toString();
+    public static final int CLPR_MESSAGE_QUEUE_METADATA_STATE_ID =
+            StateKey.KeyOneOfType.CLPRSERVICE_I_MESSAGE_QUEUE_METADATA.protoOrdinal();
+    private static final long MAX_MESSAGE_QUEUE_METADATA = 50_000L;
 
     // Messages state
     public static final String CLPR_MESSAGES_STATE_LABEL = StateKey.KeyOneOfType.CLPRSERVICE_I_MESSAGESS.toString();
@@ -68,11 +68,11 @@ public class V0700ClprSchema extends Schema<SemanticVersion> {
 
     private static StateDefinition<ClprLedgerId, ClprMessageQueueMetadata> messageQueueMap() {
         return StateDefinition.onDisk(
-                CLPR_MESSAGE_QUEUES_STATE_ID,
-                CLPR_MESSAGE_QUEUES_STATE_LABEL,
+                CLPR_MESSAGE_QUEUE_METADATA_STATE_ID,
+                CLPR_MESSAGE_QUEUE_METADATA_STATE_LABEL,
                 ClprLedgerId.PROTOBUF,
                 ClprMessageQueueMetadata.PROTOBUF,
-                MAX_MESSAGE_QUEUES);
+                MAX_MESSAGE_QUEUE_METADATA);
     }
 
     private static StateDefinition<ClprMessageKey, ClprMessageValue> messagesMap() {

@@ -2,7 +2,7 @@
 package org.hiero.interledger.clpr.impl;
 
 import static java.util.Objects.requireNonNull;
-import static org.hiero.interledger.clpr.impl.schemas.V0700ClprSchema.CLPR_MESSAGE_QUEUES_STATE_ID;
+import static org.hiero.interledger.clpr.impl.schemas.V0700ClprSchema.CLPR_MESSAGE_QUEUE_METADATA_STATE_ID;
 
 import com.swirlds.state.spi.ReadableKVState;
 import com.swirlds.state.spi.ReadableStates;
@@ -18,7 +18,7 @@ public class ReadableClprMessageQueueStoreImpl implements ReadableClprMessageQue
 
     public ReadableClprMessageQueueStoreImpl(@NonNull final ReadableStates states) {
         requireNonNull(states);
-        messageQueueState = states.get(CLPR_MESSAGE_QUEUES_STATE_ID);
+        messageQueueState = states.get(CLPR_MESSAGE_QUEUE_METADATA_STATE_ID);
     }
 
     @Override

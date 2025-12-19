@@ -129,7 +129,7 @@ public final class ClprStateProofUtils {
         requireNonNull(messageQueueMetadata, "message queue metadata must not be null");
 
         final var stateKey =
-                StateKey.newBuilder().clprServiceIMessageQueues(ledgerId).build();
+                StateKey.newBuilder().clprServiceIMessageQueueMetadata(ledgerId).build();
         final var stateValue = StateValue.newBuilder()
                 .clprServiceIMessageQueues(messageQueueMetadata)
                 .build();
