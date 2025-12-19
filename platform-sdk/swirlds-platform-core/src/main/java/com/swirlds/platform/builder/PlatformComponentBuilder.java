@@ -15,7 +15,6 @@ import com.swirlds.platform.components.appcomm.LatestCompleteStateNotifier;
 import com.swirlds.platform.components.consensus.ConsensusEngine;
 import com.swirlds.platform.components.consensus.DefaultConsensusEngine;
 import com.swirlds.platform.config.StateConfig;
-import com.swirlds.platform.crypto.CryptoStatic;
 import com.swirlds.platform.event.branching.BranchDetector;
 import com.swirlds.platform.event.branching.BranchReporter;
 import com.swirlds.platform.event.branching.DefaultBranchDetector;
@@ -67,6 +66,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Objects;
 import org.hiero.consensus.concurrent.manager.AdHocThreadManager;
+import org.hiero.consensus.crypto.ConsensusCryptoUtils;
 import org.hiero.consensus.crypto.PlatformSigner;
 import org.hiero.consensus.model.event.CesEvent;
 
@@ -252,8 +252,9 @@ public class PlatformComponentBuilder {
     public EventSignatureValidator buildEventSignatureValidator() {
         if (eventSignatureValidator == null) {
             eventSignatureValidator = new DefaultEventSignatureValidator(
-                    blocks.platformContext(),
-                    CryptoStatic::verifySignature,
+                    blocks.platformContext().getMetrics(),
+                    blocks.platformContext().getTime(),
+                    ConsensusCryptoUtils::verifySignature,
                     blocks.rosterHistory(),
                     blocks.intakeEventCounter());
         }

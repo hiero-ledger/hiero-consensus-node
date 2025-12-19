@@ -29,6 +29,7 @@ open module com.swirlds.common.test.fixtures {
     requires com.swirlds.platform.core;
     requires com.swirlds.virtualmap;
     requires org.hiero.base.utility.test.fixtures;
+    requires org.hiero.consensus.utility;
     requires org.apache.logging.log4j.core;
     requires org.apache.logging.log4j;
     requires org.junit.jupiter.api;

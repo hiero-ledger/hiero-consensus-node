@@ -15,7 +15,6 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
 import com.swirlds.common.merkle.MerkleNode;
-import com.swirlds.platform.crypto.SignatureVerifier;
 import com.swirlds.platform.state.signed.ReservedSignedState;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
@@ -30,6 +29,8 @@ import java.util.List;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.hiero.base.exceptions.ReferenceCountException;
+import org.hiero.consensus.crypto.SignatureVerifier;
+import org.hiero.consensus.roster.RosterUtils;
 import org.hiero.consensus.roster.RosterStateUtils;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;

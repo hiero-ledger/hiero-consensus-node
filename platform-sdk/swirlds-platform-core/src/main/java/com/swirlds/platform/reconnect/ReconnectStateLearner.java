@@ -10,7 +10,6 @@ import com.swirlds.common.io.streams.MerkleDataOutputStream;
 import com.swirlds.common.merkle.synchronization.LearningSynchronizer;
 import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
 import com.swirlds.logging.legacy.payload.ReconnectDataUsagePayload;
-import com.swirlds.platform.crypto.CryptoStatic;
 import com.swirlds.platform.metrics.ReconnectMetrics;
 import com.swirlds.platform.network.Connection;
 import com.swirlds.platform.state.signed.ReservedSignedState;
@@ -27,6 +26,7 @@ import java.time.Duration;
 import java.util.Objects;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.crypto.ConsensusCryptoUtils;
 import org.hiero.consensus.concurrent.manager.ThreadManager;
 
 /**

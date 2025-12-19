@@ -9,9 +9,9 @@ import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStati
 import static org.hiero.consensus.crypto.CryptoConstants.PUBLIC_KEYS_FILE;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.common.threading.framework.config.ThreadConfiguration;
 import com.swirlds.common.utility.CommonUtils;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.logging.legacy.LogMarker;
 import com.swirlds.platform.Utilities;
 import com.swirlds.platform.config.BasicConfig;
 import com.swirlds.platform.config.PathsConfig;
@@ -30,7 +30,6 @@ import java.security.KeyStore;
 import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
 import java.security.NoSuchProviderException;
-import java.security.PublicKey;
 import java.security.SecureRandom;
 import java.security.Security;
 import java.security.UnrecoverableKeyException;
@@ -65,7 +64,6 @@ import org.hiero.base.crypto.CryptographyException;
 import org.hiero.base.crypto.config.CryptoConfig;
 import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
 import org.hiero.consensus.crypto.CryptoConstants;
-import org.hiero.consensus.crypto.SigningFactory;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.roster.Address;
@@ -240,22 +238,6 @@ public final class CryptoStatic {
             throw new CryptographyException(e);
         }
         return trustStore;
-    }
-
-    /**
-     * See {@link SignatureVerifier#verifySignature(Bytes, Bytes, PublicKey)}
-     */
-    public static boolean verifySignature(
-            @NonNull final Bytes data, @NonNull final Bytes signature, @NonNull final PublicKey publicKey) {
-        Objects.requireNonNull(data);
-        Objects.requireNonNull(signature);
-        Objects.requireNonNull(publicKey);
-        try {
-            return SigningFactory.createVerifier(publicKey).verify(data, signature);
-        } catch (final CryptographyException e) {
-            logger.error(LogMarker.EXCEPTION.getMarker(), "Exception occurred while validating a signature:", e);
-            return false;
-        }
     }
 
     /**
