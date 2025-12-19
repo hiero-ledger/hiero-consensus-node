@@ -3,7 +3,6 @@ package com.swirlds.platform.state;
 
 import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
-import com.swirlds.common.context.PlatformContext;
 import com.swirlds.platform.system.InitTrigger;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.state.MerkleNodeState;
@@ -12,7 +11,6 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.function.Consumer;
 import org.hiero.consensus.model.event.Event;
 import org.hiero.consensus.model.hashgraph.Round;
-import org.hiero.consensus.model.roster.AddressBook;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 
 /**
@@ -68,16 +66,6 @@ public interface ConsensusStateEventHandler<T extends MerkleNodeState> {
             @NonNull Platform platform,
             @NonNull InitTrigger trigger,
             @Nullable SemanticVersion previousVersion);
-
-    /**
-     * Called exclusively by platform test apps to update the weight of the address book. Should be removed
-     * as these apps are refactored to stop using {@link com.swirlds.platform.Browser}.
-     * @param state the working state of the network
-     * @param configAddressBook the address book used to configure the network
-     * @param context the current platform context
-     */
-    @Deprecated(forRemoval = true)
-    void onUpdateWeight(@NonNull T state, @NonNull AddressBook configAddressBook, @NonNull PlatformContext context);
 
     /**
      * Called when event stream recovery finishes.

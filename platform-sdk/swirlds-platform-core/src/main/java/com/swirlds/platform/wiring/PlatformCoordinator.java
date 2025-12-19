@@ -71,7 +71,6 @@ public record PlatformCoordinator(@NonNull PlatformComponents components, @NonNu
         // whether to change the order of these lines.
 
         components.eventIntakeModule().flush();
-        components.internalEventValidatorWiring().flush();
         components.eventDeduplicatorWiring().flush();
         components.eventSignatureValidatorWiring().flush();
         components.orphanBufferWiring().flush();
