@@ -1,8 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.state;
 
+import com.hedera.hapi.block.stream.MerklePath;
+import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.node.app.spi.state.BlockProvenSnapshot;
 import com.hedera.node.app.spi.state.BlockProvenSnapshotProvider;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.MerkleNodeState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Optional;
@@ -21,12 +24,19 @@ public final class BlockProvenStateAccessor implements BlockProvenSnapshotProvid
     public BlockProvenStateAccessor() {}
 
     /**
-     * Updates the cached immutable state snapshot.
+     * Updates all block-related data needed to produce a state proof, e.g. the cached immutable state snapshot
      *
      * @param state the sealed state snapshot (must be immutable)
+     * @param tssSignature the TSS signature for the block
+     * @param blockTimestamp the timestamp of the block
+     * @param path the <i>partial</i> Merkle path from the state's subroot to the block root
      */
-    public synchronized void update(@NonNull final MerkleNodeState state) {
-        this.snapshot = new BasicSnapshot(state);
+    public synchronized void update(
+            @NonNull final MerkleNodeState state,
+            @NonNull final Bytes tssSignature,
+            @NonNull final Timestamp blockTimestamp,
+            @NonNull final MerklePath path) {
+        this.snapshot = new BlockSignedSnapshot(state, tssSignature, blockTimestamp, path);
     }
 
     /**
@@ -48,5 +58,10 @@ public final class BlockProvenStateAccessor implements BlockProvenSnapshotProvid
         return Optional.ofNullable(snapshot).map(BlockProvenSnapshot::merkleState);
     }
 
-    private record BasicSnapshot(@NonNull MerkleNodeState merkleState) implements BlockProvenSnapshot {}
+    private record BlockSignedSnapshot(
+            @NonNull MerkleNodeState merkleState,
+            @NonNull Bytes tssSignature,
+            @NonNull Timestamp blockTimestamp,
+            @NonNull MerklePath path)
+            implements BlockProvenSnapshot {}
 }

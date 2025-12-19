@@ -7,7 +7,10 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.hedera.hapi.block.stream.MerklePath;
+import com.hedera.hapi.block.stream.SiblingNode;
 import com.hedera.hapi.block.stream.StateProof;
+import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.node.app.spi.state.BlockProvenSnapshotProvider;
 import com.hedera.node.app.state.BlockProvenStateAccessor;
 import com.hedera.node.config.data.ClprConfig;
@@ -15,6 +18,9 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.test.fixtures.merkle.VirtualMapStateTestUtils;
+import java.util.List;
+import java.util.Optional;
+import org.assertj.core.api.Assertions;
 import org.hiero.hapi.interledger.clpr.ClprSetLedgerConfigurationTransactionBody;
 import org.hiero.hapi.interledger.state.clpr.ClprLedgerConfiguration;
 import org.hiero.hapi.interledger.state.clpr.ClprLedgerId;
@@ -27,6 +33,29 @@ import org.junit.jupiter.api.Test;
 
 class ClprStateProofManagerTest extends ClprTestBase {
 
+    private static final Bytes CONSENSUS_HEADERS_SUBROOT =
+            Bytes.fromBase64("VfWIxMsdxx8xeKKwBtgcV0YwwDF6OHsZrEU0lEUPc63PXxb6H1/X7l+VkTXC2YPT");
+    private static final List<SiblingNode> SIBLING_HASHES = List.of(
+            SiblingNode.newBuilder()
+                    .isLeft(true)
+                    .hash(Bytes.fromBase64("j8MEzU5/P58u3UzlwT+L3282wAfz82X67fujxEgZwmoQ9I9y9zBumyAStcvqtxXD"))
+                    .build(),
+            SiblingNode.newBuilder()
+                    .isLeft(false)
+                    .hash(Bytes.fromBase64("CFZyFyEOYlz1fqEc+HXUYSUt7YSChUHzv6utlcEPWOPdNjg++22l6ECH+U9+eaHy"))
+                    .build(),
+            SiblingNode.newBuilder()
+                    .isLeft(true)
+                    .hash(Bytes.fromBase64("8UYblZBFz3RuOqUJmjlaodmiBmDcpZgnTQItWxOBWYPhTmw3UOcn7RkKNhSG12ve"))
+                    .build());
+    public static final MerklePath STATE_SUBROOT_MERKLE_PATH = MerklePath.newBuilder()
+            .hash(CONSENSUS_HEADERS_SUBROOT)
+            .siblings(SIBLING_HASHES)
+            .build();
+    public static final Bytes TSS_SIGNATURE = Bytes.fromHex("AAAAAABBBBBBAAAAABBBBB");
+    public static final Timestamp BLOCK_TIMESTAMP =
+            Timestamp.newBuilder().seconds(1764665134).nanos(146615000).build();
+
     private ClprStateProofManager manager;
     private BlockProvenStateAccessor snapshotProvider;
     private VirtualMapState testState;
@@ -37,7 +66,7 @@ class ClprStateProofManagerTest extends ClprTestBase {
         setupBase();
         testState = buildMerkleStateWithConfigurations(configurationMap);
         snapshotProvider = new BlockProvenStateAccessor();
-        snapshotProvider.update(testState);
+        snapshotProvider.update(testState, TSS_SIGNATURE, BLOCK_TIMESTAMP, STATE_SUBROOT_MERKLE_PATH);
         // Create dev mode config for testing
         devModeConfig = new ClprConfig(true, 5000, true, true);
         manager = new ClprStateProofManager(snapshotProvider, devModeConfig);
@@ -66,11 +95,30 @@ class ClprStateProofManagerTest extends ClprTestBase {
     void getLocalLedgerIdReturnsEmptyWhenLedgerIdMissing() {
         final var emptyState = buildMerkleStateWithConfigurations(java.util.Map.of());
         final var emptyAccessor = new BlockProvenStateAccessor();
-        emptyAccessor.update(emptyState);
+        emptyAccessor.update(emptyState, TSS_SIGNATURE, BLOCK_TIMESTAMP, STATE_SUBROOT_MERKLE_PATH);
         final var managerWithMissingLedgerId = new ClprStateProofManager(emptyAccessor, devModeConfig);
         final var ledgerId = managerWithMissingLedgerId.getLocalLedgerId();
         assertNotNull(ledgerId);
         assertEquals(ClprLedgerId.DEFAULT, ledgerId);
+    }
+
+    @Test
+    void getLedgerConfigurationThrowsWhenBlockSignatureMetadataMissing() {
+        final var someLedgerId = ClprLedgerId.newBuilder()
+                .ledgerId(Bytes.fromHex("123456abcdef"))
+                .build();
+
+        snapshotProvider.update(testState, Bytes.EMPTY, BLOCK_TIMESTAMP, STATE_SUBROOT_MERKLE_PATH);
+        Assertions.assertThatThrownBy(() -> manager.getLedgerConfiguration(someLedgerId))
+                .isInstanceOf(IllegalStateException.class);
+
+        snapshotProvider.update(testState, TSS_SIGNATURE, Timestamp.DEFAULT, STATE_SUBROOT_MERKLE_PATH);
+        Assertions.assertThatThrownBy(() -> manager.getLedgerConfiguration(someLedgerId))
+                .isInstanceOf(IllegalStateException.class);
+
+        snapshotProvider.update(testState, TSS_SIGNATURE, BLOCK_TIMESTAMP, MerklePath.DEFAULT);
+        Assertions.assertThatThrownBy(() -> manager.getLedgerConfiguration(someLedgerId))
+                .isInstanceOf(IllegalStateException.class);
     }
 
     @Test
@@ -82,7 +130,7 @@ class ClprStateProofManagerTest extends ClprTestBase {
 
     @Test
     void getLedgerConfigurationReturnsNullWhenStateUnavailable() {
-        final BlockProvenSnapshotProvider emptyProvider = () -> java.util.Optional.empty();
+        final BlockProvenSnapshotProvider emptyProvider = Optional::empty;
         final var emptyManager = new ClprStateProofManager(emptyProvider, devModeConfig);
         assertNull(emptyManager.getLedgerConfiguration(remoteClprLedgerId));
     }
