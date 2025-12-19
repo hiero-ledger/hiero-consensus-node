@@ -640,7 +640,7 @@ public class HapiSpecSetup {
     }
 
     public AccountID feeCollectorAccount() {
-        return asAccount(shard(), realm(), 802);
+        return asAccount(shard(), realm(), 802L);
     }
 
     public String nodeRewardAccountName() {

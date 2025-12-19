@@ -5,11 +5,11 @@ import static com.swirlds.platform.test.fixtures.PlatformStateUtils.randomPlatfo
 import static com.swirlds.state.test.fixtures.merkle.VirtualMapStateTestUtils.createTestState;
 
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
-import com.swirlds.platform.crypto.CryptoStatic;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.state.MerkleNodeState;
 import java.util.Random;
 import org.hiero.base.crypto.test.fixtures.CryptoRandomUtils;
+import org.hiero.consensus.crypto.ConsensusCryptoUtils;
 
 public class SignedStateUtils {
 
@@ -24,7 +24,7 @@ public class SignedStateUtils {
         boolean shouldSaveToDisk = random.nextBoolean();
         SignedState signedState = new SignedState(
                 TestPlatformContextBuilder.create().build().getConfiguration(),
-                CryptoStatic::verifySignature,
+                ConsensusCryptoUtils::verifySignature,
                 root,
                 "test",
                 shouldSaveToDisk,

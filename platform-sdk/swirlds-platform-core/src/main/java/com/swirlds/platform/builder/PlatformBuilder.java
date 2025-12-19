@@ -5,6 +5,8 @@ import static com.swirlds.common.io.utility.FileUtils.getAbsolutePath;
 import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticThreadManager;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
+import static com.swirlds.platform.builder.ConsensusModuleBuilder.createEventCreatorModule;
+import static com.swirlds.platform.builder.ConsensusModuleBuilder.createEventIntakeModule;
 import static com.swirlds.platform.builder.PlatformBuildConstants.DEFAULT_CONFIG_FILE_NAME;
 import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.doStaticSetup;
 import static com.swirlds.platform.config.internal.PlatformConfigUtils.checkConfiguration;
@@ -24,7 +26,6 @@ import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.component.framework.model.WiringModelBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.SwirldsPlatform;
-import com.swirlds.platform.crypto.CryptoStatic;
 import com.swirlds.platform.event.preconsensus.PcesConfig;
 import com.swirlds.platform.event.preconsensus.PcesFileReader;
 import com.swirlds.platform.event.preconsensus.PcesFileTracker;
@@ -50,7 +51,6 @@ import java.lang.Thread.UncaughtExceptionHandler;
 import java.nio.file.Path;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
-import java.util.ServiceLoader;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -61,6 +61,7 @@ import org.hiero.base.concurrent.BlockingResourceProvider;
 import org.hiero.base.concurrent.ExecutorFactory;
 import org.hiero.base.crypto.CryptoUtils;
 import org.hiero.base.crypto.Signature;
+import org.hiero.consensus.crypto.ConsensusCryptoUtils;
 import org.hiero.consensus.crypto.PlatformSigner;
 import org.hiero.consensus.event.IntakeEventCounter;
 import org.hiero.consensus.event.creator.EventCreatorModule;
@@ -324,7 +325,7 @@ public final class PlatformBuilder {
         final String testString = "testString";
         final Bytes testBytes = Bytes.wrap(testString.getBytes());
         final Signature signature = platformSigner.sign(testBytes.toByteArray());
-        if (!CryptoStatic.verifySignature(
+        if (!ConsensusCryptoUtils.verifySignature(
                 testBytes, signature.getBytes(), keysAndCerts.sigCert().getPublicKey())) {
             throw new IllegalStateException("The signing certificate does not match the signing private key.");
         }
@@ -384,9 +385,7 @@ public final class PlatformBuilder {
 
     private void initializeEventCreatorModule() {
         if (this.eventCreatorModule == null) {
-            this.eventCreatorModule = ServiceLoader.load(EventCreatorModule.class)
-                    .findFirst()
-                    .orElseThrow(() -> new IllegalStateException("No EventCreatorModule implementation found!"));
+            this.eventCreatorModule = createEventCreatorModule();
         }
 
         eventCreatorModule.initialize(
@@ -419,9 +418,7 @@ public final class PlatformBuilder {
             @NonNull final IntakeEventCounter intakeEventCounter,
             @Nullable final EventPipelineTracker pipelineTracker) {
         if (this.eventIntakeModule == null) {
-            this.eventIntakeModule = ServiceLoader.load(EventIntakeModule.class)
-                    .findFirst()
-                    .orElseThrow(() -> new IllegalStateException("No EventIntakeModule implementation found!"));
+            this.eventIntakeModule = createEventIntakeModule();
         }
 
         eventIntakeModule.initialize(
