@@ -52,10 +52,10 @@ public class ValidateLeafIndexHalfDiskHashMap {
             return;
         }
 
-        log.debug(vds.getHashStoreDisk().getFilesSizeStatistics());
+        log.debug(vds.getHashChunkStore().getFilesSizeStatistics());
 
         final var hdhm = new HalfDiskHashMapAccessor(vds.getKeyToPath());
-        final var leafStore = new MemoryIndexDiskKeyValueStoreAccessor(vds.getPathToKeyValue());
+        final var leafStore = new MemoryIndexDiskKeyValueStoreAccessor(vds.getKeyValueStore());
         final var pathToDiskLocationLeafNodes = vds.getPathToDiskLocationLeafNodes();
         final var dfc = hdhm.getFileCollection();
         final var leafStoreDFC = leafStore.getFileCollection();

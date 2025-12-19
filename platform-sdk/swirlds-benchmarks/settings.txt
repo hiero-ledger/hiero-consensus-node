@@ -7,4 +7,3 @@ benchmark.csvOutputFolder,                     data
 benchmark.csvWriteFrequency,                   1000
 benchmark.csvAppend,                           true
 virtualMap.familyThrottleThreshold,            10000000000
-merkleDb.hashesRamToDiskThreshold,             8388608

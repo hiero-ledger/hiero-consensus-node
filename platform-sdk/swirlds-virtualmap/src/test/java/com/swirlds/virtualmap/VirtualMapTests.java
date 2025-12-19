@@ -1041,7 +1041,6 @@ class VirtualMapTests extends VirtualTestBase {
     @Test
     @DisplayName("If there are no dirty leaves, previous copy's root hash is used")
     void emptyDirtyLeavesResultInHashFromPreviousCopy() throws InterruptedException {
-        final InMemoryDataSource ds = new InMemoryDataSource("emptyDirtyLeavesResultInHashFromPreviousCopy");
         final VirtualDataSourceBuilder builder = new InMemoryBuilder();
 
         final VirtualMap vm = new VirtualMap(builder, CONFIGURATION);

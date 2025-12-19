@@ -12,9 +12,7 @@ import com.swirlds.common.io.utility.LegacyTemporaryFileBuilder;
 import com.swirlds.common.merkle.MerkleInternal;
 import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.virtualmap.VirtualMap;
-import com.swirlds.virtualmap.config.VirtualMapConfig;
 import com.swirlds.virtualmap.datasource.VirtualDataSource;
-import com.swirlds.virtualmap.internal.cache.VirtualNodeCache;
 import com.swirlds.virtualmap.internal.merkle.VirtualMapMetadata;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -43,9 +41,6 @@ class MerkleDbBuilderTest {
         registry.registerConstructables("com.swirlds.merkledb");
         registry.registerConstructables("com.swirlds.virtualmap");
         registry.registerConstructable(new ClassConstructorPair(VirtualMap.class, () -> new VirtualMap(CONFIGURATION)));
-        registry.registerConstructable(new ClassConstructorPair(
-                VirtualNodeCache.class,
-                () -> new VirtualNodeCache(CONFIGURATION.getConfigData(VirtualMapConfig.class))));
     }
 
     @AfterEach
@@ -63,7 +58,7 @@ class MerkleDbBuilderTest {
         for (int i = 0; i < MAPS_COUNT; i++) {
             final VirtualMap vm = stateRoot.getChild(i);
             final VirtualMapMetadata state = vm.getMetadata();
-            for (int path = 0; path <= state.getLastLeafPath(); path++) {
+            for (int path = 1; path <= state.getLastLeafPath(); path++) {
                 final Hash hash = vm.getRecords().findHash(path);
                 assertNotNull(hash);
             }
@@ -82,7 +77,6 @@ class MerkleDbBuilderTest {
             assertTrue(dataSource instanceof MerkleDbDataSource);
             MerkleDbDataSource merkleDbDataSource = (MerkleDbDataSource) dataSource;
             assertEquals(initialCapacity, merkleDbDataSource.getInitialCapacity());
-            assertEquals(hashesRamToDiskThreshold, merkleDbDataSource.getHashesRamToDiskThreshold());
         } finally {
             if (dataSource != null) {
                 dataSource.close();
@@ -139,7 +133,6 @@ class MerkleDbBuilderTest {
                 assertNotNull(restored);
                 assertInstanceOf(MerkleDbDataSource.class, restored);
                 final MerkleDbDataSource merkleDbRestored = (MerkleDbDataSource) restored;
-                assertEquals(hashesRamToDiskThreshold, merkleDbRestored.getHashesRamToDiskThreshold());
             } finally {
                 restored.close();
             }

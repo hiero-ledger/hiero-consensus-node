@@ -4,6 +4,7 @@ package com.swirlds.merkledb;
 import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyEquals;
 import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyTrue;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.CONFIGURATION;
+import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.createHashChunkStream;
 import static com.swirlds.merkledb.test.fixtures.MerkleDbTestUtils.runTaskAndCleanThreadLocals;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -18,7 +19,6 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.IntStream;
@@ -61,7 +61,7 @@ class CompactionInterruptTest {
         final Path storeDir = tmpFileDir.resolve("startMergeThenInterruptImpl");
         String tableName = "mergeThenInterrupt";
         final MerkleDbDataSource dataSource =
-                TestType.variable_variable.dataType().createDataSource(storeDir, tableName, COUNT, 0, false, false);
+                TestType.variable_variable.dataType().createDataSource(storeDir, tableName, COUNT, false, false);
         final MerkleDbCompactionCoordinator coordinator = dataSource.getCompactionCoordinator();
 
         try {
@@ -69,9 +69,9 @@ class CompactionInterruptTest {
             createData(dataSource);
             coordinator.enableBackgroundCompaction();
             // start compaction
-            coordinator.compactIfNotRunningYet("hashStoreDisk", dataSource.newHashStoreDiskCompactor());
+            coordinator.compactIfNotRunningYet("idToHashChunk", dataSource.newHashChunkStoreCompactor());
             coordinator.compactIfNotRunningYet("keyToPath", dataSource.newKeyToPathCompactor());
-            coordinator.compactIfNotRunningYet("pathToKeyValue", dataSource.newPathToKeyValueCompactor());
+            coordinator.compactIfNotRunningYet("pathToKeyValue", dataSource.newKeyValueStoreCompactor());
             // wait a small-time for merging to start
             MILLISECONDS.sleep(20);
             stopCompactionAndVerifyItsStopped(tableName, coordinator);
@@ -105,7 +105,7 @@ class CompactionInterruptTest {
         final Path storeDir = tmpFileDir.resolve("startMergeWhileSnapshottingThenInterruptImpl");
         String tableName = "mergeWhileSnapshotting";
         final MerkleDbDataSource dataSource =
-                TestType.variable_variable.dataType().createDataSource(storeDir, tableName, COUNT, 0, false, false);
+                TestType.variable_variable.dataType().createDataSource(storeDir, tableName, COUNT, false, false);
         final MerkleDbCompactionCoordinator coordinator = dataSource.getCompactionCoordinator();
 
         final ExecutorService exec = Executors.newCachedThreadPool();
@@ -126,9 +126,9 @@ class CompactionInterruptTest {
             // we should take into account previous test runs
             long initTaskCount = compactingExecutor.getTaskCount();
             // start compaction for all three storages
-            coordinator.compactIfNotRunningYet("hashStoreDisk", dataSource.newHashStoreDiskCompactor());
+            coordinator.compactIfNotRunningYet("idToHashChunk", dataSource.newHashChunkStoreCompactor());
             coordinator.compactIfNotRunningYet("keyToPath", dataSource.newKeyToPathCompactor());
-            coordinator.compactIfNotRunningYet("pathToKeyValue", dataSource.newPathToKeyValueCompactor());
+            coordinator.compactIfNotRunningYet("pathToKeyValue", dataSource.newKeyValueStoreCompactor());
 
             assertEventuallyEquals(
                     initTaskCount + 3L,
@@ -141,7 +141,7 @@ class CompactionInterruptTest {
         } finally {
             dataSource.close();
             exec.shutdown();
-            assertTrue(exec.awaitTermination(30, TimeUnit.SECONDS), "Should not timeout");
+            assertTrue(exec.awaitTermination(5, TimeUnit.SECONDS), "Should not timeout");
         }
         return true;
     }
@@ -156,7 +156,7 @@ class CompactionInterruptTest {
         final DataFileCompactor pathToKeyValueCompactor;
         final DataFileCompactor objectKeyToPathCompactor;
         synchronized (compactor) {
-            hashStoreCompactor = compactor.compactorsByName.get("hashStoreDisk");
+            hashStoreCompactor = compactor.compactorsByName.get("idToHashChunk");
             pathToKeyValueCompactor = compactor.compactorsByName.get("pathToKeyValue");
             objectKeyToPathCompactor = compactor.compactorsByName.get("keyToPath");
         }
@@ -202,10 +202,6 @@ class CompactionInterruptTest {
                         .formatted(compactingExecutor.getCompletedTaskCount(), expectedTaskCount));
     }
 
-    private static void assertFutureCancelled(Future<Boolean> hashStoreDiskFuture, String message) {
-        assertEventuallyTrue(hashStoreDiskFuture::isCancelled, Duration.ofMillis(10), message);
-    }
-
     private void createData(final MerkleDbDataSource dataSource) throws IOException {
         final int count = COUNT / 10;
         for (int batch = 0; batch < 10; batch++) {
@@ -215,7 +211,7 @@ class CompactionInterruptTest {
             dataSource.saveRecords(
                     COUNT,
                     lastLeafPath,
-                    IntStream.range(start, end).mapToObj(MerkleDbDataSourceTest::createVirtualInternalRecord),
+                    createHashChunkStream(start, end - 1, i -> i, dataSource.getHashChunkHeight()),
                     IntStream.range(COUNT + start, COUNT + end)
                             .mapToObj(i -> TestType.variable_variable.dataType().createVirtualLeafRecord(i)),
                     Stream.empty(),

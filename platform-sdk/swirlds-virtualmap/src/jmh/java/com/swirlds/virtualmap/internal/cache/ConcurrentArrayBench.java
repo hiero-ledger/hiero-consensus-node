@@ -91,7 +91,7 @@ public class ConcurrentArrayBench {
     @Benchmark
     public void benchmarkParallelTraverse() throws ExecutionException, InterruptedException {
         concurrentArray.seal();
-        concurrentArray.parallelTraverse(executor, l -> {}).get();
+        concurrentArray.parallelTraverse(executor, (i, l) -> {}).get();
     }
 
     @Benchmark
@@ -100,7 +100,7 @@ public class ConcurrentArrayBench {
         List<Future<?>> futures = new ArrayList<>();
         futures.add(executor.submit(() -> concurrentArray.stream()));
         futures.add(executor.submit(() -> concurrentArray.stream()));
-        concurrentArray.parallelTraverse(executor, i -> {}).get();
+        concurrentArray.parallelTraverse(executor, (i, l) -> {}).get();
         for (Future<?> f : futures) {
             f.get();
         }
