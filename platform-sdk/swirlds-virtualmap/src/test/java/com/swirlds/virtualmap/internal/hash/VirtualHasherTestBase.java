@@ -71,8 +71,8 @@ public class VirtualHasherTestBase extends VirtualTestBase {
     }
 
     @SuppressWarnings("rawtypes")
-    protected static List<VirtualLeafBytes> dirtyNodes(final TestDataSource ds, final Stream<Long> dirtyPaths) {
-        return dirtyPaths.map(ds::getLeaf).collect(Collectors.toList());
+    protected static List<VirtualLeafBytes> invalidateNodes(final TestDataSource ds, final Stream<Long> dirtyPaths) {
+        return dirtyPaths.peek(l -> ds.setHash(l, new Hash())).map(ds::getLeaf).collect(Collectors.toList());
     }
 
     protected static VirtualHashRecord hashSubTree(
@@ -141,6 +141,10 @@ public class VirtualHasherTestBase extends VirtualTestBase {
             return chunks.get(chunkPath);
         }
 
+        void updateHashChunk(final VirtualHashChunk chunk) {
+            chunks.put(chunk.path(), chunk);
+        }
+
         VirtualLeafBytes<TestValue> getLeaf(final long path) {
             if (path < firstLeafPath || path > lastLeafPath) {
                 return null;
@@ -156,27 +160,16 @@ public class VirtualHasherTestBase extends VirtualTestBase {
                 return;
             }
             final int pathRank = Path.getRank(path);
-            if (pathRank % hashChunkHeight != 0) {
-                if (Path.getRightChildPath(path) <= lastLeafPath) {
-                    return;
-                }
+            final boolean isLeaf = (path >= firstLeafPath) && (path <= lastLeafPath);
+            if ((pathRank % hashChunkHeight != 0) && !isLeaf) {
+                return;
             }
             final long chunkPath = VirtualHashChunk.pathToChunkPath(path, hashChunkHeight);
             chunks.compute(chunkPath, (p, chunk) -> {
                 if (chunk == null) {
-                    int h = pathRank % hashChunkHeight;
-                    if (h == 0) {
-                        h = hashChunkHeight;
-                    }
-                    chunk = new VirtualHashChunk(chunkPath, h, hashChunkHeight);
+                    chunk = new VirtualHashChunk(chunkPath, hashChunkHeight);
                 }
-                final int chunkRank = Path.getRank(chunkPath);
-                if (pathRank == chunkRank + chunk.height()) {
-                    chunk.setHashAtPath(path, hash);
-                } else {
-                    assert pathRank == chunkRank + chunk.height() - 1;
-                    chunk.setHashAtPath(Path.getLeftChildPath(path), hash);
-                }
+                chunk.setHashAtPath(path, hash);
                 return chunk;
             });
         }

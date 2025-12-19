@@ -85,7 +85,7 @@ class ReconnectHashListenerTest {
         final ReconnectHashListener listener = new ReconnectHashListener(flusher);
         final VirtualHasher hasher = new VirtualHasher();
         final LongFunction<VirtualHashChunk> chunkPreloader = path -> {
-            final long chunkId = VirtualHashChunk.pathToChunkId(path, hashChunkHeight);
+            final long chunkId = VirtualHashChunk.chunkPathToChunkId(path, hashChunkHeight);
             final long chunkPath = VirtualHashChunk.chunkIdToChunkPath(chunkId, hashChunkHeight);
             return new VirtualHashChunk(chunkPath, hashChunkHeight);
         };

@@ -81,7 +81,7 @@ public final class VirtualMapTestUtils {
         if (hashChunk == null) {
             return null;
         }
-        return hashChunk.getHashAtPath(path);
+        return hashChunk.calcHash(path, dataSource.getFirstLeafPath(), dataSource.getLastLeafPath());
     }
 
     public static Stream<VirtualHashChunk> createHashChunkStream(

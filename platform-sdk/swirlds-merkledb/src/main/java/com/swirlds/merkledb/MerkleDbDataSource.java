@@ -514,9 +514,10 @@ public final class MerkleDbDataSource implements VirtualDataSource {
                 final long chunkPath = VirtualHashChunk.chunkIdToChunkPath(chunkId, hashChunkHeight);
                 final VirtualHashChunk chunk = new VirtualHashChunk(chunkPath, hashChunkHeight);
                 for (int i = 0; i < chunkSize; i++) {
-                    final long path = VirtualHashChunk.getPathInChunk(i, chunkPath, hashChunkHeight);
-                    if (path > getLastLeafPath()) {
-                        continue;
+                    long path = VirtualHashChunk.getPathInChunk(i, chunkPath, hashChunkHeight);
+                    while (path > getLastLeafPath()) {
+                        // get parent path
+                        path = (path - 1) / 2;
                     }
                     final Hash hash;
                     if (path < hashesRamToDiskThreshold) {

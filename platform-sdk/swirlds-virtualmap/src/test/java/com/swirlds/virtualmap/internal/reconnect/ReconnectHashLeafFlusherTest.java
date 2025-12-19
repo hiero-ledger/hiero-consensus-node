@@ -105,10 +105,16 @@ public class ReconnectHashLeafFlusherTest {
         flusher.finish();
         assertEquals(COUNT - 1, ds.getFirstLeafPath());
         assertEquals(COUNT * 2 - 2, ds.getLastLeafPath());
-        for (int i = 1; i < COUNT * 2 - 1; i++) {
-            assertEquals(hash(i + 2), VirtualMapTestUtils.loadHash(ds, i, hashChunkHeight));
+        for (int i = 0; i <= minHashChunkId; i++) {
+            final VirtualHashChunk chunk = ds.loadHashChunk(i);
+            assertNotNull(chunk);
+            for (int j = 0; j < chunk.getChunkSize(); j++) {
+                final long path = chunk.getPath(j);
+                final Hash hash = chunk.getHashAtPath(path);
+                assertEquals(hash((int) path + 2), hash);
+            }
         }
-        assertNull(VirtualMapTestUtils.loadHash(ds, COUNT * 2, hashChunkHeight));
+        assertNull(ds.loadHashChunk(minHashChunkId + 1));
     }
 
     @ParameterizedTest

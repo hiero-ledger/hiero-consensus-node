@@ -171,6 +171,7 @@ public class MerkleDbTestUtils {
             final int maxPathInc,
             final Function<Integer, Integer> valueFunction,
             final int hashChunkHeight) {
+        final int firstLeafPath = maxPathInc / 2;
         final Map<Long, VirtualHashChunk> chunks = new HashMap<>();
         for (int i = minPathInc; i <= maxPathInc; i++) {
             if (i == 0) {
@@ -184,7 +185,11 @@ public class MerkleDbTestUtils {
                         VirtualHashChunk.chunkIdToChunkPath(chunkId, hashChunkHeight), hashChunkHeight);
                 chunks.put(chunkId, chunk);
             }
-            chunk.setHashAtPath(i, hash(valueFunction.apply(i)));
+            final boolean isLeaf = i >= firstLeafPath;
+            final int rank = com.swirlds.virtualmap.internal.Path.getRank(i);
+            if (isLeaf || (rank % hashChunkHeight == 0)) {
+                chunk.setHashAtPath(i, hash(valueFunction.apply(i)));
+            }
         }
         return chunks.values().stream().sorted(Comparator.comparingLong(VirtualHashChunk::path));
     }

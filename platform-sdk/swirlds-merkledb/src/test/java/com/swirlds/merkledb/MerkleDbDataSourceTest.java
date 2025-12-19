@@ -114,23 +114,32 @@ class MerkleDbDataSourceTest {
         MerkleDbTestUtils.assertAllDatabasesClosed();
         // create db
         final int count = 10_000;
+        final int firstLeafPath = count - 1;
+        final int lastLeafPath = firstLeafPath * 2;
         createAndApplyDataSource(testDirectory, tableName, testType, count, dataSource -> {
             // check db count
             MerkleDbTestUtils.assertSomeDatabasesStillOpen(1L);
 
+            final int hashChunkHeight = dataSource.getHashChunkHeight();
+
             // create some node hashes
             dataSource.saveRecords(
-                    count - 1,
-                    count * 2 - 2,
-                    createHashChunkStream(count * 2 - 1, dataSource.getHashChunkHeight()),
+                    firstLeafPath,
+                    lastLeafPath,
+                    createHashChunkStream(lastLeafPath, hashChunkHeight),
                     Stream.empty(),
                     Stream.empty(),
                     false);
 
             // check all the node hashes
-            for (int i = 1; i < count; i++) {
-                final var hash = VirtualMapTestUtils.loadHash(dataSource, i, dataSource.getHashChunkHeight());
-                assertEquals(hash(i), hash, "The hash for [" + i + "] should not have changed since it was created");
+            for (int i = 1; i < lastLeafPath + 1; i++) {
+                final boolean isLeaf = i >= firstLeafPath;
+                final int rank = com.swirlds.virtualmap.internal.Path.getRank(i);
+                if (isLeaf || (rank % hashChunkHeight == 0)) {
+                    final var hash = VirtualMapTestUtils.loadHash(dataSource, i, hashChunkHeight);
+                    assertEquals(hash(i), hash,
+                            "The hash for [" + i + "] should not have changed since it was created");
+                }
             }
 
             final IllegalArgumentException e = assertThrows(
@@ -184,15 +193,15 @@ class MerkleDbDataSourceTest {
             dataSource.saveRecords(
                     testSize,
                     testSize * 2,
-                    createHashChunkStream(testSize, chunkHeight),
+                    createHashChunkStream(1, testSize * 2, i -> i, chunkHeight),
                     Stream.empty(),
                     Stream.empty(),
                     false);
-            // Now update hashes to *10, one chunk first, then all remaining chunks
+            // Now update hashes to *10, some chunks first, then all remaining chunks
             dataSource.saveRecords(
                     testSize,
                     testSize * 2,
-                    createHashChunkStream(1, VirtualHashChunk.getChunkSize(chunkHeight), i -> i * 10, chunkHeight),
+                    createHashChunkStream(1, testSize / 10, i -> i * 10, chunkHeight),
                     Stream.empty(),
                     Stream.empty(),
                     false);
@@ -200,19 +209,21 @@ class MerkleDbDataSourceTest {
                     testSize,
                     testSize * 2,
                     createHashChunkStream(
-                            VirtualHashChunk.getChunkSize(chunkHeight) + 1, testSize, i -> i * 10, chunkHeight),
+                            testSize / 10 + 1, testSize * 2, i -> i * 10, chunkHeight),
                     Stream.empty(),
                     Stream.empty(),
                     false);
             // check all the node hashes
-            IntStream.range(1, testSize).forEach(i -> {
-                try {
-                    assertEquals(
-                            hash(i * 10),
-                            VirtualMapTestUtils.loadHash(dataSource, i, dataSource.getHashChunkHeight()),
-                            "Internal hashes should not have changed since they were created");
-                } catch (final IOException e) {
-                    throw new RuntimeException(e);
+            IntStream.range(1, testSize * 2 + 1).forEach(i -> {
+                if ((i >= testSize) || (com.swirlds.virtualmap.internal.Path.getRank(i) % chunkHeight == 0)) {
+                    try {
+                        assertEquals(
+                                hash(i * 10),
+                                VirtualMapTestUtils.loadHash(dataSource, i, dataSource.getHashChunkHeight()),
+                                "Internal hashes should not have changed since they were created");
+                    } catch (final IOException e) {
+                        throw new RuntimeException(e);
+                    }
                 }
             });
         });
@@ -222,18 +233,20 @@ class MerkleDbDataSourceTest {
     @EnumSource(TestType.class)
     void createAndCheckLeaves(final TestType testType) throws IOException {
         final int count = 10_000;
+        final int firstLeafPath = count - 1;
+        final int lastLeafPath = firstLeafPath * 2;
         createAndApplyDataSource(testDirectory, "test3", testType, count, dataSource -> {
             // create some leaves
             dataSource.saveRecords(
-                    count - 1,
-                    count * 2 - 2,
-                    createHashChunkStream(count - 1, count * 2 - 1, i -> i, dataSource.getHashChunkHeight()),
+                    firstLeafPath,
+                    lastLeafPath,
+                    createHashChunkStream(firstLeafPath, lastLeafPath, i -> i, dataSource.getHashChunkHeight()),
                     IntStream.range(count - 1, count * 2 - 1)
                             .mapToObj(i -> testType.dataType().createVirtualLeafRecord(i)),
                     Stream.empty(),
                     false);
             // check all the leaf data
-            IntStream.range(count - 1, count * 2 - 1).forEach(i -> assertLeaf(testType, dataSource, i, i));
+            IntStream.range(firstLeafPath, lastLeafPath + 1).forEach(i -> assertLeaf(testType, dataSource, i, i));
 
             // invalid path should throw an exception
             assertThrows(
@@ -253,28 +266,27 @@ class MerkleDbDataSourceTest {
     @ParameterizedTest
     @EnumSource(TestType.class)
     void updateLeaves(final TestType testType) throws IOException, InterruptedException {
-        final int incFirstLeafPath = 1;
-        final int exclLastLeafPath = 1001;
+        final int firstLeafPath = 499;
+        final int lastLeafPath = 998;
 
-        createAndApplyDataSource(testDirectory, "test4", testType, exclLastLeafPath - incFirstLeafPath, dataSource -> {
+        createAndApplyDataSource(testDirectory, "test4", testType, lastLeafPath - firstLeafPath + 1, dataSource -> {
             // create some leaves
             dataSource.saveRecords(
-                    incFirstLeafPath,
-                    exclLastLeafPath,
+                    firstLeafPath,
+                    lastLeafPath,
                     createHashChunkStream(
-                            incFirstLeafPath, exclLastLeafPath - 1, i -> i, dataSource.getHashChunkHeight()),
-                    IntStream.range(incFirstLeafPath, exclLastLeafPath)
+                            firstLeafPath, lastLeafPath, i -> i, dataSource.getHashChunkHeight()),
+                    IntStream.range(firstLeafPath, lastLeafPath + 1)
                             .mapToObj(i -> testType.dataType().createVirtualLeafRecord(i)),
                     Stream.empty(),
                     false);
             // check all the leaf data
-            IntStream.range(incFirstLeafPath, exclLastLeafPath).forEach(i -> assertLeaf(testType, dataSource, i, i));
+            IntStream.range(firstLeafPath, lastLeafPath + 1).forEach(i -> assertLeaf(testType, dataSource, i, i));
             // update all to i+10,000 in a random order
-            final int[] randomInts = shuffle(
-                    RANDOM, IntStream.range(incFirstLeafPath, exclLastLeafPath).toArray());
+            final int[] randomInts = shuffle(RANDOM, IntStream.range(firstLeafPath, lastLeafPath + 1).toArray());
             dataSource.saveRecords(
-                    incFirstLeafPath,
-                    exclLastLeafPath,
+                    firstLeafPath,
+                    lastLeafPath,
                     Stream.empty(),
                     Arrays.stream(randomInts)
                             .mapToObj(i -> testType.dataType().createVirtualLeafRecord(i, i, i + 10_000))
@@ -286,26 +298,26 @@ class MerkleDbDataSourceTest {
                     testType.dataType().createVirtualLeafRecord(100, 100, 100 + 10_000),
                     "same call to createVirtualLeafRecord returns different results");
             // check all the leaf data
-            IntStream.range(incFirstLeafPath, exclLastLeafPath)
+            IntStream.range(firstLeafPath, lastLeafPath + 1)
                     .forEach(i -> assertLeaf(testType, dataSource, i, i, i, i + 10_000));
             // delete a couple leaves
             dataSource.saveRecords(
-                    incFirstLeafPath,
-                    exclLastLeafPath,
+                    firstLeafPath,
+                    lastLeafPath,
                     Stream.empty(),
                     Stream.empty(),
-                    IntStream.range(incFirstLeafPath + 10, incFirstLeafPath + 20)
+                    IntStream.range(firstLeafPath + 10, firstLeafPath + 20 + 1)
                             .mapToObj(i -> testType.dataType().createVirtualLeafRecord(i)),
                     false);
             // check deleted items are no longer there
-            for (int i = (incFirstLeafPath + 10); i < (incFirstLeafPath + 20); i++) {
+            for (int i = (firstLeafPath + 10); i < (firstLeafPath + 20 + 1); i++) {
                 final Bytes key = testType.dataType().createVirtualLongKey(i);
                 assertEqualsAndPrint(null, dataSource.loadLeafRecord(key));
             }
             // check all remaining leaf data
-            IntStream.range(incFirstLeafPath, incFirstLeafPath + 10)
+            IntStream.range(firstLeafPath, firstLeafPath + 10)
                     .forEach(i -> assertLeaf(testType, dataSource, i, i, i, i + 10_000));
-            IntStream.range(incFirstLeafPath + 21, exclLastLeafPath)
+            IntStream.range(firstLeafPath + 21, lastLeafPath + 1)
                     .forEach(i -> assertLeaf(testType, dataSource, i, i, i, i + 10_000));
         });
     }
@@ -313,8 +325,8 @@ class MerkleDbDataSourceTest {
     @ParameterizedTest
     @EnumSource(TestType.class)
     void moveLeaf(final TestType testType) throws IOException {
-        final int incFirstLeafPath = 1;
-        final int exclLastLeafPath = 1001;
+        final int incFirstLeafPath = 499;
+        final int exclLastLeafPath = 998;
 
         createAndApplyDataSource(testDirectory, "test5", testType, exclLastLeafPath - 1, dataSource -> {
             // create some leaves
@@ -327,31 +339,29 @@ class MerkleDbDataSourceTest {
                             .mapToObj(i -> testType.dataType().createVirtualLeafRecord(i)),
                     Stream.empty(),
                     false);
-            // check 250 and 500
-            assertLeaf(testType, dataSource, 250, 250);
+            // check 500 and 800
             assertLeaf(testType, dataSource, 500, 500);
-            // move a leaf from 500 to 250, under new API there is no move as such, so we just write 500 leaf at 250
-            // path
+            assertLeaf(testType, dataSource, 800, 800);
+            // move a leaf from 500 to 750, under new API there is no move as such, so we just write leaf 500
+            // at path 750
 
-            final VirtualHashRecord vir500 = new VirtualHashRecord(
-                    testType.dataType().createVirtualInternalRecord(250).path(), hash(500));
             final VirtualLeafBytes vlr500 =
-                    testType.dataType().createVirtualLeafRecord(500).withPath(250);
+                    testType.dataType().createVirtualLeafRecord(500).withPath(750);
             dataSource.saveRecords(
                     incFirstLeafPath,
                     exclLastLeafPath,
-                    createHashChunkStream(250, 250, i -> 500, dataSource.getHashChunkHeight()),
+                    createHashChunkStream(750, 750, i -> 500, dataSource.getHashChunkHeight()),
                     Stream.of(vlr500),
                     Stream.empty(),
                     false);
 
-            // check 250 now has 500's data
+            // check 750 now has 500's data
             assertLeaf(testType, dataSource, 700, 700);
             assertEquals(
                     testType.dataType().createVirtualLeafRecord(500, 500, 500),
                     dataSource.loadLeafRecord(500),
                     "creating/loading same LeafRecord gives different results");
-            assertLeaf(testType, dataSource, 250, 500);
+            assertLeaf(testType, dataSource, 750, 500);
         });
     }
 
@@ -634,7 +644,7 @@ class MerkleDbDataSourceTest {
                     true);
 
             // Check data after the first flush
-            for (int i = 1; i < 21; i++) {
+            for (int i = 10; i < 21; i++) {
                 final Hash hash = VirtualMapTestUtils.loadHash(dataSource, i, dataSource.getHashChunkHeight());
                 assertNotNull(hash);
                 assertEquals(hash(i + 2), hash, "Wrong hash at path " + i);
@@ -663,7 +673,7 @@ class MerkleDbDataSourceTest {
                     true);
 
             // Check data after the second flush
-            for (int i = 1; i < 21; i++) {
+            for (int i = 10; i < 21; i++) {
                 final Hash hash = VirtualMapTestUtils.loadHash(dataSource, i, dataSource.getHashChunkHeight());
                 assertNotNull(hash);
                 assertEquals(hash(i + 3), hash, "Wrong hash at path " + i);
@@ -742,7 +752,7 @@ class MerkleDbDataSourceTest {
                     testType.dataType().createDataSource(snapshotDbPath, dbName, size, false, false);
             // Check all hashes are migrated successfully
             try {
-                for (long i = 1; i <= lastLeafPath; i++) {
+                for (long i = firstLeafPath; i <= lastLeafPath; i++) {
                     final long chunkId = VirtualHashChunk.pathToChunkId(i, dataSource.getHashChunkHeight());
                     final VirtualHashChunk hashChunk = snapshot.loadHashChunk(chunkId);
                     assertNotNull(hashChunk);
@@ -944,12 +954,17 @@ class MerkleDbDataSourceTest {
     }
 
     public static void assertHash(final MerkleDbDataSource dataSource, final long path, final int i) {
-        try {
-            assertEqualsAndPrint(
-                    hash(i), VirtualMapTestUtils.loadHash(dataSource, path, dataSource.getHashChunkHeight()));
-        } catch (final Exception e) {
-            e.printStackTrace(System.err);
-            fail("Exception should not have been thrown here!");
+        final int hashChunkHeight = dataSource.getHashChunkHeight();
+        final boolean isLeaf = (path >= dataSource.getFirstLeafPath()) && (path <= dataSource.getLastLeafPath());
+        final int pathRank = com.swirlds.virtualmap.internal.Path.getRank(path);
+        if (isLeaf || (pathRank % hashChunkHeight == 0)) {
+            try {
+                assertEqualsAndPrint(
+                        hash(i), VirtualMapTestUtils.loadHash(dataSource, path, dataSource.getHashChunkHeight()));
+            } catch (final Exception e) {
+                e.printStackTrace(System.err);
+                fail("Exception should not have been thrown here!");
+            }
         }
     }
 
@@ -981,10 +996,14 @@ class MerkleDbDataSourceTest {
             // things that should have changed
             assertEqualsAndPrint(expectedRecord, dataSource.loadLeafRecord(key));
             assertEqualsAndPrint(expectedRecord, dataSource.loadLeafRecord(path));
-            assertEquals(
-                    hash(hashIndex),
-                    VirtualMapTestUtils.loadHash(dataSource, path, hashChunkHeight),
-                    "unexpected Hash value for path " + path);
+            final boolean isLeaf = (path >= dataSource.getFirstLeafPath()) && (path <= dataSource.getLastLeafPath());
+            final int pathRank = com.swirlds.virtualmap.internal.Path.getRank(path);
+            if (isLeaf || (pathRank % hashChunkHeight == 0)) {
+                assertEquals(
+                        hash(hashIndex),
+                        VirtualMapTestUtils.loadHash(dataSource, path, hashChunkHeight),
+                        "unexpected Hash value for path " + path);
+            }
         } catch (final Exception e) {
             e.printStackTrace(System.err);
             fail("Exception should not have been thrown here!");

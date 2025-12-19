@@ -20,6 +20,7 @@ import com.swirlds.virtualmap.test.fixtures.TestValueCodec;
 import com.swirlds.virtualmap.test.fixtures.VirtualTestBase;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.Deque;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -166,7 +167,7 @@ class VirtualHasherTest extends VirtualHasherTestBase {
         final HashingListener listener = new HashingListener();
         final VirtualHasher hasher = new VirtualHasher();
         final Hash expected = hashTree(ds);
-        final List<VirtualLeafBytes> leaves = dirtyNodes(ds, dirtyPaths.stream());
+        final List<VirtualLeafBytes> leaves = invalidateNodes(ds, dirtyPaths.stream());
         final Hash rootHash = hasher.hash(
                 ds::loadHashChunk, leaves.iterator(), firstLeafPath, lastLeafPath, listener, VIRTUAL_MAP_CONFIG);
         assertEquals(expected, rootHash, "Hash value does not match expected");
@@ -192,6 +193,23 @@ class VirtualHasherTest extends VirtualHasherTestBase {
         }
         assertEquals(savedChunks.size(), seenChunks.size(), "Expected equals");
         assertCallsAreBalanced(listener);
+
+        final Hash hashItAgain = hasher.hash(
+                ds::loadHashChunk, leaves.iterator(), firstLeafPath, lastLeafPath, listener, VIRTUAL_MAP_CONFIG);
+        assertEquals(expected, hashItAgain, "Hash value does not match expected");
+
+        for (int i = 0; i < leaves.size(); i++) {
+            final long leafPath = leaves.get(i).path();
+            final long siblingPath = Path.getSiblingPath(leafPath);
+            if ((siblingPath >= firstLeafPath) && (siblingPath <= lastLeafPath)) {
+                final VirtualLeafBytes sibling = ds.getLeaf(siblingPath);
+                leaves.set(i, sibling);
+            }
+        }
+        leaves.sort(Comparator.comparing(VirtualLeafBytes::path));
+        final Hash hashItOnceMore = hasher.hash(
+                ds::loadHashChunk, leaves.iterator(), firstLeafPath, lastLeafPath, listener, VIRTUAL_MAP_CONFIG);
+        assertEquals(expected, hashItOnceMore, "Hash value does not match expected");
     }
 
     /**
@@ -326,12 +344,26 @@ class VirtualHasherTest extends VirtualHasherTestBase {
         final List<Long> dirtyLeafPaths = List.of(
                 53L, 56L, 59L, 63L, 66L, 72L, 76L, 77L, 80L, 81L, 82L, 83L, 85L, 87L, 88L, 94L, 96L, 100L, 104L);
 
-        // Iterate a thousand times, doing the same thing. If there are race conditions among the hashing threads,
+        // Iterate a few times, doing the same thing. If there are race conditions among the hashing threads,
         // this will *likely* find it.
-        for (int i = 0; i < 1000; i++) {
-            final List<VirtualLeafBytes> leaves = dirtyNodes(ds, dirtyLeafPaths.stream());
+        for (int i = 0; i < 500; i++) {
+            final List<VirtualLeafBytes> leaves = invalidateNodes(ds, dirtyLeafPaths.stream());
             final Hash rootHash = hasher.hash(
                     ds::loadHashChunk, leaves.iterator(), firstLeafPath, lastLeafPath, null, VIRTUAL_MAP_CONFIG);
+            assertEquals(expected, rootHash, "Expected equals");
+        }
+
+        // Now rehash with a hashing listener, which updates hash chunks in the data source
+        final VirtualHashListener listener = new VirtualHashListener() {
+            @Override
+            public synchronized void onHashChunkHashed(final VirtualHashChunk chunk) {
+                ds.updateHashChunk(chunk);
+            }
+        };
+        for (int i = 0; i < 500; i++) {
+            final List<VirtualLeafBytes> leaves = invalidateNodes(ds, dirtyLeafPaths.stream());
+            final Hash rootHash = hasher.hash(
+                    ds::loadHashChunk, leaves.iterator(), firstLeafPath, lastLeafPath, listener, VIRTUAL_MAP_CONFIG);
             assertEquals(expected, rootHash, "Expected equals");
         }
     }
@@ -343,13 +375,26 @@ class VirtualHasherTest extends VirtualHasherTestBase {
         final TestDataSource ds = new TestDataSource(firstLeafPath, lastLeafPath, CHUNK_HEIGHT);
         final VirtualHasher hasher = new VirtualHasher();
         final Hash expected = hashTree(ds);
+        System.err.println("---");
         final List<Long> dirtyLeafPaths =
                 LongStream.range(firstLeafPath, lastLeafPath + 1).boxed().toList();
 
-        final List<VirtualLeafBytes> leaves = dirtyNodes(ds, dirtyLeafPaths.stream());
+        final VirtualHashListener listener = new VirtualHashListener() {
+            @Override
+            public synchronized void onHashChunkHashed(final VirtualHashChunk chunk) {
+                ds.updateHashChunk(chunk);
+            }
+        };
+        final List<VirtualLeafBytes> leaves = invalidateNodes(ds, dirtyLeafPaths.stream());
         final Hash rootHash = hasher.hash(
-                ds::loadHashChunk, leaves.iterator(), firstLeafPath, lastLeafPath, null, VIRTUAL_MAP_CONFIG);
+                ds::loadHashChunk, leaves.iterator(), firstLeafPath, lastLeafPath, listener, VIRTUAL_MAP_CONFIG);
         assertEquals(expected, rootHash, "Expected equals");
+        System.err.println("---");
+
+        final List<VirtualLeafBytes> oneDirtyLeaf = List.of(ds.getLeaf((firstLeafPath + lastLeafPath) / 2));
+        final Hash hashItAgain = hasher.hash(
+                ds::loadHashChunk, oneDirtyLeaf.iterator(), firstLeafPath, lastLeafPath, null, VIRTUAL_MAP_CONFIG);
+        assertEquals(expected, hashItAgain, "Expected equals");
     }
 
     /**
@@ -370,12 +415,15 @@ class VirtualHasherTest extends VirtualHasherTestBase {
         final List<Long> dirtyLeafPaths = List.of(
                 53L, 56L, 59L, 63L, 66L, 72L, 76L, 77L, 80L, 81L, 82L, 83L, 85L, 87L, 88L, 94L, 96L, 100L, 104L);
 
-        final List<VirtualLeafBytes> leaves = dirtyNodes(ds, dirtyLeafPaths.stream());
+        final List<VirtualLeafBytes> leaves = invalidateNodes(ds, dirtyLeafPaths.stream());
         hasher.hash(ds::loadHashChunk, leaves.iterator(), firstLeafPath, lastLeafPath, listener, VIRTUAL_MAP_CONFIG);
 
         // Check the different callbacks were called the correct number of times
         assertEquals(1, listener.onHashingStartedCallCount, "Unexpected count");
-        assertEquals(60, listener.onNodeHashedCallCount, "Unexpected count");
+        // The number of onHashChunkHashed() calls varies with implementation, the check below may
+        // need to be updated in the future. At the moment the number is 15: 14 chunks (63L to 104L
+        // paths above, 81/82 and 87/88 sharing the same chunk) plus the root chunk
+        assertEquals(15, listener.onHashChunkHashedCount, "Unexpected count");
         assertEquals(1, listener.onHashingCompletedCallCount, "Unexpected count");
 
         // Validate the calls were all balanced
@@ -399,8 +447,8 @@ class VirtualHasherTest extends VirtualHasherTestBase {
         // all new leaves. This will guarantee that some internal nodes live at the paths that leaves used
         // to. We'll then hash in several batches. If there are no exceptions, then we're OK.
         final long firstLeafPath = 105L;
-        final long lastLeafPath = 211L;
-        final Iterator<VirtualLeafBytes> dirtyLeaves = LongStream.range(firstLeafPath, lastLeafPath)
+        final long lastLeafPath = 210L;
+        final Iterator<VirtualLeafBytes> dirtyLeaves = LongStream.range(firstLeafPath, lastLeafPath + 1)
                 .mapToObj(path -> new VirtualLeafBytes(
                         path, TestKey.longToKey(path), new TestValue(path), TestValueCodec.INSTANCE))
                 .iterator();
@@ -453,7 +501,7 @@ class VirtualHasherTest extends VirtualHasherTestBase {
         static final char ON_CHUNK_HASHED_SYMBOL = 'I';
 
         private int onHashingStartedCallCount = 0;
-        private int onNodeHashedCallCount = 0;
+        private int onHashChunkHashedCount = 0;
         private int onHashingCompletedCallCount = 0;
         private final StringBuilder callHistory = new StringBuilder();
 
@@ -472,7 +520,7 @@ class VirtualHasherTest extends VirtualHasherTestBase {
 
         @Override
         public synchronized void onHashChunkHashed(final VirtualHashChunk chunk) {
-            onNodeHashedCallCount++;
+            onHashChunkHashedCount++;
             callHistory.append(ON_CHUNK_HASHED_SYMBOL);
             chunks.add(chunk);
         }

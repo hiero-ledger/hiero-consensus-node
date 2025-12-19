@@ -69,10 +69,7 @@ public final class RecordAccessor {
         assert rootChunk != null;
         final long size = state.getSize();
         if (size >= 1) {
-            // TODO: path 1 may not be in the root hash chunk
-            final Hash left = rootChunk.getHashAtPath(1);
-            final Hash right = size >= 2 ? rootChunk.getHashAtPath(2) : VirtualHasher.NO_PATH2_HASH;
-            return VirtualHasher.hashInternal(left, right);
+            return rootChunk.chunkRootHash(state.getFirstLeafPath(), state.getLastLeafPath());
         } else {
             return null;
         }
@@ -95,19 +92,19 @@ public final class RecordAccessor {
         if ((path <= 0) || (path > state.getLastLeafPath())) {
             return null;
         }
-        final Hash hash = cache.lookupHashByPath(path);
-        if (hash != null) {
-            return hash;
+        final long chunkId = VirtualHashChunk.pathToChunkId(path, hashChunkHeight);
+        VirtualHashChunk hashChunk = cache.lookupHashChunkById(chunkId);
+        if (hashChunk != null) {
+            return hashChunk.calcHash(path, state.getFirstLeafPath(), state.getLastLeafPath());
         }
         // Data source's leaf path range may be different from state's
         if (path > dataSource.getLastLeafPath()) {
             return null;
         }
-        final long chunkId = VirtualHashChunk.pathToChunkId(path, hashChunkHeight);
         try {
-            final VirtualHashChunk hashChunk = dataSource.loadHashChunk(chunkId);
+            hashChunk = dataSource.loadHashChunk(chunkId);
             if (hashChunk != null) {
-                return hashChunk.getHashAtPath(path);
+                return hashChunk.calcHash(path, dataSource.getFirstLeafPath(), dataSource.getLastLeafPath());
             }
         } catch (final IOException e) {
             throw new UncheckedIOException("Failed to read node hash from data source by path", e);
@@ -132,16 +129,17 @@ public final class RecordAccessor {
         if ((path < 0) || (path > state.getLastLeafPath())) {
             return false;
         }
-        Hash hash = cache.lookupHashByPath(path);
-        if (hash != null) {
+        // FUTURE WORK: load and write the hash without extra byte array allocations
+        final long hashChunkId = VirtualHashChunk.pathToChunkId(path, hashChunkHeight);
+        VirtualHashChunk hashChunk = cache.lookupHashChunkById(hashChunkId);
+        if (hashChunk != null) {
+            final Hash hash = hashChunk.calcHash(path, state.getFirstLeafPath(), state.getLastLeafPath());
             hash.serialize(out);
             return true;
         }
-        // FUTURE WORK: load and write the hash without extra byte array allocations
-        final long hashChunkId = VirtualHashChunk.pathToChunkId(path, hashChunkHeight);
-        final VirtualHashChunk hashChunk = dataSource.loadHashChunk(hashChunkId);
+        hashChunk = dataSource.loadHashChunk(hashChunkId);
         assert hashChunk != null;
-        hash = hashChunk.getHashAtPath(path);
+        final Hash hash = hashChunk.calcHash(path, state.getFirstLeafPath(), state.getLastLeafPath());
         hash.serialize(out);
         return true;
     }

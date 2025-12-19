@@ -9,6 +9,7 @@ import com.hedera.pbj.runtime.ProtoWriterTools;
 import com.hedera.pbj.runtime.io.ReadableSequentialData;
 import com.hedera.pbj.runtime.io.WritableSequentialData;
 import com.swirlds.virtualmap.internal.Path;
+import com.swirlds.virtualmap.internal.hash.VirtualHasher;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.Hash;
@@ -40,18 +41,14 @@ import org.hiero.base.crypto.Hash;
  *
  * @param path Chunk path
  * @param height Chunk height
- * @param defaultHeight Default chunk height in the system. All chunks but those at a few last
- *                      ranks should have this height
  * @param hashData Chunk hashes
  */
-public record VirtualHashChunk(long path, int height, int defaultHeight, @NonNull byte[] hashData) {
+public record VirtualHashChunk(long path, int height, @NonNull byte[] hashData) {
 
     public static final FieldDefinition FIELD_HASHCHUNK_PATH =
             new FieldDefinition("path", FieldType.FIXED64, false, true, false, 1);
     public static final FieldDefinition FIELD_HASHCHUNK_HEIGHT =
             new FieldDefinition("height", FieldType.FIXED32, false, true, false, 2);
-    public static final FieldDefinition FIELD_HASHCHUNK_DEFAULTHEIGHT =
-            new FieldDefinition("defaultHeight", FieldType.FIXED32, false, true, false, 3);
     public static final FieldDefinition FIELD_HASHCHUNK_HASHDATA =
             new FieldDefinition("hashData", FieldType.BYTES, false, false, false, 4);
 
@@ -59,12 +56,9 @@ public record VirtualHashChunk(long path, int height, int defaultHeight, @NonNul
         if (height <= 0) {
             throw new IllegalArgumentException("Wrong chunk height: " + height);
         }
-        if (defaultHeight <= 0) {
-            throw new IllegalArgumentException("Wrong chunk default height: " + height);
-        }
         final int rank = Path.getRank(path);
-        if (rank % defaultHeight != 0) {
-            throw new IllegalArgumentException("Wrong chunk rank/defaultHeight: " + rank + "/" + height);
+        if (rank % height != 0) {
+            throw new IllegalArgumentException("Wrong chunk rank/height: " + rank + "/" + height);
         }
         if (hashData == null) {
             throw new IllegalArgumentException("Null hash data");
@@ -78,26 +72,17 @@ public record VirtualHashChunk(long path, int height, int defaultHeight, @NonNul
         }
     }
 
-    public VirtualHashChunk(final long path, final int defaultHeight) {
-        this(
-                path,
-                defaultHeight,
-                defaultHeight,
-                new byte[getChunkSize(defaultHeight) * Cryptography.DEFAULT_DIGEST_TYPE.digestLength()]);
-    }
-
-    public VirtualHashChunk(final long path, final int height, final int defaultHeight) {
+    public VirtualHashChunk(final long path, final int height) {
         this(
                 path,
                 height,
-                defaultHeight,
                 new byte[getChunkSize(height) * Cryptography.DEFAULT_DIGEST_TYPE.digestLength()]);
     }
 
     public VirtualHashChunk copy() {
         final byte[] dataCopy = new byte[hashData.length];
         System.arraycopy(hashData, 0, dataCopy, 0, hashData.length);
-        return new VirtualHashChunk(path, height, defaultHeight, dataCopy);
+        return new VirtualHashChunk(path, height, dataCopy);
     }
 
     public static VirtualHashChunk parseFrom(final ReadableSequentialData in) {
@@ -107,7 +92,6 @@ public record VirtualHashChunk(long path, int height, int defaultHeight, @NonNul
 
         long path = 0;
         int height = 0;
-        int defaultHeight = 0;
         byte[] hashData = null;
 
         while (in.hasRemaining()) {
@@ -123,11 +107,6 @@ public record VirtualHashChunk(long path, int height, int defaultHeight, @NonNul
                     throw new IllegalArgumentException("Wrong field type: " + field);
                 }
                 height = in.readInt();
-            } else if (tag == FIELD_HASHCHUNK_DEFAULTHEIGHT.number()) {
-                if ((field & ProtoConstants.TAG_WIRE_TYPE_MASK) != ProtoConstants.WIRE_TYPE_FIXED_32_BIT.ordinal()) {
-                    throw new IllegalArgumentException("Wrong field type: " + field);
-                }
-                defaultHeight = in.readInt();
             } else if (tag == FIELD_HASHCHUNK_HASHDATA.number()) {
                 if ((field & ProtoConstants.TAG_WIRE_TYPE_MASK) != ProtoConstants.WIRE_TYPE_DELIMITED.ordinal()) {
                     throw new IllegalArgumentException("Wrong field type: " + field);
@@ -142,7 +121,7 @@ public record VirtualHashChunk(long path, int height, int defaultHeight, @NonNul
             }
         }
 
-        return new VirtualHashChunk(path, height, defaultHeight, hashData);
+        return new VirtualHashChunk(path, height, hashData);
     }
 
     public int getSizeInBytes() {
@@ -153,10 +132,6 @@ public record VirtualHashChunk(long path, int height, int defaultHeight, @NonNul
         // Height is always > 0
         size += ProtoWriterTools.sizeOfTag(FIELD_HASHCHUNK_HEIGHT);
         // Height is FIXED32
-        size += Integer.BYTES;
-        // Default height is always > 0
-        size += ProtoWriterTools.sizeOfTag(FIELD_HASHCHUNK_DEFAULTHEIGHT);
-        // Default height is FIXED32
         size += Integer.BYTES;
         // Hash data is never null
         size += ProtoWriterTools.sizeOfDelimited(FIELD_HASHCHUNK_HASHDATA, hashData.length);
@@ -170,9 +145,6 @@ public record VirtualHashChunk(long path, int height, int defaultHeight, @NonNul
         // Height is always > 0
         ProtoWriterTools.writeTag(out, FIELD_HASHCHUNK_HEIGHT);
         out.writeInt(height);
-        // Default height is always > 0
-        ProtoWriterTools.writeTag(out, FIELD_HASHCHUNK_DEFAULTHEIGHT);
-        out.writeInt(defaultHeight);
         // Hash data is never null
         ProtoWriterTools.writeTag(out, FIELD_HASHCHUNK_HASHDATA);
         out.writeVarInt(hashData.length, false);
@@ -180,7 +152,7 @@ public record VirtualHashChunk(long path, int height, int defaultHeight, @NonNul
         assert out.position() == pos + getSizeInBytes();
     }
 
-    public static long pathToChunkPath(long path, final int chunkHeight) {
+    public static long pathToChunkPath(final long path, final int chunkHeight) {
         assert path > 0;
         assert chunkHeight > 0;
         final int rankDif = Path.getRank(path) % chunkHeight;
@@ -188,7 +160,7 @@ public record VirtualHashChunk(long path, int height, int defaultHeight, @NonNul
     }
 
     public long getChunkId() {
-        return pathToChunkId(Path.getLeftChildPath(path), defaultHeight);
+        return pathToChunkId(Path.getLeftChildPath(path), height);
     }
 
     /**
@@ -296,7 +268,16 @@ public record VirtualHashChunk(long path, int height, int defaultHeight, @NonNul
      * @throws IllegalArgumentException
      *      If the path is outside this chunk
      */
-    public static int getPathIndexInChunk(final long path, final long chunkPath, final int chunkHeight) {
+    public static int getPathIndexInChunk(long path, final long chunkPath, final int chunkHeight) {
+        final int chunkRank = Path.getRank(chunkPath);
+        final int pathRank = Path.getRank(path);
+        if ((pathRank <= chunkRank) || (pathRank > chunkRank + chunkHeight)) {
+            throw new IllegalArgumentException("Path " + path + " is not in chunk: " + chunkPath + "/" + chunkHeight);
+        }
+        final int rankDif = pathRank % chunkHeight;
+        if (rankDif != 0) {
+            path = Path.getLeftGrandChildPath(path, chunkHeight - rankDif);
+        }
         final long firstPathInChunk = Path.getLeftGrandChildPath(chunkPath, chunkHeight);
         if ((path < firstPathInChunk) || (path >= firstPathInChunk + getChunkSize(chunkHeight))) {
             throw new IllegalArgumentException("Path " + path + " is not in chunk: " + chunkPath + "/" + chunkHeight);
@@ -406,5 +387,34 @@ public record VirtualHashChunk(long path, int height, int defaultHeight, @NonNul
             throw new IllegalArgumentException("Wrong hash index: " + index);
         }
         return getHashImpl(index);
+    }
+
+    public Hash chunkRootHash(final long firstLeafPath, final long lastLeafPath) {
+        return calcHash(height, 0, firstLeafPath, lastLeafPath);
+    }
+
+    public Hash calcHash(final long path, final long firstLeafPath, final long lastLeafPath) {
+        final int pathRank = Path.getRank(path);
+        final int chunkRank = Path.getRank(this.path);
+        assert chunkRank <= pathRank;
+        assert pathRank <= chunkRank + height;
+        return calcHash(chunkRank + height - pathRank, path, firstLeafPath, lastLeafPath);
+    }
+
+    private Hash calcHash(final long h, final long path, final long firstLeafPath, final long lastLeafPath) {
+        if ((h == 0) || ((path >= firstLeafPath) && (path <= lastLeafPath))) {
+            return getHashAtPath(path);
+        }
+        if (path > lastLeafPath) {
+            assert path == 2;
+            return VirtualHasher.NO_PATH2_HASH;
+        } else {
+            assert h > 0;
+            final long leftPath = Path.getLeftChildPath(path);
+            final Hash leftHash = calcHash(h - 1, leftPath, firstLeafPath, lastLeafPath);
+            final long rightPath = Path.getRightChildPath(path);
+            final Hash rightHash = calcHash(h - 1, rightPath, firstLeafPath, lastLeafPath);
+            return VirtualHasher.hashInternal(leftHash, rightHash);
+        }
     }
 }

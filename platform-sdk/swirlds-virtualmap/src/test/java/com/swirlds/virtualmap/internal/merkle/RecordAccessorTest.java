@@ -252,39 +252,6 @@ public class RecordAccessorTest {
         assertEquals(key, record.keyBytes());
     }
 
-    @Test
-    void putHashTriggersLoadChunk() {
-        final VirtualMapMetadata state = new VirtualMapMetadata();
-        final int hashChunkHeight = 2;
-        final int chunkSize = VirtualHashChunk.getChunkSize(hashChunkHeight);
-        dataSource = new BreakableDataSource();
-        final VirtualNodeCache cache =
-                new VirtualNodeCache(VIRTUAL_MAP_CONFIG, hashChunkHeight, dataSource::loadHashChunk);
-        records = new RecordAccessor(state, hashChunkHeight, cache, dataSource);
-
-        state.setLastLeafPath(chunkSize * 2L);
-        state.setFirstLeafPath(chunkSize);
-        cache.prepareForHashing();
-
-        dataSource.throwExceptionOnLoadHashChunk = true;
-        assertThrows(
-                UncheckedIOException.class, () -> cache.putHash(1, internal(1).hash()));
-
-        dataSource.throwExceptionOnLoadHashChunk = false;
-        // This time, it should trigger loading hash chunk from data source to cache
-        for (int i = 1; i <= chunkSize; i++) {
-            cache.putHash(i, internal(i).hash());
-        }
-
-        dataSource.throwExceptionOnLoadHashChunk = true;
-        // Hashes 1 to 6 are in the loaded chunk, no access to data source is expected
-        for (int i = 1; i <= chunkSize; i++) {
-            assertEquals(internal(i).hash(), records.findHash(i));
-        }
-        // Hash 7 is in another chunk
-        assertNull(records.findHash(chunkSize + 1));
-    }
-
     private static final class BreakableDataSource implements VirtualDataSource {
 
         private final InMemoryDataSource delegate = new InMemoryBuilder().build("delegate", null, true, false);

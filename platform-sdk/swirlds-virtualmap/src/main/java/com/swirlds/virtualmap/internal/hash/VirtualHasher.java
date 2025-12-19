@@ -18,15 +18,12 @@ import java.security.MessageDigest;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Iterator;
-import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.ForkJoinTask;
 import java.util.concurrent.ForkJoinWorkerThread;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Function;
 import java.util.function.LongFunction;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -199,8 +196,6 @@ public final class VirtualHasher {
 
         private VirtualHashChunk hashChunk;
 
-        private static final Map<Long, VirtualHashChunk> extendedChunks = new ConcurrentHashMap<>();
-
         ChunkHashTask(final ForkJoinPool pool, final long path, final int height) {
             // out (1) + preload (1) + ins (2^height)
 //            super(pool, 1 + (1 << height) + 1);
@@ -256,7 +251,6 @@ public final class VirtualHasher {
 
         @Override
         protected boolean onExecute() {
-            extendedChunks.remove(path);
             int len = 1 << height;
             final long chunkPath;
             final int taskRank = Path.getRank(path);
@@ -269,110 +263,75 @@ public final class VirtualHasher {
             }
             final int chunkRank = Path.getRank(chunkPath);
             if ((insProvided.get() == len) && (chunkPath == path)) {
-                // All inputs provided, no need to load the chunk from disk using hashChunkPreloader
-                hashChunk = new VirtualHashChunk(chunkPath, height, defaultChunkHeight);
-            } else {
+                if ((height == defaultChunkHeight) || (Path.getLeftGrandChildPath(path, height + 1) > lastLeafPath)) {
+                    // All inputs provided, no need to load the chunk from disk using hashChunkPreloader
+                    hashChunk = new VirtualHashChunk(chunkPath, defaultChunkHeight);
+                }
+            }
+            if (hashChunk == null) {
                 hashChunk = hashChunkPreloader.apply(chunkPath);
                 if (hashChunk == null) {
                     throw new RuntimeException("Failed to load hash chunk for path = " + chunkPath);
                 }
                 assert hashChunk.path() == chunkPath;
-                if (chunkRank + hashChunk.height() == taskRank + height) {
-                    // no-op
-                } else if (chunkRank + hashChunk.height() == taskRank + height - 1) {
-                    hashChunk = extendedChunks.computeIfAbsent(chunkPath, cp -> {
-                        final VirtualHashChunk extended = new VirtualHashChunk(chunkPath, hashChunk.height() + 1, defaultChunkHeight);
-                        for (int i = 0; i < hashChunk.getChunkSize(); i++) {
-                            final long path = hashChunk.getPath(i);
-                            extended.setHashAtPath(Path.getLeftChildPath(path), hashChunk.getHashAtPath(path));
-                        }
-                        return extended;
-                    });
-                } else if (chunkRank + hashChunk.height() == taskRank + height + 1) {
-                    // no-op
-                } else {
-                    throw new RuntimeException("Unknown chunk");
-                }
             }
             final int chunkLastRank = chunkRank + hashChunk.height();
             long rankPath = Path.getLeftGrandChildPath(path, height);
-            int currentRank = Path.getRank(path) + height;
-            int m = 2;
+            int currentRank = taskRank + height;
             while (len > 1) {
                 for (int i = 0; i < len / 2; i++) {
-                    Hash left = ins[i * m];
+                    Hash left = ins[i * 2];
                     final long leftPath = rankPath + i * 2;
-                    if (leftPath > lastLeafPath) {
-                        break;
-                    }
+                    assert (leftPath < lastLeafPath) || (lastLeafPath == 1);
+                    final long leftLeftPath = Path.getLeftChildPath(leftPath);
                     if (left == null) {
+                        assert currentRank == taskRank + height;
                         // Need to load the hash from hashChunk
-                        if (currentRank == chunkLastRank) {
+                        if ((height == defaultChunkHeight) || (leftLeftPath > lastLeafPath)) {
                             left = hashChunk.getHashAtPath(leftPath);
-                        } else if (currentRank == chunkLastRank - 1) {
-                            final long leftLeftPath = Path.getLeftChildPath(leftPath);
-                            if (leftLeftPath <= lastLeafPath) {
-                                final long leftRightPath = Path.getRightChildPath(leftPath);
-                                final Hash leftLeftHash = hashChunk.getHashAtPath(leftLeftPath);
-                                final Hash leftRightHash = hashChunk.getHashAtPath(leftRightPath);
-                                left = hashInternal(leftLeftHash, leftRightHash);
-                            } else {
-                                left = hashChunk.getHashAtPath(leftLeftPath);
-                            }
                         } else {
-                            throw new RuntimeException("Failed to load hash for path = " + leftPath);
+                            final Hash leftLeftHash = hashChunk.getHashAtPath(leftLeftPath);
+                            final Hash leftRightHash = hashChunk.getHashAtPath(Path.getRightChildPath(leftPath));
+                            left = hashInternal(leftLeftHash, leftRightHash);
                         }
                     } else {
                         // Hash is provided / computed, need to update it in hashChunk
-                        if (currentRank == chunkLastRank) {
+                        if ((currentRank == chunkLastRank) || (leftLeftPath > lastLeafPath)) {
                             hashChunk.setHashAtPath(leftPath, left);
-                        } else if (currentRank == chunkLastRank - 1) {
-                            final long leftLeftPath = Path.getLeftChildPath(leftPath);
-                            if (leftLeftPath > lastLeafPath) {
-                                hashChunk.setHashAtPath(leftLeftPath, left);
-                            }
                         }
                     }
 
-                    Hash right = ins[i * m + m / 2];
+                    Hash right = ins[i * 2 + 1];
                     final long rightPath = rankPath + i * 2 + 1;
+                    assert (rightPath <= lastLeafPath) || (lastLeafPath == 1);
+                    final long rightLeftPath = Path.getLeftChildPath(rightPath);
                     if (right == null) {
+                        assert currentRank == taskRank + height;
                         // Need to load the hash from hashChunk
-                        if (currentRank == chunkLastRank) {
+                        if ((height == defaultChunkHeight) || (rightLeftPath > lastLeafPath)) {
                             right = hashChunk.getHashAtPath(rightPath);
-                        } else if (currentRank == chunkLastRank - 1) {
-                            final long rightLeftPath = Path.getLeftChildPath(rightPath);
-                            if (rightLeftPath <= lastLeafPath) {
-                                final long rightRightPath = Path.getRightChildPath(rightPath);
-                                final Hash rightLeftHash = hashChunk.getHashAtPath(rightLeftPath);
-                                final Hash rightRightHash = hashChunk.getHashAtPath(rightRightPath);
-                                right = hashInternal(rightLeftHash, rightRightHash);
-                            } else {
-                                right = hashChunk.getHashAtPath(rightLeftPath);
-                            }
                         } else {
-                            throw new RuntimeException("Failed to load hash for path = " + rightPath);
+                            final Hash rightLeftHash = hashChunk.getHashAtPath(rightLeftPath);
+                            final Hash rightRightHash = hashChunk.getHashAtPath(Path.getRightChildPath(rightPath));
+                            right = hashInternal(rightLeftHash, rightRightHash);
                         }
                     } else {
                         // Hash is provided / computed, need to update it in hashChunk
-                        if (currentRank == chunkLastRank) {
+                        if ((currentRank == chunkLastRank) || (rightLeftPath > lastLeafPath)) {
                             hashChunk.setHashAtPath(rightPath, right);
-                        } else if (currentRank == chunkLastRank - 1) {
-                            final long rightLeftPath = Path.getLeftChildPath(rightPath);
-                            if (rightLeftPath > lastLeafPath) {
-                                hashChunk.setHashAtPath(rightLeftPath, right);
-                            }
                         }
                     }
 
-                    ins[i * m] = hashInternal(left, right);
+                    ins[i] = hashInternal(left, right);
                 }
                 rankPath = Path.getParentPath(rankPath);
                 currentRank--;
-                m = m * 2;
                 len = len >> 1;
             }
-            listener.onHashChunkHashed(hashChunk);
+            // Avoid multiple notifications for a single chunk
+            if (path == chunkPath) {
+                listener.onHashChunkHashed(hashChunk);
+            }
             if (out != null) {
                 out.setHash(path, ins[0]);
             }
@@ -553,6 +512,7 @@ public final class VirtualHasher {
             final long lastLeafPath,
             final @Nullable VirtualHashListener listener,
             final @NonNull VirtualMapConfig virtualMapConfig) {
+        requireNonNull(hashChunkPreloader);
         requireNonNull(virtualMapConfig);
 
         // We don't want to include null checks everywhere, so let the listener be NoopListener if null
