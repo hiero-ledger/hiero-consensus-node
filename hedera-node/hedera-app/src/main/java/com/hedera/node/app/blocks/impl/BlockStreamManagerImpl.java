@@ -60,6 +60,7 @@ import com.hedera.node.app.store.ReadableStoreFactory;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.BlockRecordStreamConfig;
 import com.hedera.node.config.data.BlockStreamConfig;
+import com.hedera.node.config.data.ClprConfig;
 import com.hedera.node.config.data.NetworkAdminConfig;
 import com.hedera.node.config.data.QuiescenceConfig;
 import com.hedera.node.config.data.StakingConfig;
@@ -185,12 +186,18 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
     private final boolean hintsEnabled;
     private final boolean quiescenceEnabled;
 
+    private State latestReadableState;
+
     /**
      * Represents a block pending completion by the block hash signature needed for its block proof.
      *
      * @param number the block number
      * @param contentsPath the path to the block contents file, if not null
      * @param blockHash the block hash
+     * @param blockTimestamp the block's starting timestamp
+     * @param startingStateHash the state hash at the beginning of the block
+     * @param consensusHeaderRootHash the hash for the consensus headers subroot
+     * @param prevBlocksRootHash the hash for the previous block roots subroot
      * @param proofBuilder the block proof builder
      * @param writer the block item writer
      * @param siblingHashes the sibling hashes needed for an indirect block proof of an earlier block
@@ -199,6 +206,11 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             long number,
             @Nullable Path contentsPath,
             @NonNull Bytes blockHash,
+            @NonNull Timestamp blockTimestamp,
+            @NonNull Bytes prevBlockHash,
+            @NonNull Bytes prevBlocksRootHash,
+            @NonNull Bytes startingStateHash,
+            @NonNull Bytes consensusHeaderRootHash,
             @NonNull BlockProof.Builder proofBuilder,
             @NonNull BlockItemWriter writer,
             @NonNull MerkleSiblingHash... siblingHashes) {
@@ -212,6 +224,10 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             final var pendingProof = PendingProof.newBuilder()
                     .block(number)
                     .blockHash(blockHash)
+                    .previousBlockHash(prevBlockHash)
+                    .prevBlocksRootHash(prevBlocksRootHash)
+                    .startOfBlockStateRootHash(startingStateHash)
+                    .consensusHeaderRootHash(consensusHeaderRootHash)
                     // Sibling hashes are needed in case an indirect state proof is required
                     .siblingHashesFromPrevBlockRoot(withSiblingHashes ? List.of(siblingHashes) : List.of())
                     .build();
@@ -462,7 +478,7 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             }
 
             for (int i = 0; i < onDiskPendingBlocks.size(); i++) {
-                var block = onDiskPendingBlocks.get(i);
+                final var block = onDiskPendingBlocks.get(i);
                 try {
                     final var pendingWriter = writerSupplier.get();
                     if (i == 0) { // jump to the first pending block
@@ -474,11 +490,15 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                     block.items()
                             .forEach(
                                     item -> pendingWriter.writePbjItemAndBytes(item, BlockItem.PROTOBUF.toBytes(item)));
-                    final var blockHash = block.blockHash();
                     pendingBlocks.add(new PendingBlock(
                             block.number(),
                             block.contentsPath(),
-                            blockHash,
+                            block.blockHash(),
+                            block.pendingProof().blockTimestamp(),
+                            block.pendingProof().previousBlockHash(),
+                            block.pendingProof().prevBlocksRootHash(),
+                            block.pendingProof().startOfBlockStateRootHash(),
+                            block.pendingProof().consensusHeaderRootHash(),
                             block.proofBuilder(),
                             pendingWriter,
                             block.siblingHashesIfUseful()));
@@ -660,6 +680,11 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                     blockNumber,
                     null,
                     finalBlockRootHash,
+                    blockTimestamp,
+                    lastBlockHash,
+                    prevBlockRootsHash,
+                    blockStartStateHash,
+                    consensusHeaderHash,
                     blockProofBuilder,
                     writer,
                     rootAndSiblingHashes.siblingHashes()));
@@ -717,9 +742,8 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
                 DiskStartupNetworks.writeNetworkInfo(state, exportPath, EnumSet.allOf(InfoType.class));
             }
 
-            if (state instanceof MerkleNodeState merkleNodeState) {
-                blockProvenStateAccessor.update(merkleNodeState);
-            }
+            // Keep a reference to the latest readable state for the block stream state accessor
+            latestReadableState = state;
 
             // Clear the eventIndexInBlock map for the next block
             eventIndexInBlock.clear();
@@ -851,12 +875,36 @@ public class BlockStreamManagerImpl implements BlockStreamManager {
             if (quiescenceEnabled && block.contentsPath() == null) {
                 quiescenceController.blockFullySigned(block.number());
             }
+
+            // Update the block stream state accessor with the latest signed block data for future state proof queries
+            if (configProvider
+                    .getConfiguration()
+                    .getConfigData(ClprConfig.class)
+                    .clprEnabled()) {
+                final var path = PartialPathBuilder.startingStateToBlockRoot(
+                        block.prevBlockHash(),
+                        block.prevBlocksRootHash(),
+                        block.startingStateHash(),
+                        block.consensusHeaderRootHash(),
+                        block.siblingHashes());
+                updateBlockStreamStateAccessor(blockSignature, block.blockTimestamp(), path);
+            }
+
             if (block.number() != blockNumber) {
                 siblingHashes.removeFirst();
             }
             if (block.contentsPath() != null) {
                 cleanUpPendingBlock(block.contentsPath());
             }
+        }
+    }
+
+    private void updateBlockStreamStateAccessor(
+            @NonNull final Bytes tssSignature,
+            @NonNull final Timestamp blockTimestamp,
+            @NonNull final MerklePath path) {
+        if (latestReadableState instanceof MerkleNodeState merkleNodeState) {
+            blockProvenStateAccessor.update(merkleNodeState, tssSignature, blockTimestamp, path);
         }
     }
 
