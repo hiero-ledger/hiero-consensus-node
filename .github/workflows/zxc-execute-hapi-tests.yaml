@@ -829,7 +829,7 @@ jobs:
       - hapi-tests-nd-reconnect
       - hapi-tests-iss
       - hapi-tests-bn-comms
-    if: ${{ always() }}
+    if: ${{ !cancelled() && always() }} # always run unless cancelled
     outputs:
       failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
     steps:
