@@ -228,6 +228,8 @@ public class EntityIdUniqueness {
         assertEquals(entityCounts.numContractBytecodes(), contractBytecodeCount.get(), "Contract count is unexpected");
         assertEquals(entityCounts.numHooks(), hookCount.get(), "Hook count is unexpected");
         assertEquals(
-                entityCounts.numEvmHookStorageSlots(), evmHookStorageCount.get(), "Lambda slot count is unexpected");
+                entityCounts.numEvmHookStorageSlots(),
+                evmHookStorageCount.get(),
+                "EVM hook storage slot count is unexpected");
     }
 }

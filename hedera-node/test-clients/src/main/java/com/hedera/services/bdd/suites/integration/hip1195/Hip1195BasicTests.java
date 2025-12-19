@@ -410,7 +410,7 @@ public class Hip1195BasicTests {
                                 .evmHook(EvmHook.newBuilder())
                                 .build())
                         .hasKnownStatus(INVALID_HOOK_CREATION_SPEC),
-                // 7) CryptoUpdate without hook bytecode (no lambda set)
+                // 7) CryptoUpdate without hook bytecode (no hook set)
                 cryptoUpdate("acctWithHook")
                         .withHook(spec -> HookCreationDetails.newBuilder()
                                 .hookId(507L)
@@ -425,7 +425,7 @@ public class Hip1195BasicTests {
                 uploadInitCode("SimpleUpdate"),
                 uploadInitCode("CreateTrivial"),
 
-                // 1) ContractCreate with HookCreationDetails fails (lambda present but spec missing)
+                // 1) ContractCreate with HookCreationDetails fails (EVM hook present but spec missing)
                 contractCreate("SimpleUpdate")
                         .withHooks(spec -> HookCreationDetails.newBuilder()
                                 .hookId(520L)
@@ -442,7 +442,7 @@ public class Hip1195BasicTests {
                                         .spec(EvmHookSpec.newBuilder().build()))
                                 .build())
                         .hasKnownStatus(INVALID_HOOK_CREATION_SPEC),
-                // 5) ContractCreate without hook bytecode (no lambda set)
+                // 5) ContractCreate without hook bytecode (no EVM hook set)
                 contractCreate("SimpleUpdate")
                         .withHooks(spec -> HookCreationDetails.newBuilder()
                                 .hookId(522L)
@@ -479,7 +479,7 @@ public class Hip1195BasicTests {
                                 .evmHook(EvmHook.newBuilder())
                                 .build())
                         .hasKnownStatus(INVALID_HOOK_CREATION_SPEC),
-                // 7) ContractUpdate without hook bytecode (no lambda set)
+                // 7) ContractUpdate without hook bytecode (no EVM hook set)
                 contractUpdate("SimpleUpdate")
                         .withHooks(spec -> HookCreationDetails.newBuilder()
                                 .hookId(527L)

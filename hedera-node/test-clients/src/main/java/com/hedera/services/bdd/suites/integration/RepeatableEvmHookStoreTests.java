@@ -452,7 +452,7 @@ public class RepeatableEvmHookStoreTests {
                 account -> assertEquals(
                         origCount.get() + delta,
                         account.numberEvmHookStorageSlots(),
-                        "Wrong # of lambda storage slots")));
+                        "Wrong # of EVM hook storage slots")));
     }
 
     private static SpecOperation assertEvmHookHasSlotUsage(final long hookId, final long numSlots) {
@@ -473,7 +473,7 @@ public class RepeatableEvmHookStoreTests {
                 account -> assertEquals(
                         origCount.get() + delta.getAsLong(),
                         account.numberEvmHookStorageSlots(),
-                        "Wrong # of lambda storage slots")));
+                        "Wrong # of EVM hook storage slots")));
     }
 
     private static SpecOperation evmHookCreation(@NonNull final HapiSpec spec) {
