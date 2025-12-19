@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.common.metrics.platform;
+package com.swirlds.metrics.impl.test;
 
 import static com.swirlds.metrics.api.Metric.DataType.STRING;
 import static com.swirlds.metrics.api.Metric.ValueType.VALUE;
@@ -10,16 +10,17 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import com.swirlds.common.metrics.FunctionGauge;
+import com.swirlds.metrics.api.FunctionGauge;
 import com.swirlds.metrics.api.IntegerGauge;
 import com.swirlds.metrics.api.Metric;
 import com.swirlds.metrics.api.snapshot.Snapshot.SnapshotEntry;
+import com.swirlds.metrics.impl.DefaultFunctionGauge;
 import com.swirlds.metrics.impl.DefaultIntegerGauge;
 import java.util.List;
 import java.util.function.Supplier;
 import org.junit.jupiter.api.Test;
 
-class PlatformFunctionGaugeTest {
+class DefaultFunctionGaugeTest {
 
     private static final String CATEGORY = "CaTeGoRy";
     private static final String NAME = "NaMe";
@@ -36,7 +37,7 @@ class PlatformFunctionGaugeTest {
                 .withDescription(DESCRIPTION)
                 .withUnit(UNIT)
                 .withFormat(FORMAT);
-        final FunctionGauge<String> gauge = new PlatformFunctionGauge<>(config);
+        final FunctionGauge<String> gauge = new DefaultFunctionGauge<>(config);
 
         assertEquals(CATEGORY, gauge.getCategory(), "The category was not set correctly in the constructor");
         assertEquals(NAME, gauge.getName(), "The name was not set correctly in the constructor");
@@ -55,7 +56,7 @@ class PlatformFunctionGaugeTest {
         // given
         final Supplier<String> supplier = mock(Supplier.class);
         final FunctionGauge.Config<String> config = new FunctionGauge.Config<>(CATEGORY, NAME, String.class, supplier);
-        final FunctionGauge<String> gauge = new PlatformFunctionGauge<>(config);
+        final FunctionGauge<String> gauge = new DefaultFunctionGauge<>(config);
 
         // when
         when(supplier.get()).thenReturn("Hello World");
@@ -78,7 +79,7 @@ class PlatformFunctionGaugeTest {
         // given
         final Supplier<String> supplier = mock(Supplier.class);
         final FunctionGauge.Config<String> config = new FunctionGauge.Config<>(CATEGORY, NAME, String.class, supplier);
-        final PlatformFunctionGauge<String> gauge = new PlatformFunctionGauge<>(config);
+        final DefaultFunctionGauge<String> gauge = new DefaultFunctionGauge<>(config);
 
         // when
         when(supplier.get()).thenReturn("Hello World");
@@ -96,7 +97,7 @@ class PlatformFunctionGaugeTest {
         // given
         final Supplier<String> supplier = mock(Supplier.class);
         final FunctionGauge.Config<String> config = new FunctionGauge.Config<>(CATEGORY, NAME, String.class, supplier);
-        final FunctionGauge<String> gauge = new PlatformFunctionGauge<>(config);
+        final FunctionGauge<String> gauge = new DefaultFunctionGauge<>(config);
 
         // then
         assertThrows(NullPointerException.class, () -> gauge.get(null), "Calling get() with null should throw an IAE");
@@ -120,7 +121,7 @@ class PlatformFunctionGaugeTest {
         // given
         final Supplier<String> supplier = mock(Supplier.class);
         final FunctionGauge.Config<String> config = new FunctionGauge.Config<>(CATEGORY, NAME, String.class, supplier);
-        final FunctionGauge<String> gauge = new PlatformFunctionGauge<>(config);
+        final FunctionGauge<String> gauge = new DefaultFunctionGauge<>(config);
 
         // then
         assertThatCode(gauge::reset).doesNotThrowAnyException();
@@ -133,19 +134,19 @@ class PlatformFunctionGaugeTest {
         final Supplier<String> supplier1 = mock(Supplier.class);
         final FunctionGauge.Config<String> config1 =
                 new FunctionGauge.Config<>(CATEGORY, NAME, String.class, supplier1);
-        final FunctionGauge<String> gauge1 = new PlatformFunctionGauge<>(config1);
+        final FunctionGauge<String> gauge1 = new DefaultFunctionGauge<>(config1);
         final Supplier<String> supplier2 = mock(Supplier.class);
         final FunctionGauge.Config<String> config2 =
                 new FunctionGauge.Config<>(CATEGORY, NAME, String.class, supplier2);
-        final FunctionGauge<String> gauge2 = new PlatformFunctionGauge<>(config2);
+        final FunctionGauge<String> gauge2 = new DefaultFunctionGauge<>(config2);
 
         // then
         assertThat(gauge1)
                 .isEqualTo(gauge2)
                 .hasSameHashCodeAs(gauge2)
                 .isNotEqualTo(
-                        new PlatformFunctionGauge<>(new FunctionGauge.Config<>("Other", NAME, String.class, supplier1)))
-                .isNotEqualTo(new PlatformFunctionGauge<>(
+                        new DefaultFunctionGauge<>(new FunctionGauge.Config<>("Other", NAME, String.class, supplier1)))
+                .isNotEqualTo(new DefaultFunctionGauge<>(
                         new FunctionGauge.Config<>(CATEGORY, "Other", String.class, supplier1)))
                 .isNotEqualTo(new DefaultIntegerGauge(new IntegerGauge.Config(CATEGORY, NAME)));
     }
@@ -159,7 +160,7 @@ class PlatformFunctionGaugeTest {
                 .withDescription(DESCRIPTION)
                 .withUnit(UNIT)
                 .withFormat(FORMAT);
-        final FunctionGauge<String> gauge = new PlatformFunctionGauge<>(config);
+        final FunctionGauge<String> gauge = new DefaultFunctionGauge<>(config);
 
         // then
         assertThat(gauge.toString()).contains(CATEGORY, NAME, DESCRIPTION, UNIT, FORMAT, STRING.toString());

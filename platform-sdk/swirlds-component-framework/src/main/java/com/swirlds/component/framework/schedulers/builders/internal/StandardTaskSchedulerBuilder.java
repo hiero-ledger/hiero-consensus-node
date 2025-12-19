@@ -5,7 +5,6 @@ import static com.swirlds.component.framework.schedulers.builders.TaskSchedulerT
 import static com.swirlds.component.framework.schedulers.builders.TaskSchedulerType.NO_OP;
 
 import com.swirlds.base.time.Time;
-import com.swirlds.common.metrics.FunctionGauge;
 import com.swirlds.common.metrics.extensions.FractionalTimer;
 import com.swirlds.common.metrics.extensions.NoOpFractionalTimer;
 import com.swirlds.common.metrics.extensions.StandardFractionalTimer;
@@ -17,6 +16,7 @@ import com.swirlds.component.framework.schedulers.internal.DirectTaskScheduler;
 import com.swirlds.component.framework.schedulers.internal.NoOpTaskScheduler;
 import com.swirlds.component.framework.schedulers.internal.SequentialTaskScheduler;
 import com.swirlds.component.framework.schedulers.internal.SequentialThreadTaskScheduler;
+import com.swirlds.metrics.api.FunctionGauge;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -117,50 +117,54 @@ public class StandardTaskSchedulerBuilder<OUT> extends AbstractTaskSchedulerBuil
 
         final TaskScheduler<OUT> scheduler =
                 switch (type) {
-                    case CONCURRENT -> new ConcurrentTaskScheduler<>(
-                            model,
-                            name,
-                            pool,
-                            buildUncaughtExceptionHandler(),
-                            counters.onRamp(),
-                            counters.offRamp(),
-                            unhandledTaskCapacity,
-                            flushingEnabled,
-                            squelchingEnabled,
-                            insertionIsBlocking);
-                    case SEQUENTIAL -> new SequentialTaskScheduler<>(
-                            model,
-                            name,
-                            pool,
-                            buildUncaughtExceptionHandler(),
-                            counters.onRamp(),
-                            counters.offRamp(),
-                            busyFractionTimer,
-                            unhandledTaskCapacity,
-                            flushingEnabled,
-                            squelchingEnabled,
-                            insertionIsBlocking);
-                    case SEQUENTIAL_THREAD -> new SequentialThreadTaskScheduler<>(
-                            model,
-                            name,
-                            buildUncaughtExceptionHandler(),
-                            counters.onRamp(),
-                            counters.offRamp(),
-                            dataCounter,
-                            busyFractionTimer,
-                            unhandledTaskCapacity,
-                            flushingEnabled,
-                            squelchingEnabled,
-                            insertionIsBlocking);
-                    case DIRECT, DIRECT_THREADSAFE -> new DirectTaskScheduler<>(
-                            model,
-                            name,
-                            buildUncaughtExceptionHandler(),
-                            counters.onRamp(),
-                            counters.offRamp(),
-                            squelchingEnabled,
-                            busyFractionTimer,
-                            type == DIRECT_THREADSAFE);
+                    case CONCURRENT ->
+                        new ConcurrentTaskScheduler<>(
+                                model,
+                                name,
+                                pool,
+                                buildUncaughtExceptionHandler(),
+                                counters.onRamp(),
+                                counters.offRamp(),
+                                unhandledTaskCapacity,
+                                flushingEnabled,
+                                squelchingEnabled,
+                                insertionIsBlocking);
+                    case SEQUENTIAL ->
+                        new SequentialTaskScheduler<>(
+                                model,
+                                name,
+                                pool,
+                                buildUncaughtExceptionHandler(),
+                                counters.onRamp(),
+                                counters.offRamp(),
+                                busyFractionTimer,
+                                unhandledTaskCapacity,
+                                flushingEnabled,
+                                squelchingEnabled,
+                                insertionIsBlocking);
+                    case SEQUENTIAL_THREAD ->
+                        new SequentialThreadTaskScheduler<>(
+                                model,
+                                name,
+                                buildUncaughtExceptionHandler(),
+                                counters.onRamp(),
+                                counters.offRamp(),
+                                dataCounter,
+                                busyFractionTimer,
+                                unhandledTaskCapacity,
+                                flushingEnabled,
+                                squelchingEnabled,
+                                insertionIsBlocking);
+                    case DIRECT, DIRECT_THREADSAFE ->
+                        new DirectTaskScheduler<>(
+                                model,
+                                name,
+                                buildUncaughtExceptionHandler(),
+                                counters.onRamp(),
+                                counters.offRamp(),
+                                squelchingEnabled,
+                                busyFractionTimer,
+                                type == DIRECT_THREADSAFE);
                     case NO_OP -> new NoOpTaskScheduler<>(model, name, type, flushingEnabled, squelchingEnabled);
                 };
 

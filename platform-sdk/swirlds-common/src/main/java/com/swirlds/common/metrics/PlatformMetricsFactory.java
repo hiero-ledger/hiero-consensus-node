@@ -22,16 +22,6 @@ public interface PlatformMetricsFactory extends MetricsFactory {
     DurationGauge createDurationGauge(final DurationGauge.Config config);
 
     /**
-     * Creates a {@link FunctionGauge}
-     *
-     * @param config the configuration
-     * @param <T>    the type of the value that will be contained in the {@code FunctionGauge}
-     * @return the new {@code FunctionGauge}
-     * @throws IllegalArgumentException if {@code config} is {@code null}
-     */
-    <T> FunctionGauge<T> createFunctionGauge(final FunctionGauge.Config<T> config);
-
-    /**
      * Creates a {@link IntegerPairAccumulator}
      *
      * @param config

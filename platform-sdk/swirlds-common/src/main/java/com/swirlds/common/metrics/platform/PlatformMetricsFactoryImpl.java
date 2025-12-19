@@ -2,7 +2,6 @@
 package com.swirlds.common.metrics.platform;
 
 import com.swirlds.common.metrics.DurationGauge;
-import com.swirlds.common.metrics.FunctionGauge;
 import com.swirlds.common.metrics.IntegerPairAccumulator;
 import com.swirlds.common.metrics.PlatformMetricsFactory;
 import com.swirlds.common.metrics.RunningAverageMetric;
@@ -32,14 +31,6 @@ public class PlatformMetricsFactoryImpl extends DefaultMetricsFactory implements
     @Override
     public DurationGauge createDurationGauge(final DurationGauge.Config config) {
         return new PlatformDurationGauge(config);
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public <T> FunctionGauge<T> createFunctionGauge(final FunctionGauge.Config<T> config) {
-        return new PlatformFunctionGauge<>(config);
     }
 
     /**

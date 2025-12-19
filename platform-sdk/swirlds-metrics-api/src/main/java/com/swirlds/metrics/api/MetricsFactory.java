@@ -77,4 +77,15 @@ public interface MetricsFactory {
      */
     @NonNull
     LongGauge createLongGauge(@NonNull final LongGauge.Config config);
+
+    /**
+     * Creates a {@link FunctionGauge}
+     *
+     * @param config the configuration
+     * @param <T>    the type of the value that will be contained in the {@code FunctionGauge}
+     * @return the new {@code FunctionGauge}
+     * @throws IllegalArgumentException if {@code config} is {@code null}
+     */
+    @NonNull
+    <T> FunctionGauge<T> createFunctionGauge(final FunctionGauge.Config<T> config);
 }

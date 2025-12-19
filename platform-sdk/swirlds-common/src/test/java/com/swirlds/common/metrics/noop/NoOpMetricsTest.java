@@ -10,7 +10,6 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.swirlds.common.metrics.DurationGauge;
-import com.swirlds.common.metrics.FunctionGauge;
 import com.swirlds.common.metrics.IntegerPairAccumulator;
 import com.swirlds.common.metrics.RunningAverageMetric;
 import com.swirlds.common.metrics.SpeedometerMetric;
@@ -18,6 +17,7 @@ import com.swirlds.common.metrics.StatEntry;
 import com.swirlds.metrics.api.Counter;
 import com.swirlds.metrics.api.DoubleAccumulator;
 import com.swirlds.metrics.api.DoubleGauge;
+import com.swirlds.metrics.api.FunctionGauge;
 import com.swirlds.metrics.api.IntegerAccumulator;
 import com.swirlds.metrics.api.IntegerGauge;
 import com.swirlds.metrics.api.LongAccumulator;

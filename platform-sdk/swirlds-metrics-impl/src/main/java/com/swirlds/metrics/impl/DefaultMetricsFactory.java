@@ -4,19 +4,25 @@ package com.swirlds.metrics.impl;
 import com.swirlds.metrics.api.Counter;
 import com.swirlds.metrics.api.DoubleAccumulator;
 import com.swirlds.metrics.api.DoubleGauge;
+import com.swirlds.metrics.api.FunctionGauge;
 import com.swirlds.metrics.api.IntegerAccumulator;
 import com.swirlds.metrics.api.IntegerGauge;
 import com.swirlds.metrics.api.LongAccumulator;
 import com.swirlds.metrics.api.LongGauge;
 import com.swirlds.metrics.api.MetricsFactory;
+import edu.umd.cs.findbugs.annotations.NonNull;
 
+/**
+ * Default implementation of {@link MetricsFactory}
+ */
 public class DefaultMetricsFactory implements MetricsFactory {
 
     /**
      * {@inheritDoc}
      */
     @Override
-    public Counter createCounter(final Counter.Config config) {
+    @NonNull
+    public Counter createCounter(@NonNull final Counter.Config config) {
         return new DefaultCounter(config);
     }
 
@@ -24,7 +30,8 @@ public class DefaultMetricsFactory implements MetricsFactory {
      * {@inheritDoc}
      */
     @Override
-    public DoubleAccumulator createDoubleAccumulator(final DoubleAccumulator.Config config) {
+    @NonNull
+    public DoubleAccumulator createDoubleAccumulator(@NonNull final DoubleAccumulator.Config config) {
         return new DefaultDoubleAccumulator(config);
     }
 
@@ -32,7 +39,8 @@ public class DefaultMetricsFactory implements MetricsFactory {
      * {@inheritDoc}
      */
     @Override
-    public DoubleGauge createDoubleGauge(final DoubleGauge.Config config) {
+    @NonNull
+    public DoubleGauge createDoubleGauge(@NonNull final DoubleGauge.Config config) {
         return new DefaultDoubleGauge(config);
     }
 
@@ -40,7 +48,8 @@ public class DefaultMetricsFactory implements MetricsFactory {
      * {@inheritDoc}
      */
     @Override
-    public IntegerAccumulator createIntegerAccumulator(final IntegerAccumulator.Config config) {
+    @NonNull
+    public IntegerAccumulator createIntegerAccumulator(@NonNull final IntegerAccumulator.Config config) {
         return new DefaultIntegerAccumulator(config);
     }
 
@@ -48,7 +57,8 @@ public class DefaultMetricsFactory implements MetricsFactory {
      * {@inheritDoc}
      */
     @Override
-    public IntegerGauge createIntegerGauge(final IntegerGauge.Config config) {
+    @NonNull
+    public IntegerGauge createIntegerGauge(@NonNull final IntegerGauge.Config config) {
         return new DefaultIntegerGauge(config);
     }
 
@@ -56,7 +66,8 @@ public class DefaultMetricsFactory implements MetricsFactory {
      * {@inheritDoc}
      */
     @Override
-    public LongAccumulator createLongAccumulator(final LongAccumulator.Config config) {
+    @NonNull
+    public LongAccumulator createLongAccumulator(@NonNull final LongAccumulator.Config config) {
         return new DefaultLongAccumulator(config);
     }
 
@@ -64,7 +75,17 @@ public class DefaultMetricsFactory implements MetricsFactory {
      * {@inheritDoc}
      */
     @Override
-    public LongGauge createLongGauge(final LongGauge.Config config) {
+    @NonNull
+    public LongGauge createLongGauge(@NonNull final LongGauge.Config config) {
         return new DefaultLongGauge(config);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @NonNull
+    public <T> FunctionGauge<T> createFunctionGauge(@NonNull final FunctionGauge.Config<T> config) {
+        return new DefaultFunctionGauge<>(config);
     }
 }

@@ -9,7 +9,6 @@ import static com.swirlds.metrics.api.Metrics.INFO_CATEGORY;
 
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.metrics.FunctionGauge;
 import com.swirlds.common.stream.EventStreamType;
 import com.swirlds.common.stream.HashCalculatorForStream;
 import com.swirlds.common.stream.MultiStream;
@@ -19,6 +18,7 @@ import com.swirlds.common.stream.RunningEventHashOverride;
 import com.swirlds.common.stream.RunningHashCalculatorForStream;
 import com.swirlds.common.stream.internal.TimestampStreamFileWriter;
 import com.swirlds.common.utility.throttle.RateLimitedLogger;
+import com.swirlds.metrics.api.FunctionGauge;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Files;

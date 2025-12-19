@@ -1,11 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.common.metrics;
+package com.swirlds.metrics.api;
 
 import static com.swirlds.metrics.api.Metric.ValueType.VALUE;
 
 import com.swirlds.base.utility.ToStringBuilder;
-import com.swirlds.metrics.api.Metric;
-import com.swirlds.metrics.api.MetricType;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.EnumSet;
 import java.util.Objects;
@@ -66,7 +64,7 @@ public interface FunctionGauge<T> extends Metric {
      *
      * @param <T> the type of the value that will be contained in the {@code FunctionGauge}
      */
-    final class Config<T> extends PlatformMetricConfig<FunctionGauge<T>, Config<T>> {
+    final class Config<T> extends MetricConfig<FunctionGauge<T>, Config<T>> {
 
         private final Class<T> type;
         private final Supplier<T> supplier;
@@ -194,7 +192,7 @@ public interface FunctionGauge<T> extends Metric {
          */
         @Override
         @NonNull
-        public FunctionGauge<T> create(@NonNull final PlatformMetricsFactory factory) {
+        public FunctionGauge<T> create(@NonNull final MetricsFactory factory) {
             return factory.createFunctionGauge(this);
         }
 

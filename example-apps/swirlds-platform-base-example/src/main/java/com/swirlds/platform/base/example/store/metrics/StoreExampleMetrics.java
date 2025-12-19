@@ -2,8 +2,8 @@
 package com.swirlds.platform.base.example.store.metrics;
 
 import com.swirlds.common.metrics.DurationGauge;
-import com.swirlds.common.metrics.FunctionGauge;
 import com.swirlds.metrics.api.Counter;
+import com.swirlds.metrics.api.FunctionGauge;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.base.example.store.persistence.InventoryDao;
 import com.swirlds.platform.base.example.store.persistence.ItemDao;

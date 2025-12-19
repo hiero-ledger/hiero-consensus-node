@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.common.metrics;
+package com.swirlds.metrics.api;
 
 import static com.swirlds.metrics.api.Metric.ValueType.MAX;
 import static com.swirlds.metrics.api.Metric.ValueType.MIN;
@@ -11,7 +11,6 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.swirlds.metrics.api.MetricType;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

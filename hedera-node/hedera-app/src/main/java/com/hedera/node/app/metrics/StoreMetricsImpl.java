@@ -4,7 +4,7 @@ package com.hedera.node.app.metrics;
 import static java.util.Objects.requireNonNull;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.swirlds.common.metrics.FunctionGauge.Config;
+import com.swirlds.metrics.api.FunctionGauge.Config;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.state.spi.metrics.StoreMetrics;
 import edu.umd.cs.findbugs.annotations.NonNull;

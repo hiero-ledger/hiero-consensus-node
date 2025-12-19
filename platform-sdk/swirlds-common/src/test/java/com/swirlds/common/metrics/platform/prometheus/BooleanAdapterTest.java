@@ -7,10 +7,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.data.Offset.offset;
 
-import com.swirlds.common.metrics.FunctionGauge;
-import com.swirlds.common.metrics.platform.PlatformFunctionGauge;
+import com.swirlds.metrics.api.FunctionGauge;
 import com.swirlds.metrics.api.Metric;
 import com.swirlds.metrics.api.snapshot.Snapshot;
+import com.swirlds.metrics.impl.DefaultFunctionGauge;
 import io.prometheus.client.Collector;
 import io.prometheus.client.CollectorRegistry;
 import org.hiero.consensus.model.node.NodeId;
@@ -32,7 +32,7 @@ class BooleanAdapterTest {
     void testCreateGlobalMetric() {
         // given
         final CollectorRegistry registry = new CollectorRegistry();
-        final Metric metric = new PlatformFunctionGauge<>(
+        final Metric metric = new DefaultFunctionGauge<>(
                 new FunctionGauge.Config<>(CATEGORY, NAME, Boolean.class, () -> true).withDescription(DESCRIPTION));
 
         // when
@@ -51,7 +51,7 @@ class BooleanAdapterTest {
     void testCreatePlatformMetric() {
         // given
         final CollectorRegistry registry = new CollectorRegistry();
-        final Metric metric = new PlatformFunctionGauge<>(
+        final Metric metric = new DefaultFunctionGauge<>(
                 new FunctionGauge.Config<>(CATEGORY, NAME, Boolean.class, () -> true).withDescription(DESCRIPTION));
 
         // when
@@ -71,7 +71,7 @@ class BooleanAdapterTest {
         // given
         final String brokenName = ".- /%()";
         final CollectorRegistry registry = new CollectorRegistry();
-        final Metric metric = new PlatformFunctionGauge<>(
+        final Metric metric = new DefaultFunctionGauge<>(
                 new FunctionGauge.Config<>(brokenName, brokenName, Boolean.class, () -> true));
 
         // when
@@ -89,7 +89,7 @@ class BooleanAdapterTest {
     void testConstructorWithNullParameters() {
         // given
         final CollectorRegistry registry = new CollectorRegistry();
-        final Metric metric = new PlatformFunctionGauge<>(
+        final Metric metric = new DefaultFunctionGauge<>(
                 new FunctionGauge.Config<>(CATEGORY, NAME, Boolean.class, () -> true).withDescription(DESCRIPTION));
 
         // then
@@ -104,8 +104,8 @@ class BooleanAdapterTest {
     void testUpdateGlobalMetric() {
         // given
         final CollectorRegistry registry = new CollectorRegistry();
-        final PlatformFunctionGauge<Boolean> metric =
-                new PlatformFunctionGauge<>(new FunctionGauge.Config<>(CATEGORY, NAME, Boolean.class, () -> true));
+        final DefaultFunctionGauge<Boolean> metric =
+                new DefaultFunctionGauge<>(new FunctionGauge.Config<>(CATEGORY, NAME, Boolean.class, () -> true));
         final BooleanAdapter adapter = new BooleanAdapter(registry, metric, GLOBAL);
 
         // when
@@ -121,8 +121,8 @@ class BooleanAdapterTest {
     void testUpdatePlatformMetric() {
         // given
         final CollectorRegistry registry = new CollectorRegistry();
-        final PlatformFunctionGauge<Boolean> metric =
-                new PlatformFunctionGauge<>(new FunctionGauge.Config<>(CATEGORY, NAME, Boolean.class, () -> true));
+        final DefaultFunctionGauge<Boolean> metric =
+                new DefaultFunctionGauge<>(new FunctionGauge.Config<>(CATEGORY, NAME, Boolean.class, () -> true));
         final BooleanAdapter adapter = new BooleanAdapter(registry, metric, PLATFORM);
 
         // when
@@ -137,8 +137,8 @@ class BooleanAdapterTest {
     void testUpdateWithNullParameters() {
         // given
         final CollectorRegistry registry = new CollectorRegistry();
-        final PlatformFunctionGauge<Boolean> metric =
-                new PlatformFunctionGauge<>(new FunctionGauge.Config<>(CATEGORY, NAME, Boolean.class, () -> true));
+        final DefaultFunctionGauge<Boolean> metric =
+                new DefaultFunctionGauge<>(new FunctionGauge.Config<>(CATEGORY, NAME, Boolean.class, () -> true));
         final BooleanAdapter adapter = new BooleanAdapter(registry, metric, PLATFORM);
         final NodeId nodeId = NodeId.of(1L);
 
@@ -152,7 +152,7 @@ class BooleanAdapterTest {
         // given
         final CollectorRegistry registry = new CollectorRegistry();
         final Metric metric =
-                new PlatformFunctionGauge<>(new FunctionGauge.Config<>(CATEGORY, NAME, Boolean.class, () -> true)
+                new DefaultFunctionGauge<>(new FunctionGauge.Config<>(CATEGORY, NAME, Boolean.class, () -> true)
                         .withUnit("AnUnit")
                         .withDescription(DESCRIPTION));
 

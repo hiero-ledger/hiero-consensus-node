@@ -10,7 +10,6 @@ import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 
 import com.sun.net.httpserver.HttpServer;
 import com.swirlds.base.utility.AutoCloseableNonThrowing;
-import com.swirlds.common.metrics.FunctionGauge;
 import com.swirlds.common.metrics.IntegerPairAccumulator;
 import com.swirlds.common.metrics.RunningAverageMetric;
 import com.swirlds.common.metrics.SpeedometerMetric;
@@ -19,6 +18,7 @@ import com.swirlds.common.metrics.platform.DefaultPlatformMetrics;
 import com.swirlds.common.metrics.platform.MetricsEvent;
 import com.swirlds.common.metrics.platform.SnapshotEvent;
 import com.swirlds.metrics.api.Counter;
+import com.swirlds.metrics.api.FunctionGauge;
 import com.swirlds.metrics.api.Metric;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.metrics.api.snapshot.Snapshot;

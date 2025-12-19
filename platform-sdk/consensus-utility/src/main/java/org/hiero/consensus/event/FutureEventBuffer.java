@@ -3,7 +3,7 @@ package org.hiero.consensus.event;
 
 import static org.hiero.consensus.model.hashgraph.ConsensusConstants.ROUND_FIRST;
 
-import com.swirlds.common.metrics.FunctionGauge;
+import com.swirlds.metrics.api.FunctionGauge;
 import com.swirlds.metrics.api.LongGauge;
 import com.swirlds.metrics.api.LongGauge.Config;
 import com.swirlds.metrics.api.Metrics;

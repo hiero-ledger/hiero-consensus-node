@@ -13,7 +13,6 @@ import com.sun.net.httpserver.HttpServer;
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.base.units.UnitConstants;
 import com.swirlds.common.metrics.DurationGauge;
-import com.swirlds.common.metrics.FunctionGauge;
 import com.swirlds.common.metrics.IntegerPairAccumulator;
 import com.swirlds.common.metrics.RunningAverageMetric;
 import com.swirlds.common.metrics.SpeedometerMetric;
@@ -21,7 +20,6 @@ import com.swirlds.common.metrics.StatEntry;
 import com.swirlds.common.metrics.config.MetricsConfig;
 import com.swirlds.common.metrics.platform.MetricsEvent;
 import com.swirlds.common.metrics.platform.PlatformDurationGauge;
-import com.swirlds.common.metrics.platform.PlatformFunctionGauge;
 import com.swirlds.common.metrics.platform.PlatformIntegerPairAccumulator;
 import com.swirlds.common.metrics.platform.PlatformRunningAverageMetric;
 import com.swirlds.common.metrics.platform.PlatformSpeedometerMetric;
@@ -31,6 +29,7 @@ import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.metrics.api.Counter;
 import com.swirlds.metrics.api.DoubleAccumulator;
 import com.swirlds.metrics.api.DoubleGauge;
+import com.swirlds.metrics.api.FunctionGauge;
 import com.swirlds.metrics.api.IntegerAccumulator;
 import com.swirlds.metrics.api.IntegerGauge;
 import com.swirlds.metrics.api.LongAccumulator;
@@ -40,6 +39,7 @@ import com.swirlds.metrics.api.snapshot.Snapshot;
 import com.swirlds.metrics.impl.DefaultCounter;
 import com.swirlds.metrics.impl.DefaultDoubleAccumulator;
 import com.swirlds.metrics.impl.DefaultDoubleGauge;
+import com.swirlds.metrics.impl.DefaultFunctionGauge;
 import com.swirlds.metrics.impl.DefaultIntegerAccumulator;
 import com.swirlds.metrics.impl.DefaultIntegerGauge;
 import com.swirlds.metrics.impl.DefaultLongAccumulator;
@@ -102,7 +102,7 @@ class PrometheusEndpointTest {
     @Test
     void testFilteringOfTimeMetric() throws IOException {
         // given
-        final FunctionGauge<String> time = new PlatformFunctionGauge<>(
+        final FunctionGauge<String> time = new DefaultFunctionGauge<>(
                 new FunctionGauge.Config<>(Metrics.INFO_CATEGORY, "time", String.class, () -> ""));
         try (final PrometheusEndpoint endpoint = new PrometheusEndpoint(httpServer, registry)) {
             final MetricsEvent event = new MetricsEvent(MetricsEvent.Type.ADDED, null, time);
@@ -435,7 +435,7 @@ class PrometheusEndpointTest {
         // given
         final FunctionGauge.Config<Boolean> config =
                 new FunctionGauge.Config<>(CATEGORY, NAME, Boolean.class, () -> true);
-        final PlatformFunctionGauge<Boolean> metric = new PlatformFunctionGauge<>(config);
+        final DefaultFunctionGauge<Boolean> metric = new DefaultFunctionGauge<>(config);
 
         try (final PrometheusEndpoint endpoint = new PrometheusEndpoint(httpServer, registry)) {
 
@@ -463,10 +463,10 @@ class PrometheusEndpointTest {
         // given
         final FunctionGauge.Config<Boolean> config1 =
                 new FunctionGauge.Config<>(CATEGORY, NAME, Boolean.class, () -> true);
-        final PlatformFunctionGauge<Boolean> metric1 = new PlatformFunctionGauge<>(config1);
+        final DefaultFunctionGauge<Boolean> metric1 = new DefaultFunctionGauge<>(config1);
         final FunctionGauge.Config<Boolean> config2 =
                 new FunctionGauge.Config<>(CATEGORY, NAME, Boolean.class, () -> false);
-        final PlatformFunctionGauge<Boolean> metric2 = new PlatformFunctionGauge<>(config2);
+        final DefaultFunctionGauge<Boolean> metric2 = new DefaultFunctionGauge<>(config2);
 
         try (final PrometheusEndpoint endpoint = new PrometheusEndpoint(httpServer, registry)) {
 
@@ -500,7 +500,7 @@ class PrometheusEndpointTest {
         // given
         final FunctionGauge.Config<Double> config =
                 new FunctionGauge.Config<>(CATEGORY, NAME, Double.class, () -> Math.PI);
-        final PlatformFunctionGauge<Double> metric = new PlatformFunctionGauge<>(config);
+        final DefaultFunctionGauge<Double> metric = new DefaultFunctionGauge<>(config);
 
         try (final PrometheusEndpoint endpoint = new PrometheusEndpoint(httpServer, registry)) {
 
@@ -528,10 +528,10 @@ class PrometheusEndpointTest {
         // given
         final FunctionGauge.Config<Double> config1 =
                 new FunctionGauge.Config<>(CATEGORY, NAME, Double.class, () -> Math.E);
-        final PlatformFunctionGauge<Double> metric1 = new PlatformFunctionGauge<>(config1);
+        final DefaultFunctionGauge<Double> metric1 = new DefaultFunctionGauge<>(config1);
         final FunctionGauge.Config<Double> config2 =
                 new FunctionGauge.Config<>(CATEGORY, NAME, Double.class, () -> Math.PI);
-        final PlatformFunctionGauge<Double> metric2 = new PlatformFunctionGauge<>(config2);
+        final DefaultFunctionGauge<Double> metric2 = new DefaultFunctionGauge<>(config2);
 
         try (final PrometheusEndpoint endpoint = new PrometheusEndpoint(httpServer, registry)) {
 
@@ -565,7 +565,7 @@ class PrometheusEndpointTest {
         // given
         final FunctionGauge.Config<String> config =
                 new FunctionGauge.Config<>(CATEGORY, NAME, String.class, () -> "Hello");
-        final PlatformFunctionGauge<String> metric = new PlatformFunctionGauge<>(config);
+        final DefaultFunctionGauge<String> metric = new DefaultFunctionGauge<>(config);
 
         try (final PrometheusEndpoint endpoint = new PrometheusEndpoint(httpServer, registry)) {
 
@@ -593,10 +593,10 @@ class PrometheusEndpointTest {
         // given
         final FunctionGauge.Config<String> config1 =
                 new FunctionGauge.Config<>(CATEGORY, NAME, String.class, () -> "Hello");
-        final PlatformFunctionGauge<String> metric1 = new PlatformFunctionGauge<>(config1);
+        final DefaultFunctionGauge<String> metric1 = new DefaultFunctionGauge<>(config1);
         final FunctionGauge.Config<String> config2 =
                 new FunctionGauge.Config<>(CATEGORY, NAME, String.class, () -> "Goodbye");
-        final PlatformFunctionGauge<String> metric2 = new PlatformFunctionGauge<>(config2);
+        final DefaultFunctionGauge<String> metric2 = new DefaultFunctionGauge<>(config2);
 
         try (final PrometheusEndpoint endpoint = new PrometheusEndpoint(httpServer, registry)) {
 
