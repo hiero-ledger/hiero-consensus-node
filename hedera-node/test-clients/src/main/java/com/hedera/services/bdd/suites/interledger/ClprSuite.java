@@ -1,14 +1,19 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.suites.interledger;
 
+import static com.hedera.node.app.hapi.utils.CommonPbjConverters.toPbj;
 import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
 import static com.hedera.services.bdd.junit.hedera.utils.AddressBookUtils.CLASSIC_NODE_NAMES;
 import static com.hedera.services.bdd.junit.hedera.utils.AddressBookUtils.classicFeeCollectorIdFor;
 import static com.hedera.services.bdd.junit.hedera.utils.AddressBookUtils.nodeIdsFrom;
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.VALID_CERT;
+import static com.hedera.services.bdd.spec.HapiPropertySource.asAccount;
 import static com.hedera.services.bdd.spec.HapiSpec.customizedHapiTest;
+import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeDelete;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateCandidateRoster;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static java.util.Objects.requireNonNull;
@@ -20,6 +25,7 @@ import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.TestTags;
 import com.hedera.services.bdd.junit.hedera.HederaNode;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
+import com.hedera.services.bdd.spec.utilops.ContextualActionOp;
 import com.hedera.services.bdd.spec.utilops.FakeNmt;
 import com.hedera.services.bdd.suites.HapiSuite;
 import com.hedera.services.bdd.suites.regression.system.LifecycleTest;
@@ -32,8 +38,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
+import org.hiero.hapi.interledger.state.clpr.ClprMessageQueueMetadata;
 import org.hiero.hapi.interledger.state.clpr.protoc.ClprEndpoint;
 import org.hiero.hapi.interledger.state.clpr.protoc.ClprLedgerConfiguration;
+import org.hiero.interledger.clpr.client.ClprClient;
 import org.hiero.interledger.clpr.impl.client.ClprClientImpl;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -172,6 +180,38 @@ public class ClprSuite implements LifecycleTest {
                 }));
     }
 
+    @DisplayName("Update message queue metadata works")
+    @HapiTest
+    final Stream<DynamicTest> handleMessageQueue() {
+        AtomicReference<HederaNode> targetNode = new AtomicReference<>();
+        AtomicReference<ClprMessageQueueMetadata> fetchResult = new AtomicReference<>();
+        ClprMessageQueueMetadata localMessageQueueMetadata = ClprMessageQueueMetadata.newBuilder()
+                .receivedMessageId(0)
+                .sentMessageId(0)
+                .nextOutgoingMessageId(1)
+                .ledgerShortId(0)
+                .build();
+        return hapiTest(
+                // set target node
+                doingContextual(spec -> {
+                    final var tNode = spec.getNetworkNodes().stream()
+                            .filter(node -> node.getAccountId().accountNum().equals(3L))
+                            .findFirst();
+                    assertThat(tNode).isNotNull();
+                    targetNode.set(tNode.get());
+                }),
+                // try to update local message queue metadata
+                updateMessageQueueMetadata(targetNode, localMessageQueueMetadata),
+                // try to fetch local message queue metadata
+                sleepFor(5000),
+                fetchMessageQueueMetadata(targetNode, fetchResult),
+
+                // validate the result
+                doingContextual(spec -> {
+                    assertThat(fetchResult.get()).isEqualTo(localMessageQueueMetadata);
+                }));
+    }
+
     private static ClprLedgerConfiguration fetchLedgerConfiguration(final List<HederaNode> nodes) {
         final var deadline = Instant.now().plus(Duration.ofMinutes(1));
         do {
@@ -212,13 +252,7 @@ public class ClprSuite implements LifecycleTest {
     }
 
     private static ClprLedgerConfiguration tryFetchLedgerConfiguration(final HederaNode node) {
-        try {
-            final var pbjEndpoint = com.hedera.hapi.node.base.ServiceEndpoint.newBuilder()
-                    .ipAddressV4(
-                            Bytes.wrap(InetAddress.getByName(node.getHost()).getAddress()))
-                    .port(node.getGrpcPort())
-                    .build();
-            final var client = new ClprClientImpl(pbjEndpoint);
+        try (final var client = createClient(node)) {
             final var pbjConfig = client.getConfiguration();
             if (pbjConfig == null) {
                 return null;
@@ -226,7 +260,7 @@ public class ClprSuite implements LifecycleTest {
             final var configBytes =
                     org.hiero.hapi.interledger.state.clpr.ClprLedgerConfiguration.PROTOBUF.toBytes(pbjConfig);
             return ClprLedgerConfiguration.parseFrom(configBytes.toByteArray());
-        } catch (UnknownHostException | com.google.protobuf.InvalidProtocolBufferException e) {
+        } catch (com.google.protobuf.InvalidProtocolBufferException e) {
             throw new IllegalStateException("Unable to fetch CLPR ledger configuration", e);
         }
     }
@@ -254,5 +288,42 @@ public class ClprSuite implements LifecycleTest {
         } catch (UnknownHostException e) {
             throw new IllegalStateException("CLPR endpoint carried an invalid IPv4 address", e);
         }
+    }
+
+    private static ClprClient createClient(final HederaNode node) {
+        try {
+            final var pbjEndpoint = com.hedera.hapi.node.base.ServiceEndpoint.newBuilder()
+                    .ipAddressV4(
+                            Bytes.wrap(InetAddress.getByName(node.getHost()).getAddress()))
+                    .port(node.getGrpcPort())
+                    .build();
+            return new ClprClientImpl(pbjEndpoint);
+        } catch (UnknownHostException e) {
+            throw new IllegalStateException("Failed to create CLPR client", e);
+        }
+    }
+
+    private static ContextualActionOp updateMessageQueueMetadata(
+            final AtomicReference<HederaNode> node, final ClprMessageQueueMetadata clprMessageQueueMetadata) {
+
+        return doingContextual(spec -> {
+            try (final var client = createClient(node.get())) {
+                final var payer = asAccount(spec, 2);
+                client.updateMessageQueueMetadata(
+                        toPbj(payer), node.get().getAccountId(), client.getConfiguration(), clprMessageQueueMetadata);
+            }
+        });
+    }
+
+    private static ContextualActionOp fetchMessageQueueMetadata(
+            final AtomicReference<HederaNode> node,
+            final AtomicReference<ClprMessageQueueMetadata> exposingMessageQueueMetadata) {
+        return doingContextual(spec -> {
+            try (final var client = createClient(node.get())) {
+                final var messageQueueMetadata =
+                        client.getMessageQueueMetadata(client.getConfiguration().ledgerId());
+                exposingMessageQueueMetadata.set(messageQueueMetadata);
+            }
+        });
     }
 }

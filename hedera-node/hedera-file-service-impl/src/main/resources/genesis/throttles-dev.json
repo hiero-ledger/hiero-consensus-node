@@ -38,6 +38,7 @@
             "TransactionGetRecord",
             "GetVersionInfo",
             "ClprGetLedgerConfig",
+            "ClprGetMessageQueueMetadata",
             "NodeCreate",
             "NodeUpdate",
             "NodeDelete",

@@ -7,6 +7,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import org.hiero.hapi.interledger.state.clpr.ClprLedgerConfiguration;
 import org.hiero.hapi.interledger.state.clpr.ClprLedgerId;
+import org.hiero.hapi.interledger.state.clpr.ClprMessageQueueMetadata;
 
 /**
  * Interface for the CLPR (Cross-Ledger Protocol) client.
@@ -38,6 +39,16 @@ public interface ClprClient extends AutoCloseable {
             @NonNull AccountID payerAccountId,
             @NonNull AccountID nodeAccountId,
             @NonNull ClprLedgerConfiguration clprLedgerConfiguration);
+
+    @NonNull
+    ResponseCodeEnum updateMessageQueueMetadata(
+            @NonNull AccountID payerAccountId,
+            @NonNull AccountID nodeAccountId,
+            @NonNull ClprLedgerConfiguration clprLedgerConfiguration,
+            @NonNull ClprMessageQueueMetadata clprMessageQueueMetadata);
+
+    @Nullable
+    ClprMessageQueueMetadata getMessageQueueMetadata(@NonNull ClprLedgerId ledgerId);
 
     /**
      * Closes the CLPR client connection.

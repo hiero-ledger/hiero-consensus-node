@@ -3,7 +3,9 @@ package com.hedera.node.config.data;
 
 import static com.hedera.hapi.node.base.HederaFunctionality.ATOMIC_BATCH;
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_GET_LEDGER_CONFIG;
+import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_GET_MESSAGE_QUEUE_METADATA;
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_SET_LEDGER_CONFIG;
+import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_UPDATE_MESSAGE_QUEUE_METADATA;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONSENSUS_CREATE_TOPIC;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONSENSUS_DELETE_TOPIC;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONSENSUS_GET_TOPIC_INFO;
@@ -378,6 +380,9 @@ public record ApiPermissionConfig(
         permissionKeys.put(NODE_STAKE_UPDATE, c -> c.nodeStakeUpdate);
         permissionKeys.put(CLPR_GET_LEDGER_CONFIG, c -> c.clprGetLedgerConfig);
         permissionKeys.put(CLPR_SET_LEDGER_CONFIG, c -> c.clprSetLedgerConfig);
+        // TODO add the rest of the CLPR transactions/queries
+        permissionKeys.put(CLPR_UPDATE_MESSAGE_QUEUE_METADATA, c -> c.clprGetLedgerConfig);
+        permissionKeys.put(CLPR_GET_MESSAGE_QUEUE_METADATA, c -> c.clprSetLedgerConfig);
     }
 
     /**
