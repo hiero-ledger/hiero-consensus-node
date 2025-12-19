@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform;
+package org.hiero.consensus.hashgraph.impl.consensus;
 
 import static com.swirlds.logging.legacy.LogMarker.CONSENSUS_VOTING;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
@@ -141,11 +141,6 @@ import org.hiero.consensus.roster.RosterUtils;
  * more than 2/3 of the total".
  */
 public class ConsensusImpl implements Consensus {
-
-    public static final String COIN_ROUND_MARKER_FILE = "consensus-coin-round";
-    public static final String NO_SUPER_MAJORITY_MARKER_FILE = "consensus-no-super-majority";
-    public static final String NO_JUDGES_MARKER_FILE = "consensus-no-judges";
-    public static final String CONSENSUS_EXCEPTION_MARKER_FILE = "consensus-exception";
 
     private static final Logger logger = LogManager.getLogger(ConsensusImpl.class);
 

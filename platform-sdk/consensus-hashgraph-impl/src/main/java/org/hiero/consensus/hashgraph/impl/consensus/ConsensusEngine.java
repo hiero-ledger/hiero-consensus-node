@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.components.consensus;
+package org.hiero.consensus.hashgraph.impl.consensus;
 
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.component.framework.component.InputWireLabel;

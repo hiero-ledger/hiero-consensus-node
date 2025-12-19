@@ -66,7 +66,7 @@ module com.swirlds.platform.core {
             com.hedera.node.app,
             org.hiero.otter.fixtures,
             org.hiero.otter.test;
-    exports com.swirlds.platform.event.linking to
+    exports org.hiero.consensus.hashgraph.impl.linking to
             com.swirlds.common,
             com.swirlds.platform.core.test.fixtures;
     exports com.swirlds.platform.uptime to

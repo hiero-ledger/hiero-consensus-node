@@ -141,7 +141,7 @@ Change all protobuf `Roster` usages to `RosterData`. After this task is complete
 
 * Components:
   * `org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreator`
-  * `com.swirlds.platform.ConsensusImpl`
+  * `org.hiero.consensus.hashgraph.impl.consensus.ConsensusImpl`
   * `com.swirlds.platform.gossip.SyncGossipModular`
   * `com.swirlds.platform.event.validation.DefaultEventSignatureValidator`
   * `com.swirlds.platform.event.branching.DefaultBranchReporter`
@@ -200,7 +200,7 @@ After this task, the old RosterHistory object will be deleted.
 ##### Affected pieces
 
 * `com.swirlds.platform.event.branching.DefaultBranchReporter`
-* `com.swirlds.platform.ConsensusImpl`
+* `org.hiero.consensus.hashgraph.impl.consensus.ConsensusImpl`
 * `com.swirlds.platform.state.iss.DefaultIssDetector`
 * `org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreator`
 * `com.swirlds.platform.gossip.SyncGossipModular`
@@ -240,7 +240,7 @@ For DAB, all accesses to the RosterHistory needs to provide the round to get the
 
 * `com.swirlds.platform.event.validation.DefaultEventSignatureValidator`: is already accessing using the history and the round, so no impact here.
 * `com.swirlds.platform.event.branching.DefaultBranchReporter`: `#reportBranch` will use the event's birth round. `#updateEventWindow` will use the event's window latestConsensusRound. The constructor will still use getCurrentRoster.
-* `com.swirlds.platform.ConsensusImpl`: In all places where consensus is using the roster we need to access the roster for the pending round.
+* `org.hiero.consensus.hashgraph.impl.consensus.ConsensusImpl`: In all places where consensus is using the roster we need to access the roster for the pending round.
 * `org.hiero.consensus.event.creator.impl.tipset.TipsetEventCreator`: `#registerEvent` can use the event's birth round. TipsetEventCreator's constructor will still use  `rosterHistory.getCurrentRoster()` for the creation of tipsetTracker, tipsetMetrics, tipsetWeightCalculator. networkSize field can be removed and calculated dynamically using the event window.
 * `com.swirlds.platform.state.iss.DefaultIssDetector`: `#handlePostconsensusSignature`:can access roster using the round in the signaturePayload; `#shiftRoundDataWindow` can access the roster using the roundNumber parameter.
 * `com.swirlds.platform.gossip.SyncGossipModular` The constructor will still use  `rosterHistory.getCurrentRoster()` unless we can create the component sending the round as another parameter.

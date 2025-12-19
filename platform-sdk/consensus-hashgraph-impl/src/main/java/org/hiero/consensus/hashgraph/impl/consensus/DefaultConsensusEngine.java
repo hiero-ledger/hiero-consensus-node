@@ -1,19 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.components.consensus;
+package org.hiero.consensus.hashgraph.impl.consensus;
 
 import static org.hiero.consensus.model.status.PlatformStatus.REPLAYING_EVENTS;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
-import com.swirlds.common.context.PlatformContext;
-import com.swirlds.platform.Consensus;
-import com.swirlds.platform.ConsensusImpl;
-import com.swirlds.platform.event.linking.ConsensusLinker;
-import com.swirlds.platform.event.linking.DefaultLinkerLogsAndMetrics;
-import com.swirlds.platform.internal.EventImpl;
-import com.swirlds.platform.metrics.ConsensusEngineMetrics;
-import com.swirlds.platform.metrics.ConsensusMetrics;
-import com.swirlds.platform.metrics.ConsensusMetricsImpl;
+import org.hiero.consensus.hashgraph.impl.EventImpl;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.LinkedList;
@@ -24,6 +16,11 @@ import org.hiero.consensus.event.FutureEventBuffer;
 import org.hiero.consensus.event.FutureEventBufferingOption;
 import org.hiero.consensus.hashgraph.ConsensusConfig;
 import org.hiero.consensus.hashgraph.FreezePeriodChecker;
+import org.hiero.consensus.hashgraph.impl.linking.ConsensusLinker;
+import org.hiero.consensus.hashgraph.impl.linking.DefaultLinkerLogsAndMetrics;
+import org.hiero.consensus.hashgraph.impl.metrics.ConsensusEngineMetrics;
+import org.hiero.consensus.hashgraph.impl.metrics.ConsensusMetrics;
+import org.hiero.consensus.hashgraph.impl.metrics.ConsensusMetricsImpl;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;

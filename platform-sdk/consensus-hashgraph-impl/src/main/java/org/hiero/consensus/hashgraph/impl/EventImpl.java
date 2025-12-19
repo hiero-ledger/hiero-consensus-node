@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.internal;
+package org.hiero.consensus.hashgraph.impl;
 
 import com.swirlds.platform.consensus.CandidateWitness;
 import com.swirlds.platform.consensus.DeGen;
