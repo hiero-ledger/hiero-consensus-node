@@ -262,7 +262,7 @@ jobs:
           has_failure() {
             local arr=("$@")
             for status in "${arr[@]}"; do
-              [[ "$status" == "failure" ]] && return 0
+              [[ "${status}" == "failure" ]] && return 0
             done
             return 1
           }
