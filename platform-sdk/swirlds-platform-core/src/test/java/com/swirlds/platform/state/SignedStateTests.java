@@ -30,7 +30,6 @@ import java.util.Random;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.hiero.base.exceptions.ReferenceCountException;
 import org.hiero.consensus.crypto.SignatureVerifier;
-import org.hiero.consensus.roster.RosterUtils;
 import org.hiero.consensus.roster.RosterStateUtils;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;

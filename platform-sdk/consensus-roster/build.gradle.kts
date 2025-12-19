@@ -8,6 +8,4 @@ description = "Consensus Roster"
 
 mainModuleInfo { annotationProcessor("com.swirlds.config.processor") }
 
-testModuleInfo {
-    requires("org.junit.jupiter.api")
-}
+testModuleInfo { requires("org.junit.jupiter.api") }

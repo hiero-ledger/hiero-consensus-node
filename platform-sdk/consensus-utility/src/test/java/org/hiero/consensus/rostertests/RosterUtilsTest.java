@@ -28,11 +28,11 @@ import org.hiero.base.utility.test.fixtures.RandomUtils;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.roster.Address;
 import org.hiero.consensus.model.roster.AddressBook;
-import org.hiero.consensus.test.fixtures.crypto.PreGeneratedX509Certs;
 import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.roster.RosterStateId;
 import org.hiero.consensus.roster.RosterStateUtils;
 import org.hiero.consensus.roster.RosterUtils;
+import org.hiero.consensus.test.fixtures.crypto.PreGeneratedX509Certs;
 import org.junit.jupiter.api.Test;
 
 public class RosterUtilsTest {

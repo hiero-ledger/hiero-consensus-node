@@ -6,9 +6,7 @@ import static com.swirlds.metrics.api.Metrics.PLATFORM_CATEGORY;
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
-import com.swirlds.common.context.PlatformContext;
 import com.swirlds.base.time.Time;
-import com.swirlds.common.utility.throttle.RateLimitedLogger;
 import com.swirlds.metrics.api.LongAccumulator;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;

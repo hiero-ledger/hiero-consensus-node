@@ -30,9 +30,8 @@ open module com.swirlds.platform.core.test.fixtures {
     requires com.swirlds.virtualmap;
     requires org.hiero.base.crypto.test.fixtures;
     requires org.hiero.base.utility.test.fixtures;
-    requires org.hiero.consensus.utility.test.fixtures;
     requires org.hiero.consensus.metrics;
-    requires org.hiero.consensus.utility;
+    requires org.hiero.consensus.utility.test.fixtures;
     requires com.github.spotbugs.annotations;
     requires com.google.common;
     requires java.desktop;

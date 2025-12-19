@@ -8,8 +8,6 @@ import static com.swirlds.platform.crypto.KeyCertPurpose.SIGNING;
 import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 import static org.hiero.consensus.crypto.CryptoConstants.PUBLIC_KEYS_FILE;
 
-import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.threading.framework.config.ThreadConfiguration;
 import com.swirlds.common.utility.CommonUtils;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.Utilities;
