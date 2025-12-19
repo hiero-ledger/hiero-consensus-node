@@ -5,7 +5,6 @@ import static com.swirlds.common.io.utility.FileUtils.getAbsolutePath;
 import static com.swirlds.common.io.utility.FileUtils.rethrowIO;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
-import static com.swirlds.platform.builder.PlatformBuildConstants.DEFAULT_CONFIG_FILE_NAME;
 import static com.swirlds.platform.builder.PlatformBuildConstants.DEFAULT_OVERRIDES_YAML_FILE_NAME;
 import static com.swirlds.platform.builder.PlatformBuildConstants.DEFAULT_SETTINGS_FILE_NAME;
 import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.getMetricsProvider;
@@ -57,8 +56,6 @@ import com.swirlds.platform.CommandLineArgs;
 import com.swirlds.platform.builder.PlatformBuilder;
 import com.swirlds.platform.config.BasicConfig;
 import com.swirlds.platform.config.legacy.ConfigurationException;
-import com.swirlds.platform.config.legacy.LegacyConfigProperties;
-import com.swirlds.platform.config.legacy.LegacyConfigPropertiesLoader;
 import com.swirlds.platform.state.ConsensusStateEventHandler;
 import com.swirlds.platform.state.signed.HashedReservedSignedState;
 import com.swirlds.platform.state.signed.ReservedSignedState;
@@ -74,7 +71,6 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.time.InstantSource;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ForkJoinPool;
@@ -86,9 +82,7 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.RuntimeConstructable;
 import org.hiero.base.crypto.CryptographyProvider;
-import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.model.roster.SimpleAddresses;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.model.transaction.TimestampedTransaction;
 import org.hiero.consensus.roster.RosterStateUtils;
@@ -333,7 +327,6 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
         ConsensusStateEventHandler<MerkleNodeState> consensusStateEventHandler = hedera.newConsensusStateEvenHandler();
         final PlatformContext platformContext = PlatformContext.create(
                 platformConfig, Time.getCurrent(), metrics, fileSystemManager, recycleBin, merkleCryptography);
-        final Optional<SimpleAddresses> maybeConfigAddresses = loadFromLegacyConfig(platformConfig);
         final HashedReservedSignedState reservedState = loadInitialState(
                 recycleBin,
                 version,
@@ -341,11 +334,8 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
                     Network network;
                     try {
                         network = hedera.startupNetworks().genesisNetworkOrThrow(platformConfig);
-                    } catch (Exception ignore) {
-                        // Fallback to the legacy address book if genesis-network.json or equivalent not loaded
-                        network = DiskStartupNetworks.fromLegacyConfig(
-                                maybeConfigAddresses.orElseThrow(),
-                                hedera.bootstrapConfigProvider().getConfiguration());
+                    } catch (Exception exp) {
+                        throw new IllegalStateException("Failed to start network", exp);
                     }
                     genesisNetwork.set(network);
                     final var genesisState = hedera.newStateRoot();
@@ -529,26 +519,6 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
             throw new ConfigurationException(errorMessage);
         }
         return nodesToRun.getFirst();
-    }
-
-    /**
-     * Loads the legacy config.txt if it is present. Can be removed once no environment relies on using
-     * legacy <i>config.txt</i> as a startup asset.
-     * @return the addresses from a legacy config file, if present
-     */
-    @Deprecated
-    private static Optional<SimpleAddresses> loadFromLegacyConfig(final Configuration platformConfig) {
-        try {
-            final LegacyConfigProperties props =
-                    LegacyConfigPropertiesLoader.loadConfigFile(getAbsolutePath(DEFAULT_CONFIG_FILE_NAME));
-            final SimpleAddresses legacyBook = props.getSimpleAddresses();
-            final Map<NodeId, KeysAndCerts> keysAndCerts =
-                    initNodeSecurity(platformConfig, legacyBook.getNodeIds());
-
-            return Optional.of(legacyBook.withKeysAndCerts(keysAndCerts));
-        } catch (final Exception ignore) {
-            return Optional.empty();
-        }
     }
 
     private static @NonNull Hedera hederaOrThrow() {

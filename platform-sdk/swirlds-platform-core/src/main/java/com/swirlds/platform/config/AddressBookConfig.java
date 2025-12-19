@@ -12,9 +12,6 @@ import com.swirlds.config.api.ConfigProperty;
  * 		Intermediate workaround until the platform is capable of handling an address book that changes at runtime. This
  * 		feature will be removed in a future version. Check if the address book override is enabled. If enabled, then
  * 		the address book will only change when a node starts up. This feature will be removed in a future version.
- * @param forceUseOfConfigAddressBook
- *      If true, then the address book from the config file will be used instead of the address book from the
- *      signed state and the swirld state will not be queried for any address book updates.
  * @param addressBookDirectory
  *      The directory where address book files are saved.
  * @param maxRecordedAddressBookFiles
@@ -26,7 +23,6 @@ import com.swirlds.config.api.ConfigProperty;
 @ConfigData("addressBook")
 public record AddressBookConfig(
         @ConfigProperty(defaultValue = "true") boolean updateAddressBookOnlyAtUpgrade,
-        @ConfigProperty(defaultValue = "false") boolean forceUseOfConfigAddressBook,
         @ConfigProperty(defaultValue = "data/saved/address_book") String addressBookDirectory,
         @ConfigProperty(defaultValue = "50") int maxRecordedAddressBookFiles,
         @ConfigProperty(defaultValue = "true") boolean createCandidateRosterOnPrepareUpgrade) {}
