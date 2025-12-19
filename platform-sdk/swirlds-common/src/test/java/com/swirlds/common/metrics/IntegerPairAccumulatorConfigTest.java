@@ -8,6 +8,7 @@ import static org.mockito.Mockito.mock;
 
 import java.util.function.BiFunction;
 import java.util.function.IntBinaryOperator;
+import org.hiero.consensus.metrics.IntegerPairAccumulator;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 

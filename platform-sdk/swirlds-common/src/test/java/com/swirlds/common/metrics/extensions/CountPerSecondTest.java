@@ -13,6 +13,7 @@ import com.swirlds.metrics.api.Metrics;
 import java.time.Duration;
 import java.time.Instant;
 import org.hiero.consensus.metrics.IntegerPairAccumulator;
+import org.hiero.consensus.metrics.extensions.CountPerSecond;
 import org.hiero.consensus.metrics.platform.PlatformIntegerPairAccumulator;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;

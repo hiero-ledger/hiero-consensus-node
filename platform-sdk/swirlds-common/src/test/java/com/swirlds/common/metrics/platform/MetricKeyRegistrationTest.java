@@ -6,6 +6,7 @@ import static org.hiero.consensus.metrics.platform.DefaultPlatformMetrics.calcul
 
 import com.swirlds.metrics.api.Counter;
 import com.swirlds.metrics.api.IntegerGauge;
+import org.hiero.consensus.metrics.platform.MetricKeyRegistry;
 import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.Test;
 

@@ -9,6 +9,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.stream.Stream;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
+import org.hiero.consensus.metrics.statistics.CycleTimingStat;
 import org.hiero.consensus.metrics.statistics.cycle.CycleDefinition;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;

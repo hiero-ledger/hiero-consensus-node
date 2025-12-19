@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.consensus.threading.framework.internal;
+package com.swirlds.common.threading.framework.internal;
 
 import static com.swirlds.metrics.api.Metrics.INTERNAL_CATEGORY;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -23,6 +23,8 @@ import org.hiero.base.concurrent.interrupt.InterruptableRunnable;
 import org.hiero.consensus.concurrent.framework.QueueThread;
 import org.hiero.consensus.concurrent.framework.StoppableThread;
 import org.hiero.consensus.concurrent.framework.config.QueueThreadMetricsConfiguration;
+import org.hiero.consensus.concurrent.framework.internal.AbstractQueueThreadConfiguration;
+import org.hiero.consensus.concurrent.framework.internal.MeasuredBlockingQueue;
 import org.hiero.consensus.concurrent.manager.ThreadManager;
 import org.hiero.consensus.metrics.PlatformMetricsFactory;
 import org.hiero.consensus.metrics.config.MetricsConfig;
@@ -241,10 +243,7 @@ class AbstractQueueThreadConfigurationTest {
                 .setMaxBufferSize(MAX_BUFFER_SIZE)
                 .setCapacity(CAPACITY)
                 .setHandler(handler)
-                .setQueue(queue)
-                .setMetricsConfiguration(new QueueThreadMetricsConfiguration(metrics)
-                        .enableMaxSizeMetric()
-                        .enableMinSizeMetric());
+                .setQueue(queue);
         final QueueThread<String> queueThread = configuration.buildQueueThread(false);
 
         // then

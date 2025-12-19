@@ -13,6 +13,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.EnumSet;
 import java.util.List;
 import org.hiero.consensus.metrics.DurationGauge;
+import org.hiero.consensus.metrics.platform.PlatformDurationGauge;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 

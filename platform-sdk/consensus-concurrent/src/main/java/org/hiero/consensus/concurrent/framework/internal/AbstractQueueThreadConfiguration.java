@@ -91,7 +91,7 @@ public abstract class AbstractQueueThreadConfiguration<C extends AbstractQueueTh
     @Override
     public abstract AbstractQueueThreadConfiguration<C, T> copy();
 
-    protected QueueThread<T> buildQueueThread(final boolean start) {
+    public QueueThread<T> buildQueueThread(final boolean start) {
         final QueueThread<T> thread = new QueueThreadImpl<>(this);
 
         if (start) {
@@ -156,7 +156,7 @@ public abstract class AbstractQueueThreadConfiguration<C extends AbstractQueueTh
     /**
      * Get the handler method that will be called against every item in the queue.
      */
-    protected InterruptableConsumer<T> getHandler() {
+    public InterruptableConsumer<T> getHandler() {
         return handler;
     }
 
@@ -166,7 +166,7 @@ public abstract class AbstractQueueThreadConfiguration<C extends AbstractQueueTh
      * @return this object
      */
     @SuppressWarnings("unchecked")
-    protected C setHandler(final InterruptableConsumer<T> handler) {
+    public C setHandler(final InterruptableConsumer<T> handler) {
         throwIfImmutable();
         this.handler = handler;
         return (C) this;

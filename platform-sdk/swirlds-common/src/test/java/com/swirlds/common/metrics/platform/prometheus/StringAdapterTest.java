@@ -13,6 +13,8 @@ import io.prometheus.client.Collector;
 import io.prometheus.client.CollectorRegistry;
 import org.hiero.consensus.metrics.FunctionGauge;
 import org.hiero.consensus.metrics.platform.PlatformFunctionGauge;
+import org.hiero.consensus.metrics.platform.prometheus.BooleanAdapter;
+import org.hiero.consensus.metrics.platform.prometheus.StringAdapter;
 import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.Test;
 

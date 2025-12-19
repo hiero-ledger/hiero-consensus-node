@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.consensus.threading.manager;
+package com.swirlds.common.threading.manager;
 
 import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyTrue;
 import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
@@ -10,6 +10,8 @@ import com.swirlds.base.state.LifecycleException;
 import java.time.Duration;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.atomic.AtomicBoolean;
+import org.hiero.consensus.concurrent.manager.StandardThreadManager;
+import org.hiero.consensus.concurrent.manager.ThreadManager;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 

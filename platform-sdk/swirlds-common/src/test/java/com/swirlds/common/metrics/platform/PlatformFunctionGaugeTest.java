@@ -17,6 +17,7 @@ import com.swirlds.metrics.impl.DefaultIntegerGauge;
 import java.util.List;
 import java.util.function.Supplier;
 import org.hiero.consensus.metrics.FunctionGauge;
+import org.hiero.consensus.metrics.platform.PlatformFunctionGauge;
 import org.junit.jupiter.api.Test;
 
 class PlatformFunctionGaugeTest {

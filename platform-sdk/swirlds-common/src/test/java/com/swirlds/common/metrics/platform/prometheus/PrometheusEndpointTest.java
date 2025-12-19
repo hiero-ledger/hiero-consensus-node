@@ -53,6 +53,7 @@ import org.hiero.consensus.metrics.platform.PlatformRunningAverageMetric;
 import org.hiero.consensus.metrics.platform.PlatformSpeedometerMetric;
 import org.hiero.consensus.metrics.platform.PlatformStatEntry;
 import org.hiero.consensus.metrics.platform.SnapshotEvent;
+import org.hiero.consensus.metrics.platform.prometheus.PrometheusEndpoint;
 import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;

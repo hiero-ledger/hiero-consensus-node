@@ -27,6 +27,7 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import org.hiero.consensus.metrics.StatEntry;
 import org.hiero.consensus.metrics.config.MetricsConfig;
+import org.hiero.consensus.metrics.platform.PlatformStatEntry;
 import org.hiero.consensus.metrics.statistics.StatsBuffered;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

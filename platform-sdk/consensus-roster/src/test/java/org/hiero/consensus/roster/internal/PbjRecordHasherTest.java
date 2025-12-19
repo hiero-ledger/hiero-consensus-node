@@ -4,6 +4,8 @@ package org.hiero.consensus.roster.internal;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import org.hiero.base.crypto.Hash;
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Test;
 
 public class PbjRecordHasherTest {
     @Test

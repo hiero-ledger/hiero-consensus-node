@@ -19,6 +19,7 @@ import com.swirlds.metrics.impl.DefaultIntegerGauge;
 import java.util.List;
 import java.util.function.BiFunction;
 import org.hiero.consensus.metrics.IntegerPairAccumulator;
+import org.hiero.consensus.metrics.platform.PlatformIntegerPairAccumulator;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
