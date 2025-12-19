@@ -3,12 +3,12 @@ package org.hiero.consensus.hashgraph.impl.consensus;
 
 import static com.swirlds.logging.legacy.LogMarker.CONSENSUS_VOTING;
 
-import com.swirlds.common.utility.IntReference;
 import org.hiero.consensus.hashgraph.impl.EventImpl;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.IntReference;
 
 /** A wrapper for a witness which holds additional metadata while an election to decide its fame is ongoing */
 public final class CandidateWitness {

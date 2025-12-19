@@ -7,7 +7,7 @@ module org.hiero.consensus.hashgraph.impl {
     requires transitive com.swirlds.metrics.api;
     requires transitive org.hiero.consensus.hashgraph;
     requires transitive org.hiero.consensus.model;
-    requires static com.github.spotbugs.annotations; requires org.hiero.consensus.utility; requires org.hiero.consensus.concurrent;
+    requires static com.github.spotbugs.annotations; requires org.hiero.consensus.utility; requires org.hiero.consensus.concurrent; requires org.hiero.consensus.roster;
 
     provides org.hiero.consensus.hashgraph.HashgraphModule with
             org.hiero.consensus.hashgraph.impl.DefaultHashgraphModule;

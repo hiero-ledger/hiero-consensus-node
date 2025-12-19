@@ -1,10 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.hashgraph.impl;
 
-import com.swirlds.platform.consensus.CandidateWitness;
-import com.swirlds.platform.consensus.DeGen;
-import com.swirlds.platform.consensus.LocalConsensusGeneration;
-import com.swirlds.platform.event.EventCounter;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.time.Instant;
@@ -12,6 +8,10 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 import org.hiero.base.Clearable;
+import org.hiero.consensus.hashgraph.impl.consensus.CandidateWitness;
+import org.hiero.consensus.hashgraph.impl.consensus.DeGen;
+import org.hiero.consensus.hashgraph.impl.consensus.LocalConsensusGeneration;
+import org.hiero.consensus.hashgraph.impl.metrics.EventCounter;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusConstants;
@@ -74,7 +74,7 @@ public class EventImpl extends LinkedEvent<EventImpl> implements Clearable {
      */
     private boolean[] votes;
 
-    /** Local consensus generation, for more info, see {@link com.swirlds.platform.consensus.LocalConsensusGeneration} */
+    /** Local consensus generation, for more info, see {@link LocalConsensusGeneration} */
     private int cGen = LocalConsensusGeneration.GENERATION_UNDEFINED;
 
     /** The deterministic generation, see {@link DeGen} */
@@ -511,7 +511,7 @@ public class EventImpl extends LinkedEvent<EventImpl> implements Clearable {
      * Returns the local consensus generation (cGen) of this event.
      *
      * @return the local consensus generation
-     * @see com.swirlds.platform.consensus.LocalConsensusGeneration
+     * @see LocalConsensusGeneration
      */
     public int getCGen() {
         return cGen;
@@ -521,7 +521,7 @@ public class EventImpl extends LinkedEvent<EventImpl> implements Clearable {
      * Sets the local consensus generation (cGen) of this event.
      *
      * @param cGen the local consensus generation to set
-     * @see com.swirlds.platform.consensus.LocalConsensusGeneration
+     * @see LocalConsensusGeneration
      */
     public void setCGen(final int cGen) {
         this.cGen = cGen;
@@ -531,7 +531,7 @@ public class EventImpl extends LinkedEvent<EventImpl> implements Clearable {
      * Returns the deterministic generation (deGen) of this event.
      *
      * @return the deterministic generation
-     * @see com.swirlds.platform.consensus.DeGen
+     * @see DeGen
      */
     public int getDeGen() {
         return deGen;
@@ -541,7 +541,7 @@ public class EventImpl extends LinkedEvent<EventImpl> implements Clearable {
      * Sets the deterministic generation (deGen) of this event.
      *
      * @param deGen the deterministic generation to set
-     * @see com.swirlds.platform.consensus.DeGen
+     * @see DeGen
      */
     public void setDeGen(final int deGen) {
         this.deGen = deGen;
