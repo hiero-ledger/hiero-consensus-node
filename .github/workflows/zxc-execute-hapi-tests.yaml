@@ -3,11 +3,6 @@ name: "ZXC: Execute HAPI Tests"
 on:
   workflow_call:
     inputs:
-      custom-job-label:
-        description: "Custom Job Label:"
-        type: string
-        required: false
-        default: "HAPI Tests"
       ref:
         description: "The branch, tag or SHA to checkout."
         required: false
@@ -128,7 +123,7 @@ env:
 
 jobs:
   hapi-tests-misc:
-    name: "${{ inputs.custom-job-label }} (Misc)"
+    name: "HAPI Tests (Misc)"
     if: ${{ inputs.enable-hapi-tests-misc == 'true' }}
     runs-on: hiero-hapi-linux-large
     steps:
@@ -192,7 +187,7 @@ jobs:
           retention-days: 7
 
   hapi-tests-misc-records:
-    name: "${{ inputs.custom-job-label }} (Misc Records)"
+    name: "HAPI Tests (Misc Records)"
     if: ${{ inputs.enable-hapi-tests-misc-records == 'true' }}
     runs-on: hiero-hapi-linux-large
     steps:
@@ -255,7 +250,7 @@ jobs:
           retention-days: 7
 
   hapi-tests-crypto:
-    name: "${{ inputs.custom-job-label }} (Crypto)"
+    name: "HAPI Tests (Crypto)"
     if: ${{ inputs.enable-hapi-tests-crypto == 'true' }}
     runs-on: hiero-hapi-linux-large
     steps:
@@ -318,7 +313,7 @@ jobs:
           retention-days: 7
 
   hapi-tests-simple-fees:
-    name: "${{ inputs.custom-job-label }} (Simple Fees)"
+    name: "HAPI Tests (Simple Fees)"
     if: ${{ inputs.enable-hapi-tests-simplefees == 'true' }}
     runs-on: hiero-hapi-linux-large
     steps:
@@ -381,7 +376,7 @@ jobs:
           retention-days: 7
 
   hapi-tests-token:
-    name: "${{ inputs.custom-job-label }} (Token)"
+    name: "HAPI Tests (Token)"
     if: ${{ inputs.enable-hapi-tests-token == 'true' }}
     runs-on: hiero-hapi-linux-large
     steps:
@@ -444,7 +439,7 @@ jobs:
           retention-days: 7
 
   hapi-tests-smart-contracts:
-    name: "${{ inputs.custom-job-label }} (Smart Contracts)"
+    name: "HAPI Tests (Smart Contracts)"
     if: ${{ inputs.enable-hapi-tests-smart-contract == 'true' }}
     runs-on: hiero-hapi-linux-large
     steps:
@@ -507,7 +502,7 @@ jobs:
           retention-days: 7
 
   hapi-tests-time-consuming:
-    name: "${{ inputs.custom-job-label }} (Time Consuming)"
+    name: "HAPI Tests (Time Consuming)"
     if: ${{ inputs.enable-hapi-tests-time-consuming == 'true' }}
     runs-on: hiero-hapi-linux-large
     steps:
@@ -570,7 +565,7 @@ jobs:
           retention-days: 7
 
   hapi-tests-restart:
-    name: "${{ inputs.custom-job-label }} (Restart)"
+    name: "HAPI Tests (Restart)"
     if: ${{ inputs.enable-hapi-tests-restart == 'true' }}
     runs-on: hiero-hapi-linux-large
     steps:
@@ -633,7 +628,7 @@ jobs:
           retention-days: 7
 
   hapi-tests-nd-reconnect:
-    name: "${{ inputs.custom-job-label }} (ND Reconnect)"
+    name: "HAPI Tests (ND Reconnect)"
     if: ${{ inputs.enable-hapi-tests-nd-reconnect == 'true' }}
     runs-on: hiero-hapi-linux-large
     steps:
@@ -696,7 +691,7 @@ jobs:
           retention-days: 7
 
   hapi-tests-iss:
-    name: "${{ inputs.custom-job-label }} (ISS)"
+    name: "HAPI Tests (ISS)"
     if: ${{ inputs.enable-hapi-tests-iss == 'true' }}
     runs-on: hiero-hapi-linux-large
     steps:
@@ -759,7 +754,7 @@ jobs:
           retention-days: 7`
 
   hapi-tests-bn-comms:
-    name: "${{ inputs.custom-job-label }} (BN Comms)"
+    name: "HAPI Tests (BN Comms)"
     if: ${{ inputs.enable-hapi-tests-bn-communication == 'true' }}
     runs-on: hiero-hapi-linux-large
     steps:

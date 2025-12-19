@@ -114,7 +114,6 @@ jobs:
       java-version: "21.0.6"
       java-distribution: "temurin"
       ref: ${{ github.ref }}
-      custom-job-label: "${{ inputs.custom-job-label }} Compile Code"
     secrets:
       access-token: ${{ secrets.access-token }}
       gradle-cache-username: ${{ secrets.gradle-cache-username }}
@@ -141,7 +140,6 @@ jobs:
       - build
     with:
       ref: ${{ github.ref }}
-      custom-job-label: "${{ inputs.custom-job-label }} Spotless"
     secrets:
       access-token: ${{ secrets.access-token }}
       gradle-cache-username: ${{ secrets.gradle-cache-username }}
@@ -155,7 +153,6 @@ jobs:
       - build
     with:
       ref: ${{ inputs.ref || '' }}
-      custom-job-label: "${{ inputs.custom-job-label }} Unit Tests"
       java-version: ${{ inputs.java-version || '21.0.6' }}
       java-distribution: ${{ inputs.java-distribution || 'temurin' }}
     secrets:
@@ -173,7 +170,6 @@ jobs:
       - build
     with:
       ref: ${{ inputs.ref || '' }}
-      custom-job-label: "${{ inputs.custom-job-label }} Integration"
       java-version: ${{ inputs.java-version || '21.0.6' }}
       java-distribution: ${{ inputs.java-distribution || 'temurin' }}
       enable-network-log-capture: "true"
@@ -190,7 +186,6 @@ jobs:
       - build
     with:
       ref: ${{ inputs.ref || '' }}
-      custom-job-label: "${{ inputs.custom-job-label }} HAPI Tests"
       java-version: ${{ inputs.java-version || '21.0.6' }}
       java-distribution: ${{ inputs.java-distribution || 'temurin' }}
       enable-hapi-tests-misc: "${{ inputs.enable-hapi-tests == 'true' }}"
@@ -217,7 +212,6 @@ jobs:
     uses: ./.github/workflows/zxc-execute-otter-tests.yaml
     with:
       ref: ${{ inputs.ref || '' }}
-      custom-job-label: "${{ inputs.custom-job-label }} Otter Tests"
       java-version: ${{ inputs.java-version || '21.0.6' }}
       java-distribution: ${{ inputs.java-distribution || 'temurin' }}
       enable-fast-otter-tests: ${{ inputs.enable-otter-tests == 'true' }}
@@ -235,7 +229,6 @@ jobs:
     uses: ./.github/workflows/zxc-snyk-scan.yaml
     with:
       ref: ${{ inputs.ref || '' }}
-      custom-job-label: "${{ inputs.custom-job-label }} Snyk Scan"
       java-version: ${{ inputs.java-version || '21.0.6' }}
       java-distribution: ${{ inputs.java-distribution || 'temurin' }}
     secrets:

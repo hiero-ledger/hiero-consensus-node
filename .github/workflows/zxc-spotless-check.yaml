@@ -3,10 +3,6 @@ name: "ZXC: Spotless Check"
 on:
   workflow_call:
     inputs:
-      custom-job-label:
-        description: "Custom Job Label:"
-        type: string
-        required: false
       ref:
         description: "The branch, tag or SHA to checkout."
         required: false
@@ -62,7 +58,7 @@ env:
 
 jobs:
   spotless-check:
-    name: ${{ inputs.custom-job-label || 'Spotless Check' }}
+    name: "Spotless Check"
     runs-on: hiero-network-node-linux-medium
     outputs:
       failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}

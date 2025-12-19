@@ -3,10 +3,6 @@ name: "ZXC: Execute Hammer Tests"
 on:
   workflow_call:
     inputs:
-      custom-job-label:
-        description: "Custom Job Label:"
-        type: string
-        required: false
       ref:
         description: "The branch, tag or SHA to checkout."
         required: false
@@ -62,7 +58,7 @@ env:
 
 jobs:
   execute-hammer-tests:
-    name: ${{ inputs.custom-job-label || 'Execute Hammer Tests' }}
+    name: "Hammer Tests"
     runs-on: hiero-hammer-linux-large
     outputs:
       failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}

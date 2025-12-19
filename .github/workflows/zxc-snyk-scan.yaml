@@ -3,11 +3,6 @@ name: "ZXC: Snyk Scan"
 on:
   workflow_call:
     inputs:
-      custom-job-label:
-        description: "Custom Job Label:"
-        type: string
-        required: false
-        default: "Compiles"
       ref:
         description: "The branch, tag or SHA to checkout."
         required: false
@@ -66,7 +61,7 @@ env:
 
 jobs:
   snyk-checks:
-    name: ${{ inputs.custom-job-label || 'Snyk Checks' }}
+    name: "Snyk Checks"
     runs-on: hiero-network-node-linux-medium
     outputs:
       failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}

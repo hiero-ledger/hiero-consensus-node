@@ -3,10 +3,6 @@ name: "ZXC: Execute Integration Tests"
 on:
   workflow_call:
     inputs:
-      custom-job-label:
-        description: "Custom Job Label:"
-        type: string
-        required: false
       ref:
         description: "The branch, tag or SHA to checkout."
         required: false
@@ -67,7 +63,7 @@ env:
 
 jobs:
   execute-integration-tests:
-    name: ${{ inputs.custom-job-label || 'Execute Integration Tests' }}
+    name: "Integration Tests"
     runs-on: hiero-integration-linux-large
     outputs:
       failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}

@@ -3,10 +3,6 @@ name: "ZXC: Dependency Module Check"
 on:
   workflow_call:
     inputs:
-      custom-job-label:
-        description: "Custom Job Label:"
-        type: string
-        required: false
       ref:
         description: "The branch, tag or SHA to checkout."
         required: false
@@ -61,7 +57,7 @@ env:
 
 jobs:
   dependency-module-check:
-    name: ${{ inputs.custom-job-label || 'Dependency Module Check' }}
+    name: "Dependency Module Check"
     runs-on: hiero-network-node-linux-medium
     outputs:
       failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
