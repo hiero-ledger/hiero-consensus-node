@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.test.fixtures.crypto;
+package org.hiero.consensus.test.fixtures.crypto;
 
-import com.swirlds.common.test.fixtures.io.ResourceNotFoundException;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
 import java.io.InputStream;
@@ -14,6 +13,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import org.hiero.base.io.streams.SerializableDataInputStream;
+import org.hiero.consensus.exceptions.ResourceNotFoundException;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.roster.SerializableX509Certificate;
 

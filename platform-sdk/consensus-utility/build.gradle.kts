@@ -2,6 +2,7 @@
 plugins {
     id("org.hiero.gradle.module.library")
     id("org.hiero.gradle.feature.publish-artifactregistry")
+    id("org.hiero.gradle.feature.test-fixtures")
 }
 
 description = "Consensus Utility"
@@ -16,6 +17,7 @@ testModuleInfo {
     requires("com.swirlds.state.api.test.fixtures")
     requires("com.swirlds.state.impl")
     requires("com.swirlds.virtualmap")
+    requires("org.hiero.consensus.utility.test.fixtures")
     requires("org.junit.jupiter.api")
     requires("org.junit.jupiter.params")
     requires("org.mockito")
