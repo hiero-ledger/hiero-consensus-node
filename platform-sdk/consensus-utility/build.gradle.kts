@@ -10,6 +10,7 @@ mainModuleInfo { annotationProcessor("com.swirlds.config.processor") }
 
 testModuleInfo {
     requires("org.hiero.base.utility.test.fixtures")
+    requires("org.hiero.consensus.roster")
     requires("com.swirlds.platform.core")
     requires("com.swirlds.platform.core.test.fixtures")
     requires("com.swirlds.state.impl.test.fixtures")

@@ -12,11 +12,9 @@ module org.hiero.consensus.utility {
     requires transitive com.swirlds.config.api;
     requires transitive com.swirlds.metrics.api;
     requires transitive org.hiero.base.crypto;
-    requires transitive org.hiero.consensus.concurrent;
-    requires transitive org.hiero.consensus.metrics;
     requires transitive org.hiero.consensus.model;
-    requires com.swirlds.base;
     requires org.hiero.base.utility;
+    requires org.hiero.consensus.metrics;
     requires com.goterl.lazysodium;
     requires org.bouncycastle.provider;
     requires static transitive com.github.spotbugs.annotations;

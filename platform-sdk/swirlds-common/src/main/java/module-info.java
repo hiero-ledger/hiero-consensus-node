@@ -69,24 +69,22 @@ module com.swirlds.common {
     requires transitive com.swirlds.base;
     requires transitive com.swirlds.config.api;
     requires transitive com.swirlds.metrics.api;
-    requires transitive com.swirlds.metrics.impl;
     requires transitive org.hiero.base.concurrent;
     requires transitive org.hiero.base.crypto;
     requires transitive org.hiero.base.utility;
-    requires transitive org.hiero.consensus.metrics;
+    requires transitive org.hiero.consensus.concurrent;
     requires transitive org.hiero.consensus.model;
-    requires transitive org.hiero.consensus.utility;
     requires transitive com.fasterxml.jackson.core;
     requires transitive com.fasterxml.jackson.databind;
-    requires transitive org.apache.logging.log4j;
     requires transitive simpleclient;
     requires com.hedera.pbj.runtime;
     requires com.swirlds.logging;
+    requires org.hiero.consensus.metrics;
     requires java.desktop;
     requires jdk.httpserver;
     requires jdk.management;
     requires org.apache.logging.log4j.core;
+    requires org.apache.logging.log4j;
     requires org.bouncycastle.provider;
-    requires simpleclient.httpserver;
     requires static transitive com.github.spotbugs.annotations;
 }
