@@ -92,7 +92,7 @@ class NodeCreateHandlerTest extends AddressBookTestBase {
 
     @BeforeAll
     static void beforeAll() {
-        certList = NodeCreateHandlerTest.generateX509Certificates(3);
+        certList = generateX509Certificates(3);
     }
 
     @BeforeEach

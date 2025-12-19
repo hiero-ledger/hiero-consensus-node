@@ -74,6 +74,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.time.InstantSource;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ForkJoinPool;
@@ -85,6 +86,7 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.base.constructable.ConstructableRegistry;
 import org.hiero.base.constructable.RuntimeConstructable;
 import org.hiero.base.crypto.CryptographyProvider;
+import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.roster.SimpleAddresses;
 import org.hiero.consensus.model.status.PlatformStatus;
@@ -331,7 +333,7 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
         ConsensusStateEventHandler<MerkleNodeState> consensusStateEventHandler = hedera.newConsensusStateEvenHandler();
         final PlatformContext platformContext = PlatformContext.create(
                 platformConfig, Time.getCurrent(), metrics, fileSystemManager, recycleBin, merkleCryptography);
-        final Optional<SimpleAddresses> maybeDiskAddressBook = loadLegacyAddressBook();
+        final Optional<SimpleAddresses> maybeConfigAddresses = loadFromLegacyConfig(platformConfig);
         final HashedReservedSignedState reservedState = loadInitialState(
                 recycleBin,
                 version,
@@ -341,8 +343,8 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
                         network = hedera.startupNetworks().genesisNetworkOrThrow(platformConfig);
                     } catch (Exception ignore) {
                         // Fallback to the legacy address book if genesis-network.json or equivalent not loaded
-                        network = DiskStartupNetworks.fromLegacyAddressBook(
-                                maybeDiskAddressBook.orElseThrow(),
+                        network = DiskStartupNetworks.fromLegacyConfig(
+                                maybeConfigAddresses.orElseThrow(),
                                 hedera.bootstrapConfigProvider().getConfiguration());
                     }
                     genesisNetwork.set(network);
@@ -530,16 +532,20 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
     }
 
     /**
-     * Loads the legacy address book if it is present. Can be removed once no environment relies on using
+     * Loads the legacy config.txt if it is present. Can be removed once no environment relies on using
      * legacy <i>config.txt</i> as a startup asset.
-     * @return the address book from a legacy config file, if present
+     * @return the addresses from a legacy config file, if present
      */
     @Deprecated
-    private static Optional<SimpleAddresses> loadLegacyAddressBook() {
+    private static Optional<SimpleAddresses> loadFromLegacyConfig(final Configuration platformConfig) {
         try {
             final LegacyConfigProperties props =
                     LegacyConfigPropertiesLoader.loadConfigFile(getAbsolutePath(DEFAULT_CONFIG_FILE_NAME));
-            return Optional.of(props.getSimpleAddresses());
+            final SimpleAddresses legacyBook = props.getSimpleAddresses();
+            final Map<NodeId, KeysAndCerts> keysAndCerts =
+                    initNodeSecurity(platformConfig, legacyBook.getNodeIds());
+
+            return Optional.of(legacyBook.withKeysAndCerts(keysAndCerts));
         } catch (final Exception ignore) {
             return Optional.empty();
         }

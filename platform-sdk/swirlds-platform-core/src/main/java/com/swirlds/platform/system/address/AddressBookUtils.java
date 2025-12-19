@@ -125,7 +125,7 @@ public class AddressBookUtils {
 
         final String memoToUse = parts.length == 10 ? parts[9] : "";
 
-        return new SimpleAddress(nodeId, weight, serviceEndpoints, memoToUse);
+        return new SimpleAddress(nodeId, weight, serviceEndpoints, memoToUse, null);
     }
 
     /**

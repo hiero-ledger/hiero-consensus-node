@@ -3,13 +3,12 @@ package com.hedera.node.app.info;
 
 import static com.hedera.hapi.util.HapiUtils.parseAccountFromLegacy;
 import static com.swirlds.platform.builder.PlatformBuildConstants.DEFAULT_CONFIG_FILE_NAME;
+import static com.swirlds.platform.crypto.CryptoStatic.initNodeSecurity;
 import static com.swirlds.platform.state.service.PlatformStateUtils.roundOf;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.state.addressbook.Node;
-import com.hedera.hapi.node.state.roster.Roster;
-import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.node.app.service.addressbook.AddressBookService;
 import com.hedera.node.app.service.addressbook.impl.ReadableNodeStoreImpl;
 import com.hedera.node.app.service.entityid.EntityIdService;
@@ -27,14 +26,12 @@ import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.config.AddressBookConfig;
 import com.swirlds.platform.config.legacy.LegacyConfigPropertiesLoader;
-import com.swirlds.platform.crypto.CryptoStatic;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.security.cert.X509Certificate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -44,6 +41,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.roster.SimpleAddresses;
 import org.hiero.consensus.roster.RosterRetriever;
@@ -223,38 +221,24 @@ public class DiskStartupNetworks implements StartupNetworks {
         }
     }
 
-    private static Roster buildRoster(final SimpleAddresses addresses) {
-        final var builder = Roster.newBuilder();
-
-        builder.rosterEntries(addresses.addresses().stream()
-                .map(a -> RosterEntry.newBuilder()
-                        .nodeId(a.nodeId())
-                        .weight(a.weight())
-                        .gossipEndpoint(a.serviceEndpoints())
-                        .build())
-                .toList());
-
-        return builder.build();
-    }
-
     /**
      * Converts {@link SimpleAddresses} to a {@link Network}. The resulting network will have no TSS
      * keys of any kind.
      *
-     * @param addressBook   the address book to convert
+     * @param addresses   the address book to convert
      * @param configuration the configuration
      * @return the converted network
      */
-    public static @NonNull Network fromLegacyAddressBook(
-            @NonNull final SimpleAddresses addressBook, @NonNull final VersionedConfiguration configuration) {
-        final var roster = buildRoster(addressBook);
+    public static @NonNull Network fromLegacyConfig(
+            @NonNull final SimpleAddresses addresses, @NonNull final VersionedConfiguration configuration) {
+        final var roster = addresses.asRoster();
         final var hederaConfig = configuration.getConfigData(HederaConfig.class);
         return Network.newBuilder()
                 .nodeMetadata(roster.rosterEntries().stream()
                         .map(rosterEntry -> {
                             final var nodeId = rosterEntry.nodeId();
                             final var nodeAccountId = parseAccountFromLegacy(
-                                    requireNonNull(addressBook.get(nodeId), "entry not found")
+                                    requireNonNull(addresses.get(nodeId), "entry not found")
                                             .memo(),
                                     hederaConfig.shard(),
                                     hederaConfig.realm());
@@ -335,17 +319,11 @@ public class DiskStartupNetworks implements StartupNetworks {
             @NonNull final Configuration platformConfig, @NonNull final VersionedConfiguration appConfig) {
         try {
             log.info("No genesis-network.json detected, falling back to config.txt and initNodeSecurity()");
-            final SimpleAddresses legacyBook;
             final var configFile = LegacyConfigPropertiesLoader.loadConfigFile(Paths.get(DEFAULT_CONFIG_FILE_NAME));
-            try {
-                legacyBook = configFile.getSimpleAddresses();
-                // Load the public keys into the address book. No private keys should be loaded!
-                final Map<NodeId, X509Certificate> signingCertificates =
-                        CryptoStatic.getSigningCertificates(platformConfig, legacyBook.getNodeIds());
-            } catch (Exception e) {
-                throw new IllegalStateException("Error generating keys and certs", e);
-            }
-            final var network = fromLegacyAddressBook(legacyBook, appConfig);
+            final SimpleAddresses legacyBook = configFile.getSimpleAddresses();
+            final Map<NodeId, KeysAndCerts> keysAndCerts =
+                    initNodeSecurity(platformConfig, legacyBook.getNodeIds());
+            final var network = fromLegacyConfig(legacyBook.withKeysAndCerts(keysAndCerts), appConfig);
             return Optional.of(network);
         } catch (Exception e) {
             log.warn("Fallback loading genesis network from config.txt also failed", e);

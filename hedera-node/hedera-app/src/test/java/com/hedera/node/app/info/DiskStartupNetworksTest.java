@@ -5,7 +5,7 @@ import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
 import static com.hedera.node.app.info.DiskStartupNetworks.ARCHIVE;
 import static com.hedera.node.app.info.DiskStartupNetworks.GENESIS_NETWORK_JSON;
 import static com.hedera.node.app.info.DiskStartupNetworks.OVERRIDE_NETWORK_JSON;
-import static com.hedera.node.app.info.DiskStartupNetworks.fromLegacyAddressBook;
+import static com.hedera.node.app.info.DiskStartupNetworks.fromLegacyConfig;
 import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema.NODES_STATE_ID;
 import static com.swirlds.platform.state.service.PlatformStateService.PLATFORM_STATE_SERVICE;
 import static com.swirlds.platform.system.address.AddressBookUtils.endpointFor;
@@ -146,7 +146,7 @@ class DiskStartupNetworksTest {
     }
 
     @Test
-    void computesFromLegacyAddressBook() {
+    void computesFromLegacyConfig() {
         final int n = 3;
         final var legacyBook = new SimpleAddresses(IntStream.range(0, n)
                 .mapToObj(i -> new SimpleAddress(
@@ -155,9 +155,10 @@ class DiskStartupNetworksTest {
                         List.of(
                                 endpointFor("127.0.0.1", "localhost", i + 1),
                                 endpointFor("127.0.0.1", "localhost", i + 2)),
-                        "0.0." + (i + 3)))
+                        "0.0." + (i + 3),
+                        null))
                 .toList());
-        final var network = fromLegacyAddressBook(
+        final var network = fromLegacyConfig(
                 legacyBook, HederaTestConfigBuilder.createConfigProvider().getConfiguration());
         for (int i = 0; i < n; i++) {
             final var rosterEntry = network.nodeMetadata().get(i).rosterEntryOrThrow();
