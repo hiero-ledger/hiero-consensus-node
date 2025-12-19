@@ -437,22 +437,12 @@ public class FakeGrpcServer {
                             log.debug("Received BlockHeader for block {}", blockNumber);
                         }
 
-                        // Count bytes - optimized: only serialize if we're tracking this block
+                        // Count bytes: Use actual serialization size
                         if (currentBlockNumber != null) {
                             final BlockMetadata metadata = blockMetadata.get(currentBlockNumber);
                             if (metadata != null) {
-                                // Estimate size without full serialization for better performance
-                                // Use approximate size based on item type
-                                long itemSize;
-                                if (item.hasBlockHeader()) {
-                                    itemSize = 200; // Approximate header size
-                                } else if (item.hasSignedTransaction()) {
-                                    itemSize = item.signedTransaction().length() + 10; // Data + overhead
-                                } else if (item.hasBlockProof()) {
-                                    itemSize = 150; // Approximate proof size
-                                } else {
-                                    itemSize = 50; // Other items
-                                }
+                                // Use actual serialization size for accurate metrics
+                                long itemSize = BlockItem.PROTOBUF.toBytes(item).length();
                                 metadata.addBytes(itemSize);
                             }
                         }
@@ -506,7 +496,9 @@ public class FakeGrpcServer {
                     Pipeline.super.clientEndStreamReceived();
                 }
 
-                /** Sends block acknowledgement with configured latency (uses Thread.sleep for simplicity). */
+                /**
+                 * Sends block acknowledgement with configured latency.
+                 */
                 private void sendAcknowledgement(Pipeline<? super PublishStreamResponse> pipeline, long blockNumber) {
                     try {
                         final Duration delay = latencyConfig.calculateDelay(RequestType.ACKNOWLEDGEMENT);

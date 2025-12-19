@@ -47,7 +47,7 @@ public class SimulatedNetworkProxy implements AutoCloseable {
                     Socket serverSocket = new Socket("localhost", targetPort);
                     serverSocket.setTcpNoDelay(true);
 
-                    // Handle Latency (Simulate RTT/Handshake delay) ONCE per connection
+                    // Simulate connection establishment latency (one-time delay)
                     if (latencyMs > 0) {
                         try {
                             Thread.sleep(latencyMs);
@@ -69,8 +69,8 @@ public class SimulatedNetworkProxy implements AutoCloseable {
         });
 
         System.out.printf(
-                "Proxy started on port %d -> forwarding to %d (Lat: %dms start delay)%n",
-                listenPort, targetPort, latencyMs);
+                "Proxy started on port %d -> forwarding to %d (Lat: %dms connection setup, BW: %.0f Mbps, Loss: %.2f%%)%n",
+                listenPort, targetPort, latencyMs, bandwidthBytesPerSec * 8.0 / 1_000_000.0, packetLossRate * 100);
     }
 
     public int getPort() {
@@ -78,20 +78,31 @@ public class SimulatedNetworkProxy implements AutoCloseable {
     }
 
     private void pipe(Socket inSocket, Socket outSocket) {
-        try (InputStream in = inSocket.getInputStream();
+        try (inSocket;
+                outSocket;
+                InputStream in = inSocket.getInputStream();
                 OutputStream out = outSocket.getOutputStream()) {
 
-            byte[] buffer = new byte[32 * 1024]; // 32KB buffer
+            // Smaller buffer for smoother bandwidth throttling
+            byte[] buffer = new byte[8 * 1024]; // 8KB buffer
             int bytesRead;
             long totalBytes = 0;
             long startTime = System.nanoTime();
 
             while (running.get() && (bytesRead = in.read(buffer)) != -1) {
 
-                // 1. Simulate Packet Loss (Random Drop/Retransmit Wait)
+                // 1. Simulate Packet Loss with TCP Retransmission
+                // TCP packet loss triggers retransmission with exponential backoff
                 if (packetLossRate > 0 && Math.random() < packetLossRate) {
-                    // Simulate a TCP timeout (wait 200ms then continue)
-                    Thread.sleep(200);
+                    // Simulate TCP retransmission timeout (RTO) with exponential backoff
+                    try {
+                        Thread.sleep(200 + (long) (Math.random() * 100)); // 200-300ms RTO
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        break;
+                    }
+                    // Note: We still send the data (simulating successful retransmission)
+                    // Real packet loss would require application-level retry logic
                 }
 
                 // 2. Simulate Bandwidth Throttling
@@ -105,7 +116,12 @@ public class SimulatedNetworkProxy implements AutoCloseable {
                         long sleepNanos = expectedTimeNanos - actualTimeNanos;
                         long sleepMs = sleepNanos / 1_000_000;
                         int sleepNs = (int) (sleepNanos % 1_000_000);
-                        Thread.sleep(sleepMs, sleepNs);
+                        try {
+                            Thread.sleep(sleepMs, sleepNs);
+                        } catch (InterruptedException e) {
+                            Thread.currentThread().interrupt();
+                            break;
+                        }
                     }
                 }
 
@@ -116,15 +132,6 @@ public class SimulatedNetworkProxy implements AutoCloseable {
             // Socket closed normally
         } catch (Exception e) {
             if (running.get()) e.printStackTrace();
-        } finally {
-            try {
-                inSocket.close();
-            } catch (IOException ignored) {
-            }
-            try {
-                outSocket.close();
-            } catch (IOException ignored) {
-            }
         }
     }
 

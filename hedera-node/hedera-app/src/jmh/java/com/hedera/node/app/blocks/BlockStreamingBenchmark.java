@@ -41,21 +41,28 @@ import org.openjdk.jmh.annotations.*;
 import org.openjdk.jmh.infra.Blackhole;
 
 /**
- * JMH benchmark for production block streaming components with simulated network conditions.
+ * JMH benchmark for production block streaming components with simulated
+ * network conditions.
  *
- * <p>This benchmark supports comprehensive parametrization across 5 configuration domains:
+ * <p>
+ * This benchmark supports comprehensive parametrization across 5 configuration
+ * domains:
  * - BlockStreamConfig: Core streaming settings (hashing, receipts)
  * - BlockBufferConfig: Buffer capacity and backpressure thresholds
  * - BlockNodeConnectionConfig: Connection management and failover behavior
- * - HTTP/2 Client Config: Transport layer settings (window sizes, frame sizes, health checks)
+ * - HTTP/2 Client Config: Transport layer settings (window sizes, frame sizes,
+ * health checks)
  * - gRPC Client Config: Protocol settings (buffers, heartbeats, timeouts)
  *
- * <p>Architecture:
+ * <p>
+ * Architecture:
  * Client (App Components) <-> SimulatedNetworkProxy <-> FakeGrpcServer
  *
- * <p>Lifecycle:
+ * <p>
+ * Lifecycle:
  * - Trial: Starts Server & Proxy, pre-generates blocks (Expensive, done once).
- * - Iteration: Re-initializes all App Components (Service, Manager, Writer) to ensure
+ * - Iteration: Re-initializes all App Components (Service, Manager, Writer) to
+ * ensure
  * ACK counters and internal state are fresh for every measurement.
  *
  * @see com.hedera.node.config.data.BlockStreamConfig
@@ -85,39 +92,39 @@ public class BlockStreamingBenchmark {
     // --- Network Simulation Params ---
 
     // Latency in milliseconds (one-way)
-    //    @Param({"0"})
+    // @Param({"0"})
     @Param({"20"})
-    //    @Param({"50"})
+    // @Param({"50"})
     private int networkLatencyMs;
 
     // Bandwidth in Mbps (0 = unlimited)
-    //    @Param({"0"})
+    // @Param({"0"})
     @Param({"1000"})
-    //    @Param({"100"})
+    // @Param({"100"})
     private double bandwidthMbps;
 
     @Param({"0.00"})
     private double packetLossRate;
 
     // --- BlockStreamConfig Params ---
-    //    @Param({"16"})
+    // @Param({"16"})
     @Param({"32"})
-    //    @Param({"64"})
+    // @Param({"64"})
     private int hashCombineBatchSize;
 
-    //    @Param({"1024"})
+    // @Param({"1024"})
     @Param({"8192"})
     private int receiptEntriesBatchSize;
 
     // --- BlockBufferConfig Params ---
 
-    //    @Param({"100"})
+    // @Param({"100"})
     @Param({"150"})
 
-    //    @Param({"200"})
+    // @Param({"200"})
     private int maxBlocks;
 
-    //    @Param({"20.0"})
+    // @Param({"20.0"})
     @Param({"50.0"})
     private double actionStageThreshold; // (%)
 
@@ -126,16 +133,16 @@ public class BlockStreamingBenchmark {
 
     // --- BlockNodeConnectionConfig Params ---
 
-    //    @Param({"10000"})
+    // @Param({"10000"})
     @Param({"30000"})
     private int highLatencyThresholdMs;
 
-    //    @Param({"3"})
+    // @Param({"3"})
     @Param({"5"})
-    //    @Param({"10"})
+    // @Param({"10"})
     private int highLatencyEventsBeforeSwitching;
 
-    //    @Param({"5000"})
+    // @Param({"5000"})
     @Param({"10000"})
     private int maxBackoffDelayMs;
 
@@ -146,13 +153,13 @@ public class BlockStreamingBenchmark {
     private int pipelineOperationTimeoutMs;
 
     // --- HTTP/2 Client Config Params ---
-    @Param({"65535", "131072"})
+    @Param({"65535" /* , "131072" */})
     private int http2InitialWindowSize;
 
-    @Param({"16384", "32768"})
+    @Param({"16384" /* , "32768" */})
     private int http2MaxFrameSize;
 
-    @Param({"false", "true"})
+    @Param({"false" /* , "true" */})
     private boolean http2Ping; // HTTP/2 ping health check
 
     @Param({"true"})
@@ -162,14 +169,22 @@ public class BlockStreamingBenchmark {
     @Param({"false"})
     private boolean grpcAbortPollTimeExpired;
 
-    @Param({"0", "30000"}) // (0 = disabled)
+    @Param({"0" /* , "30000" */}) // (0 = disabled)
     private int grpcHeartbeatPeriodMs;
 
-    @Param({"512", "1024", "4096"})
+    @Param({"512" /* , "1024", "4096" */})
     private int grpcInitialBufferSize;
 
     @Param({"10000"})
     private int grpcPollWaitTimeMs;
+
+    // --- Backpressure Testing Params ---
+    // Delay between block writes in milliseconds (0 = no delay, write as fast as
+    // possible)
+    // Use non-zero values to simulate realistic block production rate and test
+    // sustained backpressure
+    @Param({"0"})
+    private int blockProductionDelayMs;
 
     // --- Infrastructure (Long-lived) ---
     private FakeGrpcServer server;
@@ -199,9 +214,15 @@ public class BlockStreamingBenchmark {
 
         // 0. Start JFR recording with custom short filename based on key parameters
         try {
+            String projectRoot = System.getProperty("user.dir");
             String jfrFilename = String.format(
-                    "hedera-node/hedera-app/src/jmh/java/com/hedera/node/app/blocks/jfr/bench-lat%d-bw%.0f-buf%d-http%d-grpc%d.jfr",
-                    networkLatencyMs, bandwidthMbps, maxBlocks, http2InitialWindowSize, grpcInitialBufferSize);
+                    "%s/hedera-node/hedera-app/src/jmh/java/com/hedera/node/app/blocks/jfr/bench-lat%d-bw%.0f-buf%d-http%d-grpc%d.jfr",
+                    projectRoot,
+                    networkLatencyMs,
+                    bandwidthMbps,
+                    maxBlocks,
+                    http2InitialWindowSize,
+                    grpcInitialBufferSize);
             jfrRecording = new Recording(jdk.jfr.Configuration.getConfiguration("profile"));
             jfrRecording.setDestination(Paths.get(jfrFilename));
             jfrRecording.start();
@@ -212,7 +233,8 @@ public class BlockStreamingBenchmark {
         }
 
         // 1. Start Real Server
-        // Note: Server latency (LatencyConfig) simulates processing time, distinct from network latency (handled by
+        // Note: Server latency (LatencyConfig) simulates processing time, distinct from
+        // network latency (handled by
         // Proxy)
         server = FakeGrpcServer.builder()
                 .port(0)
@@ -311,7 +333,8 @@ public class BlockStreamingBenchmark {
         bufferService.setBlockNodeConnectionManager(connectionManager);
         connectionManager.start();
 
-        // 5. Connection Setup (CONNECT TO PROXY PORT) with parametrized HTTP/2 and gRPC configs
+        // 5. Connection Setup (CONNECT TO PROXY PORT) with parametrized HTTP/2 and gRPC
+        // configs
         final BlockNodeHelidonHttpConfiguration httpConfig = BlockNodeHelidonHttpConfiguration.newBuilder()
                 .initialWindowSize(http2InitialWindowSize)
                 .maxFrameSize(http2MaxFrameSize)
@@ -395,18 +418,31 @@ public class BlockStreamingBenchmark {
 
     @Benchmark
     public void streamBlocks(Blackhole bh) throws Exception {
-        benchmarkStartTime = System.nanoTime();
+        // Start timing after first block begins to exclude connection setup overhead
+        boolean timingStarted = false;
 
         // 1. Write all blocks to the buffer
         for (int i = 0; i < blocks.size(); i++) {
             bufferService.ensureNewBlocksPermitted();
             writer.openBlock(i);
 
+            // Start timing after opening first block (connection is established)
+            if (!timingStarted) {
+                benchmarkStartTime = System.nanoTime();
+                timingStarted = true;
+            }
+
             for (BlockItem item : blocks.get(i).items()) {
                 writer.writePbjItemAndBytes(item, BlockItem.PROTOBUF.toBytes(item));
             }
 
             writer.closeCompleteBlock();
+
+            // Add configurable delay between blocks to simulate realistic production rate
+            // and test sustained backpressure (0 = no delay, write as fast as possible)
+            if (blockProductionDelayMs > 0 && i < blocks.size() - 1) {
+                Thread.sleep(blockProductionDelayMs);
+            }
         }
 
         // 2. Wait for ACKs
@@ -423,8 +459,9 @@ public class BlockStreamingBenchmark {
     public static void main(String[] args) throws Exception {
         // JFR profiling managed manually in setupTrial/teardownTrial
         // Files saved to: hedera-app/src/jmh/java/com/hedera/node/app/blocks/jfr/
-        // Filename format: bench-lat<ms>-bw<mbps>-buf<blocks>-http<winsize>-grpc<bufsize>.jfr
+        // Filename format:
+        // bench-lat<ms>-bw<mbps>-buf<blocks>-http<winsize>-grpc<bufsize>.jfr
         // Same parameter combinations will overwrite previous runs
-        org.openjdk.jmh.Main.main(new String[] {"BlockStreamingBenchmark", "-v", "EXTRA" /*, "-prof", "gc"*/});
+        org.openjdk.jmh.Main.main(new String[] {"BlockStreamingBenchmark", "-v", "EXTRA" /* , "-prof", "gc" */});
     }
 }
