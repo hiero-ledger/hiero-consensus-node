@@ -76,7 +76,6 @@ module com.swirlds.common {
     requires transitive org.hiero.consensus.model;
     requires transitive com.fasterxml.jackson.core;
     requires transitive com.fasterxml.jackson.databind;
-    requires transitive simpleclient;
     requires com.hedera.pbj.runtime;
     requires com.swirlds.logging;
     requires org.hiero.consensus.metrics;

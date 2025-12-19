@@ -115,9 +115,11 @@ module com.swirlds.platform.core {
     requires transitive org.hiero.base.concurrent;
     requires transitive org.hiero.base.crypto;
     requires transitive org.hiero.base.utility;
+    requires transitive org.hiero.consensus.concurrent;
     requires transitive org.hiero.consensus.event.creator;
     requires transitive org.hiero.consensus.event.intake;
     requires transitive org.hiero.consensus.hashgraph;
+    requires transitive org.hiero.consensus.metrics;
     requires transitive org.hiero.consensus.model;
     requires transitive org.hiero.consensus.roster;
     requires transitive org.hiero.consensus.utility;
