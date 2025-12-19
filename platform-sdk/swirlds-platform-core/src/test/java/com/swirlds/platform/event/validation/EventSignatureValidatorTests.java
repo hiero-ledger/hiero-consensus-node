@@ -15,10 +15,10 @@ import com.hedera.hapi.node.state.roster.RoundRosterPair;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.common.context.PlatformContext;
+import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.common.test.fixtures.Randotron;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
-import com.swirlds.platform.crypto.SignatureVerifier;
-import com.swirlds.platform.test.fixtures.crypto.PreGeneratedX509Certs;
+import com.swirlds.metrics.api.Metrics;
 import java.security.cert.CertificateEncodingException;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -27,6 +27,7 @@ import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
+import org.hiero.consensus.crypto.SignatureVerifier;
 import org.hiero.consensus.event.IntakeEventCounter;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.NodeId;
@@ -34,6 +35,7 @@ import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
 import org.hiero.consensus.model.test.fixtures.hashgraph.EventWindowBuilder;
 import org.hiero.consensus.roster.RosterHistory;
 import org.hiero.consensus.roster.RosterUtils;
+import org.hiero.consensus.test.fixtures.crypto.PreGeneratedX509Certs;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -44,7 +46,7 @@ class EventSignatureValidatorTests {
     public static final NodeId PREVIOUS_ROSTER_NODE_ID = NodeId.of(66);
     public static final NodeId CURRENT_ROSTER_NODE_ID = NodeId.of(77);
     private Randotron random;
-    private PlatformContext platformContext;
+    private Metrics metrics;
     private FakeTime time;
     private AtomicLong exitedIntakePipelineCount;
     private IntakeEventCounter intakeEventCounter;
@@ -87,8 +89,8 @@ class EventSignatureValidatorTests {
     @BeforeEach
     void setup() {
         random = Randotron.create();
+        metrics = new NoOpMetrics();
         time = new FakeTime();
-        platformContext = TestPlatformContextBuilder.create().withTime(time).build();
 
         exitedIntakePipelineCount = new AtomicLong(0);
         intakeEventCounter = mock(IntakeEventCounter.class);
@@ -104,10 +106,10 @@ class EventSignatureValidatorTests {
                 PREVIOUS_ROSTER_ROUND, CURRENT_ROSTER_ROUND, EventSignatureValidatorTests::generateMockRosterEntry);
 
         validatorWithTrueVerifier =
-                new DefaultEventSignatureValidator(platformContext, trueVerifier, rosterHistory, intakeEventCounter);
+                new DefaultEventSignatureValidator(metrics, time, trueVerifier, rosterHistory, intakeEventCounter);
 
         validatorWithFalseVerifier =
-                new DefaultEventSignatureValidator(platformContext, falseVerifier, rosterHistory, intakeEventCounter);
+                new DefaultEventSignatureValidator(metrics, time, falseVerifier, rosterHistory, intakeEventCounter);
     }
 
     public RosterHistory buildRosterHistory(
@@ -136,7 +138,7 @@ class EventSignatureValidatorTests {
     @DisplayName("An event with a lower round than the available in roster history should not validate")
     void rosterNotFoundForRound() {
         final EventSignatureValidator signatureValidator =
-                new DefaultEventSignatureValidator(platformContext, trueVerifier, rosterHistory, intakeEventCounter);
+                new DefaultEventSignatureValidator(metrics, time, trueVerifier, rosterHistory, intakeEventCounter);
 
         final PlatformEvent event = new TestingEventBuilder(random)
                 .setCreatorId(PREVIOUS_ROSTER_NODE_ID)
@@ -169,7 +171,7 @@ class EventSignatureValidatorTests {
         RosterHistory rh = buildRosterHistory(PREVIOUS_ROSTER_ROUND, CURRENT_ROSTER_ROUND, generateMockRosterEntry);
 
         EventSignatureValidator validator =
-                new DefaultEventSignatureValidator(platformContext, trueVerifier, rh, intakeEventCounter);
+                new DefaultEventSignatureValidator(metrics, time, trueVerifier, rh, intakeEventCounter);
 
         final NodeId nodeId = NodeId.of(88);
 
@@ -262,7 +264,7 @@ class EventSignatureValidatorTests {
                 TestPlatformContextBuilder.create().build();
 
         final EventSignatureValidator validator =
-                new DefaultEventSignatureValidator(platformContext, trueVerifier, rosterHistory, intakeEventCounter);
+                new DefaultEventSignatureValidator(metrics, time, trueVerifier, rosterHistory, intakeEventCounter);
 
         final PlatformEvent event = new TestingEventBuilder(random)
                 .setCreatorId(CURRENT_ROSTER_NODE_ID)
