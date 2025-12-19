@@ -1,13 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.internal.result;
 
-import static java.util.Objects.nonNull;
 import static java.util.Objects.requireNonNull;
 
-import com.swirlds.base.utility.Pair;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -27,15 +29,7 @@ public class ConsensusRoundPool {
     /**
      * Maps round number to ConsensusRound instance.
      */
-    private final ConcurrentHashMap<Long, ConsensusRound> roundsByNumber = new ConcurrentHashMap<>();
-    /**
-     * Maps round number to all reporting nodes.
-     */
-    private final ConcurrentHashMap<Long, Set<NodeId>> roundsReports = new ConcurrentHashMap<>();
-    /**
-     * Maps rounds that are different from the first registered round.
-     */
-    private final ConcurrentHashMap<Pair<NodeId, Long>, ConsensusRound> discrepantRounds = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<Long, Map<ConsensusRound, Set<NodeId>>> roundCache = new ConcurrentHashMap<>();
 
     /**
      * Lifecycle flag to prevent operations after pool is destroyed.
@@ -67,37 +61,28 @@ public class ConsensusRoundPool {
 
         final long roundNum = round.getRoundNum();
 
-        // insert if absent
-        final ConsensusRound existing = roundsByNumber.putIfAbsent(roundNum, round);
-
-        if (existing == null) {
-            // First time a round is reported - Update reporting node
-            final Set<NodeId> nodes = ConcurrentHashMap.newKeySet();
-            nodes.add(nodeId);
-            roundsReports.put(roundNum, nodes);
-            return round;
-        } else {
-            // the round was already reported, add the node in the reporting set for that round
-            roundsReports.computeIfPresent(roundNum, (a, s) -> {
-                s.add(nodeId);
-                return s;
-            });
-        }
-
-        // Round already exists - validate it matches the new one
-        if (!existing.equals(round)) {
-            // should not happen in correct consensus
-            this.discrepantRounds.put(Pair.of(nodeId, roundNum), round);
-            // Return the new round (not the existing one) to allow assertions to detect the issue
-            return round;
-        }
+        final Map<ConsensusRound, Set<NodeId>> consensusRoundSetMap =
+                roundCache.compute(roundNum, (key, existingMap) -> {
+                    if (existingMap == null) {
+                        // First time seeing this round number - create new newMap
+                        final Map<ConsensusRound, Set<NodeId>> newMap = new HashMap<>();
+                        final Set<NodeId> value = new HashSet<>();
+                        value.add(nodeId);
+                        newMap.put(round, value);
+                        return newMap;
+                    } else {
+                        // Round number exists - update existing map
+                        existingMap.computeIfAbsent(round, k -> new HashSet<>()).add(nodeId);
+                        return existingMap;
+                    }
+                });
 
         // Return the canonical instance
-        return existing;
+        return findRoundForNode(consensusRoundSetMap, nodeId);
     }
 
     /**
-     * Gets a round by its round number.
+     * Gets a round by its round number and reporting nodeId.
      *
      * @param roundNumber the round number
      * @param nodeId the nodeId querying for the result
@@ -105,19 +90,7 @@ public class ConsensusRoundPool {
      */
     @Nullable
     public ConsensusRound getRound(final long roundNumber, @NonNull final NodeId nodeId) {
-
-        if (!roundsReports.get(roundNumber).contains(nodeId)) {
-            // This node did not report a round object for that round number
-            return null;
-        }
-
-        final var discrepant = discrepantRounds.get(Pair.of(nodeId, roundNumber));
-        if (nonNull(discrepant)) {
-            // This node reported something different, return the discrepant round to allow assertions to detect the
-            // issue
-            return discrepant;
-        }
-        return roundsByNumber.get(roundNumber);
+        return findRoundForNode(roundCache.get(roundNumber), nodeId);
     }
 
     /**
@@ -130,7 +103,7 @@ public class ConsensusRoundPool {
      */
     @NonNull
     public List<ConsensusRound> currentConsensusRounds(final int startIndex, @NonNull final NodeId nodeId) {
-        return roundsByNumber.keySet().stream()
+        return roundCache.keySet().stream()
                 .sorted()
                 .skip(startIndex)
                 .map(i -> getRound(i, nodeId))
@@ -143,9 +116,7 @@ public class ConsensusRoundPool {
      */
     public void destroy() {
         destroyed = true;
-        roundsByNumber.clear();
-        discrepantRounds.clear();
-        roundsReports.clear();
+        roundCache.clear();
     }
 
     /**
@@ -155,5 +126,19 @@ public class ConsensusRoundPool {
      */
     public int size(final @NonNull NodeId nodeId) {
         return currentConsensusRounds(0, nodeId).size();
+    }
+
+    /**
+     * Returns the ConsensusRound instance in the map corresponding to the NodeId.
+     *
+     * @return the ConsensusRound instance in the map corresponding to the NodeId.
+     */
+    private static ConsensusRound findRoundForNode(
+            @NonNull final Map<ConsensusRound, Set<NodeId>> consensusRoundPerNodesMap, @NonNull final NodeId nodeId) {
+        return consensusRoundPerNodesMap.entrySet().stream()
+                .filter(e -> e.getValue().contains(nodeId))
+                .map(Entry::getKey)
+                .findFirst()
+                .orElse(null);
     }
 }
