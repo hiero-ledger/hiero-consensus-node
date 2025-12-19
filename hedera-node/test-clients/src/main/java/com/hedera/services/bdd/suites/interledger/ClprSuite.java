@@ -13,6 +13,7 @@ import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeDelete;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateCandidateRoster;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static java.util.Objects.requireNonNull;
@@ -183,22 +184,31 @@ public class ClprSuite implements LifecycleTest {
     @HapiTest
     final Stream<DynamicTest> handleMessageQueue() {
         AtomicReference<HederaNode> targetNode = new AtomicReference<>();
-        AtomicReference<ClprMessageQueueMetadata> fetchedMetadata = new AtomicReference<>();
-        ClprMessageQueueMetadata expectedMessageQueueMetadata =
-                ClprMessageQueueMetadata.newBuilder().ledgerShortId(100).build();
+        AtomicReference<ClprMessageQueueMetadata> fetchResult = new AtomicReference<>();
+        ClprMessageQueueMetadata localMessageQueueMetadata = ClprMessageQueueMetadata.newBuilder()
+                .receivedMessageId(0)
+                .sentMessageId(0)
+                .nextOutgoingMessageId(1)
+                .ledgerShortId(0)
+                .build();
         return hapiTest(
+                // set target node
                 doingContextual(spec -> {
                     final var tNode = spec.getNetworkNodes().stream()
                             .filter(node -> node.getAccountId().accountNum().equals(3L))
                             .findFirst();
+                    assertThat(tNode).isNotNull();
                     targetNode.set(tNode.get());
                 }),
                 // try to update local message queue metadata
-                updateMessageQueueMetadata(targetNode, expectedMessageQueueMetadata),
-                fetchMessageQueueMetadata(targetNode, fetchedMetadata),
+                updateMessageQueueMetadata(targetNode, localMessageQueueMetadata),
+                // try to fetch local message queue metadata
+                sleepFor(5000),
+                fetchMessageQueueMetadata(targetNode, fetchResult),
+
                 // validate the result
                 doingContextual(spec -> {
-                    assertThat(fetchedMetadata.get()).isEqualTo(expectedMessageQueueMetadata);
+                    assertThat(fetchResult.get()).isEqualTo(localMessageQueueMetadata);
                 }));
     }
 

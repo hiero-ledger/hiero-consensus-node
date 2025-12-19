@@ -14,8 +14,9 @@ import com.hedera.node.app.spi.workflows.TransactionHandler;
 import com.hedera.node.config.ConfigProvider;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import javax.inject.Inject;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.hiero.interledger.clpr.ClprStateProofUtils;
-import org.hiero.interledger.clpr.ReadableClprMessageQueueStore;
 import org.hiero.interledger.clpr.WritableClprMessageQueueStore;
 import org.hiero.interledger.clpr.impl.ClprStateProofManager;
 
@@ -25,6 +26,7 @@ import org.hiero.interledger.clpr.impl.ClprStateProofManager;
  * This handler uses the {@link ClprStateProofManager} to validate the state proof and manage ledger's message queue metadata.
  */
 public class ClprUpdateMessageQueueMetadataHandler implements TransactionHandler {
+    private static final Logger log = LogManager.getLogger(ClprUpdateMessageQueueMetadataHandler.class);
     private final ClprStateProofManager stateProofManager;
     private final NetworkInfo networkInfo;
     private final ConfigProvider configProvider;
@@ -57,19 +59,14 @@ public class ClprUpdateMessageQueueMetadataHandler implements TransactionHandler
 
     @Override
     public void handle(@NonNull HandleContext context) throws HandleException {
+        // TODO: Implement actual handle
         final var txn = context.body();
         final var body = txn.clprUpdateMessageQueueMetadata();
         final var messageQueueMetadata =
                 ClprStateProofUtils.extractMessageQueueMetadata(body.messageQueueMetadataProof());
         final var writableMessageQueueMetadataStore =
                 context.storeFactory().writableStore(WritableClprMessageQueueStore.class);
-        // try to update the state
+        // update the state
         writableMessageQueueMetadataStore.put(body.ledgerId(), messageQueueMetadata);
-
-        final var readableMessageQueueMetadataSotre =
-                context.storeFactory().readableStore(ReadableClprMessageQueueStore.class);
-        // try to find it
-        final var metadata = readableMessageQueueMetadataSotre.get(body.ledgerId());
-        final var test = metadata.toString();
     }
 }

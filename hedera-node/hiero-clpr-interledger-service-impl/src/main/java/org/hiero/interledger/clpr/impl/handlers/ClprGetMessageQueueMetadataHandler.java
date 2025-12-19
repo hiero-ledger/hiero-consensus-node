@@ -13,12 +13,14 @@ import com.hedera.node.app.spi.workflows.PreCheckException;
 import com.hedera.node.app.spi.workflows.QueryContext;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import javax.inject.Inject;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.hiero.hapi.interledger.clpr.ClprGetMessageQueueMetadataResponse;
-import org.hiero.interledger.clpr.ReadableClprLedgerConfigurationStore;
 import org.hiero.interledger.clpr.ReadableClprMessageQueueStore;
 import org.hiero.interledger.clpr.impl.ClprStateProofManager;
 
 public class ClprGetMessageQueueMetadataHandler extends FreeQueryHandler {
+    private static final Logger log = LogManager.getLogger(ClprGetMessageQueueMetadataHandler.class);
     private final ClprStateProofManager stateProofManager;
 
     @Inject
@@ -57,18 +59,15 @@ public class ClprGetMessageQueueMetadataHandler extends FreeQueryHandler {
         final var query = context.query();
         final var op = query.getClprMessageQueueMetadata();
         final var ledgerId = op.ledgerId();
-        final var ledgerConfigStore = context.createStore(ReadableClprLedgerConfigurationStore.class);
-        final var testConfig = ledgerConfigStore.get(ledgerId);
         final var readableMessageQueueMetadataStore = context.createStore(ReadableClprMessageQueueStore.class);
         final var metadata = readableMessageQueueMetadataStore.get(ledgerId);
-        if (metadata == null) {
+        if (metadata != null) {
             final var result = ClprGetMessageQueueMetadataResponse.newBuilder()
                     .header(header)
                     .messageQueueMetadataProof(stateProofManager.getMessageQueueMetadata(ledgerId))
                     .build();
             return Response.newBuilder().clprMessageQueueMetadata(result).build();
         }
-        // TODO: Implement find response!
         return createEmptyResponse(header);
     }
 }
