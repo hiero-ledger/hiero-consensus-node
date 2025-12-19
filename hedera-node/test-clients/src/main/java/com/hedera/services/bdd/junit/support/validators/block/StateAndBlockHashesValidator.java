@@ -77,7 +77,7 @@ import org.junit.jupiter.api.Assertions;
  * 		<li>the state entity counts match the number of created/modified entities</li>
  * 		<li>the calculated root block hashes of each block</li>
  * 		<li>the indirect state proofs preceding the final signed block proof</li>
- * </li>
+ * </ul>
  */
 public class StateAndBlockHashesValidator implements BlockStreamValidator {
     private static final Logger logger = LogManager.getLogger(StateAndBlockHashesValidator.class);
@@ -85,7 +85,7 @@ public class StateAndBlockHashesValidator implements BlockStreamValidator {
     private static final Bytes FINAL_EXPECTED_STATE_HASH = Bytes.fromHex(
             "aa6f556fb309bec4daa93ca61938590e9c9481bf4a8d13e1f919ee3571818f0a89d102cde7a493b1726eebcdbe4e1390");
     private static final Bytes FINAL_EXPECTED_BLOCK_HASH = Bytes.fromHex(
-            "c5d98c62812c9fb5c19082f2b218a842682402c2b4e559b0c413e6ba17933a43b91b13c7bd4a9602afad76c1706d98e3");
+            "a5d66e37d8a8a0f091eb982311f754260f6a6c7156a9f2a342010cf4f8333f041450ab02cc98de0829917b68ecfd4794");
 
     private final Bytes expectedStateRootHash;
     private final Bytes expectedFinalBlockHash;
@@ -97,9 +97,9 @@ public class StateAndBlockHashesValidator implements BlockStreamValidator {
 
     /**
      * Run the validator as a standalone program
-     * @param args ignored
+     * @param ignored ignored params
      */
-    public static void main(String[] args) {
+    public static void main(String[] ignored) {
         final long shard = 11;
         final long realm = 12;
         final var validator =
@@ -315,7 +315,7 @@ public class StateAndBlockHashesValidator implements BlockStreamValidator {
             assertNotNull(firstConsensusTimestamp, "No parseable timestamp found for block #" + i);
 
             if (i <= lastVerifiableIndex) {
-				System.out.println("--------------------------------");
+                System.out.println("--------------------------------");
                 logger.info("Calculating final hash for block {}", i);
 
                 final var footer = block.items().get(block.items().size() - 2);
@@ -504,27 +504,26 @@ public class StateAndBlockHashesValidator implements BlockStreamValidator {
             final IncrementalStreamingHasher stateChangesHasher,
             final IncrementalStreamingHasher traceDataHasher) {
         final var itemSerialized = BlockItem.PROTOBUF.toBytes(item);
-        final var itemAsLeaf = hashLeaf(itemSerialized);
 
         switch (item.item().kind()) {
             case EVENT_HEADER, ROUND_HEADER -> {
-                consensusHeaderHasher.addLeaf(itemAsLeaf.toByteArray());
+                consensusHeaderHasher.addLeaf(itemSerialized.toByteArray());
                 printSubrootState("consensus headers", consensusHeaderHasher);
             }
             case SIGNED_TRANSACTION -> {
-                inputTreeHasher.addLeaf(itemAsLeaf.toByteArray());
+                inputTreeHasher.addLeaf(itemSerialized.toByteArray());
                 printSubrootState("input tree", inputTreeHasher);
             }
             case TRANSACTION_RESULT, TRANSACTION_OUTPUT, BLOCK_HEADER -> {
-                outputTreeHasher.addLeaf(itemAsLeaf.toByteArray());
+                outputTreeHasher.addLeaf(itemSerialized.toByteArray());
                 printSubrootState("output tree", outputTreeHasher);
             }
             case STATE_CHANGES -> {
-                stateChangesHasher.addLeaf(itemAsLeaf.toByteArray());
+                stateChangesHasher.addLeaf(itemSerialized.toByteArray());
                 printSubrootState("state changes", stateChangesHasher);
             }
             case TRACE_DATA -> {
-                traceDataHasher.addLeaf(itemAsLeaf.toByteArray());
+                traceDataHasher.addLeaf(itemSerialized.toByteArray());
                 printSubrootState("trace data", traceDataHasher);
             }
             default -> {
@@ -595,14 +594,14 @@ public class StateAndBlockHashesValidator implements BlockStreamValidator {
         final var root = hashInternalNode(depth2Node1, depth2Node2);
 
         System.out.println("Depth 6 (Inputs):");
-        System.out.println("d6n1: " + previousBlockHash);
-        System.out.println("d6n2: " + prevBlocksRootHash);
-        System.out.println("d6n3: " + startOfBlockStateHash);
-        System.out.println("d6n4: " + consensusHeaderHash);
-        System.out.println("d6n5: " + inputTreeHash);
-        System.out.println("d6n6: " + outputTreeHash);
-        System.out.println("d6n7: " + finalStateChangesHash);
-        System.out.println("d6n8: " + traceDataHash);
+        System.out.println("depth6node1: " + previousBlockHash);
+        System.out.println("depth6node2: " + prevBlocksRootHash);
+        System.out.println("depth6node3: " + startOfBlockStateHash);
+        System.out.println("depth6node4: " + consensusHeaderHash);
+        System.out.println("depth6node5: " + inputTreeHash);
+        System.out.println("depth6node6: " + outputTreeHash);
+        System.out.println("depth6node7: " + finalStateChangesHash);
+        System.out.println("depth6node8: " + traceDataHash);
 
         System.out.println("Depth 5:");
         System.out.println("depth5Node1: " + depth5Node1);
@@ -639,7 +638,7 @@ public class StateAndBlockHashesValidator implements BlockStreamValidator {
     }
 
     private boolean indirectProofsNeedVerification() {
-        return indirectProofSeq != null && indirectProofSeq.containsIndirectProofs();
+        return indirectProofSeq.containsIndirectProofs();
     }
 
     private void validateBlockProof(
