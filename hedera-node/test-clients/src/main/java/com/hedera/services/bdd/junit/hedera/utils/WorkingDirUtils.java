@@ -7,7 +7,6 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.SemanticVersion;
-import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.state.addressbook.Node;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.node.config.converter.SemanticVersionConverter;
@@ -39,6 +38,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.stream.Stream;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.roster.SimpleAddress;
 
 public class WorkingDirUtils {
     private static final Key CLASSIC_ADMIN_KEY = Key.newBuilder()
@@ -399,16 +399,10 @@ public class WorkingDirUtils {
             final var simpleAddresses = AddressBookUtils.parseToSimpleAddresses(configTxt);
             final var nodeIds = simpleAddresses.getNodeIds();
             final var certs = CryptoStatic.generateKeysAndCerts(nodeIds);
-            final var nodeMetadata = simpleAddresses.addresses().stream()
+            final var nodeMetadata = simpleAddresses.withKeysAndCerts(certs).addresses().stream()
                     .map(address -> {
                         final var nodeId = address.nodeId();
-                        final Bytes cert;
-                        try {
-                            cert = Bytes.wrap(
-                                    certs.get(NodeId.of(nodeId)).sigCert().getEncoded());
-                        } catch (CertificateEncodingException e) {
-                            throw new RuntimeException(e);
-                        }
+                        final Bytes cert = getSigCert(address);
                         final var metadata = NodeMetadata.newBuilder()
                                 .rosterEntry(
                                         new RosterEntry(nodeId, address.weight(), cert, address.serviceEndpoints()));
@@ -438,7 +432,19 @@ public class WorkingDirUtils {
         }
     }
 
-    private static ServiceEndpoint endpointFrom(@NonNull final String hostLiteral, @NonNull final String portLiteral) {
-        return HapiPropertySource.asServiceEndpoint(hostLiteral + ":" + portLiteral);
+    @NonNull
+    private static Bytes getSigCert(final SimpleAddress address) {
+        final Bytes cert;
+        try {
+            if(address.keysAndCerts() != null && address.keysAndCerts().sigCert() != null) {
+                cert = Bytes.wrap(
+                        address.keysAndCerts().sigCert().getEncoded());
+            } else {
+                cert = Bytes.EMPTY;
+            }
+        } catch (CertificateEncodingException e) {
+            throw new RuntimeException(e);
+        }
+        return cert;
     }
 }

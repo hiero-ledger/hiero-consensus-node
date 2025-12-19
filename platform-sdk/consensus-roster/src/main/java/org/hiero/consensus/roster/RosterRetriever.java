@@ -14,6 +14,7 @@ import com.swirlds.state.spi.ReadableKVState;
 import com.swirlds.state.spi.ReadableSingletonState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.security.cert.CertificateEncodingException;
 import java.util.Comparator;
 import java.util.List;
 import java.util.regex.Pattern;
@@ -120,12 +121,24 @@ public final class RosterRetriever {
      */
     @NonNull
     public static RosterEntry buildRosterEntry(@NonNull final SimpleAddress address) {
-        return RosterEntry.newBuilder()
-                .nodeId(address.nodeId())
-                .weight(address.weight())
-                .gossipCaCertificate(Bytes.EMPTY)
-                .gossipEndpoint(address.serviceEndpoints())
-                .build();
+        try {
+            // There's code, especially in tests, that creates AddressBooks w/o any certificates/keys
+            // (because it would be time-consuming, and these tests don't use the keys anyway.)
+            // So we need to be able to handle this situation here:
+            final Bytes cert = address.keysAndCerts() == null || address.keysAndCerts().sigCert() == null
+                    ? Bytes.EMPTY
+                    : Bytes.wrap(address.keysAndCerts().sigCert().getEncoded());
+
+            return RosterEntry.newBuilder()
+                    .nodeId(address.nodeId())
+                    .weight(address.weight())
+                    .gossipCaCertificate(cert)
+                    .gossipEndpoint(address.serviceEndpoints())
+                    .build();
+        } catch (CertificateEncodingException e) {
+            throw new InvalidAddressBookException(e);
+        }
+
     }
 
     /**

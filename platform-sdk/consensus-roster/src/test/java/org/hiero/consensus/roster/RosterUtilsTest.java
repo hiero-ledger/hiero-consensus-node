@@ -268,7 +268,8 @@ public class RosterUtilsTest {
                 List.of(ServiceEndpoint.newBuilder()
                         .domainName("hostnameExternal")
                         .build()),
-                "")));
+                "",
+                null)));
         final Roster roster = buildRoster(addressBook);
 
         assertEquals(1, roster.rosterEntries().size());
@@ -285,7 +286,8 @@ public class RosterUtilsTest {
                 List.of(ServiceEndpoint.newBuilder()
                         .domainName("hostnameInternal")
                         .build()),
-                "")));
+                "",
+                null)));
         final Roster roster = buildRoster(addressBook);
 
         assertEquals(1, roster.rosterEntries().size());
