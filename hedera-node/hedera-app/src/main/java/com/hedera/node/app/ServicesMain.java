@@ -53,7 +53,6 @@ import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.config.extensions.sources.SystemEnvironmentConfigSource;
 import com.swirlds.config.extensions.sources.SystemPropertiesConfigSource;
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.platform.Browser;
 import com.swirlds.platform.CommandLineArgs;
 import com.swirlds.platform.ParameterProvider;
 import com.swirlds.platform.builder.PlatformBuilder;
@@ -225,8 +224,7 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
     }
 
     /**
-     * Launches Services directly, without use of the "app browser" from {@link Browser}. The
-     * approximate startup sequence is:
+     * Launches Services: the approximate startup sequence is:
      * <ol>
      *     <li>Scan the classpath for {@link RuntimeConstructable} classes,
      *     registering their no-op constructors as the default factories for their
