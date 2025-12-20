@@ -5,7 +5,6 @@ module com.swirlds.common {
     exports com.swirlds.common;
     exports com.swirlds.common.config;
     exports com.swirlds.common.context;
-    exports com.swirlds.common.formatting;
     exports com.swirlds.common.io;
     exports com.swirlds.common.io.config;
     exports com.swirlds.common.io.exceptions;
@@ -34,6 +33,7 @@ module com.swirlds.common {
     exports com.swirlds.common.merkle.utility;
     exports com.swirlds.common.metrics;
     exports com.swirlds.common.metrics.config;
+    exports com.swirlds.common.metrics.event;
     exports com.swirlds.common.metrics.noop;
     exports com.swirlds.common.metrics.platform;
     exports com.swirlds.common.metrics.platform.prometheus;
@@ -45,13 +45,10 @@ module com.swirlds.common {
     exports com.swirlds.common.threading.framework.config;
     exports com.swirlds.common.threading.manager;
     exports com.swirlds.common.threading.pool;
-    exports com.swirlds.common.time;
     exports com.swirlds.common.utility;
     exports com.swirlds.common.utility.throttle;
     exports com.swirlds.common.jackson;
-    exports com.swirlds.common.units;
     exports com.swirlds.common.metrics.extensions;
-    exports com.swirlds.common.units.internal;
     exports com.swirlds.common.metrics.statistics;
     exports com.swirlds.common.metrics.statistics.internal to
             com.swirlds.platform.core;
@@ -62,8 +59,6 @@ module com.swirlds.common {
     exports com.swirlds.common.merkle.route.internal to
             org.hiero.base.utility;
 
-    opens com.swirlds.common.units.internal to
-            com.fasterxml.jackson.databind;
     opens com.swirlds.common.merkle.utility to
             com.fasterxml.jackson.databind;
     opens com.swirlds.common.utility to
@@ -85,10 +80,6 @@ module com.swirlds.common {
     opens com.swirlds.common.stream.internal to
             com.fasterxml.jackson.databind;
     opens com.swirlds.common.merkle.crypto to
-            com.fasterxml.jackson.databind;
-    opens com.swirlds.common.formatting to
-            com.fasterxml.jackson.databind;
-    opens com.swirlds.common.units to
             com.fasterxml.jackson.databind;
 
     requires transitive com.swirlds.base;

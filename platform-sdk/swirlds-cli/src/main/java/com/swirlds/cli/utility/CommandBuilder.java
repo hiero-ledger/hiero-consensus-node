@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.cli.utility;
 
-import com.swirlds.common.formatting.TextEffect;
+import com.swirlds.base.formatting.TextEffect;
 import io.github.classgraph.ClassGraph;
 import io.github.classgraph.ClassInfo;
 import io.github.classgraph.ScanResult;

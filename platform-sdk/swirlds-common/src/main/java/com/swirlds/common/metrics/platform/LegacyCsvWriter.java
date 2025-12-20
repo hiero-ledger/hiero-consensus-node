@@ -14,7 +14,6 @@ import com.swirlds.base.utility.Pair;
 import com.swirlds.base.utility.ToStringBuilder;
 import com.swirlds.common.config.BasicCommonConfig;
 import com.swirlds.common.metrics.config.MetricsConfig;
-import com.swirlds.common.utility.ThresholdLimitingHandler;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metric;
 import com.swirlds.metrics.api.Metric.ValueType;
@@ -39,6 +38,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.utility.ThresholdLimitingHandler;
 import org.hiero.consensus.model.node.NodeId;
 
 /**

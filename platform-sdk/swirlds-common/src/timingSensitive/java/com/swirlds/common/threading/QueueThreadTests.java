@@ -9,7 +9,6 @@ import static com.swirlds.common.threading.framework.internal.AbstractQueueThrea
 import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticThreadManager;
 import static com.swirlds.metrics.api.Metrics.INTERNAL_CATEGORY;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
-import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static java.util.concurrent.TimeUnit.SECONDS;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -20,8 +19,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
 import com.swirlds.base.state.MutabilityException;
-import com.swirlds.base.test.fixtures.time.FakeTime;
-import com.swirlds.common.metrics.FunctionGauge;
 import com.swirlds.common.metrics.PlatformMetricsFactory;
 import com.swirlds.common.metrics.config.MetricsConfig;
 import com.swirlds.common.metrics.platform.DefaultPlatformMetrics;
@@ -33,7 +30,6 @@ import com.swirlds.common.threading.framework.ThreadSeed;
 import com.swirlds.common.threading.framework.config.QueueThreadConfiguration;
 import com.swirlds.common.threading.framework.config.QueueThreadMetricsConfiguration;
 import com.swirlds.common.threading.framework.config.ThreadConfiguration;
-import com.swirlds.common.threading.framework.internal.QueueThreadMetrics;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.metrics.api.Metrics;
@@ -864,61 +860,6 @@ class QueueThreadTests {
         assertThat(queueThread).isEmpty();
         assertThat(maxSizeMetric.get()).isEqualTo(70);
         assertThat(minSizeMetric.get()).isZero();
-    }
-
-    @Test
-    @DisplayName("busyTimeMetricTest() Test")
-    @SuppressWarnings("unchecked")
-    void busyTimeMetricTest() throws InterruptedException {
-        // given
-        final Semaphore handling1 = new Semaphore(0);
-        final Semaphore handling2 = new Semaphore(0);
-        final InterruptableConsumer<Integer> handler = i -> {
-            handling1.release();
-            handling2.acquire();
-        };
-        final FakeTime time = new FakeTime();
-
-        final ControllableQueue queue = new ControllableQueue();
-        final QueueThread<Integer> queueThread = new QueueThreadConfiguration<Integer>(getStaticThreadManager())
-                .setThreadName(THREAD_NAME)
-                .setHandler(handler)
-                .setQueue(queue)
-                .setMetricsConfiguration(new QueueThreadMetricsConfiguration(metrics)
-                        .setCategory(METRIC_CATEGORY)
-                        .setTime(time)
-                        .enableBusyTimeMetric())
-                .build();
-        final FunctionGauge<Double> busyTimeMetric = (FunctionGauge<Double>)
-                metrics.getMetric(METRIC_CATEGORY, QueueThreadMetrics.buildBusyTimeMetricName(THREAD_NAME));
-
-        queueThread.add(123);
-        queueThread.start();
-
-        // when
-        // wait for handling to start
-        handling1.acquire();
-        // advance time
-        time.tick(Duration.ofSeconds(1));
-        // release handling thread
-        handling2.release();
-        // wait for handling to finish
-        queueThread.waitUntilNotBusy();
-        // cause all future calls to poll() to block
-        queue.blockPolling();
-        // wait until the thread becomes blocked on poll()
-        while (queue.getPollBlockedCount() == 0) {
-            NANOSECONDS.sleep(1);
-        }
-        // advance time again
-        time.tick(Duration.ofSeconds(1));
-        // allow the thread to unblock from polling
-        queue.unblockPolling();
-
-        // then
-        assertEventuallyEquals(0.5, busyTimeMetric::get, Duration.ofSeconds(1), "busy time was not measured correctly");
-
-        queueThread.stop();
     }
 
     @Test
