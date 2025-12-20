@@ -66,6 +66,7 @@ public class CryptoTransferFeeCalculator implements ServiceFeeCalculator {
         final TokenCounts tokenCounts = analyzeTokenTransfers(op, tokenStore);
 
         final ServiceFeeDefinition serviceDef = lookupServiceFee(feeSchedule, HederaFunctionality.CRYPTO_TRANSFER);
+        feeResult.addServiceFee(1, serviceDef.baseFee());
 
         final Extra transferType = determineTransferType(tokenCounts);
         if (transferType != null) {
