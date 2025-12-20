@@ -257,7 +257,6 @@ public class FrameUtils {
     }
 
     public static CallType callTypeOf(final MessageFrame frame, final EntityType expectedEntityType) {
-        // TODO(Pectra): double check the logic in this method
         if (!isDelegateCall(frame)) {
             return CallType.DIRECT_OR_PROXY_REDIRECT;
         }
