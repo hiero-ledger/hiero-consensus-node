@@ -70,8 +70,7 @@ public record PlatformCoordinator(@NonNull PlatformComponents components, @NonNu
         // lines without understanding the implications of doing so. Consult the wiring diagram when deciding
         // whether to change the order of these lines.
 
-        components.eventHasherWiring().flush();
-        components.internalEventValidatorWiring().flush();
+        components.eventIntakeModule().flush();
         components.eventDeduplicatorWiring().flush();
         components.eventSignatureValidatorWiring().flush();
         components.orphanBufferWiring().flush();

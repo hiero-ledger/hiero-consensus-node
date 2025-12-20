@@ -38,6 +38,7 @@
     { "name":  "CRYPTO_TRANSFER_BASE_NFT_CUSTOM_FEES",      "fee": 19000000 },
     { "name":  "CONSENSUS_CREATE_TOPIC_WITH_CUSTOM_FEE",    "fee": 19900000000 },
     { "name":  "CONSENSUS_SUBMIT_MESSAGE_WITH_CUSTOM_FEE",  "fee": 499000000},
+    { "name":  "SCHEDULE_CREATE_CONTRACT_CALL_BASE",        "fee": 900000000},
     { "name":  "HOOK_EXECUTION",                            "fee": 10000000000 }
   ],
   "services": [
@@ -133,6 +134,16 @@
           "name": "ConsensusGetTopicInfo",
           "baseFee": 0,
           "extras": []
+        },
+        {
+          "name": "CryptoGetInfo",
+          "baseFee": 0,
+          "extras": []
+        },
+        {
+          "name": "CryptoGetAccountRecords",
+          "baseFee": 0,
+          "extras": []
         }
       ]
     },
@@ -169,11 +180,15 @@
         },
         {
           "name": "FileGetContents",
-          "baseFee": 10,
+          "baseFee": 0,
           "extras": [
-            { "name": "KEYS", "includedCount": 1},
             { "name": "BYTES", "includedCount": 1000}
           ]
+        },
+        {
+          "name": "FileGetInfo",
+          "baseFee": 0,
+          "extras": []
         }
       ]
     },
@@ -252,7 +267,8 @@
           "name": "ScheduleCreate",
           "baseFee": 99000000,
           "extras": [
-            { "name": "KEYS", "includedCount": 1}
+            { "name": "KEYS", "includedCount": 1},
+            { "name": "SCHEDULE_CREATE_CONTRACT_CALL_BASE", "includedCount": 0}
           ]
         },
         {
@@ -263,6 +279,11 @@
         {
           "name": "ScheduleDelete",
           "baseFee": 9000000,
+          "extras": []
+        },
+        {
+          "name": "ScheduleGetInfo",
+          "baseFee": 0,
           "extras": []
         }
       ]

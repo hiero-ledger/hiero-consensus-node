@@ -4,7 +4,7 @@ package com.swirlds.common.metrics.statistics;
 import com.swirlds.common.metrics.StatEntry;
 import java.util.Arrays;
 import java.util.function.Supplier;
-import org.hiero.consensus.model.status.UniqueId;
+import org.hiero.base.UniqueId;
 
 /**
  * Used to construct different types types of StatEntry instances

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 module org.hiero.consensus.event.intake {
     exports org.hiero.consensus.event.intake;
+    exports org.hiero.consensus.event.intake.config;
 
     requires transitive com.swirlds.base;
     requires transitive com.swirlds.common;

@@ -1,9 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.state;
 
-import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
-import static org.mockito.BDDMockito.*;
-import static org.mockito.Mockito.mock;
+import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
 
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
@@ -17,7 +15,6 @@ import java.util.function.Consumer;
 import org.assertj.core.api.Assertions;
 import org.hiero.consensus.model.event.Event;
 import org.hiero.consensus.model.hashgraph.Round;
-import org.hiero.consensus.model.roster.AddressBook;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -85,10 +82,5 @@ class ConsensusStateEventHandlerImplTest extends MerkleTestBase {
         subject.onStateInitialized(merkleStateRoot, platform, InitTrigger.GENESIS, null);
 
         verify(hedera).onStateInitialized(merkleStateRoot, platform, InitTrigger.GENESIS);
-    }
-
-    @Test
-    void onUpdateWeightIsNoop() {
-        assertDoesNotThrow(() -> subject.onUpdateWeight(merkleStateRoot, mock(AddressBook.class), platformContext));
     }
 }

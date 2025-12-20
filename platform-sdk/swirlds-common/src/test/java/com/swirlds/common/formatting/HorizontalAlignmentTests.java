@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.formatting;
 
-import static com.swirlds.common.formatting.HorizontalAlignment.ALIGNED_CENTER;
-import static com.swirlds.common.formatting.HorizontalAlignment.ALIGNED_LEFT;
-import static com.swirlds.common.formatting.HorizontalAlignment.ALIGNED_RIGHT;
+import static com.swirlds.base.formatting.HorizontalAlignment.ALIGNED_CENTER;
+import static com.swirlds.base.formatting.HorizontalAlignment.ALIGNED_LEFT;
+import static com.swirlds.base.formatting.HorizontalAlignment.ALIGNED_RIGHT;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import org.junit.jupiter.api.DisplayName;
