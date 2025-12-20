@@ -49,14 +49,6 @@ message StateProof {
          * omitted.
          */
         TssSignedBlockProof signed_block_proof = 2;
-
-        /**
-         * A proof containing RSA signatures from consensus nodes for a record
-         * file. This field MUST contain the proof of the record file only if
-         * the state proof is being provided for a record file; otherwise it
-         * MUST be omitted.
-         */
-        SignedRecordFileProof signed_record_file_proof = 4;
     }
 }
 
@@ -84,17 +76,6 @@ message TssSignedBlockProof {
      * the network public key (a.k.a `LedgerID`).
      */
     bytes block_signature = 1;
-}
-
-/**
- * A proof containing RSA signatures from consensus nodes for a record file.
- */
-message SignedRecordFileProof {
-    /**
-     * A collection of RSA signatures from consensus nodes.<br/>
-     * These signatures validate the hash of the record_file_contents field.
-     */
-    repeated RecordFileSignature record_file_signatures = 1;
 }
 
 /**
