@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.event.deduplication;
+package org.hiero.consensus.event.intake.impl.deduplication;
 
 import com.swirlds.component.framework.component.InputWireLabel;
-import com.swirlds.platform.wiring.NoInput;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import org.hiero.consensus.model.event.PlatformEvent;
@@ -46,8 +45,6 @@ public interface EventDeduplicator {
 
     /**
      * Clear the internal state of this deduplicator.
-     *
-     * @param ignored ignored trigger object
      */
-    void clear(@NonNull final NoInput ignored);
+    void clear();
 }

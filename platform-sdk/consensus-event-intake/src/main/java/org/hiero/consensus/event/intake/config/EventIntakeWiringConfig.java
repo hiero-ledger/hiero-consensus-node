@@ -10,10 +10,13 @@ import com.swirlds.config.api.ConfigProperty;
  *
  * @param eventHasher configuration for the event hasher scheduler
  * @param internalEventValidator configuration for the internal event validator scheduler
+ * @param eventDeduplicator configuration for the event deduplicator scheduler
  */
 @ConfigData("event.intake.wiring")
 public record EventIntakeWiringConfig(
         @ConfigProperty(defaultValue = "CONCURRENT CAPACITY(500) FLUSHABLE UNHANDLED_TASK_METRIC")
                 TaskSchedulerConfiguration eventHasher,
         @ConfigProperty(defaultValue = "CONCURRENT CAPACITY(500) FLUSHABLE UNHANDLED_TASK_METRIC")
-                TaskSchedulerConfiguration internalEventValidator) {}
+                TaskSchedulerConfiguration internalEventValidator,
+        @ConfigProperty(defaultValue = "SEQUENTIAL CAPACITY(5000) FLUSHABLE UNHANDLED_TASK_METRIC")
+                TaskSchedulerConfiguration eventDeduplicator) {}
