@@ -31,7 +31,7 @@ SCRIPT_PATH="$(dirname "$(readlink -f "$0")")"
     -s 'PlatformMonitor:PlatformStatus:🚦' \
     -s 'HealthMonitor:health info:🏥' \
     -g 'Orphan Buffer:OrphanBuffer,OrphanBufferSplitter' \
-    -g 'EventIntakeModule:EventHasher,InternalEventValidator,EventDeduplicator,EventSignatureValidator,Orphan Buffer,InlinePcesWriter,📬' \
+    -g 'EventIntakeModule:EventWindowDispatcher,EventHasher,InternalEventValidator,EventDeduplicator,EventSignatureValidator,Orphan Buffer,InlinePcesWriter,📬' \
     -g 'Consensus Engine:ConsensusEngine,EventWindowManager,ConsensusRounds,PreConsensusEvents,PreConsensusEventsSplitter,ConsensusRoundsSplitter,RoundsToCesEvents' \
     -g 'State Snapshot Manager:saveToDiskFilter,StateSnapshotManager,extractOldestMinimumBirthRoundOnDisk,toNotification' \
     -g 'State File Management:State Snapshot Manager,📀,💾' \

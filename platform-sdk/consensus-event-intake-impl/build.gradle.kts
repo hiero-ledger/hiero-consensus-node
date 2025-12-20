@@ -13,6 +13,7 @@ testModuleInfo {
     requires("com.swirlds.base.test.fixtures")
     requires("com.swirlds.common.test.fixtures")
     requires("org.hiero.consensus.metrics")
+    requires("org.hiero.base.crypto.test.fixtures")
     requires("org.hiero.base.utility.test.fixtures")
     requires("org.hiero.consensus.model.test.fixtures")
     requires("org.junit.jupiter.api")

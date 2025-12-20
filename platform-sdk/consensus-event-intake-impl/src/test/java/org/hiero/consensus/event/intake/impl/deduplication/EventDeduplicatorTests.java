@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.event;
+package org.hiero.consensus.event.intake.impl.deduplication;
 
-import static com.swirlds.platform.test.fixtures.event.EventUtils.serializePlatformEvent;
 import static org.hiero.base.crypto.test.fixtures.CryptoRandomUtils.randomSignatureBytes;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.getRandomPrintSeed;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -12,12 +11,10 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 
 import com.hedera.hapi.platform.event.GossipEvent;
-import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
-import com.swirlds.platform.event.deduplication.EventDeduplicator;
-import com.swirlds.platform.event.deduplication.StandardEventDeduplicator;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.swirlds.common.metrics.noop.NoOpMetrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -81,12 +78,13 @@ class EventDeduplicatorTests {
     private static void validateEmittedEvent(
             @Nullable final PlatformEvent event,
             final long minimumRoundNonAncient,
-            @NonNull final Set<ByteBuffer> emittedEvents) {
+            @NonNull final Set<Bytes> emittedEvents) {
         if (event != null) {
             assertFalse(
                     event.getDescriptor().eventDescriptor().birthRound() < minimumRoundNonAncient,
                     "Ancient events shouldn't be emitted");
-            assertTrue(emittedEvents.add(ByteBuffer.wrap(serializePlatformEvent(event))), "Event was emitted twice");
+            assertTrue(
+                    emittedEvents.add(GossipEvent.PROTOBUF.toBytes(event.getGossipEvent())), "Event was emitted twice");
         }
     }
 
@@ -97,7 +95,7 @@ class EventDeduplicatorTests {
 
         // events that have been emitted from the deduplicator
         // contents of the set are the serialized events
-        final Set<ByteBuffer> emittedEvents = new HashSet<>();
+        final Set<Bytes> emittedEvents = new HashSet<>();
 
         // events that have been submitted to the deduplicator
         final List<PlatformEvent> submittedEvents = new ArrayList<>();
@@ -111,8 +109,7 @@ class EventDeduplicatorTests {
                 .when(intakeEventCounter)
                 .eventExitedIntakePipeline(any());
 
-        final EventDeduplicator deduplicator = new StandardEventDeduplicator(
-                TestPlatformContextBuilder.create().build(), intakeEventCounter);
+        final EventDeduplicator deduplicator = new StandardEventDeduplicator(new NoOpMetrics(), intakeEventCounter);
 
         int duplicateEventCount = 0;
         int ancientEventCount = 0;
