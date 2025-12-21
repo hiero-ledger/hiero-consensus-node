@@ -2,7 +2,6 @@
 package com.swirlds.platform.network.communication;
 
 import com.swirlds.base.time.Time;
-import com.swirlds.common.utility.throttle.RateLimiter;
 import com.swirlds.platform.network.Connection;
 import com.swirlds.platform.network.ConnectionManager;
 import com.swirlds.platform.network.NetworkProtocolException;
@@ -12,6 +11,7 @@ import java.io.IOException;
 import java.time.Duration;
 import java.util.List;
 import org.hiero.base.concurrent.interrupt.InterruptableRunnable;
+import org.hiero.consensus.concurrent.utility.throttle.RateLimiter;
 
 /**
  * Continuously runs protocol negotiation and protocols over connections supplied by the connection manager

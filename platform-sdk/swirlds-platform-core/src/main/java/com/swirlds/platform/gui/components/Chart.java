@@ -3,14 +3,14 @@ package com.swirlds.platform.gui.components;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 
-import com.swirlds.common.metrics.statistics.StatsBuffered;
-import com.swirlds.common.metrics.statistics.internal.StatsBuffer;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.awt.*;
 import java.util.Objects;
 import javax.swing.*;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.metrics.statistics.StatsBuffered;
+import org.hiero.consensus.metrics.statistics.internal.StatsBuffer;
 
 /** a JPanel with one chart that plots a statistic vs. time, either all history or recent */
 public class Chart extends JPanel {

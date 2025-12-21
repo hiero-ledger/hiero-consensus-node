@@ -99,9 +99,8 @@ class TokenServiceApiImplTest {
             new MapWritableKVState<>(ALIASES_STATE_ID, ALIASES_STATE_LABEL);
     private final WritableKVState<AccountID, Account> accountState =
             new MapWritableKVState<>(ACCOUNTS_STATE_ID, ACCOUNTS_STATE_LABEL);
-    private final WritableStates writableStates = new MapWritableStates(Map.of(
-            ACCOUNTS_STATE_ID, accountState,
-            ALIASES_STATE_ID, aliasesState));
+    private final WritableStates writableStates =
+            new MapWritableStates(Map.of(ACCOUNTS_STATE_ID, accountState, ALIASES_STATE_ID, aliasesState));
     private final WritableStates entityWritableStates = new MapWritableStates(Map.of(
             ENTITY_ID_STATE_ID,
             new FunctionWritableSingletonState<>(
@@ -485,6 +484,9 @@ class TokenServiceApiImplTest {
                     Account.newBuilder().accountId(NODE_REWARD_ACCOUNT_ID).build());
 
             accountStore.put(Account.newBuilder().accountId(NODE_ACCOUNT_ID).build());
+            accountStore.put(Account.newBuilder()
+                    .accountId(FeeCollectionAccountTests.FEE_COLLECTION_ACCOUNT_ID)
+                    .build());
 
             accountStore.put(Account.newBuilder()
                     .accountId(EOA_ACCOUNT_ID)
@@ -500,6 +502,7 @@ class TokenServiceApiImplTest {
             // Given that staking is enabled
             final var config = configBuilder
                     .withValue("nodes.preserveMinNodeRewardBalance", false)
+                    .withValue("nodes.feeCollectionAccountEnabled", false)
                     .getOrCreateConfig();
             final Map<AccountID, Long> adjustments = new HashMap<>();
 
@@ -544,6 +547,7 @@ class TokenServiceApiImplTest {
             // Given that staking is enabled
             final var config = configBuilder
                     .withValue("nodes.preserveMinNodeRewardBalance", false)
+                    .withValue("nodes.feeCollectionAccountEnabled", false)
                     .getOrCreateConfig();
 
             subject = new TokenServiceApiImpl(config, writableStates, customFeeTest, entityCounters);
@@ -591,6 +595,7 @@ class TokenServiceApiImplTest {
             final var config = configBuilder
                     .withValue("ledger.fundingAccount", unknownAccountId.accountNumOrThrow())
                     .withValue("nodes.preserveMinNodeRewardBalance", false)
+                    .withValue("nodes.feeCollectionAccountEnabled", false)
                     .getOrCreateConfig();
 
             subject = new TokenServiceApiImpl(config, writableStates, customFeeTest, entityCounters);
@@ -602,6 +607,24 @@ class TokenServiceApiImplTest {
         }
 
         @Test
+        void missingFeeCollectionAccount() {
+            // Given a configuration that refers to a funding account that DOES NOT EXIST
+            final var unknownAccountId =
+                    AccountID.newBuilder().accountNum(12345678L).build();
+            final var config = configBuilder
+                    .withValue("accounts.feeCollectionAccount", unknownAccountId.accountNumOrThrow())
+                    .withValue("nodes.feeCollectionAccountEnabled", true)
+                    .getOrCreateConfig();
+
+            subject = new TokenServiceApiImpl(config, writableStates, customFeeTest, entityCounters);
+
+            // When we try to charge a payer account that DOES exist, then we get an IllegalStateException
+            assertThatThrownBy(() -> subject.chargeFees(EOA_ACCOUNT_ID, NODE_ACCOUNT_ID, fees, rb, null, onNodeFee))
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessage("Fee collection account %s does not exist", unknownAccountId);
+        }
+
+        @Test
         void missingStakingRewardAccount() {
             // Given a configuration that refers to a staking reward account that DOES NOT EXIST
             final var unknownAccountId =
@@ -609,6 +632,7 @@ class TokenServiceApiImplTest {
             final var config = configBuilder
                     .withValue("accounts.stakingRewardAccount", unknownAccountId.accountNumOrThrow())
                     .withValue("nodes.preserveMinNodeRewardBalance", false)
+                    .withValue("nodes.feeCollectionAccountEnabled", false)
                     .getOrCreateConfig();
 
             subject = new TokenServiceApiImpl(config, writableStates, customFeeTest, entityCounters);
@@ -626,6 +650,7 @@ class TokenServiceApiImplTest {
                     AccountID.newBuilder().accountNum(12345678L).build();
             final var config = configBuilder
                     .withValue("accounts.nodeRewardAccount", unknownAccountId.accountNumOrThrow())
+                    .withValue("nodes.feeCollectionAccountEnabled", false)
                     .getOrCreateConfig();
 
             subject = new TokenServiceApiImpl(config, writableStates, customFeeTest, entityCounters);

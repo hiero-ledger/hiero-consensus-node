@@ -20,7 +20,6 @@ import com.swirlds.platform.components.consensus.ConsensusEngine;
 import com.swirlds.platform.components.consensus.ConsensusEngineOutput;
 import com.swirlds.platform.event.branching.BranchDetector;
 import com.swirlds.platform.event.branching.BranchReporter;
-import com.swirlds.platform.event.deduplication.EventDeduplicator;
 import com.swirlds.platform.event.orphan.OrphanBuffer;
 import com.swirlds.platform.event.preconsensus.InlinePcesWriter;
 import com.swirlds.platform.event.stream.ConsensusEventStream;
@@ -87,10 +86,6 @@ public class PlatformWiring {
         components
                 .eventIntakeModule()
                 .validatedEventsOutputWire()
-                .solderTo(components.eventDeduplicatorWiring().getInputWire(EventDeduplicator::handleEvent));
-        components
-                .eventDeduplicatorWiring()
-                .getOutputWire()
                 .solderTo(components
                         .eventSignatureValidatorWiring()
                         .getInputWire(EventSignatureValidator::validateSignature));
@@ -415,11 +410,6 @@ public class PlatformWiring {
     public static void wireMetrics(
             @NonNull final PlatformComponents components, @Nullable final EventPipelineTracker pipelineTracker) {
         if (pipelineTracker != null) {
-            pipelineTracker.registerMetric("deduplication");
-            components
-                    .eventDeduplicatorWiring()
-                    .getOutputWire()
-                    .solderForMonitoring(platformEvent -> pipelineTracker.recordEvent("deduplication", platformEvent));
             pipelineTracker.registerMetric("verification");
             components
                     .eventSignatureValidatorWiring()
@@ -452,8 +442,7 @@ public class PlatformWiring {
         final OutputWire<EventWindow> eventWindowOutputWire =
                 components.eventWindowManagerWiring().getOutputWire();
 
-        eventWindowOutputWire.solderTo(
-                components.eventDeduplicatorWiring().getInputWire(EventDeduplicator::setEventWindow), INJECT);
+        eventWindowOutputWire.solderTo(components.eventIntakeModule().eventWindowInputWire(), INJECT);
         eventWindowOutputWire.solderTo(
                 components.eventSignatureValidatorWiring().getInputWire(EventSignatureValidator::setEventWindow),
                 INJECT);
@@ -502,7 +491,6 @@ public class PlatformWiring {
      * the lifecycle. This method forces those wires to be built.
      */
     private static void buildUnsolderedWires(final PlatformComponents components) {
-        components.eventDeduplicatorWiring().getInputWire(EventDeduplicator::clear);
         components.consensusEngineWiring().getInputWire(ConsensusEngine::outOfBandSnapshotUpdate);
         components.notifierWiring().getInputWire(AppNotifier::sendReconnectCompleteNotification);
         components.notifierWiring().getInputWire(AppNotifier::sendPlatformStatusChangeNotification);
