@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.metrics.statistics;
 
-import com.swirlds.common.metrics.statistics.atomic.AtomicSumAndCount;
+import org.hiero.consensus.metrics.statistics.atomic.AtomicSumAndCount;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
