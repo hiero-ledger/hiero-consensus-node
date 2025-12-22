@@ -67,7 +67,7 @@ public interface HederaNode {
     /**
      * Initializes the working directory for the node. Must be called before the node is started.
      *
-     * @param configTxt the address book the node should start with
+     * @param network the network config the node should start with
      * @return this
      */
     @NonNull

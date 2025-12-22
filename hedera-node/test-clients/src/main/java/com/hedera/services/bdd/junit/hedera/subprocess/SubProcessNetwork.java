@@ -476,6 +476,7 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
     private void refreshOverrideNetworks(@NonNull final ReassignPorts reassignPorts) {
         log.info("Refreshing override networks for '{}' - \n{}", name(), network);
         nodes.forEach(node -> {
+            var overrideNetwork = network;
             if (overrideCustomizer != null) {
                 // Apply the override customizer to the network
                 overrideNetwork = overrideCustomizer.apply(overrideNetwork);
