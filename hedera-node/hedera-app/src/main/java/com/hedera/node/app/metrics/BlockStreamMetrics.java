@@ -3,7 +3,6 @@ package com.hedera.node.app.metrics;
 
 import static java.util.Objects.requireNonNull;
 
-import com.swirlds.common.metrics.RunningAverageMetric;
 import com.swirlds.metrics.api.Counter;
 import com.swirlds.metrics.api.DoubleGauge;
 import com.swirlds.metrics.api.LongGauge;
@@ -15,6 +14,7 @@ import javax.inject.Inject;
 import javax.inject.Singleton;
 import org.hiero.block.api.PublishStreamRequest;
 import org.hiero.block.api.PublishStreamResponse;
+import org.hiero.consensus.metrics.RunningAverageMetric;
 
 /**
  * Metrics related to the block stream service, specifically tracking responses received

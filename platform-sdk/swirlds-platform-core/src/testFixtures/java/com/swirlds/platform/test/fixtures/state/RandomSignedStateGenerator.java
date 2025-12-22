@@ -50,6 +50,7 @@ import org.hiero.base.crypto.Signature;
 import org.hiero.base.utility.test.fixtures.RandomUtils;
 import org.hiero.consensus.crypto.SignatureVerifier;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.roster.RosterStateUtils;
 import org.hiero.consensus.roster.RosterUtils;
 
 /**
@@ -198,7 +199,7 @@ public class RandomSignedStateGenerator {
         });
 
         TestingAppStateInitializer.initRosterState(stateInstance, CONFIGURATION);
-        RosterUtils.setActiveRoster(stateInstance, rosterInstance, roundInstance);
+        RosterStateUtils.setActiveRoster(stateInstance, rosterInstance, roundInstance);
 
         if (signatureVerifier == null) {
             signatureVerifier = SignatureVerificationTestUtils::verifySignature;

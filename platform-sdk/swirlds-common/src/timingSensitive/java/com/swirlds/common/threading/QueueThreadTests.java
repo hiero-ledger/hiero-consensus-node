@@ -5,12 +5,10 @@ import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyEq
 import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyFalse;
 import static com.swirlds.common.test.fixtures.AssertionUtils.assertEventuallyTrue;
 import static com.swirlds.common.test.fixtures.AssertionUtils.completeBeforeTimeout;
-import static com.swirlds.common.threading.framework.internal.AbstractQueueThreadConfiguration.UNLIMITED_CAPACITY;
-import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticThreadManager;
-import static com.swirlds.metrics.api.Metrics.INTERNAL_CATEGORY;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.SECONDS;
-import static org.assertj.core.api.Assertions.assertThat;
+import static org.hiero.consensus.concurrent.framework.internal.AbstractQueueThreadConfiguration.UNLIMITED_CAPACITY;
+import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -19,25 +17,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
 import com.swirlds.base.state.MutabilityException;
-import com.swirlds.common.metrics.PlatformMetricsFactory;
-import com.swirlds.common.metrics.config.MetricsConfig;
-import com.swirlds.common.metrics.platform.DefaultPlatformMetrics;
-import com.swirlds.common.metrics.platform.MetricKeyRegistry;
-import com.swirlds.common.metrics.platform.PlatformMetricsFactoryImpl;
-import com.swirlds.common.threading.framework.QueueThread;
-import com.swirlds.common.threading.framework.Stoppable;
-import com.swirlds.common.threading.framework.ThreadSeed;
-import com.swirlds.common.threading.framework.config.QueueThreadConfiguration;
-import com.swirlds.common.threading.framework.config.QueueThreadMetricsConfiguration;
-import com.swirlds.common.threading.framework.config.ThreadConfiguration;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.metrics.impl.DefaultIntegerAccumulator;
 import java.time.Duration;
-import java.util.ArrayList;
 import java.util.LinkedList;
-import java.util.List;
 import java.util.Queue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CountDownLatch;
@@ -61,6 +45,16 @@ import java.util.stream.Stream;
 import org.hiero.base.concurrent.interrupt.InterruptableConsumer;
 import org.hiero.base.concurrent.interrupt.InterruptableRunnable;
 import org.hiero.base.utility.test.fixtures.tags.TestComponentTags;
+import org.hiero.consensus.concurrent.framework.QueueThread;
+import org.hiero.consensus.concurrent.framework.Stoppable;
+import org.hiero.consensus.concurrent.framework.ThreadSeed;
+import org.hiero.consensus.concurrent.framework.config.QueueThreadConfiguration;
+import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
+import org.hiero.consensus.metrics.PlatformMetricsFactory;
+import org.hiero.consensus.metrics.config.MetricsConfig;
+import org.hiero.consensus.metrics.platform.DefaultPlatformMetrics;
+import org.hiero.consensus.metrics.platform.MetricKeyRegistry;
+import org.hiero.consensus.metrics.platform.PlatformMetricsFactoryImpl;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -666,200 +660,6 @@ class QueueThreadTests {
         assertEquals(configuration.getMaxBufferSize(), copy2.getMaxBufferSize(), "copy configuration should match");
         assertSame(configuration.getHandler(), copy2.getHandler(), "copy configuration should match");
         assertSame(configuration.getQueue(), copy2.getQueue(), "copy configuration should match");
-    }
-
-    @Test
-    @DisplayName("Queue Max/Min Size Metrics Test - With Thread Start")
-    void testQueueMaxMinSizeMetricsWithThreadStart() {
-        // given
-        final BlockingQueue<Integer> queue = new LinkedBlockingQueue<>(List.of(0, 1, 2, 3, 4));
-        final Queue<Integer> handler = new LinkedList<>();
-
-        // when
-        final QueueThread<Integer> queueThread = new QueueThreadConfiguration<Integer>(getStaticThreadManager())
-                .setThreadName(THREAD_NAME)
-                .setQueue(queue)
-                .setHandler(handler::add)
-                .setMetricsConfiguration(new QueueThreadMetricsConfiguration(metrics)
-                        .enableMaxSizeMetric()
-                        .enableMinSizeMetric())
-                .build();
-
-        final DefaultIntegerAccumulator maxSizeMetric =
-                (DefaultIntegerAccumulator) metrics.getMetric(INTERNAL_CATEGORY, MAX_SIZE_METRIC_NAME);
-        final DefaultIntegerAccumulator minSizeMetric =
-                (DefaultIntegerAccumulator) metrics.getMetric(INTERNAL_CATEGORY, MIN_SIZE_METRIC_NAME);
-
-        // then
-        assertThat(queueThread).hasSize(5);
-        assertThat(maxSizeMetric).isNotNull();
-        assertThat(maxSizeMetric.get()).isEqualTo(5);
-        assertThat(minSizeMetric).isNotNull();
-        assertThat(minSizeMetric.get()).isEqualTo(5);
-
-        // when
-        queueThread.start();
-        IntStream.range(0, 100).boxed().forEach(queueThread::add);
-        assertEventuallyTrue(queue::isEmpty, Duration.ofSeconds(1), "queue should have been emptied");
-
-        // then
-        assertThat(maxSizeMetric.get()).isPositive().isLessThanOrEqualTo(105);
-        assertThat(minSizeMetric.get()).isZero();
-        assertThat(handler).hasSize(105);
-
-        // when
-        maxSizeMetric.reset();
-        minSizeMetric.reset();
-        IntStream.range(0, 100).boxed().forEach(queueThread::add);
-        assertEventuallyTrue(queue::isEmpty, Duration.ofSeconds(1), "queue should have been emptied");
-        queueThread.stop();
-
-        // then
-        assertThat(maxSizeMetric.get()).isPositive().isLessThanOrEqualTo(100);
-        assertThat(minSizeMetric.get()).isZero();
-        assertThat(handler).hasSize(205);
-    }
-
-    @Test
-    @DisplayName("Queue Max/Min Size Metrics Test - Without Thread Start")
-    void testQueueMaxMinSizeMetricsWithoutThreadStart() {
-        // given
-        final BlockingQueue<Integer> queue = new LinkedBlockingQueue<>(List.of(0, 1, 2, 3, 4));
-        final Queue<Integer> handler = new LinkedList<>();
-
-        // when
-        final QueueThread<Integer> queueThread = new QueueThreadConfiguration<Integer>(getStaticThreadManager())
-                .setThreadName(THREAD_NAME)
-                .setQueue(queue)
-                .setHandler(handler::add)
-                .setMetricsConfiguration(new QueueThreadMetricsConfiguration(metrics)
-                        .enableMaxSizeMetric()
-                        .enableMinSizeMetric())
-                .build();
-
-        final DefaultIntegerAccumulator maxSizeMetric =
-                (DefaultIntegerAccumulator) metrics.getMetric(INTERNAL_CATEGORY, MAX_SIZE_METRIC_NAME);
-        final DefaultIntegerAccumulator minSizeMetric =
-                (DefaultIntegerAccumulator) metrics.getMetric(INTERNAL_CATEGORY, MIN_SIZE_METRIC_NAME);
-
-        // then
-        assertThat(queueThread).hasSize(5);
-        assertThat(maxSizeMetric).isNotNull();
-        assertThat(maxSizeMetric.get()).isEqualTo(5);
-        assertThat(minSizeMetric).isNotNull();
-        assertThat(maxSizeMetric.get()).isEqualTo(5);
-
-        // when - add
-        IntStream.range(5, 100).boxed().forEach(queueThread::add);
-
-        // then
-        assertThat(queueThread).hasSize(100);
-        assertThat(maxSizeMetric.get()).isEqualTo(100);
-        assertThat(minSizeMetric.get()).isEqualTo(5);
-
-        // when - remove
-        IntStream.range(0, 50).boxed().forEach(queueThread::remove);
-
-        // then
-        assertThat(queueThread).hasSize(50);
-        assertThat(maxSizeMetric.get()).isEqualTo(100);
-        assertThat(minSizeMetric.get()).isEqualTo(5);
-
-        // when - addAll
-        queueThread.addAll(List.of(0, 1, 2, 3, 4));
-
-        // then
-        assertThat(queueThread).hasSize(55);
-        assertThat(maxSizeMetric.get()).isEqualTo(100);
-        assertThat(minSizeMetric.get()).isEqualTo(5);
-
-        // when - removeAll
-        queueThread.removeAll(List.of(0, 1, 2, 3, 4));
-
-        // then
-        assertThat(queueThread).hasSize(50);
-        assertThat(maxSizeMetric.get()).isEqualTo(100);
-        assertThat(minSizeMetric.get()).isEqualTo(5);
-
-        // when - snapshot
-        maxSizeMetric.takeSnapshot();
-        minSizeMetric.takeSnapshot();
-
-        // then
-        assertThat(queueThread).hasSize(50);
-        assertThat(maxSizeMetric.get()).isEqualTo(50);
-        assertThat(minSizeMetric.get()).isEqualTo(50);
-
-        // when - offer
-        IntStream.range(0, 10).boxed().forEach(queueThread::offer);
-
-        // then
-        assertThat(queueThread).hasSize(60);
-        assertThat(maxSizeMetric.get()).isEqualTo(60);
-        assertThat(minSizeMetric.get()).isEqualTo(50);
-
-        // when - poll
-        IntStream.range(0, 20).boxed().forEach(x -> queueThread.poll());
-
-        // then
-        assertThat(queueThread).hasSize(40);
-        assertThat(maxSizeMetric.get()).isEqualTo(60);
-        assertThat(minSizeMetric.get()).isEqualTo(40);
-
-        // when - drainTo
-        final List<Integer> buffer = new ArrayList<>();
-        queueThread.drainTo(buffer, 10);
-
-        // then
-        assertThat(queueThread).hasSize(30);
-        assertThat(maxSizeMetric.get()).isEqualTo(60);
-        assertThat(minSizeMetric.get()).isEqualTo(30);
-        assertThat(buffer).hasSize(10);
-
-        // when - drainTo
-        queueThread.drainTo(buffer);
-
-        // then
-        assertThat(queueThread).isEmpty();
-        assertThat(maxSizeMetric.get()).isEqualTo(60);
-        assertThat(minSizeMetric.get()).isZero();
-        assertThat(buffer).hasSize(40);
-
-        // when - put
-        IntStream.range(0, 70).boxed().forEach(x -> {
-            try {
-                queueThread.put(x);
-            } catch (final InterruptedException ignored) {
-            }
-        });
-        maxSizeMetric.takeSnapshot();
-        minSizeMetric.takeSnapshot();
-
-        // then
-        assertThat(queueThread).hasSize(70);
-        assertThat(maxSizeMetric.get()).isEqualTo(70);
-        assertThat(minSizeMetric.get()).isEqualTo(70);
-
-        // when - take
-        IntStream.range(0, 20).boxed().forEach(x -> {
-            try {
-                queueThread.take();
-            } catch (final InterruptedException ignored) {
-            }
-        });
-
-        // then
-        assertThat(queueThread).hasSize(50);
-        assertThat(maxSizeMetric.get()).isEqualTo(70);
-        assertThat(minSizeMetric.get()).isEqualTo(50);
-
-        // when - clear
-        queueThread.clear();
-
-        // then
-        assertThat(queueThread).isEmpty();
-        assertThat(maxSizeMetric.get()).isEqualTo(70);
-        assertThat(minSizeMetric.get()).isZero();
     }
 
     @Test
