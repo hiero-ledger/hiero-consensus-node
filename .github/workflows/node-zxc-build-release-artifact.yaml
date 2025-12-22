@@ -843,6 +843,7 @@ jobs:
           echo "::group::Sign Release Archives"
             cd "${SDK_ARCHIVE_DIR}" || exit "${?}"
             if [[ -f "${LIB_ARCHIVE_FILE}" ]]; then
+              echo "Signing the library archive: ${LIB_ARCHIVE_FILE}"
               sha256sum "${LIB_ARCHIVE_FILE}" >"${LIB_ARCHIVE_FILE}.sha256"
               gpg --output "${LIB_ARCHIVE_FILE}.asc" --detach-sig "${LIB_ARCHIVE_FILE}"
               gpg --output "${LIB_ARCHIVE_FILE}.sha256.asc" --detach-sig "${LIB_ARCHIVE_FILE}.sha256"
@@ -851,6 +852,7 @@ jobs:
             fi
 
             if [[ -f "${APPS_ARCHIVE_FILE}" ]]; then
+              echo "Signing the application archive: ${APPS_ARCHIVE_FILE}"
               sha256sum "${APPS_ARCHIVE_FILE}" >"${APPS_ARCHIVE_FILE}.sha256"
               gpg --output "${APPS_ARCHIVE_FILE}.asc" --detach-sig "${APPS_ARCHIVE_FILE}"
               gpg --output "${APPS_ARCHIVE_FILE}.sha256.asc" --detach-sig "${APPS_ARCHIVE_FILE}.sha256"
@@ -859,6 +861,7 @@ jobs:
             fi
 
             if [[ -f "${PUBLIC_ARCHIVE_FILE}" ]]; then
+              echo "Signing the public archive: ${PUBLIC_ARCHIVE_FILE}"
               sha256sum "${PUBLIC_ARCHIVE_FILE}" >"${PUBLIC_ARCHIVE_FILE}.sha256"
               gpg --output "${PUBLIC_ARCHIVE_FILE}.asc" --detach-sig "${PUBLIC_ARCHIVE_FILE}"
               gpg --output "${PUBLIC_ARCHIVE_FILE}.sha256.asc" --detach-sig "${PUBLIC_ARCHIVE_FILE}.sha256"
