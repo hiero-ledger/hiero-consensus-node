@@ -5,7 +5,6 @@ import static java.util.Objects.requireNonNull;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -65,7 +64,7 @@ public class ConsensusRoundPool {
                 roundCache.compute(roundNum, (key, existingMap) -> {
                     if (existingMap == null) {
                         // First time seeing this round number - create new newMap
-                        final Map<ConsensusRound, Set<NodeId>> newMap = new HashMap<>();
+                        final Map<ConsensusRound, Set<NodeId>> newMap = new ConcurrentHashMap<>();
                         final Set<NodeId> value = new HashSet<>();
                         value.add(nodeId);
                         newMap.put(round, value);
