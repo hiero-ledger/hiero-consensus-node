@@ -5,8 +5,6 @@ import static com.swirlds.metrics.api.FloatFormats.FORMAT_10_2;
 import static com.swirlds.metrics.api.Metrics.PLATFORM_CATEGORY;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.metrics.RunningAverageMetric;
-import com.swirlds.common.metrics.extensions.CountPerSecond;
 import com.swirlds.metrics.api.LongAccumulator;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -16,6 +14,8 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 import org.hiero.consensus.event.IntakeEventCounter;
+import org.hiero.consensus.metrics.RunningAverageMetric;
+import org.hiero.consensus.metrics.extensions.CountPerSecond;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;

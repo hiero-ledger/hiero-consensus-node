@@ -1,11 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.startup;
 
-import static com.swirlds.common.threading.manager.AdHocThreadManager.getStaticThreadManager;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
+import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 
-import com.swirlds.common.threading.framework.config.ThreadConfiguration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.file.Files;
@@ -17,6 +16,7 @@ import org.apache.logging.log4j.core.LoggerContext;
 import org.apache.logging.log4j.core.impl.Log4jContextFactory;
 import org.apache.logging.log4j.core.util.DefaultShutdownCallbackRegistry;
 import org.apache.logging.log4j.spi.LoggerContextFactory;
+import org.hiero.consensus.concurrent.framework.config.ThreadConfiguration;
 
 /**
  * Utility methods for bootstrapping log4j.

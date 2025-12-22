@@ -28,6 +28,9 @@ module org.hiero.otter.fixtures {
     requires com.swirlds.platform.core.test.fixtures;
     requires com.swirlds.virtualmap;
     requires org.hiero.base.utility;
+    requires org.hiero.consensus.concurrent;
+    requires org.hiero.consensus.metrics;
+    requires org.hiero.consensus.roster;
     requires org.hiero.consensus.utility;
     requires com.fasterxml.jackson.annotation;
     requires com.fasterxml.jackson.core;

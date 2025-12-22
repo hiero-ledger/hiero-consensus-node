@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.test.fixtures.graph;
 
-import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.platform.event.linking.ConsensusLinker;
 import com.swirlds.platform.event.linking.NoOpLinkerLogsAndMetrics;
 import com.swirlds.platform.event.orphan.DefaultOrphanBuffer;
@@ -16,6 +15,7 @@ import java.util.Random;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.hiero.base.crypto.Hash;
+import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.event.PlatformEvent;
 
 /**
