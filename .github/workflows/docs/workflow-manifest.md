@@ -26,6 +26,16 @@
 | zxc-xts-tests.yaml                                    | ZXC: Executable XTS Tests                                         |                  |                      |
 | zxc-mats-tests.yaml                                   | ZXC: Executable MATS Tests                                        |                  |                      |
 | zxc-create-github-release.yaml                        | ZXC: Create Github Release                                        |                  |                      |
+| zxc-compile-application-code.yaml                     | ZXC: Compile Application Code                                     |                  |                      |
+| zxc-dependency-module-check.yaml                      | ZXC: Dependency Module Check                                      |                  |                      |
+| zxc-spotless-check.yaml                               | ZXC: Spotless Check                                               |                  |                      |
+| zxc-snyk-scan.yaml                                    | ZXC: Snyk Scan                                                    |                  |                      |
+| zxc-execute-unit-tests.yaml                           | ZXC: Execute Unit Tests                                           |                  |                      |
+| zxc-execute-integration-tests.yaml                    | ZXC: Execute Integration Tests                                    |                  |                      |
+| zxc-execute-hapi-tests.yaml                           | ZXC: Execute HAPI Tests                                           |                  |                      |
+| zxc-execute-timing-sensitive-tests.yaml               | ZXC: Execute Timing Sensitive Tests                               |                  |                      |
+| zxc-execute-time-consuming-tests.yaml                 | ZXC: Execute Time Consuming Tests                                 |                  |                      |
+| zxc-execute-hammer-tests.yaml                         | ZXC: Execute Hammer Tests                                         |                  |                      |
 |                                                       |                                                                   |                  |                      |
 | # CICD                                                |                                                                   |                  |                      |
 | zxf-collect-workflow-logs.yaml                        | ZXF: Collect Workflow Run Logs                                    |                  |                      |
