@@ -57,6 +57,7 @@ import static com.hederahashgraph.api.proto.java.HederaFunctionality.TokenUpdate
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.UncheckedSubmit;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.UtilPrng;
 import static com.hederahashgraph.api.proto.java.ResponseType.ANSWER_ONLY;
+import static org.hiero.base.crypto.Cryptography.NULL_HASH;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -609,5 +610,24 @@ class CommonUtilsTest {
             final var bytesResultAsArr = noThrowSha384HashOfAll(bytesArrOfArrays);
             assertEquals(resultAsArr, bytesResultAsArr);
         }
+    }
+
+    @Test
+    void inputOrNullHashReturnsHash() {
+        final Bytes input = Bytes.wrap(new byte[] {1, 2, 3, 4, 5});
+        final var result = CommonUtils.inputOrNullHash(input);
+        assertEquals(input, result);
+    }
+
+    @Test
+    void inputOrNullHashReturnsNullHash() {
+        final var result = CommonUtils.inputOrNullHash(null);
+        assertEquals(NULL_HASH.getBytes(), result);
+    }
+
+    @Test
+    void inputOrNullHashReturnsNullHashForEmpty() {
+        final var result = CommonUtils.inputOrNullHash(Bytes.EMPTY);
+        assertEquals(NULL_HASH.getBytes(), result);
     }
 }
