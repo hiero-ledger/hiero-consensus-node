@@ -422,7 +422,7 @@ public class EnhancedKeyStoreLoader {
     }
 
     @NonNull
-    public Map<NodeId, X509Certificate> signingCertificates() throws KeyLoadingException {
+    private Map<NodeId, X509Certificate> signingCertificates() throws KeyLoadingException {
         final Map<NodeId, X509Certificate> certs = HashMap.newHashMap(allNodes.size());
         for (final NodeId nodeId : this.allNodes) {
             final Certificate sigCert = sigCertificates.get(nodeId);

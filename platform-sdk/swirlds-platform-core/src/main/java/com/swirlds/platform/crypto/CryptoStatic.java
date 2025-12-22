@@ -333,36 +333,6 @@ public final class CryptoStatic {
         return nonDetRandom;
     }
 
-    public static Map<NodeId, X509Certificate> getSigningCertificates(
-            @NonNull final Configuration configuration, @NonNull final Set<NodeId> localNodes) {
-        final BasicConfig basicConfig = configuration.getConfigData(BasicConfig.class);
-        final Map<NodeId, X509Certificate> certificates;
-        try {
-            if (basicConfig.loadKeysFromPfxFiles()) {
-                logger.debug(STARTUP.getMarker(), "Reading certificates using the enhanced key loader");
-                certificates = EnhancedKeyStoreLoader.using(localNodes, configuration, localNodes)
-                        .migrate()
-                        .scan()
-                        .generate()
-                        .verify()
-                        .signingCertificates();
-            } else {
-                certificates = generateKeysAndCerts(localNodes).entrySet().stream()
-                        .collect(Collectors.toMap(
-                                Map.Entry::getKey, entry -> entry.getValue().sigCert()));
-            }
-        } catch (final KeyStoreException
-                | KeyLoadingException
-                | NoSuchAlgorithmException
-                | KeyGeneratingException
-                | NoSuchProviderException
-                | ExecutionException
-                | InterruptedException e) {
-            throw new RuntimeException(e);
-        }
-        return certificates;
-    }
-
     /**
      * Create {@link KeysAndCerts} objects for all given node ids.
      *
