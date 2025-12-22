@@ -8,8 +8,6 @@ import static org.hiero.consensus.event.creator.impl.EventCreationStatus.RATE_LI
 
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.time.Time;
-import com.swirlds.common.metrics.extensions.PhaseTimer;
-import com.swirlds.common.metrics.extensions.PhaseTimerBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.DoubleGauge;
 import com.swirlds.metrics.api.FloatFormats;
@@ -31,6 +29,8 @@ import org.hiero.consensus.event.creator.impl.rules.PlatformStatusRule;
 import org.hiero.consensus.event.creator.impl.rules.QuiescenceRule;
 import org.hiero.consensus.event.creator.impl.rules.SyncLagCalculator;
 import org.hiero.consensus.event.creator.impl.rules.SyncLagRule;
+import org.hiero.consensus.metrics.extensions.PhaseTimer;
+import org.hiero.consensus.metrics.extensions.PhaseTimerBuilder;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.gossip.SyncProgress;
 import org.hiero.consensus.model.hashgraph.EventWindow;
