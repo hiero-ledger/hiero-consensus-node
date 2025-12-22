@@ -10,7 +10,6 @@ import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.platform.state.service.PlatformStateService;
-import com.swirlds.platform.system.address.AddressBookUtils;
 import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import com.swirlds.platform.test.fixtures.roster.RosterServiceStateMock;
 import com.swirlds.state.MerkleNodeState;
@@ -225,20 +224,5 @@ public class RosterUtilsTest {
                 .gossipCaCertificate(
                         Bytes.wrap(PreGeneratedX509Certs.createBadCertificate().getEncoded()))
                 .build()));
-    }
-
-    @Test
-    void testEndpointForValidIpV4Address() {
-        final ServiceEndpoint endpoint = AddressBookUtils.endpointFor("192.168.1.1", 2);
-        assertEquals(endpoint.ipAddressV4(), Bytes.wrap(new byte[] {(byte) 192, (byte) 168, 1, 1}));
-    }
-
-    @Test
-    void testEndpointForInvalidIpAddressConvertsToDomainName() {
-        final String invalidIpAddress = "192.168.is.bad";
-        Assertions.assertEquals(
-                Bytes.EMPTY, AddressBookUtils.endpointFor(invalidIpAddress, 2).ipAddressV4());
-        Assertions.assertEquals(
-                AddressBookUtils.endpointFor(invalidIpAddress, 2).domainName(), invalidIpAddress);
     }
 }

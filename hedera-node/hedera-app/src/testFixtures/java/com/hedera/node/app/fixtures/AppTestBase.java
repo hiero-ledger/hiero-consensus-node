@@ -12,7 +12,7 @@ import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.AC
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ALIASES_STATE_ID;
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ALIASES_STATE_LABEL;
 import static com.hedera.node.app.spi.fixtures.TestSchema.CURRENT_VERSION;
-import static com.swirlds.platform.system.address.AddressBookUtils.endpointFor;
+import static com.hedera.hapi.util.HapiUtils.endpointFor;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
