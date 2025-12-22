@@ -43,7 +43,6 @@ public class DiskStartupNetworks implements StartupNetworks {
     public static final String GENESIS_NETWORK_JSON = "genesis-network.json";
     public static final String OVERRIDE_NETWORK_JSON = "override-network.json";
     public static final Pattern ROUND_DIR_PATTERN = Pattern.compile("\\d+");
-    private static final String CONFIG_TXT = "config.txt";
 
     private final ConfigProvider configProvider;
 
@@ -129,7 +128,6 @@ public class DiskStartupNetworks implements StartupNetworks {
         }
         archiveIfPresent(config, GENESIS_NETWORK_JSON);
         archiveIfPresent(config, OVERRIDE_NETWORK_JSON);
-        archiveIfPresent(Path.of(config.getConfigData(NetworkAdminConfig.class).configTxtPath()), CONFIG_TXT);
         try (final var dirStream = Files.list(networksPath(config))) {
             dirStream
                     .filter(Files::isDirectory)
