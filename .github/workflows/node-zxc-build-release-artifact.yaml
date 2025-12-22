@@ -842,7 +842,7 @@ jobs:
 
           echo "::group::Sign Release Archives"
             cd "${SDK_ARCHIVE_DIR}" || exit "${?}"
-            if [[ -f ${LIB_ARCHIVE_FILE} ]]; then
+            if [[ -f "${LIB_ARCHIVE_FILE}" ]]; then
               sha256sum "${LIB_ARCHIVE_FILE}" >"${LIB_ARCHIVE_FILE}.sha256"
               gpg --output "${LIB_ARCHIVE_FILE}.asc" --detach-sig "${LIB_ARCHIVE_FILE}"
               gpg --output "${LIB_ARCHIVE_FILE}.sha256.asc" --detach-sig "${LIB_ARCHIVE_FILE}.sha256"
@@ -850,7 +850,7 @@ jobs:
               echo "::warning file=node-zxc-build-release-artifact.yaml,line=849,title=Library Archive Missing::The library archive file is missing; skipping signing."
             fi
 
-            if [[ -f ${APPS_ARCHIVE_FILE ]]; then
+            if [[ -f "${APPS_ARCHIVE_FILE}" ]]; then
               sha256sum "${APPS_ARCHIVE_FILE}" >"${APPS_ARCHIVE_FILE}.sha256"
               gpg --output "${APPS_ARCHIVE_FILE}.asc" --detach-sig "${APPS_ARCHIVE_FILE}"
               gpg --output "${APPS_ARCHIVE_FILE}.sha256.asc" --detach-sig "${APPS_ARCHIVE_FILE}.sha256"
@@ -858,7 +858,7 @@ jobs:
               echo "::warning file=node-zxc-build-release-artifact.yaml,line=858,title=Application Archive Missing::The application archive file is missing; skipping signing."
             fi
 
-            if [[ -f ${PUBLIC_ARCHIVE_FILE} ]]; then
+            if [[ -f "${PUBLIC_ARCHIVE_FILE}" ]]; then
               sha256sum "${PUBLIC_ARCHIVE_FILE}" >"${PUBLIC_ARCHIVE_FILE}.sha256"
               gpg --output "${PUBLIC_ARCHIVE_FILE}.asc" --detach-sig "${PUBLIC_ARCHIVE_FILE}"
               gpg --output "${PUBLIC_ARCHIVE_FILE}.sha256.asc" --detach-sig "${PUBLIC_ARCHIVE_FILE}.sha256"
