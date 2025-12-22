@@ -15,7 +15,8 @@ class BlockNodeConfigurationTest {
     @Test
     void testNullAddress() {
         final BlockNodeConfiguration.Builder builder = BlockNodeConfiguration.newBuilder()
-                .port(8080)
+                .streamingPort(8080)
+                .servicePort(8081)
                 .priority(0)
                 .messageSizeSoftLimitBytes(1_000)
                 .messageSizeHardLimitBytes(2_000)
@@ -31,7 +32,8 @@ class BlockNodeConfigurationTest {
     void testEmptyAddress() {
         final BlockNodeConfiguration.Builder builder = BlockNodeConfiguration.newBuilder()
                 .address("      ")
-                .port(8080)
+                .streamingPort(8080)
+                .servicePort(8081)
                 .priority(0)
                 .messageSizeSoftLimitBytes(1_000)
                 .messageSizeHardLimitBytes(2_000)
@@ -44,10 +46,11 @@ class BlockNodeConfigurationTest {
     }
 
     @Test
-    void testBadPort() {
+    void testBadStreamingPort() {
         final BlockNodeConfiguration.Builder builder = BlockNodeConfiguration.newBuilder()
                 .address("localhost")
-                .port(0)
+                .streamingPort(0)
+                .servicePort(8081)
                 .priority(0)
                 .messageSizeSoftLimitBytes(1_000)
                 .messageSizeHardLimitBytes(2_000)
@@ -56,14 +59,48 @@ class BlockNodeConfigurationTest {
 
         assertThatThrownBy(builder::build)
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("Port must be greater than or equal to 1");
+                .hasMessage("Streaming port must be greater than or equal to 1");
+    }
+
+    @Test
+    void testBadServicePort() {
+        final BlockNodeConfiguration.Builder builder = BlockNodeConfiguration.newBuilder()
+                .address("localhost")
+                .streamingPort(8080)
+                .servicePort(0)
+                .priority(0)
+                .messageSizeSoftLimitBytes(1_000)
+                .messageSizeHardLimitBytes(2_000)
+                .clientHttpConfig(BlockNodeHelidonHttpConfiguration.DEFAULT)
+                .clientGrpcConfig(BlockNodeHelidonGrpcConfiguration.DEFAULT);
+
+        assertThatThrownBy(builder::build)
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Service port must be greater than or equal to 1");
+    }
+
+    @Test
+    void testDefaultServicePort() {
+        final BlockNodeConfiguration config = BlockNodeConfiguration.newBuilder()
+                .address("localhost")
+                .streamingPort(8080)
+                .priority(0)
+                .messageSizeSoftLimitBytes(1_000)
+                .messageSizeHardLimitBytes(2_000)
+                .clientHttpConfig(BlockNodeHelidonHttpConfiguration.DEFAULT)
+                .clientGrpcConfig(BlockNodeHelidonGrpcConfiguration.DEFAULT)
+                .build();
+
+        assertThat(config.streamingPort()).isEqualTo(8080);
+        assertThat(config.servicePort()).isEqualTo(8080); // defaults to same as streaming port
     }
 
     @Test
     void testBadPriority() {
         final BlockNodeConfiguration.Builder builder = BlockNodeConfiguration.newBuilder()
                 .address("localhost")
-                .port(8080)
+                .streamingPort(8080)
+                .servicePort(8081)
                 .priority(-10)
                 .messageSizeSoftLimitBytes(1_000)
                 .messageSizeHardLimitBytes(2_000)
@@ -79,7 +116,8 @@ class BlockNodeConfigurationTest {
     void testBadSoftLimitSize() {
         final BlockNodeConfiguration.Builder builder = BlockNodeConfiguration.newBuilder()
                 .address("localhost")
-                .port(8080)
+                .streamingPort(8080)
+                .servicePort(8081)
                 .priority(0)
                 .messageSizeSoftLimitBytes(0)
                 .messageSizeHardLimitBytes(2_000)
@@ -95,7 +133,8 @@ class BlockNodeConfigurationTest {
     void testBadHardLimitSize() {
         final BlockNodeConfiguration.Builder builder = BlockNodeConfiguration.newBuilder()
                 .address("localhost")
-                .port(8080)
+                .streamingPort(8080)
+                .servicePort(8081)
                 .priority(0)
                 .messageSizeSoftLimitBytes(1_000)
                 .messageSizeHardLimitBytes(100)
@@ -111,7 +150,8 @@ class BlockNodeConfigurationTest {
     void testMissingClientHttpConfig() {
         final BlockNodeConfiguration.Builder builder = BlockNodeConfiguration.newBuilder()
                 .address("localhost")
-                .port(8080)
+                .streamingPort(8080)
+                .servicePort(8081)
                 .priority(0)
                 .messageSizeSoftLimitBytes(1_000)
                 .messageSizeHardLimitBytes(2_000)
@@ -126,7 +166,8 @@ class BlockNodeConfigurationTest {
     void testMissingClientGrpcConfig() {
         final BlockNodeConfiguration.Builder builder = BlockNodeConfiguration.newBuilder()
                 .address("localhost")
-                .port(8080)
+                .streamingPort(8080)
+                .servicePort(8081)
                 .priority(0)
                 .messageSizeSoftLimitBytes(1_000)
                 .messageSizeHardLimitBytes(2_000)
@@ -146,7 +187,8 @@ class BlockNodeConfigurationTest {
 
         final BlockNodeConfiguration config = BlockNodeConfiguration.newBuilder()
                 .address("localhost")
-                .port(8080)
+                .streamingPort(8080)
+                .servicePort(8081)
                 .priority(1)
                 .messageSizeSoftLimitBytes(2_000_000)
                 .messageSizeHardLimitBytes(6_000_000)
@@ -156,7 +198,8 @@ class BlockNodeConfigurationTest {
 
         assertThat(config).isNotNull();
         assertThat(config.address()).isEqualTo("localhost");
-        assertThat(config.port()).isEqualTo(8080);
+        assertThat(config.streamingPort()).isEqualTo(8080);
+        assertThat(config.servicePort()).isEqualTo(8081);
         assertThat(config.priority()).isEqualTo(1);
         assertThat(config.messageSizeSoftLimitBytes()).isEqualTo(2_000_000);
         assertThat(config.messageSizeHardLimitBytes()).isEqualTo(6_000_000);
@@ -175,7 +218,8 @@ class BlockNodeConfigurationTest {
     void testFromBlockNodeConfig() {
         final BlockNodeConfig cfg = BlockNodeConfig.newBuilder()
                 .address("localhost")
-                .port(8080)
+                .streamingPort(8080)
+                .servicePort(8081)
                 .priority(1)
                 .messageSizeSoftLimitBytes(2_000_000L)
                 .messageSizeHardLimitBytes(6_000_000L)
@@ -200,7 +244,8 @@ class BlockNodeConfigurationTest {
 
         final BlockNodeConfiguration config = BlockNodeConfiguration.from(cfg);
         assertThat(config.address()).isEqualTo("localhost");
-        assertThat(config.port()).isEqualTo(8080);
+        assertThat(config.streamingPort()).isEqualTo(8080);
+        assertThat(config.servicePort()).isEqualTo(8081);
         assertThat(config.priority()).isEqualTo(1);
         assertThat(config.messageSizeSoftLimitBytes()).isEqualTo(2_000_000L);
         assertThat(config.messageSizeHardLimitBytes()).isEqualTo(6_000_000L);

@@ -2,7 +2,6 @@
 package com.swirlds.platform.cli.utils;
 
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.state.snapshot.DeserializedSignedState;
@@ -12,6 +11,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import org.hiero.base.crypto.Hash;
+import org.hiero.consensus.metrics.noop.NoOpMetrics;
 
 /**
  * A set of utility methods to work with Hedera application specifics dependencies
