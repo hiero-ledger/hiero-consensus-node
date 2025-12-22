@@ -2,9 +2,17 @@
 package com.hedera.node.app.hapi.utils;
 
 import static com.hedera.node.app.hapi.utils.CommonUtils.asEvmAddress;
+import static com.hedera.node.app.hapi.utils.CommonUtils.base64encode;
+import static com.hedera.node.app.hapi.utils.CommonUtils.extractSignatureMap;
+import static com.hedera.node.app.hapi.utils.CommonUtils.extractTransactionBody;
+import static com.hedera.node.app.hapi.utils.CommonUtils.extractTransactionBodyByteString;
+import static com.hedera.node.app.hapi.utils.CommonUtils.extractTransactionBodyBytes;
 import static com.hedera.node.app.hapi.utils.CommonUtils.functionOf;
+import static com.hedera.node.app.hapi.utils.CommonUtils.hashOfAll;
 import static com.hedera.node.app.hapi.utils.CommonUtils.noThrowSha384HashOf;
+import static com.hedera.node.app.hapi.utils.CommonUtils.noThrowSha384HashOfAll;
 import static com.hedera.node.app.hapi.utils.CommonUtils.productWouldOverflow;
+import static com.hedera.node.app.hapi.utils.CommonUtils.sha384DigestOrThrow;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.ConsensusCreateTopic;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.ConsensusDeleteTopic;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.ConsensusSubmitMessage;
@@ -49,9 +57,7 @@ import static com.hederahashgraph.api.proto.java.HederaFunctionality.TokenUpdate
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.UncheckedSubmit;
 import static com.hederahashgraph.api.proto.java.HederaFunctionality.UtilPrng;
 import static com.hederahashgraph.api.proto.java.ResponseType.ANSWER_ONLY;
-import static org.hiero.base.crypto.Cryptography.NULL_HASH;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
-import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -120,13 +126,14 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 class CommonUtilsTest {
     @Test
     void base64EncodesAsExpected() {
         final var someBytes = "abcdefg".getBytes();
-        assertEquals(Base64.getEncoder().encodeToString(someBytes), CommonUtils.base64encode(someBytes));
+        assertEquals(Base64.getEncoder().encodeToString(someBytes), base64encode(someBytes));
     }
 
     @Test
@@ -139,9 +146,9 @@ class CommonUtilsTest {
                 .build();
         final var deprecated = Transaction.newBuilder().setBodyBytes(NONSENSE).build();
 
-        assertEquals(NONSENSE, CommonUtils.extractTransactionBodyByteString(current));
-        assertEquals(NONSENSE, CommonUtils.extractTransactionBodyByteString(deprecated));
-        assertArrayEquals(NONSENSE.toByteArray(), CommonUtils.extractTransactionBodyBytes(current));
+        assertEquals(NONSENSE, extractTransactionBodyByteString(current));
+        assertEquals(NONSENSE, extractTransactionBodyByteString(deprecated));
+        assertArrayEquals(NONSENSE.toByteArray(), extractTransactionBodyBytes(current));
     }
 
     @Test
@@ -156,7 +163,7 @@ class CommonUtilsTest {
                         .build()
                         .toByteString())
                 .build();
-        assertEquals(body, CommonUtils.extractTransactionBody(current));
+        assertEquals(body, extractTransactionBody(current));
     }
 
     @Test
@@ -173,17 +180,8 @@ class CommonUtilsTest {
                 .build();
         final var deprecated = Transaction.newBuilder().setSigMap(sigMap).build();
 
-        assertEquals(sigMap, CommonUtils.extractSignatureMap(current));
-        assertEquals(sigMap, CommonUtils.extractSignatureMap(deprecated));
-    }
-
-    @Test
-    void failsOnUnavailableDigest() {
-        final var raw = NONSENSE.toByteArray();
-        assertDoesNotThrow(() -> noThrowSha384HashOf(raw));
-        CommonUtils.setSha384HashTag("NOPE");
-        assertThrows(IllegalStateException.class, () -> noThrowSha384HashOf(raw));
-        CommonUtils.setSha384HashTag("SHA-384");
+        assertEquals(sigMap, extractSignatureMap(current));
+        assertEquals(sigMap, extractSignatureMap(deprecated));
     }
 
     @Test
@@ -314,22 +312,302 @@ class CommonUtilsTest {
         assertArrayEquals(address, evmAddress);
     }
 
-    @Test
-    void inputOrNullHashReturnsHash() {
-        final Bytes input = Bytes.wrap(new byte[] {1, 2, 3, 4, 5});
-        final var result = CommonUtils.inputOrNullHash(input);
-        assertEquals(input, result);
-    }
+    @Nested
+    class NoThrowSha384HashOfTest {
+        private static final byte[] BYTE_ARRAY_1 = new byte[] {1, 2, 3, 4};
+        private static final Bytes BYTE_ARRAY_1_OBJ = Bytes.wrap(BYTE_ARRAY_1);
+        private static final byte[] BYTE_ARRAY_2 = new byte[] {5, 6};
+        private static final Bytes BYTE_ARRAY_2_OBJ = Bytes.wrap(BYTE_ARRAY_2);
+        public static final byte[] EMPTY_BYTES = new byte[0];
 
-    @Test
-    void inputOrNullHashReturnsNullHash() {
-        final var result = CommonUtils.inputOrNullHash(null);
-        assertEquals(NULL_HASH.getBytes(), result);
-    }
+        // BEGIN Bytes variants
+        @Test
+        void noThrowSha384HashOfBytes_emptyBytes() {
+            final var digest = sha384DigestOrThrow();
 
-    @Test
-    void inputOrNullHashReturnsNullHashForEmpty() {
-        final var result = CommonUtils.inputOrNullHash(Bytes.EMPTY);
-        assertEquals(NULL_HASH.getBytes(), result);
+            final var result = noThrowSha384HashOf(Bytes.EMPTY);
+            Bytes.EMPTY.writeTo(digest);
+            assertEquals(Bytes.wrap(digest.digest()), result);
+        }
+
+        @Test
+        void noThrowSha384HashOfBytes_null() {
+            assertThrows(NullPointerException.class, () -> {
+                //noinspection DataFlowIssue
+                noThrowSha384HashOf((Bytes) null);
+            });
+        }
+
+        @Test
+        void noThrowSha384HashOfBytes_byteArray() {
+            final var digest = sha384DigestOrThrow();
+
+            final var result1 = noThrowSha384HashOf(BYTE_ARRAY_1_OBJ);
+            BYTE_ARRAY_1_OBJ.writeTo(digest);
+            assertEquals(Bytes.wrap(digest.digest()), result1);
+
+            final var result2 = noThrowSha384HashOf(BYTE_ARRAY_2_OBJ);
+            BYTE_ARRAY_2_OBJ.writeTo(digest);
+            assertEquals(Bytes.wrap(digest.digest()), result2);
+        }
+
+        @Test
+        void noThrowSha384HashOfAllBytes_null() {
+            assertThrows(NullPointerException.class, () -> noThrowSha384HashOfAll((Bytes) null));
+            assertThrows(NullPointerException.class, () -> noThrowSha384HashOfAll(new Bytes[] {null, null}));
+        }
+
+        @Test
+        void noThrowSha384HashOfAllBytes_emptyByteArray() {
+            final var digest = sha384DigestOrThrow();
+
+            final var result = noThrowSha384HashOfAll(Bytes.EMPTY);
+            Bytes.EMPTY.writeTo(digest);
+            assertEquals(Bytes.wrap(digest.digest()), result);
+        }
+
+        @Test
+        void noThrowSha384HashOfAllBytes_multipleEmptyByteArrays() {
+            final var digest = sha384DigestOrThrow();
+
+            final var result = noThrowSha384HashOfAll(Bytes.EMPTY, Bytes.EMPTY);
+            Bytes.EMPTY.writeTo(digest);
+            Bytes.EMPTY.writeTo(digest);
+            assertEquals(Bytes.wrap(digest.digest()), result);
+        }
+
+        @Test
+        void noThrowSha384HashOfAllBytes_singleByteArray() {
+            final var digest = sha384DigestOrThrow();
+
+            final var result = noThrowSha384HashOfAll(BYTE_ARRAY_1_OBJ);
+            BYTE_ARRAY_1_OBJ.writeTo(digest);
+            assertEquals(Bytes.wrap(digest.digest()), result);
+        }
+
+        @Test
+        void noThrowSha384HashOfAllBytes_multipleByteArrays() {
+            final var digest = sha384DigestOrThrow();
+
+            final var resultDirect = noThrowSha384HashOfAll(BYTE_ARRAY_1_OBJ, BYTE_ARRAY_2_OBJ);
+            BYTE_ARRAY_1_OBJ.writeTo(digest);
+            BYTE_ARRAY_2_OBJ.writeTo(digest);
+            assertEquals(Bytes.wrap(digest.digest()), resultDirect);
+
+            final var arrOfArrays = new Bytes[] {BYTE_ARRAY_2_OBJ, BYTE_ARRAY_1_OBJ};
+            final var resultAsArr = noThrowSha384HashOfAll(arrOfArrays);
+            arrOfArrays[0].writeTo(digest);
+            arrOfArrays[1].writeTo(digest);
+            assertEquals(Bytes.wrap(digest.digest()), resultAsArr);
+        }
+
+        @Test
+        void hashOfAllThrowsOnNullDigest() {
+            assertThrows(NullPointerException.class, () -> {
+                //noinspection DataFlowIssue
+                hashOfAll(null, BYTE_ARRAY_1_OBJ);
+            });
+        }
+
+        @Test
+        void hashOfAllThrowsOnNullVararg() {
+            assertThrows(NullPointerException.class, () -> {
+                //noinspection DataFlowIssue
+                hashOfAll(sha384DigestOrThrow(), (Bytes[]) null);
+            });
+        }
+
+        @Test
+        void hashOfAllThrowsOnNullElementInVararg() {
+            assertThrows(NullPointerException.class, () -> {
+                hashOfAll(sha384DigestOrThrow(), BYTE_ARRAY_1_OBJ, null);
+            });
+        }
+
+        @Test
+        void hashOfAllWorksWithSingleElement() {
+            final var digest = sha384DigestOrThrow();
+
+            final var result = hashOfAll(sha384DigestOrThrow(), BYTE_ARRAY_1_OBJ);
+            BYTE_ARRAY_1_OBJ.writeTo(digest);
+            assertEquals(Bytes.wrap(digest.digest()), result);
+        }
+
+        @Test
+        void hashOfAllWorksWithMultipleElements() {
+            final var digest = sha384DigestOrThrow();
+
+            final var result = hashOfAll(sha384DigestOrThrow(), BYTE_ARRAY_1_OBJ, BYTE_ARRAY_2_OBJ);
+            BYTE_ARRAY_1_OBJ.writeTo(digest);
+            BYTE_ARRAY_2_OBJ.writeTo(digest);
+            assertEquals(Bytes.wrap(digest.digest()), result);
+        }
+
+        @Test
+        void hashOfAllWorksWithNoElements() {
+            assertThrows(NullPointerException.class, () -> {
+                //noinspection DataFlowIssue
+                hashOfAll(sha384DigestOrThrow(), (Bytes[]) null);
+            });
+        }
+
+        @Test
+        void hashOfAllWorksWithEmptyElements() {
+            final var digest = sha384DigestOrThrow();
+
+            final var result = hashOfAll(sha384DigestOrThrow(), new Bytes[] {});
+            assertEquals(Bytes.wrap(digest.digest()), result);
+        }
+
+        @Test
+        void hashOfAllWorksWithEmptyBytes() {
+            final var digest = sha384DigestOrThrow();
+
+            final var result = hashOfAll(sha384DigestOrThrow(), Bytes.EMPTY);
+            Bytes.EMPTY.writeTo(digest);
+            assertEquals(Bytes.wrap(digest.digest()), result);
+        }
+        // END: Bytes variants
+
+        // BEGIN byte[] variants
+        @Test
+        void noThrowSha384HashOf_emptyBytes() {
+            final var digest = sha384DigestOrThrow();
+
+            final var result = noThrowSha384HashOf(EMPTY_BYTES);
+            assertArrayEquals(digest.digest(EMPTY_BYTES), result);
+        }
+
+        @Test
+        void noThrowSha384HashOf_null() {
+            assertThrows(NullPointerException.class, () -> {
+                noThrowSha384HashOf((byte[]) null);
+            });
+        }
+
+        @Test
+        void noThrowSha384HashOf_byteArray() {
+            final var digest = sha384DigestOrThrow();
+
+            final var result1 = noThrowSha384HashOf(BYTE_ARRAY_1);
+            assertArrayEquals(digest.digest(BYTE_ARRAY_1), result1);
+
+            final var result2 = noThrowSha384HashOf(BYTE_ARRAY_2);
+            assertArrayEquals(digest.digest(BYTE_ARRAY_2), result2);
+        }
+
+        @Test
+        void noThrowSha384HashOf_multipleByteArrays() {
+            final var digest = sha384DigestOrThrow();
+
+            final var result = noThrowSha384HashOf(BYTE_ARRAY_1, BYTE_ARRAY_2);
+            digest.update(BYTE_ARRAY_1);
+            assertArrayEquals(digest.digest(BYTE_ARRAY_2), result);
+        }
+
+        @Test
+        void noThrowSha384HashOfAll_null() {
+            assertThrows(NullPointerException.class, () -> noThrowSha384HashOfAll((byte[]) null));
+            assertThrows(NullPointerException.class, () -> noThrowSha384HashOfAll(new byte[][] {null, null}));
+        }
+
+        @Test
+        void noThrowSha384HashOfAll_emptyByteArray() {
+            final var digest = sha384DigestOrThrow();
+
+            final var result = noThrowSha384HashOfAll(EMPTY_BYTES);
+            assertEquals(Bytes.wrap(digest.digest(EMPTY_BYTES)), result);
+        }
+
+        @Test
+        void noThrowSha384HashOfAll_multipleEmptyByteArrays() {
+            final var digest = sha384DigestOrThrow();
+
+            final var result = noThrowSha384HashOfAll(EMPTY_BYTES, EMPTY_BYTES);
+            digest.update(EMPTY_BYTES);
+            assertEquals(Bytes.wrap(digest.digest(EMPTY_BYTES)), result);
+        }
+
+        @Test
+        void noThrowSha384HashOfAll_singleByteArray() {
+            final var digest = sha384DigestOrThrow();
+
+            final var result = noThrowSha384HashOfAll(BYTE_ARRAY_1);
+            assertEquals(Bytes.wrap(digest.digest(BYTE_ARRAY_1)), result);
+        }
+
+        @Test
+        void noThrowSha384HashOfAll_multipleByteArrays() {
+            final var digest = sha384DigestOrThrow();
+
+            final var resultDirect = noThrowSha384HashOfAll(BYTE_ARRAY_1, BYTE_ARRAY_2);
+            digest.update(BYTE_ARRAY_1);
+            assertEquals(Bytes.wrap(digest.digest(BYTE_ARRAY_2)), resultDirect);
+
+            final var arrOfArrays = new byte[][] {BYTE_ARRAY_2, BYTE_ARRAY_1};
+            final var resultAsArr = noThrowSha384HashOfAll(arrOfArrays);
+            digest.update(arrOfArrays[0]);
+            assertEquals(Bytes.wrap(digest.digest(arrOfArrays[1])), resultAsArr);
+        }
+
+        // BEGIN: equivalence of byte[] and Bytes variants
+        @Test
+        void noThrowSha384HashOf_bytesAndByteArrayEquivalence_emptyBytes() {
+            final var byteArrResult = noThrowSha384HashOf(EMPTY_BYTES);
+            final var bytesResult = noThrowSha384HashOf(Bytes.EMPTY);
+            assertEquals(Bytes.wrap(byteArrResult), bytesResult);
+        }
+
+        @Test
+        void noThrowSha384HashOf_bytesAndByteArrayEquivalence_byteArray() {
+            final var byteArrResult1 = noThrowSha384HashOf(BYTE_ARRAY_1);
+            final var bytesResult1 = noThrowSha384HashOf(BYTE_ARRAY_1_OBJ);
+            assertEquals(Bytes.wrap(byteArrResult1), bytesResult1);
+
+            final var byteArrResult2 = noThrowSha384HashOf(BYTE_ARRAY_2);
+            final var bytesResult2 = noThrowSha384HashOf(BYTE_ARRAY_2_OBJ);
+            assertEquals(Bytes.wrap(byteArrResult2), bytesResult2);
+        }
+
+        @Test
+        void noThrowSha384HashOf_bytesAndByteArrayEquivalence_multipleByteArrays() {
+            final var byteArrResult = noThrowSha384HashOf(BYTE_ARRAY_1, BYTE_ARRAY_2);
+            final var bytesResult = noThrowSha384HashOfAll(BYTE_ARRAY_1_OBJ, BYTE_ARRAY_2_OBJ);
+            assertEquals(Bytes.wrap(byteArrResult), bytesResult);
+        }
+
+        @Test
+        void noThrowSha384HashOfAll_bytesAndByteArrayEquivalence_emptyByteArray() {
+            final var byteArrResult = noThrowSha384HashOfAll(EMPTY_BYTES);
+            final var bytesResult = noThrowSha384HashOfAll(Bytes.EMPTY);
+            assertEquals(byteArrResult, bytesResult);
+        }
+
+        @Test
+        void noThrowSha384HashOfAll_bytesAndByteArrayEquivalence_multipleEmptyByteArrays() {
+            final var byteArrResult = noThrowSha384HashOfAll(EMPTY_BYTES, EMPTY_BYTES);
+            final var bytesResult = noThrowSha384HashOfAll(Bytes.EMPTY, Bytes.EMPTY);
+            assertEquals(byteArrResult, bytesResult);
+        }
+
+        @Test
+        void noThrowSha384HashOfAll_bytesAndByteArrayEquivalence_singleByteArray() {
+            final var byteArrResult = noThrowSha384HashOfAll(BYTE_ARRAY_1);
+            final var bytesResult = noThrowSha384HashOfAll(BYTE_ARRAY_1_OBJ);
+            assertEquals(byteArrResult, bytesResult);
+        }
+
+        @Test
+        void noThrowSha384HashOfAll_bytesAndByteArrayEquivalence_multipleByteArrays() {
+            final var byteArrResultDirect = noThrowSha384HashOfAll(BYTE_ARRAY_1, BYTE_ARRAY_2);
+            final var bytesResultDirect = noThrowSha384HashOfAll(BYTE_ARRAY_1_OBJ, BYTE_ARRAY_2_OBJ);
+            assertEquals(byteArrResultDirect, bytesResultDirect);
+
+            final var arrOfArrays = new byte[][] {BYTE_ARRAY_2, BYTE_ARRAY_1};
+            final var resultAsArr = noThrowSha384HashOfAll(arrOfArrays);
+            final var bytesArrOfArrays = new Bytes[] {BYTE_ARRAY_2_OBJ, BYTE_ARRAY_1_OBJ};
+            final var bytesResultAsArr = noThrowSha384HashOfAll(bytesArrOfArrays);
+            assertEquals(resultAsArr, bytesResultAsArr);
+        }
     }
 }

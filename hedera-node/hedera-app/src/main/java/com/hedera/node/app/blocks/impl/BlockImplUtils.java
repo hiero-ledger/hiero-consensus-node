@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.blocks.impl;
 
+import static com.hedera.node.app.hapi.utils.CommonUtils.hashOfAll;
+import static com.hedera.node.app.hapi.utils.CommonUtils.noThrowSha384HashOfAll;
 import static com.hedera.node.app.records.impl.BlockRecordInfoUtils.HASH_SIZE;
 
+import com.hedera.node.app.blocks.StreamingTreeHasher;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-import org.hiero.base.crypto.DigestType;
 
 /**
  * Utility methods for block implementation.
@@ -46,7 +47,7 @@ public class BlockImplUtils {
     }
 
     /**
-     * Hashes the given left and right hashes.
+     * Hashes the given left and right hashes. Note: this method does <b>not</b> add any byte prefixes
      * @param leftHash the left hash
      * @param rightHash the right hash
      * @return the combined hash
@@ -56,19 +57,33 @@ public class BlockImplUtils {
     }
 
     /**
-     * Hashes the given left and right hashes.
+     * Hashes the given left and right hashes. Note: this method does <b>not</b> add any byte prefixes
      * @param leftHash the left hash
      * @param rightHash the right hash
      * @return the combined hash
      */
-    public static byte[] combine(final byte[] leftHash, final byte[] rightHash) {
-        try {
-            final var digest = MessageDigest.getInstance(DigestType.SHA_384.algorithmName());
-            digest.update(leftHash);
-            digest.update(rightHash);
-            return digest.digest();
-        } catch (final NoSuchAlgorithmException fatal) {
-            throw new IllegalStateException(fatal);
-        }
+    public static byte[] combine(@NonNull final byte[] leftHash, @NonNull final byte[] rightHash) {
+        return noThrowSha384HashOfAll(leftHash, rightHash).toByteArray();
+    }
+
+    public static Bytes hashLeaf(@NonNull final Bytes leafData) {
+        return noThrowSha384HashOfAll(Bytes.wrap(StreamingTreeHasher.LEAF_PREFIX), leafData);
+    }
+
+    public static Bytes hashLeaf(@NonNull final MessageDigest digest, @NonNull final Bytes leafData) {
+        return hashOfAll(digest, Bytes.wrap(StreamingTreeHasher.LEAF_PREFIX), leafData);
+    }
+
+    public static Bytes hashInternalNodeSingleChild(@NonNull final Bytes hash) {
+        return noThrowSha384HashOfAll(StreamingTreeHasher.SINGLE_CHILD_INTERNAL_NODE_PREFIX, hash.toByteArray());
+    }
+
+    public static Bytes hashInternalNode(@NonNull final Bytes leftHash, @NonNull final Bytes rightHash) {
+        return noThrowSha384HashOfAll(Bytes.wrap(StreamingTreeHasher.INTERNAL_NODE_PREFIX), leftHash, rightHash);
+    }
+
+    public static byte[] hashInternalNode(@NonNull final byte[] leftHash, @NonNull final byte[] rightHash) {
+        return noThrowSha384HashOfAll(StreamingTreeHasher.INTERNAL_NODE_PREFIX, leftHash, rightHash)
+                .toByteArray();
     }
 }
