@@ -2,10 +2,10 @@
 package com.swirlds.platform.event.branching;
 
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.metrics.SpeedometerMetric;
 import com.swirlds.metrics.api.DoubleGauge;
 import com.swirlds.metrics.api.LongGauge;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import org.hiero.consensus.metrics.SpeedometerMetric;
 
 /**
  * Encapsulates metrics for branching events.

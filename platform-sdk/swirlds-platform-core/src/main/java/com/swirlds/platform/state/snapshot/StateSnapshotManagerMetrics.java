@@ -2,10 +2,10 @@
 package com.swirlds.platform.state.snapshot;
 
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.metrics.RunningAverageMetric;
 import com.swirlds.metrics.api.Counter;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import org.hiero.consensus.metrics.RunningAverageMetric;
 
 /**
  * Encapsulates metrics for the state snapshot manager.

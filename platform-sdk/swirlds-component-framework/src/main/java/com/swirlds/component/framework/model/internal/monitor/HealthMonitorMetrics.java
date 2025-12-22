@@ -3,12 +3,12 @@ package com.swirlds.component.framework.model.internal.monitor;
 
 import static org.hiero.base.CompareTo.isLessThan;
 
-import com.swirlds.common.metrics.DurationGauge;
 import com.swirlds.metrics.api.IntegerGauge;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
+import org.hiero.consensus.metrics.DurationGauge;
 
 /**
  * Encapsulates metrics for the wiring health monitor.
