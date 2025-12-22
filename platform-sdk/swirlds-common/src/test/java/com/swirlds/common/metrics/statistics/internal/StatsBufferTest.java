@@ -4,6 +4,7 @@ package com.swirlds.common.metrics.statistics.internal;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import java.util.concurrent.ThreadLocalRandom;
+import org.hiero.consensus.metrics.statistics.internal.StatsBuffer;
 import org.junit.jupiter.api.Test;
 
 class StatsBufferTest {

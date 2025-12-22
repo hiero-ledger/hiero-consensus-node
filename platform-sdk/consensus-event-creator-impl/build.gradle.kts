@@ -36,6 +36,6 @@ testModuleInfo {
     requires("org.junit.jupiter.params")
     requires("org.mockito")
     requires("org.hiero.junit.extensions")
-    opensTo("org.hiero.junit.extensions")
+
     opensTo("org.hiero.junit.extensions")
 }

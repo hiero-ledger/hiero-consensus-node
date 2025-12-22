@@ -8,7 +8,6 @@ import static com.swirlds.platform.state.iss.IssDetector.DO_NOT_IGNORE_ROUNDS;
 import static com.swirlds.platform.state.service.PlatformStateUtils.latestFreezeRoundOf;
 
 import com.swirlds.common.merkle.utility.SerializableLong;
-import com.swirlds.common.threading.manager.AdHocThreadManager;
 import com.swirlds.component.framework.component.ComponentWiring;
 import com.swirlds.platform.SwirldsPlatform;
 import com.swirlds.platform.components.appcomm.DefaultLatestCompleteStateNotifier;
@@ -16,13 +15,10 @@ import com.swirlds.platform.components.appcomm.LatestCompleteStateNotifier;
 import com.swirlds.platform.components.consensus.ConsensusEngine;
 import com.swirlds.platform.components.consensus.DefaultConsensusEngine;
 import com.swirlds.platform.config.StateConfig;
-import com.swirlds.platform.crypto.CryptoStatic;
 import com.swirlds.platform.event.branching.BranchDetector;
 import com.swirlds.platform.event.branching.BranchReporter;
 import com.swirlds.platform.event.branching.DefaultBranchDetector;
 import com.swirlds.platform.event.branching.DefaultBranchReporter;
-import com.swirlds.platform.event.deduplication.EventDeduplicator;
-import com.swirlds.platform.event.deduplication.StandardEventDeduplicator;
 import com.swirlds.platform.event.orphan.DefaultOrphanBuffer;
 import com.swirlds.platform.event.orphan.OrphanBuffer;
 import com.swirlds.platform.event.preconsensus.DefaultInlinePcesWriter;
@@ -33,9 +29,7 @@ import com.swirlds.platform.event.preconsensus.PcesUtilities;
 import com.swirlds.platform.event.stream.ConsensusEventStream;
 import com.swirlds.platform.event.stream.DefaultConsensusEventStream;
 import com.swirlds.platform.event.validation.DefaultEventSignatureValidator;
-import com.swirlds.platform.event.validation.DefaultInternalEventValidator;
 import com.swirlds.platform.event.validation.EventSignatureValidator;
-import com.swirlds.platform.event.validation.InternalEventValidator;
 import com.swirlds.platform.eventhandling.DefaultTransactionHandler;
 import com.swirlds.platform.eventhandling.DefaultTransactionPrehandler;
 import com.swirlds.platform.eventhandling.TransactionHandler;
@@ -69,8 +63,8 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Objects;
-import org.hiero.consensus.crypto.DefaultEventHasher;
-import org.hiero.consensus.crypto.EventHasher;
+import org.hiero.consensus.concurrent.manager.AdHocThreadManager;
+import org.hiero.consensus.crypto.ConsensusCryptoUtils;
 import org.hiero.consensus.crypto.PlatformSigner;
 import org.hiero.consensus.model.event.CesEvent;
 
@@ -96,9 +90,6 @@ public class PlatformComponentBuilder {
 
     private final PlatformBuildingBlocks blocks;
 
-    private EventHasher eventHasher;
-    private InternalEventValidator internalEventValidator;
-    private EventDeduplicator eventDeduplicator;
     private EventSignatureValidator eventSignatureValidator;
     private StateGarbageCollector stateGarbageCollector;
     private OrphanBuffer orphanBuffer;
@@ -199,105 +190,6 @@ public class PlatformComponentBuilder {
     }
 
     /**
-     * Provide an event hasher in place of the platform's default event hasher.
-     *
-     * @param eventHasher the event hasher to use
-     * @return this builder
-     */
-    @NonNull
-    public PlatformComponentBuilder withEventHasher(@NonNull final EventHasher eventHasher) {
-        throwIfAlreadyUsed();
-        if (this.eventHasher != null) {
-            throw new IllegalStateException("Event hasher has already been set");
-        }
-        this.eventHasher = Objects.requireNonNull(eventHasher);
-        return this;
-    }
-
-    /**
-     * Build the event hasher if it has not yet been built. If one has been provided via
-     * {@link #withEventHasher(EventHasher)}, that hasher will be used. If this method is called more than once, only
-     * the first call will build the event hasher. Otherwise, the default hasher will be created and returned.
-     *
-     * @return the event hasher
-     */
-    @NonNull
-    public EventHasher buildEventHasher() {
-        if (eventHasher == null) {
-            eventHasher = new DefaultEventHasher();
-        }
-        return eventHasher;
-    }
-
-    /**
-     * Provide an internal event validator in place of the platform's default internal event validator.
-     *
-     * @param internalEventValidator the internal event validator to use
-     * @return this builder
-     */
-    @NonNull
-    public PlatformComponentBuilder withInternalEventValidator(
-            @NonNull final InternalEventValidator internalEventValidator) {
-        throwIfAlreadyUsed();
-        if (this.internalEventValidator != null) {
-            throw new IllegalStateException("Internal event validator has already been set");
-        }
-        this.internalEventValidator = Objects.requireNonNull(internalEventValidator);
-        return this;
-    }
-
-    /**
-     * Build the internal event validator if it has not yet been built. If one has been provided via
-     * {@link #withInternalEventValidator(InternalEventValidator)}, that validator will be used. If this method is
-     * called more than once, only the first call will build the internal event validator. Otherwise, the default
-     * validator will be created and returned.
-     *
-     * @return the internal event validator
-     */
-    @NonNull
-    public InternalEventValidator buildInternalEventValidator() {
-        if (internalEventValidator == null) {
-            internalEventValidator = new DefaultInternalEventValidator(
-                    blocks.platformContext(),
-                    blocks.intakeEventCounter(),
-                    blocks.execution().getTransactionLimits());
-        }
-        return internalEventValidator;
-    }
-
-    /**
-     * Provide an event deduplicator in place of the platform's default event deduplicator.
-     *
-     * @param eventDeduplicator the event deduplicator to use
-     * @return this builder
-     */
-    @NonNull
-    public PlatformComponentBuilder withEventDeduplicator(@NonNull final EventDeduplicator eventDeduplicator) {
-        throwIfAlreadyUsed();
-        if (this.eventDeduplicator != null) {
-            throw new IllegalStateException("Event deduplicator has already been set");
-        }
-        this.eventDeduplicator = Objects.requireNonNull(eventDeduplicator);
-        return this;
-    }
-
-    /**
-     * Build the event deduplicator if it has not yet been built. If one has been provided via
-     * {@link #withEventDeduplicator(EventDeduplicator)}, that deduplicator will be used. If this method is called more
-     * than once, only the first call will build the event deduplicator. Otherwise, the default deduplicator will be
-     * created and returned.
-     *
-     * @return the event deduplicator
-     */
-    @NonNull
-    public EventDeduplicator buildEventDeduplicator() {
-        if (eventDeduplicator == null) {
-            eventDeduplicator = new StandardEventDeduplicator(blocks.platformContext(), blocks.intakeEventCounter());
-        }
-        return eventDeduplicator;
-    }
-
-    /**
      * Provide an event signature validator in place of the platform's default event signature validator.
      *
      * @param eventSignatureValidator the event signature validator to use
@@ -325,8 +217,9 @@ public class PlatformComponentBuilder {
     public EventSignatureValidator buildEventSignatureValidator() {
         if (eventSignatureValidator == null) {
             eventSignatureValidator = new DefaultEventSignatureValidator(
-                    blocks.platformContext(),
-                    CryptoStatic::verifySignature,
+                    blocks.platformContext().getMetrics(),
+                    blocks.platformContext().getTime(),
+                    ConsensusCryptoUtils::verifySignature,
                     blocks.rosterHistory(),
                     blocks.intakeEventCounter());
         }

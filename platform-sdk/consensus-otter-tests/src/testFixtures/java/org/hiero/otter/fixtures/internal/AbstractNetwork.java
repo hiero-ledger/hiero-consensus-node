@@ -89,7 +89,6 @@ import org.hiero.otter.fixtures.result.SingleNodePcesResult;
 import org.hiero.otter.fixtures.result.SingleNodePlatformStatusResult;
 import org.hiero.otter.fixtures.result.SingleNodeReconnectResult;
 import org.hiero.otter.fixtures.util.OtterSavedStateUtils;
-import org.jetbrains.annotations.NotNull;
 
 /**
  * An abstract base class for a network implementation that provides common functionality shared by the different
@@ -240,7 +239,7 @@ public abstract class AbstractNetwork implements Network {
     }
 
     @Override
-    public @NotNull Roster roster() {
+    public @NonNull Roster roster() {
         if (lifecycle == Lifecycle.INIT) {
             throw new IllegalStateException("The roster is not available before the network is started.");
         }
@@ -733,7 +732,7 @@ public abstract class AbstractNetwork implements Network {
      * {@inheritDoc}
      */
     @Override
-    public @NotNull Network withConfigValue(@NotNull final String key, @NotNull final Duration value) {
+    public @NonNull Network withConfigValue(@NonNull final String key, @NonNull final Duration value) {
         throwIfInLifecycle(Lifecycle.RUNNING, "Configuration modification is not allowed when the network is running.");
         networkConfiguration.withConfigValue(key, value);
         nodes().forEach(node -> node.configuration().withConfigValue(key, value));
