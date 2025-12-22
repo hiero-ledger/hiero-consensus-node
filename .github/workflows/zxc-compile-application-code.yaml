@@ -85,7 +85,7 @@ jobs:
       - name: Set Failure Mode Output
         id: set-failure-mode
         if: ${{ always() }}
-        run: |            
+        run: |
           if [[ "${{ steps.compile-source.outcome }}" != "success" ]]; then
             echo "Compilation step failed."
             echo "failure-mode=general" >> "${GITHUB_OUTPUT}"
