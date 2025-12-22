@@ -10,7 +10,7 @@ testModuleInfo {
     requires("com.hedera.node.app.service.entityid.impl")
     requires("com.hedera.node.config.test.fixtures")
     requires("com.swirlds.config.extensions.test.fixtures")
-    requires("com.swirlds.platform.core")
+    requires("com.swirlds.platform.core.test.fixtures")
     requires("com.swirlds.state.api.test.fixtures")
     requires("com.hedera.node.app.spi.test.fixtures")
     requires("org.hiero.consensus.model")

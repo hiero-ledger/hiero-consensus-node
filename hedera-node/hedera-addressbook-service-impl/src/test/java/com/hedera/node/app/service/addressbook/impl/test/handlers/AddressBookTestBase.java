@@ -24,6 +24,7 @@ import com.hedera.hapi.node.state.addressbook.Node;
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.entity.EntityCounts;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
+import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.platform.state.NodeId;
 import com.hedera.node.app.service.addressbook.ReadableAccountNodeRelStore;
@@ -45,6 +46,7 @@ import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.crypto.CryptoStatic;
+import com.swirlds.platform.test.fixtures.addressbook.RandomRosterBuilder;
 import com.swirlds.state.spi.ReadableStates;
 import com.swirlds.state.spi.WritableStates;
 import com.swirlds.state.test.fixtures.FunctionReadableSingletonState;
@@ -55,10 +57,12 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.security.KeyStoreException;
 import java.security.cert.X509Certificate;
 import java.util.List;
+import java.util.Random;
 import java.util.concurrent.ExecutionException;
 import java.util.function.Function;
 import java.util.stream.IntStream;
 import org.hiero.consensus.model.node.KeysAndCerts;
+import org.hiero.consensus.roster.RosterUtils;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -384,16 +388,13 @@ public class AddressBookTestBase {
     }
 
     public static List<X509Certificate> generateX509Certificates(final int n) {
-        final var nodeIds = IntStream.range(0, n)
-                .mapToObj(org.hiero.consensus.model.node.NodeId::of)
-                .toList();
+        final var roster = RandomRosterBuilder.create(new Random())
+                .withRealKeysEnabled(true)
+                .withSize(n)
+                .build();
 
-        try {
-            return CryptoStatic.generateKeysAndCerts(nodeIds).values().stream()
-                    .map(KeysAndCerts::sigCert)
-                    .toList();
-        } catch (ExecutionException | InterruptedException | KeyStoreException e) {
-            throw new RuntimeException(e);
-        }
+        return roster.rosterEntries().stream()
+                .map(RosterUtils::fetchGossipCaCertificate)
+                .toList();
     }
 }
