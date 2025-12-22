@@ -72,7 +72,7 @@ public class NetworkUtils {
         final List<com.hedera.node.internal.network.NodeMetadata> metadata = new ArrayList<>();
 
         for (final var node : nodes) {
-            final Bytes localhost = fromByteString(asOctets("localhost"));
+            final Bytes localhost = fromByteString(asOctets("127.0.0.1"));
             final var rosterEntry = RosterEntry.newBuilder()
                     .nodeId(node.getNodeId())
                     .weight(overrideWeights.getOrDefault(node.getNodeId(), 1L))
