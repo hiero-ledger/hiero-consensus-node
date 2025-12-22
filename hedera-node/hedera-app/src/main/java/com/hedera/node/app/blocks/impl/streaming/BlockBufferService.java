@@ -179,6 +179,11 @@ public class BlockBufferService {
             return;
         }
 
+        logger.info("Shutting down block buffer service...");
+
+        // on shutdown, attempt to persist the buffer
+        persistBufferImpl();
+
         // stop the background task from running
         execSvc.shutdownNow();
         // since the pruning task is no longer running, free up the buffer
@@ -192,6 +197,8 @@ public class BlockBufferService {
         lastPruningResult = PruneResult.NIL;
         lastRecoveryActionTimestamp = Instant.MIN;
         awaitingRecovery = false;
+
+        logger.info("Block buffer service shutdown complete");
     }
 
     /**
@@ -523,7 +530,15 @@ public class BlockBufferService {
      * @see BlockBufferIO
      */
     public void persistBuffer() {
-        if (!isGrpcStreamingEnabled() || !isStarted.get() || !isBufferPersistenceEnabled()) {
+        if (!isGrpcStreamingEnabled() || !isStarted.get()) {
+            return;
+        }
+
+        persistBufferImpl();
+    }
+
+    private void persistBufferImpl() {
+        if (!isBufferPersistenceEnabled()) {
             return;
         }
 
@@ -532,6 +547,11 @@ public class BlockBufferService {
                 .filter(BlockState::isClosed)
                 .filter(blockState -> blockState.blockNumber() > highestAckedBlockNumber.get())
                 .toList();
+
+        if (blocksToPersist.isEmpty()) {
+            logger.info("No unacked blocks in the buffer to persist");
+            return;
+        }
 
         try {
             bufferIO.write(blocksToPersist, highestAckedBlockNumber.get());
