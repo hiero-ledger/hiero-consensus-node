@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.common.utility;
+package org.hiero.base;
 
 import com.swirlds.base.utility.ToStringBuilder;
 import java.util.Objects;
-import org.hiero.base.ValueReference;
 
 /**
  * An object wrapper for an int that allows it to mutate, unlike {@link Integer}. Similar to {@link ValueReference} but
