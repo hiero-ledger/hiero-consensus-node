@@ -8,8 +8,8 @@ import static com.hedera.services.bdd.junit.hedera.embedded.EmbeddedMode.REPEATA
 import static com.hedera.services.bdd.junit.hedera.subprocess.ConditionStatus.PENDING;
 import static com.hedera.services.bdd.junit.hedera.subprocess.ConditionStatus.REACHED;
 import static com.hedera.services.bdd.junit.hedera.subprocess.ProcessUtils.conditionFuture;
-import static com.hedera.services.bdd.junit.hedera.utils.AddressBookUtils.classicMetadataFor;
-import static com.hedera.services.bdd.junit.hedera.utils.AddressBookUtils.generateNetworkConfig;
+import static com.hedera.services.bdd.junit.hedera.utils.NetworkUtils.classicMetadataFor;
+import static com.hedera.services.bdd.junit.hedera.utils.NetworkUtils.generateNetworkConfig;
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.updateBootstrapProperties;
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.workingDirFor;
 import static com.hedera.services.bdd.spec.HapiPropertySource.getConfigRealm;

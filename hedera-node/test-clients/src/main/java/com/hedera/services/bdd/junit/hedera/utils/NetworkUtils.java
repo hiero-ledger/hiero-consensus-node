@@ -27,17 +27,17 @@ import java.util.stream.Stream;
 /**
  * Utility class for generating an address book configuration file.
  */
-public class AddressBookUtils {
+public class NetworkUtils {
     public static final long CLASSIC_FIRST_NODE_ACCOUNT_NUM = 3;
     public static final String[] CLASSIC_NODE_NAMES =
             new String[] {"node1", "node2", "node3", "node4", "node5", "node6", "node7", "node8"};
 
-    private AddressBookUtils() {
+    private NetworkUtils() {
         throw new UnsupportedOperationException("Utility Class");
     }
 
     /**
-     * Returns the contents of a <i>config.txt</i> file for the given network.
+     * Creates a network instance from the provided parameters.
      *
      * @param networkName the name of the network
      * @param nodes the nodes in the network
@@ -54,7 +54,7 @@ public class AddressBookUtils {
     }
 
     /**
-     * Returns the contents of a <i>config.txt</i> file for the given network, with the option to override the
+     * Creates a network instance from the provided parameters, with the option to override the
      * weights of the nodes.
      * @param networkName the name of the network
      * @param nodes the nodes in the network
