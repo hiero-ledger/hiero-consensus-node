@@ -230,7 +230,45 @@ public enum TransactionExecutors {
         };
     }
 
-    private ExecutorComponent newExecutorComponent(
+    /**
+     * Creates a new {@link TransactionExecutor} based on the given {@link State} and properties.
+     * @param properties the properties to use for the executor
+     * @return a new {@link TransactionExecutor}
+     */
+    public ExecutorComponent newExecutorJoshBetter(
+            @NonNull final Properties properties, @NonNull final EntityIdFactory entityIdFactory) {
+        requireNonNull(properties);
+        return newExecutorJosh(
+                properties.state(),
+                properties.appProperties(),
+                properties.customTracerBinding(),
+                properties.customOps(),
+                entityIdFactory);
+    }
+
+    /**
+     * Creates a new {@link TransactionExecutor}.
+     * @param state the {@link State} to use
+     * @param properties the properties to use
+     * @param customTracerBinding the custom tracer binding to use
+     * @param customOps the custom operations to use
+     * @return a new {@link TransactionExecutor}
+     */
+    private ExecutorComponent newExecutorJosh(
+            @NonNull final State state,
+            @NonNull final Map<String, String> properties,
+            @Nullable final TracerBinding customTracerBinding,
+            @NonNull final Set<Operation> customOps,
+            @NonNull final EntityIdFactory entityIdFactory) {
+        final var tracerBinding =
+                customTracerBinding != null ? customTracerBinding : DefaultTracerBinding.DEFAULT_TRACER_BINDING;
+        final var executor = newExecutorComponent(state, properties, tracerBinding, customOps, entityIdFactory);
+        executor.stateNetworkInfo().initFrom(state);
+        executor.initializer().initialize(state, StreamMode.BOTH);
+        return executor;
+    }
+
+    public ExecutorComponent newExecutorComponent(
             @NonNull final State state,
             @NonNull Map<String, String> properties,
             @NonNull final TracerBinding tracerBinding,

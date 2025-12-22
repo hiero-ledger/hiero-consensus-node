@@ -1,44 +1,30 @@
-// SPDX-License-Identifier: Apache-2.0
-package com.hedera.node.app.workflows.standalone;
+package com.hedera.node.app.fees;
 
-import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
-import static com.hedera.node.app.hapi.utils.keys.KeyUtils.IMMUTABILITY_SENTINEL_KEY;
-import static com.hedera.node.app.records.schemas.V0490BlockRecordSchema.BLOCKS_STATE_ID;
-import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema.NODES_STATE_ID;
-import static com.hedera.node.app.spi.AppContext.Gossip.UNAVAILABLE_GOSSIP;
-import static com.hedera.node.app.spi.fees.NoopFeeCharging.UNIVERSAL_NOOP_FEE_CHARGING;
-import static com.hedera.node.app.util.FileUtilities.createFileID;
-import static com.hedera.node.app.workflows.standalone.TransactionExecutors.MAX_SIGNED_TXN_SIZE_PROPERTY;
-import static com.hedera.node.app.workflows.standalone.TransactionExecutors.TRANSACTION_EXECUTORS;
-import static java.util.Objects.requireNonNull;
-import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-
+import com.google.protobuf.InvalidProtocolBufferException;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.Duration;
 import com.hedera.hapi.node.base.FileID;
-import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.KeyList;
 import com.hedera.hapi.node.base.RealmID;
+import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.base.ShardID;
 import com.hedera.hapi.node.base.Timestamp;
+import com.hedera.hapi.node.base.TokenType;
 import com.hedera.hapi.node.base.TransactionID;
 import com.hedera.hapi.node.contract.ContractCallTransactionBody;
 import com.hedera.hapi.node.contract.ContractCreateTransactionBody;
 import com.hedera.hapi.node.file.FileCreateTransactionBody;
 import com.hedera.hapi.node.state.addressbook.Node;
-import com.hedera.hapi.node.state.blockrecords.BlockInfo;
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.file.File;
 import com.hedera.hapi.node.state.token.Account;
+import com.hedera.hapi.node.token.TokenCreateTransactionBody;
 import com.hedera.hapi.node.transaction.ThrottleDefinitions;
-import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.blocks.BlockStreamService;
 import com.hedera.node.app.config.BootstrapConfigProviderImpl;
 import com.hedera.node.app.config.ConfigProviderImpl;
-import com.hedera.node.app.fees.FeeService;
 import com.hedera.node.app.fixtures.state.FakeServiceMigrator;
 import com.hedera.node.app.fixtures.state.FakeServicesRegistry;
 import com.hedera.node.app.fixtures.state.FakeState;
@@ -70,6 +56,8 @@ import com.hedera.node.app.service.util.impl.UtilServiceImpl;
 import com.hedera.node.app.services.AppContextImpl;
 import com.hedera.node.app.services.ServicesRegistry;
 import com.hedera.node.app.spi.AppContext;
+import com.hedera.node.app.spi.fees.FeeContext;
+import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.migrate.StartupNetworks;
 import com.hedera.node.app.spi.signatures.SignatureVerifier;
@@ -77,6 +65,7 @@ import com.hedera.node.app.state.recordcache.RecordCacheService;
 import com.hedera.node.app.throttle.AppThrottleFactory;
 import com.hedera.node.app.throttle.CongestionThrottleService;
 import com.hedera.node.app.throttle.ThrottleAccumulator;
+import com.hedera.node.app.workflows.standalone.TransactionExecutors;
 import com.hedera.node.config.data.AccountsConfig;
 import com.hedera.node.config.data.BootstrapConfig;
 import com.hedera.node.config.data.EntitiesConfig;
@@ -85,51 +74,155 @@ import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.node.config.data.VersionConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
-import com.hedera.pbj.runtime.io.buffer.Bytes;
+import com.hedera.pbj.runtime.ParseException;
+import com.hedera.services.stream.proto.RecordStreamItem;
+import com.hederahashgraph.api.proto.java.SignedTransaction;
+import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
+import com.swirlds.platform.crypto.CryptoStatic;
+import com.swirlds.platform.test.fixtures.addressbook.RandomAddressBookBuilder;
 import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.CommittableWritableStates;
-import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.io.IOException;
-import java.io.PrintWriter;
-import java.io.StringWriter;
-import java.io.UncheckedIOException;
-import java.time.Instant;
-import java.time.InstantSource;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.function.Function;
 import org.apache.tuweni.bytes.Bytes32;
-import org.hiero.consensus.metrics.noop.NoOpMetrics;
+import org.hiero.consensus.crypto.SigningSchema;
+import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.model.roster.AddressBook;
 import org.hyperledger.besu.evm.EVM;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 import org.hyperledger.besu.evm.gascalculator.GasCalculator;
 import org.hyperledger.besu.evm.operation.AbstractOperation;
 import org.hyperledger.besu.evm.operation.Operation;
-import org.hyperledger.besu.evm.tracing.StandardJsonTracer;
 import org.junit.jupiter.api.Test;
+
+import com.hedera.hapi.node.transaction.TransactionBody;
+
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-/**
- * Tests the ability to execute transactions against a standalone state by,
- * <ol>
- *   <li>Constructing a {@link FakeState} that fully implements the {@link State} API, with {@link WritableStates}
- *   that are all {@link CommittableWritableStates}; and hence accumulate changes as multiple transactions are
- *   executed.</li>
- *   <li>Executing a {@link HederaFunctionality#FILE_CREATE} to upload some contract initcode.</li>
- *   <li>Executing a {@link HederaFunctionality#CONTRACT_CREATE} to create an instance of the contract.</li>
- *   <li>Executing a {@link HederaFunctionality#CONTRACT_CALL} to call a function on the contract, and capturing
- *   the output of a {@link StandardJsonTracer} that is passed in as an extra argument.</li>
- * </ol>
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.ByteBuffer;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.security.KeyPair;
+import java.security.KeyPairGenerator;
+import java.security.SecureRandom;
+import java.security.cert.CertificateEncodingException;
+import java.security.cert.X509Certificate;
+import java.time.InstantSource;
+import java.util.List;
+import java.util.Map;
+import java.util.Random;
+import java.util.Set;
+import java.util.Spliterators;
+import java.util.function.Function;
+import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
+
+import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
+import static com.hedera.node.app.hapi.utils.keys.KeyUtils.IMMUTABILITY_SENTINEL_KEY;
+import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema.NODES_STATE_ID;
+import static com.hedera.node.app.spi.AppContext.Gossip.UNAVAILABLE_GOSSIP;
+import static com.hedera.node.app.spi.fees.NoopFeeCharging.UNIVERSAL_NOOP_FEE_CHARGING;
+import static com.hedera.node.app.util.FileUtilities.createFileID;
+import static com.hedera.node.app.workflows.standalone.TransactionExecutors.TRANSACTION_EXECUTORS;
+import static java.util.Objects.requireNonNull;
+import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+
+/*
+
+Here's how calculating fees works.  Every service has a fee calculator class which implements the ServiceFeeCalculator interface.
+
+There is a SimpleFeeCalculator interface with one implementation.  It needs a loaded fee schedule and a list of calculators
+for each service you want to calculate with. From this interface you can call calculateTxFee(body,feeContext).
+This will return a FeeResult object in USD, which you can convert to hbar using the FeeUtils.feeResultToFees() method
+and the current exchange rate.
+
+
+
+Questions:
+
+Where is the best place to put this?
+
+How do we properly import the service impls? ConsensusServiceImpl seems to be exported already but
+others like CryptoServiceImpl are not. And some impls need a bunch of parameters to init. Instead
+let's have static lists of fee calculators on each service impl.
+
+How do I call this main method from within gradle?  For now I'll make it be a unit test.
+
+
+The FeeContext is going to be a challenge. Some calculators need the fee context, not just for the
+number of sigs but also for the readable store so they can get, for example, the topic a message
+is being submitted to so it can determine if there are custom fees applied.
+
+
  */
+
 @ExtendWith(MockitoExtension.class)
-public class TransactionExecutorsTest {
+public class SimpleFeesMirrorNodeTest {
+
+//    @Test
+//    public void doTest() throws IOException, ParseException {
+//        System.out.println("calculating a fee for a create topic transaction");
+//
+//        // load up the fee schedule from JSON file
+//        var input = SimpleFeesMirrorNodeTest.class.getClassLoader().getResourceAsStream("test-schedule.json");
+//        var bytes = input.readAllBytes();
+//        final FeeSchedule feeSchedule = FeeSchedule.JSON.parse(Bytes.wrap(bytes));
+//
+//        // check the schedule is valid
+//        if (!isValid(feeSchedule)) {
+//            throw new Error("invalid fee schedule");
+//        }
+//
+//
+//        // create a simple fee calculator
+////        SimpleFeeCalculator calc = new SimpleFeesCalculatorProvider().make(feeSchedule);
+//
+//        // build an example transaction
+////        final var op = ConsensusCreateTopicTransactionBody.newBuilder().build();
+////        final var txnBody = TransactionBody.newBuilder().consensusCreateTopic(op).build();
+////        final var txn = Transaction.newBuilder().body(txnBody).build();
+////        final var numSigs =  txn.sigMap().sigPair().size();
+//        final long topicEntityNum = 1L;
+//        final TopicID topicId =
+//                TopicID.newBuilder().topicNum(topicEntityNum).build();
+//
+//        final var op = ConsensusSubmitMessageTransactionBody.newBuilder()
+//                .topicID(topicId)
+//                .message(Bytes.wrap("foo"))
+//                .build();
+//        final var txnBody =
+//                TransactionBody.newBuilder().consensusSubmitMessage(op).build();
+//
+//
+//        System.out.println("making the executor");
+//        final var test = new TransactionExecutorsTest();
+//        final var overrides = Map.of("hedera.transaction.maxMemoUtf8Bytes", "101");
+//        // Construct a full implementation of the consensus node State API with all genesis accounts and files
+//        final var state = test.genesisState(overrides);
+////            final MerkleNodeState state = test.genesisState(overrides);
+//        System.out.println("made the genesis state");
+//
+//        // Get a standalone executor based on this state, with an override to allow slightly longer memos
+//        final var executor = TRANSACTION_EXECUTORS.newExecutor(
+//                TransactionExecutors.Properties.newBuilder()
+//                        .state(state)
+//                        .appProperties(overrides)
+//                        .build(),
+//                new AppEntityIdFactory(DEFAULT_CONFIG));
+//        System.out.println("out to execute " + txnBody);
+//        final var output = executor.execute(txnBody, Instant.EPOCH);
+//        System.out.println("got the output " + output);
+//    }
 
     private static final long GAS = 400_000L;
     private static final long EXPECTED_LUCKY_NUMBER = 42L;
@@ -170,104 +263,147 @@ public class TransactionExecutorsTest {
     @Mock
     private StoreMetricsServiceImpl storeMetricsService;
 
-    @Test
-    void executesTransactionsAsExpected() {
-        final var overrides = Map.of("hedera.transaction.maxMemoUtf8Bytes", "101", "fees.simpleFeesEnabled", "true");
-        // Construct a full implementation of the consensus node State API with all genesis accounts and files
+    @Test void basicStreaming() throws IOException {
+        final String record_path = "../../temp/2025-09-10T03_02_14.342128000Z.rcd";
+//        final String sidecar_path = "sidecar";
+//        byte[] bytes = Files.readAllBytes(Path.of(record_path));
+
+        try (final var fin = new FileInputStream(record_path)) {
+            final var recordFileVersion = ByteBuffer.wrap(fin.readNBytes(4)).getInt();
+            final var recordStreamFile = com.hedera.services.stream.proto.RecordStreamFile.parseFrom(fin);
+            System.out.println("File version is " + recordFileVersion);
+            System.out.println("stream file is " + recordStreamFile);
+//            recordStreamFile.getRecordStreamItemsList().stream().flatMap()
+            recordStreamFile.getRecordStreamItemsList().stream()
+//                    .flatMap(recordStreamItem -> recordStreamItem.getRecord())
+                    // pull out the record stream items
+//                    .flatMap(recordWithSidecars -> recordWithSidecars.recordFile().getRecordStreamItemsList().stream())
+                    .forEach(item -> {
+                        System.out.println("record " + item);
+                        process_record(item);
+                    });
+        }
+    }
+
+    private void process_record(RecordStreamItem item) {
+        System.out.println("record " + item);
+        System.out.println("OUT: memo = " + item.getRecord().getMemo());
+        System.out.println("OUT: transaction fee " + item.getRecord().getTransactionFee());
+        System.out.println("OUT: transaction " + item.getTransaction().getSignedTransactionBytes());
+        final var receipt = item.getRecord().getReceipt();
+        System.out.println("OUT: status " + receipt.getStatus());
+        System.out.println("OUT: exchange rate " + receipt.getExchangeRate());
+        try {
+            final var signedTxn = SignedTransaction.parseFrom(item.getTransaction().getSignedTransactionBytes());
+            System.out.println("the real transaction is" + signedTxn);
+            com.hederahashgraph.api.proto.java.TransactionBody transactionBody = com.hederahashgraph.api.proto.java.TransactionBody.parseFrom(signedTxn.getBodyBytes());
+            System.out.println("TXN:transaction body is " + transactionBody);
+            System.out.println("TXN: memo " + transactionBody.getMemo());
+            System.out.println("TXN: fee " + transactionBody.getTransactionFee());
+            System.out.println("TXN: id " + transactionBody.getTransactionID());
+            System.out.println("TXN: data case " + transactionBody.getDataCase());
+
+        } catch (InvalidProtocolBufferException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    @Test void streamingSimpleFees() throws IOException {
+        // set the overrides
+        final var overrides = Map.of("hedera.transaction.maxMemoUtf8Bytes", "101","fees.simpleFeesEnabled","true");
+        // bring up the full state
         final var state = genesisState(overrides);
+        // config props
+        final var properties =  TransactionExecutors.Properties.newBuilder()
+                .state(state)
+                .appProperties(overrides)
+                .build();
+        // make an entity id factory
+        final var entityIdFactory = new AppEntityIdFactory(DEFAULT_CONFIG);
+        // load a new executor component
+        final var executorComponent = TRANSACTION_EXECUTORS.newExecutorJoshBetter(properties, entityIdFactory);
+        // grab the fee calculator
+        final var calc = executorComponent.feeManager().getSimpleFeeCalculator();
+        System.out.println("got the calculator " +calc);
 
-        // Get a standalone executor based on this state, with an override to allow slightly longer memos
-        final var executor = TRANSACTION_EXECUTORS.newExecutor(
-                TransactionExecutors.Properties.newBuilder()
-                        .state(state)
-                        .appProperties(overrides)
-                        .build(),
-                new AppEntityIdFactory(DEFAULT_CONFIG));
+        final String records_dir = "../../temp/";
 
-        // Execute a FileCreate that uploads the initcode for the Multipurpose.sol contract
-        final var uploadOutput = executor.execute(uploadMultipurposeInitcode(), Instant.EPOCH);
-        final var uploadReceipt = uploadOutput.getFirst().transactionRecord().receiptOrThrow();
-        assertThat(uploadReceipt.fileIDOrThrow()).isEqualTo(EXPECTED_INITCODE_ID);
 
-        // Execute a ContractCreate that creates a Multipurpose contract instance
-        final var creationOutput = executor.execute(createContract(), Instant.EPOCH);
-        final var creationReceipt =
-                creationOutput.getFirst().transactionRecord().receiptOrThrow();
-        assertThat(creationReceipt.contractIDOrThrow()).isEqualTo(EXPECTED_CONTRACT_ID);
+        try (Stream<Path> paths = Files.list(Path.of(records_dir))) {
+            paths
+                    .filter(Files::isRegularFile)
+                    .forEach(file -> {
+                        System.out.println("reading file " + file);
+                        if(!file.toString().endsWith("rcd")) {
+                            System.out.println("skipping");
+                            return;
+                        }
+                        try (final var fin = new FileInputStream(file.toFile())) {
+                            final var recordFileVersion = ByteBuffer.wrap(fin.readNBytes(4)).getInt();
+                            System.out.println("read version " + recordFileVersion);
+                            final var recordStreamFile = com.hedera.services.stream.proto.RecordStreamFile.parseFrom(fin);
+                            recordStreamFile.getRecordStreamItemsList().stream()
+                                    .forEach(item -> {
+                                        try {
+                                            TransactionBody body = parseTransactionBody(item);
+                                            System.out.println("TXN: memo " + body.memo());
+                                            System.out.println("TXN: fee " + body.transactionFee());
+                                            System.out.println("TXN: id " + body.transactionID());
+                                            System.out.println("TXN: data case " + body.data().kind());
+                                            System.out.println("calculating simple fees for transaction " + body);
+                                            final FeeContext feeContext = null;
+                                            final var result = calc.calculateTxFee(body,feeContext);
+                                            System.out.println("result is " + result);
+                                            System.out.println("original is : " + body.transactionFee());
+                                            System.out.println("simple   is : " + result.total());
+                                        } catch (Exception e) {
+                                            System.out.println("exception " + e);
+                                        }
+                                    });
+                        } catch (FileNotFoundException e) {
+                            throw new RuntimeException(e);
+                        } catch (IOException e) {
+                            throw new RuntimeException(e);
+                        }
+                    });
+        }
+    }
 
-        // Now execute a ContractCall against the contract, with an extra StandardJsonTracer whose output we
-        // capture in a StringWriter for later inspection
-        final var stringWriter = new StringWriter();
-        final var printWriter = new PrintWriter(stringWriter);
-        final var addOnTracer = new StandardJsonTracer(printWriter, false, false, false, false);
-        final var callOutput = executor.execute(contractCallMultipurposePickFunction(), Instant.EPOCH, addOnTracer);
-        final var callRecord = callOutput.getFirst().transactionRecord();
-        final var callResult = callRecord.contractCallResultOrThrow().contractCallResult();
-        final long luckyNumber =
-                PICK_FUNCTION.getOutputs().decode(callResult.toByteArray()).get(0);
-        assertThat(luckyNumber).isEqualTo(EXPECTED_LUCKY_NUMBER);
-        printWriter.flush();
-        assertThat(stringWriter.toString()).startsWith(EXPECTED_TRACE_START);
+    private TransactionBody parseTransactionBody(RecordStreamItem item) throws InvalidProtocolBufferException, ParseException {
+        final var signedTxn = SignedTransaction.parseFrom(item.getTransaction().getSignedTransactionBytes());
+        final var body =  TransactionBody.PROTOBUF.parse(Bytes.wrap(signedTxn.getBodyBytes().toByteArray()));
+        return body;
     }
 
     @Test
-    void usesOverrideBlockhashOpAsExpected() {
-        final var state = genesisState(Map.of());
-        final var writableStates = state.getWritableStates(BlockRecordService.NAME);
-        final var blockInfoSingleton = writableStates.<BlockInfo>getSingleton(BLOCKS_STATE_ID);
-        blockInfoSingleton.put(requireNonNull(blockInfoSingleton.get())
-                .copyBuilder()
-                .lastBlockNumber(666L)
-                .build());
-        ((CommittableWritableStates) writableStates).commit();
-
-        // Use a custom operation that overrides the BLOCKHASH operation
-        final var customOp = new CustomBlockhashOperation();
-        final var executor = TRANSACTION_EXECUTORS.newExecutor(
-                TransactionExecutors.Properties.newBuilder()
-                        .state(state)
-                        .addCustomOp(customOp)
-                        .appProperty("hedera.transaction.maxMemoUtf8Bytes", "101")
-                        .build(),
-                new AppEntityIdFactory(DEFAULT_CONFIG));
-
-        final var uploadOutput = executor.execute(uploadEmitBlockTimestampInitcode(), Instant.EPOCH);
-        final var uploadReceipt = uploadOutput.getFirst().transactionRecord().receiptOrThrow();
-        assertThat(uploadReceipt.fileIDOrThrow()).isEqualTo(EXPECTED_INITCODE_ID);
-
-        final var creationOutput = executor.execute(createContract(), Instant.EPOCH);
-        final var creationReceipt =
-                creationOutput.getFirst().transactionRecord().receiptOrThrow();
-        assertThat(creationReceipt.contractIDOrThrow()).isEqualTo(EXPECTED_CONTRACT_ID);
-
-        final var callOutput = executor.execute(contractCallGetLastBlockHashFunction(), Instant.EPOCH);
-        final var callRecord = callOutput.getFirst().transactionRecord();
-        final var callResult = callRecord.contractCallResultOrThrow().contractCallResult();
-        final byte[] blockHash = GET_LAST_BLOCKHASH_FUNCTION
-                .getOutputs()
-                .decode(callResult.toByteArray())
-                .get(0);
-        assertThat(Bytes32.wrap(blockHash)).isEqualTo(CustomBlockhashOperation.FAKE_BLOCK_HASH);
-    }
-
-    @Test
-    void respectsOverrideMaxSignedTxnSize() {
-        final var overrides = Map.of(MAX_SIGNED_TXN_SIZE_PROPERTY, "42");
-        // Construct a full implementation of the consensus node State API with all genesis accounts and files
+    void doIt() {
+        // set the overrides
+        final var overrides = Map.of("hedera.transaction.maxMemoUtf8Bytes", "101","fees.simpleFeesEnabled","true");
+        // bring up the full state
         final var state = genesisState(overrides);
-
-        // Get a standalone executor based on this state, with an override to allow slightly longer memos
-        final var executor = TRANSACTION_EXECUTORS.newExecutor(
-                TransactionExecutors.Properties.newBuilder()
-                        .state(state)
-                        .appProperties(overrides)
-                        .build(),
-                new AppEntityIdFactory(DEFAULT_CONFIG));
-
-        // With just 42 bytes allowed for signed transactions, the executor will not be able to construct
-        // a dispatch for the transaction and throw an exception
-        assertThrows(NullPointerException.class, () -> executor.execute(uploadMultipurposeInitcode(), Instant.EPOCH));
+        // config props
+        final var properties =  TransactionExecutors.Properties.newBuilder()
+                .state(state)
+                .appProperties(overrides)
+                .build();
+        // make an entity id factory
+        final var entityIdFactory = new AppEntityIdFactory(DEFAULT_CONFIG);
+        // load a new executor component
+        final var executorComponent = TRANSACTION_EXECUTORS.newExecutorJoshBetter(properties, entityIdFactory);
+        // grab the fee calculator
+        final var calc = executorComponent.feeManager().getSimpleFeeCalculator();
+        System.out.println("got the calculator " +calc);
+        final var body = TransactionBody.newBuilder()
+                .tokenCreation(TokenCreateTransactionBody.newBuilder()
+                        .tokenType(TokenType.FUNGIBLE_COMMON)
+                        .build())
+                .build();
+        final FeeContext feeContext = null;
+        final var result = calc.calculateTxFee(body,feeContext);
+        System.out.println("result is " + result);
+        assertThat(result.service).isEqualTo(9999000000L);
     }
+
 
     @Test
     void propertiesBuilderRequiresNonNullState() {
@@ -413,6 +549,7 @@ public class TransactionExecutorsTest {
         entityIdStore.adjustEntityCount(EntityType.NODE, 1);
         final var nodeStore = new ReadableNodeStoreImpl(readableStates, entityIdStore);
         final var files = writableStates.<FileID, File>get(V0490FileSchema.FILES_STATE_ID);
+        System.out.println("setting up te genesis content providers " + genesisContentProviders(nodeStore, config));
         genesisContentProviders(nodeStore, config).forEach((fileNum, provider) -> {
             final var fileId = createFileID(fileNum, config);
             files.put(
@@ -443,7 +580,7 @@ public class TransactionExecutorsTest {
                                     (long) i == accountsConfig.treasury() ? ledgerConfig.totalTinyBarFloat() : 0L)
                             .build());
         }
-        for (final long num : List.of(800L, 801L, 802L)) {
+        for (final long num : List.of(800L, 801L)) {
             final var accountId = AccountID.newBuilder().accountNum(num).build();
             accounts.put(
                     accountId,
@@ -495,14 +632,112 @@ public class TransactionExecutorsTest {
                 .forEach(servicesRegistry::register);
     }
 
+    private static NetworkInfo fakeNetworkInfo() {
+        final AccountID someAccount = idFactory.newAccountId(12345);
+        final var addressBook = new AddressBook(StreamSupport.stream(
+                        Spliterators.spliteratorUnknownSize(
+                                RandomAddressBookBuilder.create(new Random())
+                                        .withSize(1)
+                                        .withRealKeysEnabled(true)
+                                        .build()
+                                        .iterator(),
+                                0),
+                        false)
+                .map(address ->
+                        address.copySetMemo("0.0." + (address.getNodeId().id() + 3)))
+                .toList());
+        return new NetworkInfo() {
+            @NonNull
+            @Override
+            public Bytes ledgerId() {
+                throw new UnsupportedOperationException("Not implemented");
+            }
+
+            @NonNull
+            @Override
+            public NodeInfo selfNodeInfo() {
+                return new NodeInfoImpl(
+                        0,
+                        someAccount,
+                        0,
+                        List.of(ServiceEndpoint.DEFAULT, ServiceEndpoint.DEFAULT),
+                        getCertBytes(randomX509Certificate()),
+                        List.of(ServiceEndpoint.DEFAULT, ServiceEndpoint.DEFAULT),
+                        true,
+                        null);
+            }
+
+            @NonNull
+            @Override
+            public List<NodeInfo> addressBook() {
+                return List.of(new NodeInfoImpl(
+                        0,
+                        someAccount,
+                        0,
+                        List.of(ServiceEndpoint.DEFAULT, ServiceEndpoint.DEFAULT),
+                        getCertBytes(randomX509Certificate()),
+                        List.of(ServiceEndpoint.DEFAULT, ServiceEndpoint.DEFAULT),
+                        false,
+                        null));
+            }
+
+            @Override
+            public NodeInfo nodeInfo(final long nodeId) {
+                return new NodeInfoImpl(
+                        0,
+                        someAccount,
+                        0,
+                        List.of(ServiceEndpoint.DEFAULT, ServiceEndpoint.DEFAULT),
+                        Bytes.EMPTY,
+                        List.of(ServiceEndpoint.DEFAULT, ServiceEndpoint.DEFAULT),
+                        false,
+                        null);
+            }
+
+            @Override
+            public boolean containsNode(final long nodeId) {
+                return addressBook.contains(NodeId.of(nodeId));
+            }
+
+            @Override
+            public void updateFrom(final State state) {
+                throw new UnsupportedOperationException("Not implemented");
+            }
+        };
+    }
+
     private Bytes resourceAsBytes(@NonNull final String loc) {
         try {
-            try (final var in = TransactionExecutorsTest.class.getClassLoader().getResourceAsStream(loc)) {
+            try (final var in = com.hedera.node.app.workflows.standalone.TransactionExecutorsTest.class.getClassLoader().getResourceAsStream(loc)) {
                 final var bytes = requireNonNull(in).readAllBytes();
                 return Bytes.wrap(bytes);
             }
         } catch (IOException e) {
             throw new UncheckedIOException(e);
+        }
+    }
+
+    public static X509Certificate randomX509Certificate() {
+        try {
+            final SecureRandom secureRandom = SecureRandom.getInstance("SHA1PRNG", "SUN");
+
+            final KeyPairGenerator rsaKeyGen = KeyPairGenerator.getInstance("RSA");
+            rsaKeyGen.initialize(3072, secureRandom);
+            final KeyPair rsaKeyPair1 = rsaKeyGen.generateKeyPair();
+
+            final String name = "CN=Bob";
+            return CryptoStatic.generateCertificate(
+                    name, rsaKeyPair1, name, rsaKeyPair1, secureRandom, SigningSchema.RSA.getSigningAlgorithm());
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public static Bytes getCertBytes(X509Certificate certificate) {
+        try {
+            return Bytes.wrap(certificate.getEncoded());
+        } catch (CertificateEncodingException e) {
+            throw new RuntimeException(e);
         }
     }
 
@@ -523,3 +758,4 @@ public class TransactionExecutorsTest {
         }
     }
 }
+
