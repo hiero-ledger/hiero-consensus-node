@@ -125,9 +125,10 @@ public final class RosterRetriever {
             // There's code, especially in tests, that creates AddressBooks w/o any certificates/keys
             // (because it would be time-consuming, and these tests don't use the keys anyway.)
             // So we need to be able to handle this situation here:
-            final Bytes cert = address.keysAndCerts() == null || address.keysAndCerts().sigCert() == null
-                    ? Bytes.EMPTY
-                    : Bytes.wrap(address.keysAndCerts().sigCert().getEncoded());
+            final Bytes cert =
+                    address.keysAndCerts() == null || address.keysAndCerts().sigCert() == null
+                            ? Bytes.EMPTY
+                            : Bytes.wrap(address.keysAndCerts().sigCert().getEncoded());
 
             return RosterEntry.newBuilder()
                     .nodeId(address.nodeId())
@@ -138,7 +139,6 @@ public final class RosterRetriever {
         } catch (CertificateEncodingException e) {
             throw new InvalidAddressBookException(e);
         }
-
     }
 
     /**

@@ -5,7 +5,8 @@ import com.hedera.hapi.node.base.ServiceEndpoint;
 import java.util.List;
 import org.hiero.consensus.model.node.KeysAndCerts;
 
-public record SimpleAddress(long nodeId, long weight, List<ServiceEndpoint> serviceEndpoints, String memo, KeysAndCerts keysAndCerts) {
+public record SimpleAddress(
+        long nodeId, long weight, List<ServiceEndpoint> serviceEndpoints, String memo, KeysAndCerts keysAndCerts) {
     public SimpleAddress(long nodeId, long weight) {
         this(nodeId, weight, List.of(), "", null);
     }

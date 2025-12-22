@@ -44,8 +44,7 @@ public class CoinRoundTest extends PlatformTest {
         final PcesFileTracker pcesFileTracker =
                 PcesFileReader.readFilesFromDisk(context.getConfiguration(), context.getRecycleBin(), dir, 0, false);
 
-        final TestIntake intake =
-                new TestIntake(context, Roster.newBuilder().build());
+        final TestIntake intake = new TestIntake(context, Roster.newBuilder().build());
 
         final PcesMultiFileIterator eventIterator = pcesFileTracker.getEventIterator(0, 0);
         while (eventIterator.hasNext()) {

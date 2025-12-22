@@ -327,7 +327,8 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
                             nextPrometheusPort + nodeId);
         });
         final var weights = maybeLatestCandidateWeights();
-        network = AddressBookUtils.generateNetworkConfig(networkName, nodes, nextInternalGossipPort, nextExternalGossipPort, weights);
+        network = AddressBookUtils.generateNetworkConfig(
+                networkName, nodes, nextInternalGossipPort, nextExternalGossipPort, weights);
         refreshOverrideNetworks(ReassignPorts.YES);
     }
 

@@ -72,5 +72,4 @@ final class ServicesMainTest {
         given(hedera.newStateRoot()).willReturn(state);
         assertSame(state, subject.newStateRoot());
     }
-
 }

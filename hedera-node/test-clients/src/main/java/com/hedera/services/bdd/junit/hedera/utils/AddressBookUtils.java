@@ -79,16 +79,15 @@ public class AddressBookUtils {
                     .gossipEndpoint(List.of(
                             com.hedera.hapi.node.base.ServiceEndpoint.newBuilder()
                                     .ipAddressV4(localhost)
-                                    .port(nextInternalGossipPort + ((int)node.getNodeId() * 2))
+                                    .port(nextInternalGossipPort + ((int) node.getNodeId() * 2))
                                     .build(),
                             com.hedera.hapi.node.base.ServiceEndpoint.newBuilder()
                                     .ipAddressV4(localhost)
-                                    .port(nextExternalGossipPort + ((int)node.getNodeId() * 2))
-                                    .build()
-                    ))
+                                    .port(nextExternalGossipPort + ((int) node.getNodeId() * 2))
+                                    .build()))
                     .build();
             metadata.add(com.hedera.node.internal.network.NodeMetadata.newBuilder()
-                            .rosterEntry(rosterEntry)
+                    .rosterEntry(rosterEntry)
                     .build());
         }
         return Network.newBuilder().ledgerId(Bytes.EMPTY).nodeMetadata(metadata).build();

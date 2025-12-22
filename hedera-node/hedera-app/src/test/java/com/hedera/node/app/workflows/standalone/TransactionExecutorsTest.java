@@ -105,7 +105,6 @@ import java.util.Set;
 import java.util.function.Function;
 import org.apache.tuweni.bytes.Bytes32;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
-import org.hiero.consensus.crypto.SigningSchema;
 import org.hyperledger.besu.evm.EVM;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 import org.hyperledger.besu.evm.gascalculator.GasCalculator;

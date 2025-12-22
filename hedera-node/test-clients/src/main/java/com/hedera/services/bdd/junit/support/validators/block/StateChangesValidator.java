@@ -289,8 +289,7 @@ public class StateChangesValidator implements BlockStreamValidator {
         final boolean isHintsEnabled = spec.startupProperties().getBoolean("tss.hintsEnabled");
         final boolean isHistoryEnabled = spec.startupProperties().getBoolean("tss.historyEnabled");
         final int crsSize = spec.startupProperties().getInteger("tss.initialCrsParties");
-        final boolean stateProofsEnabled =
-                spec.startupProperties().getBoolean("block.stateproof.verification.enabled");
+        final boolean stateProofsEnabled = spec.startupProperties().getBoolean("block.stateproof.verification.enabled");
         return new StateChangesValidator(
                 rootHash,
                 node0.getExternalPath(SWIRLDS_LOG),
@@ -305,7 +304,6 @@ public class StateChangesValidator implements BlockStreamValidator {
                 stateProofsEnabled ? StateProofsEnabled.YES : StateProofsEnabled.NO,
                 spec.shard(),
                 spec.realm());
-
     }
 
     public StateChangesValidator(

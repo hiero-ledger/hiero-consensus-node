@@ -43,8 +43,9 @@ public record SimpleAddresses(List<SimpleAddress> addresses) {
         builder.rosterEntries(addresses().stream()
                 .map(a -> {
                     try {
-                        final Bytes cert =
-                                a.keysAndCerts() != null ? Bytes.wrap(a.keysAndCerts().agrCert().getEncoded()) : Bytes.EMPTY;
+                        final Bytes cert = a.keysAndCerts() != null
+                                ? Bytes.wrap(a.keysAndCerts().agrCert().getEncoded())
+                                : Bytes.EMPTY;
                         return RosterEntry.newBuilder()
                                 .nodeId(a.nodeId())
                                 .weight(a.weight())
