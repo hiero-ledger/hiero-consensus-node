@@ -286,8 +286,6 @@ public class StateChangesValidator implements BlockStreamValidator {
         }
         try {
             final var node0 = subProcessNetwork.getRequiredNode(byNodeId(0));
-            final var genesisConfigTxt = node0.metadata().workingDirOrThrow().resolve("genesis-config.txt");
-            Files.writeString(genesisConfigTxt, subProcessNetwork.genesisConfigTxt());
             final boolean isHintsEnabled = spec.startupProperties().getBoolean("tss.hintsEnabled");
             final boolean isHistoryEnabled = spec.startupProperties().getBoolean("tss.historyEnabled");
             final int crsSize = spec.startupProperties().getInteger("tss.initialCrsParties");

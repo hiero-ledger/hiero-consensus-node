@@ -71,7 +71,7 @@ public interface HederaNode {
      * @return this
      */
     @NonNull
-    HederaNode initWorkingDir(@NonNull String configTxt);
+    HederaNode initWorkingDir(@NonNull Network network);
 
     /**
      * Starts the node software.

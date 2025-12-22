@@ -1,19 +1,24 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.junit.hedera.utils;
 
+import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromByteString;
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.workingDirFor;
+import static com.hedera.services.bdd.suites.utils.sysfiles.BookEntryPojo.asOctets;
 import static java.util.Objects.requireNonNull;
 
 import com.google.protobuf.ByteString;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
+import com.hedera.node.internal.network.Network;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.hedera.HederaNode;
 import com.hedera.services.bdd.junit.hedera.NodeMetadata;
 import com.hederahashgraph.api.proto.java.ServiceEndpoint;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.regex.Pattern;
@@ -40,12 +45,12 @@ public class AddressBookUtils {
      * @param nextExternalGossipPort the next gossip TLS port to use
      * @return the contents of the <i>config.txt</i> file
      */
-    public static String configTxtForLocal(
+    public static Network generateNetworkConfig(
             @NonNull final String networkName,
             @NonNull final List<HederaNode> nodes,
             final int nextInternalGossipPort,
             final int nextExternalGossipPort) {
-        return configTxtForLocal(networkName, nodes, nextInternalGossipPort, nextExternalGossipPort, Map.of());
+        return generateNetworkConfig(networkName, nodes, nextInternalGossipPort, nextExternalGossipPort, Map.of());
     }
 
     /**
@@ -58,48 +63,40 @@ public class AddressBookUtils {
      * @param overrideWeights the map of node IDs to their weights
      * @return the contents of the <i>config.txt</i> file
      */
-    public static String configTxtForLocal(
+    public static Network generateNetworkConfig(
             @NonNull final String networkName,
             @NonNull final List<HederaNode> nodes,
             final int nextInternalGossipPort,
             final int nextExternalGossipPort,
             @NonNull final Map<Long, Long> overrideWeights) {
-        final var sb = new StringBuilder();
-        sb.append("swirld, ")
-                .append(networkName)
-                .append("\n")
-                .append("\n# This next line is, hopefully, ignored.\n")
-                .append("app, HederaNode.jar\n\n#The following nodes make up this network\n");
-        var maxNodeId = 0L;
+        final List<com.hedera.node.internal.network.NodeMetadata> metadata = new ArrayList<>();
+
         for (final var node : nodes) {
-            final var accountId = node.getAccountId();
-            final var fqAccId =
-                    String.format("%d.%d.%d", accountId.shardNum(), accountId.realmNum(), accountId.accountNum());
-            sb.append("address, ")
-                    .append(node.getNodeId())
-                    .append(", ")
-                    // For now only use the node id as its nickname
-                    .append(node.getNodeId())
-                    .append(", ")
-                    .append(node.getName())
-                    .append(", ")
-                    .append(overrideWeights.getOrDefault(node.getNodeId(), 1L))
-                    .append(", 127.0.0.1, ")
-                    .append(nextInternalGossipPort + (node.getNodeId() * 2))
-                    .append(", 127.0.0.1, ")
-                    .append(nextExternalGossipPort + (node.getNodeId() * 2))
-                    .append(", ")
-                    .append(fqAccId)
-                    .append('\n');
-            maxNodeId = Math.max(node.getNodeId(), maxNodeId);
+            final Bytes localhost = fromByteString(asOctets("localhost"));
+            final var rosterEntry = RosterEntry.newBuilder()
+                    .nodeId(node.getNodeId())
+                    .weight(overrideWeights.getOrDefault(node.getNodeId(), 1L))
+                    .gossipEndpoint(List.of(
+                            com.hedera.hapi.node.base.ServiceEndpoint.newBuilder()
+                                    .ipAddressV4(localhost)
+                                    .port(nextInternalGossipPort + ((int)node.getNodeId() * 2))
+                                    .build(),
+                            com.hedera.hapi.node.base.ServiceEndpoint.newBuilder()
+                                    .ipAddressV4(localhost)
+                                    .port(nextExternalGossipPort + ((int)node.getNodeId() * 2))
+                                    .build()
+                    ))
+                    .build();
+            metadata.add(com.hedera.node.internal.network.NodeMetadata.newBuilder()
+                            .rosterEntry(rosterEntry)
+                    .build());
         }
-        sb.append('\n');
-        return sb.toString();
+        return Network.newBuilder().ledgerId(Bytes.EMPTY).nodeMetadata(metadata).build();
     }
 
     /**
      * Returns the "classic" metadata for a node in the network, matching the names
-     * used by {@link #configTxtForLocal(String, List, int, int)} to generate the
+     * used by {@link #generateNetworkConfig(String, List, int, int)} to generate the
      * <i>config.txt</i> file. The working directory is inferred from the node id
      * and the network scope.
      *
@@ -145,7 +142,7 @@ public class AddressBookUtils {
 
     /**
      * Returns the "classic" metadata for a node in the network, matching the names
-     * used by {@link #configTxtForLocal(String, List, int, int)} to generate the
+     * used by {@link #generateNetworkConfig(String, List, int, int)} to generate the
      * <i>config.txt</i> file.
      *
      * @param nodeId the ID of the node

@@ -54,7 +54,6 @@ public class PlatformConfigurationExtension implements ConfigurationExtension {
 
         // Load Configuration Definitions
         return Set.of(
-                AddressBookConfig.class,
                 BasicCommonConfig.class,
                 BasicConfig.class,
                 ConsensusConfig.class,

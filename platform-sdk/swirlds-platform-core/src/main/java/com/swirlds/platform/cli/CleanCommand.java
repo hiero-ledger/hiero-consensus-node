@@ -11,7 +11,6 @@ import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.io.utility.FileUtils;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
-import com.swirlds.platform.config.AddressBookConfig;
 import com.swirlds.platform.config.DefaultConfiguration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
@@ -67,9 +66,6 @@ public final class CleanCommand extends AbstractCommand {
         FileUtils.deleteFiles(sdkPath, "metricsDoc.tsv");
         // settings used
         FileUtils.deleteFiles(sdkPath, "settingsUsed.txt");
-        // address books
-        FileUtils.deleteDirectory(sdkPath.resolve(
-                configuration.getConfigData(AddressBookConfig.class).addressBookDirectory()));
         // saved states, PCES & recycle bin
         // (the latter two are saved in the saved state directory, so deleting the saved state directory will delete
         // them)

@@ -111,12 +111,13 @@ public class WorkingDirUtils {
      * with the given <i>config.txt</i> file.
      *
      * @param workingDir the path to the working directory
-     * @param configTxt the contents of the <i>config.txt</i> file
+     * @param network genesis network
+     * @param nodeId own nodeId
      */
     public static void recreateWorkingDir(
-            @NonNull final Path workingDir, @NonNull final String configTxt, final long nodeId) {
+            @NonNull final Path workingDir, @NonNull final Network network, final long nodeId) {
         requireNonNull(workingDir);
-        requireNonNull(configTxt);
+        requireNonNull(network);
 
         // Clean up any existing directory structure
         rm(workingDir);
@@ -126,9 +127,7 @@ public class WorkingDirUtils {
         // Initialize the current upgrade folder
         createDirectoriesUnchecked(
                 workingDir.resolve(DATA_DIR).resolve(UPGRADE_DIR).resolve(CURRENT_DIR));
-        // Write the address book (config.txt) and genesis network (genesis-network.json) files
-        writeStringUnchecked(workingDir.resolve(CONFIG_TXT), configTxt);
-        final var network = networkFrom(configTxt, OnlyRoster.NO);
+        // Write genesis network (genesis-network.json) files
         writeStringUnchecked(
                 workingDir.resolve(DATA_DIR).resolve(CONFIG_FOLDER).resolve(GENESIS_NETWORK_JSON),
                 Network.JSON.toJSON(network));
