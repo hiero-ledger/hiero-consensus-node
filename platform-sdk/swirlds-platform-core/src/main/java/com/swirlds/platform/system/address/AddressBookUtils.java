@@ -31,7 +31,6 @@ public class AddressBookUtils {
 
     private AddressBookUtils() {}
 
-
     /**
      * Given a host or ip and port, creates a {@link ServiceEndpoint} object with either an IP address or domain name
      * depending on the given hostOrIp.

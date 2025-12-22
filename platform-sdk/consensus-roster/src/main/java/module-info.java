@@ -9,4 +9,5 @@ module org.hiero.consensus.roster {
     requires transitive org.hiero.consensus.model;
     requires com.swirlds.base;
     requires static transitive com.github.spotbugs.annotations;
+    requires com.hedera.node.app.spi;
 }

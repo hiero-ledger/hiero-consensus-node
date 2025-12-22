@@ -1,12 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.roster;
 
-import static org.hiero.consensus.roster.RosterRetriever.buildRoster;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.state.roster.Roster;
@@ -23,8 +20,6 @@ import java.util.List;
 import java.util.Random;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.utility.test.fixtures.RandomUtils;
-import org.hiero.consensus.model.roster.SimpleAddress;
-import org.hiero.consensus.model.roster.SimpleAddresses;
 import org.hiero.consensus.test.fixtures.crypto.PreGeneratedX509Certs;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
@@ -230,67 +225,6 @@ public class RosterUtilsTest {
                 .gossipCaCertificate(
                         Bytes.wrap(PreGeneratedX509Certs.createBadCertificate().getEncoded()))
                 .build()));
-    }
-
-    @Test
-    void testCreateRosterFromNonEmptyAddressBook() {
-        final SimpleAddresses addressBook =
-                new SimpleAddresses(List.of(new SimpleAddress(1L, 10), new SimpleAddress(2L, 20)));
-        final Roster roster = buildRoster(addressBook);
-
-        assertNotNull(roster);
-        assertEquals(2, roster.rosterEntries().size());
-        assertEquals(1L, roster.rosterEntries().getFirst().nodeId());
-        assertEquals(2L, roster.rosterEntries().getLast().nodeId());
-    }
-
-    @Test
-    void testCreateRosterFromNullAddressBook() {
-        assertNull(buildRoster(null), "A null address book should produce a null roster.");
-    }
-
-    @Test
-    void testCreateRosterFromEmptyAddressBook() {
-        final Roster roster = buildRoster(new SimpleAddresses(List.of()));
-
-        assertNotNull(roster);
-        assertTrue(roster.rosterEntries().isEmpty());
-    }
-
-    @Test
-    void testToRosterEntryWithExternalHostname() {
-        final SimpleAddresses addressBook = new SimpleAddresses(List.of(new SimpleAddress(
-                1L,
-                10L,
-                List.of(ServiceEndpoint.newBuilder()
-                        .domainName("hostnameExternal")
-                        .build()),
-                "",
-                null)));
-        final Roster roster = buildRoster(addressBook);
-
-        assertEquals(1, roster.rosterEntries().size());
-        assertEquals(
-                "hostnameExternal",
-                roster.rosterEntries().getFirst().gossipEndpoint().getFirst().domainName());
-    }
-
-    @Test
-    void testToRosterEntryWithInternalHostname() {
-        final SimpleAddresses addressBook = new SimpleAddresses(List.of(new SimpleAddress(
-                1L,
-                10L,
-                List.of(ServiceEndpoint.newBuilder()
-                        .domainName("hostnameInternal")
-                        .build()),
-                "",
-                null)));
-        final Roster roster = buildRoster(addressBook);
-
-        assertEquals(1, roster.rosterEntries().size());
-        assertEquals(
-                "hostnameInternal",
-                roster.rosterEntries().getFirst().gossipEndpoint().getFirst().domainName());
     }
 
     @Test

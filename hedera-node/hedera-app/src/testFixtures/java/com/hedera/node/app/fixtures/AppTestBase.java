@@ -14,7 +14,6 @@ import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.AL
 import static com.hedera.node.app.spi.fixtures.TestSchema.CURRENT_VERSION;
 import static com.swirlds.platform.system.address.AddressBookUtils.endpointFor;
 import static java.util.Objects.requireNonNull;
-import static org.hiero.consensus.roster.RosterRetriever.buildRoster;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.SemanticVersion;
@@ -22,6 +21,8 @@ import com.hedera.hapi.node.state.addressbook.Node;
 import com.hedera.hapi.node.state.common.EntityNumber;
 import com.hedera.hapi.node.state.entity.EntityCounts;
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
+import com.hedera.hapi.node.state.roster.Roster;
+import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.node.state.token.Account;
 import com.hedera.node.app.fixtures.state.FakePlatform;
 import com.hedera.node.app.fixtures.state.FakeSchemaRegistry;
@@ -62,6 +63,7 @@ import com.swirlds.state.test.fixtures.TestBase;
 import com.swirlds.state.test.fixtures.merkle.VirtualMapUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -76,8 +78,6 @@ import org.hiero.consensus.metrics.platform.DefaultPlatformMetrics;
 import org.hiero.consensus.metrics.platform.MetricKeyRegistry;
 import org.hiero.consensus.metrics.platform.PlatformMetricsFactoryImpl;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.model.roster.SimpleAddress;
-import org.hiero.consensus.model.roster.SimpleAddresses;
 import org.junit.jupiter.api.AfterEach;
 
 /**
@@ -380,13 +380,17 @@ public class AppTestBase extends TestBase implements TransactionFactory, Scenari
             final var workingStateAccessor = new WorkingStateAccessor();
 
             final ConfigProvider configProvider = () -> new VersionedConfigImpl(configBuilder.getOrCreateConfig(), 1);
-            final var addresses = nodes.stream()
-                    .map(nodeInfo -> new SimpleAddress(nodeInfo.nodeId(), nodeInfo.weight()))
-                    .toList();
-            final var addressBook = new SimpleAddresses(addresses);
-            final var platform = new FakePlatform(realSelfNodeInfo.nodeId(), addressBook);
+            final var genesisRoster = Roster.newBuilder()
+                    .rosterEntries(nodes.stream()
+                            .map(ni-> RosterEntry.newBuilder()
+                                    .nodeId(ni.nodeId())
+                                    .weight(ni.weight())
+                                    .build())
+                            .sorted(Comparator.comparing(RosterEntry::nodeId))
+                            .toList())
+                    .build();
+            final var platform = new FakePlatform(realSelfNodeInfo.nodeId(), genesisRoster);
             final var initialState = new FakeState();
-            final var genesisRoster = buildRoster(addressBook);
             final var genesisNetwork = Network.newBuilder()
                     .nodeMetadata(genesisRoster.rosterEntries().stream()
                             .map(entry ->

@@ -6,6 +6,7 @@ import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.getMet
 import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 
 import com.hedera.hapi.node.state.roster.Roster;
+import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
@@ -18,7 +19,6 @@ import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.system.Platform;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.util.List;
 import java.util.Random;
 import org.hiero.base.crypto.Signature;
 import org.hiero.consensus.metrics.config.MetricsConfig;
@@ -27,9 +27,6 @@ import org.hiero.consensus.metrics.platform.MetricKeyRegistry;
 import org.hiero.consensus.metrics.platform.PlatformMetricsFactoryImpl;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
-import org.hiero.consensus.model.roster.SimpleAddress;
-import org.hiero.consensus.model.roster.SimpleAddresses;
-import org.hiero.consensus.roster.RosterRetriever;
 
 /**
  * A fake implementation of the {@link Platform} interface.
@@ -46,9 +43,12 @@ public final class FakePlatform implements Platform {
      */
     public FakePlatform() {
         this.selfNodeId = NodeId.of(0L);
-        final var address = new SimpleAddress(selfNodeId.id(), 500L);
-
-        this.roster = RosterRetriever.buildRoster(new SimpleAddresses(List.of(address)));
+        this.roster = Roster.newBuilder().rosterEntries(
+                RosterEntry.newBuilder()
+                        .nodeId(selfNodeId.id())
+                        .weight(500L)
+                        .build()
+        ).build();
 
         this.context = createPlatformContext();
         this.notificationEngine = NotificationEngine.buildEngine(getStaticThreadManager());
@@ -57,11 +57,11 @@ public final class FakePlatform implements Platform {
     /**
      * Constructor for an app test that uses multiple nodes in the network
      * @param nodeId the node id
-     * @param addresses the address book
+     * @param roster the roster
      */
-    public FakePlatform(final long nodeId, final SimpleAddresses addresses) {
+    public FakePlatform(final long nodeId, final Roster roster) {
         this.selfNodeId = NodeId.of(nodeId);
-        this.roster = RosterRetriever.buildRoster(addresses);
+        this.roster = roster;
         this.context = createPlatformContext();
         this.notificationEngine = NotificationEngine.buildEngine(getStaticThreadManager());
     }
