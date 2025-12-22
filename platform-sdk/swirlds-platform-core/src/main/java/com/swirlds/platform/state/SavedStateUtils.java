@@ -4,7 +4,6 @@ package com.swirlds.platform.state;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.utility.FileUtils;
 import com.swirlds.platform.event.preconsensus.CommonPcesWriter;
-import com.swirlds.platform.event.preconsensus.PcesConfig;
 import com.swirlds.platform.event.preconsensus.PcesFileManager;
 import com.swirlds.platform.event.preconsensus.PcesFileReader;
 import com.swirlds.platform.event.preconsensus.PcesFileTracker;
@@ -15,6 +14,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import org.hiero.consensus.event.intake.config.PcesConfig;
 import org.hiero.consensus.model.event.PlatformEvent;
 
 public final class SavedStateUtils {

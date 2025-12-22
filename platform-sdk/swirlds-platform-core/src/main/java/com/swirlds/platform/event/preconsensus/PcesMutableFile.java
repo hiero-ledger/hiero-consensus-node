@@ -6,6 +6,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
+import org.hiero.consensus.event.intake.config.PcesFileWriterType;
 import org.hiero.consensus.model.event.PlatformEvent;
 
 /**
@@ -39,7 +40,7 @@ public class PcesMutableFile {
         Files.createDirectories(descriptor.getPath().getParent());
 
         this.descriptor = descriptor;
-        this.writer = pcesFileWriterType.createWriter(descriptor.getPath());
+        this.writer = PcesFileWriterFactory.createWriter(pcesFileWriterType, descriptor.getPath());
         writer.writeVersion(PcesFileVersion.currentVersionNumber());
         highestAncientIdentifierInFile = descriptor.getLowerBound();
     }

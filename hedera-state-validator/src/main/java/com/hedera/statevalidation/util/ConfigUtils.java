@@ -46,9 +46,9 @@ import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.platform.config.AddressBookConfig;
 import com.swirlds.platform.config.BasicConfig;
 import com.swirlds.platform.config.StateConfig;
-import com.swirlds.platform.event.preconsensus.PcesConfig;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
 import org.hiero.base.crypto.config.CryptoConfig;
+import org.hiero.consensus.event.intake.config.PcesConfig;
 import org.hiero.consensus.metrics.config.MetricsConfig;
 
 /**

@@ -18,6 +18,7 @@ import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.ValueReference;
+import org.hiero.consensus.event.intake.config.PcesConfig;
 
 /**
  * This class is responsible for reading event files from disk and adding them to the collection of tracked files.

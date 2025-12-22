@@ -25,6 +25,7 @@ import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Random;
 import org.hiero.base.utility.test.fixtures.RandomUtils;
+import org.hiero.consensus.event.intake.config.PcesFileWriterType;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.junit.extensions.ParamName;
 import org.hiero.junit.extensions.ParamSource;
@@ -71,7 +72,7 @@ class PcesReadWriteTests {
     @UseParameterSources({
         @ParamSource(
                 param = "pcesFileWriterType",
-                fullyQualifiedClass = "com.swirlds.platform.event.preconsensus.PcesFileWriterType",
+                fullyQualifiedClass = "org.hiero.consensus.event.intake.config.PcesFileWriterType",
                 method = "values")
     })
     @DisplayName("Write Then Read Test")
@@ -128,7 +129,7 @@ class PcesReadWriteTests {
     @UseParameterSources({
         @ParamSource(
                 param = "pcesFileWriterType",
-                fullyQualifiedClass = "com.swirlds.platform.event.preconsensus.PcesFileWriterType",
+                fullyQualifiedClass = "org.hiero.consensus.event.intake.config.PcesFileWriterType",
                 method = "values")
     })
     @DisplayName("Read Files After Minimum Test")
@@ -213,7 +214,7 @@ class PcesReadWriteTests {
         @ParamSource(param = "truncateOnBoundary", method = "booleanArguments"),
         @ParamSource(
                 param = "pcesFileWriterType",
-                fullyQualifiedClass = "com.swirlds.platform.event.preconsensus.PcesFileWriterType",
+                fullyQualifiedClass = "org.hiero.consensus.event.intake.config.PcesFileWriterType",
                 method = "values")
     })
     @DisplayName("Truncated Event Test")
@@ -289,7 +290,7 @@ class PcesReadWriteTests {
         @ParamSource(param = "truncateOnBoundary", method = "booleanArguments"),
         @ParamSource(
                 param = "pcesFileWriterType",
-                fullyQualifiedClass = "com.swirlds.platform.event.preconsensus.PcesFileWriterType",
+                fullyQualifiedClass = "org.hiero.consensus.event.intake.config.PcesFileWriterType",
                 method = "values")
     })
     @DisplayName("Corrupted Events Test")
@@ -358,7 +359,7 @@ class PcesReadWriteTests {
         @ParamSource(param = "truncateOnBoundary", method = "booleanArguments"),
         @ParamSource(
                 param = "pcesFileWriterType",
-                fullyQualifiedClass = "com.swirlds.platform.event.preconsensus.PcesFileWriterType",
+                fullyQualifiedClass = "org.hiero.consensus.event.intake.config.PcesFileWriterType",
                 method = "values")
     })
     @DisplayName("Write Invalid Event Test")
@@ -430,7 +431,7 @@ class PcesReadWriteTests {
         @ParamSource(param = "truncateOnBoundary", method = "booleanArguments"),
         @ParamSource(
                 param = "pcesFileWriterType",
-                fullyQualifiedClass = "com.swirlds.platform.event.preconsensus.PcesFileWriterType",
+                fullyQualifiedClass = "org.hiero.consensus.event.intake.config.PcesFileWriterType",
                 method = "values")
     })
     @DisplayName("Span Compression Test")
@@ -501,7 +502,7 @@ class PcesReadWriteTests {
         @ParamSource(param = "truncateOnBoundary", method = "booleanArguments"),
         @ParamSource(
                 param = "pcesFileWriterType",
-                fullyQualifiedClass = "com.swirlds.platform.event.preconsensus.PcesFileWriterType",
+                fullyQualifiedClass = "org.hiero.consensus.event.intake.config.PcesFileWriterType",
                 method = "values")
     })
     @DisplayName("Partial Span Compression Test")

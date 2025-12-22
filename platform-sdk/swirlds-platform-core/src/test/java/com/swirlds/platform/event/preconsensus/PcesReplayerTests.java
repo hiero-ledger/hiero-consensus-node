@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
+import org.hiero.consensus.event.intake.config.PcesConfig_;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
 import org.junit.jupiter.api.BeforeEach;
@@ -37,8 +38,6 @@ import org.junit.jupiter.api.Test;
  */
 @DisplayName("PcesReplayer Tests")
 class PcesReplayerTests {
-    private PlatformContext noRateLimitContext;
-    private PlatformContext rateLimitedContext;
     private FakeTime time;
     private StandardOutputWire<PlatformEvent> eventOutputWire;
     private AtomicInteger eventOutputCount;

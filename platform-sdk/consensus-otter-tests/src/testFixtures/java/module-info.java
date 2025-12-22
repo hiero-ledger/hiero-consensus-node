@@ -29,6 +29,7 @@ module org.hiero.otter.fixtures {
     requires com.swirlds.virtualmap;
     requires org.hiero.base.utility;
     requires org.hiero.consensus.concurrent;
+    requires org.hiero.consensus.event.intake;
     requires org.hiero.consensus.metrics;
     requires org.hiero.consensus.roster;
     requires org.hiero.consensus.utility;
