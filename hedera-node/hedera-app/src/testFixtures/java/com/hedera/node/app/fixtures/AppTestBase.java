@@ -382,7 +382,7 @@ public class AppTestBase extends TestBase implements TransactionFactory, Scenari
             final ConfigProvider configProvider = () -> new VersionedConfigImpl(configBuilder.getOrCreateConfig(), 1);
             final var genesisRoster = Roster.newBuilder()
                     .rosterEntries(nodes.stream()
-                            .map(ni-> RosterEntry.newBuilder()
+                            .map(ni -> RosterEntry.newBuilder()
                                     .nodeId(ni.nodeId())
                                     .weight(ni.weight())
                                     .build())

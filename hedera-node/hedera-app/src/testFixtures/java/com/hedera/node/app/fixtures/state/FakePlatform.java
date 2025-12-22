@@ -43,12 +43,12 @@ public final class FakePlatform implements Platform {
      */
     public FakePlatform() {
         this.selfNodeId = NodeId.of(0L);
-        this.roster = Roster.newBuilder().rosterEntries(
-                RosterEntry.newBuilder()
+        this.roster = Roster.newBuilder()
+                .rosterEntries(RosterEntry.newBuilder()
                         .nodeId(selfNodeId.id())
                         .weight(500L)
-                        .build()
-        ).build();
+                        .build())
+                .build();
 
         this.context = createPlatformContext();
         this.notificationEngine = NotificationEngine.buildEngine(getStaticThreadManager());

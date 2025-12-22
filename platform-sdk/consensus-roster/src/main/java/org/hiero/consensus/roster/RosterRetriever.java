@@ -22,7 +22,6 @@ public final class RosterRetriever {
 
     private static final String ROSTER_SERVICE = "RosterService";
 
-
     /**
      * Retrieve an active Roster from the state for a given round.
      * <p>

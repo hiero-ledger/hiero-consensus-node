@@ -7,7 +7,7 @@ module org.hiero.consensus.roster {
     requires transitive com.swirlds.state.api;
     requires transitive org.hiero.base.crypto;
     requires transitive org.hiero.consensus.model;
+    requires com.hedera.node.app.spi;
     requires com.swirlds.base;
     requires static transitive com.github.spotbugs.annotations;
-    requires com.hedera.node.app.spi;
 }

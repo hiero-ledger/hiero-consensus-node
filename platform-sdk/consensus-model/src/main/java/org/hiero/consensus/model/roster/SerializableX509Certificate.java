@@ -17,7 +17,7 @@ import org.hiero.base.io.streams.SerializableDataOutputStream;
 /**
  * A serializable wrapper for an {@link X509Certificate} instance.
  */
-public class SerializableX509Certificate implements SelfSerializable { //TODO remove
+public class SerializableX509Certificate implements SelfSerializable { // TODO remove
 
     /**
      * There is no upper bound on the size of certs.
