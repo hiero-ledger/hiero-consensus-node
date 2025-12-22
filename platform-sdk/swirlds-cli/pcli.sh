@@ -145,6 +145,12 @@ for ((CURRENT_INDEX=1; CURRENT_INDEX<=$#; CURRENT_INDEX++)); do
 done
 
 if [[ "$IGNORE_JARS" = false ]]; then
+  # Add the main swirlds-cli jar
+  MAIN_JAR_PATH="${SCRIPT_PATH}/../sdk/swirlds-cli.jar"
+  if [[ -e "$MAIN_JAR_PATH" ]]; then
+    add_to_classpath "${MAIN_JAR_PATH}"
+  fi
+
   # In a development environment, this is the location where jarfiles are compiled to. If this directory
   # exists then add it to the classpath automatically.
   DEFAULT_LIB_PATH="${SCRIPT_PATH}/../sdk/data/lib"

@@ -27,6 +27,12 @@ public final class OSClockSourceSpeedCheck {
         return new Report(numCalls);
     }
 
+    public static long printReport() {
+        final Report clockSpeedReport = execute();
+        System.out.printf("Average clock source speed: %d calls/sec%n", clockSpeedReport.callsPerSec());
+        return clockSpeedReport.callsPerSec();
+    }
+
     /**
      * Contains data about the speed of the OS clock source
      *

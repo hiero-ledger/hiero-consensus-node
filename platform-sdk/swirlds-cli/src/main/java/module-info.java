@@ -1,10 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
 module com.swirlds.cli {
-    exports com.swirlds.cli;
-    exports com.swirlds.cli.commands;
-    exports com.swirlds.cli.utility;
-    exports com.swirlds.cli.logging;
-
     opens com.swirlds.cli to
             info.picocli;
     opens com.swirlds.cli.utility to
@@ -14,12 +9,18 @@ module com.swirlds.cli {
     opens com.swirlds.cli.logging to
             info.picocli;
 
-    requires transitive com.swirlds.base;
-    requires transitive org.hiero.consensus.model;
-    requires transitive info.picocli;
-    requires transitive org.apache.logging.log4j;
+    exports com.swirlds.cli.utility;
+
+    requires com.swirlds.base;
     requires com.swirlds.common;
+    requires com.swirlds.config.extensions;
     requires com.swirlds.logging;
+    requires com.swirlds.platform.core;
+    requires com.swirlds.state.api;
+    requires com.swirlds.state.impl;
+    requires org.hiero.consensus.model;
+    requires info.picocli;
     requires io.github.classgraph;
-    requires static transitive com.github.spotbugs.annotations;
+    requires org.apache.logging.log4j;
+    requires static com.github.spotbugs.annotations;
 }

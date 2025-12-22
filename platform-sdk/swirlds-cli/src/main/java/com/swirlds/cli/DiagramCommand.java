@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.cli;
+package com.swirlds.cli;
 
 import static com.swirlds.platform.builder.ConsensusModuleBuilder.createNoOpEventCreatorModule;
 import static com.swirlds.platform.builder.ConsensusModuleBuilder.createNoOpEventIntakeModule;
 
-import com.swirlds.cli.PlatformCli;
 import com.swirlds.cli.utility.AbstractCommand;
 import com.swirlds.cli.utility.SubcommandOf;
 import com.swirlds.common.context.PlatformContext;
