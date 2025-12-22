@@ -5,21 +5,13 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_ACCOUNT_BA
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TOKEN_ID;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.transfer.Erc20TransfersTranslator.ERC_20_TRANSFER;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.transfer.Erc20TransfersTranslator.ERC_20_TRANSFER_FROM;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.ALIASED_RECEIVER;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.A_NEW_ACCOUNT_ID;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.B_NEW_ACCOUNT_ID;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.EIP_1014_ADDRESS;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.FUNGIBLE_TOKEN_ID;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.OWNER_ACCOUNT;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SENDER_ID;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.asBytesResult;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.readableRevertReason;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.*;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.convertAccountToLog;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asEvmAddress;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
-import static org.mockito.Mockito.verify;
 
 import com.esaulpaugh.headlong.abi.Address;
 import com.esaulpaugh.headlong.abi.Tuple;
@@ -35,8 +27,12 @@ import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
 import com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.common.CallTestBase;
 import com.hedera.node.app.service.contract.impl.utils.ConversionUtils;
 import com.hedera.node.app.service.token.ReadableAccountStore;
+import java.util.ArrayList;
+import java.util.List;
 import org.apache.tuweni.bytes.Bytes;
+import org.apache.tuweni.units.bigints.UInt256;
 import org.hyperledger.besu.evm.frame.MessageFrame;
+import org.hyperledger.besu.evm.log.Log;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mock;
 import org.mockito.Mockito;
@@ -104,6 +100,8 @@ class Erc20TransfersCallTest extends CallTestBase {
         given(nativeOperations.readableAccountStore()).willReturn(readableAccountStore);
         given(readableAccountStore.getAliasedAccountById(SENDER_ID)).willReturn(OWNER_ACCOUNT);
         given(readableAccountStore.getAliasedAccountById(B_NEW_ACCOUNT_ID)).willReturn(ALIASED_RECEIVER);
+        final List<Log> logs = new ArrayList<>();
+        Mockito.doAnswer(e -> logs.add(e.getArgument(0))).when(frame).addLog(any());
 
         subject = subjectForTransfer(1L);
 
@@ -112,7 +110,14 @@ class Erc20TransfersCallTest extends CallTestBase {
         assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.getState());
         assertEquals(asBytesResult(ERC_20_TRANSFER.getOutputs().encode(Tuple.singleton(true))), result.getOutput());
         // check that events was added
-        verify(frame, Mockito.times(1)).addLog(any());
+        assertEquals(1, logs.size());
+        assertEquals(3, logs.getFirst().getTopics().size());
+        assertEquals(
+                convertAccountToLog(OWNER_ACCOUNT), logs.getFirst().getTopics().get(1));
+        assertEquals(
+                convertAccountToLog(ALIASED_RECEIVER),
+                logs.getFirst().getTopics().get(2));
+        assertEquals(1L, UInt256.fromBytes(logs.getFirst().getData()).toLong());
     }
 
     @Test

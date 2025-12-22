@@ -14,9 +14,7 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.LogBui
 import com.hedera.node.app.service.contract.impl.records.ContractCallStreamBuilder;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import edu.umd.cs.findbugs.annotations.NonNull;
-
 import java.math.BigInteger;
-
 import org.apache.tuweni.bytes.Bytes;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 
@@ -33,8 +31,6 @@ public class TransferEventLoggingUtils {
     private TransferEventLoggingUtils() {
         throw new UnsupportedOperationException("Utility Class");
     }
-
-    // TODO Glib: use it?
 
     /**
      * Emit ERC events for all non-HRAB token transfers
@@ -68,6 +64,7 @@ public class TransferEventLoggingUtils {
         }
     }
 
+    //TODO Glib: support -1,-10,+11 transfers
     /**
      * Logs a successful ERC-20 transfer event based on the Hedera-style representation of the fungible
      * balance adjustments.
@@ -123,10 +120,10 @@ public class TransferEventLoggingUtils {
         requireNonNull(nftTransfer);
         requireNonNull(accountStore);
         frame.addLog(builderFor(
-                tokenId,
-                nftTransfer.senderAccountIDOrThrow(),
-                nftTransfer.receiverAccountIDOrThrow(),
-                accountStore)
+                        tokenId,
+                        nftTransfer.senderAccountIDOrThrow(),
+                        nftTransfer.receiverAccountIDOrThrow(),
+                        accountStore)
                 .forIndexedArgument(BigInteger.valueOf(nftTransfer.serialNumber()))
                 .build());
     }

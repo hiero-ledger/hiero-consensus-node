@@ -17,10 +17,8 @@ import static org.mockito.Mockito.verify;
 
 import com.esaulpaugh.headlong.abi.Tuple;
 import com.esaulpaugh.headlong.abi.TupleType;
-import com.hedera.hapi.node.base.AccountAmount;
-import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.Key;
-import com.hedera.hapi.node.base.TransferList;
+import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason;
@@ -42,7 +40,10 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.Predicate;
+import org.apache.tuweni.bytes.Bytes;
+import org.apache.tuweni.units.bigints.UInt256;
 import org.hyperledger.besu.evm.frame.MessageFrame;
+import org.hyperledger.besu.evm.log.Log;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -284,14 +285,13 @@ class ClassicTransfersCallTest extends CallTestBase {
 
     // ---------------------------- ERC events emission tests ----------------------------
 
-    private ClassicTransfersCall givenSubject(byte[] selector, CryptoTransferTransactionBody cryptoTransfer) {
+    private ClassicTransfersCall givenSubject(byte[] selector) {
         final var config = HederaTestConfigBuilder.create()
                 .withValue("contracts.precompile.atomicCryptoTransfer.enabled", "true")
                 .getOrCreateConfig();
-        var body = TransactionBody.newBuilder().cryptoTransfer(cryptoTransfer).build();
         given(approvalSwitchHelper.switchToApprovalsAsNeededIn(
-                        cryptoTransfer, signatureTest, nativeOperations, A_NEW_ACCOUNT_ID))
-                .willReturn(cryptoTransfer);
+                        CryptoTransferTransactionBody.DEFAULT, signatureTest, nativeOperations, A_NEW_ACCOUNT_ID))
+                .willReturn(CryptoTransferTransactionBody.DEFAULT);
         given(systemContractOperations.signatureTestWith(verificationStrategy)).willReturn(signatureTest);
         return new ClassicTransfersCall(
                 systemContractGasCalculator,
@@ -299,7 +299,7 @@ class ClassicTransfersCallTest extends CallTestBase {
                 selector,
                 A_NEW_ACCOUNT_ID,
                 null,
-                body,
+                PRETEND_TRANSFER,
                 config,
                 approvalSwitchHelper,
                 callStatusStandardizer,
@@ -308,56 +308,10 @@ class ClassicTransfersCallTest extends CallTestBase {
                 specialRewardReceivers);
     }
 
-    record TestHbarTransfer(AccountID sender, AccountID receiver, long amount) {}
-
-    private ClassicTransfersCall givenSubject(final byte[] selector, final List<TestHbarTransfer> hbarTransfers) {
-        final var builder = CryptoTransferTransactionBody.newBuilder();
-        if (hbarTransfers != null) {
-            final var transferList = TransferList.newBuilder();
-            List<AccountAmount> list = new ArrayList<>();
-            for (TestHbarTransfer hbarTransfer : hbarTransfers) {
-                list.add(AccountAmount.newBuilder()
-                        .accountID(hbarTransfer.receiver())
-                        .amount(hbarTransfer.amount())
-                        .build());
-                list.add(AccountAmount.newBuilder()
-                        .accountID(hbarTransfer.sender())
-                        .amount(-hbarTransfer.amount())
-                        .build());
-            }
-            builder.transfers(transferList.accountAmounts(list).build());
-        }
-
-        return givenSubject(selector, builder.build());
-    }
-
-    public static List<SystemContractMethod> ercEventsEmissionForHbarParams() {
-        return List.of(ClassicTransfersTranslator.CRYPTO_TRANSFER, ClassicTransfersTranslator.CRYPTO_TRANSFER_V2);
-    }
-
-    @ParameterizedTest
-    @MethodSource("ercEventsEmissionForHbarParams")
-    void ercEventsEmissionForHbar(SystemContractMethod function) {
-        final var localSubject =
-                givenSubject(function.selector(), List.of(new TestHbarTransfer(OWNER_ID, RECEIVER_ID, 123)));
-        given(systemContractOperations.dispatch(
-                        any(TransactionBody.class),
-                        eq(verificationStrategy),
-                        eq(A_NEW_ACCOUNT_ID),
-                        eq(ContractCallStreamBuilder.class)))
-                .willReturn(recordBuilder);
-        given(recordBuilder.status()).willReturn(SUCCESS);
-
-        final var result = localSubject.execute(frame).fullResult().result();
-
-        assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.getState());
-        assertEquals(tuweniEncodedRc(SUCCESS), result.getOutput());
-        // check that no events was added
-        verify(frame, Mockito.times(0)).addLog(any());
-    }
-
     public static List<SystemContractMethod> ercEventsEmissionForFTParams() {
         return List.of(
+                ClassicTransfersTranslator.CRYPTO_TRANSFER,
+                ClassicTransfersTranslator.CRYPTO_TRANSFER_V2,
                 ClassicTransfersTranslator.TRANSFER_TOKENS,
                 ClassicTransfersTranslator.TRANSFER_TOKEN,
                 ClassicTransfersTranslator.TRANSFER_FROM);
@@ -366,10 +320,7 @@ class ClassicTransfersCallTest extends CallTestBase {
     @ParameterizedTest
     @MethodSource("ercEventsEmissionForFTParams")
     void ercEventsEmissionForFT(SystemContractMethod function) {
-        final var localSubject = givenSubject(
-                function.selector(),
-                cryptoTransferTransaction(
-                        List.of(new TestTokenTransfer(FUNGIBLE_TOKEN_ID, false, OWNER_ID, RECEIVER_ID, 123))));
+        final var localSubject = givenSubject(function.selector());
         given(systemContractOperations.dispatch(
                         any(TransactionBody.class),
                         eq(verificationStrategy),
@@ -380,17 +331,33 @@ class ClassicTransfersCallTest extends CallTestBase {
         given(nativeOperations.readableAccountStore()).willReturn(readableAccountStore);
         given(readableAccountStore.getAliasedAccountById(OWNER_ID)).willReturn(OWNER_ACCOUNT);
         given(readableAccountStore.getAliasedAccountById(RECEIVER_ID)).willReturn(ALIASED_RECEIVER);
+        given(recordBuilder.tokenTransferLists())
+                .willReturn(tokenTransfersLists(
+                        List.of(new TestTokenTransfer(FUNGIBLE_TOKEN_ID, false, OWNER_ID, RECEIVER_ID, 123))));
+        final List<Log> logs = new ArrayList<>();
+        Mockito.doAnswer(e -> logs.add(e.getArgument(0))).when(frame).addLog(any());
 
         final var result = localSubject.execute(frame).fullResult().result();
 
         assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.getState());
         assertEquals(tuweniEncodedRc(SUCCESS), result.getOutput());
         // check that events was added
-        verify(frame, Mockito.times(1)).addLog(any());
+        verifyFTLogEvent(logs, OWNER_ACCOUNT, ALIASED_RECEIVER, 123);
+    }
+
+    public static void verifyFTLogEvent(
+            final List<Log> logs, final Account sender, final Account receiver, long amount) {
+        assertEquals(1, logs.size());
+        assertEquals(3, logs.getFirst().getTopics().size());
+        assertEquals(convertAccountToLog(sender), logs.getFirst().getTopics().get(1));
+        assertEquals(convertAccountToLog(receiver), logs.getFirst().getTopics().get(2));
+        assertEquals(amount, UInt256.fromBytes(logs.getFirst().getData()).toLong());
     }
 
     public static List<SystemContractMethod> ercEventsEmissionForNFTParams() {
         return List.of(
+                ClassicTransfersTranslator.CRYPTO_TRANSFER,
+                ClassicTransfersTranslator.CRYPTO_TRANSFER_V2,
                 ClassicTransfersTranslator.TRANSFER_NFTS,
                 ClassicTransfersTranslator.TRANSFER_NFT,
                 ClassicTransfersTranslator.TRANSFER_NFT_FROM);
@@ -399,10 +366,7 @@ class ClassicTransfersCallTest extends CallTestBase {
     @ParameterizedTest
     @MethodSource("ercEventsEmissionForNFTParams")
     void ercEventsEmissionForNFT(SystemContractMethod function) {
-        final var localSubject = givenSubject(
-                function.selector(),
-                cryptoTransferTransaction(
-                        List.of(new TestTokenTransfer(FUNGIBLE_TOKEN_ID, true, OWNER_ID, RECEIVER_ID, 123))));
+        final var localSubject = givenSubject(function.selector());
         given(systemContractOperations.dispatch(
                         any(TransactionBody.class),
                         eq(verificationStrategy),
@@ -413,12 +377,29 @@ class ClassicTransfersCallTest extends CallTestBase {
         given(nativeOperations.readableAccountStore()).willReturn(readableAccountStore);
         given(readableAccountStore.getAliasedAccountById(OWNER_ID)).willReturn(OWNER_ACCOUNT);
         given(readableAccountStore.getAliasedAccountById(RECEIVER_ID)).willReturn(ALIASED_RECEIVER);
+        given(recordBuilder.tokenTransferLists())
+                .willReturn(tokenTransfersLists(
+                        List.of(new TestTokenTransfer(FUNGIBLE_TOKEN_ID, true, OWNER_ID, RECEIVER_ID, 123))));
+        final List<Log> logs = new ArrayList<>();
+        Mockito.doAnswer(e -> logs.add(e.getArgument(0))).when(frame).addLog(any());
 
         final var result = localSubject.execute(frame).fullResult().result();
 
         assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.getState());
         assertEquals(tuweniEncodedRc(SUCCESS), result.getOutput());
         // check that events was added
-        verify(frame, Mockito.times(1)).addLog(any());
+        verifyNFTLogEvent(logs, OWNER_ACCOUNT, ALIASED_RECEIVER, 123);
+    }
+
+    public static void verifyNFTLogEvent(
+            final List<Log> logs, final Account sender, final Account receiver, long amount) {
+        assertEquals(1, logs.size());
+        assertEquals(4, logs.getFirst().getTopics().size());
+        assertEquals(convertAccountToLog(sender), logs.getFirst().getTopics().get(1));
+        assertEquals(convertAccountToLog(receiver), logs.getFirst().getTopics().get(2));
+        assertEquals(
+                amount,
+                UInt256.fromBytes(Bytes.wrap(logs.getFirst().getTopics().get(3).toArray()))
+                        .toLong());
     }
 }

@@ -14,8 +14,7 @@ import static org.assertj.core.api.AssertionsForClassTypes.assertThatExceptionOf
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.*;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.scheduled.SchedulableTransactionBody;
@@ -31,10 +30,13 @@ import com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.commo
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.spi.workflows.HandleException;
 import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.Deque;
 import java.util.List;
 import java.util.Optional;
+import org.apache.tuweni.units.bigints.UInt256;
 import org.hyperledger.besu.evm.frame.MessageFrame;
+import org.hyperledger.besu.evm.log.Log;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -126,13 +128,22 @@ class DispatchForResponseCodeHtsCallTest extends CallTestBase {
         given(nativeOperations.readableAccountStore()).willReturn(readableAccountStore);
         given(readableAccountStore.getAliasedAccountById(OWNER_ID)).willReturn(OWNER_ACCOUNT);
         given(readableAccountStore.getAliasedAccountById(RECEIVER_ID)).willReturn(ALIASED_RECEIVER);
+        final List<Log> logs = new ArrayList<>();
+        Mockito.doAnswer(e -> logs.add(e.getArgument(0))).when(frame).addLog(any());
         // when
         final var pricedResult = subject.execute(frame);
         final var contractResult = pricedResult.fullResult().result().getOutput();
         // then
         assertArrayEquals(ReturnTypes.encodedRc(SUCCESS).array(), contractResult.toArray());
         // check that events was added
-        verify(frame, Mockito.times(1)).addLog(any());
+        assertEquals(1, logs.size());
+        assertEquals(3, logs.getFirst().getTopics().size());
+        assertEquals(
+                convertAccountToLog(OWNER_ACCOUNT), logs.getFirst().getTopics().get(1));
+        assertEquals(
+                convertAccountToLog(ALIASED_RECEIVER),
+                logs.getFirst().getTopics().get(2));
+        assertEquals(123, UInt256.fromBytes(logs.getFirst().getData()).toLong());
     }
 
     @Test

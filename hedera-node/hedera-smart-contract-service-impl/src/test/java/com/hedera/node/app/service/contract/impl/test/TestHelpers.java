@@ -39,6 +39,7 @@ import com.hedera.hapi.node.base.TokenSupplyType;
 import com.hedera.hapi.node.base.TokenTransferList;
 import com.hedera.hapi.node.base.TokenType;
 import com.hedera.hapi.node.base.TransactionID;
+import com.hedera.hapi.node.base.TransferList;
 import com.hedera.hapi.node.contract.ContractCallTransactionBody;
 import com.hedera.hapi.node.contract.ContractCreateTransactionBody;
 import com.hedera.hapi.node.contract.ContractNonceInfo;
@@ -50,7 +51,6 @@ import com.hedera.hapi.node.state.token.AccountApprovalForAllAllowance;
 import com.hedera.hapi.node.state.token.Nft;
 import com.hedera.hapi.node.state.token.Token;
 import com.hedera.hapi.node.state.token.TokenRelation;
-import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.hapi.node.transaction.CustomFee;
 import com.hedera.hapi.node.transaction.FixedFee;
 import com.hedera.hapi.node.transaction.FractionalFee;
@@ -72,6 +72,7 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.has.HasCallAttempt;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hss.HssCallAttempt;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.HtsCallAttempt;
+import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.LogBuilder;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.TokenTupleUtils.TokenKeyType;
 import com.hedera.node.app.service.contract.impl.exec.utils.PendingCreationMetadataRef;
 import com.hedera.node.app.service.contract.impl.hevm.HederaEvmBlocks;
@@ -82,6 +83,7 @@ import com.hedera.node.app.service.contract.impl.hevm.HederaEvmVersion;
 import com.hedera.node.app.service.contract.impl.records.ContractOperationStreamBuilder;
 import com.hedera.node.app.service.contract.impl.state.StorageAccess;
 import com.hedera.node.app.service.contract.impl.state.StorageAccesses;
+import com.hedera.node.app.service.contract.impl.utils.ConversionUtils;
 import com.hedera.node.app.spi.fixtures.ids.FakeEntityIdFactoryImpl;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.app.spi.workflows.ResourceExhaustedException;
@@ -1073,14 +1075,25 @@ public class TestHelpers {
         return new TokenTransferListBuilder();
     }
 
-    public record TestTokenTransfer(TokenID token, boolean isNft, AccountID sender, AccountID receiver, long amount) {}
+    public record TestHbarTransfer(AccountID sender, AccountID receiver, long amount) {}
 
-    public static CryptoTransferTransactionBody cryptoTransferTransaction(
-            @NonNull final List<TestTokenTransfer> tokenTransfers) {
-        final var builder = CryptoTransferTransactionBody.newBuilder();
-        builder.tokenTransfers(tokenTransfersLists(tokenTransfers));
-        return builder.build();
+    public static TransferList transfersLists(@NonNull final List<TestHbarTransfer> hbarTransfers) {
+        final var transferList = TransferList.newBuilder();
+        List<AccountAmount> list = new ArrayList<>();
+        for (TestHbarTransfer hbarTransfer : hbarTransfers) {
+            list.add(AccountAmount.newBuilder()
+                    .accountID(hbarTransfer.receiver())
+                    .amount(hbarTransfer.amount())
+                    .build());
+            list.add(AccountAmount.newBuilder()
+                    .accountID(hbarTransfer.sender())
+                    .amount(-hbarTransfer.amount())
+                    .build());
+        }
+        return transferList.build();
     }
+
+    public record TestTokenTransfer(TokenID token, boolean isNft, AccountID sender, AccountID receiver, long amount) {}
 
     public static List<TokenTransferList> tokenTransfersLists(@NonNull final List<TestTokenTransfer> tokenTransfers) {
         List<TokenTransferList> tokenTransferList = new ArrayList<>();
@@ -1110,6 +1123,11 @@ public class TestHelpers {
             }
         }
         return tokenTransferList;
+    }
+
+    public static LogTopic convertAccountToLog(final Account account) {
+        return LogTopic.wrap(org.apache.tuweni.bytes.Bytes.wrap(LogBuilder.expandByteArrayTo32Length(
+                ConversionUtils.priorityAddressOf(account).toArray())));
     }
 
     private static HederaEvmTransactionResult explicitSuccessFrom(

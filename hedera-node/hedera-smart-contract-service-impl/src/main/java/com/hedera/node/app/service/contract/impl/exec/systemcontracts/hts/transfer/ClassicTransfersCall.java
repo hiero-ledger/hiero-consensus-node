@@ -10,15 +10,11 @@ import static com.hedera.node.app.service.contract.impl.exec.gas.DispatchType.AS
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.FullResult.haltResult;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.common.Call.PricedResult.gasOnly;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.ReturnTypes.encodedRc;
-import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.transfer.TransferEventLoggingUtils.logSuccessfulFungibleTransfer;
-import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.transfer.TransferEventLoggingUtils.logSuccessfulNftTransfer;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.configOf;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
-import com.hedera.hapi.node.base.NftTransfer;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
-import com.hedera.hapi.node.base.TokenTransferList;
 import com.hedera.hapi.node.base.TransferList;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
@@ -35,11 +31,9 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
-
 import org.hyperledger.besu.evm.frame.MessageFrame;
 
 /**
@@ -150,20 +144,20 @@ public class ClassicTransfersCall extends AbstractCall {
         }
         final var transferToDispatch = shouldRetryWithApprovals()
                 ? syntheticTransfer
-                .copyBuilder()
-                .cryptoTransfer(requireNonNull(approvalSwitchHelper)
-                        .switchToApprovalsAsNeededIn(
-                                syntheticTransfer.cryptoTransferOrThrow(),
-                                systemContractOperations().signatureTestWith(verificationStrategy),
-                                nativeOperations(),
-                                senderId))
-                .build()
+                        .copyBuilder()
+                        .cryptoTransfer(requireNonNull(approvalSwitchHelper)
+                                .switchToApprovalsAsNeededIn(
+                                        syntheticTransfer.cryptoTransferOrThrow(),
+                                        systemContractOperations().signatureTestWith(verificationStrategy),
+                                        nativeOperations(),
+                                        senderId))
+                        .build()
                 : syntheticTransfer;
         final var recordBuilder = systemContractOperations()
                 .dispatch(transferToDispatch, verificationStrategy, senderId, ContractCallStreamBuilder.class);
         final var op = transferToDispatch.cryptoTransferOrThrow();
         if (recordBuilder.status() == SUCCESS) {
-            emitErcLogEventsFor(op, frame);
+            TransferEventLoggingUtils.emitErcLogEventsFor(recordBuilder, readableAccountStore(), frame);
             specialRewardReceivers.addInFrame(frame, op, recordBuilder.getAssessedCustomFees());
         } else {
             recordBuilder.status(callStatusStandardizer.codeForFailure(recordBuilder.status(), frame, op));
@@ -197,7 +191,7 @@ public class ClassicTransfersCall extends AbstractCall {
         // For fungible there are always at least two operations, so only charge half for each
         // operation
         final var baseUnitAdjustTinycentPrice = systemContractGasCalculator.canonicalPriceInTinycents(
-                hasCustomFees ? DispatchType.TRANSFER_FUNGIBLE_CUSTOM_FEES : DispatchType.TRANSFER_FUNGIBLE)
+                        hasCustomFees ? DispatchType.TRANSFER_FUNGIBLE_CUSTOM_FEES : DispatchType.TRANSFER_FUNGIBLE)
                 / 2;
         // NFTs are atomic, one line can do it.
         final var baseNftTransferTinycentsPrice = systemContractGasCalculator.canonicalPriceInTinycents(
@@ -272,35 +266,5 @@ public class ClassicTransfersCall extends AbstractCall {
     private boolean executionIsNotSupported() {
         return Arrays.equals(selector, ClassicTransfersTranslator.CRYPTO_TRANSFER_V2.selector())
                 && !configuration.getConfigData(ContractsConfig.class).precompileAtomicCryptoTransferEnabled();
-    }
-
-    // TODO Glib: check how bulk transfer is looks like
-    // TODO Glib: switch to recordBuilder? ((ChildStreamBuilder)recordBuilder).tokenTransferLists()
-
-    /**
-     * Emit ERC events for all non-HRAB token transfers
-     *
-     * @param op    the body of synthetic transfer operation
-     * @param frame the message frame
-     */
-    private void emitErcLogEventsFor(
-            @NonNull final CryptoTransferTransactionBody op, @NonNull final MessageFrame frame) {
-        for (TokenTransferList transfer : op.tokenTransfers()) {
-            if (!transfer.transfers().isEmpty()) {
-                for (int i = 0; i < transfer.transfers().size(); i += 2) {
-                    logSuccessfulFungibleTransfer(
-                            transfer.tokenOrThrow(),
-                            transfer.transfers().get(i), // credit
-                            transfer.transfers().get(i + 1), // debit
-                            readableAccountStore(),
-                            frame);
-                }
-            }
-            if (!transfer.nftTransfers().isEmpty()) {
-                for (NftTransfer nftTransfer : transfer.nftTransfers()) {
-                    logSuccessfulNftTransfer(transfer.tokenOrThrow(), nftTransfer, readableAccountStore(), frame);
-                }
-            }
-        }
     }
 }
