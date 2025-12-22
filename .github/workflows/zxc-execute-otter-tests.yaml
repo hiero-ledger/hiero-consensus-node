@@ -38,11 +38,6 @@ on:
         type: string
         required: false
         default: "20"
-      custom-job-label:
-        description: "Custom Job Label:"
-        type: string
-        required: false
-        default: "Compiles"
       ref:
         description: "The branch, tag or SHA to checkout."
         required: false
@@ -82,8 +77,8 @@ env:
 
 jobs:
   otter:
-    name: ${{ inputs.custom-job-label || 'Otter Tests' }}
-    runs-on: hiero-otter-linux-large
+    name: "Otter Tests"
+    runs-on: hiero-cn-otter-linux
     outputs:
       failure-mode: ${{ steps.calculate-failure-mode.outputs.failure-mode }}
     steps:
@@ -262,7 +257,7 @@ jobs:
           has_failure() {
             local arr=("$@")
             for status in "${arr[@]}"; do
-              [[ "$status" == "failure" ]] && return 0
+              [[ "${status}" == "failure" ]] && return 0
             done
             return 1
           }

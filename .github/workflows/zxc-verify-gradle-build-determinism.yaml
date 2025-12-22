@@ -201,7 +201,7 @@ jobs:
 
       - name: Build Artifacts
         id: gradle-build
-        run: ./gradlew assemble
+        run: ./gradlew assemble --no-build-cache
 
       - name: Regenerate Manifest
         id: regen-manifest
