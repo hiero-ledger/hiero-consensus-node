@@ -3,12 +3,12 @@ package com.swirlds.platform.network;
 
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
-import com.swirlds.common.utility.throttle.RateLimiter;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.platform.test.fixtures.sync.FakeConnection;
 import java.time.Duration;
 import javax.net.ssl.SSLException;
+import org.hiero.consensus.concurrent.utility.throttle.RateLimiter;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 

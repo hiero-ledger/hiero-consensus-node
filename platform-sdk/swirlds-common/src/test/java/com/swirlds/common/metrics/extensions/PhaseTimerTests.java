@@ -17,9 +17,6 @@ import static org.mockito.Mockito.when;
 
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import com.swirlds.base.units.TimeUnit;
-import com.swirlds.common.metrics.FunctionGauge;
-import com.swirlds.common.metrics.FunctionGauge.Config;
-import com.swirlds.common.metrics.RunningAverageMetric;
 import com.swirlds.metrics.api.Metric;
 import com.swirlds.metrics.api.MetricConfig;
 import com.swirlds.metrics.api.Metrics;
@@ -32,6 +29,11 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
+import org.hiero.consensus.metrics.FunctionGauge;
+import org.hiero.consensus.metrics.FunctionGauge.Config;
+import org.hiero.consensus.metrics.RunningAverageMetric;
+import org.hiero.consensus.metrics.extensions.PhaseTimer;
+import org.hiero.consensus.metrics.extensions.PhaseTimerBuilder;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
