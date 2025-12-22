@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.event.orphan;
+package org.hiero.consensus.orphan;
 
-import com.swirlds.component.framework.component.InputWireLabel;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
 import org.hiero.consensus.model.event.PlatformEvent;
@@ -22,7 +21,6 @@ public interface OrphanBuffer {
      * @param event the event to handle
      * @return the list of events that are no longer orphans as a result of this event being handled
      */
-    @InputWireLabel("unordered events")
     @NonNull
     List<PlatformEvent> handleEvent(@NonNull PlatformEvent event);
 
@@ -32,7 +30,6 @@ public interface OrphanBuffer {
      * @param eventWindow the event window
      * @return the list of events that are no longer orphans as a result of this change
      */
-    @InputWireLabel("event window")
     @NonNull
     List<PlatformEvent> setEventWindow(@NonNull final EventWindow eventWindow);
 
