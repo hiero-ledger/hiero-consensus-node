@@ -85,10 +85,13 @@ jobs:
       - name: Set Failure Mode Output
         id: set-failure-mode
         if: ${{ always() }}
-        run: |
-          if [[ "${{ steps.compile-source.outcome }}" == "success" ]] \
-          && [[ "${{ steps.prepare-runner.outcome }}" == "success" ]]; then
-            echo "failure-mode=none" >> "${GITHUB_OUTPUT}"
-          else
+        run: |            
+          if [[ "${{ steps.compile-source.outcome }}" != "success" ]]; then
+            echo "Compilation step failed."
+            echo "failure-mode=general" >> "${GITHUB_OUTPUT}"
+          elif [[ "${{ steps.prepare-runner.outcome }}" != "success" ]]; then
+            echo "Runner preparation step failed."
             echo "failure-mode=workflow" >> "${GITHUB_OUTPUT}"
+          else
+            echo "failure-mode=none" >> "${GITHUB_OUTPUT}"
           fi

@@ -65,7 +65,7 @@ env:
 jobs:
   execute-unit-tests:
     name: "Unit Tests"
-    runs-on: hiero-unit-test-linux-large
+    runs-on: hiero-cn-unit-test-linux
     outputs:
       failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
     steps:

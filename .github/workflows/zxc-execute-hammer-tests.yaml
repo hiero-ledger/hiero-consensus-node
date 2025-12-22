@@ -59,7 +59,7 @@ env:
 jobs:
   execute-hammer-tests:
     name: "Hammer Tests"
-    runs-on: hiero-hammer-linux-large
+    runs-on: hiero-cn-hammer-linux
     outputs:
       failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
     steps:

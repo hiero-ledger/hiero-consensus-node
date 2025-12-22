@@ -59,7 +59,7 @@ env:
 jobs:
   execute-time-consuming-tests:
     name: "Time Consuming Tests"
-    runs-on: hiero-time-consuming-linux-large
+    runs-on: hiero-cn-time-consuming-linux
     outputs:
       failure-mode: ${{ steps.set-failure-mode.outputs.failure-mode }}
     steps:
