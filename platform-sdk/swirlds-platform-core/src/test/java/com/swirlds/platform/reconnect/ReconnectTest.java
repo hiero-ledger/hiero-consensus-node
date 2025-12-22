@@ -129,8 +129,9 @@ final class ReconnectTest {
                     final ReconnectStateTeacher sender = buildSender(
                             new DummyConnection(
                                     platformContext, pairedStreams.getTeacherInput(), pairedStreams.getTeacherOutput()),
+                            signedState,
                             reconnectMetrics);
-                    sender.execute(signedState);
+                    sender.execute();
                 } catch (final IOException ex) {
                     ex.printStackTrace();
                 }
@@ -148,7 +149,8 @@ final class ReconnectTest {
     }
 
     private ReconnectStateTeacher buildSender(
-            final SocketConnection connection, final ReconnectMetrics reconnectMetrics) throws IOException {
+            final SocketConnection connection, final SignedState signedState, final ReconnectMetrics reconnectMetrics)
+            throws IOException {
 
         final PlatformContext platformContext =
                 TestPlatformContextBuilder.create().build();
@@ -165,6 +167,7 @@ final class ReconnectTest {
                 selfId,
                 otherId,
                 lastRoundReceived,
+                signedState,
                 reconnectMetrics);
     }
 
