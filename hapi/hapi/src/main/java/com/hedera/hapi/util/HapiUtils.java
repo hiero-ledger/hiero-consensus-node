@@ -433,10 +433,10 @@ public class HapiUtils {
         if (IPV4_ADDRESS_PATTERN.matcher(hostOrIp).matches()) {
             final var octets = hostOrIp.split("[.]");
             builder.ipAddressV4(Bytes.wrap(new byte[] {
-                    (byte) Integer.parseInt(octets[0]),
-                    (byte) Integer.parseInt(octets[1]),
-                    (byte) Integer.parseInt(octets[2]),
-                    (byte) Integer.parseInt(octets[3])
+                (byte) Integer.parseInt(octets[0]),
+                (byte) Integer.parseInt(octets[1]),
+                (byte) Integer.parseInt(octets[2]),
+                (byte) Integer.parseInt(octets[3])
             }));
         } else {
             builder.domainName(hostOrIp);
