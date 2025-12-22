@@ -476,7 +476,9 @@ public class BlockNodeConnectionManager {
 
         if (logger.isDebugEnabled()) {
             logger.debug(
-                    "Selected block node {}:{} for connection attempt", selectedNode.address(), selectedNode.port());
+                    "Selected block node {}:{} for connection attempt",
+                    selectedNode.address(),
+                    selectedNode.streamingPort());
         }
 
         // Immediately schedule the FIRST connection attempt.
@@ -744,7 +746,7 @@ public class BlockNodeConnectionManager {
                                     connection,
                                     newConnConfig.priority(),
                                     oldConnConfig.address(),
-                                    oldConnConfig.port(),
+                                    oldConnConfig.streamingPort(),
                                     oldConnConfig.priority());
                         }
                     } else if (activeConnection.configuration().priority()
@@ -995,7 +997,7 @@ public class BlockNodeConnectionManager {
 
         // Attempt to resolve the address of the block node
         try {
-            final URL blockNodeUrl = URI.create("http://" + nodeConfig.address() + ":" + nodeConfig.port())
+            final URL blockNodeUrl = URI.create("http://" + nodeConfig.address() + ":" + nodeConfig.streamingPort())
                     .toURL();
             final InetAddress blockAddress = InetAddress.getByName(blockNodeUrl.getHost());
 
@@ -1014,12 +1016,13 @@ public class BlockNodeConnectionManager {
                 logger.info(
                         "Active block node connection updated to: {}:{} (resolvedIp: {}, resolvedIpAsInt={})",
                         nodeConfig.address(),
-                        nodeConfig.port(),
+                        nodeConfig.streamingPort(),
                         blockAddress.getHostAddress(),
                         ipAsInteger);
             }
         } catch (final IOException e) {
-            logger.debug("Failed to resolve block node host ({}:{})", nodeConfig.address(), nodeConfig.port(), e);
+            logger.debug(
+                    "Failed to resolve block node host ({}:{})", nodeConfig.address(), nodeConfig.streamingPort(), e);
             ipAsInteger = -1L;
         }
 
