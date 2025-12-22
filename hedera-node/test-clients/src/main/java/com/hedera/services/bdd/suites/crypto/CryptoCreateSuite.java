@@ -55,6 +55,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INSUFFICIENT_G
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ACCOUNT_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ADMIN_KEY;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_ALIAS_KEY;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_CONTRACT_ID;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_MAX_AUTO_ASSOCIATIONS;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNATURE;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_STAKING_ID;
@@ -1036,5 +1037,21 @@ public class CryptoCreateSuite {
                         .balance(1L)
                         .realmId(RealmID.newBuilder().setRealmNum(4).build())
                         .hasKnownStatus(INVALID_ACCOUNT_ID));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> createAccountWithDelegationAddress() {
+        final var longZeroAddress = ByteString.copyFrom(CommonUtils.unhex("0000000000000000000000000000000fffffffff"));
+        final var emptyAddress = ByteString.empty();
+        final var badAddress = ByteString.copyFrom(CommonUtils.unhex("0fffffffff"));
+        return hapiTest(
+                cryptoCreate("withDelegationAddress").balance(ONE_HUNDRED_HBARS).delegationAddress(longZeroAddress),
+                getAccountInfo("withDelegationAddress").has(accountWith().delegationAddress(longZeroAddress)),
+                cryptoCreate("withEmptyAddress").balance(ONE_HUNDRED_HBARS).delegationAddress(emptyAddress),
+                getAccountInfo("withEmptyAddress").has(accountWith().delegationAddress(emptyAddress)),
+                cryptoCreate("withBadDelegationAddress")
+                        .balance(ONE_HUNDRED_HBARS)
+                        .delegationAddress(badAddress)
+                        .hasPrecheck(INVALID_CONTRACT_ID));
     }
 }

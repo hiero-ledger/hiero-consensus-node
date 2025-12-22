@@ -212,7 +212,7 @@ public record EthTxData(
                                 Integers.toBytesUnsigned(value),
                                 callData,
                                 accessListAsRlp() != null ? accessListAsRlp() : new Object[0],
-                                List.of(authorizationList),
+                                authorizationListAsRlp() != null ? authorizationListAsRlp() : new Object[0],
                                 Integers.toBytes(recId),
                                 r,
                                 s));
