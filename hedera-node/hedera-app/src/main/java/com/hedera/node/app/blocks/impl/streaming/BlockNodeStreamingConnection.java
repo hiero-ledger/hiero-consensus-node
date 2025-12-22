@@ -105,10 +105,7 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
      */
     private final ScheduledExecutorService executorService;
     /**
-     * Dedicated executor service for pipeline operations using virtual threads.
-     * This isolates pipeline operations from the shared scheduled executor to prevent
-     * blocking when the connection manager is busy with other tasks. Virtual threads
-     * make this approach lightweight despite creating one executor per connection.
+     * Executor service used to perform asynchronous, blocking I/O operations.
      */
     private final ExecutorService blockingIoExecutor;
     /**
@@ -145,7 +142,7 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
      * @param blockBufferService the block stream state manager for block node connections
      * @param blockStreamMetrics the block stream metrics for block node connections
      * @param executorService the scheduled executor service used to perform async connection reconnects
-     * @param blockingIoExecutor the executor service used for the block processing pipeline
+     * @param blockingIoExecutor the executor service used for blocking I/O operations (e.g. sending a message)
      * @param initialBlockToStream the initial block number to start streaming from, or null to use default
      * @param clientFactory the factory for creating block stream clients
      */
@@ -164,7 +161,7 @@ public class BlockNodeStreamingConnection extends AbstractBlockNodeConnection
         this.blockBufferService = requireNonNull(blockBufferService, "blockBufferService must not be null");
         this.blockStreamMetrics = requireNonNull(blockStreamMetrics, "blockStreamMetrics must not be null");
         this.executorService = requireNonNull(executorService, "executorService must not be null");
-        this.blockingIoExecutor = requireNonNull(blockingIoExecutor, "blockingIoExecutor must not be null");
+        this.blockingIoExecutor = requireNonNull(blockingIoExecutor, "Blocking I/O executor must not be null");
         final var blockNodeConnectionConfig =
                 configProvider.getConfiguration().getConfigData(BlockNodeConnectionConfig.class);
         this.streamResetPeriod = blockNodeConnectionConfig.streamResetPeriod();
