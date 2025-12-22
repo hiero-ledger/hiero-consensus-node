@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.cli;
+package com.swirlds.cli;
 
 import static com.swirlds.platform.state.service.PlatformStateUtils.bulkUpdateOf;
 import static com.swirlds.platform.state.snapshot.SavedStateMetadata.NO_NODE_ID;

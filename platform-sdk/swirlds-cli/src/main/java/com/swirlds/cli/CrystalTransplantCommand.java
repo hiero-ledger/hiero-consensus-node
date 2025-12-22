@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.cli;
+package com.swirlds.cli;
 
 import static com.swirlds.common.merkle.utility.MerkleUtils.rehashTree;
-import static com.swirlds.platform.cli.utils.HederaUtils.SWIRLD_NAME;
 import static com.swirlds.platform.state.signed.StartupStateUtils.loadLatestState;
 import static com.swirlds.platform.util.BootstrapUtils.setupConstructableRegistry;
 import static com.swirlds.platform.util.BootstrapUtils.setupConstructableRegistryWithConfiguration;
+import static com.swirlds.platform.util.HederaUtils.SWIRLD_NAME;
 import static com.swirlds.virtualmap.constructable.ConstructableUtils.registerVirtualMapConstructables;
 import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
 
@@ -13,7 +13,6 @@ import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.node.internal.network.Network;
 import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
 import com.swirlds.base.time.Time;
-import com.swirlds.cli.PlatformCli;
 import com.swirlds.cli.utility.AbstractCommand;
 import com.swirlds.cli.utility.SubcommandOf;
 import com.swirlds.common.config.StateCommonConfig;
@@ -31,6 +30,7 @@ import com.swirlds.platform.state.snapshot.SavedStateInfo;
 import com.swirlds.platform.state.snapshot.SavedStateMetadata;
 import com.swirlds.platform.state.snapshot.SignedStateFilePath;
 import com.swirlds.platform.system.SwirldMain;
+import com.swirlds.platform.util.HederaUtils;
 import com.swirlds.state.MerkleNodeState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.Console;

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.cli.utils;
+package com.swirlds.platform.util;
 
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.config.api.Configuration;

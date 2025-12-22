@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.cli;
+package com.swirlds.cli;
 
 import static com.swirlds.platform.crypto.CryptoStatic.generateKeysAndCerts;
 
-import com.swirlds.cli.PlatformCli;
 import com.swirlds.cli.utility.AbstractCommand;
 import com.swirlds.cli.utility.SubcommandOf;
 import com.swirlds.common.utility.CommonUtils;
