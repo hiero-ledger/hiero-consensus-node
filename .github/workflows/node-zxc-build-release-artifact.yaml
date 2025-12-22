@@ -817,27 +817,54 @@ jobs:
 
           echo "::group::Building Release Archives"
             cd "${SDK_RELEASE_DIR}" || exit "${?}"
-            zip -r "${LIB_ARCHIVE_FILE}" data/lib
-            zip -r "${APPS_ARCHIVE_FILE}" data/apps
+            if [[ -d "data/lib" ]] && [[ "$(ls -A data/lib)" ]]; then
+                zip -r "${LIB_ARCHIVE_FILE}" data/lib
+            else
+                echo "::warning file=node-zxc-build-release-artifact.yaml,line=823,title=No Libraries Found::No Library files were found to include in the libraries archive."
+            fi
+
+            if [[ -d "data/apps" ]] && [[ "$(ls -A data/apps)" ]]; then
+                zip -r "${APPS_ARCHIVE_FILE}" data/apps
+            else
+                echo "::warning file=node-zxc-build-release-artifact.yaml,line=829,title=No Apps Found::No apps files were found to include in the application archive."
+            fi
 
             # remove testing tools (if present) before building the public release artifact
             rm -vf data/apps/*TestingTool.jar || true
-            zip -r "${PUBLIC_ARCHIVE_FILE}" *
+
+            if [[ -d "data" ]] && [[ "$(ls -A data)" ]]; then
+                zip -r "${PUBLIC_ARCHIVE_FILE}" *
+            else
+                echo "::warning file=node-zxc-build-release-artifact.yaml,line=838,title=Nothing Found for Public Archive::No files were found to include in the public archive."
+            fi
+
           echo "::endgroup::"
 
           echo "::group::Sign Release Archives"
             cd "${SDK_ARCHIVE_DIR}" || exit "${?}"
-            sha256sum "${LIB_ARCHIVE_FILE}" >"${LIB_ARCHIVE_FILE}.sha256"
-            sha256sum "${APPS_ARCHIVE_FILE}" >"${APPS_ARCHIVE_FILE}.sha256"
-            sha256sum "${PUBLIC_ARCHIVE_FILE}" >"${PUBLIC_ARCHIVE_FILE}.sha256"
+            if [[ -f ${LIB_ARCHIVE_FILE} ]]; then
+              sha256sum "${LIB_ARCHIVE_FILE}" >"${LIB_ARCHIVE_FILE}.sha256"
+              gpg --output "${LIB_ARCHIVE_FILE}.asc" --detach-sig "${LIB_ARCHIVE_FILE}"
+              gpg --output "${LIB_ARCHIVE_FILE}.sha256.asc" --detach-sig "${LIB_ARCHIVE_FILE}.sha256"
+            else
+              echo "::warning file=node-zxc-build-release-artifact.yaml,line=849,title=Library Archive Missing::The library archive file is missing; skipping signing."
+            fi
 
-            gpg --output "${LIB_ARCHIVE_FILE}.asc" --detach-sig "${LIB_ARCHIVE_FILE}"
-            gpg --output "${APPS_ARCHIVE_FILE}.asc" --detach-sig "${APPS_ARCHIVE_FILE}"
-            gpg --output "${PUBLIC_ARCHIVE_FILE}.asc" --detach-sig "${PUBLIC_ARCHIVE_FILE}"
+            if [[ -f ${APPS_ARCHIVE_FILE ]]; then
+              sha256sum "${APPS_ARCHIVE_FILE}" >"${APPS_ARCHIVE_FILE}.sha256"
+              gpg --output "${APPS_ARCHIVE_FILE}.asc" --detach-sig "${APPS_ARCHIVE_FILE}"
+              gpg --output "${APPS_ARCHIVE_FILE}.sha256.asc" --detach-sig "${APPS_ARCHIVE_FILE}.sha256"
+            else
+              echo "::warning file=node-zxc-build-release-artifact.yaml,line=858,title=Application Archive Missing::The application archive file is missing; skipping signing."
+            fi
 
-            gpg --output "${LIB_ARCHIVE_FILE}.sha256.asc" --detach-sig "${LIB_ARCHIVE_FILE}.sha256"
-            gpg --output "${APPS_ARCHIVE_FILE}.sha256.asc" --detach-sig "${APPS_ARCHIVE_FILE}.sha256"
-            gpg --output "${PUBLIC_ARCHIVE_FILE}.sha256.asc" --detach-sig "${PUBLIC_ARCHIVE_FILE}.sha256"
+            if [[ -f ${PUBLIC_ARCHIVE_FILE} ]]; then
+              sha256sum "${PUBLIC_ARCHIVE_FILE}" >"${PUBLIC_ARCHIVE_FILE}.sha256"
+              gpg --output "${PUBLIC_ARCHIVE_FILE}.asc" --detach-sig "${PUBLIC_ARCHIVE_FILE}"
+              gpg --output "${PUBLIC_ARCHIVE_FILE}.sha256.asc" --detach-sig "${PUBLIC_ARCHIVE_FILE}.sha256"
+            else
+              echo "::warning file=node-zxc-build-release-artifact.yaml,line=867,title=Public Archive Missing::The public archive file is missing; skipping signing."
+            fi
           echo "::endgroup::"
 
       - name: Gradle Publish to Google Artifact Registry (${{ inputs.release-profile }})
@@ -857,7 +884,13 @@ jobs:
           RELEASE_TAG: v${{ needs.validate.outputs.version }}
         run: |
           SDK_ARCHIVE_DIR="${HOME}/sdk-archives"
-          gsutil -m cp -r "${SDK_ARCHIVE_DIR}"/* gs://platform-sdk-ci-release-artifacts/${RELEASE_TAG}/
+          if [[ -d "${SDK_ARCHIVE_DIR}" ]] && [[ "$(ls -A ${SDK_ARCHIVE_DIR})" ]]; then
+            echo "::group::Uploading SDK Release Artifacts to GCP Bucket"
+            gsutil -m cp -r "${SDK_ARCHIVE_DIR}"/* gs://platform-sdk-ci-release-artifacts/${RELEASE_TAG}/
+          else
+            echo "::error file=node-zxc-build-release-artifact.yaml,line=911,title=SDK Archive Directory Missing::The SDK archive directory is missing; cannot upload release artifacts."
+            exit 1
+          fi
 
       - name: Set GH Create Release Flag
         id: set-gh-release-flag
