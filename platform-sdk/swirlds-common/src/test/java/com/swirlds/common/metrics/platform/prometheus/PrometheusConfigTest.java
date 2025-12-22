@@ -9,6 +9,7 @@ import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Objects;
+import org.hiero.consensus.metrics.platform.prometheus.PrometheusConfig;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 

@@ -16,6 +16,7 @@ import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import io.helidon.http.Http.HEAD;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.URI;

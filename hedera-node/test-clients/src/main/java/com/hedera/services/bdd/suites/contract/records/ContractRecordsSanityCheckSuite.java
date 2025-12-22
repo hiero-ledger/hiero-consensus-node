@@ -20,6 +20,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateRecordTrans
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateTransferListForBalances;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
+import static com.hedera.services.bdd.suites.HapiSuite.FEE_COLLECTOR;
 import static com.hedera.services.bdd.suites.HapiSuite.FUNDING;
 import static com.hedera.services.bdd.suites.HapiSuite.NODE;
 import static com.hedera.services.bdd.suites.HapiSuite.NODE_REWARD;
@@ -29,35 +30,54 @@ import static com.hedera.services.bdd.suites.contract.Utils.asSolidityAddress;
 import static java.util.function.Function.identity;
 
 import com.esaulpaugh.headlong.abi.Tuple;
+import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
+import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.HapiSpecOperation;
 import com.hedera.services.bdd.spec.keys.KeyFactory;
 import com.hedera.services.bdd.spec.utilops.UtilVerbs;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.math.BigInteger;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.ToLongFunction;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
 @Tag(SMART_CONTRACT)
+@HapiTestLifecycle
 public class ContractRecordsSanityCheckSuite {
     private static final String BALANCE_LOOKUP = "BalanceLookup";
     public static final String PAYABLE_CONTRACT = "PayReceivable";
     public static final String ALTRUISTIC_TXN = "altruisticTxn";
+
+    @BeforeAll
+    static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
+        testLifecycle.overrideInClass(Map.of("nodes.feeCollectionAccountEnabled", "false"));
+    }
 
     @LeakyHapiTest(requirement = SYSTEM_ACCOUNT_BALANCES)
     final Stream<DynamicTest> contractDeleteRecordSanityChecks() {
         return hapiTest(flattened(
                 uploadInitCode(BALANCE_LOOKUP),
                 contractCreate(BALANCE_LOOKUP).balance(1_000L),
-                takeBalanceSnapshots(BALANCE_LOOKUP, FUNDING, NODE, STAKING_REWARD, NODE_REWARD, DEFAULT_PAYER),
+                takeBalanceSnapshots(
+                        BALANCE_LOOKUP, FUNDING, NODE, STAKING_REWARD, NODE_REWARD, DEFAULT_PAYER, FEE_COLLECTOR),
                 contractDelete(BALANCE_LOOKUP).via("txn").transferAccount(DEFAULT_PAYER),
                 validateTransferListForBalances(
                         "txn",
-                        List.of(FUNDING, NODE, STAKING_REWARD, NODE_REWARD, DEFAULT_PAYER, BALANCE_LOOKUP),
+                        List.of(
+                                FUNDING,
+                                NODE,
+                                STAKING_REWARD,
+                                NODE_REWARD,
+                                DEFAULT_PAYER,
+                                BALANCE_LOOKUP,
+                                FEE_COLLECTOR),
                         Set.of(BALANCE_LOOKUP)),
                 withOpContext((spec, opLog) -> validateRecordTransactionFees(spec, "txn"))));
     }
@@ -66,10 +86,18 @@ public class ContractRecordsSanityCheckSuite {
     final Stream<DynamicTest> contractCreateRecordSanityChecks() {
         return hapiTest(flattened(
                 uploadInitCode(BALANCE_LOOKUP),
-                takeBalanceSnapshots(FUNDING, NODE, STAKING_REWARD, NODE_REWARD, DEFAULT_PAYER),
+                takeBalanceSnapshots(FUNDING, NODE, STAKING_REWARD, NODE_REWARD, DEFAULT_PAYER, FEE_COLLECTOR),
                 contractCreate(BALANCE_LOOKUP).balance(1_000L).via("txn"),
                 validateTransferListForBalances(
-                        "txn", List.of(FUNDING, NODE, STAKING_REWARD, NODE_REWARD, DEFAULT_PAYER, BALANCE_LOOKUP)),
+                        "txn",
+                        List.of(
+                                FUNDING,
+                                NODE,
+                                STAKING_REWARD,
+                                NODE_REWARD,
+                                DEFAULT_PAYER,
+                                BALANCE_LOOKUP,
+                                FEE_COLLECTOR)),
                 withOpContext((spec, opLog) -> validateRecordTransactionFees(spec, "txn"))));
     }
 
@@ -80,12 +108,20 @@ public class ContractRecordsSanityCheckSuite {
                 uploadInitCode(PAYABLE_CONTRACT),
                 contractCreate(PAYABLE_CONTRACT),
                 UtilVerbs.takeBalanceSnapshots(
-                        PAYABLE_CONTRACT, FUNDING, NODE, STAKING_REWARD, NODE_REWARD, DEFAULT_PAYER),
+                        PAYABLE_CONTRACT, FUNDING, NODE, STAKING_REWARD, NODE_REWARD, DEFAULT_PAYER, FEE_COLLECTOR),
                 contractCall(PAYABLE_CONTRACT, "deposit", BigInteger.valueOf(1_000L))
                         .via("txn")
                         .sending(1_000L),
                 validateTransferListForBalances(
-                        "txn", List.of(FUNDING, NODE, STAKING_REWARD, NODE_REWARD, DEFAULT_PAYER, PAYABLE_CONTRACT)),
+                        "txn",
+                        List.of(
+                                FUNDING,
+                                NODE,
+                                STAKING_REWARD,
+                                NODE_REWARD,
+                                DEFAULT_PAYER,
+                                PAYABLE_CONTRACT,
+                                FEE_COLLECTOR)),
                 withOpContext((spec, opLog) -> validateRecordTransactionFees(spec, "txn"))));
     }
 
@@ -97,7 +133,7 @@ public class ContractRecordsSanityCheckSuite {
         long initKeepAmountDivisor = 2;
         BigInteger stopBalance = BigInteger.valueOf(399_999L);
 
-        String[] canonicalAccounts = {FUNDING, NODE, STAKING_REWARD, NODE_REWARD, DEFAULT_PAYER};
+        String[] canonicalAccounts = {FUNDING, NODE, STAKING_REWARD, NODE_REWARD, DEFAULT_PAYER, FEE_COLLECTOR};
         String[] altruists = IntStream.range(0, numAltruists)
                 .mapToObj(i -> String.format("Altruist%s", (char) ('A' + i)))
                 .toArray(String[]::new);
@@ -167,10 +203,10 @@ public class ContractRecordsSanityCheckSuite {
                 newKeyNamed("newKey").type(KeyFactory.KeyType.SIMPLE),
                 uploadInitCode(BALANCE_LOOKUP),
                 contractCreate(BALANCE_LOOKUP).balance(1_000L),
-                takeBalanceSnapshots(FUNDING, NODE, STAKING_REWARD, NODE_REWARD, DEFAULT_PAYER),
+                takeBalanceSnapshots(FUNDING, NODE, STAKING_REWARD, NODE_REWARD, DEFAULT_PAYER, FEE_COLLECTOR),
                 contractUpdate(BALANCE_LOOKUP).newKey("newKey").via("txn").fee(95_000_000L),
                 validateTransferListForBalances(
-                        "txn", List.of(FUNDING, NODE, STAKING_REWARD, NODE_REWARD, DEFAULT_PAYER)),
+                        "txn", List.of(FUNDING, NODE, STAKING_REWARD, NODE_REWARD, DEFAULT_PAYER, FEE_COLLECTOR)),
                 withOpContext((spec, opLog) -> validateRecordTransactionFees(spec, "txn"))));
     }
 

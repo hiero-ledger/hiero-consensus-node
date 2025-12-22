@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.model.status;
 
+import org.hiero.base.UniqueId;
+
 /**
  * The status of the Platform
  */

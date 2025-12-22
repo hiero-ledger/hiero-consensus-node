@@ -17,7 +17,6 @@ import com.swirlds.common.merkle.synchronization.task.TeacherPushReceiveTask;
 import com.swirlds.common.merkle.synchronization.task.TeacherPushSendTask;
 import com.swirlds.common.merkle.synchronization.task.TeacherSubtree;
 import com.swirlds.common.merkle.synchronization.utility.MerkleSynchronizationException;
-import com.swirlds.common.threading.pool.StandardWorkGroup;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
@@ -31,6 +30,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.Hash;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
+import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
 
 /**
  * A teaching tree view for a standard in memory merkle tree.

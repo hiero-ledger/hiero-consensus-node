@@ -1,11 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.component.framework.model.internal.monitor;
 
-import static com.swirlds.common.units.TimeUnit.UNIT_NANOSECONDS;
+import static com.swirlds.base.units.TimeUnit.UNIT_NANOSECONDS;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 
 import com.swirlds.base.time.Time;
-import com.swirlds.common.utility.throttle.RateLimitedLogger;
 import com.swirlds.component.framework.schedulers.TaskScheduler;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
@@ -15,6 +14,7 @@ import java.util.Map;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.CompareTo;
+import org.hiero.consensus.concurrent.utility.throttle.RateLimitedLogger;
 
 /**
  * Encapsulates logging for the wiring health monitor.
