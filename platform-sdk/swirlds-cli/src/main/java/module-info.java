@@ -14,10 +14,11 @@ module com.swirlds.cli {
     opens com.swirlds.cli.logging to
             info.picocli;
 
-    requires transitive com.swirlds.common;
+    requires transitive com.swirlds.base;
     requires transitive org.hiero.consensus.model;
     requires transitive info.picocli;
     requires transitive org.apache.logging.log4j;
+    requires com.swirlds.common;
     requires com.swirlds.logging;
     requires io.github.classgraph;
     requires static transitive com.github.spotbugs.annotations;

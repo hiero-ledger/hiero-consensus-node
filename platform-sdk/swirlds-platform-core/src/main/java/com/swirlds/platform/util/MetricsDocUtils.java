@@ -3,8 +3,6 @@ package com.swirlds.platform.util;
 
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 
-import com.swirlds.common.io.utility.FileUtils;
-import com.swirlds.common.metrics.config.MetricsConfig;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metric;
 import com.swirlds.metrics.api.Metrics;
@@ -20,6 +18,8 @@ import java.util.Objects;
 import java.util.Set;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.utility.FileUtils;
+import org.hiero.consensus.metrics.config.MetricsConfig;
 
 /**
  * Utility methods for working with Metrics documentation.
