@@ -314,301 +314,328 @@ class CommonUtilsTest {
     }
 
     @Nested
-    class NoThrowSha384HashOfTest {
+    class Sha384HashOfTest {
         private static final byte[] BYTE_ARRAY_1 = new byte[] {1, 2, 3, 4};
         private static final Bytes BYTE_ARRAY_1_OBJ = Bytes.wrap(BYTE_ARRAY_1);
         private static final byte[] BYTE_ARRAY_2 = new byte[] {5, 6};
         private static final Bytes BYTE_ARRAY_2_OBJ = Bytes.wrap(BYTE_ARRAY_2);
-        public static final byte[] EMPTY_BYTES = new byte[0];
+        private static final byte[] EMPTY_BYTES = new byte[0];
 
-        // BEGIN Bytes variants
-        @Test
-        void noThrowSha384HashOfBytes_emptyBytes() {
-            final var digest = sha384DigestOrThrow();
+        @Nested
+        class BytesVariants {
+            @Test
+            void noThrowSha384HashOfBytesWorksWithEmptyBytes() {
+                final var digest = sha384DigestOrThrow();
 
-            final var result = noThrowSha384HashOf(Bytes.EMPTY);
-            Bytes.EMPTY.writeTo(digest);
-            assertEquals(Bytes.wrap(digest.digest()), result);
+                final var result = noThrowSha384HashOf(Bytes.EMPTY);
+                Bytes.EMPTY.writeTo(digest);
+                assertEquals(Bytes.wrap(digest.digest()), result);
+            }
+
+            @Test
+            void noThrowSha384HashOfBytesThrowsOnNull() {
+                assertThrows(NullPointerException.class, () -> {
+                    //noinspection DataFlowIssue
+                    noThrowSha384HashOf((Bytes) null);
+                });
+            }
+
+            @Test
+            void noThrowSha384HashOfBytesWorksWithByteArray() {
+                final var digest = sha384DigestOrThrow();
+
+                final var result1 = noThrowSha384HashOf(BYTE_ARRAY_1_OBJ);
+                BYTE_ARRAY_1_OBJ.writeTo(digest);
+                assertEquals(Bytes.wrap(digest.digest()), result1);
+
+                final var result2 = noThrowSha384HashOf(BYTE_ARRAY_2_OBJ);
+                BYTE_ARRAY_2_OBJ.writeTo(digest);
+                assertEquals(Bytes.wrap(digest.digest()), result2);
+            }
+
+            @Test
+            void sha384HashOfAllThrowsOnNull() {
+                assertThrows(NullPointerException.class, () -> sha384HashOfAll((byte[]) null));
+            }
+
+            @Test
+            void sha384HashOfAllBytesThrowsOnNull() {
+                assertThrows(NullPointerException.class, () -> sha384HashOfAll((Bytes) null));
+                assertThrows(NullPointerException.class, () -> sha384HashOfAll(new Bytes[] {null, null}));
+            }
+
+            @Test
+            void sha384HashOfAllBytesWorksWithEmptyByteArray() {
+                final var digest = sha384DigestOrThrow();
+
+                final var result = sha384HashOfAll(Bytes.EMPTY);
+                Bytes.EMPTY.writeTo(digest);
+                assertEquals(Bytes.wrap(digest.digest()), result);
+            }
+
+            @Test
+            void sha384HashOfAllBytesWorksWithMultipleEmptyByteArrays() {
+                final var digest = sha384DigestOrThrow();
+
+                final var result = sha384HashOfAll(Bytes.EMPTY, Bytes.EMPTY);
+                Bytes.EMPTY.writeTo(digest);
+                Bytes.EMPTY.writeTo(digest);
+                assertEquals(Bytes.wrap(digest.digest()), result);
+            }
+
+            @Test
+            void sha384HashOfAllBytesWorksWithSingleByteArray() {
+                final var digest = sha384DigestOrThrow();
+
+                final var result = sha384HashOfAll(BYTE_ARRAY_1_OBJ);
+                BYTE_ARRAY_1_OBJ.writeTo(digest);
+                assertEquals(Bytes.wrap(digest.digest()), result);
+            }
+
+            @Test
+            void sha384HashOfAllBytesThrowsOnNullArray() {
+                assertThrows(NullPointerException.class, () -> sha384HashOfAll(BYTE_ARRAY_1_OBJ, null));
+            }
+
+            @Test
+            void sha384HashOfAllBytesWorksWithMultipleByteArrays() {
+                final var digest = sha384DigestOrThrow();
+
+                final var resultDirect = sha384HashOfAll(BYTE_ARRAY_1_OBJ, BYTE_ARRAY_2_OBJ);
+                BYTE_ARRAY_1_OBJ.writeTo(digest);
+                BYTE_ARRAY_2_OBJ.writeTo(digest);
+                assertEquals(Bytes.wrap(digest.digest()), resultDirect);
+
+                // Reversed order of byte arrays is intentional
+                final var arrOfArrays = new Bytes[] {BYTE_ARRAY_2_OBJ, BYTE_ARRAY_1_OBJ};
+                final var resultAsArr = sha384HashOfAll(arrOfArrays);
+                arrOfArrays[0].writeTo(digest);
+                arrOfArrays[1].writeTo(digest);
+                assertEquals(Bytes.wrap(digest.digest()), resultAsArr);
+            }
+
+            @Test
+            void hashOfAllThrowsOnNullDigest() {
+                assertThrows(NullPointerException.class, () -> {
+                    //noinspection DataFlowIssue
+                    hashOfAll(null, BYTE_ARRAY_1_OBJ);
+                });
+            }
+
+            @Test
+            void hashOfAllThrowsOnNullVararg() {
+                assertThrows(NullPointerException.class, () -> {
+                    //noinspection DataFlowIssue
+                    hashOfAll(sha384DigestOrThrow(), (Bytes[]) null);
+                });
+            }
+
+            @Test
+            void hashOfAllThrowsOnNullElementInVararg() {
+                assertThrows(NullPointerException.class, () -> {
+                    hashOfAll(sha384DigestOrThrow(), BYTE_ARRAY_1_OBJ, null);
+                });
+            }
+
+            @Test
+            void hashOfAllWorksWithSingleElement() {
+                final var digest = sha384DigestOrThrow();
+
+                final var result = hashOfAll(sha384DigestOrThrow(), BYTE_ARRAY_1_OBJ);
+                BYTE_ARRAY_1_OBJ.writeTo(digest);
+                assertEquals(Bytes.wrap(digest.digest()), result);
+            }
+
+            @Test
+            void hashOfAllWorksWithMultipleElements() {
+                final var digest = sha384DigestOrThrow();
+
+                final var result = hashOfAll(sha384DigestOrThrow(), BYTE_ARRAY_1_OBJ, BYTE_ARRAY_2_OBJ);
+                BYTE_ARRAY_1_OBJ.writeTo(digest);
+                BYTE_ARRAY_2_OBJ.writeTo(digest);
+                assertEquals(Bytes.wrap(digest.digest()), result);
+            }
+
+            @Test
+            void hashOfAllFailsWithNoElements() {
+                assertThrows(NullPointerException.class, () -> {
+                    //noinspection DataFlowIssue
+                    hashOfAll(sha384DigestOrThrow(), (Bytes[]) null);
+                });
+            }
+
+            @Test
+            void hashOfAllWorksWithEmptyElements() {
+                final var digest = sha384DigestOrThrow();
+
+                final var result = hashOfAll(sha384DigestOrThrow(), new Bytes[] {});
+                assertEquals(Bytes.wrap(digest.digest()), result);
+            }
+
+            @Test
+            void hashOfAllWorksWithEmptyBytes() {
+                final var digest = sha384DigestOrThrow();
+
+                final var result = hashOfAll(sha384DigestOrThrow(), Bytes.EMPTY);
+                Bytes.EMPTY.writeTo(digest);
+                assertEquals(Bytes.wrap(digest.digest()), result);
+            }
         }
 
-        @Test
-        void noThrowSha384HashOfBytes_null() {
-            assertThrows(NullPointerException.class, () -> {
-                //noinspection DataFlowIssue
-                noThrowSha384HashOf((Bytes) null);
-            });
+        @Nested
+        class ByteArrayVariants {
+            @Test
+            void noThrowSha384HashOfWorksWithEmptyBytes() {
+                final var digest = sha384DigestOrThrow();
+
+                final var result = noThrowSha384HashOf(EMPTY_BYTES);
+                assertArrayEquals(digest.digest(EMPTY_BYTES), result);
+            }
+
+            @Test
+            void noThrowSha384HashOfThrowsOnNull() {
+                assertThrows(NullPointerException.class, () -> noThrowSha384HashOf((byte[]) null));
+            }
+
+            @Test
+            void noThrowSha384HashOfWorksWithByteArray() {
+                final var digest = sha384DigestOrThrow();
+
+                final var result1 = noThrowSha384HashOf(BYTE_ARRAY_1);
+                assertArrayEquals(digest.digest(BYTE_ARRAY_1), result1);
+
+                final var result2 = noThrowSha384HashOf(BYTE_ARRAY_2);
+                assertArrayEquals(digest.digest(BYTE_ARRAY_2), result2);
+            }
+
+            @Test
+            void sha384HashOfWorksWithMultipleByteArrays() {
+                final var digest = sha384DigestOrThrow();
+
+                final var result = CommonUtils.sha384HashOf(BYTE_ARRAY_1, BYTE_ARRAY_2);
+                digest.update(BYTE_ARRAY_1);
+                assertArrayEquals(digest.digest(BYTE_ARRAY_2), result);
+            }
+
+            @Test
+            void sha384HashOfAllThrowsOnNull() {
+                assertThrows(NullPointerException.class, () -> CommonUtils.sha384HashOfAll((byte[]) null));
+                assertThrows(NullPointerException.class, () -> CommonUtils.sha384HashOfAll(new byte[][] {null, null}));
+            }
+
+            @Test
+            void sha384HashOfAllWorksWithEmptyByteArray() {
+                final var digest = sha384DigestOrThrow();
+
+                final var result = CommonUtils.sha384HashOfAll(EMPTY_BYTES);
+                assertEquals(Bytes.wrap(digest.digest(EMPTY_BYTES)), result);
+            }
+
+            @Test
+            void sha384HashOfAllWorksWithMultipleEmptyByteArrays() {
+                final var digest = sha384DigestOrThrow();
+
+                final var result = CommonUtils.sha384HashOfAll(EMPTY_BYTES, EMPTY_BYTES);
+                digest.update(EMPTY_BYTES);
+                assertEquals(Bytes.wrap(digest.digest(EMPTY_BYTES)), result);
+            }
+
+            @Test
+            void sha384HashOfAllWorksWithSingleByteArray() {
+                final var digest = sha384DigestOrThrow();
+
+                final var result = CommonUtils.sha384HashOfAll(BYTE_ARRAY_1);
+                assertEquals(Bytes.wrap(digest.digest(BYTE_ARRAY_1)), result);
+            }
+
+            @Test
+            void sha384HashOfThrowsOnIncludedNullArray() {
+                assertThrows(NullPointerException.class, () -> sha384HashOfAll(BYTE_ARRAY_1, null));
+            }
+
+            @Test
+            void sha384HashOfAllWorksWithMultipleByteArrays() {
+                final var digest = sha384DigestOrThrow();
+
+                final var resultDirect = CommonUtils.sha384HashOfAll(BYTE_ARRAY_1, BYTE_ARRAY_2);
+                digest.update(BYTE_ARRAY_1);
+                assertEquals(Bytes.wrap(digest.digest(BYTE_ARRAY_2)), resultDirect);
+
+                // Reversed order of byte arrays is intentional
+                final var arrOfArrays = new byte[][] {BYTE_ARRAY_2, BYTE_ARRAY_1};
+                final var resultAsArr = CommonUtils.sha384HashOfAll(arrOfArrays);
+                digest.update(arrOfArrays[0]);
+                assertEquals(Bytes.wrap(digest.digest(arrOfArrays[1])), resultAsArr);
+            }
         }
 
-        @Test
-        void noThrowSha384HashOfBytes_byteArray() {
-            final var digest = sha384DigestOrThrow();
+        @Nested
+        class BytesAndByteArrayEquivalence {
+            @Test
+            void noThrowSha384HashOfWorksWithEmptyBytes() {
+                final var byteArrResult = noThrowSha384HashOf(EMPTY_BYTES);
+                final var bytesResult = noThrowSha384HashOf(Bytes.EMPTY);
+                assertEquals(Bytes.wrap(byteArrResult), bytesResult);
+            }
 
-            final var result1 = noThrowSha384HashOf(BYTE_ARRAY_1_OBJ);
-            BYTE_ARRAY_1_OBJ.writeTo(digest);
-            assertEquals(Bytes.wrap(digest.digest()), result1);
+            @Test
+            void noThrowSha384HashOfWorksWithByteArray() {
+                final var byteArrResult1 = noThrowSha384HashOf(BYTE_ARRAY_1);
+                final var bytesResult1 = noThrowSha384HashOf(BYTE_ARRAY_1_OBJ);
+                assertEquals(Bytes.wrap(byteArrResult1), bytesResult1);
 
-            final var result2 = noThrowSha384HashOf(BYTE_ARRAY_2_OBJ);
-            BYTE_ARRAY_2_OBJ.writeTo(digest);
-            assertEquals(Bytes.wrap(digest.digest()), result2);
-        }
+                final var byteArrResult2 = noThrowSha384HashOf(BYTE_ARRAY_2);
+                final var bytesResult2 = noThrowSha384HashOf(BYTE_ARRAY_2_OBJ);
+                assertEquals(Bytes.wrap(byteArrResult2), bytesResult2);
+            }
 
-        @Test
-        void noThrowSha384HashOfAllBytes_null() {
-            assertThrows(NullPointerException.class, () -> sha384HashOfAll((Bytes) null));
-            assertThrows(NullPointerException.class, () -> sha384HashOfAll(new Bytes[] {null, null}));
-        }
+            @Test
+            void sha384HashOfWorksWithMultipleByteArrays() {
+                final var byteArrResult = CommonUtils.sha384HashOf(BYTE_ARRAY_1, BYTE_ARRAY_2);
+                final var bytesResult = sha384HashOfAll(BYTE_ARRAY_1_OBJ, BYTE_ARRAY_2_OBJ);
+                assertEquals(Bytes.wrap(byteArrResult), bytesResult);
+            }
 
-        @Test
-        void noThrowSha384HashOfAllBytes_emptyByteArray() {
-            final var digest = sha384DigestOrThrow();
+            @Test
+            void sha384HashOfAllWorksWithEmptyByteArray() {
+                final var byteArrResult = CommonUtils.sha384HashOfAll(EMPTY_BYTES);
+                final var bytesResult = sha384HashOfAll(Bytes.EMPTY);
+                assertEquals(byteArrResult, bytesResult);
+            }
 
-            final var result = sha384HashOfAll(Bytes.EMPTY);
-            Bytes.EMPTY.writeTo(digest);
-            assertEquals(Bytes.wrap(digest.digest()), result);
-        }
+            @Test
+            void sha384HashOfAllWorksWithMultipleEmptyByteArrays() {
+                final var byteArrResult = CommonUtils.sha384HashOfAll(EMPTY_BYTES, EMPTY_BYTES);
+                final var bytesResult = sha384HashOfAll(Bytes.EMPTY, Bytes.EMPTY);
+                assertEquals(byteArrResult, bytesResult);
+            }
 
-        @Test
-        void noThrowSha384HashOfAllBytes_multipleEmptyByteArrays() {
-            final var digest = sha384DigestOrThrow();
+            @Test
+            void noThrowSha384HashOfAllWorksWithSingleByteArray() {
+                final var byteArrResult = CommonUtils.sha384HashOfAll(BYTE_ARRAY_1);
+                final var bytesResult = sha384HashOfAll(BYTE_ARRAY_1_OBJ);
+                assertEquals(byteArrResult, bytesResult);
+            }
 
-            final var result = sha384HashOfAll(Bytes.EMPTY, Bytes.EMPTY);
-            Bytes.EMPTY.writeTo(digest);
-            Bytes.EMPTY.writeTo(digest);
-            assertEquals(Bytes.wrap(digest.digest()), result);
-        }
+            @Test
+            void sha384HashOfAllWorksWithMultipleByteArrays() {
+                final var byteArrResultDirect = CommonUtils.sha384HashOfAll(BYTE_ARRAY_1, BYTE_ARRAY_2);
+                final var bytesResultDirect = sha384HashOfAll(BYTE_ARRAY_1_OBJ, BYTE_ARRAY_2_OBJ);
+                assertEquals(byteArrResultDirect, bytesResultDirect);
 
-        @Test
-        void noThrowSha384HashOfAllBytes_singleByteArray() {
-            final var digest = sha384DigestOrThrow();
+                // Reversed order of byte arrays is intentional
+                final var arrOfArrays = new byte[][] {BYTE_ARRAY_2, BYTE_ARRAY_1};
+                final var resultAsArr = CommonUtils.sha384HashOfAll(arrOfArrays);
+                final var bytesArrOfArrays = new Bytes[] {BYTE_ARRAY_2_OBJ, BYTE_ARRAY_1_OBJ};
+                final var bytesResultAsArr = sha384HashOfAll(bytesArrOfArrays);
+                assertEquals(resultAsArr, bytesResultAsArr);
+            }
 
-            final var result = sha384HashOfAll(BYTE_ARRAY_1_OBJ);
-            BYTE_ARRAY_1_OBJ.writeTo(digest);
-            assertEquals(Bytes.wrap(digest.digest()), result);
-        }
-
-        @Test
-        void noThrowSha384HashOfAllBytes_multipleByteArrays() {
-            final var digest = sha384DigestOrThrow();
-
-            final var resultDirect = sha384HashOfAll(BYTE_ARRAY_1_OBJ, BYTE_ARRAY_2_OBJ);
-            BYTE_ARRAY_1_OBJ.writeTo(digest);
-            BYTE_ARRAY_2_OBJ.writeTo(digest);
-            assertEquals(Bytes.wrap(digest.digest()), resultDirect);
-
-            final var arrOfArrays = new Bytes[] {BYTE_ARRAY_2_OBJ, BYTE_ARRAY_1_OBJ};
-            final var resultAsArr = sha384HashOfAll(arrOfArrays);
-            arrOfArrays[0].writeTo(digest);
-            arrOfArrays[1].writeTo(digest);
-            assertEquals(Bytes.wrap(digest.digest()), resultAsArr);
-        }
-
-        @Test
-        void hashOfAllThrowsOnNullDigest() {
-            assertThrows(NullPointerException.class, () -> {
-                //noinspection DataFlowIssue
-                hashOfAll(null, BYTE_ARRAY_1_OBJ);
-            });
-        }
-
-        @Test
-        void hashOfAllThrowsOnNullVararg() {
-            assertThrows(NullPointerException.class, () -> {
-                //noinspection DataFlowIssue
-                hashOfAll(sha384DigestOrThrow(), (Bytes[]) null);
-            });
-        }
-
-        @Test
-        void hashOfAllThrowsOnNullElementInVararg() {
-            assertThrows(NullPointerException.class, () -> {
-                hashOfAll(sha384DigestOrThrow(), BYTE_ARRAY_1_OBJ, null);
-            });
-        }
-
-        @Test
-        void hashOfAllWorksWithSingleElement() {
-            final var digest = sha384DigestOrThrow();
-
-            final var result = hashOfAll(sha384DigestOrThrow(), BYTE_ARRAY_1_OBJ);
-            BYTE_ARRAY_1_OBJ.writeTo(digest);
-            assertEquals(Bytes.wrap(digest.digest()), result);
-        }
-
-        @Test
-        void hashOfAllWorksWithMultipleElements() {
-            final var digest = sha384DigestOrThrow();
-
-            final var result = hashOfAll(sha384DigestOrThrow(), BYTE_ARRAY_1_OBJ, BYTE_ARRAY_2_OBJ);
-            BYTE_ARRAY_1_OBJ.writeTo(digest);
-            BYTE_ARRAY_2_OBJ.writeTo(digest);
-            assertEquals(Bytes.wrap(digest.digest()), result);
-        }
-
-        @Test
-        void hashOfAllFailsWithNoElements() {
-            assertThrows(NullPointerException.class, () -> {
-                //noinspection DataFlowIssue
-                hashOfAll(sha384DigestOrThrow(), (Bytes[]) null);
-            });
-        }
-
-        @Test
-        void hashOfAllWorksWithEmptyElements() {
-            final var digest = sha384DigestOrThrow();
-
-            final var result = hashOfAll(sha384DigestOrThrow(), new Bytes[] {});
-            assertEquals(Bytes.wrap(digest.digest()), result);
-        }
-
-        @Test
-        void hashOfAllWorksWithEmptyBytes() {
-            final var digest = sha384DigestOrThrow();
-
-            final var result = hashOfAll(sha384DigestOrThrow(), Bytes.EMPTY);
-            Bytes.EMPTY.writeTo(digest);
-            assertEquals(Bytes.wrap(digest.digest()), result);
-        }
-        // END: Bytes variants
-
-        // BEGIN byte[] variants
-        @Test
-        void noThrowSha384HashOf_emptyBytes() {
-            final var digest = sha384DigestOrThrow();
-
-            final var result = noThrowSha384HashOf(EMPTY_BYTES);
-            assertArrayEquals(digest.digest(EMPTY_BYTES), result);
-        }
-
-        @Test
-        void noThrowSha384HashOf_null() {
-            assertThrows(NullPointerException.class, () -> {
-                noThrowSha384HashOf((byte[]) null);
-            });
-        }
-
-        @Test
-        void noThrowSha384HashOf_byteArray() {
-            final var digest = sha384DigestOrThrow();
-
-            final var result1 = noThrowSha384HashOf(BYTE_ARRAY_1);
-            assertArrayEquals(digest.digest(BYTE_ARRAY_1), result1);
-
-            final var result2 = noThrowSha384HashOf(BYTE_ARRAY_2);
-            assertArrayEquals(digest.digest(BYTE_ARRAY_2), result2);
-        }
-
-        @Test
-        void noThrowSha384HashOf_multipleByteArrays() {
-            final var digest = sha384DigestOrThrow();
-
-            final var result = CommonUtils.sha384HashOf(BYTE_ARRAY_1, BYTE_ARRAY_2);
-            digest.update(BYTE_ARRAY_1);
-            assertArrayEquals(digest.digest(BYTE_ARRAY_2), result);
-        }
-
-        @Test
-        void noThrowSha384HashOfAll_null() {
-            assertThrows(NullPointerException.class, () -> CommonUtils.sha384HashOfAll((byte[]) null));
-            assertThrows(NullPointerException.class, () -> CommonUtils.sha384HashOfAll(new byte[][] {null, null}));
-        }
-
-        @Test
-        void noThrowSha384HashOfAll_emptyByteArray() {
-            final var digest = sha384DigestOrThrow();
-
-            final var result = CommonUtils.sha384HashOfAll(EMPTY_BYTES);
-            assertEquals(Bytes.wrap(digest.digest(EMPTY_BYTES)), result);
-        }
-
-        @Test
-        void noThrowSha384HashOfAll_multipleEmptyByteArrays() {
-            final var digest = sha384DigestOrThrow();
-
-            final var result = CommonUtils.sha384HashOfAll(EMPTY_BYTES, EMPTY_BYTES);
-            digest.update(EMPTY_BYTES);
-            assertEquals(Bytes.wrap(digest.digest(EMPTY_BYTES)), result);
-        }
-
-        @Test
-        void noThrowSha384HashOfAll_singleByteArray() {
-            final var digest = sha384DigestOrThrow();
-
-            final var result = CommonUtils.sha384HashOfAll(BYTE_ARRAY_1);
-            assertEquals(Bytes.wrap(digest.digest(BYTE_ARRAY_1)), result);
-        }
-
-        @Test
-        void noThrowSha384HashOfAll_multipleByteArrays() {
-            final var digest = sha384DigestOrThrow();
-
-            final var resultDirect = CommonUtils.sha384HashOfAll(BYTE_ARRAY_1, BYTE_ARRAY_2);
-            digest.update(BYTE_ARRAY_1);
-            assertEquals(Bytes.wrap(digest.digest(BYTE_ARRAY_2)), resultDirect);
-
-            final var arrOfArrays = new byte[][] {BYTE_ARRAY_2, BYTE_ARRAY_1};
-            final var resultAsArr = CommonUtils.sha384HashOfAll(arrOfArrays);
-            digest.update(arrOfArrays[0]);
-            assertEquals(Bytes.wrap(digest.digest(arrOfArrays[1])), resultAsArr);
-        }
-
-        // BEGIN: equivalence of byte[] and Bytes variants
-        @Test
-        void noThrowSha384HashOf_bytesAndByteArrayEquivalence_emptyBytes() {
-            final var byteArrResult = noThrowSha384HashOf(EMPTY_BYTES);
-            final var bytesResult = noThrowSha384HashOf(Bytes.EMPTY);
-            assertEquals(Bytes.wrap(byteArrResult), bytesResult);
-        }
-
-        @Test
-        void noThrowSha384HashOf_bytesAndByteArrayEquivalence_byteArray() {
-            final var byteArrResult1 = noThrowSha384HashOf(BYTE_ARRAY_1);
-            final var bytesResult1 = noThrowSha384HashOf(BYTE_ARRAY_1_OBJ);
-            assertEquals(Bytes.wrap(byteArrResult1), bytesResult1);
-
-            final var byteArrResult2 = noThrowSha384HashOf(BYTE_ARRAY_2);
-            final var bytesResult2 = noThrowSha384HashOf(BYTE_ARRAY_2_OBJ);
-            assertEquals(Bytes.wrap(byteArrResult2), bytesResult2);
-        }
-
-        @Test
-        void noThrowSha384HashOf_bytesAndByteArrayEquivalence_multipleByteArrays() {
-            final var byteArrResult = CommonUtils.sha384HashOf(BYTE_ARRAY_1, BYTE_ARRAY_2);
-            final var bytesResult = sha384HashOfAll(BYTE_ARRAY_1_OBJ, BYTE_ARRAY_2_OBJ);
-            assertEquals(Bytes.wrap(byteArrResult), bytesResult);
-        }
-
-        @Test
-        void noThrowSha384HashOfAll_bytesAndByteArrayEquivalence_emptyByteArray() {
-            final var byteArrResult = CommonUtils.sha384HashOfAll(EMPTY_BYTES);
-            final var bytesResult = sha384HashOfAll(Bytes.EMPTY);
-            assertEquals(byteArrResult, bytesResult);
-        }
-
-        @Test
-        void noThrowSha384HashOfAll_bytesAndByteArrayEquivalence_multipleEmptyByteArrays() {
-            final var byteArrResult = CommonUtils.sha384HashOfAll(EMPTY_BYTES, EMPTY_BYTES);
-            final var bytesResult = sha384HashOfAll(Bytes.EMPTY, Bytes.EMPTY);
-            assertEquals(byteArrResult, bytesResult);
-        }
-
-        @Test
-        void noThrowSha384HashOfAll_bytesAndByteArrayEquivalence_singleByteArray() {
-            final var byteArrResult = CommonUtils.sha384HashOfAll(BYTE_ARRAY_1);
-            final var bytesResult = sha384HashOfAll(BYTE_ARRAY_1_OBJ);
-            assertEquals(byteArrResult, bytesResult);
-        }
-
-        @Test
-        void noThrowSha384HashOfAll_bytesAndByteArrayEquivalence_multipleByteArrays() {
-            final var byteArrResultDirect = CommonUtils.sha384HashOfAll(BYTE_ARRAY_1, BYTE_ARRAY_2);
-            final var bytesResultDirect = sha384HashOfAll(BYTE_ARRAY_1_OBJ, BYTE_ARRAY_2_OBJ);
-            assertEquals(byteArrResultDirect, bytesResultDirect);
-
-            final var arrOfArrays = new byte[][] {BYTE_ARRAY_2, BYTE_ARRAY_1};
-            final var resultAsArr = CommonUtils.sha384HashOfAll(arrOfArrays);
-            final var bytesArrOfArrays = new Bytes[] {BYTE_ARRAY_2_OBJ, BYTE_ARRAY_1_OBJ};
-            final var bytesResultAsArr = sha384HashOfAll(bytesArrOfArrays);
-            assertEquals(resultAsArr, bytesResultAsArr);
+            @Test
+            void sha384HashOfAllThrowsWithIncludedNull() {
+                assertThrows(NullPointerException.class, () -> sha384HashOfAll(BYTE_ARRAY_1_OBJ, null));
+                assertThrows(NullPointerException.class, () -> sha384HashOfAll(BYTE_ARRAY_1, null));
+            }
         }
     }
 
