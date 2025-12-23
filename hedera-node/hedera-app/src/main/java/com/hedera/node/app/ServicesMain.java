@@ -74,6 +74,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -314,7 +315,7 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
         metrics = getMetricsProvider().createPlatformMetrics(selfId);
         hedera = newHedera(platformConfig, metrics, time);
         final var version = hedera.getSemanticVersion();
-        final AtomicReference<Network> genesisNetwork = new AtomicReference<>();
+        final AtomicBoolean genesisNetwork = new AtomicBoolean(false);
         logger.info("Starting node {} with version {}", selfId, version);
 
         // --- Build required infrastructure to load the initial state, then initialize the States API ---
@@ -329,16 +330,7 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
                 recycleBin,
                 version,
                 () -> {
-                    Network network;
-                    try {
-                        network = hedera.startupNetworks().genesisNetworkOrThrow(platformConfig);
-                    } catch (final Exception e) {
-                        final Path genNetworkPath = Path.of("data", "config", DiskStartupNetworks.GENESIS_NETWORK_JSON);
-                        network = DiskStartupNetworks.loadNetworkFrom(genNetworkPath)
-                                .orElseThrow(() -> new IllegalStateException(
-                                        "Failed to load genesis network from " + genNetworkPath.toAbsolutePath(), e));
-                    }
-                    genesisNetwork.set(network);
+                    genesisNetwork.set(true);
                     final var genesisState = hedera.newStateRoot();
                     hedera.initializeStatesApi(genesisState, GENESIS, platformConfig);
                     return genesisState;
@@ -350,7 +342,7 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
                 hedera.getStateLifecycleManager());
         final ReservedSignedState initialState = reservedState.state();
         final MerkleNodeState state = initialState.get().getState();
-        if (genesisNetwork.get() == null) {
+        if (!genesisNetwork.get()) {
             hedera.initializeStatesApi(state, RESTART, platformConfig);
         }
         hedera.setInitialStateHash(reservedState.hash());
@@ -361,6 +353,11 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
         final var networkKeysAndCerts = initNodeSecurity(platformConfig, Set.copyOf(nodesToRun));
         final var keysAndCerts = networkKeysAndCerts.get(selfId); // TODO maybe change to single
 
+        final String consensusEventStreamName = genesisNetwork.get()
+                // If at genesis, base the event stream location on the genesis network metadata
+                ? eventStreamLocOrThrow(hedera.startupNetworks().genesisNetworkOrThrow(platformConfig), selfId.id())
+                // Otherwise derive if from the node's id in state or
+                : canonicalEventStreamLoc(selfId.id(), state);
         // --- Now build the platform and start it ---
         final var platformBuilder = PlatformBuilder.create(
                         Hedera.APP_NAME,
@@ -369,11 +366,7 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
                         initialState,
                         consensusStateEventHandler,
                         selfId,
-                        // If at genesis, base the event stream location on the genesis network metadata
-                        Optional.ofNullable(genesisNetwork.get())
-                                .map(network -> eventStreamLocOrThrow(network, selfId.id()))
-                                // Otherwise derive if from the node's id in state or
-                                .orElseGet(() -> canonicalEventStreamLoc(selfId.id(), state)),
+                        consensusEventStreamName,
                         rosterHistory,
                         hedera.getStateLifecycleManager())
                 .withPlatformContext(platformContext)
