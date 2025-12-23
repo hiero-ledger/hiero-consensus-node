@@ -9,10 +9,12 @@ import com.swirlds.common.startup.Log4jSetup;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
+import org.hiero.consensus.pcli.utility.CommandBuilder;
 import org.hiero.consensus.pcli.utility.PlatformCliLogo;
-import org.hiero.consensus.pcli.utility.PlatformCliPreParser;
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
+import picocli.CommandLine.Option;
+import picocli.CommandLine.ParseResult;
 
 /**
  * The Swirlds Platform CLI.
@@ -24,128 +26,63 @@ import picocli.CommandLine.Command;
         description = "Miscellaneous platform utilities.")
 public class Pcli extends AbstractCommand {
 
-    private static final String DOCUMENTATION_PURPOSES_ONLY =
-            "This argument is included here for documentation purposes only.";
+    @Option(
+            names = {"-B", "--banner"},
+            description = "Show the ASCII banner on startup")
+    private boolean showBanner = false;
 
-    /**
-     * Set the paths where jar files should be loaded from.
-     */
-    @CommandLine.Option(
-            names = {"-L", "--load", "--cp"},
-            scope = CommandLine.ScopeType.INHERIT,
-            description = "A path where additional java libs should be loaded from. "
-                    + "Can be a path to a jar file or a path to a directory containing jar files.")
-    private void setLoadPath(final List<Path> loadPath) {
-        throw buildParameterException(
-                "The load path parameter is expected to be parsed prior to the JVM being started. "
-                        + DOCUMENTATION_PURPOSES_ONLY);
-    }
-
-    @CommandLine.Option(
-            names = {"-J", "--jvm"},
-            scope = CommandLine.ScopeType.INHERIT,
-            description = "An argument that will be passed to the JVM, e.g. '-Xmx10g'")
-    private void setJvmArgs(final List<String> jvmArgs) {
-        throw buildParameterException("The jvm args parameter is expected to be parsed prior to the JVM being started. "
-                + DOCUMENTATION_PURPOSES_ONLY);
-    }
-
-    @CommandLine.Option(
-            names = {"-C", "--cli"},
-            scope = CommandLine.ScopeType.INHERIT,
-            description = "A package prefix where CLI commands/subcommands can be found. "
-                    + "Commands annotated with '@SubcommandOf' in these packages are automatically "
-                    + "integrated into pcli.")
-    private void setCliPackagePrefixes(final List<String> cliPackagePrefixes) {
-        throw buildParameterException(
-                "The cli parameter is expected to be parsed using a different pathway. " + DOCUMENTATION_PURPOSES_ONLY);
-    }
-
-    @CommandLine.Option(
-            names = {"-D", "--debug"},
-            scope = CommandLine.ScopeType.INHERIT,
-            description = "Pause the JVM at startup, and wait until a debugger "
-                    + "is attached to port 8888 before continuing.")
-    private void setDebug(final boolean debug) {
-        throw buildParameterException("The debug parameter is expected to be parsed prior to the JVM being started. "
-                + DOCUMENTATION_PURPOSES_ONLY);
-    }
-
-    @CommandLine.Option(
-            names = {"-M", "--memory"},
-            scope = CommandLine.ScopeType.INHERIT,
-            description = "Set the amount of memory to allocate to the JVM, in gigabytes. "
-                    + "'-M 16' is equivalent to '-J -Xmx16g'.")
-    private void setJvmArgs(final int memory) {
-        throw buildParameterException("The memory parameter is expected to be parsed prior to the JVM being started. "
-                + DOCUMENTATION_PURPOSES_ONLY);
-    }
-
-    /**
-     * Set the log4j path.
-     */
-    @CommandLine.Option(
-            names = {"--log4j"},
-            scope = CommandLine.ScopeType.INHERIT,
-            description = "The path where the log4j configuration file can be found.")
-    private void setLog4jPath(final Path log4jPath) {
-        throw buildParameterException(
-                "The log4j path parameter is expected to be parsed manually. " + DOCUMENTATION_PURPOSES_ONLY);
-    }
-
-    @CommandLine.Option(
+    @Option(
             names = {"--no-color"},
-            description = "Disable color output. This option is designed for "
-                    + "boring people living boring lives, who want their console "
-                    + "output to be just as boring as they are.")
-    private void setColorDisabled(final boolean colorDisabled) {
-        throw buildParameterException(
-                "The setColorDisabled parameter is expected to be parsed manually. " + DOCUMENTATION_PURPOSES_ONLY);
-    }
+            description = "Disable colored output")
+    private boolean noColor = false;
+
+    @Option(
+            names = {"--log4j"},
+            description = "Path to log4j configuration file")
+    private Path log4jPath;
+
+    @Option(
+            names = {"-C", "--cli"},
+            description =
+                    "Package prefix where CLI commands/subcommands can be found. "
+                            + "Commands annotated with '@SubcommandOf' in these packages are automatically integrated into pcli.")
+    private List<String> cliPackagePrefixes;
 
     /**
-     * Set the paths where jar files should be loaded from.
+     * Custom execution strategy that handles setup before running commands.
      */
-    @CommandLine.Option(
-            names = {"-I", "--ignore-jars"},
-            scope = CommandLine.ScopeType.INHERIT,
-            description = "If running in a platform development environment, "
-                    + "if this flag is present then ignore jar files in the standard platform sdk/data/lib directory. "
-                    + "This can be useful if running on a machine with a platform build environment, but where you "
-                    + "don't want to load the jars from that build environment. If not running in a platform "
-                    + "development environment, this flag has no effect")
-    private void setIgnoreJars(final boolean ignoreJars) {
-        throw buildParameterException(
-                "The ignore jars parameter is expected to be parsed prior to the JVM being started. "
-                        + DOCUMENTATION_PURPOSES_ONLY);
-    }
+    static class SetupExecutionStrategy implements CommandLine.IExecutionStrategy {
+        @Override
+        public int execute(final ParseResult parseResult) {
+            final Pcli pcli = parseResult.commandSpec().commandLine().getCommand();
 
-    @CommandLine.Option(
-            names = {"-B", "--bootstrap"},
-            scope = CommandLine.ScopeType.INHERIT,
-            description = "The fully qualified name of the function to run before the command is executed."
-                    + "Can be used to do arbitrary bootstrapping. Should be a static method "
-                    + "that implements the interface Runnable. "
-                    + "e.g. '-B org.hiero.consensus.pcli.utility.PlatformCliPreParser.exampleBootstrapFunction'")
-    private void setBoostrapFunction(final String boostrapFunction) {
-        throw buildParameterException("This argument is parsed by the pre-parser. " + DOCUMENTATION_PURPOSES_ONLY);
-    }
+            // Setup text effects
+            TextEffect.setTextEffectsEnabled(!pcli.noColor);
 
-    /**
-     * Before we do the main parsing pass, we first need to extract a small selection of parameters.
-     *
-     * @param args the program arguments
-     * @return the arguments that weren't handled by pre-parsing
-     */
-    private static PlatformCliPreParser preParse(final String[] args) {
-        final CommandLine commandLine = new CommandLine(PlatformCliPreParser.class);
-        commandLine.setUnmatchedArgumentsAllowed(true);
-        commandLine.execute(args);
-        final List<String> unmatchedArgs = commandLine.getUnmatchedArguments();
-        final PlatformCliPreParser parser = commandLine.getCommand();
-        parser.setUnparsedArgs(unmatchedArgs.toArray(new String[0]));
+            // Show banner if enabled (checks both --banner flag and system property from bash script)
+            final boolean showBannerFromScript = Boolean.parseBoolean(System.getProperty("pcli.showBanner", "false"));
+            if (pcli.showBanner || showBannerFromScript) {
+                System.out.println(PlatformCliLogo.getColorizedLogo());
+            }
 
-        return parser;
+            // Setup logging
+            final CountDownLatch log4jLatch = Log4jSetup.startLoggingFramework(pcli.log4jPath);
+
+            if (pcli.cliPackagePrefixes != null) {
+                pcli.cliPackagePrefixes.forEach(CommandBuilder::whitelistCliPackage);
+            }
+
+            // Wait for logging to be ready
+            try {
+                log4jLatch.await();
+            } catch (final InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new RuntimeException("Interrupted while waiting for logging setup", e);
+            }
+
+            // Execute the actual command
+            return new CommandLine.RunLast().execute(parseResult);
+        }
     }
 
     /**
@@ -154,28 +91,12 @@ public class Pcli extends AbstractCommand {
      * @param args program arguments
      */
     @SuppressWarnings("java:S106")
-    public static void main(final String[] args) throws InterruptedException {
-        final PlatformCliPreParser preParser = preParse(args);
-
-        TextEffect.setTextEffectsEnabled(!preParser.isColorDisabled());
-
-        // Will lack actual color if color has been disabled
-        System.out.println(PlatformCliLogo.getColorizedLogo());
-
-        final CountDownLatch log4jLatch = Log4jSetup.startLoggingFramework(preParser.getLog4jPath());
-
-        preParser.runBootstrapFunction();
-
+    public static void main(final String[] args) {
+        // Whitelist CLI packages
         whitelistCliPackage("org.hiero.consensus.pcli");
         whitelistCliPackage("com.swirlds.platform.state.editor");
-        if (preParser.getCliPackagePrefixes() != null) {
-            for (final String cliPackagePrefix : preParser.getCliPackagePrefixes()) {
-                whitelistCliPackage(cliPackagePrefix);
-            }
-        }
         final CommandLine commandLine = buildCommandLine(Pcli.class);
-
-        log4jLatch.await();
-        System.exit(commandLine.execute(preParser.getUnparsedArgs()));
+        commandLine.setExecutionStrategy(new SetupExecutionStrategy());
+        System.exit(commandLine.execute(args));
     }
 }
