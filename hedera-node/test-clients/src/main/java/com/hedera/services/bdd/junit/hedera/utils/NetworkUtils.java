@@ -9,7 +9,6 @@ import static java.util.Objects.requireNonNull;
 import com.google.protobuf.ByteString;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.Key;
-import com.hedera.hapi.node.state.addressbook.Node;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.node.internal.network.Network;
@@ -75,7 +74,7 @@ public class NetworkUtils {
      * @return the contents of the <i>config.txt</i> file
      */
     public static Network generateNetworkConfig(
-            @NonNull final String networkName, //TODO remove
+            @NonNull final String networkName, // TODO remove
             @NonNull final List<HederaNode> nodes,
             final int nextInternalGossipPort,
             final int nextExternalGossipPort,
@@ -85,17 +84,17 @@ public class NetworkUtils {
         final Map<NodeId, KeysAndCerts> certsMap;
         try {
             certsMap = CryptoStatic.generateKeysAndCerts(
-                    nodes.stream().map(HederaNode::getNodeId).map(NodeId::of).toList()
-            );
+                    nodes.stream().map(HederaNode::getNodeId).map(NodeId::of).toList());
         } catch (ExecutionException | InterruptedException | KeyStoreException e) {
-            throw new RuntimeException(e);// TODO check what main does
+            throw new RuntimeException(e); // TODO check what main does
         }
 
         for (final var hNode : nodes) {
             final Bytes localhost = fromByteString(asOctets("127.0.0.1"));
             final Bytes cert;
             try {
-                cert = Bytes.wrap(certsMap.get(NodeId.of(hNode.getNodeId())).sigCert().getEncoded());
+                cert = Bytes.wrap(
+                        certsMap.get(NodeId.of(hNode.getNodeId())).sigCert().getEncoded());
             } catch (CertificateEncodingException e) {
                 throw new RuntimeException(e);
             }

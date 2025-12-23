@@ -117,10 +117,9 @@ public final class BootstrapUtils {
         OSHealthChecker.performOSHealthChecks(
                 configuration.getConfigData(OSHealthCheckConfig.class),
                 List.of(
-                        OSClockSpeedSourceChecker::performClockSourceSpeedCheck,
-                        OSEntropyChecker::performEntropyChecks
-                        //osFileSystemChecker::performFileSystemCheck
-                ));
+                        OSClockSpeedSourceChecker::performClockSourceSpeedCheck, OSEntropyChecker::performEntropyChecks
+                        // osFileSystemChecker::performFileSystemCheck
+                        ));
     }
 
     /**
