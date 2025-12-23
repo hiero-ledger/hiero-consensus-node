@@ -210,7 +210,7 @@ jobs:
           JOB_ENABLED="true"
           JOB_STATE=$(gh workflow list --all --json name,state | jq -r '.[]|select(.name=="ZXF: Prepare Extended Test Suite")|.state')
           [[ "${JOB_STATE}" == "disabled_manually" ]] && JOB_ENABLED="false"
-          echo "enabled=${JOB_ENABLED}" >> $GITHUB_OUTPUT
+          echo "enabled=${JOB_ENABLED}" >> "${GITHUB_OUTPUT}"
 
       - name: Trigger ZXF Prepare Extended Test Suite
         if: ${{ needs.release-branch.result == 'success' && steps.check-xts-job.outputs.enabled == 'true' }}
@@ -252,7 +252,7 @@ jobs:
           JOB_ENABLED="true"
           JOB_STATE=$(gh workflow list --all --json name,state --limit 200 | jq -r '.[]|select(.name=="ZXF: [Node] Deploy Integration Network Release")|.state')
           [[ "${JOB_STATE}" == "disabled_manually" ]] && JOB_ENABLED="false"
-          echo "enabled=${JOB_ENABLED}" >> $GITHUB_OUTPUT
+          echo "enabled=${JOB_ENABLED}" >> "${GITHUB_OUTPUT}"
 
       - name: Trigger ZXF Deploy Integration
         if: >-
