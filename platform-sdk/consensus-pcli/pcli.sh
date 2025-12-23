@@ -71,7 +71,8 @@ MAIN_CLASS_NAME='org.hiero.consensus.pcli.Pcli'
 # since we need to pass this data directly to the JVM.
 PROGRAM_ARGS=()
 JVM_ARGS=()
-IGNORE_JARS=false
+SHOW_BANNER=false
+SHOW_HELP=false
 for ((CURRENT_INDEX=1; CURRENT_INDEX<=$#; CURRENT_INDEX++)); do
 
   # The current argument we are considering.
@@ -80,7 +81,14 @@ for ((CURRENT_INDEX=1; CURRENT_INDEX<=$#; CURRENT_INDEX++)); do
   NEXT_INDEX=$((CURRENT_INDEX+1))
   NEXT_ARG="${!NEXT_INDEX}"
 
-  if [[ "$ARG" = '--load' ]] || [[ "$ARG" = '-L' ]] || [[ "$ARG" = '--cp' ]]; then
+  if [[ "$ARG" = '--help' ]] || [[ "$ARG" = '-h' ]]; then
+    # Detect help flag
+    SHOW_HELP=true
+    PROGRAM_ARGS+=("${ARG}")
+  elif [[ "$ARG" = '--banner' ]] || [[ "$ARG" = '-B' ]]; then
+    # Enable ASCII banner display
+    SHOW_BANNER=true
+  elif [[ "$ARG" = '--load' ]] || [[ "$ARG" = '-L' ]] || [[ "$ARG" = '--cp' ]]; then
     # We have found an argument that needs to be handled in this bash script.
 
     # Skip the next argument in the next loop cycle.
@@ -99,9 +107,6 @@ for ((CURRENT_INDEX=1; CURRENT_INDEX<=$#; CURRENT_INDEX++)); do
   elif [[ "$ARG" = '--debug' ]] || [[ "$ARG" = '-D' ]]; then
     # We have found an argument that needs to be handled in this bash script.
     JVM_ARGS+=('-agentlib:jdwp=transport=dt_socket,address=8888,server=y,suspend=y')
-  elif [[ "$ARG" = '--ignore-jars' ]] || [[ "$ARG" = '-I' ]]; then
-    # We have found an argument that needs to be handled in this bash script.
-    IGNORE_JARS=true
   elif [[ "$ARG" = '--memory' ]] || [[ "$ARG" = '-M' ]]; then
       # We have found an argument that needs to be handled in this bash script.
 
@@ -115,19 +120,17 @@ for ((CURRENT_INDEX=1; CURRENT_INDEX<=$#; CURRENT_INDEX++)); do
   fi
 done
 
-if [[ "$IGNORE_JARS" = false ]]; then
-  # Add the main swirlds-cli jar
-  MAIN_JAR_PATH="${SCRIPT_PATH}/../sdk/consensus-pcli.jar"
-  if [[ -e "$MAIN_JAR_PATH" ]]; then
-    add_to_classpath "${MAIN_JAR_PATH}"
-  fi
+# Add the main consensus-pcli jar
+MAIN_JAR_PATH="${SCRIPT_PATH}/../sdk/consensus-pcli.jar"
+if [[ -e "$MAIN_JAR_PATH" ]]; then
+  add_to_classpath "${MAIN_JAR_PATH}"
+fi
 
-  # In a development environment, this is the location where jarfiles are compiled to. If this directory
-  # exists then add it to the classpath automatically.
-  DEFAULT_LIB_PATH="${SCRIPT_PATH}/../sdk/data/lib"
-  if [[ -e "$DEFAULT_LIB_PATH" ]]; then
-    add_to_classpath "${DEFAULT_LIB_PATH}"
-  fi
+# In a development environment, this is the location where jarfiles are compiled to. If this directory
+# exists then add it to the classpath automatically.
+DEFAULT_LIB_PATH="${SCRIPT_PATH}/../sdk/data/lib"
+if [[ -e "$DEFAULT_LIB_PATH" ]]; then
+  add_to_classpath "${DEFAULT_LIB_PATH}"
 fi
 
 if [[ "$JVM_CLASSPATH" = '' ]]; then
@@ -142,5 +145,22 @@ if [[ -e "$LOG4J_CONFIG" ]]; then
   JVM_ARGS+=("-Dlog4j.configurationFile=${LOG4J_CONFIG}")
 fi
 
+# Pass banner flag to Java program (disabled by default, enabled with --banner/-B)
+JVM_ARGS+=("-Dpcli.showBanner=${SHOW_BANNER}")
+
 # Run the CLI
 java "${JVM_ARGS[@]}" -cp "${JVM_CLASSPATH}" $MAIN_CLASS_NAME "${PROGRAM_ARGS[@]}"
+EXIT_CODE=$?
+
+# If help was requested OR if picocli showed usage due to invalid arguments (exit code 2),
+# append bash script options
+if [[ "$SHOW_HELP" = true ]] || [[ $EXIT_CODE -eq 2 ]]; then
+    echo ""
+    echo "Additional bash script options (handled before JVM starts):"
+    echo "  -L, --load <path>    Load jar files from path"
+    echo "  -J, --jvm <arg>      Pass argument to JVM"
+    echo "  -D, --debug          Enable remote debugging on port 8888"
+    echo "  -M, --memory <GB>    Set JVM max heap size in GB"
+fi
+
+exit $EXIT_CODE
