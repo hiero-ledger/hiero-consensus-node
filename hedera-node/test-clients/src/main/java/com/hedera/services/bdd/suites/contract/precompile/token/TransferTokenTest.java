@@ -79,8 +79,14 @@ public class TransferTokenTest {
                                     tokenReceiverContract,
                                     2L)
                             .gas(1_000_000L));
+            //TODO Glib: add event check
         }
 
+        //TODO Glib: add "transferTokens" with event check
+        //TODO Glib: add "transferNFT" with event check
+        //TODO Glib: add "transferNFTs" with event check
+
+        // TODO Glib: ERC20,ERC721
         @HapiTest
         @DisplayName("transferring owner's tokens using transferFrom function given allowance")
         public Stream<DynamicTest> transferUsingTransferFromWithAllowance() {
@@ -98,7 +104,14 @@ public class TransferTokenTest {
                                     tokenReceiverContract,
                                     BigInteger.valueOf(2L))
                             .gas(1_000_000L));
+            //TODO Glib: add event check
         }
+
+        //TODO Glib: add "transferFromNFT" with event check
+
+        // TODO Glib: add proxy transfer(address dst, uint wad)
+        // TODO Glib: add proxy transferFrom(address src, address dst, uint wad)
+        // TODO Glib: add proxy transferFrom(address src, address dst, uint wad)
     }
 
     @Nested
