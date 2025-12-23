@@ -20,7 +20,6 @@ import com.swirlds.platform.components.consensus.ConsensusEngine;
 import com.swirlds.platform.components.consensus.ConsensusEngineOutput;
 import com.swirlds.platform.event.branching.BranchDetector;
 import com.swirlds.platform.event.branching.BranchReporter;
-import com.swirlds.platform.event.orphan.OrphanBuffer;
 import com.swirlds.platform.event.preconsensus.InlinePcesWriter;
 import com.swirlds.platform.event.stream.ConsensusEventStream;
 import com.swirlds.platform.eventhandling.StateWithHashComplexity;
@@ -51,6 +50,7 @@ import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.notification.IssNotification;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
+import org.hiero.consensus.orphan.OrphanBuffer;
 
 /**
  * Encapsulates wiring for {@link com.swirlds.platform.SwirldsPlatform}.
@@ -85,7 +85,7 @@ public class PlatformWiring {
         components
                 .eventIntakeModule()
                 .validatedEventsOutputWire()
-                .solderTo(components.orphanBufferWiring().getInputWire(OrphanBuffer::handleEvent));
+                .solderTo(components.orphanBufferWiring().getInputWire(OrphanBuffer::handleEvent, "unordered events"));
         final OutputWire<PlatformEvent> splitOrphanBufferOutput =
                 components.orphanBufferWiring().getSplitOutput();
 
@@ -432,7 +432,7 @@ public class PlatformWiring {
 
         eventWindowOutputWire.solderTo(components.eventIntakeModule().eventWindowInputWire(), INJECT);
         eventWindowOutputWire.solderTo(
-                components.orphanBufferWiring().getInputWire(OrphanBuffer::setEventWindow), INJECT);
+                components.orphanBufferWiring().getInputWire(OrphanBuffer::setEventWindow, "event window"), INJECT);
         eventWindowOutputWire.solderTo(components.gossipWiring().getEventWindowInput(), INJECT);
         eventWindowOutputWire.solderTo(
                 components.pcesInlineWriterWiring().getInputWire(InlinePcesWriter::updateNonAncientEventBoundary),

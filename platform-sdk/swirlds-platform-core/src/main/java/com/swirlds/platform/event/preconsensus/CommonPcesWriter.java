@@ -4,13 +4,13 @@ package com.swirlds.platform.event.preconsensus;
 import static com.swirlds.base.units.DataUnit.UNIT_BYTES;
 import static com.swirlds.base.units.DataUnit.UNIT_MEGABYTES;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
+import static java.util.Objects.requireNonNull;
 
-import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.utility.LongRunningAverage;
+import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.Objects;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.model.event.PlatformEvent;
@@ -107,15 +107,13 @@ public class CommonPcesWriter {
     /**
      * Constructor
      *
-     * @param platformContext the platform context
+     * @param configuration   the configuration to use
      * @param fileManager     manages all PCES files currently on disk
      */
-    public CommonPcesWriter(
-            @NonNull final PlatformContext platformContext, @NonNull final PcesFileManager fileManager) {
-        Objects.requireNonNull(platformContext, "platformContext is required");
-        this.fileManager = Objects.requireNonNull(fileManager, "fileManager is required");
+    public CommonPcesWriter(@NonNull final Configuration configuration, @NonNull final PcesFileManager fileManager) {
+        this.fileManager = requireNonNull(fileManager, "fileManager is required");
 
-        final PcesConfig pcesConfig = platformContext.getConfiguration().getConfigData(PcesConfig.class);
+        final PcesConfig pcesConfig = configuration.getConfigData(PcesConfig.class);
 
         previousSpan = pcesConfig.bootstrapSpan();
         bootstrapSpanOverlapFactor = pcesConfig.bootstrapSpanOverlapFactor();

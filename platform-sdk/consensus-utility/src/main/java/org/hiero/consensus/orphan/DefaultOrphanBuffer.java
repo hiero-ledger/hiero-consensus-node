@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.event.orphan;
+package org.hiero.consensus.orphan;
 
 import static com.swirlds.metrics.api.Metrics.PLATFORM_CATEGORY;
 import static org.hiero.consensus.model.event.NonDeterministicGeneration.assignNGen;
