@@ -62,8 +62,8 @@ public class PrepareForTransplantCommand extends AbstractCommand {
             }
             if (!response.toUpperCase().startsWith("Y")) {
                 System.out.println("Operation aborted.");
+                return RETURN_CODE_PROMPT_NO;
             }
-            return RETURN_CODE_PROMPT_NO;
         }
 
         final Configuration configuration =
