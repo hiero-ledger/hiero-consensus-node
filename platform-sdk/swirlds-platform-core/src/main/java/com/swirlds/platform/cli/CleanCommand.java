@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.cli;
 
-import static com.swirlds.platform.builder.PlatformBuildConstants.DEFAULT_CONFIG_FILE_NAME;
 import static com.swirlds.platform.builder.PlatformBuildConstants.DEFAULT_SETTINGS_FILE_NAME;
 
 import com.swirlds.cli.PlatformCli;
@@ -15,7 +14,6 @@ import com.swirlds.platform.config.DefaultConfiguration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Path;
-import java.util.List;
 import java.util.Objects;
 import org.hiero.consensus.config.EventConfig;
 import picocli.CommandLine;
@@ -55,8 +53,7 @@ public final class CleanCommand extends AbstractCommand {
 
         final Configuration configuration = DefaultConfiguration.buildBasicConfiguration(
                 ConfigurationBuilder.create(),
-                sdkPath.resolve(DEFAULT_SETTINGS_FILE_NAME),
-                List.of(sdkPath.resolve(DEFAULT_CONFIG_FILE_NAME)));
+                sdkPath.resolve(DEFAULT_SETTINGS_FILE_NAME));
 
         // delete all logs
         FileUtils.deleteFiles(sdkPath, ".log");

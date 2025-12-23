@@ -107,19 +107,19 @@ public final class BootstrapUtils {
     /**
      * Perform health all health checks
      *
-     * @param configPath    the path to the config.txt file
+     * @param settingsPath  the path to the settings.txt file
      * @param configuration the configuration
      */
-    public static void performHealthChecks(@NonNull final Path configPath, @NonNull final Configuration configuration) {
+    public static void performHealthChecks(@NonNull final Path settingsPath, @NonNull final Configuration configuration) {
         requireNonNull(configuration);
-        final OSFileSystemChecker osFileSystemChecker = new OSFileSystemChecker(configPath);
+        final OSFileSystemChecker osFileSystemChecker = new OSFileSystemChecker(settingsPath);
 
         OSHealthChecker.performOSHealthChecks(
                 configuration.getConfigData(OSHealthCheckConfig.class),
                 List.of(
-                        OSClockSpeedSourceChecker::performClockSourceSpeedCheck, OSEntropyChecker::performEntropyChecks
-                        // osFileSystemChecker::performFileSystemCheck
-                        ));
+                        OSClockSpeedSourceChecker::performClockSourceSpeedCheck,
+                        OSEntropyChecker::performEntropyChecks,
+                        osFileSystemChecker::performFileSystemCheck));
     }
 
     /**
