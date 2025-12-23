@@ -417,7 +417,7 @@ class StateSigningTests {
 
         for (final RosterEntry originalNode : roster.rosterEntries()) {
             final X509Certificate certificate =
-                    PreGeneratedX509Certs.getSigCert(50 + originalNode.nodeId()).getCertificate();
+                    PreGeneratedX509Certs.getSigCert(50 + originalNode.nodeId());
             final RosterEntry newNode = originalNode
                     .copyBuilder()
                     .gossipCaCertificate(Bytes.wrap(certificate.getEncoded()))

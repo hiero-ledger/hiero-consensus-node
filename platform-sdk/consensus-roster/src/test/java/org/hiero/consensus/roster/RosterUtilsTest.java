@@ -209,10 +209,9 @@ public class RosterUtilsTest {
     void testFetchingCertificates() throws CertificateEncodingException {
         // Positive Case
         Assertions.assertEquals(
-                PreGeneratedX509Certs.getSigCert(0).getCertificate(),
+                PreGeneratedX509Certs.getSigCert(0),
                 RosterUtils.fetchGossipCaCertificate(RosterEntry.newBuilder()
                         .gossipCaCertificate(Bytes.wrap(PreGeneratedX509Certs.getSigCert(0)
-                                .getCertificate()
                                 .getEncoded()))
                         .build()));
         // Negative Cases

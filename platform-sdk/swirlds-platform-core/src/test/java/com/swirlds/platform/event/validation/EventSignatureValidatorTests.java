@@ -78,7 +78,6 @@ class EventSignatureValidatorTests {
                     nodeId.id(),
                     10,
                     Bytes.wrap(PreGeneratedX509Certs.getSigCert(nodeId.id())
-                            .getCertificate()
                             .getEncoded()),
                     List.of());
         } catch (CertificateEncodingException e) {

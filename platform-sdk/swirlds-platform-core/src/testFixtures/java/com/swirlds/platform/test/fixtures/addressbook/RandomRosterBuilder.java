@@ -14,7 +14,6 @@ import java.util.Random;
 import java.util.stream.IntStream;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.model.roster.SerializableX509Certificate;
 
 /**
  * A utility for generating a random roster.
@@ -224,9 +223,7 @@ public class RandomRosterBuilder {
                 final KeysAndCerts keysAndCerts = KeysAndCertsGenerator.generate(nodeId);
                 privateKeys.put(nodeId, keysAndCerts);
 
-                final SerializableX509Certificate sigCert = new SerializableX509Certificate(keysAndCerts.sigCert());
-
-                addressBuilder.withSigCert(sigCert);
+                addressBuilder.withSigCert(keysAndCerts.sigCert());
 
             } catch (final Exception e) {
                 throw new RuntimeException();
