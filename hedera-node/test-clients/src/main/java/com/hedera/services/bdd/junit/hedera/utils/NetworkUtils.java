@@ -15,14 +15,20 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.hedera.HederaNode;
 import com.hedera.services.bdd.junit.hedera.NodeMetadata;
 import com.hederahashgraph.api.proto.java.ServiceEndpoint;
+import com.swirlds.platform.crypto.CryptoStatic;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.file.Path;
+import java.security.KeyStoreException;
+import java.security.cert.CertificateEncodingException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutionException;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
+import org.hiero.consensus.model.node.KeysAndCerts;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * Utility class for generating an address book configuration file.
@@ -64,18 +70,34 @@ public class NetworkUtils {
      * @return the contents of the <i>config.txt</i> file
      */
     public static Network generateNetworkConfig(
-            @NonNull final String networkName,
+            @NonNull final String networkName, //TODO remove
             @NonNull final List<HederaNode> nodes,
             final int nextInternalGossipPort,
             final int nextExternalGossipPort,
             @NonNull final Map<Long, Long> overrideWeights) {
         final List<com.hedera.node.internal.network.NodeMetadata> metadata = new ArrayList<>();
 
+        final Map<NodeId, KeysAndCerts> certsMap;
+        try {
+            certsMap = CryptoStatic.generateKeysAndCerts(
+                    nodes.stream().map(HederaNode::getNodeId).map(NodeId::of).toList()
+            );
+        } catch (ExecutionException | InterruptedException | KeyStoreException e) {
+            throw new RuntimeException(e);// TODO check what main does
+        }
+        //TODO add certificates
         for (final var node : nodes) {
             final Bytes localhost = fromByteString(asOctets("127.0.0.1"));
+            final byte[] encoded;
+            try {
+                encoded = certsMap.get(NodeId.of(node.getNodeId())).sigCert().getEncoded();
+            } catch (CertificateEncodingException e) {
+                throw new RuntimeException(e);
+            }
             final var rosterEntry = RosterEntry.newBuilder()
                     .nodeId(node.getNodeId())
                     .weight(overrideWeights.getOrDefault(node.getNodeId(), 1L))
+                    .gossipCaCertificate(Bytes.wrap(encoded))
                     .gossipEndpoint(List.of(
                             com.hedera.hapi.node.base.ServiceEndpoint.newBuilder()
                                     .ipAddressV4(localhost)
