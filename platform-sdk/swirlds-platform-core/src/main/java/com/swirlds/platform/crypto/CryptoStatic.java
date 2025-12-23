@@ -99,9 +99,9 @@ public final class CryptoStatic {
         attributeValue = attributeValue.replace(";", "\\;");
         attributeValue = attributeValue.replace("<", "\\<");
         attributeValue = attributeValue.replace(">", "\\>");
-        attributeValue = attributeValue.replaceAll(" $", " ");
-        attributeValue = attributeValue.replaceAll("^ ", " ");
-        attributeValue = attributeValue.replaceAll("^#", "#");
+        attributeValue = attributeValue.replaceAll(" $", "\\ ");
+        attributeValue = attributeValue.replaceAll("^ ", "\\ ");
+        attributeValue = attributeValue.replaceAll("^#", "\\#");
         final String s = commaSeparator[0] + attributeType + "=" + attributeValue;
         commaSeparator[0] = ",";
         return s;
@@ -359,7 +359,7 @@ public final class CryptoStatic {
 
                 logger.debug(STARTUP.getMarker(), "About to start loading keys");
                 logger.debug(STARTUP.getMarker(), "Reading keys using the enhanced key loader");
-                keysAndCerts = EnhancedKeyStoreLoader.using(Set.of(localNode), configuration, Set.of(localNode))
+                keysAndCerts = EnhancedKeyStoreLoader.using(configuration, Set.of(localNode))
                         .migrate()
                         .scan()
                         .generate()

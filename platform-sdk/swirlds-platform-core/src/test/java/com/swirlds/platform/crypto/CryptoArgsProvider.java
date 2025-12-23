@@ -102,7 +102,7 @@ public class CryptoArgsProvider {
                 .map(r -> NodeId.of(r.nodeId()))
                 .collect(Collectors.toSet());
         final Map<NodeId, KeysAndCerts> loadedC = EnhancedKeyStoreLoader.using(
-                        nodeIds, configure(ResourceLoader.getFile("preGeneratedPEMKeysAndCerts/")), nodeIds)
+                        configure(ResourceLoader.getFile("preGeneratedPEMKeysAndCerts/")), nodeIds)
                 .scan()
                 .generate()
                 .verify()
