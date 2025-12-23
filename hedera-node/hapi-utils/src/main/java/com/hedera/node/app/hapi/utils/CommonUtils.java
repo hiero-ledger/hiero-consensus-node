@@ -99,13 +99,14 @@ public final class CommonUtils {
 
     // SHA-384 hash functions with the default-provided message digest
     // ** BEGIN Bytes Variants **
+    // (FUTURE) Rename since 'no throw' is confusing
     public static Bytes noThrowSha384HashOf(@NonNull final Bytes bytes) {
         final var digest = sha384DigestOrThrow();
         bytes.writeTo(digest);
         return Bytes.wrap(digest.digest());
     }
 
-    public static Bytes noThrowSha384HashOfAll(final Bytes... allBytes) {
+    public static Bytes sha384HashOfAll(final Bytes... allBytes) {
         final var digest = sha384DigestOrThrow();
         for (final var bytes : allBytes) {
             bytes.writeTo(digest);
@@ -123,6 +124,7 @@ public final class CommonUtils {
     }
 
     // ** BEGIN byte[] Variants **
+    // (FUTURE) Rename since 'no throw' is confusing
     public static byte[] noThrowSha384HashOf(final byte[] byteArray) {
         requireNonNull(byteArray);
 
@@ -130,11 +132,11 @@ public final class CommonUtils {
         return digest.digest(byteArray);
     }
 
-    public static Bytes noThrowSha384HashOfAll(final byte[]... bytes) {
-        return Bytes.wrap(noThrowSha384HashOf(bytes));
+    public static Bytes sha384HashOfAll(final byte[]... bytes) {
+        return Bytes.wrap(sha384HashOf(bytes));
     }
 
-    public static byte[] noThrowSha384HashOf(final byte[]... bytes) {
+    public static byte[] sha384HashOf(final byte[]... bytes) {
         return hashOfAll(sha384DigestOrThrow(), bytes);
     }
 
