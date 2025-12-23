@@ -333,16 +333,16 @@ public final class CryptoStatic {
     }
 
     /**
-     * Create {@link KeysAndCerts} objects for all given node ids.
+     * Create {@link KeysAndCerts} object for the given node id.
      *
      * @param configuration the current configuration
-     * @param localNodes  the local nodes that need private keys loaded
-     * @return a map of KeysAndCerts objects, one for each node
+     * @param localNode  the local node that need private keys loaded
+     * @return keys and certificates for the requested node id
      */
-    public static Map<NodeId, KeysAndCerts> initNodeSecurity(
-            @NonNull final Configuration configuration, @NonNull final Set<NodeId> localNodes) {
+    public static KeysAndCerts initNodeSecurity(
+            @NonNull final Configuration configuration, @NonNull final NodeId localNode) {
         Objects.requireNonNull(configuration, "configuration must not be null");
-        Objects.requireNonNull(localNodes, LOCAL_NODES_MUST_NOT_BE_NULL);
+        Objects.requireNonNull(localNode, LOCAL_NODES_MUST_NOT_BE_NULL);
 
         final PathsConfig pathsConfig = configuration.getConfigData(PathsConfig.class);
         final BasicConfig basicConfig = configuration.getConfigData(BasicConfig.class);
@@ -359,7 +359,7 @@ public final class CryptoStatic {
 
                 logger.debug(STARTUP.getMarker(), "About to start loading keys");
                 logger.debug(STARTUP.getMarker(), "Reading keys using the enhanced key loader");
-                keysAndCerts = EnhancedKeyStoreLoader.using(localNodes, configuration, localNodes)
+                keysAndCerts = EnhancedKeyStoreLoader.using(Set.of(localNode), configuration, Set.of(localNode))
                         .migrate()
                         .scan()
                         .generate()
@@ -375,7 +375,7 @@ public final class CryptoStatic {
                         STARTUP.getMarker(),
                         "There are no keys on disk, Adhoc keys will be generated, but this is incompatible with DAB.");
                 logger.debug(STARTUP.getMarker(), "Started generating keys");
-                keysAndCerts = generateKeysAndCerts(localNodes);
+                keysAndCerts = generateKeysAndCerts(Set.of(localNode));
                 logger.debug(STARTUP.getMarker(), "Done generating keys");
             }
         } catch (final InterruptedException
@@ -409,7 +409,7 @@ public final class CryptoStatic {
             logger.debug(CERTIFICATES.getMarker(), msg, keysAndCertsForNode.agrCert());
         });
 
-        return keysAndCerts;
+        return keysAndCerts.get(localNode);
     }
 
     /**

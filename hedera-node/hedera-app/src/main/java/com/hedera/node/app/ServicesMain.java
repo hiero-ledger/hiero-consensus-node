@@ -67,15 +67,12 @@ import com.swirlds.state.State;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.VirtualMapState;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import java.nio.file.Path;
 import java.time.Duration;
 import java.time.InstantSource;
 import java.util.List;
-import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
@@ -350,8 +347,7 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
         // --- Create the platform context and initialize the cryptography ---
         final var rosterHistory = RosterStateUtils.createRosterHistory(state);
 
-        final var networkKeysAndCerts = initNodeSecurity(platformConfig, Set.copyOf(nodesToRun));
-        final var keysAndCerts = networkKeysAndCerts.get(selfId); // TODO maybe change to single
+        final var keysAndCerts = initNodeSecurity(platformConfig, selfId);
 
         final String consensusEventStreamName = genesisNetwork.get()
                 // If at genesis, base the event stream location on the genesis network metadata
