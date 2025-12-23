@@ -7,8 +7,12 @@ import static com.swirlds.platform.gui.internal.BrowserWindowManager.getPlatform
 import static com.swirlds.platform.state.iss.IssDetector.DO_NOT_IGNORE_ROUNDS;
 import static com.swirlds.platform.state.service.PlatformStateUtils.latestFreezeRoundOf;
 
+import com.swirlds.base.time.Time;
+import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.merkle.utility.SerializableLong;
 import com.swirlds.component.framework.component.ComponentWiring;
+import com.swirlds.config.api.Configuration;
+import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.SwirldsPlatform;
 import com.swirlds.platform.components.appcomm.DefaultLatestCompleteStateNotifier;
 import com.swirlds.platform.components.appcomm.LatestCompleteStateNotifier;
@@ -19,8 +23,6 @@ import com.swirlds.platform.event.branching.BranchDetector;
 import com.swirlds.platform.event.branching.BranchReporter;
 import com.swirlds.platform.event.branching.DefaultBranchDetector;
 import com.swirlds.platform.event.branching.DefaultBranchReporter;
-import com.swirlds.platform.event.orphan.DefaultOrphanBuffer;
-import com.swirlds.platform.event.orphan.OrphanBuffer;
 import com.swirlds.platform.event.preconsensus.DefaultInlinePcesWriter;
 import com.swirlds.platform.event.preconsensus.InlinePcesWriter;
 import com.swirlds.platform.event.preconsensus.PcesConfig;
@@ -67,6 +69,9 @@ import org.hiero.consensus.concurrent.manager.AdHocThreadManager;
 import org.hiero.consensus.crypto.ConsensusCryptoUtils;
 import org.hiero.consensus.crypto.PlatformSigner;
 import org.hiero.consensus.model.event.CesEvent;
+import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.orphan.DefaultOrphanBuffer;
+import org.hiero.consensus.orphan.OrphanBuffer;
 
 /**
  * The advanced platform builder is responsible for constructing platform components. This class is exposed so that
@@ -493,14 +498,20 @@ public class PlatformComponentBuilder {
     public InlinePcesWriter buildInlinePcesWriter() {
         if (inlinePcesWriter == null) {
             try {
+                final PlatformContext platformContext = blocks.platformContext();
+                final Configuration configuration = platformContext.getConfiguration();
+                final Metrics metrics = platformContext.getMetrics();
+                final Time time = platformContext.getTime();
+                final NodeId selfId = blocks.selfId();
                 final PcesFileManager preconsensusEventFileManager = new PcesFileManager(
-                        blocks.platformContext(),
+                        configuration,
+                        metrics,
+                        time,
                         blocks.initialPcesFiles(),
-                        PcesUtilities.getDatabaseDirectory(
-                                blocks.platformContext().getConfiguration(), blocks.selfId()),
+                        PcesUtilities.getDatabaseDirectory(configuration, selfId),
                         blocks.initialState().get().getRound());
-                inlinePcesWriter = new DefaultInlinePcesWriter(
-                        blocks.platformContext(), preconsensusEventFileManager, blocks.selfId());
+                inlinePcesWriter =
+                        new DefaultInlinePcesWriter(configuration, metrics, time, preconsensusEventFileManager, selfId);
 
             } catch (final IOException e) {
                 throw new UncheckedIOException(e);

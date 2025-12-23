@@ -223,7 +223,7 @@ jobs:
 
   mats-snyk-scan:
     name: Snyk Scan
-    if: ${{ inputs.enable-snyk-scan == 'true' }}
+    if: ${{ inputs.enable-snyk-scan == 'true' && !github.event.workflow_call.repository.fork }}
     needs:
       - build
     uses: ./.github/workflows/zxc-snyk-scan.yaml
@@ -239,7 +239,7 @@ jobs:
 
   mats-gradle-determinism:
     name: Gradle Determinism
-    if: ${{ inputs.enable-gradle-determinism == 'true' }}
+    if: ${{ inputs.enable-gradle-determinism == 'true' && !github.event.workflow_call.repository.fork }}
     needs:
       - build
     uses: ./.github/workflows/zxc-verify-gradle-build-determinism.yaml
@@ -253,7 +253,7 @@ jobs:
 
   mats-docker-determinism:
     name: Docker Determinism
-    if: ${{ inputs.enable-docker-determinism == 'true' }}
+    if: ${{ inputs.enable-docker-determinism == 'true' && !github.event.workflow_call.repository.fork }}
     needs:
       - build
     uses: ./.github/workflows/zxc-verify-docker-build-determinism.yaml
