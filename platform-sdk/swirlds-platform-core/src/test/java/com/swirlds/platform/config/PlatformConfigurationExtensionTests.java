@@ -11,7 +11,7 @@ class PlatformConfigurationExtensionTests {
     @Test
     void testIfAllConfigDataTypesAreRegistered() {
         // given
-        final var allRecordsFound = ConfigUtils.loadAllConfigDataRecords(Set.of("com.swirlds", "org.hiero"));
+        final var allRecordsFound = ConfigUtils.loadAllConfigDataRecords(Set.of("com.swirlds"));
         final var extension = new PlatformConfigurationExtension();
 
         // when

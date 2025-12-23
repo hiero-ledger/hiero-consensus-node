@@ -1,4 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
+import com.swirlds.config.api.ConfigurationExtension;
+import org.hiero.consensus.config.UtilityConfigurationExtension;
+
 module org.hiero.consensus.utility {
     exports org.hiero.consensus.config;
     exports org.hiero.consensus.crypto;
@@ -20,4 +23,7 @@ module org.hiero.consensus.utility {
     requires org.apache.logging.log4j;
     requires org.bouncycastle.provider;
     requires static transitive com.github.spotbugs.annotations;
+
+    provides ConfigurationExtension with
+            UtilityConfigurationExtension;
 }
