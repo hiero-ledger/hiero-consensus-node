@@ -120,8 +120,8 @@ for ((CURRENT_INDEX=1; CURRENT_INDEX<=$#; CURRENT_INDEX++)); do
   fi
 done
 
-# Add the main consensus-pcli jar
-MAIN_JAR_PATH="${SCRIPT_PATH}/../sdk/consensus-pcli.jar"
+# Add the main jar
+MAIN_JAR_PATH="${SCRIPT_PATH}/../sdk/swirlds-cli.jar"
 if [[ -e "$MAIN_JAR_PATH" ]]; then
   add_to_classpath "${MAIN_JAR_PATH}"
 fi
