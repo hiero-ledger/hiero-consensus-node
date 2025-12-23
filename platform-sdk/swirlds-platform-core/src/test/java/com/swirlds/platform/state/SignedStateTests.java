@@ -30,6 +30,7 @@ import java.util.List;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.hiero.base.exceptions.ReferenceCountException;
+import org.hiero.base.utility.test.fixtures.tags.TestComponentTags;
 import org.hiero.consensus.crypto.SignatureVerifier;
 import org.hiero.consensus.roster.RosterStateUtils;
 import org.junit.jupiter.api.AfterEach;
@@ -249,7 +250,6 @@ class SignedStateTests {
         state.release();
         state.release();
 
-        state.copy();
         assertTrue(state.isDestroyed(), "state should be destroyed when fully released.");
         assertFalse(state.getRoot().tryReserve(), "tryReserve() should fail when the state is destroyed");
     }
