@@ -9,6 +9,10 @@ import java.util.Objects;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.pces.CommonPcesWriter;
+import org.hiero.consensus.pces.FileSyncOption;
+import org.hiero.consensus.pces.PcesConfig;
+import org.hiero.consensus.pces.PcesFileManager;
 
 public class DefaultInlinePcesWriter implements InlinePcesWriter {
 

@@ -585,6 +585,18 @@ public class StandardGraphGenerator implements GraphGenerator {
     }
 
     /**
+     * Generate the next event and return its base event.
+     *
+     * <p>This is the same as calling {@code generateEvent()}, but returns the {@link PlatformEvent}
+     * as {@link EventImpl} is an internal class.
+     *
+     * @return the next event's base event
+     */
+    public final PlatformEvent generateBaseEvent() {
+        return generateEvent().getBaseEvent();
+    }
+
+    /**
      * The same as {@link #generateEvent()}, but does not set the stream sequence number.
      */
     public final EventImpl generateEventWithoutIndex() {
