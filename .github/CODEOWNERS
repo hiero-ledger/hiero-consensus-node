@@ -67,7 +67,6 @@
 /platform-sdk/platform-apps/                        @hiero-ledger/hiero-consensus-node-consensus-codeowners
 /platform-sdk/swirlds-base/                         @hiero-ledger/hiero-consensus-node-foundation-codeowners
 /platform-sdk/swirlds-benchmarks/                   @hiero-ledger/hiero-consensus-node-foundation-codeowners
-/platform-sdk/swirlds-cli/                          @hiero-ledger/hiero-consensus-node-consensus-codeowners
 /platform-sdk/swirlds-common/                       @hiero-ledger/hiero-consensus-node-consensus-codeowners @hiero-ledger/hiero-consensus-node-foundation-codeowners
 /platform-sdk/swirlds-component-framework/          @hiero-ledger/hiero-consensus-node-consensus-codeowners
 /platform-sdk/swirlds-config-*/                     @hiero-ledger/hiero-consensus-node-foundation-codeowners
