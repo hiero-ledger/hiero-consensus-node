@@ -3,7 +3,7 @@ plugins { id("org.hiero.gradle.module.application") }
 
 mainModuleInfo {}
 
-testModuleInfo { requires("org.junit.jupiter.api") }
+testModuleInfo {}
 
 tasks.jar {
     // Gradle fails to track 'configurations.runtimeClasspath' as an input to the task if it is
