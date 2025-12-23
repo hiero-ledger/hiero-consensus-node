@@ -16,8 +16,11 @@ testModuleInfo {
     requires("com.swirlds.base.test.fixtures")
     requires("com.swirlds.platform.core.test.fixtures")
     requires("org.hiero.base.utility.test.fixtures")
+    requires("org.hiero.consensus.model.test.fixtures")
     requires("org.hiero.consensus.pces.test.fixtures")
     requires("org.hiero.junit.extensions")
     requires("org.junit.jupiter.api")
     requires("org.mockito")
+
+    opensTo("org.hiero.junit.extensions")
 }
