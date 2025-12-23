@@ -14,7 +14,7 @@ public final class PlatformBuildConstants {
     /**
      * The name of the default configuration file (i.e. where the initial address book can be specified).
      */
-    public static final String DEFAULT_CONFIG_FILE_NAME = "config.txt";
+    public static final String DEFAULT_CONFIG_FILE_NAME = "config.txt";//TODO remove this
 
     /**
      * The name of the default settings file (i.e. where configuration comes from... we know this is confusing, API is a
