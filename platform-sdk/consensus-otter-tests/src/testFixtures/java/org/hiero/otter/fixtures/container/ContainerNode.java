@@ -71,6 +71,7 @@ import org.hiero.otter.fixtures.internal.AbstractTimeManager.TimeTickReceiver;
 import org.hiero.otter.fixtures.internal.KeysAndCertsConverter;
 import org.hiero.otter.fixtures.internal.NetworkConfiguration;
 import org.hiero.otter.fixtures.internal.ProtobufConverter;
+import org.hiero.otter.fixtures.internal.result.ConsensusRoundPool;
 import org.hiero.otter.fixtures.internal.result.NodeResultsCollector;
 import org.hiero.otter.fixtures.internal.result.SingleNodeEventStreamResultImpl;
 import org.hiero.otter.fixtures.internal.result.SingleNodePcesResultImpl;
@@ -139,6 +140,7 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
      * @param dockerImage the Docker image to use for this node
      * @param outputDirectory the directory where the node's output will be stored
      * @param networkConfiguration the network configuration for this node
+     * @param consensusRoundPool the shared pool for deduplicating consensus rounds
      */
     public ContainerNode(
             @NonNull final NodeId selfId,
@@ -147,13 +149,14 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
             @NonNull final Network network,
             @NonNull final ImageFromDockerfile dockerImage,
             @NonNull final Path outputDirectory,
-            @NonNull final NetworkConfiguration networkConfiguration) {
+            @NonNull final NetworkConfiguration networkConfiguration,
+            @NonNull final ConsensusRoundPool consensusRoundPool) {
         super(selfId, keysAndCerts, networkConfiguration);
 
         this.localOutputDirectory = requireNonNull(outputDirectory, "outputDirectory must not be null");
         this.timeManager = requireNonNull(timeManager, "timeManager must not be null");
 
-        this.resultsCollector = new NodeResultsCollector(selfId);
+        this.resultsCollector = new NodeResultsCollector(selfId, consensusRoundPool);
         this.nodeConfiguration =
                 new ContainerNodeConfiguration(() -> lifeCycle, networkConfiguration.overrideProperties());
         this.random = new SecureRandom();
