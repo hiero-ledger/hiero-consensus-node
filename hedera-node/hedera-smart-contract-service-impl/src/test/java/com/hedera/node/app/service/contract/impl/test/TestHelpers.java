@@ -99,6 +99,7 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
@@ -113,6 +114,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+
 import org.apache.tuweni.units.bigints.UInt256;
 import org.hyperledger.besu.datatypes.Address;
 import org.hyperledger.besu.datatypes.Wei;
@@ -190,13 +192,13 @@ public class TestHelpers {
     public static final long MAX_GAS_ALLOWANCE = 666_666_666;
     public static final int STACK_DEPTH = 1;
     public static final Bytes INITCODE = Bytes.wrap("0060a06040526000600b55".getBytes());
-    public static final Bytes CALL_DATA = Bytes.wrap(new byte[] {1, 2, 3, 4, 5, 6, 7, 8, 9});
-    public static final Bytes CONSTRUCTOR_PARAMS = Bytes.wrap(new byte[] {2, 3, 2, 3, 2, 3, 2, 3, 2, 3});
+    public static final Bytes CALL_DATA = Bytes.wrap(new byte[]{1, 2, 3, 4, 5, 6, 7, 8, 9});
+    public static final Bytes CONSTRUCTOR_PARAMS = Bytes.wrap(new byte[]{2, 3, 2, 3, 2, 3, 2, 3, 2, 3});
     public static final Bytecode BYTECODE = new Bytecode(CALL_DATA);
-    public static final Bytes LOG_DATA = Bytes.wrap(new byte[] {6, 6, 6});
-    public static final Bytes OUTPUT_DATA = Bytes.wrap(new byte[] {9, 8, 7, 6, 5, 4, 3, 2, 1});
-    public static final Bytes TOPIC = Bytes.wrap(new byte[] {11, 21, 31, 41, 51, 61, 71, 81, 91});
-    public static final Bytes OTHER_TOPIC = Bytes.wrap(new byte[] {99, 29, 39, 49, 59, 69, 79, 89, 99});
+    public static final Bytes LOG_DATA = Bytes.wrap(new byte[]{6, 6, 6});
+    public static final Bytes OUTPUT_DATA = Bytes.wrap(new byte[]{9, 8, 7, 6, 5, 4, 3, 2, 1});
+    public static final Bytes TOPIC = Bytes.wrap(new byte[]{11, 21, 31, 41, 51, 61, 71, 81, 91});
+    public static final Bytes OTHER_TOPIC = Bytes.wrap(new byte[]{99, 29, 39, 49, 59, 69, 79, 89, 99});
     public static final Bytes MAINNET_CHAIN_ID = Bytes.fromHex("0127");
     public static final AccountID SENDER_ID =
             AccountID.newBuilder().accountNum(1234).build();
@@ -623,17 +625,17 @@ public class TestHelpers {
             null);
 
     public static final HederaEvmTransactionResult SUCCESS_RESULT_WITH_SIGNER_NONCE = explicitSuccessFrom(
-                    GAS_LIMIT / 2,
-                    Wei.of(NETWORK_GAS_PRICE),
-                    SENDER_ID,
-                    CALLED_CONTRACT_ID,
-                    CALLED_CONTRACT_EVM_ADDRESS,
-                    pbjToTuweniBytes(CALL_DATA),
-                    List.of(BESU_LOG),
-                    null,
-                    null,
-                    null,
-                    null)
+            GAS_LIMIT / 2,
+            Wei.of(NETWORK_GAS_PRICE),
+            SENDER_ID,
+            CALLED_CONTRACT_ID,
+            CALLED_CONTRACT_EVM_ADDRESS,
+            pbjToTuweniBytes(CALL_DATA),
+            List.of(BESU_LOG),
+            null,
+            null,
+            null,
+            null)
             .withSignerNonce(SIGNER_NONCE);
 
     public static final HederaEvmTransactionResult HALT_RESULT = new HederaEvmTransactionResult(
@@ -1057,12 +1059,12 @@ public class TestHelpers {
         }
 
         public TokenTransferListBuilder withAccountAmounts(final Tuple... accountAmounts) {
-            tokenTransferList = Tuple.of(token, accountAmounts, new Tuple[] {});
+            tokenTransferList = Tuple.of(token, accountAmounts, new Tuple[]{});
             return this;
         }
 
         public TokenTransferListBuilder withNftTransfers(final Tuple... nftTransfers) {
-            tokenTransferList = Tuple.of(token, new Tuple[] {}, nftTransfers);
+            tokenTransferList = Tuple.of(token, new Tuple[]{}, nftTransfers);
             return this;
         }
 
@@ -1075,7 +1077,8 @@ public class TestHelpers {
         return new TokenTransferListBuilder();
     }
 
-    public record TestHbarTransfer(AccountID sender, AccountID receiver, long amount) {}
+    public record TestHbarTransfer(AccountID sender, AccountID receiver, long amount) {
+    }
 
     public static TransferList transfersLists(@NonNull final List<TestHbarTransfer> hbarTransfers) {
         final var transferList = TransferList.newBuilder();
@@ -1093,7 +1096,11 @@ public class TestHelpers {
         return transferList.build();
     }
 
-    public record TestTokenTransfer(TokenID token, boolean isNft, AccountID sender, AccountID receiver, long amount) {}
+    public record TestTokenTransfer(TokenID token, boolean isNft,
+                                    AccountID sender, Account senderAccount,
+                                    AccountID receiver, Account receiverAccount,
+                                    long amount) {
+    }
 
     public static List<TokenTransferList> tokenTransfersLists(@NonNull final List<TestTokenTransfer> tokenTransfers) {
         List<TokenTransferList> tokenTransferList = new ArrayList<>();

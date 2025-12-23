@@ -14,7 +14,11 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.LogBui
 import com.hedera.node.app.service.contract.impl.records.ContractCallStreamBuilder;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import edu.umd.cs.findbugs.annotations.NonNull;
+
 import java.math.BigInteger;
+import java.util.ArrayList;
+import java.util.List;
+
 import org.apache.tuweni.bytes.Bytes;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 
@@ -46,14 +50,11 @@ public class TransferEventLoggingUtils {
         if (recordBuilder.tokenTransferLists() != null) {
             for (TokenTransferList transfer : recordBuilder.tokenTransferLists()) {
                 if (!transfer.transfers().isEmpty()) {
-                    for (int i = 0; i < transfer.transfers().size(); i += 2) {
                         logSuccessfulFungibleTransfer(
                                 transfer.tokenOrThrow(),
-                                transfer.transfers().get(i), // credit
-                                transfer.transfers().get(i + 1), // debit
+                                transfer.transfers(),
                                 accountStore,
                                 frame);
-                    }
                 }
                 if (!transfer.nftTransfers().isEmpty()) {
                     for (NftTransfer nftTransfer : transfer.nftTransfers()) {
@@ -64,42 +65,89 @@ public class TransferEventLoggingUtils {
         }
     }
 
-    //TODO Glib: support -1,-10,+11 transfers
+    private static class AccountChange {
+
+        public final AccountID accountId;
+        public long amount; // using not final var because it will be changed during the conversion algorithm
+
+        public AccountChange(final AccountID accountId, long amount) {
+            this.accountId = accountId;
+            this.amount = amount;
+        }
+    }
+
+    //TODO Glib: test
     /**
-     * Logs a successful ERC-20 transfer event based on the Hedera-style representation of the fungible
-     * balance adjustments.
-     *
-     * <p><b>IMPORTANT:</b> The adjusts list must be length two.
+     * Logs a successful ERC-20 transfer event based on the Hedera-style representation
+     * of fungible balance adjustments.
+     * <p>The implementation supports the following scenarios:</p>
+     * <ul>
+     * <li><b>1. Regular transfer:</b>
+     * <ul>
+     * <li>Account A: amount -10</li>
+     * <li>Account B: amount +10</li>
+     * </ul>
+     * </li>
+     * <li><b>2. Airdropped token with custom fees:</b>
+     * <p>When "net of transfers = true" and fees are paid by the sender on behalf of the receiver:</p>
+     * <ul>
+     * <li>Account A (Sender): amount -11</li>
+     * <li>Account B (Fee Collector): amount +1</li>
+     * <li>Account C (Receiver): amount +10</li>
+     * </ul>
+     * </li>
+     * <li><b>3. Multiple sender scenarios:</b>
+     * <p>Situations where adjustments involve multiple debit accounts (reserved for future use cases):</p>
+     * <ul>
+     * <li>Account A: amount -1</li>
+     * <li>Account B: amount -10</li>
+     * <li>Account C: amount +11</li>
+     * </ul>
+     * </li>
+     * </ul>
      *
      * @param tokenId      the token ID
-     * @param party1       the Hedera-style representation of the fungible balance adjustments, 1st party
-     * @param party2       the Hedera-style representation of the fungible balance adjustments, 2nd party
+     * @param adjusts      the Hedera-style representation of the fungible balance adjustments
      * @param accountStore the account store to get account addresses from
      * @param frame        the frame to log to
      */
     public static void logSuccessfulFungibleTransfer(
             @NonNull final TokenID tokenId,
-            @NonNull final AccountAmount party1,
-            @NonNull final AccountAmount party2,
+            @NonNull final List<AccountAmount> adjusts,
             @NonNull final ReadableAccountStore accountStore,
             @NonNull final MessageFrame frame) {
         requireNonNull(tokenId);
         requireNonNull(frame);
-        requireNonNull(party1);
-        requireNonNull(party2);
+        requireNonNull(adjusts);
         requireNonNull(accountStore);
-        final AccountAmount debit;
-        final AccountAmount credit;
-        if (party1.amount() < 0) {
-            debit = party1;
-            credit = party2;
-        } else {
-            debit = party2;
-            credit = party1;
+        List<AccountChange> senders = new ArrayList<>();
+        List<AccountChange> receivers = new ArrayList<>();
+
+        // 1. Separate accounts by sign
+        for (AccountAmount account : adjusts) {
+            if (account.amount() < 0) {
+                senders.add(new AccountChange(account.accountIDOrThrow(), Math.abs(account.amount())));
+            } else if (account.amount() > 0) {
+                receivers.add(new AccountChange(account.accountIDOrThrow(), account.amount()));
+            }
         }
-        frame.addLog(builderFor(tokenId, debit.accountIDOrThrow(), credit.accountIDOrThrow(), accountStore)
-                .forDataItem(credit.amount())
-                .build());
+
+        // 2. Convert senders/receivers to transfer events
+        int sIdx = 0, rIdx = 0;
+        while (sIdx < senders.size() && rIdx < receivers.size()) {
+            AccountChange sender = senders.get(sIdx);
+            AccountChange receiver = receivers.get(rIdx);
+            long amount = Math.min(sender.amount, receiver.amount);
+            // create transfer event
+            frame.addLog(builderFor(tokenId, sender.accountId, receiver.accountId, accountStore)
+                    .forDataItem(amount)
+                    .build());
+            // change the amounts according to transfer event amount
+            sender.amount -= amount;
+            receiver.amount -= amount;
+            if (sender.amount == 0) sIdx++;
+            if (receiver.amount == 0) rIdx++;
+        }
     }
 
     /**
@@ -120,10 +168,10 @@ public class TransferEventLoggingUtils {
         requireNonNull(nftTransfer);
         requireNonNull(accountStore);
         frame.addLog(builderFor(
-                        tokenId,
-                        nftTransfer.senderAccountIDOrThrow(),
-                        nftTransfer.receiverAccountIDOrThrow(),
-                        accountStore)
+                tokenId,
+                nftTransfer.senderAccountIDOrThrow(),
+                nftTransfer.receiverAccountIDOrThrow(),
+                accountStore)
                 .forIndexedArgument(BigInteger.valueOf(nftTransfer.serialNumber()))
                 .build());
     }

@@ -27,6 +27,7 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.Return
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.transfer.TransferEventLoggingUtils;
 import com.hedera.node.app.service.contract.impl.records.ContractCallStreamBuilder;
 import com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.common.CallTestBase;
+import com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.hts.transfer.TransferEventLoggingUtilsTest;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.spi.workflows.HandleException;
 import java.util.ArrayDeque;
@@ -112,9 +113,10 @@ class DispatchForResponseCodeHtsCallTest extends CallTestBase {
                 failureCustomizer,
                 TransferEventLoggingUtils::emitErcLogEventsFor,
                 STANDARD_OUTPUT_FN);
+        final var expectedTransfers = List.of(new TestTokenTransfer(
+                FUNGIBLE_TOKEN_ID, false, OWNER_ID, OWNER_ACCOUNT, RECEIVER_ID, ALIASED_RECEIVER, 123));
         given(recordBuilder.tokenTransferLists())
-                .willReturn(tokenTransfersLists(
-                        List.of(new TestTokenTransfer(FUNGIBLE_TOKEN_ID, false, OWNER_ID, RECEIVER_ID, 123))));
+                .willReturn(tokenTransfersLists(expectedTransfers));
         given(systemContractOperations.dispatch(
                         TransactionBody.DEFAULT,
                         verificationStrategy,
@@ -136,14 +138,7 @@ class DispatchForResponseCodeHtsCallTest extends CallTestBase {
         // then
         assertArrayEquals(ReturnTypes.encodedRc(SUCCESS).array(), contractResult.toArray());
         // check that events was added
-        assertEquals(1, logs.size());
-        assertEquals(3, logs.getFirst().getTopics().size());
-        assertEquals(
-                convertAccountToLog(OWNER_ACCOUNT), logs.getFirst().getTopics().get(1));
-        assertEquals(
-                convertAccountToLog(ALIASED_RECEIVER),
-                logs.getFirst().getTopics().get(2));
-        assertEquals(123, UInt256.fromBytes(logs.getFirst().getData()).toLong());
+        TransferEventLoggingUtilsTest.verifyFTLogEvent(logs, expectedTransfers);
     }
 
     @Test

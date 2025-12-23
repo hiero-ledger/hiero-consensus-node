@@ -18,7 +18,6 @@ import static org.mockito.Mockito.verify;
 import com.esaulpaugh.headlong.abi.Tuple;
 import com.esaulpaugh.headlong.abi.TupleType;
 import com.hedera.hapi.node.base.Key;
-import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.token.CryptoTransferTransactionBody;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason;
@@ -40,8 +39,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.Predicate;
-import org.apache.tuweni.bytes.Bytes;
-import org.apache.tuweni.units.bigints.UInt256;
+
 import org.hyperledger.besu.evm.frame.MessageFrame;
 import org.hyperledger.besu.evm.log.Log;
 import org.junit.jupiter.api.Test;
@@ -329,11 +327,12 @@ class ClassicTransfersCallTest extends CallTestBase {
                 .willReturn(recordBuilder);
         given(recordBuilder.status()).willReturn(SUCCESS);
         given(nativeOperations.readableAccountStore()).willReturn(readableAccountStore);
+        final var expectedTransfers = List.of(new TestTokenTransfer(
+                FUNGIBLE_TOKEN_ID, false, OWNER_ID, OWNER_ACCOUNT, RECEIVER_ID, ALIASED_RECEIVER, 123));
+        given(recordBuilder.tokenTransferLists())
+                .willReturn(tokenTransfersLists(expectedTransfers));
         given(readableAccountStore.getAliasedAccountById(OWNER_ID)).willReturn(OWNER_ACCOUNT);
         given(readableAccountStore.getAliasedAccountById(RECEIVER_ID)).willReturn(ALIASED_RECEIVER);
-        given(recordBuilder.tokenTransferLists())
-                .willReturn(tokenTransfersLists(
-                        List.of(new TestTokenTransfer(FUNGIBLE_TOKEN_ID, false, OWNER_ID, RECEIVER_ID, 123))));
         final List<Log> logs = new ArrayList<>();
         Mockito.doAnswer(e -> logs.add(e.getArgument(0))).when(frame).addLog(any());
 
@@ -342,16 +341,7 @@ class ClassicTransfersCallTest extends CallTestBase {
         assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.getState());
         assertEquals(tuweniEncodedRc(SUCCESS), result.getOutput());
         // check that events was added
-        verifyFTLogEvent(logs, OWNER_ACCOUNT, ALIASED_RECEIVER, 123);
-    }
-
-    public static void verifyFTLogEvent(
-            final List<Log> logs, final Account sender, final Account receiver, long amount) {
-        assertEquals(1, logs.size());
-        assertEquals(3, logs.getFirst().getTopics().size());
-        assertEquals(convertAccountToLog(sender), logs.getFirst().getTopics().get(1));
-        assertEquals(convertAccountToLog(receiver), logs.getFirst().getTopics().get(2));
-        assertEquals(amount, UInt256.fromBytes(logs.getFirst().getData()).toLong());
+        TransferEventLoggingUtilsTest.verifyFTLogEvent(logs, expectedTransfers);
     }
 
     public static List<SystemContractMethod> ercEventsEmissionForNFTParams() {
@@ -375,11 +365,12 @@ class ClassicTransfersCallTest extends CallTestBase {
                 .willReturn(recordBuilder);
         given(recordBuilder.status()).willReturn(SUCCESS);
         given(nativeOperations.readableAccountStore()).willReturn(readableAccountStore);
+        final var expectedTransfers = List.of(new TestTokenTransfer(
+                FUNGIBLE_TOKEN_ID, true, OWNER_ID, OWNER_ACCOUNT, RECEIVER_ID, ALIASED_RECEIVER, 123));
+        given(recordBuilder.tokenTransferLists())
+                .willReturn(tokenTransfersLists(expectedTransfers));
         given(readableAccountStore.getAliasedAccountById(OWNER_ID)).willReturn(OWNER_ACCOUNT);
         given(readableAccountStore.getAliasedAccountById(RECEIVER_ID)).willReturn(ALIASED_RECEIVER);
-        given(recordBuilder.tokenTransferLists())
-                .willReturn(tokenTransfersLists(
-                        List.of(new TestTokenTransfer(FUNGIBLE_TOKEN_ID, true, OWNER_ID, RECEIVER_ID, 123))));
         final List<Log> logs = new ArrayList<>();
         Mockito.doAnswer(e -> logs.add(e.getArgument(0))).when(frame).addLog(any());
 
@@ -388,18 +379,6 @@ class ClassicTransfersCallTest extends CallTestBase {
         assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.getState());
         assertEquals(tuweniEncodedRc(SUCCESS), result.getOutput());
         // check that events was added
-        verifyNFTLogEvent(logs, OWNER_ACCOUNT, ALIASED_RECEIVER, 123);
-    }
-
-    public static void verifyNFTLogEvent(
-            final List<Log> logs, final Account sender, final Account receiver, long amount) {
-        assertEquals(1, logs.size());
-        assertEquals(4, logs.getFirst().getTopics().size());
-        assertEquals(convertAccountToLog(sender), logs.getFirst().getTopics().get(1));
-        assertEquals(convertAccountToLog(receiver), logs.getFirst().getTopics().get(2));
-        assertEquals(
-                amount,
-                UInt256.fromBytes(Bytes.wrap(logs.getFirst().getTopics().get(3).toArray()))
-                        .toLong());
+        TransferEventLoggingUtilsTest.verifyNFTLogEvent(logs, expectedTransfers);
     }
 }

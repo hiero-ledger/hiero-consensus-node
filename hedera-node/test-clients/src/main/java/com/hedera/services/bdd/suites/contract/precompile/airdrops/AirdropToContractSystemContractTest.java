@@ -316,6 +316,7 @@ public class AirdropToContractSystemContractTest {
             }));
         }
 
+        // TODO Glib: support -1,-10,+11 or -11,1,10 transfers
         @HapiTest
         @DisplayName(
                 "Airdropped token with custom fees (net of transfers = true) to be paid by the contract receiver should be paid by the sender")
@@ -525,7 +526,7 @@ public class AirdropToContractSystemContractTest {
                     sourcing(() -> getTxnRecord(creation)
                             .andAllChildRecords()
                             .logged()
-                            .exposingCreationsTo(l -> hollowCreationAddress.set(l.get(0)))),
+                            .exposingCreationsTo(l -> hollowCreationAddress.set(l.getFirst()))),
                     sourcing(() -> contractCall(contract, DEPLOY, testContractInitcode.get(), salt)
                             .payingWith(GENESIS)
                             .gas(10_000_000L)
@@ -1179,7 +1180,7 @@ public class AirdropToContractSystemContractTest {
                         sourcing(() -> getTxnRecord(creation)
                                 .andAllChildRecords()
                                 .logged()
-                                .exposingCreationsTo(l -> hollowCreationAddress.set(l.get(0)))),
+                                .exposingCreationsTo(l -> hollowCreationAddress.set(l.getFirst()))),
                         // Initial check for receiver balance
                         sourcing(() ->
                                 getAccountBalance(hollowCreationAddress.get()).hasTokenBalance(token.name(), 0L)),
