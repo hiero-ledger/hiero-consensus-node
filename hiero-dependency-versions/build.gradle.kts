@@ -22,7 +22,7 @@ val log4j = "2.25.0"
 val mockito = "5.18.0"
 val pbj = pluginVersions.version("com.hedera.pbj.pbj-compiler")
 val protobuf = "4.31.1"
-val blockNodeProtobufSources = "0.25.0-SNAPSHOT"
+val blockNodeProtobufSources = "0.25.0"
 val testContainers = "2.0.2"
 val tuweni = "2.4.2"
 val webcompare = "2.1.8"
@@ -137,12 +137,12 @@ dependencies.constraints {
     // Versions of additional tools that are not part of the product or test module paths
     api("com.google.protobuf:protoc:${protobuf}")
     api("io.grpc:protoc-gen-grpc-java:${grpc}")
-    api("org.hiero.block:block-node-protobuf-sources:$blockNodeProtobufSources") {
+    api("org.hiero.block-node:protobuf-sources:$blockNodeProtobufSources") {
         because("External block node protobuf sources")
     }
     tasks.checkVersionConsistency {
         excludes.add("com.google.protobuf:protoc")
         excludes.add("io.grpc:protoc-gen-grpc-java")
-        excludes.add("org.hiero.block:block-node-protobuf-sources")
+        excludes.add("org.hiero.block-node:protobuf-sources")
     }
 }
