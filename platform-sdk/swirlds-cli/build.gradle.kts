@@ -39,7 +39,7 @@ val cleanRun =
     tasks.register<Delete>("cleanRun") {
         delete(
             sdkDir.asFileTree.matching {
-                include("consensus-pcli.jar")
+                include("swirlds-cli.jar")
                 include("swirlds.jar")
             }
         )
