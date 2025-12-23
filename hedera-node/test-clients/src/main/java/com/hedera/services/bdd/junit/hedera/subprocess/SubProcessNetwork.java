@@ -99,6 +99,12 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
     private static int nextPrometheusPort;
     private static int nextDebugPort;
     private static boolean nextPortsInitialized = false;
+    private int baseGrpcPort;
+    private int baseNodeOperatorPort;
+    private int baseInternalGossipPort;
+    private int baseExternalGossipPort;
+    private int basePrometheusPort;
+    private int baseDebugPort;
     private final Map<Long, AccountID> pendingNodeAccounts = new HashMap<>();
     private final AtomicReference<DeferredRun> ready = new AtomicReference<>();
 
@@ -116,6 +122,7 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
 
     @Nullable
     private UnaryOperator<Network> overrideCustomizer = null;
+    private int overrideConfigVersion = -1;
 
     private final Map<Long, List<String>> applicationPropertyOverrides = new HashMap<>();
 
@@ -181,7 +188,8 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
         this.realm = realm;
         this.maxNodeId =
                 Collections.max(nodes.stream().map(SubProcessNode::getNodeId).toList());
-        this.configTxt = configTxtForLocal(name(), nodes(), nextInternalGossipPort, nextExternalGossipPort);
+        setBasePortsFromNextPorts();
+        this.configTxt = configTxtForLocal(name(), nodes(), baseInternalGossipPort, baseExternalGossipPort);
         this.genesisConfigTxt = configTxt;
         this.postInitWorkingDirActions.add(this::configureApplicationProperties);
     }
@@ -351,23 +359,77 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
      * <i>candidate-roster.json</i> (if present); and reassigns ports to avoid binding conflicts.
      */
     public void refreshOverrideWithNewPorts() {
-        log.info("Reassigning ports for network '{}' starting from {}", name(), nextGrpcPort);
+        log.info("Reassigning ports for network '{}' starting from {}", name(), baseGrpcPort);
         reinitializePorts();
-        log.info("  -> Network '{}' ports now starting from {}", name(), nextGrpcPort);
+        log.info("  -> Network '{}' ports now starting from {}", name(), baseGrpcPort);
         nodes.forEach(node -> {
             final int nodeId = (int) node.getNodeId();
             ((SubProcessNode) node)
                     .reassignPorts(
-                            nextGrpcPort + nodeId * 2,
-                            nextNodeOperatorPort + nodeId,
-                            nextInternalGossipPort + nodeId * 2,
-                            nextExternalGossipPort + nodeId * 2,
-                            nextPrometheusPort + nodeId,
-                            nextDebugPort + nodeId);
+                            baseGrpcPort + nodeId * 2,
+                            baseNodeOperatorPort + nodeId,
+                            baseInternalGossipPort + nodeId * 2,
+                            baseExternalGossipPort + nodeId * 2,
+                            basePrometheusPort + nodeId,
+                            baseDebugPort + nodeId);
         });
         final var weights = maybeLatestCandidateWeights();
-        configTxt = configTxtForLocal(networkName, nodes, nextInternalGossipPort, nextExternalGossipPort, weights);
+        configTxt = configTxtForLocal(networkName, nodes, baseInternalGossipPort, baseExternalGossipPort, weights);
         refreshOverrideNetworks(ReassignPorts.YES);
+    }
+
+    /**
+     * Refreshes the node <i>override-network.json</i> files using the current ports and latest weights.
+     */
+    public void refreshOverrideWithCurrentPorts() {
+        refreshOverrideNetworks(ReassignPorts.NO);
+    }
+
+    /**
+     * Refreshes the node <i>override-network.json</i> files using the current ports and latest weights, and
+     * also writes a scoped override for the given config version.
+     *
+     * @param configVersion the configuration version to scope the override under
+     */
+    public void refreshOverrideWithCurrentPortsForConfigVersion(final int configVersion) {
+        if (configVersion <= 0) {
+            refreshOverrideWithCurrentPorts();
+            return;
+        }
+        overrideConfigVersion = configVersion;
+        refreshOverrideNetworks(ReassignPorts.NO);
+    }
+
+    /**
+     * Refreshes the node <i>override-network.json</i> files after reassigning ports, and
+     * also writes a scoped override for the given config version.
+     *
+     * @param configVersion the configuration version to scope the override under
+     */
+    public void refreshOverrideWithNewPortsForConfigVersion(final int configVersion) {
+        if (configVersion <= 0) {
+            refreshOverrideWithNewPorts();
+            return;
+        }
+        overrideConfigVersion = configVersion;
+        refreshOverrideWithNewPorts();
+    }
+
+    /**
+     * Removes any override network files scoped to the given config version, and any base override file.
+     *
+     * @param configVersion the configuration version to clear overrides for
+     */
+    public void clearOverrideNetworksForConfigVersion(final int configVersion) {
+        if (configVersion <= 0) {
+            return;
+        }
+        nodes.forEach(node -> {
+            final var dataConfigDir = node.getExternalPath(DATA_CONFIG_DIR);
+            deleteOverrideIfExists(dataConfigDir.resolve(OVERRIDE_NETWORK_JSON));
+            deleteOverrideIfExists(
+                    dataConfigDir.resolve(Integer.toString(configVersion)).resolve(OVERRIDE_NETWORK_JSON));
+        });
     }
 
     /**
@@ -375,6 +437,7 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
      */
     public void refreshClients() {
         this.clients = HapiClients.clientsFor(this);
+        HapiClients.rebuildChannels(true);
     }
 
     /**
@@ -389,7 +452,7 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
         node.stopFuture();
         nodes.remove(node);
         configTxt = configTxtForLocal(
-                networkName, nodes, nextInternalGossipPort, nextExternalGossipPort, latestCandidateWeights());
+                networkName, nodes, baseInternalGossipPort, baseExternalGossipPort, latestCandidateWeights());
         refreshOverrideNetworks(ReassignPorts.NO);
     }
 
@@ -413,12 +476,12 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
                         name(),
                         SUBPROCESS_HOST,
                         SHARED_NETWORK_NAME.equals(name()) ? null : name(),
-                        nextGrpcPort + (int) nodeId * 2,
-                        nextNodeOperatorPort + (int) nodeId,
-                        nextInternalGossipPort + (int) nodeId * 2,
-                        nextExternalGossipPort + (int) nodeId * 2,
-                        nextPrometheusPort + (int) nodeId,
-                        nextDebugPort + (int) nodeId,
+                        baseGrpcPort,
+                        baseNodeOperatorPort,
+                        baseInternalGossipPort,
+                        baseExternalGossipPort,
+                        basePrometheusPort,
+                        baseDebugPort,
                         shard,
                         realm),
                 GRPC_PINGER,
@@ -429,7 +492,7 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
         }
         nodes.add(insertionPoint, node);
         configTxt = configTxtForLocal(
-                networkName, nodes, nextInternalGossipPort, nextExternalGossipPort, latestCandidateWeights());
+                networkName, nodes, baseInternalGossipPort, baseExternalGossipPort, latestCandidateWeights());
         nodes.get(insertionPoint).initWorkingDir(configTxt, currentGrpcServiceEndpoints());
         if (blockNodeMode.equals(BlockNodeMode.SIMULATOR)) {
             executePostInitWorkingDirActions(node);
@@ -447,8 +510,8 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
     public List<ServiceEndpoint> gossipEndpointsForNextNodeId() {
         final var nextNodeId = maxNodeId + 1;
         return List.of(
-                endpointFor(nextInternalGossipPort + (int) nextNodeId * 2),
-                endpointFor(nextExternalGossipPort + (int) nextNodeId * 2));
+                endpointFor(baseInternalGossipPort + (int) nextNodeId * 2),
+                endpointFor(baseExternalGossipPort + (int) nextNodeId * 2));
     }
 
     /**
@@ -459,7 +522,7 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
      */
     public ServiceEndpoint grpcEndpointForNextNodeId() {
         final var nextNodeId = maxNodeId + 1;
-        return endpointFor(nextGrpcPort + (int) nextNodeId * 2);
+        return endpointFor(baseGrpcPort + (int) nextNodeId * 2);
     }
 
     private Map<Long, com.hedera.hapi.node.base.ServiceEndpoint> currentGrpcServiceEndpoints() {
@@ -539,6 +602,7 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
      */
     private void refreshOverrideNetworks(@NonNull final ReassignPorts reassignPorts) {
         log.info("Refreshing override networks for '{}' - \n{}", name(), configTxt);
+        final int scopedConfigVersion = overrideConfigVersion;
         nodes.forEach(node -> {
             var overrideNetwork = WorkingDirUtils.networkFrom(configTxt, OnlyRoster.NO, currentGrpcServiceEndpoints());
             if (overrideCustomizer != null) {
@@ -554,6 +618,13 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
                     Files.writeString(
                             node.getExternalPath(DATA_CONFIG_DIR).resolve(OVERRIDE_NETWORK_JSON),
                             Network.JSON.toJSON(overrideNetwork));
+                    if (scopedConfigVersion > 0) {
+                        final var scopedConfigDir =
+                                node.getExternalPath(DATA_CONFIG_DIR).resolve(Integer.toString(scopedConfigVersion));
+                        Files.createDirectories(scopedConfigDir);
+                        Files.writeString(
+                                scopedConfigDir.resolve(OVERRIDE_NETWORK_JSON), Network.JSON.toJSON(overrideNetwork));
+                    }
                 } catch (IOException e) {
                     throw new UncheckedIOException(e);
                 }
@@ -581,6 +652,7 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
             }
         });
         overrideCustomizer = null;
+        overrideConfigVersion = -1;
     }
 
     private NodeMetadata withReassignedPorts(
@@ -597,12 +669,30 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
                         .build());
     }
 
+    private void deleteOverrideIfExists(@NonNull final Path path) {
+        try {
+            Files.deleteIfExists(path);
+        } catch (IOException e) {
+            log.warn("Failed to delete override network file {}: {}", path, e.toString());
+        }
+    }
+
     private void reinitializePorts() {
         final var effectiveSize = (int) (maxNodeId + 1);
         final var firstGrpcPort = nodes().getFirst().getGrpcPort();
         final var totalPortsUsed = effectiveSize * PORTS_PER_NODE;
         final var newFirstGrpcPort = firstGrpcPort + totalPortsUsed;
         initializeNextPortsForNetwork(effectiveSize, newFirstGrpcPort);
+        setBasePortsFromNextPorts();
+    }
+
+    private void setBasePortsFromNextPorts() {
+        baseGrpcPort = nextGrpcPort;
+        baseNodeOperatorPort = nextNodeOperatorPort;
+        baseInternalGossipPort = nextInternalGossipPort;
+        baseExternalGossipPort = nextExternalGossipPort;
+        basePrometheusPort = nextPrometheusPort;
+        baseDebugPort = nextDebugPort;
     }
 
     private ServiceEndpoint endpointFor(final int port) {

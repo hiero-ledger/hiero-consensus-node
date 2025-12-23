@@ -38,7 +38,7 @@ public class FakeNmt {
             final int configVersion, @NonNull final Map<String, String> envOverrides) {
         requireNonNull(envOverrides);
         return new TryToStartNodesOp(
-                NodeSelector.allNodes(), configVersion, SubProcessNode.ReassignPorts.YES, envOverrides);
+                NodeSelector.allNodes(), configVersion, SubProcessNode.ReassignPorts.NO, envOverrides);
     }
 
     /**
@@ -51,7 +51,7 @@ public class FakeNmt {
         return new TryToStartNodesOp(
                 NodeSelector.allNodes(),
                 configVersion,
-                SubProcessNode.ReassignPorts.YES,
+                SubProcessNode.ReassignPorts.NO,
                 Map.of("grpc.nodeOperatorPortEnabled", "false"));
     }
 
@@ -84,7 +84,7 @@ public class FakeNmt {
      * @return the operation that restarts the node
      */
     public static TryToStartNodesOp restartNode(@NonNull final NodeSelector selector) {
-        return new TryToStartNodesOp(selector);
+        return new TryToStartNodesOp(selector, 0, SubProcessNode.ReassignPorts.NO, Map.of(), false);
     }
 
     /**
@@ -106,7 +106,7 @@ public class FakeNmt {
      */
     public static TryToStartNodesOp restartWithConfigVersion(
             @NonNull final NodeSelector selector, final int configVersion) {
-        return new TryToStartNodesOp(selector, configVersion);
+        return new TryToStartNodesOp(selector, configVersion, SubProcessNode.ReassignPorts.NO, Map.of(), false);
     }
 
     /**

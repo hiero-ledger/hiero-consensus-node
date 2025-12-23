@@ -36,6 +36,7 @@ import static org.hiero.consensus.model.status.PlatformStatus.ACTIVE;
 import static org.hiero.consensus.model.status.PlatformStatus.CATASTROPHIC_FAILURE;
 
 import com.hedera.services.bdd.junit.hedera.NodeSelector;
+import com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork;
 import com.hedera.services.bdd.spec.HapiSpecOperation;
 import com.hedera.services.bdd.spec.SpecOperation;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
@@ -162,7 +163,12 @@ public interface LifecycleTest {
                 cryptoTransfer(tinyBarsFromTo(GENESIS, FUNDING, 1)),
                 confirmFreezeAndShutdown(),
                 sourcing(() -> FakeNmt.restartNetwork(CURRENT_CONFIG_VERSION.incrementAndGet(), Map.of())),
-                waitForActiveNetworkWithReassignedPorts(RESTART_TIMEOUT));
+                waitForActiveNetworkWithReassignedPorts(RESTART_TIMEOUT),
+                doingContextual(spec -> {
+                    if (spec.targetNetworkOrThrow() instanceof SubProcessNetwork subProcessNetwork) {
+                        subProcessNetwork.clearOverrideNetworksForConfigVersion(CURRENT_CONFIG_VERSION.get());
+                    }
+                }));
     }
 
     /**
@@ -187,7 +193,12 @@ public interface LifecycleTest {
                 cryptoTransfer(tinyBarsFromTo(GENESIS, FUNDING, 1)),
                 confirmFreezeAndShutdown(),
                 restartOp,
-                waitForActiveNetworkWithReassignedPorts(RESTART_TIMEOUT));
+                waitForActiveNetworkWithReassignedPorts(RESTART_TIMEOUT),
+                doingContextual(spec -> {
+                    if (spec.targetNetworkOrThrow() instanceof SubProcessNetwork subProcessNetwork) {
+                        subProcessNetwork.clearOverrideNetworksForConfigVersion(CURRENT_CONFIG_VERSION.get());
+                    }
+                }));
     }
 
     /**
@@ -241,6 +252,11 @@ public interface LifecycleTest {
                 FakeNmt.restartNetwork(version, envOverrides),
                 doAdhoc(() -> CURRENT_CONFIG_VERSION.set(version)),
                 waitForActiveNetworkWithReassignedPorts(RESTART_TIMEOUT),
+                doingContextual(spec -> {
+                    if (spec.targetNetworkOrThrow() instanceof SubProcessNetwork subProcessNetwork) {
+                        subProcessNetwork.clearOverrideNetworksForConfigVersion(version);
+                    }
+                }),
                 cryptoCreate("postUpgradeAccount"),
                 // Ensure we have a post-upgrade transaction in a new period to trigger
                 // system file exports while still streaming records
