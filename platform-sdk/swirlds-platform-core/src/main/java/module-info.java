@@ -97,7 +97,8 @@ module com.swirlds.platform.core {
     exports com.swirlds.platform.network.protocol.rpc;
     exports com.swirlds.platform.state.iss to
             org.hiero.otter.test;
-    exports com.swirlds.platform.recovery.internal;
+    exports com.swirlds.platform.recovery.internal to
+            org.hiero.consensus.pcli;
 
     requires transitive com.hedera.node.hapi;
     requires transitive com.hedera.pbj.runtime;
