@@ -350,7 +350,8 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
         final var node = getRequiredNode(selector);
         node.stopFuture();
         nodes.remove(node);
-        network = NetworkUtils.generateNetworkConfig(nodes, nextInternalGossipPort, nextExternalGossipPort, latestCandidateWeights());
+        network = NetworkUtils.generateNetworkConfig(
+                nodes, nextInternalGossipPort, nextExternalGossipPort, latestCandidateWeights());
         refreshOverrideNetworks(ReassignPorts.NO);
     }
 
@@ -388,7 +389,8 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
             node.reassignNodeAccountIdFrom(accountId);
         }
         nodes.add(insertionPoint, node);
-        network = NetworkUtils.generateNetworkConfig(nodes, nextInternalGossipPort, nextExternalGossipPort, latestCandidateWeights());
+        network = NetworkUtils.generateNetworkConfig(
+                nodes, nextInternalGossipPort, nextExternalGossipPort, latestCandidateWeights());
         nodes.get(insertionPoint).initWorkingDir(network);
         if (blockNodeMode.equals(BlockNodeMode.SIMULATOR)) {
             executePostInitWorkingDirActions(node);

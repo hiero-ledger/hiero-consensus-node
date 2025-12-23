@@ -110,7 +110,8 @@ public final class BootstrapUtils {
      * @param settingsPath  the path to the settings.txt file
      * @param configuration the configuration
      */
-    public static void performHealthChecks(@NonNull final Path settingsPath, @NonNull final Configuration configuration) {
+    public static void performHealthChecks(
+            @NonNull final Path settingsPath, @NonNull final Configuration configuration) {
         requireNonNull(configuration);
         final OSFileSystemChecker osFileSystemChecker = new OSFileSystemChecker(settingsPath);
 

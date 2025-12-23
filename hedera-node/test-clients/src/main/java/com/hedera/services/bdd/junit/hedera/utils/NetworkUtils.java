@@ -57,9 +57,7 @@ public class NetworkUtils {
      * @return the contents of the <i>config.txt</i> file
      */
     public static Network generateNetworkConfig(
-            @NonNull final List<HederaNode> nodes,
-            final int nextInternalGossipPort,
-            final int nextExternalGossipPort) {
+            @NonNull final List<HederaNode> nodes, final int nextInternalGossipPort, final int nextExternalGossipPort) {
         return generateNetworkConfig(nodes, nextInternalGossipPort, nextExternalGossipPort, Map.of());
     }
 
@@ -84,7 +82,8 @@ public class NetworkUtils {
             final Map<NodeId, KeysAndCerts> kacMap = CryptoStatic.generateKeysAndCerts(
                     nodes.stream().map(HederaNode::getNodeId).map(NodeId::of).toList());
             for (final Entry<NodeId, KeysAndCerts> entry : kacMap.entrySet()) {
-                certsMap.put(entry.getKey().id(),
+                certsMap.put(
+                        entry.getKey().id(),
                         Bytes.wrap(entry.getValue().sigCert().getEncoded()));
             }
         } catch (final ExecutionException | InterruptedException | KeyStoreException | CertificateEncodingException e) {

@@ -19,7 +19,6 @@ import java.security.NoSuchAlgorithmException;
 import java.security.NoSuchProviderException;
 import java.security.cert.CertificateEncodingException;
 import java.util.ArrayList;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
@@ -50,10 +49,7 @@ public class CryptoArgsProvider {
         final Map<NodeId, KeysAndCerts> genKac = genRoster.rosterEntries().stream()
                 .map(RosterEntry::nodeId)
                 .map(NodeId::of)
-                .collect(Collectors.toMap(
-                        Function.identity(),
-                        rosterBuilder::getPrivateKeys
-                ));
+                .collect(Collectors.toMap(Function.identity(), rosterBuilder::getPrivateKeys));
         return Stream.of(
                 Arguments.of(rosterAndCerts.roster(), rosterAndCerts.nodeIdKeysAndCertsMap()),
                 Arguments.of(genRoster, genKac));
@@ -78,7 +74,7 @@ public class CryptoArgsProvider {
     @NonNull
     public static RosterAndCerts genRosterLoadKeys(final int size)
             throws URISyntaxException, KeyLoadingException, KeyStoreException, NoSuchAlgorithmException,
-            KeyGeneratingException, NoSuchProviderException, CertificateEncodingException {
+                    KeyGeneratingException, NoSuchProviderException, CertificateEncodingException {
         final Roster createdAB = RandomRosterBuilder.create(Randotron.create())
                 .withSize(size)
                 .withRealKeysEnabled(false)
@@ -95,11 +91,11 @@ public class CryptoArgsProvider {
                 .keysAndCerts();
         final ArrayList<RosterEntry> rosterEntries = new ArrayList<>();
         for (final RosterEntry entry : createdAB.rosterEntries()) {
-                final RosterEntry newOne = entry.copyBuilder()
-                        .gossipCaCertificate(Bytes.wrap(
-                                loadedC.get(NodeId.of(entry.nodeId())).sigCert().getEncoded()))
-                        .build();
-                rosterEntries.add(newOne);
+            final RosterEntry newOne = entry.copyBuilder()
+                    .gossipCaCertificate(Bytes.wrap(
+                            loadedC.get(NodeId.of(entry.nodeId())).sigCert().getEncoded()))
+                    .build();
+            rosterEntries.add(newOne);
         }
         return new RosterAndCerts(new Roster(rosterEntries), loadedC);
     }

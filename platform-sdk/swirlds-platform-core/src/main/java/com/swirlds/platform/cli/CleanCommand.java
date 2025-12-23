@@ -52,8 +52,7 @@ public final class CleanCommand extends AbstractCommand {
         Objects.requireNonNull(sdkPath);
 
         final Configuration configuration = DefaultConfiguration.buildBasicConfiguration(
-                ConfigurationBuilder.create(),
-                sdkPath.resolve(DEFAULT_SETTINGS_FILE_NAME));
+                ConfigurationBuilder.create(), sdkPath.resolve(DEFAULT_SETTINGS_FILE_NAME));
 
         // delete all logs
         FileUtils.deleteFiles(sdkPath, ".log");
