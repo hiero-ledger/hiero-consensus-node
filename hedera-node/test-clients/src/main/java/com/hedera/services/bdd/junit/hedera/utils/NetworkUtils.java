@@ -23,8 +23,10 @@ import java.nio.file.Path;
 import java.security.KeyStoreException;
 import java.security.cert.CertificateEncodingException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.concurrent.ExecutionException;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
@@ -49,24 +51,21 @@ public class NetworkUtils {
     /**
      * Creates a network instance from the provided parameters.
      *
-     * @param networkName the name of the network
      * @param nodes the nodes in the network
      * @param nextInternalGossipPort the next gossip port to use
      * @param nextExternalGossipPort the next gossip TLS port to use
      * @return the contents of the <i>config.txt</i> file
      */
     public static Network generateNetworkConfig(
-            @NonNull final String networkName,
             @NonNull final List<HederaNode> nodes,
             final int nextInternalGossipPort,
             final int nextExternalGossipPort) {
-        return generateNetworkConfig(networkName, nodes, nextInternalGossipPort, nextExternalGossipPort, Map.of());
+        return generateNetworkConfig(nodes, nextInternalGossipPort, nextExternalGossipPort, Map.of());
     }
 
     /**
      * Creates a network instance from the provided parameters, with the option to override the
      * weights of the nodes.
-     * @param networkName the name of the network
      * @param nodes the nodes in the network
      * @param nextInternalGossipPort the next gossip port to use
      * @param nextExternalGossipPort the next gossip TLS port to use
@@ -74,30 +73,27 @@ public class NetworkUtils {
      * @return the contents of the <i>config.txt</i> file
      */
     public static Network generateNetworkConfig(
-            @NonNull final String networkName, // TODO remove
             @NonNull final List<HederaNode> nodes,
             final int nextInternalGossipPort,
             final int nextExternalGossipPort,
             @NonNull final Map<Long, Long> overrideWeights) {
         final List<com.hedera.node.internal.network.NodeMetadata> metadata = new ArrayList<>();
 
-        final Map<NodeId, KeysAndCerts> certsMap;
+        final Map<Long, Bytes> certsMap = new HashMap<>();
         try {
-            certsMap = CryptoStatic.generateKeysAndCerts(
+            final Map<NodeId, KeysAndCerts> kacMap = CryptoStatic.generateKeysAndCerts(
                     nodes.stream().map(HederaNode::getNodeId).map(NodeId::of).toList());
-        } catch (ExecutionException | InterruptedException | KeyStoreException e) {
-            throw new RuntimeException(e); // TODO check what main does
+            for (final Entry<NodeId, KeysAndCerts> entry : kacMap.entrySet()) {
+                certsMap.put(entry.getKey().id(),
+                        Bytes.wrap(entry.getValue().sigCert().getEncoded()));
+            }
+        } catch (final ExecutionException | InterruptedException | KeyStoreException | CertificateEncodingException e) {
+            throw new IllegalStateException("Error generating keys and certs", e);
         }
 
         for (final var hNode : nodes) {
             final Bytes localhost = fromByteString(asOctets("127.0.0.1"));
-            final Bytes cert;
-            try {
-                cert = Bytes.wrap(
-                        certsMap.get(NodeId.of(hNode.getNodeId())).sigCert().getEncoded());
-            } catch (CertificateEncodingException e) {
-                throw new RuntimeException(e);
-            }
+            final Bytes cert = certsMap.get(hNode.getNodeId());
             final var rosterEntry = RosterEntry.newBuilder()
                     .nodeId(hNode.getNodeId())
                     .weight(overrideWeights.getOrDefault(hNode.getNodeId(), 1L))
@@ -136,7 +132,7 @@ public class NetworkUtils {
 
     /**
      * Returns the "classic" metadata for a node in the network, matching the names
-     * used by {@link #generateNetworkConfig(String, List, int, int)} to generate the
+     * used by {@link #generateNetworkConfig(List, int, int)} to generate the
      * <i>config.txt</i> file. The working directory is inferred from the node id
      * and the network scope.
      *
@@ -182,7 +178,7 @@ public class NetworkUtils {
 
     /**
      * Returns the "classic" metadata for a node in the network, matching the names
-     * used by {@link #generateNetworkConfig(String, List, int, int)} to generate the
+     * used by {@link #generateNetworkConfig(List, int, int)} to generate the
      * <i>config.txt</i> file.
      *
      * @param nodeId the ID of the node

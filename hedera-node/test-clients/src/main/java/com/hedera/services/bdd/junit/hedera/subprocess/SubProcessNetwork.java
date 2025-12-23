@@ -177,7 +177,7 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
         this.realm = realm;
         this.maxNodeId =
                 Collections.max(nodes.stream().map(SubProcessNode::getNodeId).toList());
-        this.network = generateNetworkConfig(name(), nodes(), nextInternalGossipPort, nextExternalGossipPort);
+        this.network = generateNetworkConfig(nodes(), nextInternalGossipPort, nextExternalGossipPort);
         this.genesisNetwork = network;
         this.postInitWorkingDirActions.add(this::configureApplicationProperties);
     }
@@ -327,8 +327,7 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
                             nextPrometheusPort + nodeId);
         });
         final var weights = maybeLatestCandidateWeights();
-        network = NetworkUtils.generateNetworkConfig(
-                networkName, nodes, nextInternalGossipPort, nextExternalGossipPort, weights);
+        network = NetworkUtils.generateNetworkConfig(nodes, nextInternalGossipPort, nextExternalGossipPort, weights);
         refreshOverrideNetworks(ReassignPorts.YES);
     }
 
@@ -351,8 +350,7 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
         final var node = getRequiredNode(selector);
         node.stopFuture();
         nodes.remove(node);
-        network = NetworkUtils.generateNetworkConfig(
-                networkName, nodes, nextInternalGossipPort, nextExternalGossipPort, latestCandidateWeights());
+        network = NetworkUtils.generateNetworkConfig(nodes, nextInternalGossipPort, nextExternalGossipPort, latestCandidateWeights());
         refreshOverrideNetworks(ReassignPorts.NO);
     }
 
@@ -390,8 +388,7 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
             node.reassignNodeAccountIdFrom(accountId);
         }
         nodes.add(insertionPoint, node);
-        network = NetworkUtils.generateNetworkConfig(
-                networkName, nodes, nextInternalGossipPort, nextExternalGossipPort, latestCandidateWeights());
+        network = NetworkUtils.generateNetworkConfig(nodes, nextInternalGossipPort, nextExternalGossipPort, latestCandidateWeights());
         nodes.get(insertionPoint).initWorkingDir(network);
         if (blockNodeMode.equals(BlockNodeMode.SIMULATOR)) {
             executePostInitWorkingDirActions(node);
