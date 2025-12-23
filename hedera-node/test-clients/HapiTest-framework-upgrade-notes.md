@@ -16,16 +16,13 @@ It focuses on subprocess networks, genesis bootstrap, and the upgrade path used 
   - `hedera-node/test-clients/src/main/java/com/hedera/services/bdd/junit/extensions/NetworkTargetingExtension.java`
   - `hedera-node/test-clients/src/main/java/com/hedera/services/bdd/junit/extensions/MultiNetworkExtension.java`
   - `hedera-node/test-clients/src/main/java/com/hedera/services/bdd/junit/SharedNetworkLauncherSessionListener.java`
-
 - Subprocess network implementation
   - `hedera-node/test-clients/src/main/java/com/hedera/services/bdd/junit/hedera/subprocess/SubProcessNetwork.java`
   - `hedera-node/test-clients/src/main/java/com/hedera/services/bdd/junit/hedera/subprocess/SubProcessNode.java`
   - `hedera-node/test-clients/src/main/java/com/hedera/services/bdd/junit/hedera/subprocess/ProcessUtils.java`
-
 - Working directory and address book helpers
   - `hedera-node/test-clients/src/main/java/com/hedera/services/bdd/junit/hedera/utils/WorkingDirUtils.java`
   - `hedera-node/test-clients/src/main/java/com/hedera/services/bdd/junit/hedera/utils/AddressBookUtils.java`
-
 - Upgrade helpers and fake NMT
   - `hedera-node/test-clients/src/main/java/com/hedera/services/bdd/suites/regression/system/LifecycleTest.java`
   - `hedera-node/test-clients/src/main/java/com/hedera/services/bdd/spec/utilops/FakeNmt.java`
@@ -33,7 +30,6 @@ It focuses on subprocess networks, genesis bootstrap, and the upgrade path used 
   - `hedera-node/test-clients/src/main/java/com/hedera/services/bdd/spec/utilops/lifecycle/ops/PurgeUpgradeArtifactsOp.java`
   - `hedera-node/test-clients/src/main/java/com/hedera/services/bdd/spec/utilops/lifecycle/ops/CandidateRosterValidationOp.java`
   - `hedera-node/test-clients/src/main/java/com/hedera/services/bdd/spec/utilops/upgrade/BuildUpgradeZipOp.java`
-
 - Node-side upgrade handling (inside the node process)
   - `hedera-node/hedera-network-admin-service-impl/src/main/java/com/hedera/node/app/service/networkadmin/impl/handlers/ReadableFreezeUpgradeActions.java`
   - `hedera-node/hedera-app/src/main/java/com/hedera/node/app/workflows/handle/steps/PlatformStateUpdates.java`
@@ -117,15 +113,18 @@ The genesis network JSON is generated from `config.txt` by `WorkingDirUtils.netw
 ## MultiNetworkNodeLifecycleSuite call flow (what executes)
 
 ### Network provisioning
+
 - `@MultiNetworkHapiTest` is intercepted by `MultiNetworkExtension`.
 - `MultiNetworkExtension` starts multiple isolated `SubProcessNetwork` instances, each with its own port window and working dir scope.
 - Each network is started before any test operations run, so all networks are alive concurrently.
 
 ### Spec execution
+
 - `HapiSpec.multiNetworkHapiTest(...)` returns `HapiSpec.MultiNetworkSpecBuilder` (not the placeholder `MultiNetworkHapiTestBuilder`).
 - The builder executes steps sequentially; each step is a standalone `HapiSpec` targeted at one network via thread-local `HapiSpec.TARGET_NETWORK`.
 
 ### Suite-specific behavior
+
 - `ensureNetworkReady(...)` and explicit `refreshClients()` calls are used to hydrate `HapiClients` pools for each network.
 - For add/remove, the suite aligns node IDs and ports with `SubProcessNetwork` conventions:
   - New node ID chosen as the next available ID (`maxNodeId + 1`).

@@ -66,7 +66,6 @@ This is the direct reason gRPC and gossip endpoints change after every upgrade r
   - Use per-network base fields in `addNode(...)` (around `:410-421`) and endpoint helpers (around `:447-462`).
   - Ensure `addNode(...)` continues to create `genesis-network.json` for the new node using the updated roster and per-network base (via `initWorkingDir(configTxt, currentGrpcServiceEndpoints())` around `:431-433`).
   - Ensure `refreshOverrideWithNewPorts()` updates the per-network base when it does reassign (around `:353-370`, `:600-606`) for any explicit reassign fallback.
-
 - `hedera-node/test-clients/src/main/java/com/hedera/services/bdd/junit/hedera/utils/AddressBookUtils.java`
   - No logic change expected, but ensure callers now pass the per-network base values (current usage is around `:82-136`, `:154-184`).
 
@@ -95,19 +94,15 @@ Verification command pattern:
   - Change `restartNetwork(...)` to pass `ReassignPorts.NO` (around `:37-41`).
   - Change `restartNetworkWithDisabledNodeOperatorPort(...)` to pass `ReassignPorts.NO` (around `:50-55`).
   - Optionally add `restartNetworkWithReassignedPorts(...)` for tests that explicitly want reassign-on-restart.
-
 - `hedera-node/test-clients/src/main/java/com/hedera/services/bdd/suites/regression/system/LifecycleTest.java`
   - If a new `restartNetworkWithReassignedPorts` method is added, use it only where port reassign is required; otherwise keep current uses but with no reassign (around `:157-165`, `:226-244`).
-
 - `hedera-node/test-clients/src/main/java/com/hedera/services/bdd/spec/utilops/lifecycle/ops/TryToStartNodesOp.java`
   - Add retry/backoff on bind exception for subprocess nodes. This likely needs a retry policy field and a loop that:
     - starts the node;
     - waits for ACTIVE for a bounded attempt window;
     - on bind exception, stops the node, sleeps with exponential backoff, and retries until 1 minute (around `:60-71`).
-
 - `hedera-node/test-clients/src/main/java/com/hedera/services/bdd/junit/hedera/subprocess/SubProcessNode.java`
   - Expose a bind-exception detection helper (e.g., `hasBindExceptionInLogs()`), so the retry loop can detect binding failures without port reassignment (around `:200-230`).
-
 - (Optional cleanup) `hedera-node/test-clients/src/main/java/com/hedera/services/bdd/spec/utilops/UtilVerbs.java`
   - Update the comment or name for `waitForActiveNetworkWithReassignedPorts(...)` to reflect that ports may not be reassigned (around `:658-668`).
 

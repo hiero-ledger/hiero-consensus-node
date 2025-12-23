@@ -105,8 +105,7 @@ public class MultiNetworkNodeLifecycleSuite implements LifecycleTest {
         return new SpecOperation[] {
             // Ensure channel pools are initialized for this network before fee downloads
             UtilVerbs.doingContextual(spec -> spec.subProcessNetworkOrThrow().refreshClients()),
-            UtilVerbs.doingContextual(
-                    spec -> portSnapshots.set(portsByNodeId(spec.subProcessNetworkOrThrow()))),
+            UtilVerbs.doingContextual(spec -> portSnapshots.set(portsByNodeId(spec.subProcessNetworkOrThrow()))),
             doAdhoc(() -> CURRENT_CONFIG_VERSION.set(0)),
             cryptoCreate(newNodeAccount).payingWith(GENESIS).balance(ONE_HBAR).exposingCreatedIdTo(createdAccount::set),
             withOpContext((spec, opLog) -> {
@@ -136,8 +135,8 @@ public class MultiNetworkNodeLifecycleSuite implements LifecycleTest {
                     Map.of(), FakeNmt.removeNode(byNodeId(nodeIdToRemove)), FakeNmt.addNode(nodeIdToAdd)),
             // Refresh clients after the network restart to pick up new ports/endpoints
             UtilVerbs.doingContextual(spec -> spec.subProcessNetworkOrThrow().refreshClients()),
-            UtilVerbs.doingContextual(spec -> assertPortsRetained(
-                    spec.subProcessNetworkOrThrow(), portSnapshots, nodeIdToRemove, nodeIdToAdd)),
+            UtilVerbs.doingContextual(spec ->
+                    assertPortsRetained(spec.subProcessNetworkOrThrow(), portSnapshots, nodeIdToRemove, nodeIdToAdd)),
             rosterShouldMatch(expectedRoster)
         };
     }

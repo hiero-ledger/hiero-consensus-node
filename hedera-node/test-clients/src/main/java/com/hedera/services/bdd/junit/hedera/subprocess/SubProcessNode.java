@@ -72,6 +72,7 @@ public class SubProcessNode extends AbstractLocalNode<SubProcessNode> implements
      * How many retries to make between checking if a bind exception has been thrown in the logs.
      */
     private static final int BINDING_CHECK_INTERVAL = 10;
+
     private static final String BIND_EXCEPTION_MARKER = "java.net.BindException";
 
     private final Pattern statusPattern;
@@ -268,7 +269,8 @@ public class SubProcessNode extends AbstractLocalNode<SubProcessNode> implements
     public boolean bindExceptionLoggedSince(@NonNull final BindExceptionLogSnapshot snapshot) {
         requireNonNull(snapshot);
         return logContainsSince(getExternalPath(SWIRLDS_LOG), snapshot.swirldsLogSize(), BIND_EXCEPTION_MARKER)
-                || logContainsSince(getExternalPath(APPLICATION_LOG), snapshot.applicationLogSize(), BIND_EXCEPTION_MARKER);
+                || logContainsSince(
+                        getExternalPath(APPLICATION_LOG), snapshot.applicationLogSize(), BIND_EXCEPTION_MARKER);
     }
 
     private int numApplicationLogLinesWith(@NonNull final String text) {

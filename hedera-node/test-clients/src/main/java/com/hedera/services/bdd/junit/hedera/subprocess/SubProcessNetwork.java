@@ -122,6 +122,7 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
 
     @Nullable
     private UnaryOperator<Network> overrideCustomizer = null;
+
     private int overrideConfigVersion = -1;
 
     private final Map<Long, List<String>> applicationPropertyOverrides = new HashMap<>();
