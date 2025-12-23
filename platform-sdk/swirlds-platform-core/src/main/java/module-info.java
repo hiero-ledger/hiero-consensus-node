@@ -65,7 +65,7 @@ module com.swirlds.platform.core {
             com.hedera.node.app,
             org.hiero.otter.fixtures,
             org.hiero.otter.test,
-            com.swirlds.cli;
+            org.hiero.consensus.pcli;
     exports com.swirlds.platform.event.linking to
             com.swirlds.common,
             com.swirlds.platform.core.test.fixtures;
@@ -119,7 +119,6 @@ module com.swirlds.platform.core {
     requires transitive org.hiero.consensus.pces;
     requires transitive org.hiero.consensus.roster;
     requires transitive org.hiero.consensus.utility;
-    requires transitive info.picocli;
     requires transitive org.apache.logging.log4j;
     requires com.swirlds.config.extensions;
     requires com.swirlds.logging;
