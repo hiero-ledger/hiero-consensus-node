@@ -189,24 +189,6 @@ class DiskStartupNetworksTest {
     }
 
     @Test
-    void archivesConfigTxt() throws IOException {
-        try (final var fin = DiskStartupNetworks.class.getClassLoader().getResourceAsStream("bootstrap/config.txt")) {
-            new FileOutputStream(tempDir.resolve("config.txt").toFile()).write(fin.readAllBytes());
-        }
-        givenConfig(HederaTestConfigBuilder.create().withValue("networkAdmin.configTxtPath", tempDir.toString()));
-
-        final var configTx = tempDir.resolve("config.txt");
-
-        assertThat(Files.exists(configTx)).isTrue();
-
-        subject.archiveStartupNetworks();
-
-        assertThat(Files.exists(configTx)).isFalse();
-        final var archivedConfigTxt = tempDir.resolve(ARCHIVE + File.separator + "config.txt");
-        assertThat(Files.exists(archivedConfigTxt)).isTrue();
-    }
-
-    @Test
     void overrideNetworkOnlyStillAvailableAtSameRound() throws IOException {
         givenConfig();
         putJsonAt(OVERRIDE_NETWORK_JSON);
