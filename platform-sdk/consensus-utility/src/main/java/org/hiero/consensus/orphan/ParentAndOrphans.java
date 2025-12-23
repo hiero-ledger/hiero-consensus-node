@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.event.orphan;
+package org.hiero.consensus.orphan;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
