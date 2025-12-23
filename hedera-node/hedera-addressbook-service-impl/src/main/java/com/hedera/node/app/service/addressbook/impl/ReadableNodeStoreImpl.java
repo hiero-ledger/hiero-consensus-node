@@ -10,7 +10,7 @@ import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.node.app.hapi.utils.EntityType;
 import com.hedera.node.app.service.addressbook.ReadableNodeStore;
-import com.hedera.node.app.service.entityid.ReadableEntityCounters;
+import com.hedera.node.app.service.entityid.ReadableEntityIdStore;
 import com.swirlds.state.spi.ReadableKVState;
 import com.swirlds.state.spi.ReadableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -32,7 +32,7 @@ public class ReadableNodeStoreImpl implements ReadableNodeStore {
      */
     private final ReadableKVState<EntityNumber, Node> nodesState;
 
-    private final ReadableEntityCounters entityCounters;
+    protected final ReadableEntityIdStore entityIdStore;
 
     /**
      * Create a new {@link ReadableNodeStoreImpl} instance.
@@ -40,9 +40,9 @@ public class ReadableNodeStoreImpl implements ReadableNodeStore {
      * @param states The state to use.
      */
     public ReadableNodeStoreImpl(
-            @NonNull final ReadableStates states, @NonNull final ReadableEntityCounters entityCounters) {
+            @NonNull final ReadableStates states, @NonNull final ReadableEntityIdStore entityIdStore) {
         requireNonNull(states);
-        this.entityCounters = requireNonNull(entityCounters);
+        this.entityIdStore = requireNonNull(entityIdStore);
         this.nodesState = states.get(NODES_STATE_ID);
     }
 
@@ -65,12 +65,12 @@ public class ReadableNodeStoreImpl implements ReadableNodeStore {
     }
 
     /**
-     * Returns the number of topics in the state.
+     * Returns the number of nodes in the state.
      *
-     * @return the number of topics in the state
+     * @return the number of nodes in the state
      */
     public long sizeOfState() {
-        return entityCounters.getCounterFor(EntityType.NODE);
+        return entityIdStore.getCounterFor(EntityType.NODE);
     }
 
     protected <T extends ReadableKVState<EntityNumber, Node>> T nodesState() {
@@ -79,9 +79,9 @@ public class ReadableNodeStoreImpl implements ReadableNodeStore {
 
     @NonNull
     public List<EntityNumber> keys() {
-        final var size = sizeOfState();
         final var keys = new ArrayList<EntityNumber>();
-        for (int i = 0; i < size; i++) {
+        final long highestExclusive = entityIdStore.peekAtNextNodeId();
+        for (long i = 0; i < highestExclusive; i++) {
             final var key = new EntityNumber(i);
             final var node = nodesState.get(key);
             if (node != null) {
