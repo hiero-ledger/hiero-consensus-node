@@ -8,6 +8,8 @@ import static java.util.Objects.requireNonNull;
 
 import com.google.protobuf.ByteString;
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.Key;
+import com.hedera.hapi.node.state.addressbook.Node;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.node.internal.network.Network;
@@ -37,6 +39,9 @@ public class NetworkUtils {
     public static final long CLASSIC_FIRST_NODE_ACCOUNT_NUM = 3;
     public static final String[] CLASSIC_NODE_NAMES =
             new String[] {"node1", "node2", "node3", "node4", "node5", "node6", "node7", "node8"};
+    private static final Key CLASSIC_ADMIN_KEY = Key.newBuilder()
+            .ed25519(Bytes.fromHex("0aa8e21064c61eab86e2a9c164565b4e7a9a4146106e0a6cd03a8c395a110e92"))
+            .build();
 
     private NetworkUtils() {
         throw new UnsupportedOperationException("Utility Class");
@@ -85,31 +90,46 @@ public class NetworkUtils {
         } catch (ExecutionException | InterruptedException | KeyStoreException e) {
             throw new RuntimeException(e);// TODO check what main does
         }
-        //TODO add certificates
-        for (final var node : nodes) {
+
+        for (final var hNode : nodes) {
             final Bytes localhost = fromByteString(asOctets("127.0.0.1"));
-            final byte[] encoded;
+            final Bytes cert;
             try {
-                encoded = certsMap.get(NodeId.of(node.getNodeId())).sigCert().getEncoded();
+                cert = Bytes.wrap(certsMap.get(NodeId.of(hNode.getNodeId())).sigCert().getEncoded());
             } catch (CertificateEncodingException e) {
                 throw new RuntimeException(e);
             }
             final var rosterEntry = RosterEntry.newBuilder()
-                    .nodeId(node.getNodeId())
-                    .weight(overrideWeights.getOrDefault(node.getNodeId(), 1L))
-                    .gossipCaCertificate(Bytes.wrap(encoded))
+                    .nodeId(hNode.getNodeId())
+                    .weight(overrideWeights.getOrDefault(hNode.getNodeId(), 1L))
+                    .gossipCaCertificate(cert)
                     .gossipEndpoint(List.of(
                             com.hedera.hapi.node.base.ServiceEndpoint.newBuilder()
                                     .ipAddressV4(localhost)
-                                    .port(nextInternalGossipPort + ((int) node.getNodeId() * 2))
+                                    .port(nextInternalGossipPort + ((int) hNode.getNodeId() * 2))
                                     .build(),
                             com.hedera.hapi.node.base.ServiceEndpoint.newBuilder()
                                     .ipAddressV4(localhost)
-                                    .port(nextExternalGossipPort + ((int) node.getNodeId() * 2))
+                                    .port(nextExternalGossipPort + ((int) hNode.getNodeId() * 2))
                                     .build()))
+                    .build();
+            final var node = com.hedera.hapi.node.state.addressbook.Node.newBuilder()
+                    .nodeId(hNode.getNodeId())
+                    .accountId(hNode.getAccountId())
+                    .description("node" + (hNode.getNodeId() + 1))
+                    .gossipEndpoint(rosterEntry.gossipEndpoint())
+                    .serviceEndpoint(rosterEntry.gossipEndpoint().getFirst())
+                    .gossipCaCertificate(cert)
+                    // The gRPC certificate hash is irrelevant for PR checks
+                    .grpcCertificateHash(Bytes.EMPTY)
+                    .weight(rosterEntry.weight())
+                    .deleted(false)
+                    .adminKey(CLASSIC_ADMIN_KEY)
+                    .declineReward(false)
                     .build();
             metadata.add(com.hedera.node.internal.network.NodeMetadata.newBuilder()
                     .rosterEntry(rosterEntry)
+                    .node(node)
                     .build());
         }
         return Network.newBuilder().ledgerId(Bytes.EMPTY).nodeMetadata(metadata).build();
