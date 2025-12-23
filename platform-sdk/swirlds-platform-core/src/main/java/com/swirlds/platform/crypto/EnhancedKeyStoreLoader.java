@@ -1049,22 +1049,22 @@ public class EnhancedKeyStoreLoader {
                 // extract private keys for local nodes
                 final Path sPrivateKeyLocation = keyStoreDirectory.resolve(
                         String.format("s-private-%s.pem", RosterUtils.formatNodeName(nodeId)));
-                final Path ksLocation = legacyPrivateKeyStore(nodeId);
-                if (!Files.exists(sPrivateKeyLocation) && Files.exists(ksLocation)) {
+                final Path privateKs = legacyPrivateKeyStore(nodeId);
+                if (!Files.exists(sPrivateKeyLocation) && Files.exists(privateKs)) {
                     logger.info(
                             STARTUP.getMarker(),
                             "Extracting private signing key for nodeId: {} from file {}",
                             nodeId,
-                            ksLocation.getFileName());
+                            privateKs.getFileName());
                     final PrivateKey privateKey =
-                            readLegacyPrivateKey(nodeId, ksLocation, KeyCertPurpose.SIGNING.storeName(nodeId));
+                            readLegacyPrivateKey(nodeId, privateKs, KeyCertPurpose.SIGNING.storeName(nodeId));
                     pfxPrivateKeys.put(nodeId, privateKey);
                     if (privateKey == null) {
                         logger.error(
                                 ERROR.getMarker(),
                                 "Failed to extract private signing key for nodeId: {} from file {}",
                                 nodeId,
-                                ksLocation.getFileName());
+                                privateKs.getFileName());
                         errorCount.incrementAndGet();
                     } else {
                         logger.info(
@@ -1089,6 +1089,7 @@ public class EnhancedKeyStoreLoader {
             // extract certificates for all nodes
             final Path sCertificateLocation =
                     keyStoreDirectory.resolve(String.format("s-public-%s.pem", RosterUtils.formatNodeName(nodeId)));
+            final Path ksLocation = legacyCertificateStore();
             if (!Files.exists(sCertificateLocation) && Files.exists(ksLocation)) {
                 logger.info(
                         STARTUP.getMarker(),
