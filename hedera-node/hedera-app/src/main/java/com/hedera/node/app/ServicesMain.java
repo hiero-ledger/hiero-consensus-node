@@ -24,6 +24,7 @@ import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStati
 import com.google.common.annotations.VisibleForTesting;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.SemanticVersion;
+import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.node.app.hints.impl.HintsLibraryImpl;
 import com.hedera.node.app.hints.impl.HintsServiceImpl;
@@ -67,6 +68,7 @@ import com.swirlds.state.State;
 import com.swirlds.state.StateLifecycleManager;
 import com.swirlds.state.merkle.VirtualMapState;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.time.InstantSource;
 import java.util.List;
@@ -85,6 +87,7 @@ import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.model.transaction.TimestampedTransaction;
 import org.hiero.consensus.roster.RosterStateUtils;
+import org.hiero.consensus.roster.RosterUtils;
 import org.hiero.consensus.transaction.TransactionLimits;
 
 /**
@@ -294,7 +297,6 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
         final var platformConfig = buildPlatformConfig();
         // Immediately initialize the cryptography and merkle cryptography factories
         // to avoid using default behavior instead of that defined in platformConfig
-        final var cryptography = CryptographyProvider.getInstance();
         final var merkleCryptography = MerkleCryptographyFactory.create(platformConfig);
 
         // Determine which nodes were _requested_ to run from the command line
@@ -333,8 +335,11 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
                     Network network;
                     try {
                         network = hedera.startupNetworks().genesisNetworkOrThrow(platformConfig);
-                    } catch (Exception exp) {
-                        throw new IllegalStateException("Failed to start network", exp);
+                    } catch (final Exception e) {
+                        final Path genNetworkPath = Path.of("data", "config",DiskStartupNetworks.GENESIS_NETWORK_JSON);
+                        network = DiskStartupNetworks.loadNetworkFrom(genNetworkPath)
+                                .orElseThrow(
+                                        ()-> new IllegalStateException("Failed to load genesis network from " + genNetworkPath.toAbsolutePath(), e));
                     }
                     genesisNetwork.set(network);
                     final var genesisState = hedera.newStateRoot();
@@ -357,7 +362,7 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
         final var rosterHistory = RosterStateUtils.createRosterHistory(state);
 
         final var networkKeysAndCerts = initNodeSecurity(platformConfig, Set.copyOf(nodesToRun));
-        final var keysAndCerts = networkKeysAndCerts.get(selfId);
+        final var keysAndCerts = networkKeysAndCerts.get(selfId);//TODO maybe change to single
 
         // --- Now build the platform and start it ---
         final var platformBuilder = PlatformBuilder.create(
