@@ -211,8 +211,8 @@ public class RosterUtilsTest {
         Assertions.assertEquals(
                 PreGeneratedX509Certs.getSigCert(0),
                 RosterUtils.fetchGossipCaCertificate(RosterEntry.newBuilder()
-                        .gossipCaCertificate(Bytes.wrap(PreGeneratedX509Certs.getSigCert(0)
-                                .getEncoded()))
+                        .gossipCaCertificate(
+                                Bytes.wrap(PreGeneratedX509Certs.getSigCert(0).getEncoded()))
                         .build()));
         // Negative Cases
         assertNull(RosterUtils.fetchGossipCaCertificate(
