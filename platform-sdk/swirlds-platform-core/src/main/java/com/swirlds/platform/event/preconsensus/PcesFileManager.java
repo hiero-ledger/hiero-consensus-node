@@ -2,17 +2,18 @@
 package com.swirlds.platform.event.preconsensus;
 
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
+import static java.util.Objects.requireNonNull;
 
 import com.swirlds.base.time.Time;
 import com.swirlds.base.units.UnitConstants;
-import com.swirlds.common.context.PlatformContext;
+import com.swirlds.config.api.Configuration;
+import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.Objects;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -66,33 +67,31 @@ public class PcesFileManager {
     /**
      * Constructor
      *
-     * @param platformContext   the platform context for this node
      * @param files             the files to track
      * @param databaseDirectory the directory where new files will be created
      * @param startingRound     the round number of the initial state of the system
      * @throws IOException if there is an error reading the files
      */
     public PcesFileManager(
-            @NonNull final PlatformContext platformContext,
+            @NonNull final Configuration configuration,
+            @NonNull final Metrics metrics,
+            @NonNull final Time time,
             @NonNull final PcesFileTracker files,
             @NonNull final Path databaseDirectory,
             final long startingRound)
             throws IOException {
 
-        Objects.requireNonNull(platformContext);
-
         if (startingRound < 0) {
             throw new IllegalArgumentException("starting round must be non-negative");
         }
 
-        final PcesConfig preconsensusEventStreamConfig =
-                platformContext.getConfiguration().getConfigData(PcesConfig.class);
+        final PcesConfig preconsensusEventStreamConfig = configuration.getConfigData(PcesConfig.class);
 
-        this.time = platformContext.getTime();
-        this.files = Objects.requireNonNull(files);
-        this.metrics = new PcesMetrics(platformContext.getMetrics());
+        this.time = requireNonNull(time);
+        this.files = requireNonNull(files);
+        this.metrics = new PcesMetrics(metrics);
         this.minimumRetentionPeriod = preconsensusEventStreamConfig.minimumRetentionPeriod();
-        this.databaseDirectory = Objects.requireNonNull(databaseDirectory);
+        this.databaseDirectory = requireNonNull(databaseDirectory);
 
         this.currentOrigin = PcesUtilities.getInitialOrigin(files, startingRound);
 

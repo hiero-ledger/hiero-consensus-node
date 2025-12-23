@@ -92,7 +92,6 @@ module com.swirlds.platform.core {
     exports com.swirlds.platform.event;
     exports com.swirlds.platform.wiring;
     exports com.swirlds.platform.wiring.components;
-    exports com.swirlds.platform.event.orphan;
     exports com.swirlds.platform.components.consensus;
     exports com.swirlds.platform.state.snapshot;
     exports com.swirlds.platform.state.service.schemas;
@@ -115,10 +114,13 @@ module com.swirlds.platform.core {
     requires transitive org.hiero.base.concurrent;
     requires transitive org.hiero.base.crypto;
     requires transitive org.hiero.base.utility;
+    requires transitive org.hiero.consensus.concurrent;
     requires transitive org.hiero.consensus.event.creator;
     requires transitive org.hiero.consensus.event.intake;
     requires transitive org.hiero.consensus.hashgraph;
+    requires transitive org.hiero.consensus.metrics;
     requires transitive org.hiero.consensus.model;
+    requires transitive org.hiero.consensus.roster;
     requires transitive org.hiero.consensus.utility;
     requires transitive info.picocli;
     requires transitive org.apache.logging.log4j;
