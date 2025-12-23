@@ -1,11 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.event.preconsensus;
 
-import com.swirlds.common.context.PlatformContext;
+import static java.util.Objects.requireNonNull;
+
+import com.swirlds.base.time.Time;
+import com.swirlds.config.api.Configuration;
+import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.Objects;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
@@ -24,24 +27,23 @@ public class DefaultInlinePcesWriter implements InlinePcesWriter {
     /**
      * Constructor
      *
-     * @param platformContext the platform context
+     * @param configuration  the configuration of the platform
+     * @param metrics        the metrics system of the platform
+     * @param time           the time source of the platform
      * @param fileManager     manages all preconsensus event stream files currently on disk
      */
     public DefaultInlinePcesWriter(
-            @NonNull final PlatformContext platformContext,
+            @NonNull final Configuration configuration,
+            @NonNull final Metrics metrics,
+            @NonNull final Time time,
             @NonNull final PcesFileManager fileManager,
             @NonNull final NodeId selfId) {
-        Objects.requireNonNull(platformContext, "platformContext is required");
-        Objects.requireNonNull(fileManager, "fileManager is required");
-        this.commonPcesWriter = new CommonPcesWriter(platformContext, fileManager);
-        this.selfId = Objects.requireNonNull(selfId, "selfId is required");
-        this.fileSyncOption = platformContext
-                .getConfiguration()
-                .getConfigData(PcesConfig.class)
-                .inlinePcesSyncOption();
+        requireNonNull(fileManager, "fileManager is required");
+        this.commonPcesWriter = new CommonPcesWriter(configuration, fileManager);
+        this.selfId = requireNonNull(selfId, "selfId is required");
+        this.fileSyncOption = configuration.getConfigData(PcesConfig.class).inlinePcesSyncOption();
 
-        this.pcesWriterPerEventMetrics =
-                new PcesWriterPerEventMetrics(platformContext.getMetrics(), platformContext.getTime());
+        this.pcesWriterPerEventMetrics = new PcesWriterPerEventMetrics(metrics, time);
     }
 
     @Override

@@ -5,7 +5,7 @@ import static com.swirlds.common.io.utility.FileUtils.executeAndRename;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.STATE_TO_DISK;
 
-import com.swirlds.common.context.PlatformContext;
+import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -45,7 +45,7 @@ public final class BestEffortPcesFileCopy {
      * fail as a result. This method retries several times if a failure is encountered. Success is not guaranteed, but
      * success or failure is atomic and will not throw an exception.
      *
-     * @param platformContext the platform context
+     * @param configuration the platform configuration
      * @param selfId the id of this node
      * @param destinationDirectory the directory where the state is being written
      * @param lowerBound the lower bound of events that are not ancient, with respect to the state that is being
@@ -53,16 +53,14 @@ public final class BestEffortPcesFileCopy {
      * @param round the round of the state that is being written
      */
     public static void copyPcesFilesRetryOnFailure(
-            @NonNull final PlatformContext platformContext,
+            @NonNull final Configuration configuration,
             @NonNull final NodeId selfId,
             @NonNull final Path destinationDirectory,
             final long lowerBound,
             final long round) {
 
-        final boolean copyPreconsensusStream = platformContext
-                .getConfiguration()
-                .getConfigData(PcesConfig.class)
-                .copyRecentStreamToStateSnapshots();
+        final boolean copyPreconsensusStream =
+                configuration.getConfigData(PcesConfig.class).copyRecentStreamToStateSnapshots();
         if (!copyPreconsensusStream) {
             // PCES copying is disabled
             return;
@@ -77,8 +75,8 @@ public final class BestEffortPcesFileCopy {
             try {
                 executeAndRename(
                         pcesDestination,
-                        temporaryDirectory -> copyPcesFiles(platformContext, selfId, temporaryDirectory, lowerBound),
-                        platformContext.getConfiguration());
+                        temporaryDirectory -> copyPcesFiles(configuration, selfId, temporaryDirectory, lowerBound),
+                        configuration);
 
                 return;
             } catch (final IOException | UncheckedIOException e) {
@@ -110,20 +108,20 @@ public final class BestEffortPcesFileCopy {
      * real production states and streams, in the short term. In the longer term we should consider alternate and
      * cleaner strategies.
      *
-     * @param platformContext the platform context
+     * @param configuration the platform configuration
      * @param selfId the id of this node
      * @param destinationDirectory the directory where the PCES files should be written
      * @param lowerBound the lower bound of events that are not ancient, with respect to the state that is being
      * written
      */
     private static void copyPcesFiles(
-            @NonNull final PlatformContext platformContext,
+            @NonNull final Configuration configuration,
             @NonNull final NodeId selfId,
             @NonNull final Path destinationDirectory,
             final long lowerBound)
             throws IOException {
 
-        final List<PcesFile> allFiles = gatherPcesFilesOnDisk(selfId, platformContext);
+        final List<PcesFile> allFiles = gatherPcesFilesOnDisk(selfId, configuration);
         if (allFiles.isEmpty()) {
             return;
         }
@@ -197,15 +195,14 @@ public final class BestEffortPcesFileCopy {
      * Gather all PCES files on disk.
      *
      * @param selfId the id of this node
-     * @param platformContext the platform context
+     * @param configuration the platform configuration
      * @return a list of all PCES files on disk
      */
     @NonNull
     private static List<PcesFile> gatherPcesFilesOnDisk(
-            @NonNull final NodeId selfId, @NonNull final PlatformContext platformContext) throws IOException {
+            @NonNull final NodeId selfId, @NonNull final Configuration configuration) throws IOException {
         final List<PcesFile> allFiles = new ArrayList<>();
-        final Path preconsensusEventStreamDirectory =
-                PcesUtilities.getDatabaseDirectory(platformContext.getConfiguration(), selfId);
+        final Path preconsensusEventStreamDirectory = PcesUtilities.getDatabaseDirectory(configuration, selfId);
         try (final Stream<Path> stream = Files.walk(preconsensusEventStreamDirectory)) {
             stream.filter(Files::isRegularFile).forEach(path -> {
                 try {

@@ -12,7 +12,6 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.swirlds.common.context.PlatformContext;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import java.io.IOException;
@@ -34,8 +33,6 @@ class CommonPcesWriterTest {
     @BeforeEach
     void setUp() throws Exception {
         final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
-        final PlatformContext platformContext = mock(PlatformContext.class);
-        when(platformContext.getConfiguration()).thenReturn(configuration);
         final Random random = getRandomPrintSeed();
         event = new TestingEventBuilder(random)
                 .setAppTransactionCount(3)
@@ -53,7 +50,7 @@ class CommonPcesWriterTest {
         when(pcesFile.getMutableFile(any())).thenReturn(pcesMutableFile);
 
         // Initialize CommonPcesWriter with mocks
-        commonPcesWriter = new CommonPcesWriter(platformContext, fileManager);
+        commonPcesWriter = new CommonPcesWriter(configuration, fileManager);
     }
 
     @Test

@@ -12,6 +12,7 @@ import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.utility.FileUtils;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContexts;
+import com.swirlds.config.api.Configuration;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.time.Duration;
@@ -89,9 +90,11 @@ class PcesFileManagerTests {
         final FakeTime time = new FakeTime(lastFile.getTimestamp().plus(Duration.ofHours(1)), Duration.ZERO);
         final PlatformContext platformContext = TestPlatformContexts.context(time, dataDirectory);
 
+        final Configuration configuration = platformContext.getConfiguration();
         final PcesFileTracker fileTracker = PcesFileReader.readFilesFromDisk(
-                platformContext.getConfiguration(), platformContext.getRecycleBin(), fileDirectory, 0, false);
-        final PcesFileManager manager = new PcesFileManager(platformContext, fileTracker, testDirectory, 0);
+                configuration, platformContext.getRecycleBin(), fileDirectory, 0, false);
+        final PcesFileManager manager =
+                new PcesFileManager(configuration, platformContext.getMetrics(), time, fileTracker, testDirectory, 0);
 
         assertIteratorEquality(expectedFiles.iterator(), fileTracker.getFileIterator(NO_LOWER_BOUND, 0));
 
@@ -106,7 +109,7 @@ class PcesFileManagerTests {
             // Parse files afresh to make sure we aren't "cheating" by just
             // removing the in-memory descriptor without also removing the file on disk
             final PcesFileTracker freshFileTracker = PcesFileReader.readFilesFromDisk(
-                    platformContext.getConfiguration(), platformContext.getRecycleBin(), fileDirectory, 0, false);
+                    configuration, platformContext.getRecycleBin(), fileDirectory, 0, false);
 
             final PcesFile firstUnPrunedFile = freshFileTracker.getFirstFile();
 
@@ -143,7 +146,7 @@ class PcesFileManagerTests {
         // Parse files afresh to make sure we aren't "cheating" by just
         // removing the in-memory descriptor without also removing the file on disk
         final PcesFileTracker freshFileTracker = PcesFileReader.readFilesFromDisk(
-                platformContext.getConfiguration(), platformContext.getRecycleBin(), fileDirectory, 0, false);
+                configuration, platformContext.getRecycleBin(), fileDirectory, 0, false);
 
         final PcesFile firstUnPrunedFile = freshFileTracker.getFirstFile();
 
@@ -179,9 +182,11 @@ class PcesFileManagerTests {
         final FakeTime time = new FakeTime(firstFile.getTimestamp().plus(Duration.ofMinutes(59)), Duration.ZERO);
         final PlatformContext platformContext = TestPlatformContexts.context(time, dataDirectory);
 
+        final Configuration configuration = platformContext.getConfiguration();
         final PcesFileTracker fileTracker = PcesFileReader.readFilesFromDisk(
-                platformContext.getConfiguration(), platformContext.getRecycleBin(), fileDirectory, 0, false);
-        final PcesFileManager manager = new PcesFileManager(platformContext, fileTracker, testDirectory, 0);
+                configuration, platformContext.getRecycleBin(), fileDirectory, 0, false);
+        final PcesFileManager manager =
+                new PcesFileManager(configuration, platformContext.getMetrics(), time, fileTracker, testDirectory, 0);
 
         assertIteratorEquality(files.iterator(), fileTracker.getFileIterator(NO_LOWER_BOUND, 0));
 
@@ -198,7 +203,7 @@ class PcesFileManagerTests {
             // Parse files afresh to make sure we aren't "cheating" by just
             // removing the in-memory descriptor without also removing the file on disk
             final PcesFileTracker freshFileTracker = PcesFileReader.readFilesFromDisk(
-                    platformContext.getConfiguration(), platformContext.getRecycleBin(), fileDirectory, 0, false);
+                    configuration, platformContext.getRecycleBin(), fileDirectory, 0, false);
 
             final PcesFile firstUnPrunedFile = freshFileTracker.getFirstFile();
 
@@ -242,7 +247,7 @@ class PcesFileManagerTests {
         // Parse files afresh to make sure we aren't "cheating" by just
         // removing the in-memory descriptor without also removing the file on disk
         final PcesFileTracker freshFileTracker = PcesFileReader.readFilesFromDisk(
-                platformContext.getConfiguration(), platformContext.getRecycleBin(), fileDirectory, 0, false);
+                configuration, platformContext.getRecycleBin(), fileDirectory, 0, false);
 
         final PcesFile firstUnPrunedFile = freshFileTracker.getFirstFile();
 

@@ -20,6 +20,8 @@ import com.swirlds.common.io.IOIterator;
 import com.swirlds.common.notification.NotificationEngine;
 import com.swirlds.common.stream.RunningEventHashOverride;
 import com.swirlds.common.utility.AutoCloseableWrapper;
+import com.swirlds.config.api.Configuration;
+import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.builder.PlatformBuildingBlocks;
 import com.swirlds.platform.builder.PlatformComponentBuilder;
 import com.swirlds.platform.components.AppNotifier;
@@ -176,19 +178,20 @@ public class SwirldsPlatform implements Platform {
         logger.info(STARTUP.getMarker(), "Starting with roster history:\n{}", blocks.rosterHistory());
         currentRoster = blocks.rosterHistory().getCurrentRoster();
 
-        registerRosterMetrics(platformContext.getMetrics(), currentRoster, selfId);
+        final Metrics metrics = platformContext.getMetrics();
+        registerRosterMetrics(metrics, currentRoster, selfId);
 
-        RuntimeMetrics.setup(platformContext.getMetrics());
+        RuntimeMetrics.setup(metrics);
 
         keysAndCerts = blocks.keysAndCerts();
 
-        EventCounter.registerEventCounterMetrics(platformContext.getMetrics());
+        EventCounter.registerEventCounterMetrics(metrics);
 
         final LatestCompleteStateNexus latestCompleteStateNexus = new DefaultLatestCompleteStateNexus(platformContext);
 
         savedStateController = new DefaultSavedStateController(platformContext);
 
-        final SignedStateMetrics signedStateMetrics = new SignedStateMetrics(platformContext.getMetrics());
+        final SignedStateMetrics signedStateMetrics = new SignedStateMetrics(metrics);
         final StateSignatureCollector stateSignatureCollector =
                 new DefaultStateSignatureCollector(platformContext, signedStateMetrics);
 
@@ -197,12 +200,12 @@ public class SwirldsPlatform implements Platform {
 
         blocks.statusActionSubmitterReference().set(platformCoordinator);
 
-        final Duration replayHealthThreshold = platformContext
-                .getConfiguration()
-                .getConfigData(PcesConfig.class)
-                .replayHealthThreshold();
+        final Configuration configuration = platformContext.getConfiguration();
+        final Duration replayHealthThreshold =
+                configuration.getConfigData(PcesConfig.class).replayHealthThreshold();
         final PcesReplayer pcesReplayer = new PcesReplayer(
-                platformContext,
+                configuration,
+                platformContext.getTime(),
                 platformComponents.pcesReplayerWiring().eventOutput(),
                 platformCoordinator::flushIntakePipeline,
                 platformCoordinator::flushTransactionHandler,
@@ -264,12 +267,10 @@ public class SwirldsPlatform implements Platform {
         platformCoordinator.updateRunningHash(runningEventHashOverride);
 
         // Load the minimum generation into the pre-consensus event writer
-        final String actualMainClassName = platformContext
-                .getConfiguration()
-                .getConfigData(StateConfig.class)
-                .getMainClassName(blocks.mainClassName());
+        final String actualMainClassName =
+                configuration.getConfigData(StateConfig.class).getMainClassName(blocks.mainClassName());
         final SignedStateFilePath statePath =
-                new SignedStateFilePath(platformContext.getConfiguration().getConfigData(StateCommonConfig.class));
+                new SignedStateFilePath(configuration.getConfigData(StateCommonConfig.class));
         final List<SavedStateInfo> savedStates =
                 statePath.getSavedStateFiles(actualMainClassName, selfId, blocks.swirldName());
         if (!savedStates.isEmpty()) {
@@ -304,10 +305,8 @@ public class SwirldsPlatform implements Platform {
             // We only load non-ancient events during start up, so the initial expired threshold will be
             // equal to the ancient threshold when the system first starts. Over time as we get more events,
             // the expired threshold will continue to expand until it reaches its full size.
-            final int roundsNonAncient = platformContext
-                    .getConfiguration()
-                    .getConfigData(ConsensusConfig.class)
-                    .roundsNonAncient();
+            final int roundsNonAncient =
+                    configuration.getConfigData(ConsensusConfig.class).roundsNonAncient();
             platformCoordinator.updateEventWindow(
                     EventWindowUtils.createEventWindow(consensusSnapshot, roundsNonAncient));
             platformCoordinator.overrideIssDetectorState(initialState.reserve("initialize issDetector"));
