@@ -66,10 +66,8 @@ jobs:
       helm-release-name: ${{ steps.params.outputs.helm-release-name }}
       solo-ge-0440: ${{ steps.params.outputs.solo-ge-0440 }}
     steps:
-      - name: Harden Runner
-        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
-        with:
-          egress-policy: audit
+      - name: Initialize GitHub Job
+        uses: pandaswhocode/initialize-github-job@bfe0b1633012cee3033c757c7095d49c360e23a6 # v1.0.1
 
       - name: Print Params
         id: params
