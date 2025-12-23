@@ -21,7 +21,7 @@ import picocli.CommandLine.ParseResult;
  */
 @Command(
         name = "pcli",
-        version = "0.34.0",
+        version = "0.40.0",
         mixinStandardHelpOptions = true,
         description = "Miscellaneous platform utilities.")
 public class Pcli extends AbstractCommand {
