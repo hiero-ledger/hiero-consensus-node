@@ -8,4 +8,23 @@ SCRIPT_PATH="$(dirname "$(readlink -f "$0")")"
 
 PCLI_PATH="${SCRIPT_PATH}/pcli.sh"
 PCLI_DESTINATION_PATH="/usr/local/bin/pcli"
+
+# Check if pcli is already installed
+if [[ -L "$PCLI_DESTINATION_PATH" ]] || [[ -f "$PCLI_DESTINATION_PATH" ]]; then
+    echo "Existing pcli installation found at ${PCLI_DESTINATION_PATH}"
+    echo "Removing old version..."
+    rm -f "${PCLI_DESTINATION_PATH}"
+fi
+
+# Create symlink
+echo "Installing pcli to ${PCLI_DESTINATION_PATH}..."
 ln -s "${PCLI_PATH}" "${PCLI_DESTINATION_PATH}"
+
+if [[ $? -eq 0 ]]; then
+    echo "✓ pcli installed successfully!"
+    echo "You can now run 'pcli' from any directory."
+else
+    echo "✗ Failed to install pcli. You may need to run with sudo:"
+    echo "  sudo $0"
+    exit 1
+fi
