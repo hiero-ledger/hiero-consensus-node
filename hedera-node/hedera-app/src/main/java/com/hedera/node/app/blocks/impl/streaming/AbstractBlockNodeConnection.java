@@ -220,11 +220,17 @@ public abstract class AbstractBlockNodeConnection implements AutoCloseable {
      * @return the {@link GrpcException} associated with this throwable, or null if one is not found
      */
     protected GrpcException findGrpcException(final Throwable t) {
-        if (t instanceof final GrpcException ge) {
-            return ge;
+        Throwable th = t;
+
+        while (th != null) {
+            if (th instanceof final GrpcException grpcException) {
+                return grpcException;
+            }
+
+            th = th.getCause();
         }
-        final Throwable cause = t.getCause();
-        return cause == null ? null : findGrpcException(cause);
+
+        return null;
     }
 
     @Override

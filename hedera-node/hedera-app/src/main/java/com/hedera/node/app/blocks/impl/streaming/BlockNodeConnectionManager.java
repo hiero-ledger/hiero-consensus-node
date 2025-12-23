@@ -549,7 +549,7 @@ public class BlockNodeConnectionManager {
         }
 
         @Override
-        public BlockNodeStatus call() throws Exception {
+        public BlockNodeStatus call() {
             svcConnection.initialize();
 
             try {

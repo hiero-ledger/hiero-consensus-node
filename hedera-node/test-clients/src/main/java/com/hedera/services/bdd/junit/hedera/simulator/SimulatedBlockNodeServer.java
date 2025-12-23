@@ -320,7 +320,7 @@ public class SimulatedBlockNodeServer {
      */
     private class MockBlockNodeServiceImpl implements BlockNodeServiceInterface {
         @Override
-        public @NonNull ServerStatusResponse serverStatus(@NonNull final ServerStatusRequest request) {
+        public @NonNull ServerStatusResponse serverStatus(@NonNull final ServerStatusRequest ignored) {
             final long lastBlock = lastVerifiedBlockNumber.get();
 
             return ServerStatusResponse.newBuilder()

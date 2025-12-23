@@ -2373,6 +2373,59 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     }
 
     @Test
+    void testSelectNewBlockNodeForStreaming_nullResponse() {
+        final BlockNodeConfiguration node1Config = newBlockNodeConfig(8080, 1);
+        final BlockNodeConfiguration node2Config = newBlockNodeConfig(8081, 2);
+        final BlockNodeConfiguration node3Config = newBlockNodeConfig(8082, 2);
+        final BlockNodeConfiguration node4Config = newBlockNodeConfig(8083, 2);
+        availableNodes().clear();
+        availableNodes().addAll(List.of(node1Config, node2Config, node3Config, node4Config));
+
+        doReturn(10L).when(bufferService).getEarliestAvailableBlockNumber();
+        doReturn(25L).when(bufferService).getLastBlockNumberProduced();
+        doAnswer(invocation -> {
+                    // return a successful null for node 1 and then successful, non-null response for the rest of the
+                    // nodes
+                    final RetrieveBlockNodeStatusTask task = invocation.getArgument(0);
+                    final BlockNodeServiceConnection connection =
+                            (BlockNodeServiceConnection) nodeStatusTaskConnectionHandle.get(task);
+                    final BlockNodeConfiguration taskNodeConfig = connection.configuration();
+                    if (node1Config.streamingPort() == taskNodeConfig.streamingPort()) {
+                        return CompletableFuture.completedFuture(null);
+                    } else if (node2Config.streamingPort() == taskNodeConfig.streamingPort()
+                            || node3Config.streamingPort() == taskNodeConfig.streamingPort()
+                            || node4Config.streamingPort() == taskNodeConfig.streamingPort()) {
+                        return CompletableFuture.completedFuture(BlockNodeStatus.reachable(10, 15));
+                    }
+
+                    throw new IllegalStateException("Unexpected config: " + taskNodeConfig);
+                })
+                .when(blockingIoExecutor)
+                .submit(any(RetrieveBlockNodeStatusTask.class));
+
+        assertThat(connectionManager.selectNewBlockNodeForStreaming(false)).isTrue();
+
+        final ArgumentCaptor<Runnable> scheduledExecCaptor = ArgumentCaptor.forClass(Runnable.class);
+        verify(scheduledExecutor).schedule(scheduledExecCaptor.capture(), anyLong(), any(TimeUnit.class));
+
+        assertThat(scheduledExecCaptor.getAllValues()).hasSize(1);
+        final Runnable task = scheduledExecCaptor.getValue();
+        assertThat(task).isNotNull().isInstanceOf(BlockNodeConnectionTask.class);
+        final BlockNodeStreamingConnection connection = connectionFromTask((BlockNodeConnectionTask) task);
+        // the node we've scheduled to connect to should be a node from priority group 2 (node 2, 3, or 3)
+        assertThat(connection.configuration()).isIn(node2Config, node3Config, node4Config);
+
+        // since both priority groups will be processed, we will interact with the buffer twice and submit 4 tasks
+        verify(bufferService, times(2)).getLastBlockNumberProduced();
+        verify(bufferService, times(2)).getEarliestAvailableBlockNumber();
+        verify(blockingIoExecutor, times(4)).submit(any(RetrieveBlockNodeStatusTask.class));
+        verifyNoMoreInteractions(bufferService);
+        verifyNoMoreInteractions(blockingIoExecutor);
+        verifyNoInteractions(metrics);
+        verifyNoMoreInteractions(scheduledExecutor);
+    }
+
+    @Test
     void testRetrieveBlockNodeStatusTask_nullConfig() {
         assertThatThrownBy(() -> connectionManager.new RetrieveBlockNodeStatusTask(null))
                 .isInstanceOf(NullPointerException.class)
@@ -2380,7 +2433,7 @@ class BlockNodeConnectionManagerTest extends BlockNodeCommunicationTestBase {
     }
 
     @Test
-    void testRetrieveBlockNodeStatusTask() throws Exception {
+    void testRetrieveBlockNodeStatusTask() {
         final BlockNodeConfiguration nodeConfig = newBlockNodeConfig(8080, 1);
         final BlockNodeStatus expectedStatus = BlockNodeStatus.reachable(10, 100);
 

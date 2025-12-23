@@ -537,6 +537,12 @@ public class BlockBufferService {
         persistBufferImpl();
     }
 
+    /**
+     * Persists any unacknowledged blocks to disk, if block buffer persistence is enabled. This method differs from
+     * {@link #persistBuffer()} in that this method does not contain checks of whether streaming is enabled and whether
+     * the buffer service is started. This means this method, unlike the public one, can be invoked during shutdown
+     * when the buffer service is in a terminal state (i.e. {@link #isStarted} is set to false.)
+     */
     private void persistBufferImpl() {
         if (!isBufferPersistenceEnabled()) {
             return;

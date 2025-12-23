@@ -59,7 +59,7 @@ public class BlockNodeServiceConnection extends AbstractBlockNodeConnection {
      *
      * @param configProvider the configuration provider to use
      * @param nodeConfig the block node configuration to use for this connection
-     * @param blockingIoExecutor the executor service to use for executing block I/O tasks
+     * @param blockingIoExecutor the executor service to use for executing blocking I/O tasks
      * @param clientFactory the factory to use for creating clients to the block node
      */
     public BlockNodeServiceConnection(
