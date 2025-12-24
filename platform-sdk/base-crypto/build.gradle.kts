@@ -21,8 +21,6 @@ testModuleInfo {
     requires("org.hiero.base.crypto.test.fixtures")
     requires("org.junit.jupiter.api")
     requires("org.junit.jupiter.params")
-
-    runtimeOnly("com.swirlds.platform.core")
 }
 
 timingSensitiveModuleInfo {
