@@ -59,8 +59,8 @@ public class ConsensusBenchmark {
         events = emitter.emitEvents(numEvents);
 
         // We pass the events through the orphan buffer so that their nGen is set
-        final DefaultOrphanBuffer orphanBuffer = new DefaultOrphanBuffer(new NoOpMetrics(),
-                new NoOpIntakeEventCounter());
+        final DefaultOrphanBuffer orphanBuffer =
+                new DefaultOrphanBuffer(new NoOpMetrics(), new NoOpIntakeEventCounter());
         for (final EventImpl event : events) {
             final List<PlatformEvent> obOut = orphanBuffer.handleEvent(event.getPlatformEvent());
             if (obOut.size() != 1) {
