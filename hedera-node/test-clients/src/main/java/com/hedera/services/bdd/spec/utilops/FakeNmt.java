@@ -38,7 +38,35 @@ public class FakeNmt {
             final int configVersion, @NonNull final Map<String, String> envOverrides) {
         requireNonNull(envOverrides);
         return new TryToStartNodesOp(
-                NodeSelector.allNodes(), configVersion, SubProcessNode.ReassignPorts.YES, envOverrides);
+                NodeSelector.allNodes(), configVersion, SubProcessNode.ReassignPorts.NO, envOverrides);
+    }
+
+    /**
+     * Returns an operation that starts the selected nodes with the given config version.
+     *
+     * @param selector the selector for the nodes to start
+     * @param configVersion the config version to use
+     * @param envOverrides the environment overrides to use
+     * @return the operation that starts the nodes
+     */
+    public static TryToStartNodesOp startNodes(
+            @NonNull final NodeSelector selector,
+            final int configVersion,
+            @NonNull final Map<String, String> envOverrides) {
+        requireNonNull(selector);
+        requireNonNull(envOverrides);
+        return new TryToStartNodesOp(selector, configVersion, SubProcessNode.ReassignPorts.NO, envOverrides);
+    }
+
+    /**
+     * Returns an operation that starts the selected nodes with the given config version.
+     *
+     * @param selector the selector for the nodes to start
+     * @param configVersion the config version to use
+     * @return the operation that starts the nodes
+     */
+    public static TryToStartNodesOp startNodes(@NonNull final NodeSelector selector, final int configVersion) {
+        return startNodes(selector, configVersion, Map.of());
     }
 
     /**
@@ -51,7 +79,7 @@ public class FakeNmt {
         return new TryToStartNodesOp(
                 NodeSelector.allNodes(),
                 configVersion,
-                SubProcessNode.ReassignPorts.YES,
+                SubProcessNode.ReassignPorts.NO,
                 Map.of("grpc.nodeOperatorPortEnabled", "false"));
     }
 
@@ -84,7 +112,7 @@ public class FakeNmt {
      * @return the operation that restarts the node
      */
     public static TryToStartNodesOp restartNode(@NonNull final NodeSelector selector) {
-        return new TryToStartNodesOp(selector);
+        return new TryToStartNodesOp(selector, 0, SubProcessNode.ReassignPorts.NO, Map.of(), false);
     }
 
     /**
@@ -106,7 +134,7 @@ public class FakeNmt {
      */
     public static TryToStartNodesOp restartWithConfigVersion(
             @NonNull final NodeSelector selector, final int configVersion) {
-        return new TryToStartNodesOp(selector, configVersion);
+        return new TryToStartNodesOp(selector, configVersion, SubProcessNode.ReassignPorts.NO, Map.of(), false);
     }
 
     /**

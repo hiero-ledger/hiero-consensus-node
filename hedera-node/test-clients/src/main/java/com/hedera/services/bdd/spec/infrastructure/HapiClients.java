@@ -416,11 +416,17 @@ public class HapiClients {
     }
 
     public static synchronized void rebuildChannels() {
-        final var maybeLastRebuildTime = LAST_CHANNEL_REBUILD_TIME.get();
-        if (maybeLastRebuildTime != null) {
-            final var msSinceLastRebuild = System.currentTimeMillis() - maybeLastRebuildTime.toEpochMilli();
-            if (msSinceLastRebuild < MINIMUM_REBUILD_INTERVAL_MS) {
-                return;
+        rebuildChannels(false);
+    }
+
+    public static synchronized void rebuildChannels(final boolean force) {
+        if (!force) {
+            final var maybeLastRebuildTime = LAST_CHANNEL_REBUILD_TIME.get();
+            if (maybeLastRebuildTime != null) {
+                final var msSinceLastRebuild = System.currentTimeMillis() - maybeLastRebuildTime.toEpochMilli();
+                if (msSinceLastRebuild < MINIMUM_REBUILD_INTERVAL_MS) {
+                    return;
+                }
             }
         }
         log.info("Shutting down all managed channels");

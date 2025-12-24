@@ -12,13 +12,16 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateCandidateRo
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
+import static java.util.stream.Collectors.toMap;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.hedera.node.app.hapi.utils.CommonPbjConverters;
 import com.hedera.services.bdd.junit.MultiNetworkHapiTest;
 import com.hedera.services.bdd.junit.TestTags;
+import com.hedera.services.bdd.junit.hedera.NodeMetadata;
 import com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork;
 import com.hedera.services.bdd.spec.SpecOperation;
+import com.hedera.services.bdd.spec.transactions.TxnUtils;
 import com.hedera.services.bdd.spec.utilops.FakeNmt;
 import com.hedera.services.bdd.spec.utilops.UtilVerbs;
 import com.hedera.services.bdd.suites.hip869.NodeCreateTest;
@@ -63,6 +66,9 @@ public class MultiNetworkNodeLifecycleSuite implements LifecycleTest {
         final List<Long> expectedRosterA = List.of(0L, 2L, 3L, 4L);
         final List<Long> expectedRosterB = List.of(0L, 1L, 3L, 4L);
         final List<Long> expectedRosterC = List.of(0L, 1L, 2L, 4L);
+        final var netAPorts = new AtomicReference<Map<Long, PortSnapshot>>();
+        final var netBPorts = new AtomicReference<Map<Long, PortSnapshot>>();
+        final var netCPorts = new AtomicReference<Map<Long, PortSnapshot>>();
 
         final var builder = multiNetworkHapiTest(netA, netB, netC)
                 // Ensure all networks are up before any node updates occur
@@ -70,9 +76,9 @@ public class MultiNetworkNodeLifecycleSuite implements LifecycleTest {
                 .onNetwork("NET_B", ensureNetworkReady(netB, initialRoster))
                 .onNetwork("NET_C", ensureNetworkReady(netC, initialRoster))
                 // Each network removes a different node id and verifies the roster reflects the change
-                .onNetwork("NET_A", deleteAndUpgradeNetwork(netA, "netA", 1L, 4L, expectedRosterA))
-                .onNetwork("NET_B", deleteAndUpgradeNetwork(netB, "netB", 2L, 4L, expectedRosterB))
-                .onNetwork("NET_C", deleteAndUpgradeNetwork(netC, "netC", 3L, 4L, expectedRosterC))
+                .onNetwork("NET_A", deleteAndUpgradeNetwork(netA, "netA", 1L, 4L, expectedRosterA, netAPorts))
+                .onNetwork("NET_B", deleteAndUpgradeNetwork(netB, "netB", 2L, 4L, expectedRosterB, netBPorts))
+                .onNetwork("NET_C", deleteAndUpgradeNetwork(netC, "netC", 3L, 4L, expectedRosterC, netCPorts))
                 // After all upgrades, verify each network is running with the expected roster
                 .onNetwork("NET_A", ensureNetworkReady(netA, expectedRosterA))
                 .onNetwork("NET_B", ensureNetworkReady(netB, expectedRosterB))
@@ -85,20 +91,40 @@ public class MultiNetworkNodeLifecycleSuite implements LifecycleTest {
         return builder.asDynamicTests();
     }
 
+    @MultiNetworkHapiTest(
+            networks = {@MultiNetworkHapiTest.Network(name = "NET_STAGE", size = 4, firstGrpcPort = 30400)})
+    @DisplayName("Upgrade starts existing nodes before new node joins from signed state")
+    Stream<DynamicTest> stagedNodeAdditionUsesSignedState(final SubProcessNetwork net) {
+        final List<Long> initialRoster = List.of(0L, 1L, 2L, 3L);
+        final List<Long> expectedRoster = List.of(0L, 1L, 2L, 3L, 4L);
+        final var builder = multiNetworkHapiTest(net)
+                .onNetwork("NET_STAGE", ensureNetworkReady(net, initialRoster))
+                .onNetwork("NET_STAGE", addNodeAndUpgradeWithDeferredStart(net, "netStage", 4L, expectedRoster))
+                .onNetwork("NET_STAGE", rosterShouldMatch(expectedRoster));
+        return builder.asDynamicTests();
+    }
+
     private SpecOperation[] deleteAndUpgradeNetwork(
             final SubProcessNetwork network,
             final String networkPrefix,
             final long nodeIdToRemove,
             final long nodeIdToAdd,
-            final List<Long> expectedRoster) {
+            final List<Long> expectedRoster,
+            final AtomicReference<Map<Long, PortSnapshot>> portSnapshots) {
         final var newNodeName = networkPrefix + "-node" + nodeIdToAdd;
         final var newNodeAccount = networkPrefix + "-node" + nodeIdToAdd + "-account";
+        final var postUpgradeAccount = networkPrefix + "-postUpgradeAccount";
         final var gossipEndpoints = network.gossipEndpointsForNextNodeId();
         final var grpcEndpoint = network.grpcEndpointForNextNodeId();
         final AtomicReference<com.hederahashgraph.api.proto.java.AccountID> createdAccount = new AtomicReference<>();
+        final long sourceNodeId = 0L;
+        final var postResumeOps = UtilVerbs.blockingOrder(
+                cryptoCreate(postUpgradeAccount),
+                UtilVerbs.doingContextual(TxnUtils::triggerAndCloseAtLeastOneFileIfNotInterrupted));
         return new SpecOperation[] {
             // Ensure channel pools are initialized for this network before fee downloads
             UtilVerbs.doingContextual(spec -> spec.subProcessNetworkOrThrow().refreshClients()),
+            UtilVerbs.doingContextual(spec -> portSnapshots.set(portsByNodeId(spec.subProcessNetworkOrThrow()))),
             doAdhoc(() -> CURRENT_CONFIG_VERSION.set(0)),
             cryptoCreate(newNodeAccount).payingWith(GENESIS).balance(ONE_HBAR).exposingCreatedIdTo(createdAccount::set),
             withOpContext((spec, opLog) -> {
@@ -124,11 +150,59 @@ public class MultiNetworkNodeLifecycleSuite implements LifecycleTest {
             prepareFakeUpgrade(),
             validateCandidateRoster(roster ->
                     assertThat(nodeIdsFrom(roster).toList()).containsExactlyInAnyOrderElementsOf(expectedRoster)),
-            upgradeToNextConfigVersion(
-                    Map.of(), FakeNmt.removeNode(byNodeId(nodeIdToRemove)), FakeNmt.addNode(nodeIdToAdd)),
+            upgradeToNextConfigVersionWithDeferredNodes(
+                    List.of(nodeIdToAdd),
+                    sourceNodeId,
+                    UtilVerbs.blockingOrder(FakeNmt.removeNode(byNodeId(nodeIdToRemove)), FakeNmt.addNode(nodeIdToAdd)),
+                    postResumeOps),
             // Refresh clients after the network restart to pick up new ports/endpoints
             UtilVerbs.doingContextual(spec -> spec.subProcessNetworkOrThrow().refreshClients()),
+            UtilVerbs.doingContextual(spec ->
+                    assertPortsRetained(spec.subProcessNetworkOrThrow(), portSnapshots, nodeIdToRemove, nodeIdToAdd)),
             rosterShouldMatch(expectedRoster)
+        };
+    }
+
+    private SpecOperation[] addNodeAndUpgradeWithDeferredStart(
+            final SubProcessNetwork network,
+            final String networkPrefix,
+            final long nodeIdToAdd,
+            final List<Long> expectedRoster) {
+        final var newNodeName = networkPrefix + "-node" + nodeIdToAdd;
+        final var newNodeAccount = networkPrefix + "-node" + nodeIdToAdd + "-account";
+        final var gossipEndpoints = network.gossipEndpointsForNextNodeId();
+        final var grpcEndpoint = network.grpcEndpointForNextNodeId();
+        final AtomicReference<com.hederahashgraph.api.proto.java.AccountID> createdAccount = new AtomicReference<>();
+        final long sourceNodeId = 0L;
+        final var postResumeOps = UtilVerbs.blockingOrder(
+                cryptoCreate("postUpgradeAccount"),
+                UtilVerbs.doingContextual(TxnUtils::triggerAndCloseAtLeastOneFileIfNotInterrupted));
+        return new SpecOperation[] {
+            UtilVerbs.doingContextual(spec -> spec.subProcessNetworkOrThrow().refreshClients()),
+            doAdhoc(() -> CURRENT_CONFIG_VERSION.set(0)),
+            cryptoCreate(newNodeAccount).payingWith(GENESIS).balance(ONE_HBAR).exposingCreatedIdTo(createdAccount::set),
+            withOpContext((spec, opLog) -> {
+                final var protoId = createdAccount.get();
+                final var pbjId = CommonPbjConverters.toPbj(protoId);
+                spec.subProcessNetworkOrThrow().updateNodeAccount(nodeIdToAdd, pbjId);
+                opLog.info(
+                        "Mapped node {} to account {} for {}",
+                        nodeIdToAdd,
+                        protoId.getAccountNum(),
+                        spec.targetNetworkOrThrow().name());
+            }),
+            nodeCreate(newNodeName, newNodeAccount)
+                    .payingWith(GENESIS)
+                    .description(newNodeName)
+                    .serviceEndpoint(List.of(grpcEndpoint))
+                    .gossipEndpoint(gossipEndpoints)
+                    .adminKey(GENESIS)
+                    .gossipCaCertificate(encodeCert()),
+            prepareFakeUpgrade(),
+            validateCandidateRoster(roster ->
+                    assertThat(nodeIdsFrom(roster).toList()).containsExactlyInAnyOrderElementsOf(expectedRoster)),
+            upgradeToNextConfigVersionWithDeferredNodes(
+                    List.of(nodeIdToAdd), sourceNodeId, FakeNmt.addNode(nodeIdToAdd), postResumeOps)
         };
     }
 
@@ -147,11 +221,67 @@ public class MultiNetworkNodeLifecycleSuite implements LifecycleTest {
         });
     }
 
+    private static void assertPortsRetained(
+            final SubProcessNetwork network,
+            final AtomicReference<Map<Long, PortSnapshot>> portSnapshots,
+            final long nodeIdToRemove,
+            final long nodeIdToAdd) {
+        final var baseline = portSnapshots.get();
+        assertThat(baseline).as("Baseline ports captured").isNotNull();
+        final var current = portsByNodeId(network);
+        assertThat(current).containsKey(nodeIdToAdd);
+        assertThat(current).doesNotContainKey(nodeIdToRemove);
+        baseline.forEach((nodeId, snapshot) -> {
+            if (nodeId != nodeIdToRemove) {
+                assertThat(current).containsKey(nodeId);
+                assertThat(current.get(nodeId)).isEqualTo(snapshot);
+            }
+        });
+        final var base = baseline.get(0L);
+        assertThat(base).as("Node0 baseline ports").isNotNull();
+        final var expectedNew = expectedPortsForNode(base, nodeIdToAdd);
+        assertThat(current.get(nodeIdToAdd)).isEqualTo(expectedNew);
+    }
+
+    private static Map<Long, PortSnapshot> portsByNodeId(final SubProcessNetwork network) {
+        return network.nodes().stream()
+                .collect(toMap(node -> node.getNodeId(), node -> PortSnapshot.from(node.metadata())));
+    }
+
+    private static PortSnapshot expectedPortsForNode(final PortSnapshot base, final long nodeId) {
+        final var offset = (int) nodeId;
+        return new PortSnapshot(
+                base.grpcPort() + offset * 2,
+                base.grpcNodeOperatorPort() + offset,
+                base.internalGossipPort() + offset * 2,
+                base.externalGossipPort() + offset * 2,
+                base.prometheusPort() + offset,
+                base.debugPort() + offset);
+    }
+
     private static byte[] encodeCert() {
         try {
             return NodeCreateTest.generateX509Certificates(1).getFirst().getEncoded();
         } catch (CertificateEncodingException e) {
             throw new IllegalStateException("Failed to generate/encode X509 certificate for node create", e);
+        }
+    }
+
+    private record PortSnapshot(
+            int grpcPort,
+            int grpcNodeOperatorPort,
+            int internalGossipPort,
+            int externalGossipPort,
+            int prometheusPort,
+            int debugPort) {
+        private static PortSnapshot from(final NodeMetadata metadata) {
+            return new PortSnapshot(
+                    metadata.grpcPort(),
+                    metadata.grpcNodeOperatorPort(),
+                    metadata.internalGossipPort(),
+                    metadata.externalGossipPort(),
+                    metadata.prometheusPort(),
+                    metadata.debugPort());
         }
     }
 }
