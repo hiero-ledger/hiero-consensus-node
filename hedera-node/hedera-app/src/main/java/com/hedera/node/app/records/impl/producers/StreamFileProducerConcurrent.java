@@ -273,6 +273,25 @@ public final class StreamFileProducerConcurrent implements BlockRecordStreamProd
         }
     }
 
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void finishCurrentBlock() {
+        lock.lock();
+        try {
+            if (currentRecordFileWriter != null) {
+                final var closeFuture = currentRecordFileWriter
+                        .thenCombine(lastRecordHashingResult, TwoResults::new)
+                        .thenAcceptAsync(twoResults -> closeWriter(twoResults.a(), twoResults.b()), executorService);
+                currentRecordFileWriter = null;
+                closeFuture.join();
+            }
+        } finally {
+            lock.unlock();
+        }
+    }
+
     // =================================================================================================================
     // private implementation
 

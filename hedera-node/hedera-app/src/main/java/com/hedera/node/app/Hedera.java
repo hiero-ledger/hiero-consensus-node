@@ -102,6 +102,7 @@ import com.hedera.node.app.workflows.prehandle.PreHandleResult;
 import com.hedera.node.app.workflows.query.QueryWorkflow;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.Utils;
+import com.hedera.node.config.data.BlockRecordStreamConfig;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.NetworkAdminConfig;
@@ -560,7 +561,7 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
         consensusStateEventHandler = new ConsensusStateEventHandlerImpl(this);
         final var blockStreamsEnabled = isBlockStreamEnabled();
         stateRootSupplier = blockStreamsEnabled ? () -> withListeners(baseSupplier.get()) : baseSupplier;
-        onSealConsensusRound = blockStreamsEnabled ? this::manageBlockEndRound : (round, state) -> true;
+        onSealConsensusRound = blockStreamsEnabled ? this::manageBlockEndRound : this::manageRecordEndRound;
         stateLifecycleManager = new StateLifecycleManagerImpl(
                 metrics, time, virtualMap -> new VirtualMapState(virtualMap, metrics), configuration);
     }
@@ -1362,6 +1363,17 @@ public final class Hedera implements SwirldMain<MerkleNodeState>, AppContext.Gos
     private boolean manageBlockEndRound(@NonNull final Round round, @NonNull final State state) {
         daggerApp.nodeRewardManager().updateJudgesOnEndRound(state);
         return daggerApp.blockStreamManager().endRound(state, round.getRoundNum());
+    }
+
+    private boolean manageRecordEndRound(@NonNull final Round round, @NonNull final State state) {
+        final var recordStreamConfig = configProvider.getConfiguration().getConfigData(BlockRecordStreamConfig.class);
+        if (recordStreamConfig.roundBoundaryClosingEnabled()) {
+            // In round-boundary mode, endRound updates running hashes and closes files at period boundaries
+            // using the same conditions as BlockStreamManagerImpl (round 1, freeze round, or elapsed time)
+            return daggerApp.blockRecordManager().endRound(state, round);
+        }
+        // In non-round boundary mode: always return true to seal every round
+        return true;
     }
 
     /**

@@ -8,6 +8,7 @@ import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.stream.Stream;
+import org.hiero.consensus.model.hashgraph.Round;
 
 /**
  * {@link BlockRecordManager} is responsible for managing blocks and writing the block record stream. It manages:
@@ -122,6 +123,34 @@ public interface BlockRecordManager extends BlockRecordInfo, AutoCloseable {
      * @param state The state to update
      */
     void endRound(@NonNull State state);
+
+    /**
+     * Called at the end of a round with access to the round to make decisions about closing record
+     * files and to update running hashes in state. When round-boundary closing is enabled, this will
+     * close the record file if any of these conditions are met:
+     * <ul>
+     *   <li>Round number is 1</li>
+     *   <li>Current round is the freeze round</li>
+     *   <li>Elapsed time since block start >= block period</li>
+     * </ul>
+     *
+     * @param state the state to update
+     * @param round the round being ended
+     * @return true if a record file was closed during this round, false otherwise
+     */
+    boolean endRound(@NonNull State state, @NonNull Round round);
+
+    /**
+     * Called at the start of a round to allow the record stream to open a new record file when
+     * operating in round-boundary closing mode.
+     *
+     * <p>In legacy mode this is a no-op; in round-boundary mode, this will open a new record file
+     * at the beginning of a round if one is not currently open.
+     *
+     * @param round the round being started
+     * @param state the state to update
+     */
+    void startRound(@NonNull Round round, @NonNull State state);
 
     /**
      * Closes this BlockRecordManager and wait for any threads to finish.
