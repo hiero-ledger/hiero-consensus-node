@@ -12,7 +12,6 @@ import com.swirlds.component.framework.schedulers.builders.TaskSchedulerConfigur
 import com.swirlds.config.api.ConfigurationExtension;
 import com.swirlds.logging.api.internal.configuration.InternalLoggingConfig;
 import com.swirlds.merkledb.config.MerkleDbConfig;
-import com.swirlds.platform.event.preconsensus.PcesConfig;
 import com.swirlds.platform.gossip.ProtocolConfig;
 import com.swirlds.platform.gossip.config.GossipConfig;
 import com.swirlds.platform.gossip.config.NetworkEndpoint;
@@ -28,6 +27,7 @@ import com.swirlds.virtualmap.config.VirtualMapConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Set;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.pces.PcesConfig;
 
 /**
  * Registers configuration types for the platform.

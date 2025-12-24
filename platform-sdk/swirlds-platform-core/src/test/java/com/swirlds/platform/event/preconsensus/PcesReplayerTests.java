@@ -28,6 +28,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.test.fixtures.event.TestingEventBuilder;
+import org.hiero.consensus.pces.PcesConfig_;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
