@@ -35,7 +35,6 @@ import java.util.ArrayList;
 import java.util.Deque;
 import java.util.List;
 import java.util.Optional;
-import org.apache.tuweni.units.bigints.UInt256;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 import org.hyperledger.besu.evm.log.Log;
 import org.junit.jupiter.api.BeforeEach;
@@ -115,8 +114,7 @@ class DispatchForResponseCodeHtsCallTest extends CallTestBase {
                 STANDARD_OUTPUT_FN);
         final var expectedTransfers = List.of(new TestTokenTransfer(
                 FUNGIBLE_TOKEN_ID, false, OWNER_ID, OWNER_ACCOUNT, RECEIVER_ID, ALIASED_RECEIVER, 123));
-        given(recordBuilder.tokenTransferLists())
-                .willReturn(tokenTransfersLists(expectedTransfers));
+        given(recordBuilder.tokenTransferLists()).willReturn(tokenTransfersLists(expectedTransfers));
         given(systemContractOperations.dispatch(
                         TransactionBody.DEFAULT,
                         verificationStrategy,

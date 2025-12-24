@@ -39,7 +39,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.Predicate;
-
 import org.hyperledger.besu.evm.frame.MessageFrame;
 import org.hyperledger.besu.evm.log.Log;
 import org.junit.jupiter.api.Test;
@@ -329,8 +328,7 @@ class ClassicTransfersCallTest extends CallTestBase {
         given(nativeOperations.readableAccountStore()).willReturn(readableAccountStore);
         final var expectedTransfers = List.of(new TestTokenTransfer(
                 FUNGIBLE_TOKEN_ID, false, OWNER_ID, OWNER_ACCOUNT, RECEIVER_ID, ALIASED_RECEIVER, 123));
-        given(recordBuilder.tokenTransferLists())
-                .willReturn(tokenTransfersLists(expectedTransfers));
+        given(recordBuilder.tokenTransferLists()).willReturn(tokenTransfersLists(expectedTransfers));
         given(readableAccountStore.getAliasedAccountById(OWNER_ID)).willReturn(OWNER_ACCOUNT);
         given(readableAccountStore.getAliasedAccountById(RECEIVER_ID)).willReturn(ALIASED_RECEIVER);
         final List<Log> logs = new ArrayList<>();
@@ -367,8 +365,7 @@ class ClassicTransfersCallTest extends CallTestBase {
         given(nativeOperations.readableAccountStore()).willReturn(readableAccountStore);
         final var expectedTransfers = List.of(new TestTokenTransfer(
                 FUNGIBLE_TOKEN_ID, true, OWNER_ID, OWNER_ACCOUNT, RECEIVER_ID, ALIASED_RECEIVER, 123));
-        given(recordBuilder.tokenTransferLists())
-                .willReturn(tokenTransfersLists(expectedTransfers));
+        given(recordBuilder.tokenTransferLists()).willReturn(tokenTransfersLists(expectedTransfers));
         given(readableAccountStore.getAliasedAccountById(OWNER_ID)).willReturn(OWNER_ACCOUNT);
         given(readableAccountStore.getAliasedAccountById(RECEIVER_ID)).willReturn(ALIASED_RECEIVER);
         final List<Log> logs = new ArrayList<>();
