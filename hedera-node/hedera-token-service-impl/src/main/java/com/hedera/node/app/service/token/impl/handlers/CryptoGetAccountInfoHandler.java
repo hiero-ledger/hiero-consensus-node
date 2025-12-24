@@ -163,6 +163,7 @@ public class CryptoGetAccountInfoHandler extends PaidQueryHandler {
             info.ownedNfts(account.numberOwnedNfts());
             info.maxAutomaticTokenAssociations(account.maxAutoAssociations());
             info.ethereumNonce(account.ethereumNonce());
+            info.delegationAddress(account.delegationAddress());
             if (!AliasUtils.isOfEvmAddressSize(account.alias())) {
                 info.alias(account.alias());
             }
