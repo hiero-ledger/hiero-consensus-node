@@ -6,6 +6,8 @@ import static com.hedera.node.app.info.DiskStartupNetworks.OVERRIDE_NETWORK_JSON
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.APPLICATION_PROPERTIES;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.DATA_CONFIG_DIR;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.LOG4J2_XML;
+import static com.hedera.services.bdd.junit.hedera.ExternalPath.SAVED_STATES_DIR;
+import static com.hedera.services.bdd.junit.hedera.ExternalPath.WORKING_DIR;
 import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
 import static com.hedera.services.bdd.junit.hedera.subprocess.ProcessUtils.awaitStatus;
 import static com.hedera.services.bdd.junit.hedera.utils.AddressBookUtils.classicMetadataFor;
@@ -51,6 +53,7 @@ import java.io.UncheckedIOException;
 import java.net.ServerSocket;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.time.Duration;
 import java.time.Instant;
@@ -60,6 +63,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.SplittableRandom;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
@@ -67,6 +71,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.UnaryOperator;
+import java.util.regex.Pattern;
 import java.util.stream.IntStream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -86,6 +91,9 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
     private static final int FIRST_CANDIDATE_PORT = 30000;
     private static final int LAST_CANDIDATE_PORT = 40000;
     private static final int MAX_NODES_PER_NETWORK = 10;
+    private static final String PRECONSENSUS_EVENTS_DIR = "preconsensus-events";
+    private static final Pattern NUMBER_DIR_PATTERN = Pattern.compile("\\d+");
+    private static final Duration SIGNED_STATE_POLL_INTERVAL = Duration.ofMillis(500);
 
     private static final String SUBPROCESS_HOST = "127.0.0.1";
     private static final ByteString SUBPROCESS_ENDPOINT = asOctets(SUBPROCESS_HOST);
@@ -503,6 +511,69 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
     }
 
     /**
+     * Returns the latest signed state round for the given node, or {@code -1} if none exist.
+     *
+     * @param nodeId the node id to inspect
+     * @return the latest signed state round, or {@code -1}
+     */
+    public long latestSignedStateRound(final long nodeId) {
+        final var node = getRequiredNode(byNodeId(nodeId));
+        final var signedStatesDir = node.getExternalPath(SAVED_STATES_DIR);
+        return latestNumberedDirectory(signedStatesDir)
+                .map(path -> Long.parseLong(path.getFileName().toString()))
+                .orElse(-1L);
+    }
+
+    /**
+     * Waits for the given node to have a signed state after the provided round.
+     *
+     * @param nodeId the node id to inspect
+     * @param afterRound the round to wait past
+     * @param timeout the maximum time to wait
+     */
+    public void awaitSignedStateAfterRound(final long nodeId, final long afterRound, @NonNull final Duration timeout) {
+        requireNonNull(timeout);
+        final var deadline = Instant.now().plus(timeout);
+        while (Instant.now().isBefore(deadline)) {
+            if (latestSignedStateRound(nodeId) > afterRound) {
+                return;
+            }
+            sleep(SIGNED_STATE_POLL_INTERVAL);
+        }
+        throw new IllegalStateException(
+                "No signed state after round " + afterRound + " for node " + nodeId + " within " + timeout);
+    }
+
+    /**
+     * Copies the latest signed state and preconsensus event files from the source node to the target node.
+     *
+     * @param sourceNodeId the node id to copy from
+     * @param targetNodeId the node id to copy to
+     */
+    public void copyLatestSignedStateAndPces(final long sourceNodeId, final long targetNodeId) {
+        final var sourceNode = getRequiredNode(byNodeId(sourceNodeId));
+        final var targetNode = getRequiredNode(byNodeId(targetNodeId));
+        final var sourceSignedStatesDir = sourceNode.getExternalPath(SAVED_STATES_DIR);
+        final var latestStateDir = latestNumberedDirectory(sourceSignedStatesDir)
+                .orElseThrow(() -> new IllegalStateException("No signed states found for node " + sourceNodeId));
+        final var targetSignedStatesDir = targetNode.getExternalPath(SAVED_STATES_DIR);
+        WorkingDirUtils.rm(targetSignedStatesDir);
+        copyDirectory(latestStateDir, targetSignedStatesDir.resolve(latestStateDir.getFileName()));
+        final var sourcePcesDir = preconsensusEventsDir(sourceNode);
+        if (!Files.exists(sourcePcesDir)) {
+            throw new IllegalStateException("No preconsensus events found at " + sourcePcesDir);
+        }
+        final var targetPcesDir = preconsensusEventsDir(targetNode);
+        WorkingDirUtils.rm(targetPcesDir);
+        copyDirectory(sourcePcesDir, targetPcesDir);
+        log.info(
+                "Copied signed state '{}' and PCES from node {} to node {}",
+                latestStateDir.getFileName(),
+                sourceNodeId,
+                targetNodeId);
+    }
+
+    /**
      * Returns the gossip endpoints that can be automatically managed by this {@link SubProcessNetwork}
      * for the given node id.
      *
@@ -524,6 +595,69 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
     public ServiceEndpoint grpcEndpointForNextNodeId() {
         final var nextNodeId = maxNodeId + 1;
         return endpointFor(baseGrpcPort + (int) nextNodeId * 2);
+    }
+
+    private static Optional<Path> latestNumberedDirectory(@NonNull final Path root) {
+        if (!Files.exists(root)) {
+            return Optional.empty();
+        }
+        long latest = -1;
+        Path latestPath = null;
+        try (final var stream = Files.newDirectoryStream(root)) {
+            for (final var path : stream) {
+                if (Files.isDirectory(path)
+                        && NUMBER_DIR_PATTERN
+                                .matcher(path.getFileName().toString())
+                                .matches()) {
+                    final var value = Long.parseLong(path.getFileName().toString());
+                    if (value > latest) {
+                        latest = value;
+                        latestPath = path;
+                    }
+                }
+            }
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+        return Optional.ofNullable(latestPath);
+    }
+
+    private static Path preconsensusEventsDir(@NonNull final HederaNode node) {
+        return node.getExternalPath(WORKING_DIR)
+                .resolve(WorkingDirUtils.DATA_DIR)
+                .resolve(ProcessUtils.SAVED_STATES_DIR)
+                .resolve(PRECONSENSUS_EVENTS_DIR)
+                .resolve(Long.toString(node.getNodeId()));
+    }
+
+    private static void copyDirectory(@NonNull final Path source, @NonNull final Path target) {
+        try (final var paths = Files.walk(source)) {
+            paths.forEach(path -> {
+                final var relative = source.relativize(path);
+                final var destination = target.resolve(relative);
+                try {
+                    if (Files.isDirectory(path)) {
+                        Files.createDirectories(destination);
+                    } else {
+                        Files.createDirectories(destination.getParent());
+                        Files.copy(path, destination, StandardCopyOption.REPLACE_EXISTING);
+                    }
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            });
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    private static void sleep(@NonNull final Duration duration) {
+        try {
+            Thread.sleep(duration.toMillis());
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Interrupted while waiting for signed state", e);
+        }
     }
 
     private Map<Long, com.hedera.hapi.node.base.ServiceEndpoint> currentGrpcServiceEndpoints() {

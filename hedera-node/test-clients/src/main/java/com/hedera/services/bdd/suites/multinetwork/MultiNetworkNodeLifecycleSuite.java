@@ -21,6 +21,7 @@ import com.hedera.services.bdd.junit.TestTags;
 import com.hedera.services.bdd.junit.hedera.NodeMetadata;
 import com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork;
 import com.hedera.services.bdd.spec.SpecOperation;
+import com.hedera.services.bdd.spec.transactions.TxnUtils;
 import com.hedera.services.bdd.spec.utilops.FakeNmt;
 import com.hedera.services.bdd.spec.utilops.UtilVerbs;
 import com.hedera.services.bdd.suites.hip869.NodeCreateTest;
@@ -90,6 +91,19 @@ public class MultiNetworkNodeLifecycleSuite implements LifecycleTest {
         return builder.asDynamicTests();
     }
 
+    @MultiNetworkHapiTest(
+            networks = {@MultiNetworkHapiTest.Network(name = "NET_STAGE", size = 4, firstGrpcPort = 30400)})
+    @DisplayName("Upgrade starts existing nodes before new node joins from signed state")
+    Stream<DynamicTest> stagedNodeAdditionUsesSignedState(final SubProcessNetwork net) {
+        final List<Long> initialRoster = List.of(0L, 1L, 2L, 3L);
+        final List<Long> expectedRoster = List.of(0L, 1L, 2L, 3L, 4L);
+        final var builder = multiNetworkHapiTest(net)
+                .onNetwork("NET_STAGE", ensureNetworkReady(net, initialRoster))
+                .onNetwork("NET_STAGE", addNodeAndUpgradeWithDeferredStart(net, "netStage", 4L, expectedRoster))
+                .onNetwork("NET_STAGE", rosterShouldMatch(expectedRoster));
+        return builder.asDynamicTests();
+    }
+
     private SpecOperation[] deleteAndUpgradeNetwork(
             final SubProcessNetwork network,
             final String networkPrefix,
@@ -138,6 +152,49 @@ public class MultiNetworkNodeLifecycleSuite implements LifecycleTest {
             UtilVerbs.doingContextual(spec ->
                     assertPortsRetained(spec.subProcessNetworkOrThrow(), portSnapshots, nodeIdToRemove, nodeIdToAdd)),
             rosterShouldMatch(expectedRoster)
+        };
+    }
+
+    private SpecOperation[] addNodeAndUpgradeWithDeferredStart(
+            final SubProcessNetwork network,
+            final String networkPrefix,
+            final long nodeIdToAdd,
+            final List<Long> expectedRoster) {
+        final var newNodeName = networkPrefix + "-node" + nodeIdToAdd;
+        final var newNodeAccount = networkPrefix + "-node" + nodeIdToAdd + "-account";
+        final var gossipEndpoints = network.gossipEndpointsForNextNodeId();
+        final var grpcEndpoint = network.grpcEndpointForNextNodeId();
+        final AtomicReference<com.hederahashgraph.api.proto.java.AccountID> createdAccount = new AtomicReference<>();
+        final long sourceNodeId = 0L;
+        final var postResumeOps = UtilVerbs.blockingOrder(
+                cryptoCreate("postUpgradeAccount"),
+                UtilVerbs.doingContextual(TxnUtils::triggerAndCloseAtLeastOneFileIfNotInterrupted));
+        return new SpecOperation[] {
+            UtilVerbs.doingContextual(spec -> spec.subProcessNetworkOrThrow().refreshClients()),
+            doAdhoc(() -> CURRENT_CONFIG_VERSION.set(0)),
+            cryptoCreate(newNodeAccount).payingWith(GENESIS).balance(ONE_HBAR).exposingCreatedIdTo(createdAccount::set),
+            withOpContext((spec, opLog) -> {
+                final var protoId = createdAccount.get();
+                final var pbjId = CommonPbjConverters.toPbj(protoId);
+                spec.subProcessNetworkOrThrow().updateNodeAccount(nodeIdToAdd, pbjId);
+                opLog.info(
+                        "Mapped node {} to account {} for {}",
+                        nodeIdToAdd,
+                        protoId.getAccountNum(),
+                        spec.targetNetworkOrThrow().name());
+            }),
+            nodeCreate(newNodeName, newNodeAccount)
+                    .payingWith(GENESIS)
+                    .description(newNodeName)
+                    .serviceEndpoint(List.of(grpcEndpoint))
+                    .gossipEndpoint(gossipEndpoints)
+                    .adminKey(GENESIS)
+                    .gossipCaCertificate(encodeCert()),
+            prepareFakeUpgrade(),
+            validateCandidateRoster(roster ->
+                    assertThat(nodeIdsFrom(roster).toList()).containsExactlyInAnyOrderElementsOf(expectedRoster)),
+            upgradeToNextConfigVersionWithDeferredNodes(
+                    List.of(nodeIdToAdd), sourceNodeId, FakeNmt.addNode(nodeIdToAdd), postResumeOps)
         };
     }
 

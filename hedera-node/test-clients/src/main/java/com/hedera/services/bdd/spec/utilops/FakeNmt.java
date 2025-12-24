@@ -42,6 +42,34 @@ public class FakeNmt {
     }
 
     /**
+     * Returns an operation that starts the selected nodes with the given config version.
+     *
+     * @param selector the selector for the nodes to start
+     * @param configVersion the config version to use
+     * @param envOverrides the environment overrides to use
+     * @return the operation that starts the nodes
+     */
+    public static TryToStartNodesOp startNodes(
+            @NonNull final NodeSelector selector,
+            final int configVersion,
+            @NonNull final Map<String, String> envOverrides) {
+        requireNonNull(selector);
+        requireNonNull(envOverrides);
+        return new TryToStartNodesOp(selector, configVersion, SubProcessNode.ReassignPorts.NO, envOverrides);
+    }
+
+    /**
+     * Returns an operation that starts the selected nodes with the given config version.
+     *
+     * @param selector the selector for the nodes to start
+     * @param configVersion the config version to use
+     * @return the operation that starts the nodes
+     */
+    public static TryToStartNodesOp startNodes(@NonNull final NodeSelector selector, final int configVersion) {
+        return startNodes(selector, configVersion, Map.of());
+    }
+
+    /**
      * Returns an operation that restarts the network with the given config version.
      *
      * @param configVersion the config version to use

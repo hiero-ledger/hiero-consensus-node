@@ -25,6 +25,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeDelete;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeUpdate;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.blockingOrder;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.ensureStakingActivated;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.logIt;
@@ -39,6 +40,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.spec.utilops.streams.assertions.VisibleItemsValidator.EXISTENCE_ONLY_VALIDATOR;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.FUNDING;
+import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.NODE_DETAILS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_BILLION_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
@@ -262,7 +264,12 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
                 // node4 was not active before this the upgrade, so it could not have written a config.txt
                 validateCandidateRoster(exceptNodeIds(4L), addressBook -> assertThat(nodeIdsFrom(addressBook))
                         .contains(4L)),
-                upgradeToNextConfigVersion(ENV_OVERRIDES, FakeNmt.addNode(4L)));
+                upgradeToNextConfigVersionWithDeferredNodes(
+                        List.of(4L),
+                        0L,
+                        ENV_OVERRIDES,
+                        FakeNmt.addNode(4L),
+                        cryptoTransfer(tinyBarsFromTo(GENESIS, FUNDING, 1))));
     }
 
     @Nested
@@ -327,8 +334,12 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
                     nodeDelete("2"),
                     validateCandidateRoster(
                             NodeSelector.allNodes(), DabEnabledUpgradeTest::validateNodeId5MultipartEdits),
-                    upgradeToNextConfigVersion(
-                            ENV_OVERRIDES, FakeNmt.removeNode(NodeSelector.byNodeId(4L)), FakeNmt.addNode(5L)),
+                    upgradeToNextConfigVersionWithDeferredNodes(
+                            List.of(5L),
+                            0L,
+                            ENV_OVERRIDES,
+                            blockingOrder(FakeNmt.removeNode(byNodeId(4L)), FakeNmt.addNode(5L)),
+                            cryptoTransfer(tinyBarsFromTo(GENESIS, FUNDING, 1))),
                     // Validate that nodeId2 and nodeId5 have their new fee collector account IDs,
                     // since those were updated before the prepare upgrade
                     cryptoTransfer(tinyBarsFromTo(DEFAULT_PAYER, FUNDING, 1L))
@@ -371,7 +382,12 @@ public class DabEnabledUpgradeTest implements LifecycleTest {
                                 spec,
                                 // Add the new node to the network
                                 prepareFakeUpgrade(),
-                                upgradeToNextConfigVersion(ENV_OVERRIDES, FakeNmt.addNode(nodeId.get())),
+                                upgradeToNextConfigVersionWithDeferredNodes(
+                                        List.of(nodeId.get()),
+                                        0L,
+                                        ENV_OVERRIDES,
+                                        FakeNmt.addNode(nodeId.get()),
+                                        cryptoTransfer(tinyBarsFromTo(GENESIS, FUNDING, 1))),
                                 // update the node account id
                                 nodeUpdate("newNode")
                                         .accountId("newNodeAccountId")
