@@ -7,6 +7,7 @@ import com.swirlds.platform.gossip.shadowgraph.RpcPeerHandler;
 import com.swirlds.platform.gossip.shadowgraph.RpcShadowgraphSynchronizer;
 import com.swirlds.platform.metrics.SyncMetrics;
 import com.swirlds.platform.network.NetworkMetrics;
+import com.swirlds.platform.network.NetworkUtils;
 import com.swirlds.platform.network.protocol.AbstractSyncProtocol;
 import com.swirlds.platform.network.protocol.PeerProtocol;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -99,7 +100,8 @@ public class RpcProtocol extends AbstractSyncProtocol<RpcShadowgraphSynchronizer
                 networkMetrics,
                 time,
                 syncMetrics,
-                syncConfig);
+                syncConfig,
+                NetworkUtils::handleNetworkException);
         final RpcPeerHandler handler = synchronizer.createPeerHandler(peerProtocol, peerId);
         peerProtocol.setRpcPeerHandler(handler);
         return peerProtocol;
