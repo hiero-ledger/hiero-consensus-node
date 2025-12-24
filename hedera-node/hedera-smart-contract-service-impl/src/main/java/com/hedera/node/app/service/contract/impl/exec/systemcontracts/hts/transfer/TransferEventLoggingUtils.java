@@ -70,7 +70,6 @@ public class TransferEventLoggingUtils {
         }
     }
 
-    // TODO Glib: test
     /**
      * Logs a successful ERC-20 transfer event based on the Hedera-style representation
      * of fungible balance adjustments.
