@@ -597,7 +597,6 @@ public class EnhancedKeyStoreLoader {
     @Nullable
     private Certificate readLegacyCertificate(@NonNull final NodeId nodeId, @NonNull final KeyStore legacyPublicStore) {
         Objects.requireNonNull(nodeId, MSG_NODE_ID_NON_NULL);
-        Objects.requireNonNull(KeyCertPurpose.SIGNING, MSG_PURPOSE_NON_NULL);
         Objects.requireNonNull(legacyPublicStore, MSG_LEGACY_PUBLIC_STORE_NON_NULL);
 
         try {
