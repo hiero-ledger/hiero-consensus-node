@@ -27,7 +27,6 @@ import com.swirlds.virtualmap.config.VirtualMapConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Set;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.pces.PcesConfig;
 
 /**
  * Registers configuration types for the platform.
@@ -50,7 +49,6 @@ public class PlatformConfigurationExtension implements ConfigurationExtension {
                 MerkleDbConfig.class,
                 OSHealthCheckConfig.class,
                 PathsConfig.class,
-                PcesConfig.class,
                 PlatformMetricsConfig.class,
                 PlatformSchedulersConfig.class,
                 PlatformStatusConfig.class,
