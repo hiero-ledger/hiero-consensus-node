@@ -63,14 +63,24 @@ public class TransferTokenTest {
     @DisplayName("successful when")
     @Order(1)
     class SuccessfulTransferTokenTest {
+
+        @BeforeAll
+        static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
+            testLifecycle.doAdhoc(
+                    tokenTransferContract.associateTokens(fungibleToken),
+                    tokenReceiverContract.associateTokens(fungibleToken),
+                    tokenTransferContract.receiveUnitsFrom(account, fungibleToken, 20L)
+            );
+        }
+
         @HapiTest
         @DisplayName("transferring owner's tokens using transferToken function without explicit allowance")
         public Stream<DynamicTest> transferUsingTransferToken() {
             return hapiTest(
-                    tokenTransferContract.associateTokens(fungibleToken),
-                    tokenReceiverContract.associateTokens(fungibleToken),
-                    tokenTransferContract.receiveUnitsFrom(account, fungibleToken, 20L),
-                    // Transfer using transferToken function
+//                    tokenTransferContract.associateTokens(fungibleToken),
+//                    tokenReceiverContract.associateTokens(fungibleToken),
+//                    tokenTransferContract.receiveUnitsFrom(account, fungibleToken, 20L),
+            // Transfer using transferToken function
                     tokenTransferContract
                             .call(
                                     "transferTokenPublic",
@@ -78,6 +88,7 @@ public class TransferTokenTest {
                                     tokenTransferContract,
                                     tokenReceiverContract,
                                     2L)
+                            .via("transferTrx")
                             .gas(1_000_000L));
             //TODO Glib: add event check
         }
@@ -95,7 +106,7 @@ public class TransferTokenTest {
                     tokenTransferContract
                             .call("approvePublic", fungibleToken, tokenTransferContract, BigInteger.valueOf(2L))
                             .gas(1_000_000L),
-                    // Transfer using transferFrom function
+            // Transfer using transferFrom function
                     tokenTransferContract
                             .call(
                                     "transferFromPublic",
