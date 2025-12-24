@@ -113,9 +113,14 @@ public class MultiNetworkNodeLifecycleSuite implements LifecycleTest {
             final AtomicReference<Map<Long, PortSnapshot>> portSnapshots) {
         final var newNodeName = networkPrefix + "-node" + nodeIdToAdd;
         final var newNodeAccount = networkPrefix + "-node" + nodeIdToAdd + "-account";
+        final var postUpgradeAccount = networkPrefix + "-postUpgradeAccount";
         final var gossipEndpoints = network.gossipEndpointsForNextNodeId();
         final var grpcEndpoint = network.grpcEndpointForNextNodeId();
         final AtomicReference<com.hederahashgraph.api.proto.java.AccountID> createdAccount = new AtomicReference<>();
+        final long sourceNodeId = 0L;
+        final var postResumeOps = UtilVerbs.blockingOrder(
+                cryptoCreate(postUpgradeAccount),
+                UtilVerbs.doingContextual(TxnUtils::triggerAndCloseAtLeastOneFileIfNotInterrupted));
         return new SpecOperation[] {
             // Ensure channel pools are initialized for this network before fee downloads
             UtilVerbs.doingContextual(spec -> spec.subProcessNetworkOrThrow().refreshClients()),
@@ -145,8 +150,11 @@ public class MultiNetworkNodeLifecycleSuite implements LifecycleTest {
             prepareFakeUpgrade(),
             validateCandidateRoster(roster ->
                     assertThat(nodeIdsFrom(roster).toList()).containsExactlyInAnyOrderElementsOf(expectedRoster)),
-            upgradeToNextConfigVersion(
-                    Map.of(), FakeNmt.removeNode(byNodeId(nodeIdToRemove)), FakeNmt.addNode(nodeIdToAdd)),
+            upgradeToNextConfigVersionWithDeferredNodes(
+                    List.of(nodeIdToAdd),
+                    sourceNodeId,
+                    UtilVerbs.blockingOrder(FakeNmt.removeNode(byNodeId(nodeIdToRemove)), FakeNmt.addNode(nodeIdToAdd)),
+                    postResumeOps),
             // Refresh clients after the network restart to pick up new ports/endpoints
             UtilVerbs.doingContextual(spec -> spec.subProcessNetworkOrThrow().refreshClients()),
             UtilVerbs.doingContextual(spec ->
