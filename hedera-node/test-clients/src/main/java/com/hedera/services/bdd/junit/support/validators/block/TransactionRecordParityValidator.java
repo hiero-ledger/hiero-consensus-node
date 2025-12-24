@@ -99,7 +99,7 @@ public class TransactionRecordParityValidator implements BlockStreamValidator {
             @NonNull final List<Block> blocks, @NonNull final StreamFileAccess.RecordStreamData data) {
         requireNonNull(blocks);
         requireNonNull(data);
-
+        logger.info("Starting TransactionRecordParityValidator");
         final var baseTranslator = translator.getBaseTranslator();
         final var rfTranslator =
                 new BlockTransactionalUnitTranslator(baseTranslator.getShard(), baseTranslator.getRealm());
@@ -203,6 +203,7 @@ public class TransactionRecordParityValidator implements BlockStreamValidator {
                 }
             }
         }
+        logger.info("TransactionRecordParityValidator PASSED");
     }
 
     private Map<Timestamp, List<TransactionSidecarRecord>> byTime(
