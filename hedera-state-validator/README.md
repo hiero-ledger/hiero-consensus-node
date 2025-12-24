@@ -29,6 +29,46 @@ java -jar ./validator-<version>.jar {path-to-state-round} validate {tag} [{tag}.
     and verifies it totals exactly 50 billion HBAR.
   - [`tokenRelations`](/src/main/java/com/hedera/statevalidation/validator/service/TokenRelationsIntegrity.java) - Verifies that the accounts and tokens for every token relationship exist.
 
+## Validate2
+
+[Validate2Command](src/main/java/com/hedera/statevalidation/Validate2Command.java) ensures state integrity and validates that Hedera nodes can start from existing state snapshots.
+Can also be used for development purposes, such as verifying that the node's state remains intact after refactoring or debugging to investigate the root cause of a corrupted state.
+This version offers improved performance for large state files by processing data items in parallel for some validation tags.
+
+### Usage
+
+1. Download the state files.
+2. Run the following command to execute the validation:
+
+```shell
+java -jar ./validator-.jar {path-to-state-round} validate2 {tag} [{tag}...] [options]
+```
+
+### Parameters
+
+- `{path-to-state-round}` - Location of the state files (required).
+- `{tag}` - Validation that should be run, multiple tags can be specified, separated by spaces (at least one required). Current supported tags:
+  - [`all`](/src/main/java/com/hedera/statevalidation/validator/v2/Validator.java) - Runs all validators.
+  - [`internal`](/src/main/java/com/hedera/statevalidation/validator/v2/HashRecordIntegrityValidator.java) - Validates hash record integrity for internal nodes.
+  - [`leaf`](/src/main/java/com/hedera/statevalidation/validator/v2/LeafBytesIntegrityValidator.java) - Validates leaf bytes integrity.
+  - [`hdhm`](/src/main/java/com/hedera/statevalidation/validator/v2/HdhmBucketIntegrityValidator.java) - Validates HDHM bucket integrity in the half-disk hashmap.
+  - [`account`](/src/main/java/com/hedera/statevalidation/validator/v2/AccountAndSupplyValidator.java) - Ensures all accounts have a positive balance and verifies total HBAR supply.
+  - [`tokenRelations`](/src/main/java/com/hedera/statevalidation/validator/v2/TokenRelationsIntegrityValidator.java) - Verifies that the accounts and tokens for every token relationship exist.
+  - [`entityIdCount`](/src/main/java/com/hedera/statevalidation/validator/v2/EntityIdCountValidator.java) - Validates entity ID counts match expected values.
+  - [`entityIdUniqueness`](/src/main/java/com/hedera/statevalidation/validator/v2/EntityIdUniquenessValidator.java) - Verifies entity IDs are unique across entity types.
+  - [`rehash`](/src/main/java/com/hedera/statevalidation/validator/v2/RehashValidator.java) - Runs a full rehash of the state and compares against the original hash from the `DeserializedSignedState`.
+  - [`rootHash`](/src/main/java/com/hedera/statevalidation/validator/v2/RootHashValidator.java) - Validates the root hash against a `hashInfo.txt`.
+
+### Options
+
+- `--io-threads` (or `-io`) - Number of IO threads for reading data files from disk and memory. Default: `4`.
+- `--process-threads` (or `-p`) - Number of CPU threads for processing data chunks. These threads parse and validate data items read by IO threads. Default: `6`.
+- `--queue-capacity` (or `-q`) - Maximum number of batches that can be queued between IO and processor threads. Controls memory usage and provides backpressure when processors are slower than readers. Default: `100`.
+- `--batch-size` (or `-b`) - Number of data items grouped together before being placed in the queue. Larger batches reduce queue contention but increase memory per batch. Default: `10`.
+- `--min-chunk-size-mib` (or `-mcs`) - Minimum size in mebibytes (MiB) for file chunks. Each data file is divided into chunks for parallel reading; this sets the floor for chunk size to avoid excessive overhead from too many small chunks. Default: `128`.
+- `--chunk-multiplier` (or `-c`) - Multiplier applied to IO thread count to determine the target number of chunks per file collection. Higher values create more, smaller chunks for better load balancing across threads. Default: `2`.
+- `--buffer-size-kib` (or `-bs`) - Buffer size in kibibytes (KiB) for file reading operations and chunk boundary detection. Default: `128`.
+
 ## Introspect
 
 [IntrospectCommand](src/main/java/com/hedera/statevalidation/IntrospectCommand.java) inspects node state structure and provides insights into the contents of state files.
