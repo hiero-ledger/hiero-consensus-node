@@ -25,12 +25,10 @@
     { "name":  "GAS",                            "fee": 1 },
     { "name":  "ALLOWANCES",                     "fee": 2000 },
     { "name":  "AIRDROPS",                       "fee": 8800 },
-    { "name":  "HOOK_UPDATES",                   "fee": 10000000000 },
-    { "name":  "CRYPTO_TRANSFER_BASE_FUNGIBLE",                "fee": 10000000 },
-    { "name":  "CRYPTO_TRANSFER_BASE_NFT",                     "fee": 10000000 },
-    { "name":  "CRYPTO_TRANSFER_BASE_FUNGIBLE_CUSTOM_FEES",    "fee": 20000000 },
-    { "name":  "CRYPTO_TRANSFER_BASE_NFT_CUSTOM_FEES",         "fee": 20000000 },
-    { "name":  "HOOK_EXECUTION",                               "fee": 50000000 }
+    { "name":  "HOOK_UPDATES",                    "fee": 10000000000 },
+    { "name":  "TOKEN_TRANSFER_BASE",             "fee": 10000000 },
+    { "name":  "TOKEN_TRANSFER_BASE_CUSTOM_FEES", "fee": 20000000 },
+    { "name":  "HOOK_EXECUTION",                  "fee": 50000000 }
   ],
   "services": [
     {
@@ -62,10 +60,8 @@
           "name": "CryptoTransfer",
           "baseFee": 0,
           "extras": [
-            {  "name": "CRYPTO_TRANSFER_BASE_FUNGIBLE",             "includedCount": 0 },
-            {  "name": "CRYPTO_TRANSFER_BASE_NFT",                  "includedCount": 0 },
-            {  "name": "CRYPTO_TRANSFER_BASE_FUNGIBLE_CUSTOM_FEES", "includedCount": 0 },
-            {  "name": "CRYPTO_TRANSFER_BASE_NFT_CUSTOM_FEES",      "includedCount": 0 },
+            {  "name": "TOKEN_TRANSFER_BASE",                       "includedCount": 0 },
+            {  "name": "TOKEN_TRANSFER_BASE_CUSTOM_FEES",           "includedCount": 0 },
             {  "name": "HOOK_EXECUTION",                            "includedCount": 0 },
             {  "name": "ACCOUNTS",                                  "includedCount": 2 },
             {  "name": "FUNGIBLE_TOKENS",                           "includedCount": 1 },
