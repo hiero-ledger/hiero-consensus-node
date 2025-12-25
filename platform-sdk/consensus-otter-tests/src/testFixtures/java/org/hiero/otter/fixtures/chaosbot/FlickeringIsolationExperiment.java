@@ -112,6 +112,9 @@ public record FlickeringIsolationExperiment(
                 steps.add(new Step(stepNow, () -> {
                     network.isolate(targetNode);
                 }));
+            } else {
+                log.info("Ending flickering node isolation experiment for node {}.", targetNode.selfId());
+                break;
             }
         }
 
