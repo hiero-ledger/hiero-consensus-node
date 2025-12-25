@@ -7,6 +7,7 @@ import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static com.swirlds.platform.crypto.KeyCertPurpose.SIGNING;
 import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 
+import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.swirlds.common.utility.CommonUtils;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.Utilities;
@@ -35,6 +36,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -336,11 +338,14 @@ public final class CryptoStatic {
      * Create {@link KeysAndCerts} object for the given node id.
      *
      * @param configuration the current configuration
-     * @param localNode  the local node that need private keys loaded
+     * @param localNode     the local node that need private keys loaded
+     * @param rosterEntries roster entries of the active roster, used to provide certificates
      * @return keys and certificates for the requested node id
      */
     public static KeysAndCerts initNodeSecurity(
-            @NonNull final Configuration configuration, @NonNull final NodeId localNode) {
+            @NonNull final Configuration configuration,
+            @NonNull final NodeId localNode,
+            @NonNull final List<RosterEntry> rosterEntries) {
         Objects.requireNonNull(configuration, "configuration must not be null");
         Objects.requireNonNull(localNode, LOCAL_NODES_MUST_NOT_BE_NULL);
 
@@ -359,7 +364,7 @@ public final class CryptoStatic {
 
                 logger.debug(STARTUP.getMarker(), "About to start loading keys");
                 logger.debug(STARTUP.getMarker(), "Reading keys using the enhanced key loader");
-                keysAndCerts = EnhancedKeyStoreLoader.using(configuration, Set.of(localNode))
+                keysAndCerts = EnhancedKeyStoreLoader.using(configuration, Set.of(localNode), rosterEntries)
                         .migrate()
                         .scan()
                         .generate()
