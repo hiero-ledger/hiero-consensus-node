@@ -7,7 +7,7 @@
     </Appenders>
     <Loggers>
         <!-- Set TRACE level for BlockNodeConnection to cover trace log guard branches (lines 666-676) -->
-        <Logger name="com.hedera.node.app.blocks.impl.streaming.BlockNodeConnection" level="trace" additivity="false">
+        <Logger name="com.hedera.node.app.blocks.impl.streaming.BlockNodeStreamingConnection" level="trace" additivity="false">
             <AppenderRef ref="Console"/>
         </Logger>
         <Logger name="com.hedera.node.app.blocks.impl.streaming.BlockNodeConnectionManager" level="trace" additivity="false">
