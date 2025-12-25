@@ -5,7 +5,6 @@ import static com.hedera.node.app.fixtures.AppTestBase.DEFAULT_CONFIG;
 import static com.hedera.node.app.info.DiskStartupNetworks.ARCHIVE;
 import static com.hedera.node.app.info.DiskStartupNetworks.GENESIS_NETWORK_JSON;
 import static com.hedera.node.app.info.DiskStartupNetworks.OVERRIDE_NETWORK_JSON;
-import static com.hedera.node.app.info.DiskStartupNetworks.fromLegacyAddressBook;
 import static com.hedera.node.app.service.addressbook.impl.schemas.V053AddressBookSchema.NODES_STATE_ID;
 import static com.swirlds.platform.state.service.PlatformStateService.PLATFORM_STATE_SERVICE;
 import static java.util.Objects.requireNonNull;
@@ -52,7 +51,6 @@ import com.swirlds.state.State;
 import com.swirlds.state.spi.CommittableWritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.File;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -60,11 +58,7 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
-import java.util.stream.IntStream;
 import org.assertj.core.api.Assertions;
-import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.model.roster.Address;
-import org.hiero.consensus.model.roster.AddressBook;
 import org.hiero.consensus.roster.RosterUtils;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -146,35 +140,6 @@ class DiskStartupNetworksTest {
     }
 
     @Test
-    void computesFromLegacyAddressBook() {
-        final int n = 3;
-        final var legacyBook = new AddressBook(IntStream.range(0, n)
-                .mapToObj(i -> new Address(
-                        NodeId.of(i),
-                        "" + i,
-                        "node" + (i + 1),
-                        1L,
-                        "localhost",
-                        i + 1,
-                        "127.0.0.1",
-                        i + 2,
-                        null,
-                        null,
-                        "0.0." + (i + 3)))
-                .toList());
-        final var network = fromLegacyAddressBook(
-                legacyBook, HederaTestConfigBuilder.createConfigProvider().getConfiguration());
-        for (int i = 0; i < n; i++) {
-            final var rosterEntry = network.nodeMetadata().get(i).rosterEntryOrThrow();
-            assertThat(rosterEntry.nodeId()).isEqualTo(i);
-            assertThat(rosterEntry.gossipEndpoint().getFirst().ipAddressV4())
-                    .isEqualTo(Bytes.wrap(new byte[] {127, 0, 0, 1}));
-            assertThat(rosterEntry.gossipEndpoint().getLast().domainName()).isEqualTo("localhost");
-            assertThat(network.nodeMetadata().get(i).node().declineReward()).isTrue();
-        }
-    }
-
-    @Test
     void archivesGenesisNetworks() throws IOException {
         givenConfig();
         putJsonAt(GENESIS_NETWORK_JSON);
@@ -220,24 +185,6 @@ class DiskStartupNetworksTest {
         final var archivedGenesisJson =
                 tempDir.resolve(ARCHIVE + File.separator + ROUND_NO + File.separator + OVERRIDE_NETWORK_JSON);
         assertThat(Files.exists(archivedGenesisJson)).isTrue();
-    }
-
-    @Test
-    void archivesConfigTxt() throws IOException {
-        try (final var fin = DiskStartupNetworks.class.getClassLoader().getResourceAsStream("bootstrap/config.txt")) {
-            new FileOutputStream(tempDir.resolve("config.txt").toFile()).write(fin.readAllBytes());
-        }
-        givenConfig(HederaTestConfigBuilder.create().withValue("networkAdmin.configTxtPath", tempDir.toString()));
-
-        final var configTx = tempDir.resolve("config.txt");
-
-        assertThat(Files.exists(configTx)).isTrue();
-
-        subject.archiveStartupNetworks();
-
-        assertThat(Files.exists(configTx)).isFalse();
-        final var archivedConfigTxt = tempDir.resolve(ARCHIVE + File.separator + "config.txt");
-        assertThat(Files.exists(archivedConfigTxt)).isTrue();
     }
 
     @Test

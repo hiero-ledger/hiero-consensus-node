@@ -8,9 +8,9 @@ import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.security.cert.CertificateEncodingException;
+import java.security.cert.X509Certificate;
 import java.util.Objects;
 import java.util.Random;
-import org.hiero.consensus.model.roster.SerializableX509Certificate;
 import org.hiero.consensus.test.fixtures.crypto.PreGeneratedX509Certs;
 
 /**
@@ -23,7 +23,7 @@ public class RandomRosterEntryBuilder {
     private Long weight;
     private Integer port;
     private String hostname;
-    private SerializableX509Certificate sigCert;
+    private X509Certificate sigCert;
 
     private long minimumWeight = 0;
     private long maximumWeight = Long.MAX_VALUE / 1024;
@@ -79,7 +79,7 @@ public class RandomRosterEntryBuilder {
             return RosterEntry.newBuilder()
                     .nodeId(nodeId)
                     .weight(weight)
-                    .gossipCaCertificate(Bytes.wrap(sigCert.getCertificate().getEncoded()))
+                    .gossipCaCertificate(Bytes.wrap(sigCert.getEncoded()))
                     .gossipEndpoint(ServiceEndpoint.newBuilder()
                             .domainName(hostname)
                             .port(port)
@@ -145,7 +145,7 @@ public class RandomRosterEntryBuilder {
      * @return this builder
      */
     @NonNull
-    public RandomRosterEntryBuilder withSigCert(@NonNull final SerializableX509Certificate sigCert) {
+    public RandomRosterEntryBuilder withSigCert(@NonNull final X509Certificate sigCert) {
         this.sigCert = Objects.requireNonNull(sigCert);
         return this;
     }

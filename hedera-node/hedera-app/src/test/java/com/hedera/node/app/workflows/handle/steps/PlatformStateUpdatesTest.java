@@ -365,7 +365,7 @@ public class PlatformStateUpdatesTest implements TransactionFactory {
 
     private Configuration configWith(final boolean createCandidateRoster, final boolean exportCandidateRoster) {
         return HederaTestConfigBuilder.create()
-                .withValue("addressBook.createCandidateRosterOnPrepareUpgrade", "" + createCandidateRoster)
+                .withValue("networkAdmin.createCandidateRosterOnPrepareUpgrade", "" + createCandidateRoster)
                 .withValue("networkAdmin.exportCandidateRoster", "" + exportCandidateRoster)
                 .withValue("networkAdmin.candidateRosterExportFile", "candidate-network.json")
                 .getOrCreateConfig();

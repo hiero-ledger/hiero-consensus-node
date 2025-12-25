@@ -263,7 +263,7 @@ public abstract class AbstractNetwork implements Network {
         try {
             final List<NodeId> nodeIds =
                     IntStream.range(0, count).mapToObj(i -> getNextNodeId()).toList();
-            return CryptoStatic.generateKeysAndCerts(nodeIds, null).entrySet().stream()
+            return CryptoStatic.generateKeysAndCerts(nodeIds).entrySet().stream()
                     .map(e -> doCreateNode(e.getKey(), e.getValue()))
                     .toList();
         } catch (final ExecutionException | InterruptedException | KeyStoreException e) {
@@ -289,7 +289,7 @@ public abstract class AbstractNetwork implements Network {
         try {
             final NodeId nodeId = getNextNodeId();
             final KeysAndCerts keysAndCerts =
-                    CryptoStatic.generateKeysAndCerts(List.of(nodeId), null).get(nodeId);
+                    CryptoStatic.generateKeysAndCerts(List.of(nodeId)).get(nodeId);
             return doCreateInstrumentedNode(nodeId, keysAndCerts);
         } catch (final ExecutionException | InterruptedException | KeyStoreException e) {
             throw new RuntimeException("Exception while generating KeysAndCerts", e);

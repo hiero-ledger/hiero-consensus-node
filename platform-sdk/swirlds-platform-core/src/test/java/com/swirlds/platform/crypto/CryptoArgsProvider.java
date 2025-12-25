@@ -2,6 +2,8 @@
 package com.swirlds.platform.crypto;
 
 import com.hedera.hapi.node.state.roster.Roster;
+import com.hedera.hapi.node.state.roster.RosterEntry;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.test.fixtures.Randotron;
 import com.swirlds.common.test.fixtures.WeightGenerators;
 import com.swirlds.common.test.fixtures.io.ResourceLoader;
@@ -15,15 +17,16 @@ import java.nio.file.Path;
 import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
 import java.security.NoSuchProviderException;
-import java.time.Instant;
+import java.security.cert.CertificateEncodingException;
+import java.util.ArrayList;
 import java.util.Map;
+import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.hiero.base.crypto.config.CryptoConfig;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.model.roster.AddressBook;
-import org.hiero.consensus.roster.RosterRetriever;
-import org.hiero.consensus.roster.RosterUtils;
 import org.junit.jupiter.params.provider.Arguments;
 
 /**
@@ -37,36 +40,19 @@ public class CryptoArgsProvider {
      * @return 2 sets of arguments, 1 generated, 1 loaded from files.
      */
     static Stream<Arguments> basicTestArgs() throws Exception {
-        Instant start = Instant.now();
-        final RosterAndCerts rosterAndCerts = loadAddressBookWithKeys(NUMBER_OF_ADDRESSES);
-        start = Instant.now();
-        final AddressBook genAB = createAddressBook(NUMBER_OF_ADDRESSES);
-        final Map<NodeId, KeysAndCerts> genC = CryptoStatic.generateKeysAndCerts(genAB);
-        start = Instant.now();
+        final RosterAndCerts rosterAndCerts = genRosterLoadKeys(NUMBER_OF_ADDRESSES);
+        final RandomRosterBuilder rosterBuilder = RandomRosterBuilder.create(Randotron.create())
+                .withSize(NUMBER_OF_ADDRESSES)
+                .withRealKeysEnabled(true)
+                .withWeightGenerator(WeightGenerators.BALANCED_1000_PER_NODE);
+        final Roster genRoster = rosterBuilder.build();
+        final Map<NodeId, KeysAndCerts> genKac = genRoster.rosterEntries().stream()
+                .map(RosterEntry::nodeId)
+                .map(NodeId::of)
+                .collect(Collectors.toMap(Function.identity(), rosterBuilder::getPrivateKeys));
         return Stream.of(
                 Arguments.of(rosterAndCerts.roster(), rosterAndCerts.nodeIdKeysAndCertsMap()),
-                Arguments.of(RosterRetriever.buildRoster(genAB), genC));
-    }
-
-    public static AddressBook createAddressBook(final int size) {
-        final Roster roster = RandomRosterBuilder.create(Randotron.create())
-                .withSize(size)
-                .withWeightGenerator(WeightGenerators.BALANCED_1000_PER_NODE)
-                .build();
-
-        // We still use the keys injection mechanism from the EnhancedKeyStoreLoader and CryptoStatic,
-        // so we use an AddressBook here.
-        AddressBook addresses = RosterUtils.buildAddressBook(roster);
-
-        for (int i = 0; i < addresses.getSize(); i++) {
-            final NodeId nodeId = addresses.getNodeId(i);
-            addresses.add(addresses
-                    .getAddress(nodeId)
-                    .copySetSelfName(RosterUtils.formatNodeName(nodeId.id()))
-                    .copySetHostnameInternal("127.0.0.1"));
-        }
-
-        return addresses;
+                Arguments.of(genRoster, genKac));
     }
 
     private static Configuration configure(final Path keyDirectory) {
@@ -81,24 +67,36 @@ public class CryptoArgsProvider {
     }
 
     /**
-     * returns a record with the addressBook and keys loaded from file.
+     * Creates a roster with keys loaded from pre-generated PEM files.
      *
-     * @param size the size of the required address book
+     * @param size the size of the required roster
      */
     @NonNull
-    public static RosterAndCerts loadAddressBookWithKeys(final int size)
+    public static RosterAndCerts genRosterLoadKeys(final int size)
             throws URISyntaxException, KeyLoadingException, KeyStoreException, NoSuchAlgorithmException,
-                    KeyGeneratingException, NoSuchProviderException {
-        final AddressBook createdAB = createAddressBook(size);
+                    KeyGeneratingException, NoSuchProviderException, CertificateEncodingException {
+        final Roster createdAB = RandomRosterBuilder.create(Randotron.create())
+                .withSize(size)
+                .withRealKeysEnabled(false)
+                .withWeightGenerator(WeightGenerators.BALANCED_1000_PER_NODE)
+                .build();
+        final Set<NodeId> nodeIds = createdAB.rosterEntries().stream()
+                .map(r -> NodeId.of(r.nodeId()))
+                .collect(Collectors.toSet());
         final Map<NodeId, KeysAndCerts> loadedC = EnhancedKeyStoreLoader.using(
-                        createdAB,
-                        configure(ResourceLoader.getFile("preGeneratedPEMKeysAndCerts/")),
-                        createdAB.getNodeIdSet())
+                        configure(ResourceLoader.getFile("preGeneratedPEMKeysAndCerts/")), nodeIds)
                 .scan()
                 .generate()
                 .verify()
-                .injectInAddressBook()
                 .keysAndCerts();
-        return new RosterAndCerts(RosterRetriever.buildRoster(createdAB), loadedC);
+        final ArrayList<RosterEntry> rosterEntries = new ArrayList<>();
+        for (final RosterEntry entry : createdAB.rosterEntries()) {
+            final RosterEntry newOne = entry.copyBuilder()
+                    .gossipCaCertificate(Bytes.wrap(
+                            loadedC.get(NodeId.of(entry.nodeId())).sigCert().getEncoded()))
+                    .build();
+            rosterEntries.add(newOne);
+        }
+        return new RosterAndCerts(new Roster(rosterEntries), loadedC);
     }
 }

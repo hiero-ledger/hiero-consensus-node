@@ -8,8 +8,8 @@ import static com.hedera.services.bdd.junit.hedera.embedded.EmbeddedMode.REPEATA
 import static com.hedera.services.bdd.junit.hedera.subprocess.ConditionStatus.PENDING;
 import static com.hedera.services.bdd.junit.hedera.subprocess.ConditionStatus.REACHED;
 import static com.hedera.services.bdd.junit.hedera.subprocess.ProcessUtils.conditionFuture;
-import static com.hedera.services.bdd.junit.hedera.utils.AddressBookUtils.classicMetadataFor;
-import static com.hedera.services.bdd.junit.hedera.utils.AddressBookUtils.configTxtForLocal;
+import static com.hedera.services.bdd.junit.hedera.utils.NetworkUtils.classicMetadataFor;
+import static com.hedera.services.bdd.junit.hedera.utils.NetworkUtils.generateNetworkConfig;
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.updateBootstrapProperties;
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.workingDirFor;
 import static com.hedera.services.bdd.spec.HapiPropertySource.getConfigRealm;
@@ -21,6 +21,7 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.state.blockrecords.RunningHashes;
 import com.hedera.node.app.fixtures.state.FakeState;
 import com.hedera.node.app.records.BlockRecordService;
+import com.hedera.node.internal.network.Network;
 import com.hedera.services.bdd.junit.hedera.AbstractNetwork;
 import com.hedera.services.bdd.junit.hedera.HederaNetwork;
 import com.hedera.services.bdd.junit.hedera.HederaNode;
@@ -56,7 +57,7 @@ public class EmbeddedNetwork extends AbstractNetwork {
     private static final String REPEATABLE_NAME = REPEATABLE_WORKING_DIR.toUpperCase();
     private static final PrometheusClient PROMETHEUS_CLIENT = new PrometheusClient();
 
-    private final String configTxt;
+    private final Network network;
     private final EmbeddedMode mode;
     private final EmbeddedNode embeddedNode;
     private final long shard;
@@ -106,7 +107,7 @@ public class EmbeddedNetwork extends AbstractNetwork {
         // for a "classic" HapiTest network with 4 nodes so that tests can still
         // submit transactions with different creator accounts; c.f. EmbeddedHedera,
         // which skips ingest and directly submits transactions for other nodes
-        this.configTxt = configTxtForLocal(name(), nodes(), 1, 1);
+        this.network = generateNetworkConfig(nodes(), 1, 1);
     }
 
     /**
@@ -217,7 +218,7 @@ public class EmbeddedNetwork extends AbstractNetwork {
     private void startVia(
             @NonNull final Consumer<EmbeddedHedera> start, @NonNull final Map<String, String> bootstrapOverrides) {
         // Initialize the working directory
-        embeddedNode.initWorkingDir(configTxt);
+        embeddedNode.initWorkingDir(network);
         if (!bootstrapOverrides.isEmpty()) {
             updateBootstrapProperties(embeddedNode.getExternalPath(APPLICATION_PROPERTIES), bootstrapOverrides);
         }

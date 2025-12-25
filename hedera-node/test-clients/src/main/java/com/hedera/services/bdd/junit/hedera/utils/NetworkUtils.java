@@ -1,14 +1,17 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.junit.hedera.utils;
 
+import static com.hedera.node.app.hapi.utils.CommonPbjConverters.fromByteString;
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.workingDirFor;
+import static com.hedera.services.bdd.suites.utils.sysfiles.BookEntryPojo.asOctets;
 import static java.util.Objects.requireNonNull;
-import static java.util.stream.Collectors.toMap;
 
 import com.google.protobuf.ByteString;
 import com.hedera.hapi.node.base.AccountID;
+import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.node.state.roster.RosterEntry;
+import com.hedera.node.internal.network.Network;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.hedera.HederaNode;
 import com.hedera.services.bdd.junit.hedera.NodeMetadata;
@@ -17,128 +20,118 @@ import com.swirlds.platform.crypto.CryptoStatic;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.file.Path;
+import java.security.KeyStoreException;
 import java.security.cert.CertificateEncodingException;
-import java.text.ParseException;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
+import java.util.concurrent.ExecutionException;
 import java.util.regex.Pattern;
-import java.util.stream.IntStream;
 import java.util.stream.Stream;
-import org.hiero.consensus.model.roster.AddressBook;
+import org.hiero.consensus.model.node.KeysAndCerts;
+import org.hiero.consensus.model.node.NodeId;
 
 /**
  * Utility class for generating an address book configuration file.
  */
-public class AddressBookUtils {
+public class NetworkUtils {
     public static final long CLASSIC_FIRST_NODE_ACCOUNT_NUM = 3;
     public static final String[] CLASSIC_NODE_NAMES =
             new String[] {"node1", "node2", "node3", "node4", "node5", "node6", "node7", "node8"};
+    private static final Key CLASSIC_ADMIN_KEY = Key.newBuilder()
+            .ed25519(Bytes.fromHex("0aa8e21064c61eab86e2a9c164565b4e7a9a4146106e0a6cd03a8c395a110e92"))
+            .build();
 
-    private AddressBookUtils() {
+    private NetworkUtils() {
         throw new UnsupportedOperationException("Utility Class");
     }
 
     /**
-     * Given a config.txt file, generates the same map of node ids to ASN.1 DER encodings of X.509 certificates
-     * as will be produced in a test network.
-     * @param configTxt the contents of a config.txt file
-     * @return the map of node IDs to their cert encodings
-     */
-    public static Map<Long, Bytes> certsFor(@NonNull final String configTxt) {
-        final AddressBook synthBook;
-        try {
-            synthBook = com.swirlds.platform.system.address.AddressBookUtils.parseAddressBookText(configTxt);
-        } catch (ParseException e) {
-            throw new IllegalArgumentException(e);
-        }
-        try {
-            CryptoStatic.generateKeysAndCerts(synthBook);
-        } catch (Exception e) {
-            throw new IllegalStateException("Error generating keys and certs", e);
-        }
-        return IntStream.range(0, synthBook.getSize())
-                .boxed()
-                .collect(toMap(j -> synthBook.getNodeId(j).id(), j -> {
-                    try {
-                        return Bytes.wrap(requireNonNull(synthBook
-                                        .getAddress(synthBook.getNodeId(j))
-                                        .getSigCert())
-                                .getEncoded());
-                    } catch (CertificateEncodingException e) {
-                        throw new IllegalStateException(e);
-                    }
-                }));
-    }
-
-    /**
-     * Returns the contents of a <i>config.txt</i> file for the given network.
+     * Creates a network instance from the provided parameters.
      *
-     * @param networkName the name of the network
      * @param nodes the nodes in the network
      * @param nextInternalGossipPort the next gossip port to use
      * @param nextExternalGossipPort the next gossip TLS port to use
      * @return the contents of the <i>config.txt</i> file
      */
-    public static String configTxtForLocal(
-            @NonNull final String networkName,
-            @NonNull final List<HederaNode> nodes,
-            final int nextInternalGossipPort,
-            final int nextExternalGossipPort) {
-        return configTxtForLocal(networkName, nodes, nextInternalGossipPort, nextExternalGossipPort, Map.of());
+    public static Network generateNetworkConfig(
+            @NonNull final List<HederaNode> nodes, final int nextInternalGossipPort, final int nextExternalGossipPort) {
+        return generateNetworkConfig(nodes, nextInternalGossipPort, nextExternalGossipPort, Map.of());
     }
 
     /**
-     * Returns the contents of a <i>config.txt</i> file for the given network, with the option to override the
+     * Creates a network instance from the provided parameters, with the option to override the
      * weights of the nodes.
-     * @param networkName the name of the network
      * @param nodes the nodes in the network
      * @param nextInternalGossipPort the next gossip port to use
      * @param nextExternalGossipPort the next gossip TLS port to use
      * @param overrideWeights the map of node IDs to their weights
      * @return the contents of the <i>config.txt</i> file
      */
-    public static String configTxtForLocal(
-            @NonNull final String networkName,
+    public static Network generateNetworkConfig(
             @NonNull final List<HederaNode> nodes,
             final int nextInternalGossipPort,
             final int nextExternalGossipPort,
             @NonNull final Map<Long, Long> overrideWeights) {
-        final var sb = new StringBuilder();
-        sb.append("swirld, ")
-                .append(networkName)
-                .append("\n")
-                .append("\n# This next line is, hopefully, ignored.\n")
-                .append("app, HederaNode.jar\n\n#The following nodes make up this network\n");
-        var maxNodeId = 0L;
-        for (final var node : nodes) {
-            final var accountId = node.getAccountId();
-            final var fqAccId =
-                    String.format("%d.%d.%d", accountId.shardNum(), accountId.realmNum(), accountId.accountNum());
-            sb.append("address, ")
-                    .append(node.getNodeId())
-                    .append(", ")
-                    // For now only use the node id as its nickname
-                    .append(node.getNodeId())
-                    .append(", ")
-                    .append(node.getName())
-                    .append(", ")
-                    .append(overrideWeights.getOrDefault(node.getNodeId(), 1L))
-                    .append(", 127.0.0.1, ")
-                    .append(nextInternalGossipPort + (node.getNodeId() * 2))
-                    .append(", 127.0.0.1, ")
-                    .append(nextExternalGossipPort + (node.getNodeId() * 2))
-                    .append(", ")
-                    .append(fqAccId)
-                    .append('\n');
-            maxNodeId = Math.max(node.getNodeId(), maxNodeId);
+        final List<com.hedera.node.internal.network.NodeMetadata> metadata = new ArrayList<>();
+
+        final Map<Long, Bytes> certsMap = new HashMap<>();
+        try {
+            final Map<NodeId, KeysAndCerts> kacMap = CryptoStatic.generateKeysAndCerts(
+                    nodes.stream().map(HederaNode::getNodeId).map(NodeId::of).toList());
+            for (final Entry<NodeId, KeysAndCerts> entry : kacMap.entrySet()) {
+                certsMap.put(
+                        entry.getKey().id(),
+                        Bytes.wrap(entry.getValue().sigCert().getEncoded()));
+            }
+        } catch (final ExecutionException | InterruptedException | KeyStoreException | CertificateEncodingException e) {
+            throw new IllegalStateException("Error generating keys and certs", e);
         }
-        sb.append('\n');
-        return sb.toString();
+
+        for (final var hNode : nodes) {
+            final Bytes localhost = fromByteString(asOctets("127.0.0.1"));
+            final Bytes cert = certsMap.get(hNode.getNodeId());
+            final var rosterEntry = RosterEntry.newBuilder()
+                    .nodeId(hNode.getNodeId())
+                    .weight(overrideWeights.getOrDefault(hNode.getNodeId(), 1L))
+                    .gossipCaCertificate(cert)
+                    .gossipEndpoint(List.of(
+                            com.hedera.hapi.node.base.ServiceEndpoint.newBuilder()
+                                    .ipAddressV4(localhost)
+                                    .port(nextInternalGossipPort + ((int) hNode.getNodeId() * 2))
+                                    .build(),
+                            com.hedera.hapi.node.base.ServiceEndpoint.newBuilder()
+                                    .ipAddressV4(localhost)
+                                    .port(nextExternalGossipPort + ((int) hNode.getNodeId() * 2))
+                                    .build()))
+                    .build();
+            final var node = com.hedera.hapi.node.state.addressbook.Node.newBuilder()
+                    .nodeId(hNode.getNodeId())
+                    .accountId(hNode.getAccountId())
+                    .description("node" + (hNode.getNodeId() + 1))
+                    .gossipEndpoint(rosterEntry.gossipEndpoint())
+                    .serviceEndpoint(rosterEntry.gossipEndpoint().getFirst())
+                    .gossipCaCertificate(cert)
+                    // The gRPC certificate hash is irrelevant for PR checks
+                    .grpcCertificateHash(Bytes.EMPTY)
+                    .weight(rosterEntry.weight())
+                    .deleted(false)
+                    .adminKey(CLASSIC_ADMIN_KEY)
+                    .declineReward(false)
+                    .build();
+            metadata.add(com.hedera.node.internal.network.NodeMetadata.newBuilder()
+                    .rosterEntry(rosterEntry)
+                    .node(node)
+                    .build());
+        }
+        return Network.newBuilder().ledgerId(Bytes.EMPTY).nodeMetadata(metadata).build();
     }
 
     /**
      * Returns the "classic" metadata for a node in the network, matching the names
-     * used by {@link #configTxtForLocal(String, List, int, int)} to generate the
+     * used by {@link #generateNetworkConfig(List, int, int)} to generate the
      * <i>config.txt</i> file. The working directory is inferred from the node id
      * and the network scope.
      *
@@ -184,7 +177,7 @@ public class AddressBookUtils {
 
     /**
      * Returns the "classic" metadata for a node in the network, matching the names
-     * used by {@link #configTxtForLocal(String, List, int, int)} to generate the
+     * used by {@link #generateNetworkConfig(List, int, int)} to generate the
      * <i>config.txt</i> file.
      *
      * @param nodeId the ID of the node

@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.cli;
 
-import static com.swirlds.platform.builder.PlatformBuildConstants.DEFAULT_CONFIG_FILE_NAME;
 import static com.swirlds.platform.builder.PlatformBuildConstants.DEFAULT_SETTINGS_FILE_NAME;
 
 import com.swirlds.cli.PlatformCli;
@@ -11,12 +10,10 @@ import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.io.utility.FileUtils;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
-import com.swirlds.platform.config.AddressBookConfig;
 import com.swirlds.platform.config.DefaultConfiguration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.nio.file.Path;
-import java.util.List;
 import java.util.Objects;
 import org.hiero.consensus.config.EventConfig;
 import picocli.CommandLine;
@@ -55,9 +52,7 @@ public final class CleanCommand extends AbstractCommand {
         Objects.requireNonNull(sdkPath);
 
         final Configuration configuration = DefaultConfiguration.buildBasicConfiguration(
-                ConfigurationBuilder.create(),
-                sdkPath.resolve(DEFAULT_SETTINGS_FILE_NAME),
-                List.of(sdkPath.resolve(DEFAULT_CONFIG_FILE_NAME)));
+                ConfigurationBuilder.create(), sdkPath.resolve(DEFAULT_SETTINGS_FILE_NAME));
 
         // delete all logs
         FileUtils.deleteFiles(sdkPath, ".log");
@@ -67,9 +62,6 @@ public final class CleanCommand extends AbstractCommand {
         FileUtils.deleteFiles(sdkPath, "metricsDoc.tsv");
         // settings used
         FileUtils.deleteFiles(sdkPath, "settingsUsed.txt");
-        // address books
-        FileUtils.deleteDirectory(sdkPath.resolve(
-                configuration.getConfigData(AddressBookConfig.class).addressBookDirectory()));
         // saved states, PCES & recycle bin
         // (the latter two are saved in the saved state directory, so deleting the saved state directory will delete
         // them)
