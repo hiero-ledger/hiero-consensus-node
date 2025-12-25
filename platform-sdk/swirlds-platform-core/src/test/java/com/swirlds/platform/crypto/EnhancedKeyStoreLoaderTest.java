@@ -75,19 +75,14 @@ class EnhancedKeyStoreLoaderTest {
     void validateTestDataDirectory() {
         assertThat(testDataDirectory).exists().isDirectory().isReadable();
         assertThat(testDataDirectory.resolve("legacy-valid")).exists().isNotEmptyDirectory();
-        assertThat(testDataDirectory.resolve("legacy-invalid-case-2")).exists().isNotEmptyDirectory();
+        assertThat(testDataDirectory.resolve("legacy-invalid-case")).exists().isNotEmptyDirectory();
         assertThat(testDataDirectory.resolve("hybrid-valid")).exists().isNotEmptyDirectory();
-        assertThat(testDataDirectory.resolve("hybrid-invalid-case-2")).exists().isNotEmptyDirectory();
+        assertThat(testDataDirectory.resolve("hybrid-invalid-case")).exists().isNotEmptyDirectory();
         assertThat(testDataDirectory.resolve("enhanced-valid")).exists().isNotEmptyDirectory();
         assertThat(testDataDirectory.resolve("enhanced-valid-no-agreement-key"))
                 .exists()
                 .isNotEmptyDirectory();
-        assertThat(testDataDirectory.resolve("enhanced-invalid-case-2"))
-                .exists()
-                .isNotEmptyDirectory();
-        assertThat(testDataDirectory.resolve("legacy-valid").resolve("public.pfx"))
-                .exists()
-                .isNotEmptyFile();
+        assertThat(testDataDirectory.resolve("enhanced-invalid-case")).exists().isNotEmptyDirectory();
         assertThat(testDataDirectory.resolve("config.txt")).exists().isNotEmptyFile();
         assertThat(testDataDirectory.resolve("settings.txt")).exists().isNotEmptyFile();
     }
@@ -142,15 +137,15 @@ class EnhancedKeyStoreLoaderTest {
     }
 
     /**
-     * The Negative Type 2 tests are designed to test the case where the key store loader is able to scan the key
+     * The Negative Type tests are designed to test the case where the key store loader is able to scan the key
      * directory, but one or more private keys are either corrupt or missing.
      *
      * @param directoryName the directory name containing the test data being used to cover a given test case.
      * @throws IOException if an I/O error occurs during test setup.
      */
     @ParameterizedTest
-    @DisplayName("KeyStore Loader Negative Type 2 Test")
-    @ValueSource(strings = {"legacy-invalid-case-2", "hybrid-invalid-case-2", "enhanced-invalid-case-2"})
+    @DisplayName("KeyStore Loader Negative Type Test")
+    @ValueSource(strings = {"legacy-invalid-case", "hybrid-invalid-case", "enhanced-invalid-case"})
     void keyStoreLoaderNegativeCase2Test(final String directoryName) throws IOException {
         final Path keyDirectory = testDataDirectory.resolve(directoryName);
         final List<RosterEntry> rosterEntries =
