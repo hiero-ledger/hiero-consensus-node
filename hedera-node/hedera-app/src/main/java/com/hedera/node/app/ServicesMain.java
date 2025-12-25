@@ -24,6 +24,7 @@ import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStati
 import com.google.common.annotations.VisibleForTesting;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.SemanticVersion;
+import com.hedera.hapi.node.state.roster.RosterEntry;
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.hedera.node.app.hints.impl.HintsLibraryImpl;
 import com.hedera.node.app.hints.impl.HintsServiceImpl;
@@ -37,6 +38,7 @@ import com.hedera.node.app.service.entityid.impl.ReadableEntityIdStoreImpl;
 import com.hedera.node.app.services.OrderedServiceMigrator;
 import com.hedera.node.app.services.ServicesRegistryImpl;
 import com.hedera.node.app.state.ConsensusStateEventHandlerImpl;
+import com.hedera.node.app.store.ReadableStoreFactory;
 import com.hedera.node.app.tss.TssBlockHashSigner;
 import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.internal.network.Network;
@@ -82,6 +84,7 @@ import org.hiero.base.constructable.RuntimeConstructable;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.model.transaction.TimestampedTransaction;
+import org.hiero.consensus.roster.ReadableRosterStore;
 import org.hiero.consensus.roster.RosterStateUtils;
 import org.hiero.consensus.transaction.TransactionLimits;
 
@@ -321,6 +324,8 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
         final var recycleBin =
                 RecycleBin.create(metrics, platformConfig, getStaticThreadManager(), time, fileSystemManager, selfId);
         ConsensusStateEventHandler<MerkleNodeState> consensusStateEventHandler = hedera.newConsensusStateEvenHandler();
+
+        // --- Create the platform context and initialize the cryptography ---
         final PlatformContext platformContext = PlatformContext.create(
                 platformConfig, Time.getCurrent(), metrics, fileSystemManager, recycleBin, merkleCryptography);
         final HashedReservedSignedState reservedState = loadInitialState(
@@ -344,10 +349,10 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
         }
         hedera.setInitialStateHash(reservedState.hash());
 
-        // --- Create the platform context and initialize the cryptography ---
-        final var rosterHistory = RosterStateUtils.createRosterHistory(state);
-
-        final var keysAndCerts = initNodeSecurity(platformConfig, selfId);
+        final ReadableRosterStore rosterStore = new ReadableStoreFactory(state).getStore(ReadableRosterStore.class);
+        final List<RosterEntry> rosterEntries =
+                requireNonNull(rosterStore.getActiveRoster()).rosterEntries();
+        final var keysAndCerts = initNodeSecurity(platformConfig, selfId, rosterEntries);
 
         final String consensusEventStreamName = genesisNetwork.get()
                 // If at genesis, base the event stream location on the genesis network metadata
@@ -363,7 +368,7 @@ public class ServicesMain implements SwirldMain<MerkleNodeState> {
                         consensusStateEventHandler,
                         selfId,
                         consensusEventStreamName,
-                        rosterHistory,
+                        RosterStateUtils.createRosterHistory(state),
                         hedera.getStateLifecycleManager())
                 .withPlatformContext(platformContext)
                 .withConfiguration(platformConfig)
