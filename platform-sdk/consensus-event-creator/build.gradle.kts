@@ -6,4 +6,7 @@ plugins {
 
 description = "Consensus Event Creator API"
 
-mainModuleInfo { annotationProcessor("com.swirlds.config.processor") }
+mainModuleInfo {
+    annotationProcessor("com.swirlds.config.processor")
+    annotationProcessor("com.google.auto.service.processor")
+}

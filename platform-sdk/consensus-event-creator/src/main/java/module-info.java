@@ -1,4 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
+import com.swirlds.config.api.ConfigurationExtension;
+import org.hiero.consensus.event.creator.config.EventCreatorConfigurationExtension;
+
 module org.hiero.consensus.event.creator {
     exports org.hiero.consensus.event.creator;
     exports org.hiero.consensus.event.creator.config;
@@ -10,4 +13,7 @@ module org.hiero.consensus.event.creator {
     requires transitive com.swirlds.metrics.api;
     requires transitive org.hiero.consensus.model;
     requires static transitive com.github.spotbugs.annotations;
+
+    provides ConfigurationExtension with
+            EventCreatorConfigurationExtension;
 }

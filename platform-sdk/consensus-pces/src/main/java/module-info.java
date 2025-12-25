@@ -1,4 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
+import com.swirlds.config.api.ConfigurationExtension;
+import org.hiero.consensus.pces.PcesConfigurationExtension;
+
 module org.hiero.consensus.pces {
     exports org.hiero.consensus.pces;
 
@@ -15,4 +18,7 @@ module org.hiero.consensus.pces {
     requires org.hiero.base.utility;
     requires org.apache.logging.log4j;
     requires static transitive com.github.spotbugs.annotations;
+
+    provides ConfigurationExtension with
+            PcesConfigurationExtension;
 }
