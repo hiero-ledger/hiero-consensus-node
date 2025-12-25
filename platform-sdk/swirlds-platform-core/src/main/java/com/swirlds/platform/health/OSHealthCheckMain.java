@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.health;
 
-import static com.swirlds.platform.cli.HealthCheckCommand.printOSClockSpeedReport;
-import static com.swirlds.platform.cli.HealthCheckCommand.printOSEntropyReport;
-import static com.swirlds.platform.cli.HealthCheckCommand.printOSFileSystemReport;
+import static com.swirlds.platform.health.filesystem.OSFileSystemCheck.printReport;
 
+import com.swirlds.platform.health.clock.OSClockSourceSpeedCheck;
+import com.swirlds.platform.health.entropy.OSEntropyCheck;
 import java.nio.file.Path;
 
 /**
@@ -19,10 +19,10 @@ public final class OSHealthCheckMain {
      */
     public static void main(final String[] args) {
         System.out.println("OBSOLETE! Please use pcli.sh health-check instead");
-        printOSClockSpeedReport();
-        printOSEntropyReport();
+        OSClockSourceSpeedCheck.printReport();
+        OSEntropyCheck.printReport();
         if (args.length > 0) {
-            printOSFileSystemReport(Path.of(args[0]));
+            printReport(Path.of(args[0]));
         }
     }
 }

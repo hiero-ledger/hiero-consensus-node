@@ -20,6 +20,7 @@ mainModuleInfo {
     runtimeOnly("io.helidon.webclient.http2")
     runtimeOnly("com.hedera.pbj.grpc.client.helidon")
     runtimeOnly("com.hedera.pbj.grpc.helidon")
+    runtimeOnly("org.hiero.consensus.pcli")
 }
 
 testModuleInfo {

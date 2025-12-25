@@ -3,6 +3,7 @@ package com.swirlds.platform.health.filesystem;
 
 import static com.swirlds.platform.health.OSHealthCheckUtils.timeSupplier;
 
+import com.swirlds.base.units.UnitConstants;
 import com.swirlds.common.io.extendable.ExtendableInputStream;
 import com.swirlds.common.io.extendable.extensions.CountingStreamExtension;
 import com.swirlds.platform.health.OSHealthCheckUtils;
@@ -96,6 +97,33 @@ public final class OSFileSystemCheck {
         final long elapsedNanos = result.duration().toNanos();
         final Byte byteRead = result.result();
         return Report.success(elapsedNanos, byteRead);
+    }
+
+    public static double printReport(final Path fileToRead) {
+        try {
+            final Report report = execute(fileToRead);
+            if (report.code() == TestResultCode.SUCCESS) {
+                final double elapsedMillis = report.readNanos() * UnitConstants.NANOSECONDS_TO_MILLISECONDS;
+                System.out.printf(
+                        "File system check, took %d nanos (%s millis) "
+                                + "to open the file and read 1 byte (data=%s)%n",
+                        report.readNanos(), elapsedMillis, report.data());
+                return elapsedMillis;
+            } else {
+                if (report.exception() == null) {
+                    System.out.printf("File system check failed. Reason: %s%n", report.code());
+                } else {
+                    System.out.printf(
+                            "File system check failed with exception. Reason: %s%n%s%n",
+                            report.code(), report.exception());
+                }
+                return Double.POSITIVE_INFINITY;
+            }
+        } catch (InterruptedException e) {
+            System.out.println("Thread interrupted while checking the file system");
+            Thread.currentThread().interrupt();
+            throw new RuntimeException(e);
+        }
     }
 
     /**

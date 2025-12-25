@@ -3,6 +3,7 @@ package com.swirlds.platform.health.entropy;
 
 import static com.swirlds.platform.health.OSHealthCheckUtils.timeSupplier;
 
+import com.swirlds.base.units.UnitConstants;
 import com.swirlds.platform.health.OSHealthCheckUtils;
 import java.security.NoSuchAlgorithmException;
 import java.security.NoSuchProviderException;
@@ -90,6 +91,26 @@ public final class OSEntropyCheck {
             final long elapsedNanos = result.duration().toNanos();
             final Long randomLong = result.result();
             return Report.success(entropySource.description(), elapsedNanos, randomLong);
+        }
+    }
+
+    public static double printReport() {
+        try {
+            final Report randomSpeed = execute();
+            if (randomSpeed.success()) {
+                final double elapsedMillis = randomSpeed.elapsedNanos() * UnitConstants.NANOSECONDS_TO_MILLISECONDS;
+                System.out.printf(
+                        "First random number generation time: %d nanos (%s millis), generated long=%d%n",
+                        randomSpeed.elapsedNanos(), elapsedMillis, randomSpeed.randomLong());
+                return elapsedMillis;
+            } else {
+                System.out.println("Random number generation check failed due to timeout");
+                return Double.POSITIVE_INFINITY;
+            }
+        } catch (InterruptedException e) {
+            System.out.println("Thread interrupted while measuring the random number generation speed");
+            Thread.currentThread().interrupt();
+            throw new RuntimeException(e);
         }
     }
 
