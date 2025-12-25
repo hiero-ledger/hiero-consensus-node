@@ -110,18 +110,6 @@ message BlockProof {
     uint64 block = 1;
 
     /**
-     * The hinTS key that this signature verifies under; a stream consumer should
-     * only use this key after first checking the chain of trust proof.
-     */
-    bytes verification_key = 2;
-
-    /**
-     * Proof the hinTS verification key is in the chain of trust extending
-     * from the network's ledger id.
-     */
-    ChainOfTrustProof verification_key_proof = 3;
-
-    /**
      * The proof contents verifying the block's merkle root hash.<br/>
      * This is a `oneof` field that MAY contain one several types of
      * proofs.
@@ -135,7 +123,7 @@ message BlockProof {
          * used when the current block is signed directly by the consensus
          * nodes with a TSS signature; otherwise it MUST be empty.
          */
-        TssSignedBlockProof signed_block_proof = 4;
+        TssSignedBlockProof signed_block_proof = 2;
 
         /**
          * A proof of the block merkle tree's contents. This proof SHALL
@@ -170,7 +158,7 @@ message BlockProof {
          * "secondary" root hash MUST then be verified using the value of
          * `block_signature`.
          */
-        StateProof block_state_proof = 5;
+        StateProof block_state_proof = 3;
 
         /**
          * A proof consisting of RSA signatures from consensus nodes.<br/>
@@ -180,7 +168,15 @@ message BlockProof {
          * individual RSA signatures from consensus nodes; otherwise it MUST be
          * empty.
          */
-        SignedRecordFileProof signed_record_file_proof = 6;
+        SignedRecordFileProof signed_record_file_proof = 4;
+
+        /**
+         * If there is not yet a SNARK proving the chain of trust from ledger id to
+         * the hinTS verification key, an aggregation of Schnorr signatures on
+         * the concatenation of the ledger id and genesis hinTS verification key
+         * that serve as witnesses for the SNARK prover algorithm.
+         */
+        AggregatedNodeSignatures aggregated_node_signatures = 5;
     }
 }
 
