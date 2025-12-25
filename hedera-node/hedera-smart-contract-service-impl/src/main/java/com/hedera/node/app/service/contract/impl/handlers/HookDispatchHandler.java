@@ -89,7 +89,8 @@ public class HookDispatchHandler extends AbstractContractTransactionHandler impl
                 if (details.hasAdminKey()) {
                     context.attributeValidator().validateKey(details.adminKeyOrThrow(), INVALID_HOOK_ADMIN_KEY);
                 }
-                final var updatedSlots = evmHookStore.createEvmHook(op.creationOrThrow(), hooksConfig.maxNumber());
+                final var updatedSlots =
+                        evmHookStore.createEvmHook(op.creationOrThrow(), hooksConfig.maxNumberOfHooks());
                 recordBuilder.setDeltaStorageSlotsUpdated(updatedSlots);
             }
             case HOOK_ID_TO_DELETE -> {

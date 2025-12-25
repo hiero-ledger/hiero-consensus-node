@@ -229,7 +229,7 @@
   "AtomicBatch": {
     "DEFAULT": 0.001
   },
-  "LambdaSStore": {
+  "HookStore": {
     "DEFAULT": 0.0001
   }
 }

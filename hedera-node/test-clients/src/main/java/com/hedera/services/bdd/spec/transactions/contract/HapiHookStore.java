@@ -5,15 +5,15 @@ import static com.hedera.node.app.hapi.utils.CommonPbjConverters.pbjToProto;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.asContractId;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.asId;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
-import static com.hederahashgraph.api.proto.java.HederaFunctionality.LambdaSStore;
+import static com.hederahashgraph.api.proto.java.HederaFunctionality.HookStore;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.HookEntityId;
-import com.hedera.hapi.node.hooks.LambdaMappingEntries;
-import com.hedera.hapi.node.hooks.LambdaMappingEntry;
-import com.hedera.hapi.node.hooks.LambdaStorageSlot;
-import com.hedera.hapi.node.hooks.LambdaStorageUpdate;
-import com.hedera.hapi.node.hooks.legacy.LambdaSStoreTransactionBody;
+import com.hedera.hapi.node.hooks.EvmHookMappingEntries;
+import com.hedera.hapi.node.hooks.EvmHookMappingEntry;
+import com.hedera.hapi.node.hooks.EvmHookStorageSlot;
+import com.hedera.hapi.node.hooks.EvmHookStorageUpdate;
+import com.hedera.hapi.node.hooks.legacy.HookStoreTransactionBody;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.transactions.HapiTxnOp;
@@ -29,8 +29,8 @@ import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
-public class HapiLambdaSStore extends HapiTxnOp<HapiLambdaSStore> {
-    private List<LambdaStorageUpdate> updates = new ArrayList<>();
+public class HapiHookStore extends HapiTxnOp<HapiHookStore> {
+    private List<EvmHookStorageUpdate> updates = new ArrayList<>();
 
     @NonNull
     private final HookEntityId.EntityIdOneOfType ownerType;
@@ -42,20 +42,20 @@ public class HapiLambdaSStore extends HapiTxnOp<HapiLambdaSStore> {
 
     private boolean omitEntityId = false;
 
-    public HapiLambdaSStore omittingEntityId() {
+    public HapiHookStore omittingEntityId() {
         this.omitEntityId = true;
         return this;
     }
 
-    public HapiLambdaSStore putSlot(Bytes key, Bytes value) {
+    public HapiHookStore putSlot(Bytes key, Bytes value) {
         return slots(key, value);
     }
 
-    public HapiLambdaSStore removeSlot(Bytes key) {
+    public HapiHookStore removeSlot(Bytes key) {
         return slots(key, Bytes.EMPTY);
     }
 
-    public HapiLambdaSStore putMappingEntry(@NonNull final Bytes mappingSlot, @NonNull final LambdaMappingEntry entry) {
+    public HapiHookStore putMappingEntry(@NonNull final Bytes mappingSlot, @NonNull final EvmHookMappingEntry entry) {
         return switch (entry.entryKey().kind()) {
             case UNSET -> throw new IllegalArgumentException("Mapping entry must have a key or preimage");
             case KEY -> putMappingEntryWithKey(mappingSlot, entry.keyOrThrow(), entry.value());
@@ -63,26 +63,26 @@ public class HapiLambdaSStore extends HapiTxnOp<HapiLambdaSStore> {
         };
     }
 
-    public HapiLambdaSStore putMappingEntryWithKey(
+    public HapiHookStore putMappingEntryWithKey(
             @NonNull final Bytes mappingSlot, @NonNull final Bytes key, @NonNull final Bytes value) {
         return entries(mappingSlot, List.of(MappingKey.key(key)), List.of(value));
     }
 
-    public HapiLambdaSStore putMappingEntryWithPreimage(
+    public HapiHookStore putMappingEntryWithPreimage(
             @NonNull final Bytes mappingSlot, @NonNull final Bytes preimage, @NonNull final Bytes value) {
         return entries(mappingSlot, List.of(MappingKey.preimage(preimage)), List.of(value));
     }
 
-    public HapiLambdaSStore removeMappingEntry(@NonNull final Bytes mappingSlot, @NonNull final Bytes key) {
+    public HapiHookStore removeMappingEntry(@NonNull final Bytes mappingSlot, @NonNull final Bytes key) {
         return entries(mappingSlot, List.of(MappingKey.key(key)), List.of(Bytes.EMPTY));
     }
 
-    public HapiLambdaSStore removeMappingEntryWithPreimage(
+    public HapiHookStore removeMappingEntryWithPreimage(
             @NonNull final Bytes mappingSlot, @NonNull final Bytes preimage) {
         return entries(mappingSlot, List.of(MappingKey.preimage(preimage)), List.of(Bytes.EMPTY));
     }
 
-    public HapiLambdaSStore(
+    public HapiHookStore(
             @NonNull final HookEntityId.EntityIdOneOfType entityType,
             @NonNull final String ownerName,
             final long hookId) {
@@ -93,11 +93,11 @@ public class HapiLambdaSStore extends HapiTxnOp<HapiLambdaSStore> {
 
     @Override
     public HederaFunctionality type() {
-        return LambdaSStore;
+        return HookStore;
     }
 
     @Override
-    protected HapiLambdaSStore self() {
+    protected HapiHookStore self() {
         return this;
     }
 
@@ -110,32 +110,28 @@ public class HapiLambdaSStore extends HapiTxnOp<HapiLambdaSStore> {
     @Override
     protected Consumer<TransactionBody.Builder> opBodyDef(HapiSpec spec) throws Throwable {
         final var op = spec.txns()
-                .<LambdaSStoreTransactionBody, LambdaSStoreTransactionBody.Builder>body(
-                        LambdaSStoreTransactionBody.class, b -> {
-                            final var idBuilder = HookId.newBuilder().setHookId(hookId);
-                            if (!omitEntityId) {
-                                switch (ownerType) {
-                                    case ACCOUNT_ID ->
-                                        idBuilder.setEntityId(
-                                                com.hederahashgraph.api.proto.java.HookEntityId.newBuilder()
-                                                        .setAccountId(asId(ownerName, spec)));
-                                    case CONTRACT_ID ->
-                                        idBuilder.setEntityId(
-                                                com.hederahashgraph.api.proto.java.HookEntityId.newBuilder()
-                                                        .setContractId(asContractId(ownerName, spec)));
-                                    default ->
-                                        throw new IllegalArgumentException("Unsupported owner type: " + ownerType);
-                                }
-                            }
-                            b.setHookId(idBuilder)
-                                    .addAllStorageUpdates(updates.stream()
-                                            .map(update -> pbjToProto(
-                                                    update,
-                                                    LambdaStorageUpdate.class,
-                                                    com.hedera.hapi.node.hooks.legacy.LambdaStorageUpdate.class))
-                                            .toList());
-                        });
-        return b -> b.setLambdaSstore(op);
+                .<HookStoreTransactionBody, HookStoreTransactionBody.Builder>body(HookStoreTransactionBody.class, b -> {
+                    final var idBuilder = HookId.newBuilder().setHookId(hookId);
+                    if (!omitEntityId) {
+                        switch (ownerType) {
+                            case ACCOUNT_ID ->
+                                idBuilder.setEntityId(com.hederahashgraph.api.proto.java.HookEntityId.newBuilder()
+                                        .setAccountId(asId(ownerName, spec)));
+                            case CONTRACT_ID ->
+                                idBuilder.setEntityId(com.hederahashgraph.api.proto.java.HookEntityId.newBuilder()
+                                        .setContractId(asContractId(ownerName, spec)));
+                            default -> throw new IllegalArgumentException("Unsupported owner type: " + ownerType);
+                        }
+                    }
+                    b.setHookId(idBuilder)
+                            .addAllStorageUpdates(updates.stream()
+                                    .map(update -> pbjToProto(
+                                            update,
+                                            EvmHookStorageUpdate.class,
+                                            com.hedera.hapi.node.hooks.legacy.EvmHookStorageUpdate.class))
+                                    .toList());
+                });
+        return b -> b.setHookStore(op);
     }
 
     @Override
@@ -157,13 +153,13 @@ public class HapiLambdaSStore extends HapiTxnOp<HapiLambdaSStore> {
         return List.of(spec -> spec.registry().getKey(effectivePayer(spec)), ownerSigner);
     }
 
-    private HapiLambdaSStore slots(@NonNull final Bytes... kv) {
+    private HapiHookStore slots(@NonNull final Bytes... kv) {
         if (kv.length % 2 != 0) {
             throw new IllegalArgumentException("Slots must be key-value pairs");
         }
         for (int i = 0; i < kv.length; i += 2) {
-            updates.add(LambdaStorageUpdate.newBuilder()
-                    .storageSlot(LambdaStorageSlot.newBuilder().key(kv[i]).value(kv[i + 1]))
+            updates.add(EvmHookStorageUpdate.newBuilder()
+                    .storageSlot(EvmHookStorageSlot.newBuilder().key(kv[i]).value(kv[i + 1]))
                     .build());
         }
         return this;
@@ -178,21 +174,21 @@ public class HapiLambdaSStore extends HapiTxnOp<HapiLambdaSStore> {
             return new MappingKey(null, requireNonNull(preimage));
         }
 
-        public LambdaMappingEntry.EntryKeyOneOfType type() {
+        public EvmHookMappingEntry.EntryKeyOneOfType type() {
             if (key != null) {
-                return LambdaMappingEntry.EntryKeyOneOfType.KEY;
+                return EvmHookMappingEntry.EntryKeyOneOfType.KEY;
             } else {
-                return LambdaMappingEntry.EntryKeyOneOfType.PREIMAGE;
+                return EvmHookMappingEntry.EntryKeyOneOfType.PREIMAGE;
             }
         }
     }
 
-    private HapiLambdaSStore entries(
+    private HapiHookStore entries(
             @NonNull final Bytes mappingSlot, @NonNull final List<MappingKey> keys, @NonNull final List<Bytes> values) {
-        final var builder = LambdaMappingEntries.newBuilder().mappingSlot(mappingSlot);
-        final List<LambdaMappingEntry> entries = new ArrayList<>();
+        final var builder = EvmHookMappingEntries.newBuilder().mappingSlot(mappingSlot);
+        final List<EvmHookMappingEntry> entries = new ArrayList<>();
         for (int i = 0, n = keys.size(); i < n; i++) {
-            final var entryBuilder = LambdaMappingEntry.newBuilder().value(values.get(i));
+            final var entryBuilder = EvmHookMappingEntry.newBuilder().value(values.get(i));
             final var key = keys.get(i);
             switch (key.type()) {
                 case KEY -> entryBuilder.key(requireNonNull(key.key()));
@@ -202,7 +198,7 @@ public class HapiLambdaSStore extends HapiTxnOp<HapiLambdaSStore> {
             entries.add(entryBuilder.build());
         }
         builder.entries(entries);
-        updates.add(LambdaStorageUpdate.newBuilder().mappingEntries(builder).build());
+        updates.add(EvmHookStorageUpdate.newBuilder().mappingEntries(builder).build());
         return this;
     }
 }

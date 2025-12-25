@@ -8,8 +8,8 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.ContractID;
 import com.hedera.hapi.node.base.HookId;
-import com.hedera.hapi.node.hooks.LambdaStorageSlot;
-import com.hedera.hapi.node.hooks.LambdaStorageUpdate;
+import com.hedera.hapi.node.hooks.EvmHookStorageSlot;
+import com.hedera.hapi.node.hooks.EvmHookStorageUpdate;
 import com.hedera.hapi.node.state.contract.SlotKey;
 import com.hedera.hapi.node.state.contract.SlotValue;
 import com.hedera.node.app.service.contract.impl.exec.scope.HandleHederaOperations;
@@ -131,25 +131,25 @@ public class IterableStorageManager {
             store.adjustSlotCount(slotUsageChange);
         }
 
-        // Persist any changes to lambda storage slots for hook storage
-        final var slotKeys = writableEvmHookStore.getModifiedLambdaSlotKeys();
+        // Persist any changes to EVM hook storage slots
+        final var slotKeys = writableEvmHookStore.getModifiedEvmHookSlotKeys();
         if (!slotKeys.isEmpty()) {
             HookId hookId = null;
-            List<LambdaStorageUpdate> updates = new ArrayList<>();
+            List<EvmHookStorageUpdate> updates = new ArrayList<>();
             for (final var modifiedKey : slotKeys) {
                 hookId = modifiedKey.hookIdOrThrow();
                 final var value = writableEvmHookStore.getSlotValue(modifiedKey);
-                final var slot = LambdaStorageSlot.newBuilder()
+                final var slot = EvmHookStorageSlot.newBuilder()
                         .value(isAllZeroWord(requireNonNull(value).value()) ? Bytes.EMPTY : value.value())
                         .key(modifiedKey.key())
                         .build();
-                updates.add(LambdaStorageUpdate.newBuilder().storageSlot(slot).build());
+                updates.add(EvmHookStorageUpdate.newBuilder().storageSlot(slot).build());
             }
             final int slotsDelta = writableEvmHookStore.updateStorage(hookId, updates);
             if (slotsDelta != 0) {
                 enhancement
                         .operations()
-                        .updateLambdaStorageSlots(hookId.entityIdOrThrow().accountIdOrThrow(), slotsDelta);
+                        .updateHookStorageSlots(hookId.entityIdOrThrow().accountIdOrThrow(), slotsDelta);
             }
         }
     }
