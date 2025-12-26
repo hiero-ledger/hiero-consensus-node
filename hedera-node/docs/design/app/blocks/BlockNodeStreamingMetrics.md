@@ -50,23 +50,24 @@ with "conn" for identification.
 
 These metrics relate to responses received from a block node. They are identified using the "connRecv" prefix.
 
-|                    Metric Name                     |     Type     |                         Description                         |
-|----------------------------------------------------|--------------|-------------------------------------------------------------|
-| `blockStream_connRecv_unknown`                     | Counter      | Number of responses received that are of unknown types      |
-| `blockStream_connRecv_acknowledgement`             | Counter      | Number of Acknowledgement responses received                |
-| `blockStream_connRecv_skipBlock`                   | Counter      | Number of SkipBlock responses received                      |
-| `blockStream_connRecv_resendBlock`                 | Counter      | Number of ResendBlock responses received                    |
-| `blockStream_connRecv_latestBlockEndOfStream`      | Gauge (long) | The latest block number received in an EndOfStream response |
-| `blockStream_connRecv_latestBlockSkipBlock`        | Gauge (long) | The latest block number received in a SkipBlock response    |
-| `blockStream_connRecv_latestBlockResendBlock`      | Gauge (long) | The latest block number received in a ResendBlock response  |
-| `blockStream_connRecv_endStream_success`           | Counter      | Number of EndStream.Success responses received              |
-| `blockStream_connRecv_endStream_invalidRequest`    | Counter      | Number of EndStream.InvalidRequest responses received       |
-| `blockStream_connRecv_endStream_error`             | Counter      | Number of EndStream.Error responses received                |
-| `blockStream_connRecv_endStream_timeout`           | Counter      | Number of EndStream.Timeout responses received              |
-| `blockStream_connRecv_endStream_duplicateBlock`    | Counter      | Number of EndStream.DuplicateBlock responses received       |
-| `blockStream_connRecv_endStream_badBlockProof`     | Counter      | Number of EndStream.BadBlockProof responses received        |
-| `blockStream_connRecv_endStream_behind`            | Counter      | Number of EndStream.Behind responses received               |
-| `blockStream_connRecv_endStream_persistenceFailed` | Counter      | Number of EndStream.PersistenceFailed responses received    |
+|                    Metric Name                     |     Type     |                          Description                           |
+|----------------------------------------------------|--------------|----------------------------------------------------------------|
+| `blockStream_connRecv_unknown`                     | Counter      | Number of responses received that are of unknown types         |
+| `blockStream_connRecv_acknowledgement`             | Counter      | Number of Acknowledgement responses received                   |
+| `blockStream_connRecv_skipBlock`                   | Counter      | Number of SkipBlock responses received                         |
+| `blockStream_connRecv_resendBlock`                 | Counter      | Number of ResendBlock responses received                       |
+| `blockStream_connRecv_nodeBehindPublisher`         | Counter      | Number of BehindPublisher responses received                   |
+| `blockStream_connRecv_latestBlockEndOfStream`      | Gauge (long) | The latest block number received in an EndOfStream response    |
+| `blockStream_connRecv_latestBlockSkipBlock`        | Gauge (long) | The latest block number received in a SkipBlock response       |
+| `blockStream_connRecv_latestBlockResendBlock`      | Gauge (long) | The latest block number received in a ResendBlock response     |
+| `blockStream_connRecv_latestBlockBehindPublisher`  | Gauge (long) | The latest block number received in a BehindPublisher response |
+| `blockStream_connRecv_endStream_success`           | Counter      | Number of EndStream.Success responses received                 |
+| `blockStream_connRecv_endStream_invalidRequest`    | Counter      | Number of EndStream.InvalidRequest responses received          |
+| `blockStream_connRecv_endStream_error`             | Counter      | Number of EndStream.Error responses received                   |
+| `blockStream_connRecv_endStream_timeout`           | Counter      | Number of EndStream.Timeout responses received                 |
+| `blockStream_connRecv_endStream_duplicateBlock`    | Counter      | Number of EndStream.DuplicateBlock responses received          |
+| `blockStream_connRecv_endStream_badBlockProof`     | Counter      | Number of EndStream.BadBlockProof responses received           |
+| `blockStream_connRecv_endStream_persistenceFailed` | Counter      | Number of EndStream.PersistenceFailed responses received       |
 
 ## Connection Send Metrics
 
