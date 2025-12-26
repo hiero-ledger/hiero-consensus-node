@@ -67,7 +67,7 @@ public abstract class AbstractSettableMetric<I, M> extends AbstractMetric<M> imp
                 localRef = noLabelsMeasurement;
                 if (localRef == null) {
                     noLabelsMeasurement = localRef =
-                            createAndTrackMeasurementHolder(LabelValues.empty()).measurement();
+                            createAndTrackMeasurementHolder(LabelValues.EMPTY).measurement();
                 }
             }
         }

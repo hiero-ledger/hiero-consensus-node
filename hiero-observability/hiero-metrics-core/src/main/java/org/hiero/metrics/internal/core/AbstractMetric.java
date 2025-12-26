@@ -85,7 +85,7 @@ public abstract class AbstractMetric<M> implements Metric {
         }
 
         if (labelNames.isEmpty()) {
-            return LabelValues.empty();
+            return LabelValues.EMPTY;
         }
 
         // Defensive copy to avoid external modifications; cheap for few elements as typical use case fo labels

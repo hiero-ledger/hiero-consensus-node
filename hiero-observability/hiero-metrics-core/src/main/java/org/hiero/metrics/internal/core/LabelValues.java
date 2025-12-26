@@ -7,13 +7,22 @@ import java.util.Objects;
 /**
  * Represents a set of label values for a specific combination of dynamic labels.
  */
-public abstract sealed class LabelValues permits LabelNamesAndValues, EmptyLabelValues {
+public abstract class LabelValues {
+
+    public static final LabelValues EMPTY = new LabelValues() {
+        @Override
+        public int size() {
+            return 0;
+        }
+
+        @NonNull
+        @Override
+        public String get(int index) {
+            throw new IndexOutOfBoundsException("Label values is empty");
+        }
+    };
 
     private int hashCode = 0;
-
-    public static LabelValues empty() {
-        return EmptyLabelValues.INSTANCE;
-    }
 
     public abstract int size();
 
