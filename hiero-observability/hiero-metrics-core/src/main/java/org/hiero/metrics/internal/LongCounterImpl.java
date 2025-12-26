@@ -3,14 +3,13 @@ package org.hiero.metrics.internal;
 
 import java.util.function.LongSupplier;
 import org.hiero.metrics.api.LongCounter;
+import org.hiero.metrics.api.export.snapshot.MeasurementSnapshot;
 import org.hiero.metrics.api.measurement.LongCounterMeasurement;
 import org.hiero.metrics.internal.core.AbstractSettableMetric;
 import org.hiero.metrics.internal.core.LabelValues;
 import org.hiero.metrics.internal.export.snapshot.LongValueMeasurementSnapshotImpl;
-import org.hiero.metrics.internal.measurement.MeasurementHolder;
 
-public final class LongCounterImpl
-        extends AbstractSettableMetric<LongSupplier, LongCounterMeasurement, LongValueMeasurementSnapshotImpl>
+public final class LongCounterImpl extends AbstractSettableMetric<LongSupplier, LongCounterMeasurement>
         implements LongCounter {
 
     public LongCounterImpl(LongCounter.Builder builder) {
@@ -29,8 +28,7 @@ public final class LongCounterImpl
     }
 
     @Override
-    protected void updateMeasurementSnapshot(
-            MeasurementHolder<LongCounterMeasurement, LongValueMeasurementSnapshotImpl> measurementHolder) {
-        measurementHolder.snapshot().set(measurementHolder.measurement().getAsLong());
+    protected void updateMeasurementSnapshot(LongCounterMeasurement measurement, MeasurementSnapshot snapshot) {
+        ((LongValueMeasurementSnapshotImpl) snapshot).set(measurement.getAsLong());
     }
 }

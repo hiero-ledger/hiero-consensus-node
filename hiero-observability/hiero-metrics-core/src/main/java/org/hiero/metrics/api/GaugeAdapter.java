@@ -22,21 +22,21 @@ import org.hiero.metrics.internal.LongGaugeAdapterImpl;
  * It is responsibility of the client to ensure that external measurement is thread safe and provides atomic updates,
  * if needed.
  *
- * @param <D> the type of the measurement data used to hold the gauge value and provide method for observations
+ * @param <M> the type of the measurement data used to hold the gauge value and provide method for observations
  *           and numerical value state access
  */
-public interface GaugeAdapter<D> extends SettableMetric<Supplier<D>, D> {
+public interface GaugeAdapter<M> extends SettableMetric<Supplier<M>, M> {
 
     /**
      * Create a metric key for a {@link GaugeAdapter} with the given name.<br>
      * See {@link org.hiero.metrics.api.core.MetricUtils#validateMetricNameCharacters(String)} for name requirements.
      *
      * @param name the name of the metric
-     * @param <D>  the type of the measurement data
+     * @param <M>  the type of the measurement data
      * @return the metric key
      */
     @NonNull
-    static <D> MetricKey<GaugeAdapter<D>> key(@NonNull String name) {
+    static <M> MetricKey<GaugeAdapter<M>> key(@NonNull String name) {
         return MetricKey.of(name, GaugeAdapter.class);
     }
 
@@ -47,14 +47,14 @@ public interface GaugeAdapter<D> extends SettableMetric<Supplier<D>, D> {
      * @param key              the metric key
      * @param measurementFactory the factory function to create the measurement
      * @param exportGetter     the function to get the numerical value from the measurement for export
-     * @param <D>              the type of the measurement data
+     * @param <M>              the type of the measurement data
      * @return the builder
      */
     @NonNull
-    static <D> Builder<D> builder(
-            @NonNull MetricKey<GaugeAdapter<D>> key,
-            @NonNull Supplier<D> measurementFactory,
-            @NonNull ToNumberFunction<D> exportGetter) {
+    static <M> Builder<M> builder(
+            @NonNull MetricKey<GaugeAdapter<M>> key,
+            @NonNull Supplier<M> measurementFactory,
+            @NonNull ToNumberFunction<M> exportGetter) {
         return new Builder<>(key, measurementFactory, exportGetter);
     }
 
@@ -66,21 +66,23 @@ public interface GaugeAdapter<D> extends SettableMetric<Supplier<D>, D> {
      * @param name             the metric name
      * @param measurementFactory the factory function to create the measurement
      * @param exportGetter     the function to get the numerical value from the measurement for export
-     * @param <D>              the type of the measurement data
+     * @param <M>              the type of the measurement data
      * @return the builder
      */
-    static <D> Builder<D> builder(
-            @NonNull String name, @NonNull Supplier<D> measurementFactory, @NonNull ToNumberFunction<D> exportGetter) {
+    static <M> Builder<M> builder(
+            @NonNull String name, @NonNull Supplier<M> measurementFactory, @NonNull ToNumberFunction<M> exportGetter) {
         return builder(key(name), measurementFactory, exportGetter);
     }
 
     /**
      * Builder for {@link GaugeAdapter}.
+     *
+     * @param <M> the type of the measurement data held by the metric
      */
-    final class Builder<D> extends SettableMetric.Builder<Supplier<D>, D, Builder<D>, GaugeAdapter<D>> {
+    final class Builder<M> extends SettableMetric.Builder<Supplier<M>, M, Builder<M>, GaugeAdapter<M>> {
 
-        private final ToNumberFunction<D> exportGetter;
-        private Consumer<D> reset;
+        private final ToNumberFunction<M> exportGetter;
+        private Consumer<M> reset;
 
         /**
          * Create a builder for a {@link GaugeAdapter} with the given metric key.
@@ -90,9 +92,9 @@ public interface GaugeAdapter<D> extends SettableMetric<Supplier<D>, D> {
          * @param exportGetter     the function to get the {@code double} value from the measurement for export
          */
         private Builder(
-                @NonNull MetricKey<GaugeAdapter<D>> key,
-                @NonNull Supplier<D> measurementFactory,
-                @NonNull ToNumberFunction<D> exportGetter) {
+                @NonNull MetricKey<GaugeAdapter<M>> key,
+                @NonNull Supplier<M> measurementFactory,
+                @NonNull ToNumberFunction<M> exportGetter) {
             super(MetricType.GAUGE, key, measurementFactory, Supplier::get);
             this.exportGetter = Objects.requireNonNull(exportGetter, "exportGetter cannot be null");
         }
@@ -103,7 +105,7 @@ public interface GaugeAdapter<D> extends SettableMetric<Supplier<D>, D> {
          * @return the value converter function
          */
         @NonNull
-        public ToNumberFunction<D> getExportGetter() {
+        public ToNumberFunction<M> getExportGetter() {
             return exportGetter;
         }
 
@@ -113,7 +115,7 @@ public interface GaugeAdapter<D> extends SettableMetric<Supplier<D>, D> {
          * @return the reset function, or {@code null} if not set
          */
         @Nullable
-        public Consumer<D> getReset() {
+        public Consumer<M> getReset() {
             return reset;
         }
 
@@ -125,7 +127,7 @@ public interface GaugeAdapter<D> extends SettableMetric<Supplier<D>, D> {
          * @return this builder
          */
         @NonNull
-        public Builder<D> setReset(@NonNull Consumer<D> reset) {
+        public Builder<M> setReset(@NonNull Consumer<M> reset) {
             this.reset = Objects.requireNonNull(reset, "Value reset must not be null");
             return this;
         }
@@ -137,7 +139,7 @@ public interface GaugeAdapter<D> extends SettableMetric<Supplier<D>, D> {
          */
         @NonNull
         @Override
-        protected GaugeAdapter<D> buildMetric() {
+        protected GaugeAdapter<M> buildMetric() {
             if (exportGetter.isFloatingPointFunction()) {
                 return new DoubleGaugeAdapterImpl<>(this);
             } else {

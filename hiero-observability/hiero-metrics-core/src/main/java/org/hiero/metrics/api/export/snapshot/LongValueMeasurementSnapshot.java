@@ -6,4 +6,4 @@ import java.util.function.LongSupplier;
 /**
  * Extension of {@link MeasurementSnapshot} for a single {@code long} value.
  */
-public non-sealed interface LongValueMeasurementSnapshot extends SingleValueMeasurementSnapshot, LongSupplier {}
+public interface LongValueMeasurementSnapshot extends MeasurementSnapshot, LongSupplier {}

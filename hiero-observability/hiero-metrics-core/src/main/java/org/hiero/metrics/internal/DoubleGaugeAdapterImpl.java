@@ -5,18 +5,17 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.function.ToDoubleFunction;
 import org.hiero.metrics.api.GaugeAdapter;
+import org.hiero.metrics.api.export.snapshot.MeasurementSnapshot;
 import org.hiero.metrics.internal.core.AbstractSettableMetric;
 import org.hiero.metrics.internal.core.LabelValues;
 import org.hiero.metrics.internal.export.snapshot.DoubleValueMeasurementSnapshotImpl;
-import org.hiero.metrics.internal.measurement.MeasurementHolder;
 
-public final class DoubleGaugeAdapterImpl<D>
-        extends AbstractSettableMetric<Supplier<D>, D, DoubleValueMeasurementSnapshotImpl> implements GaugeAdapter<D> {
+public final class DoubleGaugeAdapterImpl<M> extends AbstractSettableMetric<Supplier<M>, M> implements GaugeAdapter<M> {
 
-    private final ToDoubleFunction<D> exportGetter;
-    private final Consumer<D> reset;
+    private final ToDoubleFunction<M> exportGetter;
+    private final Consumer<M> reset;
 
-    public DoubleGaugeAdapterImpl(GaugeAdapter.Builder<D> builder) {
+    public DoubleGaugeAdapterImpl(GaugeAdapter.Builder<M> builder) {
         super(builder);
 
         exportGetter = builder.getExportGetter().getToDoubleFunction();
@@ -25,18 +24,17 @@ public final class DoubleGaugeAdapterImpl<D>
 
     @Override
     protected DoubleValueMeasurementSnapshotImpl createMeasurementSnapshot(
-            D measurement, LabelValues dynamicLabelValues) {
+            M measurement, LabelValues dynamicLabelValues) {
         return new DoubleValueMeasurementSnapshotImpl(dynamicLabelValues);
     }
 
     @Override
-    protected void updateMeasurementSnapshot(
-            MeasurementHolder<D, DoubleValueMeasurementSnapshotImpl> measurementHolder) {
-        measurementHolder.snapshot().set(exportGetter.applyAsDouble(measurementHolder.measurement()));
+    protected void updateMeasurementSnapshot(M measurement, MeasurementSnapshot snapshot) {
+        ((DoubleValueMeasurementSnapshotImpl) snapshot).set(exportGetter.applyAsDouble(measurement));
     }
 
     @Override
-    protected void reset(D measurement) {
+    protected void reset(M measurement) {
         reset.accept(measurement);
     }
 }

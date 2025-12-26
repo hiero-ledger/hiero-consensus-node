@@ -6,9 +6,8 @@ import org.hiero.metrics.api.export.snapshot.MeasurementSnapshot;
 /**
  * Holder for a measurement and its snapshot.
  *
- * @param <D> the type of the measurement
- * @param <S> the type of the measurement snapshot
+ * @param <M> the type of the measurement
  * @param measurement the measurement
  * @param snapshot the snapshot of the measurement
  */
-public record MeasurementHolder<D, S extends MeasurementSnapshot>(D measurement, S snapshot) {}
+public record MeasurementHolder<M>(M measurement, MeasurementSnapshot snapshot) {}

@@ -30,9 +30,9 @@ import org.hiero.metrics.internal.StatsGaugeAdapterImpl;
  * It is responsibility of the client to ensure that external measurement is thread safe and provides atomic updates,
  * if needed.
  *
- * @param <D> the type of the measurement data held by the metric
+ * @param <M> the type of the measurement data held by the metric
  */
-public interface StatsGaugeAdapter<D> extends SettableMetric<Supplier<D>, D> {
+public interface StatsGaugeAdapter<M> extends SettableMetric<Supplier<M>, M> {
 
     String DEFAULT_STAT_LABEL = "stat";
 
@@ -41,11 +41,11 @@ public interface StatsGaugeAdapter<D> extends SettableMetric<Supplier<D>, D> {
      * See {@link MetricUtils#validateMetricNameCharacters(String)} for name requirements.
      *
      * @param name the name of the metric
-     * @param <D>  the type of the measurement data
+     * @param <M>  the type of the measurement data
      * @return the metric key
      */
     @NonNull
-    static <D> MetricKey<StatsGaugeAdapter<D>> key(@NonNull String name) {
+    static <M> MetricKey<StatsGaugeAdapter<M>> key(@NonNull String name) {
         return MetricKey.of(name, StatsGaugeAdapter.class);
     }
 
@@ -55,12 +55,12 @@ public interface StatsGaugeAdapter<D> extends SettableMetric<Supplier<D>, D> {
      *
      * @param key              the metric key
      * @param measurementFactory the factory function to create the measurement
-     * @param <D>              the type of the measurement data
+     * @param <M>              the type of the measurement data
      * @return the builder
      */
     @NonNull
-    static <D> Builder<D> builder(
-            @NonNull MetricKey<StatsGaugeAdapter<D>> key, @NonNull Supplier<D> measurementFactory) {
+    static <M> Builder<M> builder(
+            @NonNull MetricKey<StatsGaugeAdapter<M>> key, @NonNull Supplier<M> measurementFactory) {
         return new Builder<>(key, measurementFactory);
     }
 
@@ -70,16 +70,16 @@ public interface StatsGaugeAdapter<D> extends SettableMetric<Supplier<D>, D> {
      * Default additional label for export is {@value #DEFAULT_STAT_LABEL}, and can be changed via
      * {@link #setStatLabel(String)}.
      *
-     * @param <D> the type of the measurement data held by the metric
+     * @param <M> the type of the measurement data held by the metric
      */
-    final class Builder<D> extends SettableMetric.Builder<Supplier<D>, D, Builder<D>, StatsGaugeAdapter<D>> {
+    final class Builder<M> extends SettableMetric.Builder<Supplier<M>, M, Builder<M>, StatsGaugeAdapter<M>> {
 
         private String statLabel = DEFAULT_STAT_LABEL;
         private final List<String> statNames = new ArrayList<>();
-        private final List<ToNumberFunction<D>> statExportGetters = new ArrayList<>();
-        private Consumer<D> reset;
+        private final List<ToNumberFunction<M>> statExportGetters = new ArrayList<>();
+        private Consumer<M> reset;
 
-        private Builder(@NonNull MetricKey<StatsGaugeAdapter<D>> key, @NonNull Supplier<D> measurementFactory) {
+        private Builder(@NonNull MetricKey<StatsGaugeAdapter<M>> key, @NonNull Supplier<M> measurementFactory) {
             super(MetricType.GAUGE, key, measurementFactory, Supplier::get);
         }
 
@@ -103,7 +103,7 @@ public interface StatsGaugeAdapter<D> extends SettableMetric<Supplier<D>, D> {
          * @return the list of functions to get the stat values from the measurement
          */
         @NonNull
-        public List<ToNumberFunction<D>> getStatExportGetters() {
+        public List<ToNumberFunction<M>> getStatExportGetters() {
             return statExportGetters;
         }
 
@@ -113,7 +113,7 @@ public interface StatsGaugeAdapter<D> extends SettableMetric<Supplier<D>, D> {
          * @return the reset function, or {@code null} if not set
          */
         @Nullable
-        public Consumer<D> getReset() {
+        public Consumer<M> getReset() {
             return reset;
         }
 
@@ -125,7 +125,7 @@ public interface StatsGaugeAdapter<D> extends SettableMetric<Supplier<D>, D> {
          * @return this builder
          */
         @NonNull
-        public Builder<D> setReset(@NonNull Consumer<D> reset) {
+        public Builder<M> setReset(@NonNull Consumer<M> reset) {
             this.reset = Objects.requireNonNull(reset, "Container stats reset must not be null");
             return this;
         }
@@ -141,7 +141,7 @@ public interface StatsGaugeAdapter<D> extends SettableMetric<Supplier<D>, D> {
          * @throws IllegalArgumentException if the stat label is blank
          */
         @NonNull
-        public Builder<D> setStatLabel(@NonNull String statLabel) {
+        public Builder<M> setStatLabel(@NonNull String statLabel) {
             this.statLabel = MetricUtils.validateLabelNameCharacters(statLabel);
             return this;
         }
@@ -156,7 +156,7 @@ public interface StatsGaugeAdapter<D> extends SettableMetric<Supplier<D>, D> {
          * @throws IllegalArgumentException if the stat name is blank or if the export getter is {@code null}
          */
         @NonNull
-        public Builder<D> addDoubleStat(@NonNull String statName, @NonNull ToDoubleFunction<D> exportGetter) {
+        public Builder<M> addDoubleStat(@NonNull String statName, @NonNull ToDoubleFunction<M> exportGetter) {
             return addStat(statName, new ToNumberFunction<>(exportGetter));
         }
 
@@ -170,12 +170,12 @@ public interface StatsGaugeAdapter<D> extends SettableMetric<Supplier<D>, D> {
          * @throws IllegalArgumentException if the stat name is blank or if the export getter is {@code null}
          */
         @NonNull
-        public Builder<D> addLongStat(@NonNull String statName, @NonNull ToLongFunction<D> exportGetter) {
+        public Builder<M> addLongStat(@NonNull String statName, @NonNull ToLongFunction<M> exportGetter) {
             return addStat(statName, new ToNumberFunction<>(exportGetter));
         }
 
         @NonNull
-        private Builder<D> addStat(@NonNull String statName, @NonNull ToNumberFunction<D> exportGetter) {
+        private Builder<M> addStat(@NonNull String statName, @NonNull ToNumberFunction<M> exportGetter) {
             statNames.add(MetricUtils.throwArgBlank(statName, "stat name"));
             statExportGetters.add(Objects.requireNonNull(exportGetter, "Export getter must not be null"));
             return this;
@@ -188,7 +188,7 @@ public interface StatsGaugeAdapter<D> extends SettableMetric<Supplier<D>, D> {
          */
         @NonNull
         @Override
-        protected StatsGaugeAdapter<D> buildMetric() {
+        protected StatsGaugeAdapter<M> buildMetric() {
             if (statExportGetters.isEmpty()) {
                 throw new IllegalStateException("At least one stat must be defined");
             }

@@ -13,19 +13,19 @@ import org.hiero.metrics.api.export.snapshot.MetricSnapshot;
 import org.hiero.metrics.internal.core.AppendArray;
 import org.hiero.metrics.internal.measurement.MeasurementHolder;
 
-public final class UpdatableMetricSnapshot<D, S extends MeasurementSnapshot> implements MetricSnapshot {
+public final class UpdatableMetricSnapshot<M> implements MetricSnapshot {
 
     private final Metric metric;
-    private final Consumer<MeasurementHolder<D, S>> snapshotUpdater;
-    private final AppendArray<MeasurementHolder<D, S>> measurementHolders;
+    private final Consumer<MeasurementHolder<M>> snapshotUpdater;
+    private final AppendArray<MeasurementHolder<M>> measurementHolders;
 
-    public UpdatableMetricSnapshot(Metric metric, Consumer<MeasurementHolder<D, S>> snapshotUpdater) {
+    public UpdatableMetricSnapshot(Metric metric, Consumer<MeasurementHolder<M>> snapshotUpdater) {
         this.metric = metric;
         this.snapshotUpdater = snapshotUpdater;
         this.measurementHolders = new AppendArray<>(metric.dynamicLabelNames().isEmpty() ? 1 : 8);
     }
 
-    public void addMeasurementHolder(MeasurementHolder<D, S> holder) {
+    public void addMeasurementHolder(MeasurementHolder<M> holder) {
         measurementHolders.add(holder);
     }
 

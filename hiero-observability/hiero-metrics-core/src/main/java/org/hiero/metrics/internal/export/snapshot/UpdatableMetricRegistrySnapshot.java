@@ -12,7 +12,7 @@ public final class UpdatableMetricRegistrySnapshot implements MetricsCollectionS
 
     private Instant createdAt = Instant.now();
 
-    private final AppendArray<UpdatableMetricSnapshot<?, ?>> snapshots = new AppendArray<>(64);
+    private final AppendArray<UpdatableMetricSnapshot<?>> snapshots = new AppendArray<>(64);
 
     @NonNull
     public synchronized UpdatableMetricRegistrySnapshot update() {
@@ -25,7 +25,7 @@ public final class UpdatableMetricRegistrySnapshot implements MetricsCollectionS
         return this;
     }
 
-    public void add(AbstractMetric<?, ?> snapshotableMetric) {
+    public void add(AbstractMetric<?> snapshotableMetric) {
         snapshots.add(snapshotableMetric.snapshot());
     }
 

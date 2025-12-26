@@ -5,18 +5,17 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.function.ToLongFunction;
 import org.hiero.metrics.api.GaugeAdapter;
+import org.hiero.metrics.api.export.snapshot.MeasurementSnapshot;
 import org.hiero.metrics.internal.core.AbstractSettableMetric;
 import org.hiero.metrics.internal.core.LabelValues;
 import org.hiero.metrics.internal.export.snapshot.LongValueMeasurementSnapshotImpl;
-import org.hiero.metrics.internal.measurement.MeasurementHolder;
 
-public final class LongGaugeAdapterImpl<D>
-        extends AbstractSettableMetric<Supplier<D>, D, LongValueMeasurementSnapshotImpl> implements GaugeAdapter<D> {
+public final class LongGaugeAdapterImpl<M> extends AbstractSettableMetric<Supplier<M>, M> implements GaugeAdapter<M> {
 
-    private final ToLongFunction<D> exportGetter;
-    private final Consumer<D> reset;
+    private final ToLongFunction<M> exportGetter;
+    private final Consumer<M> reset;
 
-    public LongGaugeAdapterImpl(GaugeAdapter.Builder<D> builder) {
+    public LongGaugeAdapterImpl(GaugeAdapter.Builder<M> builder) {
         super(builder);
 
         exportGetter = builder.getExportGetter().getToLongFunction();
@@ -25,17 +24,17 @@ public final class LongGaugeAdapterImpl<D>
 
     @Override
     protected LongValueMeasurementSnapshotImpl createMeasurementSnapshot(
-            D measurement, LabelValues dynamicLabelValues) {
+            M measurement, LabelValues dynamicLabelValues) {
         return new LongValueMeasurementSnapshotImpl(dynamicLabelValues);
     }
 
     @Override
-    protected void updateMeasurementSnapshot(MeasurementHolder<D, LongValueMeasurementSnapshotImpl> measurementHolder) {
-        measurementHolder.snapshot().set(exportGetter.applyAsLong(measurementHolder.measurement()));
+    protected void updateMeasurementSnapshot(M measurement, MeasurementSnapshot snapshot) {
+        ((LongValueMeasurementSnapshotImpl) snapshot).set(exportGetter.applyAsLong(measurement));
     }
 
     @Override
-    protected void reset(D measurement) {
+    protected void reset(M measurement) {
         reset.accept(measurement);
     }
 }

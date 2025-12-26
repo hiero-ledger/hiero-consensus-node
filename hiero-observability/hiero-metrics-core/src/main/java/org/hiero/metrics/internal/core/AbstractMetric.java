@@ -22,10 +22,9 @@ import org.hiero.metrics.internal.measurement.MeasurementHolder;
  * Subclasses must implement methods to create and update measurement snapshots.
  * Snapshot objects are reused during export to minimize object allocations.
  *
- * @param <D> The type of the measurement associated with this metric.
- * @param <S> The type of the {@link MeasurementSnapshot} associated with this metric.
+ * @param <M> The type of the measurement associated with this metric.
  */
-public abstract class AbstractMetric<D, S extends MeasurementSnapshot> implements Metric {
+public abstract class AbstractMetric<M> implements Metric {
 
     @NonNull
     private final MetricType type;
@@ -42,7 +41,7 @@ public abstract class AbstractMetric<D, S extends MeasurementSnapshot> implement
     private final List<Label> staticLabels;
     private final List<String> dynamicLabelNames;
 
-    private final UpdatableMetricSnapshot<D, S> metricSnapshot;
+    private final UpdatableMetricSnapshot<M> metricSnapshot;
 
     protected AbstractMetric(Builder<?, ?> builder) {
         type = builder.type();
@@ -55,17 +54,21 @@ public abstract class AbstractMetric<D, S extends MeasurementSnapshot> implement
         metricSnapshot = new UpdatableMetricSnapshot<>(this, this::updateMeasurementSnapshot);
     }
 
-    protected final MeasurementHolder<D, S> createAndTrackMeasurementHolder(
-            D measurement, LabelValues dynamicLabelValues) {
-        MeasurementHolder<D, S> measurementHolder =
+    protected final MeasurementHolder<M> createAndTrackMeasurementHolder(
+            M measurement, LabelValues dynamicLabelValues) {
+        MeasurementHolder<M> measurementHolder =
                 new MeasurementHolder<>(measurement, createMeasurementSnapshot(measurement, dynamicLabelValues));
         metricSnapshot.addMeasurementHolder(measurementHolder);
         return measurementHolder;
     }
 
-    protected abstract S createMeasurementSnapshot(D measurement, LabelValues dynamicLabelValues);
+    protected abstract MeasurementSnapshot createMeasurementSnapshot(M measurement, LabelValues dynamicLabelValues);
 
-    protected abstract void updateMeasurementSnapshot(MeasurementHolder<D, S> measurementHolder);
+    private void updateMeasurementSnapshot(MeasurementHolder<M> measurementHolder) {
+        updateMeasurementSnapshot(measurementHolder.measurement(), measurementHolder.snapshot());
+    }
+
+    protected abstract void updateMeasurementSnapshot(M measurement, MeasurementSnapshot snapshot);
 
     protected LabelValues createLabelValues(String... namesAndValues) {
         Objects.requireNonNull(namesAndValues, "Label names and values must not be null");
@@ -157,7 +160,7 @@ public abstract class AbstractMetric<D, S extends MeasurementSnapshot> implement
         return dynamicLabelNames;
     }
 
-    public final UpdatableMetricSnapshot<D, S> snapshot() {
+    public final UpdatableMetricSnapshot<M> snapshot() {
         return metricSnapshot;
     }
 

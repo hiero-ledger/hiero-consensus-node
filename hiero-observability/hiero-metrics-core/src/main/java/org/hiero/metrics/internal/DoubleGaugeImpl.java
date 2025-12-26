@@ -4,14 +4,13 @@ package org.hiero.metrics.internal;
 import java.util.function.DoubleSupplier;
 import java.util.function.ToDoubleFunction;
 import org.hiero.metrics.api.DoubleGauge;
+import org.hiero.metrics.api.export.snapshot.MeasurementSnapshot;
 import org.hiero.metrics.api.measurement.DoubleGaugeMeasurement;
 import org.hiero.metrics.internal.core.AbstractSettableMetric;
 import org.hiero.metrics.internal.core.LabelValues;
 import org.hiero.metrics.internal.export.snapshot.DoubleValueMeasurementSnapshotImpl;
-import org.hiero.metrics.internal.measurement.MeasurementHolder;
 
-public final class DoubleGaugeImpl
-        extends AbstractSettableMetric<DoubleSupplier, DoubleGaugeMeasurement, DoubleValueMeasurementSnapshotImpl>
+public final class DoubleGaugeImpl extends AbstractSettableMetric<DoubleSupplier, DoubleGaugeMeasurement>
         implements DoubleGauge {
 
     private final ToDoubleFunction<DoubleGaugeMeasurement> exportValueSupplier;
@@ -30,9 +29,8 @@ public final class DoubleGaugeImpl
     }
 
     @Override
-    protected void updateMeasurementSnapshot(
-            MeasurementHolder<DoubleGaugeMeasurement, DoubleValueMeasurementSnapshotImpl> measurementHolder) {
-        measurementHolder.snapshot().set(exportValueSupplier.applyAsDouble(measurementHolder.measurement()));
+    protected void updateMeasurementSnapshot(DoubleGaugeMeasurement measurement, MeasurementSnapshot snapshot) {
+        ((DoubleValueMeasurementSnapshotImpl) snapshot).set(exportValueSupplier.applyAsDouble(measurement));
     }
 
     @Override

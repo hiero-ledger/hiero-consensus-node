@@ -4,14 +4,13 @@ package org.hiero.metrics.internal;
 import java.util.function.LongSupplier;
 import java.util.function.ToLongFunction;
 import org.hiero.metrics.api.LongGauge;
+import org.hiero.metrics.api.export.snapshot.MeasurementSnapshot;
 import org.hiero.metrics.api.measurement.LongGaugeMeasurement;
 import org.hiero.metrics.internal.core.AbstractSettableMetric;
 import org.hiero.metrics.internal.core.LabelValues;
 import org.hiero.metrics.internal.export.snapshot.LongValueMeasurementSnapshotImpl;
-import org.hiero.metrics.internal.measurement.MeasurementHolder;
 
-public final class LongGaugeImpl
-        extends AbstractSettableMetric<LongSupplier, LongGaugeMeasurement, LongValueMeasurementSnapshotImpl>
+public final class LongGaugeImpl extends AbstractSettableMetric<LongSupplier, LongGaugeMeasurement>
         implements LongGauge {
 
     private final ToLongFunction<LongGaugeMeasurement> exportValueSupplier;
@@ -30,9 +29,8 @@ public final class LongGaugeImpl
     }
 
     @Override
-    protected void updateMeasurementSnapshot(
-            MeasurementHolder<LongGaugeMeasurement, LongValueMeasurementSnapshotImpl> measurementHolder) {
-        measurementHolder.snapshot().set(exportValueSupplier.applyAsLong(measurementHolder.measurement()));
+    protected void updateMeasurementSnapshot(LongGaugeMeasurement measurement, MeasurementSnapshot snapshot) {
+        ((LongValueMeasurementSnapshotImpl) snapshot).set(exportValueSupplier.applyAsLong(measurement));
     }
 
     @Override

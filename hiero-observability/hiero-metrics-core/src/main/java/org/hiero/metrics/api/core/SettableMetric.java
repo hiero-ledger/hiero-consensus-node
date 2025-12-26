@@ -22,9 +22,9 @@ import java.util.function.Function;
  * {@code getOrCreate} method can be called to instantiate measurement.
  *
  * @param <I> the type of the initializer used to create new measurements per label set
- * @param <D> the type of the measurement
+ * @param <M> the type of the measurement
  */
-public interface SettableMetric<I, D> extends Metric {
+public interface SettableMetric<I, M> extends Metric {
 
     /**
      * Get or create the measurement with no labels.
@@ -33,7 +33,7 @@ public interface SettableMetric<I, D> extends Metric {
      * @throws IllegalStateException if metric has dynamic labels specified during creation
      */
     @NonNull
-    D getOrCreateNotLabeled();
+    M getOrCreateNotLabeled();
 
     /**
      * Get or create the measurement with the specified labels, using the default initializer.
@@ -48,7 +48,7 @@ public interface SettableMetric<I, D> extends Metric {
      * @throws IllegalArgumentException if provided label names do not match {@link #dynamicLabelNames()}
      */
     @NonNull
-    D getOrCreateLabeled(@NonNull String... namesAndValues);
+    M getOrCreateLabeled(@NonNull String... namesAndValues);
 
     /**
      * Get or create the measurement with the specified labels, using a custom initializer.
@@ -64,7 +64,7 @@ public interface SettableMetric<I, D> extends Metric {
      * @throws IllegalArgumentException if provided label names do not match {@link #dynamicLabelNames()}
      */
     @NonNull
-    D getOrCreateLabeled(@NonNull I initializer, @NonNull String... namesAndValues);
+    M getOrCreateLabeled(@NonNull I initializer, @NonNull String... namesAndValues);
 
     /**
      * Base abstract builder for {@link SettableMetric}.

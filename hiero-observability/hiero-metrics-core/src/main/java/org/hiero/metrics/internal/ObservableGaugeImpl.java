@@ -7,15 +7,13 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import org.hiero.metrics.api.ObservableGauge;
 import org.hiero.metrics.api.core.NumberSupplier;
-import org.hiero.metrics.api.export.snapshot.SingleValueMeasurementSnapshot;
+import org.hiero.metrics.api.export.snapshot.MeasurementSnapshot;
 import org.hiero.metrics.internal.core.AbstractMetric;
 import org.hiero.metrics.internal.core.LabelValues;
 import org.hiero.metrics.internal.export.snapshot.DoubleValueMeasurementSnapshotImpl;
 import org.hiero.metrics.internal.export.snapshot.LongValueMeasurementSnapshotImpl;
-import org.hiero.metrics.internal.measurement.MeasurementHolder;
 
-public final class ObservableGaugeImpl extends AbstractMetric<NumberSupplier, SingleValueMeasurementSnapshot>
-        implements ObservableGauge {
+public final class ObservableGaugeImpl extends AbstractMetric<NumberSupplier> implements ObservableGauge {
 
     private final Set<LabelValues> labelValuesSet = ConcurrentHashMap.newKeySet();
 
@@ -29,7 +27,7 @@ public final class ObservableGaugeImpl extends AbstractMetric<NumberSupplier, Si
     }
 
     @Override
-    protected SingleValueMeasurementSnapshot createMeasurementSnapshot(
+    protected MeasurementSnapshot createMeasurementSnapshot(
             NumberSupplier measurement, LabelValues dynamicLabelValues) {
         if (measurement.isFloatingSupplier()) {
             return new DoubleValueMeasurementSnapshotImpl(dynamicLabelValues);
@@ -39,14 +37,12 @@ public final class ObservableGaugeImpl extends AbstractMetric<NumberSupplier, Si
     }
 
     @Override
-    protected void updateMeasurementSnapshot(
-            MeasurementHolder<NumberSupplier, SingleValueMeasurementSnapshot> measurementHolder) {
-        NumberSupplier measurement = measurementHolder.measurement();
+    protected void updateMeasurementSnapshot(NumberSupplier measurement, MeasurementSnapshot snapshot) {
         if (measurement.isFloatingSupplier()) {
-            ((DoubleValueMeasurementSnapshotImpl) measurementHolder.snapshot())
+            ((DoubleValueMeasurementSnapshotImpl) snapshot)
                     .set(measurement.getDoubleSupplier().getAsDouble());
         } else {
-            ((LongValueMeasurementSnapshotImpl) measurementHolder.snapshot())
+            ((LongValueMeasurementSnapshotImpl) snapshot)
                     .set(measurement.getLongSupplier().getAsLong());
         }
     }

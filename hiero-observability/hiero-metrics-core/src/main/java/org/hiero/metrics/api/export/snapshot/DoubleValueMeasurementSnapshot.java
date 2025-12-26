@@ -6,4 +6,4 @@ import java.util.function.DoubleSupplier;
 /**
  * Extension of {@link MeasurementSnapshot} for a single {@code double} value.
  */
-public non-sealed interface DoubleValueMeasurementSnapshot extends SingleValueMeasurementSnapshot, DoubleSupplier {}
+public interface DoubleValueMeasurementSnapshot extends MeasurementSnapshot, DoubleSupplier {}
