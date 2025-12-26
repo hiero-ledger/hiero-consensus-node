@@ -613,8 +613,8 @@ jobs:
             counter=`expr $i - 1`
 
             echo "{\"nodes\": [" > block-nodes_$counter.json
-            echo "{ \"address\": \"$podprio1IP\", \"port\": 40840, \"priority\": 1 }," >> block-nodes_$counter.json
-            echo "{ \"address\": \"$podprio2IP\", \"port\": 40840, \"priority\": 2 }"  >> block-nodes_$counter.json
+            echo "{ \"address\": \"$podprio1IP\", \"streamingPort\": 40840, \"servicePort\": 40840, \"priority\": 1 }," >> block-nodes_$counter.json
+            echo "{ \"address\": \"$podprio2IP\", \"streamingPort\": 40840, \"servicePort\": 40840, \"priority\": 2 }"  >> block-nodes_$counter.json
             echo "]}" >> block-nodes_$counter.json
           
             echo "DEBUG: block-nodes_$counter.json is:"
