@@ -78,6 +78,10 @@ dependencies.constraints {
     api("io.perfmark:perfmark-api:0.27.0") { because("io.perfmark") }
     api("io.prometheus:simpleclient:0.16.0") { because("simpleclient") }
     api("io.prometheus:simpleclient_httpserver:0.16.0") { because("simpleclient.httpserver") }
+    api("io.prometheus:prometheus-metrics-core:1.4.1") { because("io.prometheus.metrics.core") }
+    api("io.prometheus:prometheus-metrics-exporter-httpserver:1.4.1") {
+        because("io.prometheus.metrics.exporter.httpserver")
+    }
     api("jakarta.inject:jakarta.inject-api:2.0.1") { because("jakarta.inject") }
     api("javax.inject:javax.inject:1") { because("javax.inject") }
     api("com.goterl:lazysodium-java:5.2.0") { because("com.goterl.lazysodium") }
