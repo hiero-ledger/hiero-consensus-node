@@ -8,7 +8,6 @@ import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.notification.NotificationEngine;
 import com.swirlds.component.framework.model.WiringModel;
-import com.swirlds.platform.event.preconsensus.PcesFileTracker;
 import com.swirlds.platform.network.protocol.ReservedSignedStateResult;
 import com.swirlds.platform.reconnect.FallenBehindMonitor;
 import com.swirlds.platform.scratchpad.Scratchpad;
@@ -31,6 +30,7 @@ import org.hiero.consensus.hashgraph.FreezePeriodChecker;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.pces.PcesFileTracker;
 import org.hiero.consensus.roster.RosterHistory;
 
 /**
