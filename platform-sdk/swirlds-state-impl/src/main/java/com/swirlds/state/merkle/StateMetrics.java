@@ -4,9 +4,9 @@ package com.swirlds.state.merkle;
 import static com.swirlds.metrics.api.FloatFormats.FORMAT_16_2;
 import static com.swirlds.metrics.api.Metrics.INTERNAL_CATEGORY;
 
-import com.swirlds.common.metrics.RunningAverageMetric;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.state.State;
+import org.hiero.consensus.metrics.RunningAverageMetric;
 
 /**
  * Collection of metrics related to the state lifecycle

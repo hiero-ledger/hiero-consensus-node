@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.component.framework.schedulers.internal;
 
-import com.swirlds.common.metrics.extensions.FractionalTimer;
 import com.swirlds.component.framework.counters.ObjectCounter;
 import com.swirlds.component.framework.model.TraceableWiringModel;
 import com.swirlds.component.framework.schedulers.TaskScheduler;
@@ -12,6 +11,7 @@ import java.util.Objects;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import org.hiero.consensus.metrics.extensions.FractionalTimer;
 
 /**
  * A {@link TaskScheduler} that guarantees that tasks are executed sequentially in the order they are received.
