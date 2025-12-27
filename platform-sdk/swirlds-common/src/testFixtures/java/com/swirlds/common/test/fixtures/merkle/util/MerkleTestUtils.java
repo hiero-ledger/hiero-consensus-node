@@ -11,7 +11,6 @@ import static org.mockito.Mockito.mock;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.time.Time;
-import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.merkle.MerkleInternal;
 import com.swirlds.common.merkle.MerkleLeaf;
 import com.swirlds.common.merkle.MerkleNode;
@@ -19,16 +18,17 @@ import com.swirlds.common.merkle.iterators.MerkleIterator;
 import com.swirlds.common.merkle.synchronization.LearningSynchronizer;
 import com.swirlds.common.merkle.synchronization.TeachingSynchronizer;
 import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
+import com.swirlds.common.merkle.synchronization.stats.ReconnectMapMetrics;
+import com.swirlds.common.merkle.synchronization.stats.ReconnectMapStats;
 import com.swirlds.common.merkle.synchronization.utility.MerkleSynchronizationException;
+import com.swirlds.common.merkle.synchronization.views.LearnerTreeView;
 import com.swirlds.common.test.fixtures.merkle.TestMerkleCryptoFactory;
-import com.swirlds.common.test.fixtures.merkle.dummy.DummyCustomReconnectRoot;
 import com.swirlds.common.test.fixtures.merkle.dummy.DummyMerkleExternalLeaf;
 import com.swirlds.common.test.fixtures.merkle.dummy.DummyMerkleInternal;
 import com.swirlds.common.test.fixtures.merkle.dummy.DummyMerkleInternal2;
 import com.swirlds.common.test.fixtures.merkle.dummy.DummyMerkleLeaf;
 import com.swirlds.common.test.fixtures.merkle.dummy.DummyMerkleLeaf2;
 import com.swirlds.common.test.fixtures.merkle.dummy.DummyMerkleNode;
-import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.metrics.api.Metrics;
@@ -1011,12 +1011,6 @@ public final class MerkleTestUtils {
         }
     }
 
-    public static <T extends MerkleNode> T testSynchronization(
-            final MerkleNode startingTree, final MerkleNode desiredTree, final ReconnectConfig reconnectConfig)
-            throws Exception {
-        return testSynchronization(startingTree, desiredTree, 0, reconnectConfig);
-    }
-
     /**
      * Synchronize two trees and verify that the end result is the expected result.
      */
@@ -1027,10 +1021,20 @@ public final class MerkleTestUtils {
             final int latencyMilliseconds,
             final ReconnectConfig reconnectConfig)
             throws Exception {
+        if (!(startingTree instanceof VirtualMap startingMap)) {
+            throw new UnsupportedOperationException("Reconnects are only supported for virtual maps");
+        }
+        if (!(desiredTree instanceof VirtualMap desiredMap)) {
+            throw new UnsupportedOperationException("Reconnects are only supported for virtual maps");
+        }
         try (PairedStreams streams = new PairedStreams()) {
 
             final LearningSynchronizer learner;
             final TeachingSynchronizer teacher;
+
+            final VirtualMap newRoot = startingMap.newReconnectRoot();
+            final ReconnectMapStats mapStats = new ReconnectMapMetrics(metrics, null, null);
+            final LearnerTreeView<?> learnerView = newRoot.buildLearnerView(reconnectConfig, mapStats);
 
             if (latencyMilliseconds == 0) {
                 learner =
@@ -1038,11 +1042,11 @@ public final class MerkleTestUtils {
                                 getStaticThreadManager(),
                                 streams.getLearnerInput(),
                                 streams.getLearnerOutput(),
-                                startingTree,
+                                newRoot,
+                                learnerView,
                                 streams::disconnect,
                                 TestMerkleCryptoFactory.getInstance(),
-                                reconnectConfig,
-                                metrics) {
+                                reconnectConfig) {
 
                             @Override
                             protected StandardWorkGroup createStandardWorkGroup(
@@ -1057,16 +1061,13 @@ public final class MerkleTestUtils {
                                         true);
                             }
                         };
-                final PlatformContext platformContext =
-                        TestPlatformContextBuilder.create().build();
                 teacher =
                         new TeachingSynchronizer(
-                                platformContext.getConfiguration(),
                                 Time.getCurrent(),
                                 getStaticThreadManager(),
                                 streams.getTeacherInput(),
                                 streams.getTeacherOutput(),
-                                desiredTree,
+                                desiredMap.buildTeacherView(reconnectConfig),
                                 streams::disconnect,
                                 reconnectConfig) {
                             @Override
@@ -1087,7 +1088,8 @@ public final class MerkleTestUtils {
                         new LaggingLearningSynchronizer(
                                 streams.getLearnerInput(),
                                 streams.getLearnerOutput(),
-                                startingTree,
+                                newRoot,
+                                learnerView,
                                 latencyMilliseconds,
                                 streams::disconnect,
                                 reconnectConfig,
@@ -1105,14 +1107,11 @@ public final class MerkleTestUtils {
                                         true);
                             }
                         };
-                final PlatformContext platformContext =
-                        TestPlatformContextBuilder.create().build();
                 teacher =
                         new LaggingTeachingSynchronizer(
-                                platformContext,
                                 streams.getTeacherInput(),
                                 streams.getTeacherOutput(),
-                                desiredTree,
+                                desiredMap.buildTeacherView(reconnectConfig),
                                 latencyMilliseconds,
                                 streams::disconnect,
                                 reconnectConfig) {
@@ -1153,7 +1152,7 @@ public final class MerkleTestUtils {
                         "Exception(s) in synchronization test", firstReconnectException.get());
             }
 
-            final MerkleNode generatedTree = learner.getRoot();
+            final MerkleNode generatedTree = newRoot;
 
             assertReconnectValidity(startingTree, desiredTree, generatedTree);
 
@@ -1216,11 +1215,6 @@ public final class MerkleTestUtils {
                                 1,
                                 node.getReservationCount(),
                                 "each teacher node should have a reference count of exactly 1");
-
-                        // Make sure views (if any) have all been closed
-                        if (node instanceof DummyCustomReconnectRoot) {
-                            ((DummyCustomReconnectRoot) node).assertViewsAreClosed();
-                        }
                     });
         }
 

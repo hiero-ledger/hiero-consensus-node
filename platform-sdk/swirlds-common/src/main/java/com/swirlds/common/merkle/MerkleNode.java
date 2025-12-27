@@ -8,7 +8,6 @@ import com.swirlds.common.merkle.interfaces.MerkleTraversable;
 import com.swirlds.common.merkle.iterators.MerkleIterator;
 import com.swirlds.common.merkle.route.MerkleRoute;
 import com.swirlds.common.merkle.route.MerkleRouteIterator;
-import com.swirlds.common.merkle.synchronization.views.MaybeCustomReconnectRoot;
 import org.hiero.base.crypto.Hashable;
 import org.hiero.base.io.SerializableDet;
 
@@ -22,13 +21,7 @@ import org.hiero.base.io.SerializableDet;
  * </ul>
  */
 public interface MerkleNode
-        extends FastCopyable,
-                Hashable,
-                MerkleMigratable,
-                MerkleTraversable,
-                MaybeCustomReconnectRoot,
-                Reservable,
-                SerializableDet {
+        extends FastCopyable, Hashable, MerkleMigratable, MerkleTraversable, Reservable, SerializableDet {
 
     /**
      * {@inheritDoc}
