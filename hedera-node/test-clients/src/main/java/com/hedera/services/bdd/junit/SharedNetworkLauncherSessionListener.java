@@ -26,6 +26,7 @@ import com.hedera.services.bdd.spec.keys.RepeatableKeyGenerator;
 import com.hedera.services.bdd.spec.remote.RemoteNetworkFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -35,6 +36,10 @@ import java.util.Set;
 import java.util.function.Consumer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.junit.platform.engine.TestSource;
+import org.junit.platform.engine.support.descriptor.ClassSource;
+import org.junit.platform.engine.support.descriptor.CompositeTestSource;
+import org.junit.platform.engine.support.descriptor.MethodSource;
 import org.junit.platform.launcher.LauncherSession;
 import org.junit.platform.launcher.LauncherSessionListener;
 import org.junit.platform.launcher.TestExecutionListener;
@@ -86,6 +91,9 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
         }
 
         private Embedding embedding;
+        private static final Set<String> QUIESCENCE_TEST_CLASSES = Set.of(
+                "com.hedera.services.bdd.suites.regression.system.QuiesceThenMixedOpsRestartTest",
+                "com.hedera.services.bdd.suites.regression.system.JustQuiesceTest");
 
         @Override
         public void testPlanExecutionStarted(@NonNull final TestPlan testPlan) {
@@ -94,6 +102,8 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
             final boolean clprSystemPropertyEnabled =
                     Boolean.parseBoolean(System.getProperty("clpr.clprEnabled", "false"));
             final boolean enableClprOverrides = hasClprTests || clprSystemPropertyEnabled;
+            final boolean hasRestartTests = hasTaggedTestNode(testPlan, Set.of(TestTags.RESTART))
+                    || hasTestClasses(testPlan, QUIESCENCE_TEST_CLASSES);
 
             // Skip standard setup if any test in the plan uses HapiBlockNode
             if (hasAnnotatedTestNode(testPlan, Set.of(HapiBlockNode.class))) {
@@ -140,22 +150,13 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
                         case REPEATABLE -> EmbeddedNetwork.newSharedNetwork(EmbeddedMode.REPEATABLE);
                     };
             if (network != null) {
-                if (enableClprOverrides && network instanceof SubProcessNetwork subProcessNetwork) {
-                    subProcessNetwork.nodes().forEach(node -> {
-                        final var overrides = subProcessNetwork.getApplicationPropertyOverrides();
-                        final var existing = overrides.getOrDefault(node.getNodeId(), List.of());
-                        final var updated = new ArrayList<>(existing);
-                        for (int i = 0; i + 1 < updated.size(); i += 2) {
-                            if ("clpr.clprEnabled".equals(updated.get(i))) {
-                                updated.set(i + 1, "true");
-                                overrides.put(node.getNodeId(), List.copyOf(updated));
-                                return;
-                            }
-                        }
-                        updated.add("clpr.clprEnabled");
-                        updated.add("true");
-                        overrides.put(node.getNodeId(), List.copyOf(updated));
-                    });
+                if (network instanceof SubProcessNetwork subProcessNetwork) {
+                    if (enableClprOverrides) {
+                        upsertApplicationOverride(subProcessNetwork, "clpr.clprEnabled", "true");
+                    }
+                    if (hasRestartTests) {
+                        upsertApplicationOverride(subProcessNetwork, "quiescence.enabled", "true");
+                    }
                 }
                 checkPrOverridesForBlockNodeStreaming(network);
                 network.start();
@@ -243,6 +244,53 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
         private static void startSharedEmbedded(@NonNull final EmbeddedMode mode) {
             SHARED_NETWORK.set(EmbeddedNetwork.newSharedNetwork(mode));
             SHARED_NETWORK.get().start();
+        }
+
+        private static void upsertApplicationOverride(
+                @NonNull final SubProcessNetwork subProcessNetwork,
+                @NonNull final String property,
+                @NonNull final String value) {
+            final var overrides = subProcessNetwork.getApplicationPropertyOverrides();
+            subProcessNetwork.nodes().forEach(node -> {
+                final var existing = overrides.getOrDefault(node.getNodeId(), List.of());
+                final var updated = new ArrayList<>(existing);
+                for (int i = 0; i + 1 < updated.size(); i += 2) {
+                    if (property.equals(updated.get(i))) {
+                        updated.set(i + 1, value);
+                        overrides.put(node.getNodeId(), List.copyOf(updated));
+                        return;
+                    }
+                }
+                updated.add(property);
+                updated.add(value);
+                overrides.put(node.getNodeId(), List.copyOf(updated));
+            });
+        }
+
+        private static boolean hasTestClasses(@NonNull final TestPlan testPlan, @NonNull final Set<String> classNames) {
+            if (classNames.isEmpty()) {
+                return false;
+            }
+            final var stack = new ArrayDeque<>(testPlan.getRoots());
+            while (!stack.isEmpty()) {
+                final var id = stack.pop();
+                testPlan.getChildren(id).forEach(stack::push);
+                final var optSource = id.getSource();
+                if (optSource.isPresent() && sourceHasClass(optSource.get(), classNames)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        private static boolean sourceHasClass(@NonNull final TestSource source, @NonNull final Set<String> classNames) {
+            return switch (source) {
+                case MethodSource ms -> classNames.contains(ms.getClassName());
+                case ClassSource cs -> classNames.contains(cs.getClassName());
+                case CompositeTestSource composite ->
+                    composite.getSources().stream().anyMatch(nested -> sourceHasClass(nested, classNames));
+                default -> false;
+            };
         }
 
         private static Embedding embeddingMode() {

@@ -21,9 +21,12 @@ import java.security.cert.CertificateEncodingException;
 import java.text.ParseException;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
+import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.roster.AddressBook;
 
 /**
@@ -33,6 +36,7 @@ public class AddressBookUtils {
     public static final long CLASSIC_FIRST_NODE_ACCOUNT_NUM = 3;
     public static final String[] CLASSIC_NODE_NAMES =
             new String[] {"node1", "node2", "node3", "node4", "node5", "node6", "node7", "node8"};
+    private static final Map<Long, byte[]> GOSSIP_CERT_CACHE = new ConcurrentHashMap<>();
 
     private AddressBookUtils() {
         throw new UnsupportedOperationException("Utility Class");
@@ -68,6 +72,28 @@ public class AddressBookUtils {
                         throw new IllegalStateException(e);
                     }
                 }));
+    }
+
+    /**
+     * Returns a deterministic, unique gossip CA certificate for the given node id.
+     *
+     * @param nodeId the node id
+     * @return the certificate bytes
+     */
+    public static byte[] gossipCaCertificateForNodeId(final long nodeId) {
+        return GOSSIP_CERT_CACHE.computeIfAbsent(nodeId, id -> {
+            final var nodeKey = NodeId.of(id);
+            try {
+                final var keysAndCerts =
+                        CryptoStatic.generateKeysAndCerts(Set.of(nodeKey), null).get(nodeKey);
+                if (keysAndCerts == null || keysAndCerts.sigCert() == null) {
+                    throw new IllegalStateException("Missing signing certificate for node " + id);
+                }
+                return keysAndCerts.sigCert().getEncoded();
+            } catch (Exception e) {
+                throw new IllegalStateException("Failed to generate gossip certificate for node " + id, e);
+            }
+        });
     }
 
     /**

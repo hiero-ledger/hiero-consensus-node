@@ -146,7 +146,14 @@ public class HapiClients {
             requireNonNull(channel, "FATAL: Cannot continue without additional Netty channel");
             final long shard = node.getAccountId().shardNum();
             final long realm = node.getAccountId().realmNum();
-            existingPool.add(ChannelStubs.from(channel, new NodeConnectInfo(node.hapiSpecInfo(shard, realm)), false));
+            final var nodeOperatorInfo = String.format(
+                    "%s:%d:%d.%d.%d",
+                    node.getHost(),
+                    node.getGrpcNodeOperatorPort(),
+                    shard,
+                    realm,
+                    node.getAccountId().accountNumOrThrow());
+            existingPool.add(ChannelStubs.from(channel, new NodeConnectInfo(nodeOperatorInfo), false));
         }
         stubSequences.putIfAbsent(channelUri, new AtomicInteger());
     }
@@ -416,11 +423,17 @@ public class HapiClients {
     }
 
     public static synchronized void rebuildChannels() {
-        final var maybeLastRebuildTime = LAST_CHANNEL_REBUILD_TIME.get();
-        if (maybeLastRebuildTime != null) {
-            final var msSinceLastRebuild = System.currentTimeMillis() - maybeLastRebuildTime.toEpochMilli();
-            if (msSinceLastRebuild < MINIMUM_REBUILD_INTERVAL_MS) {
-                return;
+        rebuildChannels(false);
+    }
+
+    public static synchronized void rebuildChannels(final boolean force) {
+        if (!force) {
+            final var maybeLastRebuildTime = LAST_CHANNEL_REBUILD_TIME.get();
+            if (maybeLastRebuildTime != null) {
+                final var msSinceLastRebuild = System.currentTimeMillis() - maybeLastRebuildTime.toEpochMilli();
+                if (msSinceLastRebuild < MINIMUM_REBUILD_INTERVAL_MS) {
+                    return;
+                }
             }
         }
         log.info("Shutting down all managed channels");

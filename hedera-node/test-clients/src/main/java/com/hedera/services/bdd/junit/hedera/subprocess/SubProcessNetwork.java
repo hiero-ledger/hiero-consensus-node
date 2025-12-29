@@ -6,6 +6,8 @@ import static com.hedera.node.app.info.DiskStartupNetworks.OVERRIDE_NETWORK_JSON
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.APPLICATION_PROPERTIES;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.DATA_CONFIG_DIR;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.LOG4J2_XML;
+import static com.hedera.services.bdd.junit.hedera.ExternalPath.SAVED_STATES_DIR;
+import static com.hedera.services.bdd.junit.hedera.ExternalPath.WORKING_DIR;
 import static com.hedera.services.bdd.junit.hedera.NodeSelector.byNodeId;
 import static com.hedera.services.bdd.junit.hedera.subprocess.ProcessUtils.awaitStatus;
 import static com.hedera.services.bdd.junit.hedera.utils.AddressBookUtils.classicMetadataFor;
@@ -51,6 +53,7 @@ import java.io.UncheckedIOException;
 import java.net.ServerSocket;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.time.Duration;
 import java.time.Instant;
@@ -60,6 +63,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.SplittableRandom;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
@@ -67,6 +71,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.UnaryOperator;
+import java.util.regex.Pattern;
 import java.util.stream.IntStream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -86,6 +91,10 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
     private static final int FIRST_CANDIDATE_PORT = 30000;
     private static final int LAST_CANDIDATE_PORT = 40000;
     private static final int MAX_NODES_PER_NETWORK = 10;
+    private static final String PRECONSENSUS_EVENTS_DIR = "preconsensus-events";
+    private static final Pattern NUMBER_DIR_PATTERN = Pattern.compile("\\d+");
+    private static final Duration SIGNED_STATE_POLL_INTERVAL = Duration.ofMillis(500);
+    private static final Pattern SOFTWARE_VERSION_BUILD_PATTERN = Pattern.compile("build=(\\d+)");
 
     private static final String SUBPROCESS_HOST = "127.0.0.1";
     private static final ByteString SUBPROCESS_ENDPOINT = asOctets(SUBPROCESS_HOST);
@@ -99,6 +108,12 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
     private static int nextPrometheusPort;
     private static int nextDebugPort;
     private static boolean nextPortsInitialized = false;
+    private int baseGrpcPort;
+    private int baseNodeOperatorPort;
+    private int baseInternalGossipPort;
+    private int baseExternalGossipPort;
+    private int basePrometheusPort;
+    private int baseDebugPort;
     private final Map<Long, AccountID> pendingNodeAccounts = new HashMap<>();
     private final AtomicReference<DeferredRun> ready = new AtomicReference<>();
 
@@ -116,6 +131,8 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
 
     @Nullable
     private UnaryOperator<Network> overrideCustomizer = null;
+
+    private int overrideConfigVersion = -1;
 
     private final Map<Long, List<String>> applicationPropertyOverrides = new HashMap<>();
 
@@ -181,7 +198,8 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
         this.realm = realm;
         this.maxNodeId =
                 Collections.max(nodes.stream().map(SubProcessNode::getNodeId).toList());
-        this.configTxt = configTxtForLocal(name(), nodes(), nextInternalGossipPort, nextExternalGossipPort);
+        setBasePortsFromNextPorts();
+        this.configTxt = configTxtForLocal(name(), nodes(), baseInternalGossipPort, baseExternalGossipPort);
         this.genesisConfigTxt = configTxt;
         this.postInitWorkingDirActions.add(this::configureApplicationProperties);
     }
@@ -351,23 +369,77 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
      * <i>candidate-roster.json</i> (if present); and reassigns ports to avoid binding conflicts.
      */
     public void refreshOverrideWithNewPorts() {
-        log.info("Reassigning ports for network '{}' starting from {}", name(), nextGrpcPort);
+        log.info("Reassigning ports for network '{}' starting from {}", name(), baseGrpcPort);
         reinitializePorts();
-        log.info("  -> Network '{}' ports now starting from {}", name(), nextGrpcPort);
+        log.info("  -> Network '{}' ports now starting from {}", name(), baseGrpcPort);
         nodes.forEach(node -> {
             final int nodeId = (int) node.getNodeId();
             ((SubProcessNode) node)
                     .reassignPorts(
-                            nextGrpcPort + nodeId * 2,
-                            nextNodeOperatorPort + nodeId,
-                            nextInternalGossipPort + nodeId * 2,
-                            nextExternalGossipPort + nodeId * 2,
-                            nextPrometheusPort + nodeId,
-                            nextDebugPort + nodeId);
+                            baseGrpcPort + nodeId * 2,
+                            baseNodeOperatorPort + nodeId,
+                            baseInternalGossipPort + nodeId * 2,
+                            baseExternalGossipPort + nodeId * 2,
+                            basePrometheusPort + nodeId,
+                            baseDebugPort + nodeId);
         });
         final var weights = maybeLatestCandidateWeights();
-        configTxt = configTxtForLocal(networkName, nodes, nextInternalGossipPort, nextExternalGossipPort, weights);
+        configTxt = configTxtForLocal(networkName, nodes, baseInternalGossipPort, baseExternalGossipPort, weights);
         refreshOverrideNetworks(ReassignPorts.YES);
+    }
+
+    /**
+     * Refreshes the node <i>override-network.json</i> files using the current ports and latest weights.
+     */
+    public void refreshOverrideWithCurrentPorts() {
+        refreshOverrideNetworks(ReassignPorts.NO);
+    }
+
+    /**
+     * Refreshes the node <i>override-network.json</i> files using the current ports and latest weights, and
+     * also writes a scoped override for the given config version.
+     *
+     * @param configVersion the configuration version to scope the override under
+     */
+    public void refreshOverrideWithCurrentPortsForConfigVersion(final int configVersion) {
+        if (configVersion <= 0) {
+            refreshOverrideWithCurrentPorts();
+            return;
+        }
+        overrideConfigVersion = configVersion;
+        refreshOverrideNetworks(ReassignPorts.NO);
+    }
+
+    /**
+     * Refreshes the node <i>override-network.json</i> files after reassigning ports, and
+     * also writes a scoped override for the given config version.
+     *
+     * @param configVersion the configuration version to scope the override under
+     */
+    public void refreshOverrideWithNewPortsForConfigVersion(final int configVersion) {
+        if (configVersion <= 0) {
+            refreshOverrideWithNewPorts();
+            return;
+        }
+        overrideConfigVersion = configVersion;
+        refreshOverrideWithNewPorts();
+    }
+
+    /**
+     * Removes any override network files scoped to the given config version, and any base override file.
+     *
+     * @param configVersion the configuration version to clear overrides for
+     */
+    public void clearOverrideNetworksForConfigVersion(final int configVersion) {
+        if (configVersion <= 0) {
+            return;
+        }
+        nodes.forEach(node -> {
+            final var dataConfigDir = node.getExternalPath(DATA_CONFIG_DIR);
+            deleteOverrideIfExists(dataConfigDir.resolve(OVERRIDE_NETWORK_JSON));
+            deleteOverrideIfExists(
+                    dataConfigDir.resolve(Integer.toString(configVersion)).resolve(OVERRIDE_NETWORK_JSON));
+        });
     }
 
     /**
@@ -375,6 +447,7 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
      */
     public void refreshClients() {
         this.clients = HapiClients.clientsFor(this);
+        HapiClients.rebuildChannels(true);
     }
 
     /**
@@ -384,13 +457,16 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
      * @param selector the selector for the node to remove
      */
     public void removeNode(@NonNull final NodeSelector selector) {
-        requireNonNull(selector);
-        final var node = getRequiredNode(selector);
-        node.stopFuture();
-        nodes.remove(node);
-        configTxt = configTxtForLocal(
-                networkName, nodes, nextInternalGossipPort, nextExternalGossipPort, latestCandidateWeights());
-        refreshOverrideNetworks(ReassignPorts.NO);
+        removeNodeInternal(selector, true);
+    }
+
+    /**
+     * Removes the matching node from the network without refreshing override files.
+     *
+     * @param selector the selector for the node to remove
+     */
+    public void removeNodeWithoutOverrides(@NonNull final NodeSelector selector) {
+        removeNodeInternal(selector, false);
     }
 
     /**
@@ -400,6 +476,31 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
      * @param nodeId the id of the node to add
      */
     public void addNode(final long nodeId) {
+        addNodeInternal(nodeId, true);
+    }
+
+    /**
+     * Adds a node with the given id to the network without refreshing override files.
+     *
+     * @param nodeId the id of the node to add
+     */
+    public void addNodeWithoutOverrides(final long nodeId) {
+        addNodeInternal(nodeId, false);
+    }
+
+    private void removeNodeInternal(@NonNull final NodeSelector selector, final boolean refreshOverrides) {
+        requireNonNull(selector);
+        final var node = getRequiredNode(selector);
+        node.stopFuture();
+        nodes.remove(node);
+        configTxt = configTxtForLocal(
+                networkName, nodes, baseInternalGossipPort, baseExternalGossipPort, latestCandidateWeights());
+        if (refreshOverrides) {
+            refreshOverrideNetworks(ReassignPorts.NO);
+        }
+    }
+
+    private void addNodeInternal(final long nodeId, final boolean refreshOverrides) {
         final var i = Collections.binarySearch(
                 nodes.stream().map(HederaNode::getNodeId).toList(), nodeId);
         if (i >= 0) {
@@ -413,12 +514,12 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
                         name(),
                         SUBPROCESS_HOST,
                         SHARED_NETWORK_NAME.equals(name()) ? null : name(),
-                        nextGrpcPort + (int) nodeId * 2,
-                        nextNodeOperatorPort + (int) nodeId,
-                        nextInternalGossipPort + (int) nodeId * 2,
-                        nextExternalGossipPort + (int) nodeId * 2,
-                        nextPrometheusPort + (int) nodeId,
-                        nextDebugPort + (int) nodeId,
+                        baseGrpcPort,
+                        baseNodeOperatorPort,
+                        baseInternalGossipPort,
+                        baseExternalGossipPort,
+                        basePrometheusPort,
+                        baseDebugPort,
                         shard,
                         realm),
                 GRPC_PINGER,
@@ -429,13 +530,142 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
         }
         nodes.add(insertionPoint, node);
         configTxt = configTxtForLocal(
-                networkName, nodes, nextInternalGossipPort, nextExternalGossipPort, latestCandidateWeights());
+                networkName, nodes, baseInternalGossipPort, baseExternalGossipPort, latestCandidateWeights());
         nodes.get(insertionPoint).initWorkingDir(configTxt, currentGrpcServiceEndpoints());
         if (blockNodeMode.equals(BlockNodeMode.SIMULATOR)) {
             executePostInitWorkingDirActions(node);
         }
+        if (refreshOverrides) {
+            refreshOverrideNetworks(ReassignPorts.NO);
+        }
+    }
 
-        refreshOverrideNetworks(ReassignPorts.NO);
+    /**
+     * Returns the latest signed state round for the given node, or {@code -1} if none exist.
+     *
+     * @param nodeId the node id to inspect
+     * @return the latest signed state round, or {@code -1}
+     */
+    public long latestSignedStateRound(final long nodeId) {
+        final var node = getRequiredNode(byNodeId(nodeId));
+        final var signedStatesDir = node.getExternalPath(SAVED_STATES_DIR);
+        return latestNumberedDirectory(signedStatesDir)
+                .map(path -> Long.parseLong(path.getFileName().toString()))
+                .orElse(-1L);
+    }
+
+    /**
+     * Waits for the given node to have a signed state after the provided round.
+     *
+     * @param nodeId the node id to inspect
+     * @param afterRound the round to wait past
+     * @param timeout the maximum time to wait
+     */
+    public void awaitSignedStateAfterRound(final long nodeId, final long afterRound, @NonNull final Duration timeout) {
+        requireNonNull(timeout);
+        final var deadline = Instant.now().plus(timeout);
+        while (Instant.now().isBefore(deadline)) {
+            if (latestSignedStateRound(nodeId) > afterRound) {
+                return;
+            }
+            sleep(SIGNED_STATE_POLL_INTERVAL);
+        }
+        throw new IllegalStateException(
+                "No signed state after round " + afterRound + " for node " + nodeId + " within " + timeout);
+    }
+
+    /**
+     * Waits for a signed state after the given round that includes the required roster entries.
+     *
+     * @param nodeId the node id to inspect
+     * @param afterRound the round to wait past
+     * @param timeout the maximum time to wait
+     * @param requiredNodeIds roster entries that must be present
+     */
+    public void awaitSignedStateAfterRoundWithRosterEntries(
+            final long nodeId,
+            final long afterRound,
+            @NonNull final Duration timeout,
+            @NonNull final List<Long> requiredNodeIds) {
+        requireNonNull(timeout);
+        requireNonNull(requiredNodeIds);
+        if (requiredNodeIds.isEmpty()) {
+            throw new IllegalArgumentException("Required node ids must not be empty");
+        }
+        final var deadline = Instant.now().plus(timeout);
+        var latestRound = afterRound;
+        while (Instant.now().isBefore(deadline)) {
+            final var currentRound = latestSignedStateRound(nodeId);
+            if (currentRound > latestRound) {
+                latestRound = currentRound;
+                final var rosterPath = signedStateRosterPath(nodeId, currentRound);
+                if (rosterPath.isPresent() && rosterIncludesNodeIds(rosterPath.get(), requiredNodeIds)) {
+                    return;
+                }
+            }
+            sleep(SIGNED_STATE_POLL_INTERVAL);
+        }
+        throw new IllegalStateException("No signed state after round " + afterRound + " for node " + nodeId + " within "
+                + timeout + " that includes roster entries " + requiredNodeIds);
+    }
+
+    /**
+     * Returns the configuration version encoded in the latest signed state metadata for the given node.
+     *
+     * @param nodeId the node id to inspect
+     * @return the config version, or {@code 0} if it cannot be determined
+     */
+    public int currentConfigVersion(final long nodeId) {
+        final var node = getRequiredNode(byNodeId(nodeId));
+        final var signedStatesDir = node.getExternalPath(SAVED_STATES_DIR);
+        final var latestStateDir = latestNumberedDirectory(signedStatesDir).orElse(null);
+        if (latestStateDir == null) {
+            return 0;
+        }
+        final var metadataPath = latestStateDir.resolve("stateMetadata.txt");
+        if (!Files.exists(metadataPath)) {
+            return 0;
+        }
+        try (var lines = Files.lines(metadataPath, java.nio.charset.StandardCharsets.UTF_8)) {
+            return lines.filter(line -> line.startsWith("SOFTWARE_VERSION:"))
+                    .map(line -> {
+                        final var matcher = SOFTWARE_VERSION_BUILD_PATTERN.matcher(line);
+                        return matcher.find() ? Integer.parseInt(matcher.group(1)) : 0;
+                    })
+                    .findFirst()
+                    .orElse(0);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    /**
+     * Copies the latest signed state and preconsensus event files from the source node to the target node.
+     *
+     * @param sourceNodeId the node id to copy from
+     * @param targetNodeId the node id to copy to
+     */
+    public void copyLatestSignedStateAndPces(final long sourceNodeId, final long targetNodeId) {
+        final var sourceNode = getRequiredNode(byNodeId(sourceNodeId));
+        final var targetNode = getRequiredNode(byNodeId(targetNodeId));
+        final var sourceSignedStatesDir = sourceNode.getExternalPath(SAVED_STATES_DIR);
+        final var latestStateDir = latestNumberedDirectory(sourceSignedStatesDir)
+                .orElseThrow(() -> new IllegalStateException("No signed states found for node " + sourceNodeId));
+        final var targetSignedStatesDir = targetNode.getExternalPath(SAVED_STATES_DIR);
+        WorkingDirUtils.rm(targetSignedStatesDir);
+        copyDirectory(latestStateDir, targetSignedStatesDir.resolve(latestStateDir.getFileName()));
+        final var sourcePcesDir = preconsensusEventsDir(sourceNode);
+        if (!Files.exists(sourcePcesDir)) {
+            throw new IllegalStateException("No preconsensus events found at " + sourcePcesDir);
+        }
+        final var targetPcesDir = preconsensusEventsDir(targetNode);
+        WorkingDirUtils.rm(targetPcesDir);
+        copyDirectory(sourcePcesDir, targetPcesDir);
+        log.info(
+                "Copied signed state '{}' and PCES from node {} to node {}",
+                latestStateDir.getFileName(),
+                sourceNodeId,
+                targetNodeId);
     }
 
     /**
@@ -447,8 +677,8 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
     public List<ServiceEndpoint> gossipEndpointsForNextNodeId() {
         final var nextNodeId = maxNodeId + 1;
         return List.of(
-                endpointFor(nextInternalGossipPort + (int) nextNodeId * 2),
-                endpointFor(nextExternalGossipPort + (int) nextNodeId * 2));
+                endpointFor(baseInternalGossipPort + (int) nextNodeId * 2),
+                endpointFor(baseExternalGossipPort + (int) nextNodeId * 2));
     }
 
     /**
@@ -459,7 +689,95 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
      */
     public ServiceEndpoint grpcEndpointForNextNodeId() {
         final var nextNodeId = maxNodeId + 1;
-        return endpointFor(nextGrpcPort + (int) nextNodeId * 2);
+        return endpointFor(baseGrpcPort + (int) nextNodeId * 2);
+    }
+
+    private static Optional<Path> latestNumberedDirectory(@NonNull final Path root) {
+        if (!Files.exists(root)) {
+            return Optional.empty();
+        }
+        long latest = -1;
+        Path latestPath = null;
+        try (final var stream = Files.newDirectoryStream(root)) {
+            for (final var path : stream) {
+                if (Files.isDirectory(path)
+                        && NUMBER_DIR_PATTERN
+                                .matcher(path.getFileName().toString())
+                                .matches()) {
+                    final var value = Long.parseLong(path.getFileName().toString());
+                    if (value > latest) {
+                        latest = value;
+                        latestPath = path;
+                    }
+                }
+            }
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+        return Optional.ofNullable(latestPath);
+    }
+
+    private Optional<Path> signedStateRosterPath(final long nodeId, final long round) {
+        final var node = getRequiredNode(byNodeId(nodeId));
+        final var signedStatesDir = node.getExternalPath(SAVED_STATES_DIR);
+        final var rosterPath = signedStatesDir.resolve(Long.toString(round)).resolve("currentRoster.json");
+        return Files.exists(rosterPath) ? Optional.of(rosterPath) : Optional.empty();
+    }
+
+    private static boolean rosterIncludesNodeIds(
+            @NonNull final Path rosterPath, @NonNull final List<Long> requiredNodeIds) {
+        final String json;
+        try {
+            json = Files.readString(rosterPath, java.nio.charset.StandardCharsets.UTF_8);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+        for (final var nodeId : requiredNodeIds) {
+            final var quoted = "\"nodeId\": \"" + nodeId + "\"";
+            final var unquoted = "\"nodeId\": " + nodeId;
+            if (!json.contains(quoted) && !json.contains(unquoted)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static Path preconsensusEventsDir(@NonNull final HederaNode node) {
+        return node.getExternalPath(WORKING_DIR)
+                .resolve(WorkingDirUtils.DATA_DIR)
+                .resolve(ProcessUtils.SAVED_STATES_DIR)
+                .resolve(PRECONSENSUS_EVENTS_DIR)
+                .resolve(Long.toString(node.getNodeId()));
+    }
+
+    private static void copyDirectory(@NonNull final Path source, @NonNull final Path target) {
+        try (final var paths = Files.walk(source)) {
+            paths.forEach(path -> {
+                final var relative = source.relativize(path);
+                final var destination = target.resolve(relative);
+                try {
+                    if (Files.isDirectory(path)) {
+                        Files.createDirectories(destination);
+                    } else {
+                        Files.createDirectories(destination.getParent());
+                        Files.copy(path, destination, StandardCopyOption.REPLACE_EXISTING);
+                    }
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            });
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    private static void sleep(@NonNull final Duration duration) {
+        try {
+            Thread.sleep(duration.toMillis());
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Interrupted while waiting for signed state", e);
+        }
     }
 
     private Map<Long, com.hedera.hapi.node.base.ServiceEndpoint> currentGrpcServiceEndpoints() {
@@ -539,6 +857,7 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
      */
     private void refreshOverrideNetworks(@NonNull final ReassignPorts reassignPorts) {
         log.info("Refreshing override networks for '{}' - \n{}", name(), configTxt);
+        final int scopedConfigVersion = overrideConfigVersion;
         nodes.forEach(node -> {
             var overrideNetwork = WorkingDirUtils.networkFrom(configTxt, OnlyRoster.NO, currentGrpcServiceEndpoints());
             if (overrideCustomizer != null) {
@@ -554,6 +873,13 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
                     Files.writeString(
                             node.getExternalPath(DATA_CONFIG_DIR).resolve(OVERRIDE_NETWORK_JSON),
                             Network.JSON.toJSON(overrideNetwork));
+                    if (scopedConfigVersion > 0) {
+                        final var scopedConfigDir =
+                                node.getExternalPath(DATA_CONFIG_DIR).resolve(Integer.toString(scopedConfigVersion));
+                        Files.createDirectories(scopedConfigDir);
+                        Files.writeString(
+                                scopedConfigDir.resolve(OVERRIDE_NETWORK_JSON), Network.JSON.toJSON(overrideNetwork));
+                    }
                 } catch (IOException e) {
                     throw new UncheckedIOException(e);
                 }
@@ -581,6 +907,7 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
             }
         });
         overrideCustomizer = null;
+        overrideConfigVersion = -1;
     }
 
     private NodeMetadata withReassignedPorts(
@@ -597,12 +924,30 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
                         .build());
     }
 
+    private void deleteOverrideIfExists(@NonNull final Path path) {
+        try {
+            Files.deleteIfExists(path);
+        } catch (IOException e) {
+            log.warn("Failed to delete override network file {}: {}", path, e.toString());
+        }
+    }
+
     private void reinitializePorts() {
         final var effectiveSize = (int) (maxNodeId + 1);
         final var firstGrpcPort = nodes().getFirst().getGrpcPort();
         final var totalPortsUsed = effectiveSize * PORTS_PER_NODE;
         final var newFirstGrpcPort = firstGrpcPort + totalPortsUsed;
         initializeNextPortsForNetwork(effectiveSize, newFirstGrpcPort);
+        setBasePortsFromNextPorts();
+    }
+
+    private void setBasePortsFromNextPorts() {
+        baseGrpcPort = nextGrpcPort;
+        baseNodeOperatorPort = nextNodeOperatorPort;
+        baseInternalGossipPort = nextInternalGossipPort;
+        baseExternalGossipPort = nextExternalGossipPort;
+        basePrometheusPort = nextPrometheusPort;
+        baseDebugPort = nextDebugPort;
     }
 
     private ServiceEndpoint endpointFor(final int port) {
