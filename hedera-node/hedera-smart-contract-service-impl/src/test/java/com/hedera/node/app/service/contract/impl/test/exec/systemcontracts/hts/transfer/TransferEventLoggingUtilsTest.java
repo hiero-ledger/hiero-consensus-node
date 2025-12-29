@@ -53,10 +53,10 @@ public class TransferEventLoggingUtilsTest {
         // when
         TransferEventLoggingUtils.emitErcLogEventsFor(recordBuilder, readableAccountStore, frame);
         // then
-        verifyFTLogEvent(logs, expectedTransfers);
+        validateFTLogEvent(logs, expectedTransfers);
     }
 
-    public static void verifyFTLogEvent(final List<Log> logs, List<TestTokenTransfer> expectedTransfers) {
+    public static void validateFTLogEvent(final List<Log> logs, List<TestTokenTransfer> expectedTransfers) {
         assertEquals(expectedTransfers.size(), logs.size());
         int i = 0;
         for (Log log : logs) {
@@ -87,10 +87,10 @@ public class TransferEventLoggingUtilsTest {
         // when
         TransferEventLoggingUtils.emitErcLogEventsFor(recordBuilder, readableAccountStore, frame);
         // then
-        verifyNFTLogEvent(logs, expectedTransfers);
+        validateNFTLogEvent(logs, expectedTransfers);
     }
 
-    public static void verifyNFTLogEvent(final List<Log> logs, List<TestTokenTransfer> expectedTransfers) {
+    public static void validateNFTLogEvent(final List<Log> logs, List<TestTokenTransfer> expectedTransfers) {
         assertEquals(expectedTransfers.size(), logs.size());
         int i = 0;
         for (Log log : logs) {
@@ -129,7 +129,7 @@ public class TransferEventLoggingUtilsTest {
         // when
         TransferEventLoggingUtils.emitErcLogEventsFor(recordBuilder, readableAccountStore, frame);
         // then
-        verifyFTLogEvent(logs, expectedTransfers);
+        validateFTLogEvent(logs, expectedTransfers);
     }
 
     // Multiple credit accounts. Should be possible with 'Fractional fee'

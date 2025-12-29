@@ -136,7 +136,7 @@ class DispatchForResponseCodeHtsCallTest extends CallTestBase {
         // then
         assertArrayEquals(ReturnTypes.encodedRc(SUCCESS).array(), contractResult.toArray());
         // check that events was added
-        TransferEventLoggingUtilsTest.verifyFTLogEvent(logs, expectedTransfers);
+        TransferEventLoggingUtilsTest.validateFTLogEvent(logs, expectedTransfers);
     }
 
     @Test

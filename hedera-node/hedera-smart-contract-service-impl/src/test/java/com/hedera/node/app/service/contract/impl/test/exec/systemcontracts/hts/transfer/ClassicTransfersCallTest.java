@@ -339,7 +339,7 @@ class ClassicTransfersCallTest extends CallTestBase {
         assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.getState());
         assertEquals(tuweniEncodedRc(SUCCESS), result.getOutput());
         // check that events was added
-        TransferEventLoggingUtilsTest.verifyFTLogEvent(logs, expectedTransfers);
+        TransferEventLoggingUtilsTest.validateFTLogEvent(logs, expectedTransfers);
     }
 
     public static List<SystemContractMethod> ercEventsEmissionForNFTParams() {
@@ -376,6 +376,6 @@ class ClassicTransfersCallTest extends CallTestBase {
         assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.getState());
         assertEquals(tuweniEncodedRc(SUCCESS), result.getOutput());
         // check that events was added
-        TransferEventLoggingUtilsTest.verifyNFTLogEvent(logs, expectedTransfers);
+        TransferEventLoggingUtilsTest.validateNFTLogEvent(logs, expectedTransfers);
     }
 }

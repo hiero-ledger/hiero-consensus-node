@@ -101,7 +101,7 @@ import org.junit.jupiter.api.Tag;
 @Tag(LONG_RUNNING)
 public class CryptoTransferHTSSuite {
 
-    private static final Logger log = LogManager.getLogger(CryptoTransferHTSSuite.class);
+    // TODO Glib: add ERC events test
 
     private static final long GAS_FOR_AUTO_ASSOCIATING_CALLS = 2_000_000;
     private static final long GAS_TO_OFFER = 4_000_000L;
