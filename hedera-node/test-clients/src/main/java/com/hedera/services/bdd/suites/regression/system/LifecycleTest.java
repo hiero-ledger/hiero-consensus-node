@@ -8,7 +8,6 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.blockingOrder;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.buildUpgradeZipFrom;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doAdhoc;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.freezeOnly;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.freezeUpgrade;
@@ -17,6 +16,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.prepareUpgrade;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.purgeUpgradeArtifacts;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.runBackgroundTrafficUntilFreezeComplete;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.updateSpecialFile;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitForActive;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitForActiveNetworkWithReassignedPorts;
@@ -37,6 +37,7 @@ import static org.hiero.consensus.model.status.PlatformStatus.CATASTROPHIC_FAILU
 
 import com.hedera.services.bdd.junit.hedera.NodeSelector;
 import com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork;
+import com.hedera.services.bdd.spec.HapiSpec;
 import com.hedera.services.bdd.spec.HapiSpecOperation;
 import com.hedera.services.bdd.spec.SpecOperation;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
@@ -46,6 +47,8 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
@@ -63,7 +66,56 @@ public interface LifecycleTest {
     Duration EXEC_IMMEDIATE_MF_TIMEOUT = Duration.ofSeconds(10);
     Duration RESTART_TO_ACTIVE_TIMEOUT = Duration.ofSeconds(210);
     Duration PORT_UNBINDING_WAIT_PERIOD = Duration.ofSeconds(180);
+    /**
+     * Legacy global config version used by initial subprocess startups.
+     */
     AtomicInteger CURRENT_CONFIG_VERSION = new AtomicInteger(0);
+    /**
+     * Tracks configuration versions per network to avoid cross-network interference.
+     */
+    ConcurrentMap<String, AtomicInteger> CONFIG_VERSIONS_BY_NETWORK = new ConcurrentHashMap<>();
+
+    /**
+     * Returns the config version tracker for the target network in the given spec.
+     *
+     * @param spec the HAPI spec in scope
+     * @return the config version tracker
+     */
+    static AtomicInteger configVersionFor(@NonNull final HapiSpec spec) {
+        requireNonNull(spec);
+        final var networkName = spec.targetNetworkOrThrow().name();
+        return CONFIG_VERSIONS_BY_NETWORK.computeIfAbsent(networkName, ignore -> new AtomicInteger(0));
+    }
+
+    /**
+     * Returns the current config version for the target network in the given spec.
+     *
+     * @param spec the HAPI spec in scope
+     * @return the current config version
+     */
+    static int currentConfigVersion(@NonNull final HapiSpec spec) {
+        return configVersionFor(spec).get();
+    }
+
+    /**
+     * Sets the current config version for the target network in the given spec.
+     *
+     * @param spec the HAPI spec in scope
+     * @param version the config version to record
+     */
+    static void setCurrentConfigVersion(@NonNull final HapiSpec spec, final int version) {
+        configVersionFor(spec).set(version);
+    }
+
+    /**
+     * Increments and returns the config version for the target network in the given spec.
+     *
+     * @param spec the HAPI spec in scope
+     * @return the incremented config version
+     */
+    static int incrementConfigVersion(@NonNull final HapiSpec spec) {
+        return configVersionFor(spec).incrementAndGet();
+    }
 
     /**
      * Returns an operation that asserts that the current version of the network has the given
@@ -73,8 +125,8 @@ public interface LifecycleTest {
      * @return the operation
      */
     default HapiSpecOperation assertGetVersionInfoMatches(@NonNull final Supplier<SemanticVersion> versionSupplier) {
-        return sourcing(() -> getVersionInfo()
-                .hasProtoServicesVersion(fromBaseAndConfig(versionSupplier.get(), CURRENT_CONFIG_VERSION.get())));
+        return sourcingContextual(spec -> getVersionInfo()
+                .hasProtoServicesVersion(fromBaseAndConfig(versionSupplier.get(), currentConfigVersion(spec))));
     }
 
     /**
@@ -150,7 +202,7 @@ public interface LifecycleTest {
      * @return the operation
      */
     default SpecOperation upgradeToNextConfigVersion() {
-        return sourcing(() -> upgradeToConfigVersion(CURRENT_CONFIG_VERSION.get() + 1, Map.of(), noOp()));
+        return sourcingContextual(spec -> upgradeToConfigVersion(currentConfigVersion(spec) + 1, Map.of(), noOp()));
     }
 
     /**
@@ -160,8 +212,8 @@ public interface LifecycleTest {
      * @return the operation
      */
     default SpecOperation upgradeToNextConfigVersionWithoutOverrides() {
-        return sourcing(
-                () -> upgradeToConfigVersionWithoutOverrides(CURRENT_CONFIG_VERSION.get() + 1, Map.of(), noOp()));
+        return sourcingContextual(
+                spec -> upgradeToConfigVersionWithoutOverrides(currentConfigVersion(spec) + 1, Map.of(), noOp()));
     }
 
     /**
@@ -173,7 +225,7 @@ public interface LifecycleTest {
      */
     default SpecOperation beginUpgradeToNextConfigVersion(@NonNull final SpecOperation... preRestartOps) {
         requireNonNull(preRestartOps);
-        return sourcing(() -> beginUpgradeToConfigVersion(CURRENT_CONFIG_VERSION.get() + 1, preRestartOps));
+        return sourcingContextual(spec -> beginUpgradeToConfigVersion(currentConfigVersion(spec) + 1, preRestartOps));
     }
 
     /**
@@ -196,7 +248,7 @@ public interface LifecycleTest {
                         .havingHash(upgradeFileHashAt(FAKE_UPGRADE_ZIP_LOC))),
                 confirmFreezeAndShutdown(),
                 blockingOrder(preRestartOps),
-                doAdhoc(() -> CURRENT_CONFIG_VERSION.set(version)));
+                doingContextual(spec -> setCurrentConfigVersion(spec, version)));
     }
 
     /**
@@ -210,7 +262,7 @@ public interface LifecycleTest {
             @NonNull final NodeSelector selector, @NonNull final Map<String, String> envOverrides) {
         requireNonNull(selector);
         requireNonNull(envOverrides);
-        return sourcing(() -> FakeNmt.startNodes(selector, CURRENT_CONFIG_VERSION.get(), envOverrides));
+        return sourcingContextual(spec -> FakeNmt.startNodes(selector, currentConfigVersion(spec), envOverrides));
     }
 
     /**
@@ -235,7 +287,8 @@ public interface LifecycleTest {
             @NonNull final NodeSelector selector, @NonNull final Map<String, String> envOverrides) {
         requireNonNull(selector);
         requireNonNull(envOverrides);
-        return sourcing(() -> FakeNmt.startNodesNoOverride(selector, CURRENT_CONFIG_VERSION.get(), envOverrides));
+        return sourcingContextual(
+                spec -> FakeNmt.startNodesNoOverride(selector, currentConfigVersion(spec), envOverrides));
     }
 
     /**
@@ -283,15 +336,11 @@ public interface LifecycleTest {
         return blockingOrder(
                 doingContextual(spec -> {
                     final var subProcessNetwork = spec.subProcessNetworkOrThrow();
-                    CURRENT_CONFIG_VERSION.set(subProcessNetwork.currentConfigVersion(sourceNodeId));
+                    setCurrentConfigVersion(spec, subProcessNetwork.currentConfigVersion(sourceNodeId));
                     baselineSignedStateRound.set(subProcessNetwork.latestSignedStateRound(sourceNodeId));
+                    subProcessNetwork.assertNoOverrideNetworks();
                 }),
                 beginUpgradeToNextConfigVersion(preRestartOps),
-                doingContextual(spec -> {
-                    if (spec.targetNetworkOrThrow() instanceof SubProcessNetwork subProcessNetwork) {
-                        subProcessNetwork.clearOverrideNetworksForConfigVersion(CURRENT_CONFIG_VERSION.get());
-                    }
-                }),
                 resumeUpgradedNetworkWithoutOverrides(existingSelector, envOverrides),
                 waitForActive(existingSelector, RESTART_TO_ACTIVE_TIMEOUT),
                 doingContextual(spec -> spec.subProcessNetworkOrThrow().refreshClients()),
@@ -311,7 +360,7 @@ public interface LifecycleTest {
                 waitForActive(NodeSelector.allNodes(), RESTART_TO_ACTIVE_TIMEOUT),
                 doingContextual(spec -> {
                     if (spec.targetNetworkOrThrow() instanceof SubProcessNetwork subProcessNetwork) {
-                        subProcessNetwork.clearOverrideNetworksForConfigVersion(CURRENT_CONFIG_VERSION.get());
+                        subProcessNetwork.assertNoOverrideNetworks();
                     }
                 }));
     }
@@ -407,13 +456,8 @@ public interface LifecycleTest {
                 // reset when last frozen time matches it (i.e., in a post-upgrade transaction)
                 cryptoTransfer(tinyBarsFromTo(GENESIS, FUNDING, 1)),
                 confirmFreezeAndShutdown(),
-                sourcing(() -> FakeNmt.restartNetwork(CURRENT_CONFIG_VERSION.incrementAndGet(), Map.of())),
-                waitForActiveNetworkWithReassignedPorts(RESTART_TIMEOUT),
-                doingContextual(spec -> {
-                    if (spec.targetNetworkOrThrow() instanceof SubProcessNetwork subProcessNetwork) {
-                        subProcessNetwork.clearOverrideNetworksForConfigVersion(CURRENT_CONFIG_VERSION.get());
-                    }
-                }));
+                sourcingContextual(spec -> FakeNmt.restartNetwork(incrementConfigVersion(spec), Map.of())),
+                waitForActiveNetworkWithReassignedPorts(RESTART_TIMEOUT));
     }
 
     /**
@@ -421,8 +465,8 @@ public interface LifecycleTest {
      * @return the operation
      */
     static SpecOperation restartWithDisabledNodeOperatorGrpcPort() {
-        return restartAtNextConfigVersionVia(sourcing(
-                () -> FakeNmt.restartNetworkWithDisabledNodeOperatorPort(CURRENT_CONFIG_VERSION.incrementAndGet())));
+        return restartAtNextConfigVersionVia(sourcingContextual(
+                spec -> FakeNmt.restartNetworkWithDisabledNodeOperatorPort(incrementConfigVersion(spec))));
     }
 
     /**
@@ -438,12 +482,7 @@ public interface LifecycleTest {
                 cryptoTransfer(tinyBarsFromTo(GENESIS, FUNDING, 1)),
                 confirmFreezeAndShutdown(),
                 restartOp,
-                waitForActiveNetworkWithReassignedPorts(RESTART_TIMEOUT),
-                doingContextual(spec -> {
-                    if (spec.targetNetworkOrThrow() instanceof SubProcessNetwork subProcessNetwork) {
-                        subProcessNetwork.clearOverrideNetworksForConfigVersion(CURRENT_CONFIG_VERSION.get());
-                    }
-                }));
+                waitForActiveNetworkWithReassignedPorts(RESTART_TIMEOUT));
     }
 
     /**
@@ -467,7 +506,8 @@ public interface LifecycleTest {
             @NonNull final Map<String, String> envOverrides, @NonNull final SpecOperation... preRestartOps) {
         requireNonNull(envOverrides);
         requireNonNull(preRestartOps);
-        return sourcing(() -> upgradeToConfigVersion(CURRENT_CONFIG_VERSION.get() + 1, envOverrides, preRestartOps));
+        return sourcingContextual(
+                spec -> upgradeToConfigVersion(currentConfigVersion(spec) + 1, envOverrides, preRestartOps));
     }
 
     /**
@@ -482,8 +522,8 @@ public interface LifecycleTest {
             @NonNull final Map<String, String> envOverrides, @NonNull final SpecOperation... preRestartOps) {
         requireNonNull(envOverrides);
         requireNonNull(preRestartOps);
-        return sourcing(() ->
-                upgradeToConfigVersionWithoutOverrides(CURRENT_CONFIG_VERSION.get() + 1, envOverrides, preRestartOps));
+        return sourcingContextual(spec ->
+                upgradeToConfigVersionWithoutOverrides(currentConfigVersion(spec) + 1, envOverrides, preRestartOps));
     }
 
     /**
@@ -511,13 +551,8 @@ public interface LifecycleTest {
                 confirmFreezeAndShutdown(),
                 blockingOrder(preRestartOps),
                 FakeNmt.restartNetwork(version, envOverrides),
-                doAdhoc(() -> CURRENT_CONFIG_VERSION.set(version)),
+                doingContextual(spec -> setCurrentConfigVersion(spec, version)),
                 waitForActiveNetworkWithReassignedPorts(RESTART_TIMEOUT),
-                doingContextual(spec -> {
-                    if (spec.targetNetworkOrThrow() instanceof SubProcessNetwork subProcessNetwork) {
-                        subProcessNetwork.clearOverrideNetworksForConfigVersion(version);
-                    }
-                }),
                 cryptoCreate("postUpgradeAccount"),
                 // Ensure we have a post-upgrade transaction in a new period to trigger
                 // system file exports while still streaming records
@@ -540,6 +575,11 @@ public interface LifecycleTest {
         requireNonNull(preRestartOps);
         requireNonNull(envOverrides);
         return blockingOrder(
+                doingContextual(spec -> {
+                    if (spec.targetNetworkOrThrow() instanceof SubProcessNetwork subProcessNetwork) {
+                        subProcessNetwork.assertNoOverrideNetworks();
+                    }
+                }),
                 runBackgroundTrafficUntilFreezeComplete(),
                 sourcing(() -> freezeUpgrade()
                         .startingIn(2)
@@ -549,11 +589,11 @@ public interface LifecycleTest {
                 confirmFreezeAndShutdown(),
                 blockingOrder(preRestartOps),
                 FakeNmt.restartNetworkNoOverride(version, envOverrides),
-                doAdhoc(() -> CURRENT_CONFIG_VERSION.set(version)),
+                doingContextual(spec -> setCurrentConfigVersion(spec, version)),
                 waitForActiveNetworkWithReassignedPorts(RESTART_TIMEOUT),
                 doingContextual(spec -> {
                     if (spec.targetNetworkOrThrow() instanceof SubProcessNetwork subProcessNetwork) {
-                        subProcessNetwork.clearOverrideNetworksForConfigVersion(version);
+                        subProcessNetwork.assertNoOverrideNetworks();
                     }
                 }),
                 cryptoCreate("postUpgradeAccount"),
@@ -587,7 +627,7 @@ public interface LifecycleTest {
     }
 
     /**
-     * Returns a {@link SemanticVersion} that combines the given version with the given configuration version.
+     * Returns the config version parsed from the build metadata in a {@link SemanticVersion}.
      *
      * @param version the base version
      * @return the config version

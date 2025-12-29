@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.services.bdd.junit.hedera.subprocess;
 
+import static com.hedera.node.app.info.DiskStartupNetworks.ARCHIVE;
 import static com.hedera.node.app.info.DiskStartupNetworks.GENESIS_NETWORK_JSON;
 import static com.hedera.node.app.info.DiskStartupNetworks.OVERRIDE_NETWORK_JSON;
 import static com.hedera.services.bdd.junit.hedera.ExternalPath.APPLICATION_PROPERTIES;
@@ -20,6 +21,8 @@ import static java.util.stream.Collectors.toMap;
 import static org.hiero.base.concurrent.interrupt.Uninterruptable.abortAndThrowIfInterrupted;
 import static org.hiero.consensus.model.status.PlatformStatus.ACTIVE;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.protobuf.ByteString;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.state.roster.RosterEntry;
@@ -60,10 +63,12 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.SplittableRandom;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
@@ -100,6 +105,7 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
     private static final ByteString SUBPROCESS_ENDPOINT = asOctets(SUBPROCESS_HOST);
     private static final GrpcPinger GRPC_PINGER = new GrpcPinger();
     private static final PrometheusClient PROMETHEUS_CLIENT = new PrometheusClient();
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     private static int nextGrpcPort;
     private static int nextNodeOperatorPort;
@@ -131,8 +137,6 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
 
     @Nullable
     private UnaryOperator<Network> overrideCustomizer = null;
-
-    private int overrideConfigVersion = -1;
 
     private final Map<Long, List<String>> applicationPropertyOverrides = new HashMap<>();
 
@@ -396,50 +400,83 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
     }
 
     /**
-     * Refreshes the node <i>override-network.json</i> files using the current ports and latest weights, and
-     * also writes a scoped override for the given config version.
+     * Refreshes the node <i>override-network.json</i> files using the current ports and latest weights.
      *
-     * @param configVersion the configuration version to scope the override under
+     * @param configVersion the configuration version (unused, kept for API compatibility)
      */
     public void refreshOverrideWithCurrentPortsForConfigVersion(final int configVersion) {
-        if (configVersion <= 0) {
-            refreshOverrideWithCurrentPorts();
-            return;
-        }
-        overrideConfigVersion = configVersion;
         refreshOverrideNetworks(ReassignPorts.NO);
     }
 
     /**
-     * Refreshes the node <i>override-network.json</i> files after reassigning ports, and
-     * also writes a scoped override for the given config version.
+     * Refreshes the node <i>override-network.json</i> files after reassigning ports.
      *
-     * @param configVersion the configuration version to scope the override under
+     * @param configVersion the configuration version (unused, kept for API compatibility)
      */
     public void refreshOverrideWithNewPortsForConfigVersion(final int configVersion) {
-        if (configVersion <= 0) {
-            refreshOverrideWithNewPorts();
-            return;
-        }
-        overrideConfigVersion = configVersion;
         refreshOverrideWithNewPorts();
     }
 
     /**
-     * Removes any override network files scoped to the given config version, and any base override file.
-     *
-     * @param configVersion the configuration version to clear overrides for
+     * Removes any override network files regardless of config version.
      */
-    public void clearOverrideNetworksForConfigVersion(final int configVersion) {
-        if (configVersion <= 0) {
-            return;
-        }
+    public void clearOverrideNetworks() {
         nodes.forEach(node -> {
             final var dataConfigDir = node.getExternalPath(DATA_CONFIG_DIR);
             deleteOverrideIfExists(dataConfigDir.resolve(OVERRIDE_NETWORK_JSON));
-            deleteOverrideIfExists(
-                    dataConfigDir.resolve(Integer.toString(configVersion)).resolve(OVERRIDE_NETWORK_JSON));
+            try (var dirs = Files.list(dataConfigDir)) {
+                dirs.filter(Files::isDirectory)
+                        .filter(dir -> NUMBER_DIR_PATTERN
+                                .matcher(dir.getFileName().toString())
+                                .matches())
+                        .forEach(dir -> deleteOverrideIfExists(dir.resolve(OVERRIDE_NETWORK_JSON)));
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
         });
+    }
+
+    /**
+     * Throws if any override-network.json files exist in the network config directories.
+     */
+    public void assertNoOverrideNetworks() {
+        nodes.forEach(node -> {
+            final var dataConfigDir = node.getExternalPath(DATA_CONFIG_DIR);
+            final var baseOverride = dataConfigDir.resolve(OVERRIDE_NETWORK_JSON);
+            if (Files.exists(baseOverride)) {
+                throw new IllegalStateException(
+                        "override-network.json present for node " + node.getNodeId() + " at " + baseOverride);
+            }
+            assertNoScopedOverride(dataConfigDir, node.getNodeId());
+            final var archiveDir = dataConfigDir.resolve(ARCHIVE);
+            final var archivedOverride = archiveDir.resolve(OVERRIDE_NETWORK_JSON);
+            if (Files.exists(archivedOverride)) {
+                throw new IllegalStateException(
+                        "override-network.json present for node " + node.getNodeId() + " at " + archivedOverride);
+            }
+            assertNoScopedOverride(archiveDir, node.getNodeId());
+        });
+    }
+
+    private static void assertNoScopedOverride(@NonNull final Path rootDir, final long nodeId) {
+        if (!Files.exists(rootDir)) {
+            return;
+        }
+        try (var dirs = Files.list(rootDir)) {
+            dirs.filter(Files::isDirectory)
+                    .filter(dir -> NUMBER_DIR_PATTERN
+                            .matcher(dir.getFileName().toString())
+                            .matches())
+                    .forEach(dir -> {
+                        final var overridePath = dir.resolve(OVERRIDE_NETWORK_JSON);
+                        if (Files.exists(overridePath)) {
+                            throw new IllegalStateException(
+                                    "override-network.json present for node " + nodeId + " at " + overridePath);
+                        }
+                    });
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 
     /**
@@ -447,7 +484,8 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
      */
     public void refreshClients() {
         this.clients = HapiClients.clientsFor(this);
-        HapiClients.rebuildChannels(true);
+        // Only rebuild channels that belong to this network to avoid disrupting other networks.
+        HapiClients.rebuildChannelsForNodes(nodes());
     }
 
     /**
@@ -646,6 +684,9 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
      * @param targetNodeId the node id to copy to
      */
     public void copyLatestSignedStateAndPces(final long sourceNodeId, final long targetNodeId) {
+        if (sourceNodeId == targetNodeId) {
+            throw new IllegalArgumentException("Source and target node ids must differ");
+        }
         final var sourceNode = getRequiredNode(byNodeId(sourceNodeId));
         final var targetNode = getRequiredNode(byNodeId(targetNodeId));
         final var sourceSignedStatesDir = sourceNode.getExternalPath(SAVED_STATES_DIR);
@@ -724,22 +765,57 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
         return Files.exists(rosterPath) ? Optional.of(rosterPath) : Optional.empty();
     }
 
+    /**
+     * Returns whether the roster JSON includes all required node ids.
+     *
+     * @param rosterPath path to the roster JSON
+     * @param requiredNodeIds required node ids
+     * @return true if all required ids are present
+     */
     private static boolean rosterIncludesNodeIds(
             @NonNull final Path rosterPath, @NonNull final List<Long> requiredNodeIds) {
-        final String json;
-        try {
-            json = Files.readString(rosterPath, java.nio.charset.StandardCharsets.UTF_8);
+        final Set<Long> discoveredIds = new HashSet<>();
+        try (var input = Files.newInputStream(rosterPath)) {
+            final var root = OBJECT_MAPPER.readTree(input);
+            collectNodeIds(root, discoveredIds);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
-        for (final var nodeId : requiredNodeIds) {
-            final var quoted = "\"nodeId\": \"" + nodeId + "\"";
-            final var unquoted = "\"nodeId\": " + nodeId;
-            if (!json.contains(quoted) && !json.contains(unquoted)) {
-                return false;
+        return requiredNodeIds.stream().allMatch(discoveredIds::contains);
+    }
+
+    /**
+     * Collects all {@code nodeId} values from a JSON tree.
+     *
+     * <p>This avoids substring matching errors such as 1 matching 10.
+     *
+     * @param node the current JSON node
+     * @param nodeIds the set to populate with parsed ids
+     */
+    private static void collectNodeIds(@NonNull final JsonNode node, @NonNull final Set<Long> nodeIds) {
+        if (node.isObject()) {
+            final var fields = node.fields();
+            while (fields.hasNext()) {
+                final var entry = fields.next();
+                if ("nodeId".equals(entry.getKey())) {
+                    final var value = entry.getValue();
+                    if (value.isNumber()) {
+                        nodeIds.add(value.longValue());
+                    } else if (value.isTextual()) {
+                        try {
+                            nodeIds.add(Long.parseLong(value.asText()));
+                        } catch (NumberFormatException ignore) {
+                            // Ignore malformed nodeId fields.
+                        }
+                    }
+                }
+                collectNodeIds(entry.getValue(), nodeIds);
+            }
+        } else if (node.isArray()) {
+            for (final var child : node) {
+                collectNodeIds(child, nodeIds);
             }
         }
-        return true;
     }
 
     private static Path preconsensusEventsDir(@NonNull final HederaNode node) {
@@ -857,7 +933,6 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
      */
     private void refreshOverrideNetworks(@NonNull final ReassignPorts reassignPorts) {
         log.info("Refreshing override networks for '{}' - \n{}", name(), configTxt);
-        final int scopedConfigVersion = overrideConfigVersion;
         nodes.forEach(node -> {
             var overrideNetwork = WorkingDirUtils.networkFrom(configTxt, OnlyRoster.NO, currentGrpcServiceEndpoints());
             if (overrideCustomizer != null) {
@@ -873,13 +948,6 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
                     Files.writeString(
                             node.getExternalPath(DATA_CONFIG_DIR).resolve(OVERRIDE_NETWORK_JSON),
                             Network.JSON.toJSON(overrideNetwork));
-                    if (scopedConfigVersion > 0) {
-                        final var scopedConfigDir =
-                                node.getExternalPath(DATA_CONFIG_DIR).resolve(Integer.toString(scopedConfigVersion));
-                        Files.createDirectories(scopedConfigDir);
-                        Files.writeString(
-                                scopedConfigDir.resolve(OVERRIDE_NETWORK_JSON), Network.JSON.toJSON(overrideNetwork));
-                    }
                 } catch (IOException e) {
                     throw new UncheckedIOException(e);
                 }
@@ -907,7 +975,6 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
             }
         });
         overrideCustomizer = null;
-        overrideConfigVersion = -1;
     }
 
     private NodeMetadata withReassignedPorts(

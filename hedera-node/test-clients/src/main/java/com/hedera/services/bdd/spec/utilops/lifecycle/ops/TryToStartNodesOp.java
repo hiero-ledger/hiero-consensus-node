@@ -80,6 +80,9 @@ public class TryToStartNodesOp extends AbstractLifecycleOp {
                 }
             } else if (reassignPorts == ReassignPorts.YES) {
                 throw new IllegalStateException("Cannot reassign ports without refreshing override networks");
+            } else {
+                // No-override startup requires a clean config directory.
+                subProcessNetwork.assertNoOverrideNetworks();
             }
         } else if (reassignPorts == ReassignPorts.YES) {
             throw new IllegalStateException("Can only reassign ports for a SubProcessNetwork");
@@ -110,6 +113,7 @@ public class TryToStartNodesOp extends AbstractLifecycleOp {
             final var snapshot = node.bindExceptionLogSnapshot();
             node.startWithConfigVersion(configVersion, envOverrides);
             if (!bindExceptionSeenWithinWindow(node, snapshot)) {
+                log.info("Successfully bound node {} to snapshot {} (after {} attempts)", node, snapshot, attempt);
                 return;
             }
             attempt++;

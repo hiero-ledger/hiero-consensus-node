@@ -97,13 +97,14 @@ import org.junit.jupiter.api.TestMethodOrder;
 /**
  * Asserts expected behavior of the network when upgrading with DAB enabled.
  * <p>
- * The test framework simulates DAB by copying the <i>config.txt</i> from the node's upgrade artifacts into their
- * working directories, instead of regenerating a <i>config.txt</i> to match its {@link HederaNode} instances. It
+ * The test framework simulates DAB by relying on node-generated upgrade artifacts (such as <i>config.txt</i> and
+ * <i>candidate-roster.json</i>) and preserving subprocess ports across restarts, instead of regenerating a
+ * <i>config.txt</i> to match its {@link HederaNode} instances or writing override-network.json files.
  * <p>
  * There are three upgrades in this test. The first leaves the address book unchanged, the second removes `node1`,
  * and the last one adds a new `node5`.
  * <p>
- * Halfway through the sequence, we also verify that reconnect is still possible  with only `node0` and `node2`
+ * Halfway through the sequence, we also verify that reconnect is still possible with only `node0` and `node2`
  * left online while `node3` reconnects; which we accomplish by giving most of the stake to those nodes.
  * <p>
  * We also verify that an account staking to a deleted node cannot earn rewards.

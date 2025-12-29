@@ -8,7 +8,7 @@ import static com.hedera.services.bdd.spec.HapiSpec.multiNetworkHapiTest;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeDelete;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doAdhoc;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateCandidateRoster;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
@@ -48,6 +48,14 @@ import org.junit.jupiter.api.Tag;
 public class MultiNetworkNodeLifecycleSuite implements LifecycleTest {
     private static final Pattern OVERRIDE_SCOPE_DIR_PATTERN = Pattern.compile("\\d+");
 
+    /**
+     * Validates roster changes across multiple networks after freeze-driven upgrades.
+     *
+     * @param netA first subprocess network
+     * @param netB second subprocess network
+     * @param netC third subprocess network
+     * @return dynamic tests representing the multi-network plan
+     */
     @MultiNetworkHapiTest(
             networks = {
                 @MultiNetworkHapiTest.Network(name = "NET_A", size = 4, firstGrpcPort = 27400),
@@ -99,6 +107,12 @@ public class MultiNetworkNodeLifecycleSuite implements LifecycleTest {
         return builder.asDynamicTests();
     }
 
+    /**
+     * Verifies a staged node addition where the new node joins from a copied signed state.
+     *
+     * @param net the subprocess network under test
+     * @return dynamic tests representing the staged upgrade plan
+     */
     @MultiNetworkHapiTest(
             networks = {@MultiNetworkHapiTest.Network(name = "NET_STAGE", size = 4, firstGrpcPort = 30400)})
     @DisplayName("Upgrade starts existing nodes before new node joins from signed state")
@@ -112,6 +126,28 @@ public class MultiNetworkNodeLifecycleSuite implements LifecycleTest {
         return builder.asDynamicTests();
     }
 
+    /**
+     * Builds the operations to remove one node and add another, then perform a freeze upgrade.
+     *
+     * @param network the target subprocess network
+     * @param networkPrefix prefix for entity names
+     * @param nodeIdToRemove the node id to remove
+     * @param nodeIdToAdd the node id to add
+     * @param expectedRoster expected roster after the upgrade
+     * @param portSnapshots holder for pre-upgrade port snapshots
+     * @return the operations to execute on the network
+     */
+    /**
+     * Builds the operations to remove one node and add another, then perform a freeze upgrade.
+     *
+     * @param network the target subprocess network
+     * @param networkPrefix prefix for entity names
+     * @param nodeIdToRemove the node id to remove
+     * @param nodeIdToAdd the node id to add
+     * @param expectedRoster expected roster after the upgrade
+     * @param portSnapshots holder for pre-upgrade port snapshots
+     * @return the operations to execute on the network
+     */
     private SpecOperation[] deleteAndUpgradeNetwork(
             final SubProcessNetwork network,
             final String networkPrefix,
@@ -133,7 +169,7 @@ public class MultiNetworkNodeLifecycleSuite implements LifecycleTest {
             // Ensure channel pools are initialized for this network before fee downloads
             UtilVerbs.doingContextual(spec -> spec.subProcessNetworkOrThrow().refreshClients()),
             UtilVerbs.doingContextual(spec -> portSnapshots.set(portsByNodeId(spec.subProcessNetworkOrThrow()))),
-            doAdhoc(() -> CURRENT_CONFIG_VERSION.set(0)),
+            doingContextual(spec -> LifecycleTest.setCurrentConfigVersion(spec, 0)),
             cryptoCreate(newNodeAccount).payingWith(GENESIS).balance(ONE_HBAR).exposingCreatedIdTo(createdAccount::set),
             withOpContext((spec, opLog) -> {
                 final var protoId = createdAccount.get();
@@ -179,6 +215,15 @@ public class MultiNetworkNodeLifecycleSuite implements LifecycleTest {
         };
     }
 
+    /**
+     * Builds the operations to add a node and defer its start until a signed state is copied.
+     *
+     * @param network the target subprocess network
+     * @param networkPrefix prefix for entity names
+     * @param nodeIdToAdd the node id to add
+     * @param expectedRoster expected roster after the upgrade
+     * @return the operations to execute on the network
+     */
     private SpecOperation[] addNodeAndUpgradeWithDeferredStart(
             final SubProcessNetwork network,
             final String networkPrefix,
@@ -195,7 +240,7 @@ public class MultiNetworkNodeLifecycleSuite implements LifecycleTest {
                 UtilVerbs.doingContextual(TxnUtils::triggerAndCloseAtLeastOneFileIfNotInterrupted));
         return new SpecOperation[] {
             UtilVerbs.doingContextual(spec -> spec.subProcessNetworkOrThrow().refreshClients()),
-            doAdhoc(() -> CURRENT_CONFIG_VERSION.set(0)),
+            doingContextual(spec -> LifecycleTest.setCurrentConfigVersion(spec, 0)),
             cryptoCreate(newNodeAccount).payingWith(GENESIS).balance(ONE_HBAR).exposingCreatedIdTo(createdAccount::set),
             withOpContext((spec, opLog) -> {
                 final var protoId = createdAccount.get();
@@ -228,12 +273,25 @@ public class MultiNetworkNodeLifecycleSuite implements LifecycleTest {
         };
     }
 
+    /**
+     * Ensures the network is active and the roster matches the expected ids.
+     *
+     * @param network the network to refresh
+     * @param expectedIds the expected node ids
+     * @return operations that validate readiness
+     */
     private SpecOperation[] ensureNetworkReady(final SubProcessNetwork network, final List<Long> expectedIds) {
         return new SpecOperation[] {
             UtilVerbs.doingContextual(spec -> network.refreshClients()), rosterShouldMatch(expectedIds)
         };
     }
 
+    /**
+     * Validates that the current roster contains the expected node ids.
+     *
+     * @param expectedIds expected node ids
+     * @return an operation that asserts the roster matches
+     */
     private SpecOperation rosterShouldMatch(final List<Long> expectedIds) {
         return withOpContext((spec, opLog) -> {
             final var actualIds = spec.subProcessNetworkOrThrow().nodes().stream()
@@ -243,6 +301,14 @@ public class MultiNetworkNodeLifecycleSuite implements LifecycleTest {
         });
     }
 
+    /**
+     * Asserts that port assignments are preserved for existing nodes and correctly derived for new nodes.
+     *
+     * @param network the network under test
+     * @param portSnapshots baseline ports before upgrade
+     * @param nodeIdToRemove node id that should be absent
+     * @param nodeIdToAdd node id that should be present
+     */
     private static void assertPortsRetained(
             final SubProcessNetwork network,
             final AtomicReference<Map<Long, PortSnapshot>> portSnapshots,
@@ -265,11 +331,22 @@ public class MultiNetworkNodeLifecycleSuite implements LifecycleTest {
         assertThat(current.get(nodeIdToAdd)).isEqualTo(expectedNew);
     }
 
+    /**
+     * Returns the current port assignments keyed by node id.
+     *
+     * @param network the network to inspect
+     * @return map of node id to port snapshot
+     */
     private static Map<Long, PortSnapshot> portsByNodeId(final SubProcessNetwork network) {
         return network.nodes().stream()
                 .collect(toMap(node -> node.getNodeId(), node -> PortSnapshot.from(node.metadata())));
     }
 
+    /**
+     * Ensures no override-network.json files are present in any node config directory.
+     *
+     * @param network the network to inspect
+     */
     private static void assertNoOverrideNetworkFiles(final SubProcessNetwork network) {
         network.nodes().forEach(node -> {
             final var configDir = node.getExternalPath(ExternalPath.DATA_CONFIG_DIR);
@@ -290,6 +367,13 @@ public class MultiNetworkNodeLifecycleSuite implements LifecycleTest {
         });
     }
 
+    /**
+     * Calculates expected ports for a node given a base snapshot and node id.
+     *
+     * @param base baseline ports from node0
+     * @param nodeId node id to project ports for
+     * @return expected port snapshot for the node
+     */
     private static PortSnapshot expectedPortsForNode(final PortSnapshot base, final long nodeId) {
         final var offset = (int) nodeId;
         return new PortSnapshot(
@@ -301,6 +385,9 @@ public class MultiNetworkNodeLifecycleSuite implements LifecycleTest {
                 base.debugPort() + offset);
     }
 
+    /**
+     * Captures port assignments for a single node.
+     */
     private record PortSnapshot(
             int grpcPort,
             int grpcNodeOperatorPort,
@@ -308,6 +395,12 @@ public class MultiNetworkNodeLifecycleSuite implements LifecycleTest {
             int externalGossipPort,
             int prometheusPort,
             int debugPort) {
+        /**
+         * Creates a snapshot from node metadata.
+         *
+         * @param metadata node metadata
+         * @return port snapshot for the node
+         */
         private static PortSnapshot from(final NodeMetadata metadata) {
             return new PortSnapshot(
                     metadata.grpcPort(),
