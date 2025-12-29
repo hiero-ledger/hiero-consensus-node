@@ -59,6 +59,10 @@ public class EventCreatorNetwork {
     final PlatformContext platformContext;
 
     public EventCreatorNetwork(final long seed, final int numNodes) {
+        this(seed, numNodes, 1);
+    }
+
+    public EventCreatorNetwork(final long seed, final int numNodes, final int maxOtherParents) {
         // Build a roster with real keys
         final RandomRosterBuilder rosterBuilder = RandomRosterBuilder.create(Randotron.create(seed))
                 .withSize(numNodes)
@@ -71,6 +75,7 @@ public class EventCreatorNetwork {
         final Configuration configuration = new TestConfigBuilder()
                 .withConfigDataType(EventCreationConfig.class)
                 .withValue(EventCreationConfig_.MAX_CREATION_RATE, 0)
+                .withValue("event.creation.maxOtherParents", Integer.toString(maxOtherParents))
                 .getOrCreateConfig();
         time = new FakeTime();
 
@@ -119,6 +124,10 @@ public class EventCreatorNetwork {
     }
 
     public List<PlatformEvent> cycle(){
+        return cycle(Duration.of(100, ChronoUnit.MICROS));
+    }
+
+    public List<PlatformEvent> cycle(final Duration delay){
         final List<PlatformEvent> newEvents = new ArrayList<>();
         for (final DefaultEventCreationManager creator : eventCreators) {
             final PlatformEvent event = creator.maybeCreateEvent();
@@ -134,7 +143,7 @@ public class EventCreatorNetwork {
             throw new RuntimeException("There should be no orphaned events in this benchmark");
         }
 
-        time.tick(Duration.of(100, ChronoUnit.MICROS));
+        time.tick(delay);
         // Share newly created events with all nodes (simulating gossip)
         for (final DefaultEventCreationManager creator : eventCreators) {
             for (final PlatformEvent newEvent : newEvents) {
