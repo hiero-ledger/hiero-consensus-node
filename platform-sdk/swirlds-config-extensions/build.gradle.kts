@@ -13,3 +13,5 @@ testModuleInfo {
 
     exportsTo("com.swirlds.config.impl") // for ConfigExportTest
 }
+
+testFixturesModuleInfo { runtimeOnly("com.swirlds.config.impl") }
