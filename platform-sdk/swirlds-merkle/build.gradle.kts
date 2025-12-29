@@ -15,6 +15,8 @@ testModuleInfo {
     requires("org.hiero.base.utility.test.fixtures")
     requires("org.junit.jupiter.api")
     requires("org.junit.jupiter.params")
+
+    runtimeOnly("com.swirlds.platform.core")
 }
 
 timingSensitiveModuleInfo {
@@ -26,6 +28,7 @@ timingSensitiveModuleInfo {
     requires("com.swirlds.merkle.test.fixtures")
     requires("org.hiero.base.crypto")
     requires("org.hiero.base.utility.test.fixtures")
+    requires("org.hiero.consensus.concurrent")
     requires("org.junit.jupiter.api")
     requires("org.junit.jupiter.params")
     requires("org.mockito")

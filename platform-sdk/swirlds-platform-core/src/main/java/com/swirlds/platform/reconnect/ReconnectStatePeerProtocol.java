@@ -11,9 +11,6 @@ import static com.swirlds.platform.state.service.PlatformStateUtils.roundOf;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
-import com.swirlds.common.metrics.extensions.CountPerSecond;
-import com.swirlds.common.threading.manager.ThreadManager;
-import com.swirlds.common.utility.throttle.RateLimitedLogger;
 import com.swirlds.logging.legacy.payload.ReconnectFinishPayload;
 import com.swirlds.logging.legacy.payload.ReconnectStartPayload;
 import com.swirlds.platform.Utilities;
@@ -24,6 +21,7 @@ import com.swirlds.platform.network.NetworkProtocolException;
 import com.swirlds.platform.network.protocol.PeerProtocol;
 import com.swirlds.platform.network.protocol.ReservedSignedStateResult;
 import com.swirlds.platform.state.signed.ReservedSignedState;
+import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.StateLifecycleManager;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -34,6 +32,9 @@ import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.concurrent.BlockingResourceProvider;
+import org.hiero.consensus.concurrent.manager.ThreadManager;
+import org.hiero.consensus.concurrent.utility.throttle.RateLimitedLogger;
+import org.hiero.consensus.metrics.extensions.CountPerSecond;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
 
@@ -367,18 +368,28 @@ public class ReconnectStatePeerProtocol implements PeerProtocol {
      * @param connection the connection to use for the reconnect
      */
     private void teacher(final Connection connection) {
-        try (final ReservedSignedState state = teacherState) {
-            new ReconnectStateTeacher(
-                            platformContext,
-                            time,
-                            threadManager,
-                            connection,
-                            reconnectSocketTimeout,
-                            connection.getSelfId(),
-                            connection.getOtherId(),
-                            state.get().getRound(),
-                            reconnectMetrics)
-                    .execute(state.get());
+        try {
+            final SignedState state = teacherState.get();
+            final ReconnectStateTeacher teacher;
+            try {
+                teacher = new ReconnectStateTeacher(
+                        platformContext,
+                        time,
+                        threadManager,
+                        connection,
+                        reconnectSocketTimeout,
+                        connection.getSelfId(),
+                        connection.getOtherId(),
+                        state.getRound(),
+                        state,
+                        reconnectMetrics);
+            } finally {
+                // The teacher now has all the information needed to teach. In particular, teacher view
+                // object initialized by the teacher is a snapshot of all data in the state. It's time to
+                // release the original state
+                teacherState.close();
+            }
+            teacher.execute();
         } finally {
             teacherThrottle.reconnectAttemptFinished();
             teacherState = null;

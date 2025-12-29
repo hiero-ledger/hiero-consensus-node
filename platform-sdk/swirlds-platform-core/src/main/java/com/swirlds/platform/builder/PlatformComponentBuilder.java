@@ -7,35 +7,28 @@ import static com.swirlds.platform.gui.internal.BrowserWindowManager.getPlatform
 import static com.swirlds.platform.state.iss.IssDetector.DO_NOT_IGNORE_ROUNDS;
 import static com.swirlds.platform.state.service.PlatformStateUtils.latestFreezeRoundOf;
 
+import com.swirlds.base.time.Time;
+import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.merkle.utility.SerializableLong;
-import com.swirlds.common.threading.manager.AdHocThreadManager;
 import com.swirlds.component.framework.component.ComponentWiring;
+import com.swirlds.config.api.Configuration;
+import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.SwirldsPlatform;
 import com.swirlds.platform.components.appcomm.DefaultLatestCompleteStateNotifier;
 import com.swirlds.platform.components.appcomm.LatestCompleteStateNotifier;
 import com.swirlds.platform.components.consensus.ConsensusEngine;
 import com.swirlds.platform.components.consensus.DefaultConsensusEngine;
 import com.swirlds.platform.config.StateConfig;
-import com.swirlds.platform.crypto.CryptoStatic;
 import com.swirlds.platform.event.branching.BranchDetector;
 import com.swirlds.platform.event.branching.BranchReporter;
 import com.swirlds.platform.event.branching.DefaultBranchDetector;
 import com.swirlds.platform.event.branching.DefaultBranchReporter;
-import com.swirlds.platform.event.deduplication.EventDeduplicator;
-import com.swirlds.platform.event.deduplication.StandardEventDeduplicator;
-import com.swirlds.platform.event.orphan.DefaultOrphanBuffer;
-import com.swirlds.platform.event.orphan.OrphanBuffer;
 import com.swirlds.platform.event.preconsensus.DefaultInlinePcesWriter;
 import com.swirlds.platform.event.preconsensus.InlinePcesWriter;
-import com.swirlds.platform.event.preconsensus.PcesConfig;
-import com.swirlds.platform.event.preconsensus.PcesFileManager;
-import com.swirlds.platform.event.preconsensus.PcesUtilities;
 import com.swirlds.platform.event.stream.ConsensusEventStream;
 import com.swirlds.platform.event.stream.DefaultConsensusEventStream;
 import com.swirlds.platform.event.validation.DefaultEventSignatureValidator;
-import com.swirlds.platform.event.validation.DefaultInternalEventValidator;
 import com.swirlds.platform.event.validation.EventSignatureValidator;
-import com.swirlds.platform.event.validation.InternalEventValidator;
 import com.swirlds.platform.eventhandling.DefaultTransactionHandler;
 import com.swirlds.platform.eventhandling.DefaultTransactionPrehandler;
 import com.swirlds.platform.eventhandling.TransactionHandler;
@@ -69,12 +62,16 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Objects;
-import java.util.ServiceLoader;
-import org.hiero.consensus.crypto.DefaultEventHasher;
-import org.hiero.consensus.crypto.EventHasher;
+import org.hiero.consensus.concurrent.manager.AdHocThreadManager;
+import org.hiero.consensus.crypto.ConsensusCryptoUtils;
 import org.hiero.consensus.crypto.PlatformSigner;
-import org.hiero.consensus.event.creator.EventCreatorModule;
 import org.hiero.consensus.model.event.CesEvent;
+import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.orphan.DefaultOrphanBuffer;
+import org.hiero.consensus.orphan.OrphanBuffer;
+import org.hiero.consensus.pces.PcesConfig;
+import org.hiero.consensus.pces.PcesFileManager;
+import org.hiero.consensus.pces.PcesUtilities;
 
 /**
  * The advanced platform builder is responsible for constructing platform components. This class is exposed so that
@@ -98,13 +95,9 @@ public class PlatformComponentBuilder {
 
     private final PlatformBuildingBlocks blocks;
 
-    private EventHasher eventHasher;
-    private InternalEventValidator internalEventValidator;
-    private EventDeduplicator eventDeduplicator;
     private EventSignatureValidator eventSignatureValidator;
     private StateGarbageCollector stateGarbageCollector;
     private OrphanBuffer orphanBuffer;
-    private EventCreatorModule eventCreator;
     private ConsensusEngine consensusEngine;
     private ConsensusEventStream consensusEventStream;
     private SignedStateSentinel signedStateSentinel;
@@ -202,105 +195,6 @@ public class PlatformComponentBuilder {
     }
 
     /**
-     * Provide an event hasher in place of the platform's default event hasher.
-     *
-     * @param eventHasher the event hasher to use
-     * @return this builder
-     */
-    @NonNull
-    public PlatformComponentBuilder withEventHasher(@NonNull final EventHasher eventHasher) {
-        throwIfAlreadyUsed();
-        if (this.eventHasher != null) {
-            throw new IllegalStateException("Event hasher has already been set");
-        }
-        this.eventHasher = Objects.requireNonNull(eventHasher);
-        return this;
-    }
-
-    /**
-     * Build the event hasher if it has not yet been built. If one has been provided via
-     * {@link #withEventHasher(EventHasher)}, that hasher will be used. If this method is called more than once, only
-     * the first call will build the event hasher. Otherwise, the default hasher will be created and returned.
-     *
-     * @return the event hasher
-     */
-    @NonNull
-    public EventHasher buildEventHasher() {
-        if (eventHasher == null) {
-            eventHasher = new DefaultEventHasher();
-        }
-        return eventHasher;
-    }
-
-    /**
-     * Provide an internal event validator in place of the platform's default internal event validator.
-     *
-     * @param internalEventValidator the internal event validator to use
-     * @return this builder
-     */
-    @NonNull
-    public PlatformComponentBuilder withInternalEventValidator(
-            @NonNull final InternalEventValidator internalEventValidator) {
-        throwIfAlreadyUsed();
-        if (this.internalEventValidator != null) {
-            throw new IllegalStateException("Internal event validator has already been set");
-        }
-        this.internalEventValidator = Objects.requireNonNull(internalEventValidator);
-        return this;
-    }
-
-    /**
-     * Build the internal event validator if it has not yet been built. If one has been provided via
-     * {@link #withInternalEventValidator(InternalEventValidator)}, that validator will be used. If this method is
-     * called more than once, only the first call will build the internal event validator. Otherwise, the default
-     * validator will be created and returned.
-     *
-     * @return the internal event validator
-     */
-    @NonNull
-    public InternalEventValidator buildInternalEventValidator() {
-        if (internalEventValidator == null) {
-            internalEventValidator = new DefaultInternalEventValidator(
-                    blocks.platformContext(),
-                    blocks.intakeEventCounter(),
-                    blocks.execution().getTransactionLimits());
-        }
-        return internalEventValidator;
-    }
-
-    /**
-     * Provide an event deduplicator in place of the platform's default event deduplicator.
-     *
-     * @param eventDeduplicator the event deduplicator to use
-     * @return this builder
-     */
-    @NonNull
-    public PlatformComponentBuilder withEventDeduplicator(@NonNull final EventDeduplicator eventDeduplicator) {
-        throwIfAlreadyUsed();
-        if (this.eventDeduplicator != null) {
-            throw new IllegalStateException("Event deduplicator has already been set");
-        }
-        this.eventDeduplicator = Objects.requireNonNull(eventDeduplicator);
-        return this;
-    }
-
-    /**
-     * Build the event deduplicator if it has not yet been built. If one has been provided via
-     * {@link #withEventDeduplicator(EventDeduplicator)}, that deduplicator will be used. If this method is called more
-     * than once, only the first call will build the event deduplicator. Otherwise, the default deduplicator will be
-     * created and returned.
-     *
-     * @return the event deduplicator
-     */
-    @NonNull
-    public EventDeduplicator buildEventDeduplicator() {
-        if (eventDeduplicator == null) {
-            eventDeduplicator = new StandardEventDeduplicator(blocks.platformContext(), blocks.intakeEventCounter());
-        }
-        return eventDeduplicator;
-    }
-
-    /**
      * Provide an event signature validator in place of the platform's default event signature validator.
      *
      * @param eventSignatureValidator the event signature validator to use
@@ -328,8 +222,9 @@ public class PlatformComponentBuilder {
     public EventSignatureValidator buildEventSignatureValidator() {
         if (eventSignatureValidator == null) {
             eventSignatureValidator = new DefaultEventSignatureValidator(
-                    blocks.platformContext(),
-                    CryptoStatic::verifySignature,
+                    blocks.platformContext().getMetrics(),
+                    blocks.platformContext().getTime(),
+                    ConsensusCryptoUtils::verifySignature,
                     blocks.rosterHistory(),
                     blocks.intakeEventCounter());
         }
@@ -402,50 +297,6 @@ public class PlatformComponentBuilder {
     }
 
     /**
-     * Provide an event creator in place of the platform's default event creator.
-     *
-     * @param eventCreator the event creator to use
-     * @return this builder
-     */
-    @NonNull
-    public PlatformComponentBuilder withEventCreator(@NonNull final EventCreatorModule eventCreator) {
-        throwIfAlreadyUsed();
-        if (this.eventCreator != null) {
-            throw new IllegalStateException("Event creation manager has already been set");
-        }
-        this.eventCreator = Objects.requireNonNull(eventCreator);
-        return this;
-    }
-
-    /**
-     * Build the event creator if it has not yet been built. If one has been provided via
-     * {@link #withEventCreator(EventCreatorModule)}, that creator will be used. If this method is called more than once,
-     * only the first call will build the event creator. Otherwise, the default creator will be created and returned.
-     *
-     * @return the event creator
-     */
-    @NonNull
-    public EventCreatorModule buildEventCreator() {
-        if (eventCreator == null) {
-            eventCreator = ServiceLoader.load(EventCreatorModule.class).stream()
-                    .findFirst()
-                    .orElseThrow(() -> new IllegalStateException("No EventCreatorModule implementation found!"))
-                    .get();
-        }
-        eventCreator.initialize(
-                blocks.platformContext().getConfiguration(),
-                blocks.platformContext().getMetrics(),
-                blocks.platformContext().getTime(),
-                blocks.secureRandomSupplier().get(),
-                new PlatformSigner(blocks.keysAndCerts()),
-                blocks.rosterHistory().getCurrentRoster(),
-                blocks.selfId(),
-                blocks.execution(),
-                blocks.execution());
-        return eventCreator;
-    }
-
-    /**
      * Provide a consensus engine in place of the platform's default consensus engine.
      *
      * @param consensusEngine the consensus engine to use
@@ -475,7 +326,7 @@ public class PlatformComponentBuilder {
                     blocks.platformContext(),
                     blocks.rosterHistory().getCurrentRoster(),
                     blocks.selfId(),
-                    blocks.freezeCheckHolder());
+                    blocks.freezeChecker());
         }
         return consensusEngine;
     }
@@ -513,7 +364,7 @@ public class PlatformComponentBuilder {
                     (byte[] data) -> new PlatformSigner(blocks.keysAndCerts()).sign(data),
                     blocks.consensusEventStreamName(),
                     (CesEvent event) -> event.isLastInRoundReceived()
-                            && blocks.freezeCheckHolder()
+                            && blocks.freezeChecker()
                                     .isInFreezePeriod(event.getPlatformEvent().getConsensusTimestamp()));
         }
         return consensusEventStream;
@@ -647,14 +498,20 @@ public class PlatformComponentBuilder {
     public InlinePcesWriter buildInlinePcesWriter() {
         if (inlinePcesWriter == null) {
             try {
+                final PlatformContext platformContext = blocks.platformContext();
+                final Configuration configuration = platformContext.getConfiguration();
+                final Metrics metrics = platformContext.getMetrics();
+                final Time time = platformContext.getTime();
+                final NodeId selfId = blocks.selfId();
                 final PcesFileManager preconsensusEventFileManager = new PcesFileManager(
-                        blocks.platformContext(),
+                        configuration,
+                        metrics,
+                        time,
                         blocks.initialPcesFiles(),
-                        PcesUtilities.getDatabaseDirectory(
-                                blocks.platformContext().getConfiguration(), blocks.selfId()),
+                        PcesUtilities.getDatabaseDirectory(configuration, selfId),
                         blocks.initialState().get().getRound());
-                inlinePcesWriter = new DefaultInlinePcesWriter(
-                        blocks.platformContext(), preconsensusEventFileManager, blocks.selfId());
+                inlinePcesWriter =
+                        new DefaultInlinePcesWriter(configuration, metrics, time, preconsensusEventFileManager, selfId);
 
             } catch (final IOException e) {
                 throw new UncheckedIOException(e);

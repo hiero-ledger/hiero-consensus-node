@@ -16,13 +16,10 @@ import com.swirlds.platform.components.appcomm.CompleteStateNotificationWithClea
 import com.swirlds.platform.components.appcomm.LatestCompleteStateNotifier;
 import com.swirlds.platform.event.branching.BranchDetector;
 import com.swirlds.platform.event.branching.BranchReporter;
-import com.swirlds.platform.event.deduplication.EventDeduplicator;
-import com.swirlds.platform.event.orphan.OrphanBuffer;
 import com.swirlds.platform.event.preconsensus.InlinePcesWriter;
 import com.swirlds.platform.event.preconsensus.PcesReplayer;
 import com.swirlds.platform.event.stream.ConsensusEventStream;
 import com.swirlds.platform.event.validation.EventSignatureValidator;
-import com.swirlds.platform.event.validation.InternalEventValidator;
 import com.swirlds.platform.eventhandling.StateWithHashComplexity;
 import com.swirlds.platform.eventhandling.TransactionHandler;
 import com.swirlds.platform.eventhandling.TransactionHandlerDataCounter;
@@ -50,27 +47,26 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.List;
 import java.util.Objects;
 import java.util.Queue;
-import org.hiero.consensus.crypto.EventHasher;
 import org.hiero.consensus.event.creator.EventCreatorModule;
+import org.hiero.consensus.event.intake.EventIntakeModule;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.notification.IssNotification;
 import org.hiero.consensus.model.state.StateSavingResult;
 import org.hiero.consensus.model.status.PlatformStatus;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
+import org.hiero.consensus.orphan.OrphanBuffer;
 
 /**
  * Encapsulates wiring for {@link SwirldsPlatform}.
  */
 public record PlatformComponents(
         WiringModel model,
-        ComponentWiring<EventHasher, PlatformEvent> eventHasherWiring,
-        ComponentWiring<InternalEventValidator, PlatformEvent> internalEventValidatorWiring,
-        ComponentWiring<EventDeduplicator, PlatformEvent> eventDeduplicatorWiring,
+        EventCreatorModule eventCreatorModule,
+        EventIntakeModule eventIntakeModule,
         ComponentWiring<EventSignatureValidator, PlatformEvent> eventSignatureValidatorWiring,
         ComponentWiring<OrphanBuffer, List<PlatformEvent>> orphanBufferWiring,
         ConsensusWiring consensusEngineWiring,
-        ComponentWiring<EventCreatorModule, PlatformEvent> eventCreationManagerWiring,
         ComponentWiring<TransactionPrehandler, Queue<ScopedSystemTransaction<StateSignatureTransaction>>>
                 applicationTransactionPrehandlerWiring,
         ComponentWiring<StateSignatureCollector, List<ReservedSignedState>> stateSignatureCollectorWiring,
@@ -122,9 +118,6 @@ public record PlatformComponents(
             @NonNull final SavedStateController savedStateController,
             @NonNull final AppNotifier notifier) {
 
-        eventHasherWiring.bind(builder::buildEventHasher);
-        internalEventValidatorWiring.bind(builder::buildInternalEventValidator);
-        eventDeduplicatorWiring.bind(builder::buildEventDeduplicator);
         eventSignatureValidatorWiring.bind(builder::buildEventSignatureValidator);
         orphanBufferWiring.bind(builder::buildOrphanBuffer);
         consensusEngineWiring.bind(builder::buildConsensusEngine);
@@ -136,7 +129,6 @@ public record PlatformComponents(
         } else {
             pcesInlineWriterWiring.bind(builder::buildInlinePcesWriter);
         }
-        eventCreationManagerWiring.bind(builder::buildEventCreator);
         stateSignatureCollectorWiring.bind(stateSignatureCollector);
         eventWindowManagerWiring.bind(eventWindowManager);
         applicationTransactionPrehandlerWiring.bind(builder::buildTransactionPrehandler);
@@ -166,7 +158,10 @@ public record PlatformComponents(
      * @param model                the wiring model
      */
     public static PlatformComponents create(
-            @NonNull final PlatformContext platformContext, @NonNull final WiringModel model) {
+            @NonNull final PlatformContext platformContext,
+            @NonNull final WiringModel model,
+            @NonNull final EventCreatorModule eventCreatorModule,
+            @NonNull final EventIntakeModule eventIntakeModule) {
 
         Objects.requireNonNull(platformContext);
         Objects.requireNonNull(model);
@@ -176,13 +171,11 @@ public record PlatformComponents(
 
         return new PlatformComponents(
                 model,
-                new ComponentWiring<>(model, EventHasher.class, config.eventHasher()),
-                new ComponentWiring<>(model, InternalEventValidator.class, config.internalEventValidator()),
-                new ComponentWiring<>(model, EventDeduplicator.class, config.eventDeduplicator()),
+                eventCreatorModule,
+                eventIntakeModule,
                 new ComponentWiring<>(model, EventSignatureValidator.class, config.eventSignatureValidator()),
                 new ComponentWiring<>(model, OrphanBuffer.class, config.orphanBuffer()),
                 ConsensusWiring.create(model, config.consensusEngine()),
-                new ComponentWiring<>(model, EventCreatorModule.class, config.eventCreationManager()),
                 new ComponentWiring<>(model, TransactionPrehandler.class, config.applicationTransactionPrehandler()),
                 new ComponentWiring<>(model, StateSignatureCollector.class, config.stateSignatureCollector()),
                 new ComponentWiring<>(model, StateSnapshotManager.class, config.stateSnapshotManager()),
