@@ -4,12 +4,6 @@ package com.swirlds.platform.state;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.utility.FileUtils;
 import com.swirlds.config.api.Configuration;
-import com.swirlds.platform.event.preconsensus.CommonPcesWriter;
-import com.swirlds.platform.event.preconsensus.PcesConfig;
-import com.swirlds.platform.event.preconsensus.PcesFileManager;
-import com.swirlds.platform.event.preconsensus.PcesFileReader;
-import com.swirlds.platform.event.preconsensus.PcesFileTracker;
-import com.swirlds.platform.event.preconsensus.PcesMultiFileIterator;
 import com.swirlds.platform.state.snapshot.SavedStateMetadata;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
@@ -17,6 +11,12 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import org.hiero.consensus.model.event.PlatformEvent;
+import org.hiero.consensus.pces.CommonPcesWriter;
+import org.hiero.consensus.pces.PcesConfig;
+import org.hiero.consensus.pces.PcesFileManager;
+import org.hiero.consensus.pces.PcesFileReader;
+import org.hiero.consensus.pces.PcesFileTracker;
+import org.hiero.consensus.pces.PcesMultiFileIterator;
 
 public final class SavedStateUtils {
     /** The temporary directory to move PCES files to while there are being filtered out */
