@@ -95,15 +95,15 @@ public final class Utils {
 
     public static void toBytes(long seed, byte[] bytes) {
         long val = seed;
-        for (int i = 0; i < bytes.length; ++i) {
+        for (int i = 0; i < Math.min(bytes.length, Long.BYTES); ++i) {
             bytes[i] = (byte) val;
-            val = (val >>> 8) | (val << 56);
+            val = val >>> 8;
         }
     }
 
     public static long fromBytes(byte[] bytes) {
         long val = 0;
-        for (int i = 0; i < Math.min(bytes.length, 8); ++i) {
+        for (int i = 0; i < Math.min(bytes.length, Long.BYTES); ++i) {
             val |= ((long) bytes[i] & 0xff) << (i * 8);
         }
         return val;
@@ -111,7 +111,7 @@ public final class Utils {
 
     public static long fromBytes(Bytes bytes) {
         long val = 0;
-        for (int i = 0; i < Math.min(bytes.length(), 8); ++i) {
+        for (int i = 0; i < Math.min(bytes.length(), Long.BYTES); ++i) {
             val |= ((long) bytes.getByte(i) & 0xff) << (i * 8);
         }
         return val;

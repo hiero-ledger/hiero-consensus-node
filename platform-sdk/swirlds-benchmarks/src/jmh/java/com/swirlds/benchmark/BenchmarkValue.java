@@ -84,12 +84,6 @@ public class BenchmarkValue implements VirtualValue {
         out.writeBytes(valueBytes);
     }
 
-    @Deprecated
-    void serialize(ByteBuffer buffer) {
-        buffer.putInt(valueBytes.length);
-        buffer.put(valueBytes);
-    }
-
     public void deserialize(final ReadableSequentialData in) {
         int n = in.readInt();
         valueBytes = new byte[n];
@@ -104,14 +98,6 @@ public class BenchmarkValue implements VirtualValue {
         while (n > 0) {
             n -= inputStream.read(valueBytes, valueBytes.length - n, n);
         }
-    }
-
-    @Deprecated
-    void deserialize(ByteBuffer buffer, int dataVersion) {
-        assert dataVersion == getVersion() : "dataVersion=" + dataVersion + " != getVersion()=" + getVersion();
-        int n = buffer.getInt();
-        valueBytes = new byte[n];
-        buffer.get(valueBytes);
     }
 
     @Override
@@ -137,7 +123,7 @@ public class BenchmarkValue implements VirtualValue {
 
     public static final class Builder {
 
-        private byte[] valueBytes;
+        private final byte[] valueBytes;
 
         public Builder(final BenchmarkValue value) {
             this.valueBytes = Arrays.copyOf(value.valueBytes, value.valueBytes.length);
@@ -151,7 +137,9 @@ public class BenchmarkValue implements VirtualValue {
         }
 
         public BenchmarkValue build() {
-            return new BenchmarkValue(valueBytes);
+            BenchmarkValue value = new BenchmarkValue();
+            value.valueBytes = valueBytes;
+            return value;
         }
     }
 }
