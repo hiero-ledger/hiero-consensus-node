@@ -55,6 +55,8 @@ public class EventCreatorNetwork {
     final List<DefaultEventCreationManager> eventCreators;
     final DefaultOrphanBuffer orphanBuffer;
     final FakeTime time;
+    final Roster roster;
+    final PlatformContext platformContext;
 
     public EventCreatorNetwork(final long seed, final int numNodes) {
         // Build a roster with real keys
@@ -62,7 +64,8 @@ public class EventCreatorNetwork {
                 .withSize(numNodes)
                 .withWeightGenerator(WeightGenerators.BALANCED)
                 .withRealKeysEnabled(true);
-        final Roster roster = rosterBuilder.build();
+
+        roster = rosterBuilder.build();
 
         eventCreators = new ArrayList<>(numNodes);
         final Configuration configuration = new TestConfigBuilder()
@@ -70,7 +73,8 @@ public class EventCreatorNetwork {
                 .withValue(EventCreationConfig_.MAX_CREATION_RATE, 0)
                 .getOrCreateConfig();
         time = new FakeTime();
-        final PlatformContext platformContext = TestPlatformContextBuilder.create()
+
+        platformContext = TestPlatformContextBuilder.create()
                 .withConfiguration(configuration)
                 .withTime(time)
                 .build();
@@ -100,7 +104,21 @@ public class EventCreatorNetwork {
         orphanBuffer = new DefaultOrphanBuffer(metrics, new NoOpIntakeEventCounter());
     }
 
-    public void cycle(){
+    public Roster getRoster() {
+        return roster;
+    }
+
+    public PlatformContext getPlatformContext() {
+        return platformContext;
+    }
+
+    public void setEventWindow(final EventWindow eventWindow) {
+        for (final DefaultEventCreationManager creator : eventCreators) {
+            creator.setEventWindow(eventWindow);
+        }
+    }
+
+    public List<PlatformEvent> cycle(){
         final List<PlatformEvent> newEvents = new ArrayList<>();
         for (final DefaultEventCreationManager creator : eventCreators) {
             final PlatformEvent event = creator.maybeCreateEvent();
@@ -123,5 +141,6 @@ public class EventCreatorNetwork {
                 creator.registerEvent(newEvent);
             }
         }
+        return newEvents;
     }
 }
