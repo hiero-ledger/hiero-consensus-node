@@ -151,9 +151,9 @@ public interface DoubleGauge extends SettableMetric<DoubleSupplier, DoubleGaugeM
         @Override
         public DoubleGauge buildMetric() {
             if (operator != null) {
-                setContainerFactory(init -> new DoubleAccumulatorGaugeMeasurement(operator, init));
+                setMeasurementFactory(init -> new DoubleAccumulatorGaugeMeasurement(operator, init));
             } else {
-                setContainerFactory(AtomicDoubleGaugeMeasurement::new);
+                setMeasurementFactory(AtomicDoubleGaugeMeasurement::new);
             }
 
             return new DoubleGaugeImpl(this);

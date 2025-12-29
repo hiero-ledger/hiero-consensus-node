@@ -81,7 +81,7 @@ public final class MetricRegistryImpl implements MetricRegistry {
             logger.log(DEBUG, "Registered metric: {}", metric.name());
 
             if (metric instanceof AbstractMetric<?> snapshotableMetric) {
-                snapshot.add(snapshotableMetric);
+                snapshot.addMetricSnapshot(snapshotableMetric.snapshot());
             } else {
                 logger.log(WARNING, "Metric {} is not a framework metric and won't able to be exported", metric.name());
             }

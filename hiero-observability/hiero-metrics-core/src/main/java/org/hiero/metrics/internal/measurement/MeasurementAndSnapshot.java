@@ -10,4 +10,4 @@ import org.hiero.metrics.api.export.snapshot.MeasurementSnapshot;
  * @param measurement the measurement
  * @param snapshot the snapshot of the measurement
  */
-public record MeasurementHolder<M>(M measurement, MeasurementSnapshot snapshot) {}
+public record MeasurementAndSnapshot<M>(M measurement, MeasurementSnapshot snapshot) {}

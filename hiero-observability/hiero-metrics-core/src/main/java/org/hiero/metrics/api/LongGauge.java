@@ -148,9 +148,9 @@ public interface LongGauge extends SettableMetric<LongSupplier, LongGaugeMeasure
         @Override
         public LongGauge buildMetric() {
             if (operator != null) {
-                setContainerFactory(init -> new LongAccumulatorGaugeMeasurement(operator, init));
+                setMeasurementFactory(init -> new LongAccumulatorGaugeMeasurement(operator, init));
             } else {
-                setContainerFactory(AtomicLongGaugeMeasurement::new);
+                setMeasurementFactory(AtomicLongGaugeMeasurement::new);
             }
 
             return new LongGaugeImpl(this);

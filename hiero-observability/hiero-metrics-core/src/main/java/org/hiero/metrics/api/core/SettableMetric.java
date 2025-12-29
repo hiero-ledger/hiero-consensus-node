@@ -95,7 +95,7 @@ public interface SettableMetric<I, M> extends Metric {
                 @NonNull Function<I, D> measurementFactory) {
             super(type, key);
             setDefaultInitializer(defaultInitializer);
-            setContainerFactory(measurementFactory);
+            setMeasurementFactory(measurementFactory);
         }
 
         /**
@@ -134,7 +134,7 @@ public interface SettableMetric<I, M> extends Metric {
          * @return this builder
          */
         @NonNull
-        protected B setContainerFactory(@NonNull Function<I, D> measurementFactory) {
+        protected B setMeasurementFactory(@NonNull Function<I, D> measurementFactory) {
             this.measurementFactory =
                     Objects.requireNonNull(measurementFactory, "Measurement factory must not be null");
             return self();

@@ -11,22 +11,23 @@ import org.hiero.metrics.api.core.MetricType;
 import org.hiero.metrics.api.export.snapshot.MeasurementSnapshot;
 import org.hiero.metrics.api.export.snapshot.MetricSnapshot;
 import org.hiero.metrics.internal.core.AppendArray;
-import org.hiero.metrics.internal.measurement.MeasurementHolder;
+import org.hiero.metrics.internal.measurement.MeasurementAndSnapshot;
 
 public final class UpdatableMetricSnapshot<M> implements MetricSnapshot {
 
     private final Metric metric;
-    private final Consumer<MeasurementHolder<M>> snapshotUpdater;
-    private final AppendArray<MeasurementHolder<M>> measurementHolders;
+    private final Consumer<MeasurementAndSnapshot<M>> snapshotUpdater;
+    private final AppendArray<MeasurementAndSnapshot<M>> measurementAndSnapshots;
 
-    public UpdatableMetricSnapshot(Metric metric, Consumer<MeasurementHolder<M>> snapshotUpdater) {
+    public UpdatableMetricSnapshot(Metric metric, Consumer<MeasurementAndSnapshot<M>> snapshotUpdater) {
         this.metric = metric;
         this.snapshotUpdater = snapshotUpdater;
-        this.measurementHolders = new AppendArray<>(metric.dynamicLabelNames().isEmpty() ? 1 : 8);
+        this.measurementAndSnapshots =
+                new AppendArray<>(metric.dynamicLabelNames().isEmpty() ? 1 : 8);
     }
 
-    public void addMeasurementHolder(MeasurementHolder<M> holder) {
-        measurementHolders.add(holder);
+    public void addMeasurementAndSnapshot(MeasurementAndSnapshot<M> measurementAndSnapshot) {
+        measurementAndSnapshots.add(measurementAndSnapshot);
     }
 
     @Override
@@ -67,19 +68,19 @@ public final class UpdatableMetricSnapshot<M> implements MetricSnapshot {
 
     @Override
     public int size() {
-        return measurementHolders.size();
+        return measurementAndSnapshots.size();
     }
 
     @NonNull
     @Override
     public MeasurementSnapshot get(int index) {
-        return measurementHolders.get(index).snapshot();
+        return measurementAndSnapshots.get(index).snapshot();
     }
 
-    public void updateSnapshot() {
-        int size = measurementHolders.readyToRead();
+    public void update() {
+        int size = measurementAndSnapshots.readyToRead();
         for (int i = 0; i < size; i++) {
-            snapshotUpdater.accept(measurementHolders.get(i));
+            snapshotUpdater.accept(measurementAndSnapshots.get(i));
         }
     }
 }

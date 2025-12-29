@@ -10,7 +10,7 @@ import org.hiero.metrics.api.core.Metric;
 import org.hiero.metrics.api.core.MetricType;
 import org.hiero.metrics.api.export.snapshot.MeasurementSnapshot;
 import org.hiero.metrics.internal.export.snapshot.UpdatableMetricSnapshot;
-import org.hiero.metrics.internal.measurement.MeasurementHolder;
+import org.hiero.metrics.internal.measurement.MeasurementAndSnapshot;
 
 /**
  * Base class for all metric implementations requiring {@link Metric.Builder} for construction.
@@ -54,18 +54,18 @@ public abstract class AbstractMetric<M> implements Metric {
         metricSnapshot = new UpdatableMetricSnapshot<>(this, this::updateMeasurementSnapshot);
     }
 
-    protected final MeasurementHolder<M> createAndTrackMeasurementHolder(
+    protected final MeasurementAndSnapshot<M> createMeasurementAndSnapshot(
             M measurement, LabelValues dynamicLabelValues) {
-        MeasurementHolder<M> measurementHolder =
-                new MeasurementHolder<>(measurement, createMeasurementSnapshot(measurement, dynamicLabelValues));
-        metricSnapshot.addMeasurementHolder(measurementHolder);
-        return measurementHolder;
+        MeasurementAndSnapshot<M> measurementAndSnapshot =
+                new MeasurementAndSnapshot<>(measurement, createMeasurementSnapshot(measurement, dynamicLabelValues));
+        metricSnapshot.addMeasurementAndSnapshot(measurementAndSnapshot);
+        return measurementAndSnapshot;
     }
 
     protected abstract MeasurementSnapshot createMeasurementSnapshot(M measurement, LabelValues dynamicLabelValues);
 
-    private void updateMeasurementSnapshot(MeasurementHolder<M> measurementHolder) {
-        updateMeasurementSnapshot(measurementHolder.measurement(), measurementHolder.snapshot());
+    private void updateMeasurementSnapshot(MeasurementAndSnapshot<M> measurementAndSnapshot) {
+        updateMeasurementSnapshot(measurementAndSnapshot.measurement(), measurementAndSnapshot.snapshot());
     }
 
     protected abstract void updateMeasurementSnapshot(M measurement, MeasurementSnapshot snapshot);

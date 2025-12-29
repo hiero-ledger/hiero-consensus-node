@@ -100,7 +100,7 @@ public interface GaugeAdapter<M> extends SettableMetric<Supplier<M>, M> {
         }
 
         /**
-         * Get the function holder to convert the value to {@code double} or {@code long} for export.
+         * Get the function to convert the value to {@code double} or {@code long} for export.
          *
          * @return the value converter function
          */

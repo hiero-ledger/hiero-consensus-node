@@ -7,7 +7,7 @@ import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 import org.hiero.metrics.api.core.SettableMetric;
-import org.hiero.metrics.internal.measurement.MeasurementHolder;
+import org.hiero.metrics.internal.measurement.MeasurementAndSnapshot;
 
 /**
  * Abstract implementation of {@link SettableMetric} requiring {@link SettableMetric.Builder} for
@@ -26,7 +26,7 @@ public abstract class AbstractSettableMetric<I, M> extends AbstractMetric<M> imp
     private final Function<I, M> measurementFactory;
 
     private volatile M noLabelsMeasurement;
-    private final Map<LabelValues, MeasurementHolder<M>> measurements;
+    private final Map<LabelValues, MeasurementAndSnapshot<M>> measurements;
 
     protected AbstractSettableMetric(SettableMetric.Builder<I, M, ?, ?> builder) {
         super(builder);
@@ -50,7 +50,9 @@ public abstract class AbstractSettableMetric<I, M> extends AbstractMetric<M> imp
                 reset(noLabelsMeasurement);
             }
         } else {
-            measurements.values().stream().map(MeasurementHolder::measurement).forEach(this::reset);
+            measurements.values().stream()
+                    .map(MeasurementAndSnapshot::measurement)
+                    .forEach(this::reset);
         }
     }
 
@@ -67,7 +69,7 @@ public abstract class AbstractSettableMetric<I, M> extends AbstractMetric<M> imp
                 localRef = noLabelsMeasurement;
                 if (localRef == null) {
                     noLabelsMeasurement = localRef =
-                            createAndTrackMeasurementHolder(LabelValues.EMPTY).measurement();
+                            createMeasurementAndSnapshot(LabelValues.EMPTY).measurement();
                 }
             }
         }
@@ -82,7 +84,7 @@ public abstract class AbstractSettableMetric<I, M> extends AbstractMetric<M> imp
             return getOrCreateNotLabeled();
         } else {
             return measurements
-                    .computeIfAbsent(labelValues, this::createAndTrackMeasurementHolder)
+                    .computeIfAbsent(labelValues, this::createMeasurementAndSnapshot)
                     .measurement();
         }
     }
@@ -98,15 +100,15 @@ public abstract class AbstractSettableMetric<I, M> extends AbstractMetric<M> imp
         return measurements
                 .computeIfAbsent(
                         createLabelValues(namesAndValues),
-                        labelValues -> createAndTrackMeasurementHolder(labelValues, initializer))
+                        labelValues -> createMeasurementAndSnapshot(labelValues, initializer))
                 .measurement();
     }
 
-    private MeasurementHolder<M> createAndTrackMeasurementHolder(LabelValues labelValues) {
-        return createAndTrackMeasurementHolder(labelValues, defaultInitializer);
+    private MeasurementAndSnapshot<M> createMeasurementAndSnapshot(LabelValues labelValues) {
+        return createMeasurementAndSnapshot(labelValues, defaultInitializer);
     }
 
-    private MeasurementHolder<M> createAndTrackMeasurementHolder(LabelValues labelValues, @NonNull I initializer) {
-        return createAndTrackMeasurementHolder(measurementFactory.apply(initializer), labelValues);
+    private MeasurementAndSnapshot<M> createMeasurementAndSnapshot(LabelValues labelValues, @NonNull I initializer) {
+        return createMeasurementAndSnapshot(measurementFactory.apply(initializer), labelValues);
     }
 }
