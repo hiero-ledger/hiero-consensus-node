@@ -40,7 +40,9 @@ import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
+import java.util.function.Predicate;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.crypto.Hash;
@@ -342,8 +344,8 @@ public class ConsensusImpl implements Consensus {
             final EventImpl insertedEvent = iterator.next();
 
             if (rounds.isLastDecidedJudge(insertedEvent)
-                    && round(insertedEvent.getSelfParent()) == ConsensusConstants.ROUND_NEGATIVE_INFINITY
-                    && round(insertedEvent.getOtherParent()) == ConsensusConstants.ROUND_NEGATIVE_INFINITY) {
+                    && insertedEvent.getAllParents().stream().mapToLong(this::round).max()
+                    .orElse(ConsensusConstants.ROUND_NEGATIVE_INFINITY) == ConsensusConstants.ROUND_NEGATIVE_INFINITY) {
                 // If an event was a judge in the last round decided AND is not a descendant of any other judge in
                 // this round, we leave all of its metadata intact. We know that it is not a descendant of any other
                 // judge in this round if all of its parents have a round of -infinity.
@@ -929,11 +931,15 @@ public class ConsensusImpl implements Consensus {
         return ancient(x.getSelfParent()) ? null : x.getSelfParent();
     }
 
-    /**
-     * @return the other-parent of event x, or ∅ if none or ancient
-     */
-    private @Nullable EventImpl otherParent(@NonNull final EventImpl x) {
-        return ancient(x.getOtherParent()) ? null : x.getOtherParent();
+//    /**
+//     * @return the other-parent of event x, or ∅ if none or ancient
+//     */
+//    private @Nullable EventImpl otherParent(@NonNull final EventImpl x) {
+//        return ancient(x.getOtherParent()) ? null : x.getOtherParent();
+//    }
+
+    private @NonNull List<EventImpl> parents(@NonNull final EventImpl x) {
+        return x.getAllParents().stream().filter(Predicate.not(this::ancient)).toList();
     }
 
     /**
@@ -957,7 +963,15 @@ public class ConsensusImpl implements Consensus {
         if (x == null) {
             return ConsensusConstants.ROUND_NEGATIVE_INFINITY;
         }
-        return Math.max(round(selfParent(x)), round(otherParent(x)));
+
+        long maxRound = ConsensusConstants.ROUND_NEGATIVE_INFINITY;
+        for (final EventImpl parent : x.getAllParents()) {
+            if (ancient(parent)) {
+                continue;
+            }
+            maxRound = Math.max(maxRound, round(parent));
+        }
+        return maxRound;
     }
 
     /**
@@ -987,25 +1001,39 @@ public class ConsensusImpl implements Consensus {
         numMembers = roster.rosterEntries().size();
         x.initLastSee(numMembers);
 
-        op = otherParent(x);
-        sp = selfParent(x);
-
         for (int mm = 0; mm < numMembers; mm++) {
             if (creatorIndexEquals(x, mm)) {
                 x.setLastSee(mm, x);
-            } else if (sp == null && op == null) {
-                x.setLastSee(mm, null);
             } else {
-                final EventImpl lsop = lastSee(op, mm);
-                final EventImpl lssp = lastSee(sp, mm);
-                // Note: getDeGen() might return DeGen.GENERATION_UNDEFINED in some instances, this will be for events
-                // that will not affect consensus, so it makes no difference
-                final long lsopGen = lsop == null ? DeGen.GENERATION_UNDEFINED : lsop.getDeGen();
-                final long lsspGen = lssp == null ? DeGen.GENERATION_UNDEFINED : lssp.getDeGen();
-                if ((round(lsop) > round(lssp)) || ((lsopGen > lsspGen) && (firstSee(op, mm) == firstSee(sp, mm)))) {
-                    x.setLastSee(mm, lsop);
+//                final EventImpl lsop = lastSee(op, mm);
+//                final EventImpl lssp = lastSee(sp, mm);
+//                // Note: getDeGen() might return DeGen.GENERATION_UNDEFINED in some instances, this will be for events
+//                // that will not affect consensus, so it makes no difference
+//                final long lsopGen = lsop == null ? DeGen.GENERATION_UNDEFINED : lsop.getDeGen();
+//                final long lsspGen = lssp == null ? DeGen.GENERATION_UNDEFINED : lssp.getDeGen();
+                final List<EventImpl> parents = parents(x);
+
+                if (parents.isEmpty()) {
+                    x.setLastSee(mm, null);
                 } else {
-                    x.setLastSee(mm, lssp);
+                    EventImpl bestLastSeenEvent = null;
+                    for (final EventImpl parent : parents) {
+                        final EventImpl candidateLastSeenEvent = lastSee(parent, mm);
+                        if (candidateLastSeenEvent == null) {
+                            continue;
+                        }
+                        if (bestLastSeenEvent == null) {
+                            bestLastSeenEvent = candidateLastSeenEvent;
+                            continue;
+                        }
+
+                        if ((round(candidateLastSeenEvent) > round(bestLastSeenEvent))
+                                || (candidateLastSeenEvent.getDeGen() > bestLastSeenEvent.getDeGen()
+                                && (firstSee(candidateLastSeenEvent, mm) == firstSee(bestLastSeenEvent, mm)))) {
+                            bestLastSeenEvent = candidateLastSeenEvent;
+                        }
+                    }
+                    x.setLastSee(mm, bestLastSeenEvent);
                 }
             }
         }
@@ -1060,37 +1088,38 @@ public class ConsensusImpl implements Consensus {
         // calculate the answer, and remember it for next time
         // find and memoize answers for all choices of m, then return answer for just this m
         final int numMembers = roster.rosterEntries().size(); // number of members
-        final EventImpl sp = selfParent(x); // self parent
-        final EventImpl op = otherParent(x); // other parent
         final long prx = parentRound(x); // parent round of x
-        final long prsp = parentRound(sp); // parent round of self parent of x
-        final long prop = parentRound(op); // parent round of other parent of x
 
         x.initStronglySeeP(numMembers);
         for (int mm = 0; mm < numMembers; mm++) {
-            if (stronglySeeP(sp, mm) != null && prx == prsp) {
-                x.setStronglySeeP(mm, stronglySeeP(sp, mm));
-            } else if (stronglySeeP(op, mm) != null && prx == prop) {
-                x.setStronglySeeP(mm, stronglySeeP(op, mm));
+            boolean computationFinished = false;
+            for (final EventImpl parent : parents(x)) {
+                if (stronglySeeP(parent, mm) != null && parentRound(parent) == prx) {
+                    x.setStronglySeeP(mm, stronglySeeP(parent, mm));
+                    computationFinished = true;
+                    break;
+                }
+            }
+            if (computationFinished) {
+                continue;
+            }
+
+            // the canonical witness by mm that is seen by x thru someone else
+            final EventImpl st = seeThru(x, mm, mm);
+            if (round(st) != prx) { // ignore if the canonical is in the wrong round, or doesn't exist
+                x.setStronglySeeP(mm, null);
             } else {
-                // the canonical witness by mm that is seen by x thru someone else
-                final EventImpl st = seeThru(x, mm, mm);
-                if (round(st) != prx) { // ignore if the canonical is in the wrong round, or doesn't exist
-                    x.setStronglySeeP(mm, null);
+                long weight = 0;
+                for (int m3 = 0; m3 < numMembers; m3++) {
+                    if (seeThru(x, mm, m3) == st) { // only count intermediates that see the canonical witness
+                        weight += getWeight(m3);
+                    }
+                }
+                if (Threshold.SUPER_MAJORITY.isSatisfiedBy(weight, rosterTotalWeight)) { // strongly see supermajority of
+                    // intermediates
+                    x.setStronglySeeP(mm, st);
                 } else {
-                    long weight = 0;
-                    for (int m3 = 0; m3 < numMembers; m3++) {
-                        if (seeThru(x, mm, m3) == st) { // only count intermediates that see the canonical witness
-                            weight += getWeight(m3);
-                        }
-                    }
-                    if (Threshold.SUPER_MAJORITY.isSatisfiedBy(
-                            weight, rosterTotalWeight)) { // strongly see supermajority of
-                        // intermediates
-                        x.setStronglySeeP(mm, st);
-                    } else {
-                        x.setStronglySeeP(mm, null);
-                    }
+                    x.setStronglySeeP(mm, null);
                 }
             }
         }
@@ -1140,42 +1169,35 @@ public class ConsensusImpl implements Consensus {
         //
         // if this event has no parents, then it's the first round
         //
-        if (!x.hasSelfParent() && !x.hasOtherParent()) {
+        if (x.getAllParents().isEmpty()) {
             x.setRoundCreated(ConsensusConstants.ROUND_FIRST);
             return x.getRoundCreated();
         }
 
-        final EventImpl selfParent = selfParent(x);
-        final EventImpl otherParent = otherParent(x);
+        long greatestParentRound = ConsensusConstants.ROUND_NEGATIVE_INFINITY;
+        long previousParentRound = Long.MIN_VALUE;
+        boolean allParentsHaveTheSameRound = true;
+        for (final EventImpl parent : parents(x)) {
+            final long parentRound = round(parent);
+            if (parentRound > greatestParentRound) {
+                greatestParentRound = parentRound;
+            }
 
-        // roundCreated of self parent
-        final long rsp = round(selfParent);
-        // roundCreated of other parent
-        final long rop = round(otherParent);
-
-        //
-        // If parents have unequal rounds, we can assign the higher parent round to this event
-        // because if the higher parent round couldn't strongly see a supermajority of witnesses,
-        // then this event also cannot.
-        //
-        // There is an edge case where a single node has a super majority of weight. In this case,
-        // we do want to advance if the parent with the higher round has a super majority, so we
-        // continue to the super majority check below. This edge case only occurs in testing, so
-        // we do not optimize for it here.
-        //
-        if (rsp > rop && !hasSuperMajority(selfParent)) {
-            x.setRoundCreated(rsp);
-            return x.getRoundCreated();
+            if (previousParentRound != Long.MIN_VALUE && parentRound != previousParentRound) {
+                allParentsHaveTheSameRound = false;
+            }
+            previousParentRound = parentRound;
         }
-        if (rop > rsp && !hasSuperMajority(otherParent)) {
-            x.setRoundCreated(rop);
+
+        if (!allParentsHaveTheSameRound) {
+            x.setRoundCreated(greatestParentRound);
             return x.getRoundCreated();
         }
 
         //
-        // If both parents are -infinity, then this is -infinity
+        // parents have equal rounds. But if all are -infinity, then this is -infinity
         //
-        if (rsp == ConsensusConstants.ROUND_NEGATIVE_INFINITY && rop == ConsensusConstants.ROUND_NEGATIVE_INFINITY) {
+        if (greatestParentRound == ConsensusConstants.ROUND_NEGATIVE_INFINITY) {
             x.setRoundCreated(ConsensusConstants.ROUND_NEGATIVE_INFINITY);
             return x.getRoundCreated();
         }
@@ -1268,15 +1290,29 @@ public class ConsensusImpl implements Consensus {
         if (x.getFirstWitnessS() != null) { // if already found and memoized, return it
             return x.getFirstWitnessS();
         }
-        // calculate, memoize, and return the result
-        if (round(x) > parentRound(x)) {
-            x.setFirstWitnessS(x);
-        } else if (round(x) == round(selfParent(x))) {
-            x.setFirstWitnessS(firstWitnessS(selfParent(x)));
-        } else {
-            x.setFirstWitnessS(firstWitnessS(otherParent(x)));
+
+        // Find the first parent that is in the same round as x. The first witness of that parent
+        // is the first witness of x. If there are no parents with the same round as x, then the
+        // first witness of x is x.
+        for (final EventImpl parent : x.getAllParents()) {
+            if (round(parent) == round(x)) {
+                x.setFirstWitnessS(firstWitnessS(parent));
+                return x.getFirstWitnessS();
+            }
         }
-        return x.getFirstWitnessS();
+
+        x.setFirstWitnessS(x);
+        return x;
+
+        // calculate, memoize, and return the result
+//        if (round(x) > parentRound(x)) {
+//            x.setFirstWitnessS(x);
+//        } else if (round(x) == round(selfParent(x))) {
+//            x.setFirstWitnessS(firstWitnessS(selfParent(x)));
+//        } else {
+//            x.setFirstWitnessS(firstWitnessS(otherParent(x)));
+//        }
+//        return x.getFirstWitnessS();
     }
 
     /**
