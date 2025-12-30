@@ -2,6 +2,10 @@
 
 [📘Back to Overview](metrics_overview.md)
 
+### Class Diagram
+
+![metrics_core_class_diagram.svg](img/metrics_core_class_diagram.svg)
+
 ### Metric API
 
 All metrics interfaces available to use are defined in `org.hiero.metrics.api` package.<br/>
