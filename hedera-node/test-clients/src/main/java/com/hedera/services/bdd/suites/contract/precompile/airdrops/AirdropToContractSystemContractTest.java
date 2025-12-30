@@ -39,6 +39,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.contract.Utils.asHexedSolidityAddress;
+import static com.hedera.services.bdd.suites.contract.Utils.parsedToByteString;
 import static com.hedera.services.bdd.suites.contract.opcodes.Create2OperationSuite.CREATE_2_TXN;
 import static com.hedera.services.bdd.suites.contract.opcodes.Create2OperationSuite.CREATION;
 import static com.hedera.services.bdd.suites.contract.opcodes.Create2OperationSuite.DEPLOY;
@@ -78,6 +79,8 @@ import com.hedera.services.bdd.spec.dsl.entities.SpecFungibleToken;
 import com.hedera.services.bdd.spec.dsl.entities.SpecNonFungibleToken;
 import com.hedera.services.bdd.spec.dsl.operations.queries.GetBalanceOperation;
 import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
+import com.hedera.services.bdd.suites.contract.precompile.token.TransferTokenTest;
+import com.hederahashgraph.api.proto.java.AccountID;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.math.BigInteger;
 import java.util.List;
@@ -97,15 +100,21 @@ import org.junit.jupiter.api.Tag;
 @Tag(SMART_CONTRACT)
 public class AirdropToContractSystemContractTest {
 
+    private static final String TXN_NAME = "airdropTxn";
+
     @Contract(contract = "Airdrop", maxAutoAssociations = -1, creationGas = 3_000_000)
     static SpecContract airdropContract;
 
     @Account(tinybarBalance = 100_000_000_000_000_000L)
     static SpecAccount sender;
 
+    static final AtomicReference<AccountID> senderId = new AtomicReference<>();
+
     @BeforeAll
     public static void setup(@NonNull final TestLifecycle lifecycle) {
-        lifecycle.doAdhoc(sender.authorizeContract(airdropContract));
+        lifecycle.doAdhoc(
+                sender.authorizeContract(airdropContract),
+                sender.getInfo().andAssert(e -> e.exposingIdTo(senderId::set)));
     }
 
     @Nested
@@ -124,10 +133,26 @@ public class AirdropToContractSystemContractTest {
                     token.treasury().transferUnitsTo(sender, 1000L, token),
                     airdropContract
                             .call("tokenAirdrop", token, sender, receiverContract, 10L)
-                            .gas(1500000),
-                    receiverContract.getBalance().andAssert(balance -> balance.hasTokenBalance(token.name(), 10L)));
+                            .gas(1500000)
+                            .via(TXN_NAME),
+                    receiverContract.getBalance().andAssert(balance -> balance.hasTokenBalance(token.name(), 10L)),
+                    // check ERC20 event
+                    withOpContext((spec, opLog) -> {
+                        final var tokenId = spec.registry().getTokenID(token.name());
+                        final var receiverId = spec.registry().getContractId(receiverContract.name());
+                        allRunFor(spec, TransferTokenTest.validateErcEvent(
+                                getTxnRecord(TXN_NAME),
+                                new TransferTokenTest.ReceiverAmount(
+                                        tokenId::getTokenNum,
+                                        false,
+                                        () -> parsedToByteString(senderId.get()),
+                                        () -> parsedToByteString(receiverId),
+                                        10L)));
+                            })
+                    );
         }
 
+        //TODO Glib: support airdrop ERC events
         @HapiTest
         @RepeatableHapiTest(RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
         @DisplayName("Can airdrop multiple tokens to contract that is already associated with them")

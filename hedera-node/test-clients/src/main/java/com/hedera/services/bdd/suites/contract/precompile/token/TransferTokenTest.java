@@ -38,13 +38,12 @@ import com.hederahashgraph.api.proto.java.ContractID;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
 import com.hederahashgraph.api.proto.java.TokenID;
 import edu.umd.cs.findbugs.annotations.NonNull;
-
 import java.math.BigInteger;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
-
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
@@ -61,6 +60,8 @@ import org.junit.jupiter.api.TestMethodOrder;
 @HapiTestLifecycle
 @TestMethodOrder(OrderAnnotation.class)
 public class TransferTokenTest {
+
+    private static final String TXN_NAME = "transferTxn";
 
     private static final String TRANSFER_TOKEN = "transferTokenPublic";
     private static final String TRANSFER_TOKENS = "transferTokensPublic";
@@ -84,6 +85,45 @@ public class TransferTokenTest {
     @NonFungibleToken(name = "nonFungibleToken", numPreMints = 4)
     static SpecNonFungibleToken nonFungibleToken;
 
+    public record ReceiverAmount(
+            Supplier<Long> tokenNum, boolean isNFT, Supplier<ByteString> from, Supplier<ByteString> to, Long amount) {}
+
+    private static HapiGetTxnRecord validateErcEvent(final ReceiverAmount... receivers) {
+        final var withLastEvent = new ArrayList<>(List.of(receivers));
+        withLastEvent.add(new ReceiverAmount(
+                null, false, null, null, null)); // last log event is event from 'tokenTransferContract'
+        return validateErcEvent(
+                getTxnRecord(TXN_NAME), withLastEvent.toArray(new ReceiverAmount[receivers.length + 1]));
+    }
+
+    public static HapiGetTxnRecord validateErcEvent(HapiGetTxnRecord request, final ReceiverAmount... receivers) {
+        ContractLogAsserts[] logsChecker = new ContractLogAsserts[receivers.length];
+        for (int i = 0; i < receivers.length; i++) {
+            ReceiverAmount receiver = receivers[i];
+            if (receiver.tokenNum() == null || receiver.from() == null || receiver.to() == null) {
+                logsChecker[i] = logWith(); // skip this log event
+            } else if (receiver.isNFT()) {
+                logsChecker[i] = logWith()
+                        .contract(() -> String.valueOf(receiver.tokenNum().get()))
+                        .withTopicsInOrder(() -> List.of(
+                                eventSignatureOf(ERC20ContractInteractions.TRANSFER_EVENT_SIGNATURE),
+                                receiver.from().get(),
+                                receiver.to().get(),
+                                parsedToByteString(receiver.amount())));
+            } else {
+                logsChecker[i] = logWith()
+                        .contract(() -> String.valueOf(receiver.tokenNum().get()))
+                        .withTopicsInOrder(() -> List.of(
+                                eventSignatureOf(ERC20ContractInteractions.TRANSFER_EVENT_SIGNATURE),
+                                receiver.from().get(),
+                                receiver.to().get()))
+                        .longValue(receiver.amount());
+            }
+        }
+        return request.hasPriority(
+                recordWith().status(SUCCESS).contractCallResult(resultWith().logs(inOrder(logsChecker))));
+    }
+
     /**
      * The behavior of the transferToken function and transferFrom function differs for contracts that are token owners.
      * The tests below highlight the differences and shows that an allowance approval is required for the transferFrom function
@@ -94,7 +134,6 @@ public class TransferTokenTest {
     @Order(1)
     class SuccessfulTransferTokenTest {
 
-        private static final String TXN_NAME = "transferTxn";
         private static final AtomicReference<ContractID> tokenTransferContractId = new AtomicReference<>();
         private static final AtomicReference<ContractID> tokenReceiverContractId = new AtomicReference<>();
         private static final AtomicReference<AccountID> tokenReceiverAccountId = new AtomicReference<>();
@@ -125,36 +164,13 @@ public class TransferTokenTest {
                     nonFungibleToken
                             .getInfo()
                             .andAssert(e -> e.getTokenInfo(info -> nonFungibleTokenId.set(info.getTokenId()))),
-                    nonFungibleToken.treasury()
+                    nonFungibleToken
+                            .treasury()
                             .getInfo()
-                            .andAssert(e -> e.exposingIdTo(nonFungibleTokenTreasuryId::set))
-            );
-        }
-
-        public record ReceiverAmount(Supplier<ByteString> from, Supplier<ByteString> to, Long amount) {
+                            .andAssert(e -> e.exposingIdTo(nonFungibleTokenTreasuryId::set)));
         }
 
         // ------------------------------ FT ------------------------------
-        public static HapiGetTxnRecord validateFTLogEvent(final ReceiverAmount... receivers) {
-            ContractLogAsserts[] logsChecker = new ContractLogAsserts[receivers.length + 1];
-            for (int i = 0; i < receivers.length; i++) {
-                ReceiverAmount receiver = receivers[i];
-                logsChecker[i] = logWith() // first log event is ERC event
-                        .contract(() -> String.valueOf(fungibleTokenId.get().getTokenNum()))
-                        .withTopicsInOrder(() -> List.of(
-                                eventSignatureOf(ERC20ContractInteractions.TRANSFER_EVENT_SIGNATURE),
-                                receiver.from().get(),
-                                receiver.to().get()))
-                        .longValue(receiver.amount());
-            }
-            logsChecker[receivers.length] = logWith(); // last log event is event from 'tokenTransferContract'
-            return getTxnRecord(TXN_NAME)
-                    .logged()
-                    .hasPriority(recordWith()
-                            .status(SUCCESS)
-                            .contractCallResult(resultWith().logs(inOrder(logsChecker))));
-        }
-
         @HapiTest
         @DisplayName("'transferToken' function without explicit allowance")
         public Stream<DynamicTest> transferUsingTransferToken() {
@@ -164,8 +180,12 @@ public class TransferTokenTest {
                             .call(TRANSFER_TOKEN, fungibleToken, tokenTransferContract, tokenReceiverContract, 2L)
                             .gas(1_000_000L)
                             .via(TXN_NAME),
-                    validateFTLogEvent(
-                            new ReceiverAmount(() -> parsedToByteString(tokenTransferContractId.get()), () -> parsedToByteString(tokenReceiverContractId.get()), 2L)));
+                    validateErcEvent(new ReceiverAmount(
+                            () -> fungibleTokenId.get().getTokenNum(),
+                            false,
+                            () -> parsedToByteString(tokenTransferContractId.get()),
+                            () -> parsedToByteString(tokenReceiverContractId.get()),
+                            2L)));
         }
 
         @HapiTest
@@ -178,17 +198,27 @@ public class TransferTokenTest {
                             .call(
                                     TRANSFER_TOKENS,
                                     fungibleToken,
-                                    new Address[]{
-                                            tokenTransferContract.addressOn(spec.targetNetworkOrThrow()),
-                                            tokenReceiverContract.addressOn(spec.targetNetworkOrThrow()),
-                                            tokenReceiverAccount.addressOn(spec.targetNetworkOrThrow())
+                                    new Address[] {
+                                        tokenTransferContract.addressOn(spec.targetNetworkOrThrow()),
+                                        tokenReceiverContract.addressOn(spec.targetNetworkOrThrow()),
+                                        tokenReceiverAccount.addressOn(spec.targetNetworkOrThrow())
                                     },
-                                    new long[]{-5L, 2L, 3L})
+                                    new long[] {-5L, 2L, 3L})
                             .gas(1_000_000L)
                             .via(TXN_NAME),
-                    validateFTLogEvent(
-                            new ReceiverAmount(() -> parsedToByteString(tokenTransferContractId.get()), () -> parsedToByteString(tokenReceiverContractId.get()), 2L),
-                            new ReceiverAmount(() -> parsedToByteString(tokenTransferContractId.get()), () -> parsedToByteString(tokenReceiverAccountId.get()), 3L)))));
+                    validateErcEvent(
+                            new ReceiverAmount(
+                                    () -> fungibleTokenId.get().getTokenNum(),
+                                    false,
+                                    () -> parsedToByteString(tokenTransferContractId.get()),
+                                    () -> parsedToByteString(tokenReceiverContractId.get()),
+                                    2L),
+                            new ReceiverAmount(
+                                    () -> fungibleTokenId.get().getTokenNum(),
+                                    false,
+                                    () -> parsedToByteString(tokenTransferContractId.get()),
+                                    () -> parsedToByteString(tokenReceiverAccountId.get()),
+                                    3L)))));
         }
 
         @HapiTest
@@ -209,31 +239,15 @@ public class TransferTokenTest {
                                     BigInteger.valueOf(2L))
                             .gas(1_000_000L)
                             .via(TXN_NAME),
-                    validateFTLogEvent(
-                            new ReceiverAmount(() -> parsedToByteString(tokenTransferContractId.get()), () -> parsedToByteString(tokenReceiverContractId.get()), 2L)));
+                    validateErcEvent(new ReceiverAmount(
+                            () -> fungibleTokenId.get().getTokenNum(),
+                            false,
+                            () -> parsedToByteString(tokenTransferContractId.get()),
+                            () -> parsedToByteString(tokenReceiverContractId.get()),
+                            2L)));
         }
 
         // ------------------------------ NFT ------------------------------
-        public static HapiGetTxnRecord validateNFTLogEvent(final ReceiverAmount... receivers) {
-            ContractLogAsserts[] logsChecker = new ContractLogAsserts[receivers.length + 1];
-            for (int i = 0; i < receivers.length; i++) {
-                ReceiverAmount receiver = receivers[i];
-                logsChecker[i] = logWith() // first log event is ERC event
-                        .contract(() -> String.valueOf(nonFungibleTokenId.get().getTokenNum()))
-                        .withTopicsInOrder(() -> List.of(
-                                eventSignatureOf(ERC20ContractInteractions.TRANSFER_EVENT_SIGNATURE),
-                                receiver.from().get(),
-                                receiver.to().get(),
-                                parsedToByteString(receiver.amount())));
-            }
-            logsChecker[receivers.length] = logWith(); // last log event is event from 'tokenTransferContract'
-            return getTxnRecord(TXN_NAME)
-                    .logged()
-                    .hasPriority(recordWith()
-                            .status(SUCCESS)
-                            .contractCallResult(resultWith().logs(inOrder(logsChecker))));
-        }
-
         @HapiTest
         @DisplayName("'transferNFT' function without explicit allowance")
         public Stream<DynamicTest> transferUsingTransferNFT() {
@@ -243,8 +257,12 @@ public class TransferTokenTest {
                             .call(TRANSFER_NFT, nonFungibleToken, tokenTransferContract, tokenReceiverContract, 1L)
                             .gas(1_000_000L)
                             .via(TXN_NAME),
-                    validateNFTLogEvent(
-                            new ReceiverAmount(() -> parsedToByteString(tokenTransferContractId.get()), () -> parsedToByteString(tokenReceiverContractId.get()), 1L)));
+                    validateErcEvent(new ReceiverAmount(
+                            () -> nonFungibleTokenId.get().getTokenNum(),
+                            true,
+                            () -> parsedToByteString(tokenTransferContractId.get()),
+                            () -> parsedToByteString(tokenReceiverContractId.get()),
+                            1L)));
         }
 
         @HapiTest
@@ -257,20 +275,30 @@ public class TransferTokenTest {
                             .call(
                                     TRANSFER_NFTS,
                                     nonFungibleToken,
-                                    new Address[]{
-                                            tokenTransferContract.addressOn(spec.targetNetworkOrThrow()),
-                                            tokenTransferContract.addressOn(spec.targetNetworkOrThrow())
+                                    new Address[] {
+                                        tokenTransferContract.addressOn(spec.targetNetworkOrThrow()),
+                                        tokenTransferContract.addressOn(spec.targetNetworkOrThrow())
                                     },
-                                    new Address[]{
-                                            tokenReceiverContract.addressOn(spec.targetNetworkOrThrow()),
-                                            tokenReceiverAccount.addressOn(spec.targetNetworkOrThrow())
+                                    new Address[] {
+                                        tokenReceiverContract.addressOn(spec.targetNetworkOrThrow()),
+                                        tokenReceiverAccount.addressOn(spec.targetNetworkOrThrow())
                                     },
-                                    new long[]{2L, 3L})
+                                    new long[] {2L, 3L})
                             .gas(1_000_000L)
                             .via(TXN_NAME),
-                    validateNFTLogEvent(
-                            new ReceiverAmount(() -> parsedToByteString(tokenTransferContractId.get()), () -> parsedToByteString(tokenReceiverContractId.get()), 2L),
-                            new ReceiverAmount(() -> parsedToByteString(tokenTransferContractId.get()), () -> parsedToByteString(tokenReceiverAccountId.get()), 3L)))));
+                    validateErcEvent(
+                            new ReceiverAmount(
+                                    () -> nonFungibleTokenId.get().getTokenNum(),
+                                    true,
+                                    () -> parsedToByteString(tokenTransferContractId.get()),
+                                    () -> parsedToByteString(tokenReceiverContractId.get()),
+                                    2L),
+                            new ReceiverAmount(
+                                    () -> nonFungibleTokenId.get().getTokenNum(),
+                                    true,
+                                    () -> parsedToByteString(tokenTransferContractId.get()),
+                                    () -> parsedToByteString(tokenReceiverAccountId.get()),
+                                    3L)))));
         }
 
         @HapiTest
@@ -278,25 +306,21 @@ public class TransferTokenTest {
         public Stream<DynamicTest> transferUsingTransferFromNFTWithAllowance() {
             return hapiTest(
                     // Approve the 'TokenTransferContract' to spend 4th NFT token
-                    // We cant approve from 'TokenTransferContract' because it is not an owner of the token. "DELEGATING_SPENDER_DOES_NOT_HAVE_APPROVE_FOR_ALL"
-                    // Event if 'TokenTransferContract' is an owner of the token, there is "SPENDER_ACCOUNT_SAME_AS_OWNER"
-
-                    // TODO Glib: Why we are not allowing self approve for NFT?
-//                    cryptoApproveAllowance()
-//                            .payingWith(DEFAULT_PAYER)
-//                            .addNftAllowance("TokenTransferContract", "nonFungibleToken", "TokenTransferContract", false, List.of(4L))
-//                            .signedBy(DEFAULT_PAYER, "TokenTransferContract")
-//                            .fee(ONE_HBAR),
-//                    tokenTransferContract
-//                            .call("approveNFTPublic", nonFungibleToken, tokenTransferContract, BigInteger.valueOf(4L))
-//                            .gas(1_000_000L),
-
+                    // We cant approve from 'TokenTransferContract' because it is not an owner of the token.
+                    // "DELEGATING_SPENDER_DOES_NOT_HAVE_APPROVE_FOR_ALL"
+                    // Event if 'TokenTransferContract' is an owner of the token, there is
+                    // "SPENDER_ACCOUNT_SAME_AS_OWNER"
                     cryptoApproveAllowance()
                             .payingWith(DEFAULT_PAYER)
-                            .addNftAllowance("nonFungibleToken" + SpecFungibleToken.DEFAULT_TREASURY_NAME_SUFFIX, "nonFungibleToken", "TokenTransferContract", false, List.of(4L))
-                            .signedBy(DEFAULT_PAYER, "nonFungibleToken" + SpecFungibleToken.DEFAULT_TREASURY_NAME_SUFFIX)
+                            .addNftAllowance(
+                                    "nonFungibleToken" + SpecFungibleToken.DEFAULT_TREASURY_NAME_SUFFIX,
+                                    "nonFungibleToken",
+                                    "TokenTransferContract",
+                                    false,
+                                    List.of(4L))
+                            .signedBy(
+                                    DEFAULT_PAYER, "nonFungibleToken" + SpecFungibleToken.DEFAULT_TREASURY_NAME_SUFFIX)
                             .fee(ONE_HBAR),
-
                     // Transfer using transferFrom function
                     tokenTransferContract
                             .call(
@@ -307,8 +331,12 @@ public class TransferTokenTest {
                                     BigInteger.valueOf(4L))
                             .gas(1_000_000L)
                             .via(TXN_NAME),
-                    validateNFTLogEvent(
-                            new ReceiverAmount(() -> parsedToByteString(nonFungibleTokenTreasuryId.get()), () -> parsedToByteString(tokenReceiverContractId.get()), 4L)));
+                    validateErcEvent(new ReceiverAmount(
+                            () -> nonFungibleTokenId.get().getTokenNum(),
+                            true,
+                            () -> parsedToByteString(nonFungibleTokenTreasuryId.get()),
+                            () -> parsedToByteString(tokenReceiverContractId.get()),
+                            4L)));
         }
     }
 
