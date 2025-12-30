@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.metrics.api.export.snapshot;
 
-import org.hiero.metrics.api.core.ArrayAccessor;
 import org.hiero.metrics.api.core.MetricInfo;
 
 /**
@@ -12,4 +11,4 @@ import org.hiero.metrics.api.core.MetricInfo;
  *
  * @see MeasurementSnapshot
  */
-public interface MetricSnapshot extends MetricInfo, ArrayAccessor<MeasurementSnapshot> {}
+public interface MetricSnapshot extends MetricInfo, Iterable<MeasurementSnapshot> {}

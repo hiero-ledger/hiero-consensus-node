@@ -2,20 +2,18 @@
 package org.hiero.metrics.internal.export.snapshot;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.Iterator;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import org.hiero.metrics.api.export.snapshot.MetricSnapshot;
 import org.hiero.metrics.api.export.snapshot.MetricsCollectionSnapshot;
-import org.hiero.metrics.internal.core.AppendArray;
 
 public final class UpdatableMetricRegistrySnapshot implements MetricsCollectionSnapshot {
 
-    private final AppendArray<UpdatableMetricSnapshot<?>> snapshots = new AppendArray<>(64);
+    private final ConcurrentLinkedQueue<UpdatableMetricSnapshot<?>> snapshots = new ConcurrentLinkedQueue<>();
 
     @NonNull
-    public synchronized UpdatableMetricRegistrySnapshot update() {
-        int size = snapshots.readyToRead();
-        for (int i = 0; i < size; i++) {
-            snapshots.get(i).update();
-        }
+    public synchronized MetricsCollectionSnapshot update() {
+        snapshots.forEach(UpdatableMetricSnapshot::update);
         return this;
     }
 
@@ -23,14 +21,9 @@ public final class UpdatableMetricRegistrySnapshot implements MetricsCollectionS
         snapshots.add(metricSnapshot);
     }
 
-    @Override
-    public int size() {
-        return snapshots.size();
-    }
-
     @NonNull
     @Override
-    public MetricSnapshot get(int index) {
-        return snapshots.get(index);
+    public Iterator<MetricSnapshot> iterator() {
+        return snapshots.stream().map(s -> (MetricSnapshot) s).iterator();
     }
 }
