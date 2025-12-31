@@ -6,6 +6,7 @@ import static com.hedera.services.bdd.spec.HapiSpec.multiNetworkHapiTest;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 
 import com.hedera.services.bdd.junit.MultiNetworkHapiTest;
+import com.hedera.services.bdd.junit.OrderedInIsolation;
 import com.hedera.services.bdd.junit.TestTags;
 import com.hedera.services.bdd.junit.hedera.subprocess.SubProcessNetwork;
 import com.hedera.services.bdd.spec.queries.QueryVerbs;
@@ -25,6 +26,7 @@ import org.junit.jupiter.api.Tag;
  * of other networks. Includes tests for account creation, balance queries,
  * and independent ledger counters across distinct networks.
  */
+@OrderedInIsolation
 @Tag(TestTags.MULTINETWORK)
 public class MultiNetworkIsolationSuite {
     @MultiNetworkHapiTest(

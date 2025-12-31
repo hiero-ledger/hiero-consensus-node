@@ -17,6 +17,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.junit.HapiTestLifecycle;
+import com.hedera.services.bdd.junit.OrderedInIsolation;
 import com.hedera.services.bdd.junit.TestTags;
 import com.hedera.services.bdd.junit.hedera.HederaNode;
 import com.hedera.services.bdd.junit.support.TestLifecycle;
@@ -41,6 +42,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
+@OrderedInIsolation
 @Tag(TestTags.CLPR)
 @HapiTestLifecycle
 public class ClprSuite implements LifecycleTest {

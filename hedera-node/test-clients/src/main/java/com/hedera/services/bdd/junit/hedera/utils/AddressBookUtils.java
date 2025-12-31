@@ -5,6 +5,8 @@ import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.working
 import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.toMap;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.protobuf.ByteString;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.state.roster.Roster;
@@ -16,16 +18,27 @@ import com.hederahashgraph.api.proto.java.ServiceEndpoint;
 import com.swirlds.platform.crypto.CryptoStatic;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.security.cert.CertificateEncodingException;
 import java.text.ParseException;
+import java.util.Base64;
+import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
+import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.LongStream;
 import java.util.stream.Stream;
+import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.roster.AddressBook;
 
@@ -36,42 +49,65 @@ public class AddressBookUtils {
     public static final long CLASSIC_FIRST_NODE_ACCOUNT_NUM = 3;
     public static final String[] CLASSIC_NODE_NAMES =
             new String[] {"node1", "node2", "node3", "node4", "node5", "node6", "node7", "node8"};
+    private static final String GOSSIP_CERTS_RESOURCE = "hapi-test-gossip-certs.json";
+    private static final Map<Long, GossipKeyMaterial> GOSSIP_KEY_MATERIAL =
+            new ConcurrentHashMap<>(loadPreGeneratedGossipKeys());
     private static final Map<Long, byte[]> GOSSIP_CERT_CACHE = new ConcurrentHashMap<>();
+
+    static {
+        GOSSIP_KEY_MATERIAL.forEach((nodeId, material) -> GOSSIP_CERT_CACHE.put(nodeId, material.sigCertDer()));
+    }
+
+    /**
+     * Gossip key material pre-generated for test networks.
+     */
+    static final class GossipKeyMaterial {
+        private final byte[] sigCertPem;
+        private final byte[] sigPrivateKeyPem;
+        private final byte[] sigCertDer;
+
+        GossipKeyMaterial(
+                @NonNull final byte[] sigCertPem,
+                @NonNull final byte[] sigPrivateKeyPem,
+                @NonNull final byte[] sigCertDer) {
+            this.sigCertPem = requireNonNull(sigCertPem);
+            this.sigPrivateKeyPem = requireNonNull(sigPrivateKeyPem);
+            this.sigCertDer = requireNonNull(sigCertDer);
+        }
+
+        byte[] sigCertPem() {
+            return sigCertPem;
+        }
+
+        byte[] sigPrivateKeyPem() {
+            return sigPrivateKeyPem;
+        }
+
+        byte[] sigCertDer() {
+            return sigCertDer;
+        }
+    }
 
     private AddressBookUtils() {
         throw new UnsupportedOperationException("Utility Class");
     }
 
     /**
-     * Given a config.txt file, generates the same map of node ids to ASN.1 DER encodings of X.509 certificates
-     * as will be produced in a test network.
+     * Given a config.txt file, returns the map of node ids to ASN.1 DER encodings of X.509 certificates
+     * pre-generated for test networks.
+     *
      * @param configTxt the contents of a config.txt file
      * @return the map of node IDs to their cert encodings
+     * @throws IllegalStateException if any node ID is missing from the pre-generated material
      */
     public static Map<Long, Bytes> certsFor(@NonNull final String configTxt) {
-        final AddressBook synthBook;
-        try {
-            synthBook = com.swirlds.platform.system.address.AddressBookUtils.parseAddressBookText(configTxt);
-        } catch (ParseException e) {
-            throw new IllegalArgumentException(e);
+        final AddressBook synthBook = synthBookFrom(configTxt);
+        final var cachedCerts = cachedCertsFor(synthBook);
+        if (cachedCerts != null) {
+            return cachedCerts;
         }
-        try {
-            CryptoStatic.generateKeysAndCerts(synthBook);
-        } catch (Exception e) {
-            throw new IllegalStateException("Error generating keys and certs", e);
-        }
-        return IntStream.range(0, synthBook.getSize())
-                .boxed()
-                .collect(toMap(j -> synthBook.getNodeId(j).id(), j -> {
-                    try {
-                        return Bytes.wrap(requireNonNull(synthBook
-                                        .getAddress(synthBook.getNodeId(j))
-                                        .getSigCert())
-                                .getEncoded());
-                    } catch (CertificateEncodingException e) {
-                        throw new IllegalStateException(e);
-                    }
-                }));
+        final var missingNodeIds = missingNodeIds(nodeIdsFrom(synthBook));
+        throw new IllegalStateException(missingKeyMaterialMessage(missingNodeIds));
     }
 
     /**
@@ -79,21 +115,231 @@ public class AddressBookUtils {
      *
      * @param nodeId the node id
      * @return the certificate bytes
+     * @throws IllegalStateException if the node id has no pre-generated certificate
      */
     public static byte[] gossipCaCertificateForNodeId(final long nodeId) {
-        return GOSSIP_CERT_CACHE.computeIfAbsent(nodeId, id -> {
-            final var nodeKey = NodeId.of(id);
-            try {
-                final var keysAndCerts =
-                        CryptoStatic.generateKeysAndCerts(Set.of(nodeKey), null).get(nodeKey);
-                if (keysAndCerts == null || keysAndCerts.sigCert() == null) {
-                    throw new IllegalStateException("Missing signing certificate for node " + id);
-                }
-                return keysAndCerts.sigCert().getEncoded();
-            } catch (Exception e) {
-                throw new IllegalStateException("Failed to generate gossip certificate for node " + id, e);
+        final var cert = GOSSIP_CERT_CACHE.get(nodeId);
+        if (cert == null) {
+            throw new IllegalStateException(missingKeyMaterialMessage(Set.of(nodeId)));
+        }
+        return cert;
+    }
+
+    /**
+     * Returns pre-generated gossip key material for the nodes in a <i>config.txt</i> file.
+     *
+     * @param configTxt the contents of a <i>config.txt</i> file
+     * @return the pre-generated key material for each node
+     * @throws IllegalStateException if any node ID is missing from the pre-generated material
+     */
+    public static Map<Long, GossipKeyMaterial> preGeneratedGossipKeysFor(@NonNull final String configTxt) {
+        final var synthBook = synthBookFrom(configTxt);
+        return preGeneratedGossipKeysForNodeIds(nodeIdsFrom(synthBook));
+    }
+
+    /**
+     * Returns pre-generated gossip key material for the given node IDs.
+     *
+     * @param nodeIds the node IDs to retrieve key material for
+     * @return the pre-generated key material
+     * @throws IllegalStateException if any node ID is missing from the pre-generated material
+     */
+    public static Map<Long, GossipKeyMaterial> preGeneratedGossipKeysForNodeIds(@NonNull final Set<Long> nodeIds) {
+        final var missingNodeIds = missingNodeIds(nodeIds);
+        if (!missingNodeIds.isEmpty()) {
+            throw new IllegalStateException(missingKeyMaterialMessage(missingNodeIds));
+        }
+        final Map<Long, GossipKeyMaterial> material = new HashMap<>();
+        for (final var nodeId : nodeIds) {
+            material.put(nodeId, GOSSIP_KEY_MATERIAL.get(nodeId));
+        }
+        return Map.copyOf(material);
+    }
+
+    /**
+     * Generates JSON-encoded gossip key material for a contiguous range of node IDs.
+     *
+     * @param firstNodeId the first node id (inclusive)
+     * @param lastNodeId the last node id (inclusive)
+     * @return JSON payload compatible with {@value #GOSSIP_CERTS_RESOURCE}
+     * @throws IllegalArgumentException if the node id range is invalid
+     */
+    public static String generateGossipKeyMaterialJsonForRange(final long firstNodeId, final long lastNodeId) {
+        if (firstNodeId < 0 || lastNodeId < firstNodeId) {
+            throw new IllegalArgumentException("Invalid node id range [" + firstNodeId + ", " + lastNodeId + "]");
+        }
+        final var nodeIds =
+                LongStream.rangeClosed(firstNodeId, lastNodeId).boxed().collect(Collectors.toCollection(TreeSet::new));
+        return generateGossipKeyMaterialJsonForNodeIds(nodeIds);
+    }
+
+    /**
+     * Generates JSON-encoded gossip key material for the given node IDs.
+     *
+     * @param nodeIds the node IDs to generate key material for
+     * @return JSON payload compatible with {@value #GOSSIP_CERTS_RESOURCE}
+     * @throws IllegalArgumentException if no node IDs are provided
+     */
+    public static String generateGossipKeyMaterialJsonForNodeIds(@NonNull final Set<Long> nodeIds) {
+        requireNonNull(nodeIds);
+        if (nodeIds.isEmpty()) {
+            throw new IllegalArgumentException("No node IDs provided for gossip key generation");
+        }
+        final var orderedNodeIds = new TreeSet<>(nodeIds);
+        final Map<NodeId, KeysAndCerts> keysAndCerts;
+        try {
+            final var nodeIdList = orderedNodeIds.stream().map(NodeId::of).toList();
+            keysAndCerts = CryptoStatic.generateKeysAndCerts(nodeIdList, null);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Interrupted while generating gossip key material", e);
+        } catch (Exception e) {
+            throw new IllegalStateException("Failed to generate gossip key material", e);
+        }
+        final Map<String, GossipKeyMaterialJson> payload = new TreeMap<>();
+        for (final var nodeId : orderedNodeIds) {
+            final var entry = keysAndCerts.get(NodeId.of(nodeId));
+            if (entry == null) {
+                throw new IllegalStateException("Missing generated key material for node " + nodeId);
             }
-        });
+            final var json = new GossipKeyMaterialJson();
+            try {
+                json.sigCertPem = Base64.getEncoder()
+                        .encodeToString(pemBytes(false, entry.sigCert().getEncoded()));
+            } catch (CertificateEncodingException e) {
+                throw new IllegalStateException("Unable to encode gossip certificate for node " + nodeId, e);
+            }
+            json.sigPrivateKeyPem = Base64.getEncoder()
+                    .encodeToString(
+                            pemBytes(true, entry.sigKeyPair().getPrivate().getEncoded()));
+            payload.put(Long.toString(nodeId), json);
+        }
+        try {
+            return new ObjectMapper().writerWithDefaultPrettyPrinter().writeValueAsString(payload);
+        } catch (IOException e) {
+            throw new IllegalStateException("Failed to serialize gossip key material JSON", e);
+        }
+    }
+
+    private static @Nullable Map<Long, Bytes> cachedCertsFor(@NonNull final AddressBook synthBook) {
+        for (int i = 0; i < synthBook.getSize(); i++) {
+            if (!GOSSIP_CERT_CACHE.containsKey(synthBook.getNodeId(i).id())) {
+                return null;
+            }
+        }
+        return IntStream.range(0, synthBook.getSize())
+                .boxed()
+                .collect(toMap(
+                        j -> synthBook.getNodeId(j).id(),
+                        j -> Bytes.wrap(
+                                GOSSIP_CERT_CACHE.get(synthBook.getNodeId(j).id()))));
+    }
+
+    /**
+     * Loads pre-generated gossip key material from the embedded JSON resource.
+     *
+     * @return the decoded key material
+     */
+    private static Map<Long, GossipKeyMaterial> loadPreGeneratedGossipKeys() {
+        try (InputStream input = AddressBookUtils.class.getClassLoader().getResourceAsStream(GOSSIP_CERTS_RESOURCE)) {
+            if (input == null) {
+                return Map.of();
+            }
+            final var mapper = new ObjectMapper();
+            final Map<String, GossipKeyMaterialJson> encoded =
+                    mapper.readValue(input, new TypeReference<Map<String, GossipKeyMaterialJson>>() {});
+            final Map<Long, GossipKeyMaterial> decoded = new HashMap<>();
+            for (final var entry : encoded.entrySet()) {
+                final long nodeId = Long.parseLong(entry.getKey());
+                final var material = requireNonNull(entry.getValue());
+                final var sigCertPem = Base64.getDecoder().decode(requireNonNull(material.sigCertPem));
+                final var sigPrivateKeyPem = Base64.getDecoder().decode(requireNonNull(material.sigPrivateKeyPem));
+                decoded.put(
+                        nodeId, new GossipKeyMaterial(sigCertPem, sigPrivateKeyPem, decodeCertificateDer(sigCertPem)));
+            }
+            return Map.copyOf(decoded);
+        } catch (IOException | IllegalArgumentException e) {
+            throw new IllegalStateException("Failed to load pre-generated gossip key material", e);
+        }
+    }
+
+    /**
+     * Parses a {@link AddressBook} from the given <i>config.txt</i> contents.
+     *
+     * @param configTxt the <i>config.txt</i> contents
+     * @return the parsed address book
+     */
+    private static AddressBook synthBookFrom(@NonNull final String configTxt) {
+        try {
+            return com.swirlds.platform.system.address.AddressBookUtils.parseAddressBookText(configTxt);
+        } catch (ParseException e) {
+            throw new IllegalArgumentException(e);
+        }
+    }
+
+    private static Set<Long> nodeIdsFrom(@NonNull final AddressBook synthBook) {
+        return IntStream.range(0, synthBook.getSize())
+                .mapToObj(i -> synthBook.getNodeId(i).id())
+                .collect(Collectors.toCollection(TreeSet::new));
+    }
+
+    private static Set<Long> missingNodeIds(@NonNull final Collection<Long> nodeIds) {
+        return nodeIds.stream()
+                .filter(nodeId -> !GOSSIP_KEY_MATERIAL.containsKey(nodeId))
+                .collect(Collectors.toCollection(TreeSet::new));
+    }
+
+    private static String missingKeyMaterialMessage(@NonNull final Set<Long> nodeIds) {
+        return "Missing pre-generated gossip key material for node IDs "
+                + nodeIds
+                + ". Generate additional entries with "
+                + AddressBookUtils.class.getSimpleName()
+                + ".generateGossipKeyMaterialJsonForRange(...) or "
+                + AddressBookUtils.class.getSimpleName()
+                + ".generateGossipKeyMaterialJsonForNodeIds(...) and append them to "
+                + GOSSIP_CERTS_RESOURCE
+                + ".";
+    }
+
+    /**
+     * Extracts DER-encoded certificate bytes from a PEM-encoded certificate.
+     *
+     * @param pemBytes the PEM-encoded certificate bytes
+     * @return the DER-encoded certificate bytes
+     */
+    private static byte[] decodeCertificateDer(@NonNull final byte[] pemBytes) {
+        final var pem = new String(pemBytes, StandardCharsets.US_ASCII);
+        final var header = "-----BEGIN CERTIFICATE-----";
+        final var footer = "-----END CERTIFICATE-----";
+        final int start = pem.indexOf(header);
+        final int end = pem.indexOf(footer);
+        if (start == -1 || end == -1 || end <= start) {
+            throw new IllegalArgumentException("Invalid PEM certificate content");
+        }
+        final var base64Body = pem.substring(start + header.length(), end).replaceAll("\\s", "");
+        return Base64.getDecoder().decode(base64Body);
+    }
+
+    private static byte[] pemBytes(final boolean isPrivateKey, @NonNull final byte[] encoded) {
+        final var type = isPrivateKey ? "PRIVATE KEY" : "CERTIFICATE";
+        final var encoder = Base64.getMimeEncoder(64, new byte[] {'\n'});
+        final var pem = new StringBuilder()
+                .append("-----BEGIN ")
+                .append(type)
+                .append("-----\n")
+                .append(encoder.encodeToString(encoded))
+                .append("\n-----END ")
+                .append(type)
+                .append("-----\n");
+        return pem.toString().getBytes(StandardCharsets.US_ASCII);
+    }
+
+    /**
+     * JSON payload for pre-generated gossip key material.
+     */
+    private static final class GossipKeyMaterialJson {
+        public String sigCertPem;
+        public String sigPrivateKeyPem;
     }
 
     /**

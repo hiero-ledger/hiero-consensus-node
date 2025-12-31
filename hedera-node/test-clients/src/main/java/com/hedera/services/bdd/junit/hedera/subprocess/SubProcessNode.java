@@ -16,6 +16,7 @@ import static com.hedera.services.bdd.junit.hedera.subprocess.ProcessUtils.start
 import static com.hedera.services.bdd.junit.hedera.subprocess.StatusLookupAttempt.newLogAttempt;
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.ERROR_REDIRECT_FILE;
 import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.OUTPUT_DIR;
+import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.syncPreGeneratedGossipKeys;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.consensus.model.status.PlatformStatus.ACTIVE;
 
@@ -218,6 +219,7 @@ public class SubProcessNode extends AbstractLocalNode<SubProcessNode> implements
             final int configVersion, @NonNull final Map<String, String> envOverrides) {
         assertStopped();
         assertWorkingDirInitialized();
+        syncPreGeneratedGossipKeys(metadata.workingDirOrThrow(), metadata.nodeId());
         destroySubProcessNodeFor(metadata);
         processHandle = startSubProcessNodeFrom(metadata, configVersion, envOverrides);
         return this;

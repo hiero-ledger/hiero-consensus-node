@@ -203,7 +203,11 @@ tasks {
 
 tasks.register<Test>("testSubprocess") {
     testClassesDirs = sourceSets.main.get().output.classesDirs
-    classpath = configurations.runtimeClasspath.get().plus(files(tasks.jar))
+    classpath =
+        configurations.runtimeClasspath
+            .get()
+            .plus(files(tasks.jar))
+            .plus(sourceSets.test.get().output)
 
     val ciTagExpression =
         gradle.startParameter.taskNames

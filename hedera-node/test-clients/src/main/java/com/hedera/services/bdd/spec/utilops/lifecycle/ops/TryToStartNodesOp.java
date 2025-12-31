@@ -65,27 +65,37 @@ public class TryToStartNodesOp extends AbstractLifecycleOp {
 
     @Override
     protected boolean submitOp(@NonNull final HapiSpec spec) throws Throwable {
-        if (spec.targetNetworkOrThrow() instanceof SubProcessNetwork subProcessNetwork) {
-            if (refreshOverrides) {
-                if (reassignPorts == ReassignPorts.YES) {
-                    if (configVersion > 0) {
-                        subProcessNetwork.refreshOverrideWithNewPortsForConfigVersion(configVersion);
-                    } else {
-                        subProcessNetwork.refreshOverrideWithNewPorts();
-                    }
-                } else if (configVersion > 0) {
+        final var targetNetwork = spec.targetNetworkOrThrow();
+        if (!(targetNetwork instanceof SubProcessNetwork subProcessNetwork)) {
+            if (reassignPorts == ReassignPorts.YES) {
+                throw new IllegalStateException("Can only reassign ports for a SubProcessNetwork");
+            }
+            return super.submitOp(spec);
+        }
+        // Override handling matrix:
+        // - refreshOverrides=false: no override files allowed; port reassignment is illegal.
+        // - refreshOverrides=true: refresh override files with new or current ports;
+        //   - the configVersion selects versioned helpers.
+        if (!refreshOverrides) {
+            if (reassignPorts == ReassignPorts.YES) {
+                throw new IllegalStateException("Cannot reassign ports without refreshing override networks");
+            }
+            // No-override startup requires a clean config directory.
+            subProcessNetwork.assertNoOverrideNetworks();
+        } else {
+            if (reassignPorts == ReassignPorts.YES) {
+                if (configVersion > 0) {
+                    subProcessNetwork.refreshOverrideWithNewPortsForConfigVersion(configVersion);
+                } else {
+                    subProcessNetwork.refreshOverrideWithNewPorts();
+                }
+            } else {
+                if (configVersion > 0) {
                     subProcessNetwork.refreshOverrideWithCurrentPortsForConfigVersion(configVersion);
                 } else {
                     subProcessNetwork.refreshOverrideWithCurrentPorts();
                 }
-            } else if (reassignPorts == ReassignPorts.YES) {
-                throw new IllegalStateException("Cannot reassign ports without refreshing override networks");
-            } else {
-                // No-override startup requires a clean config directory.
-                subProcessNetwork.assertNoOverrideNetworks();
             }
-        } else if (reassignPorts == ReassignPorts.YES) {
-            throw new IllegalStateException("Can only reassign ports for a SubProcessNetwork");
         }
         return super.submitOp(spec);
     }
@@ -118,11 +128,6 @@ public class TryToStartNodesOp extends AbstractLifecycleOp {
             }
             attempt++;
             node.stopFuture().join();
-            log.warn(
-                    "BindException while starting node '{}' (attempt {}), retrying in {}ms",
-                    node.getName(),
-                    attempt,
-                    backoff.toMillis());
             sleep(backoff);
             backoff = backoff.multipliedBy(2);
             if (backoff.compareTo(MAX_BIND_BACKOFF) > 0) {
@@ -130,6 +135,11 @@ public class TryToStartNodesOp extends AbstractLifecycleOp {
             }
         }
         // timeout reached
+        log.error(
+                "BindException while starting node '{}' ({} attempts over {}), giving up",
+                node.getName(),
+                attempt,
+                BIND_RETRY_TIMEOUT);
         throw new IllegalStateException(
                 "Node '" + node.getName() + "' saw BindException on start after " + attempt + " attempts");
     }

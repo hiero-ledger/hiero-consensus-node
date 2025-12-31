@@ -19,6 +19,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.hedera.node.app.hapi.utils.CommonPbjConverters;
 import com.hedera.node.app.info.DiskStartupNetworks;
 import com.hedera.services.bdd.junit.MultiNetworkHapiTest;
+import com.hedera.services.bdd.junit.OrderedInIsolation;
 import com.hedera.services.bdd.junit.TestTags;
 import com.hedera.services.bdd.junit.hedera.ExternalPath;
 import com.hedera.services.bdd.junit.hedera.NodeMetadata;
@@ -44,6 +45,7 @@ import org.junit.jupiter.api.Tag;
 /**
  * Exercises freeze-upgrade driven node removals across multiple networks and verifies roster changes.
  */
+@OrderedInIsolation
 @Tag(TestTags.MULTINETWORK)
 public class MultiNetworkNodeLifecycleSuite implements LifecycleTest {
     private static final Pattern OVERRIDE_SCOPE_DIR_PATTERN = Pattern.compile("\\d+");
@@ -126,17 +128,6 @@ public class MultiNetworkNodeLifecycleSuite implements LifecycleTest {
         return builder.asDynamicTests();
     }
 
-    /**
-     * Builds the operations to remove one node and add another, then perform a freeze upgrade.
-     *
-     * @param network the target subprocess network
-     * @param networkPrefix prefix for entity names
-     * @param nodeIdToRemove the node id to remove
-     * @param nodeIdToAdd the node id to add
-     * @param expectedRoster expected roster after the upgrade
-     * @param portSnapshots holder for pre-upgrade port snapshots
-     * @return the operations to execute on the network
-     */
     /**
      * Builds the operations to remove one node and add another, then perform a freeze upgrade.
      *

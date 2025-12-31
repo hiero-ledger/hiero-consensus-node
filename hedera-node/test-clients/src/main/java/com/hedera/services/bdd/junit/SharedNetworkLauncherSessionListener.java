@@ -26,7 +26,6 @@ import com.hedera.services.bdd.spec.keys.RepeatableKeyGenerator;
 import com.hedera.services.bdd.spec.remote.RemoteNetworkFactory;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
-import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -36,10 +35,6 @@ import java.util.Set;
 import java.util.function.Consumer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.junit.platform.engine.TestSource;
-import org.junit.platform.engine.support.descriptor.ClassSource;
-import org.junit.platform.engine.support.descriptor.CompositeTestSource;
-import org.junit.platform.engine.support.descriptor.MethodSource;
 import org.junit.platform.launcher.LauncherSession;
 import org.junit.platform.launcher.LauncherSessionListener;
 import org.junit.platform.launcher.TestExecutionListener;
@@ -91,9 +86,6 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
         }
 
         private Embedding embedding;
-        private static final Set<String> QUIESCENCE_TEST_CLASSES = Set.of(
-                "com.hedera.services.bdd.suites.regression.system.QuiesceThenMixedOpsRestartTest",
-                "com.hedera.services.bdd.suites.regression.system.JustQuiesceTest");
 
         @Override
         public void testPlanExecutionStarted(@NonNull final TestPlan testPlan) {
@@ -102,8 +94,6 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
             final boolean clprSystemPropertyEnabled =
                     Boolean.parseBoolean(System.getProperty("clpr.clprEnabled", "false"));
             final boolean enableClprOverrides = hasClprTests || clprSystemPropertyEnabled;
-            final boolean hasRestartTests = hasTaggedTestNode(testPlan, Set.of(TestTags.RESTART))
-                    || hasTestClasses(testPlan, QUIESCENCE_TEST_CLASSES);
 
             // Skip standard setup if any test in the plan uses HapiBlockNode
             if (hasAnnotatedTestNode(testPlan, Set.of(HapiBlockNode.class))) {
@@ -111,8 +101,8 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
                 embedding = Embedding.NA;
                 return;
             }
-            final boolean hasMultiNetworkTests = hasAnnotatedTestNode(testPlan, Set.of(MultiNetworkHapiTest.class));
-            final boolean hasStandardHapiTests = hasAnnotatedTestNode(
+            // Do nothing if the test plan has no HapiTests of any kind
+            if (!hasAnnotatedTestNode(
                     testPlan,
                     Set.of(
                             EmbeddedHapiTest.class,
@@ -121,15 +111,9 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
                             LeakyEmbeddedHapiTest.class,
                             LeakyHapiTest.class,
                             LeakyRepeatableHapiTest.class,
-                            RepeatableHapiTest.class));
-            if (hasMultiNetworkTests && !hasStandardHapiTests) {
-                log.info("Test plan has only MultiNetworkHapiTest annotations; skipping shared network startup.");
-                embedding = Embedding.NA;
-                return;
-            }
-            // Do nothing if the test plan has no HapiTests of any kind
-            if (!hasStandardHapiTests) {
+                            RepeatableHapiTest.class))) {
                 log.info("No HapiTests found in test plan, skipping shared network startup");
+                embedding = Embedding.NA;
                 return;
             }
             embedding = embeddingMode();
@@ -153,9 +137,6 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
                 if (network instanceof SubProcessNetwork subProcessNetwork) {
                     if (enableClprOverrides) {
                         upsertApplicationOverride(subProcessNetwork, "clpr.clprEnabled", "true");
-                    }
-                    if (hasRestartTests) {
-                        upsertApplicationOverride(subProcessNetwork, "quiescence.enabled", "true");
                     }
                 }
                 checkPrOverridesForBlockNodeStreaming(network);
@@ -265,32 +246,6 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
                 updated.add(value);
                 overrides.put(node.getNodeId(), List.copyOf(updated));
             });
-        }
-
-        private static boolean hasTestClasses(@NonNull final TestPlan testPlan, @NonNull final Set<String> classNames) {
-            if (classNames.isEmpty()) {
-                return false;
-            }
-            final var stack = new ArrayDeque<>(testPlan.getRoots());
-            while (!stack.isEmpty()) {
-                final var id = stack.pop();
-                testPlan.getChildren(id).forEach(stack::push);
-                final var optSource = id.getSource();
-                if (optSource.isPresent() && sourceHasClass(optSource.get(), classNames)) {
-                    return true;
-                }
-            }
-            return false;
-        }
-
-        private static boolean sourceHasClass(@NonNull final TestSource source, @NonNull final Set<String> classNames) {
-            return switch (source) {
-                case MethodSource ms -> classNames.contains(ms.getClassName());
-                case ClassSource cs -> classNames.contains(cs.getClassName());
-                case CompositeTestSource composite ->
-                    composite.getSources().stream().anyMatch(nested -> sourceHasClass(nested, classNames));
-                default -> false;
-            };
         }
 
         private static Embedding embeddingMode() {

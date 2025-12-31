@@ -56,7 +56,6 @@ import java.io.UncheckedIOException;
 import java.net.ServerSocket;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.time.Duration;
 import java.time.Instant;
@@ -412,6 +411,7 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
      * Refreshes the node <i>override-network.json</i> files after reassigning ports.
      *
      * @param configVersion the configuration version (unused, kept for API compatibility)
+     * (FUTURE) Strip the unused param from all invocations.
      */
     public void refreshOverrideWithNewPortsForConfigVersion(final int configVersion) {
         refreshOverrideWithNewPorts();
@@ -694,14 +694,15 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
                 .orElseThrow(() -> new IllegalStateException("No signed states found for node " + sourceNodeId));
         final var targetSignedStatesDir = targetNode.getExternalPath(SAVED_STATES_DIR);
         WorkingDirUtils.rm(targetSignedStatesDir);
-        copyDirectory(latestStateDir, targetSignedStatesDir.resolve(latestStateDir.getFileName()));
+        WorkingDirUtils.copyDirectoryUnchecked(
+                latestStateDir, targetSignedStatesDir.resolve(latestStateDir.getFileName()));
         final var sourcePcesDir = preconsensusEventsDir(sourceNode);
         if (!Files.exists(sourcePcesDir)) {
             throw new IllegalStateException("No preconsensus events found at " + sourcePcesDir);
         }
         final var targetPcesDir = preconsensusEventsDir(targetNode);
         WorkingDirUtils.rm(targetPcesDir);
-        copyDirectory(sourcePcesDir, targetPcesDir);
+        WorkingDirUtils.copyDirectoryUnchecked(sourcePcesDir, targetPcesDir);
         log.info(
                 "Copied signed state '{}' and PCES from node {} to node {}",
                 latestStateDir.getFileName(),
@@ -824,27 +825,6 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
                 .resolve(ProcessUtils.SAVED_STATES_DIR)
                 .resolve(PRECONSENSUS_EVENTS_DIR)
                 .resolve(Long.toString(node.getNodeId()));
-    }
-
-    private static void copyDirectory(@NonNull final Path source, @NonNull final Path target) {
-        try (final var paths = Files.walk(source)) {
-            paths.forEach(path -> {
-                final var relative = source.relativize(path);
-                final var destination = target.resolve(relative);
-                try {
-                    if (Files.isDirectory(path)) {
-                        Files.createDirectories(destination);
-                    } else {
-                        Files.createDirectories(destination.getParent());
-                        Files.copy(path, destination, StandardCopyOption.REPLACE_EXISTING);
-                    }
-                } catch (IOException e) {
-                    throw new UncheckedIOException(e);
-                }
-            });
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
     }
 
     private static void sleep(@NonNull final Duration duration) {

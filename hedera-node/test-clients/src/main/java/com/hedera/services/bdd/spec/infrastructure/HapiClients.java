@@ -139,7 +139,7 @@ public class HapiClients {
 
     private void ensureNodeOperatorChannelStubsInPool(@NonNull final HederaNode node) {
         requireNonNull(node);
-        final var channelUri = uri(node.getHost(), node.getGrpcNodeOperatorPort());
+        final var channelUri = formatUri(node.getHost(), node.getGrpcNodeOperatorPort());
         final var existingPool = channelPools.computeIfAbsent(channelUri, COPY_ON_WRITE_LIST_SUPPLIER);
         if (existingPool.size() < MAX_DESIRED_CHANNELS_PER_NODE) {
             final var channel = createNettyChannel(false, node.getHost(), node.getGrpcNodeOperatorPort(), -1);
@@ -176,12 +176,12 @@ public class HapiClients {
         stubIds = nodes.stream()
                 .collect(Collectors.toMap(
                         n -> pbjToProto(n.getAccountId(), com.hedera.hapi.node.base.AccountID.class, AccountID.class),
-                        n -> uri(n.getHost(), n.getGrpcPort())));
+                        n -> formatUri(n.getHost(), n.getGrpcPort())));
         tlsStubIds = Collections.emptyMap();
         nodeOperatorStubIds = nodes.stream()
                 .collect(Collectors.toMap(
                         n -> pbjToProto(n.getAccountId(), com.hedera.hapi.node.base.AccountID.class, AccountID.class),
-                        n -> uri(n.getHost(), n.getGrpcNodeOperatorPort())));
+                        n -> formatUri(n.getHost(), n.getGrpcNodeOperatorPort())));
         nodes.forEach(node -> {
             ensureChannelStubsInPool(new NodeConnectInfo(node.hapiSpecInfo()), false);
             ensureChannelStubsInPool(new NodeConnectInfo(node.hapiSpecInfo()), true);
@@ -198,17 +198,6 @@ public class HapiClients {
      */
     private static String formatUri(final String host, final int port) {
         return String.format("%s:%d", host, port);
-    }
-
-    /**
-     * Formats a host/port pair into a URI string.
-     *
-     * @param host the host name
-     * @param port the port number
-     * @return the formatted URI
-     */
-    private String uri(String host, int port) {
-        return formatUri(host, port);
     }
 
     public static HapiClients clientsFor(HapiSpecSetup setup, long shard, long realm) {
