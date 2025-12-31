@@ -5,7 +5,6 @@ import static com.hedera.services.bdd.junit.hedera.utils.WorkingDirUtils.working
 import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.toMap;
 
-import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.protobuf.ByteString;
 import com.hedera.hapi.node.base.AccountID;
@@ -24,6 +23,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.security.cert.CertificateEncodingException;
 import java.text.ParseException;
+import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collection;
 import java.util.HashMap;
@@ -50,6 +50,8 @@ public class AddressBookUtils {
     public static final String[] CLASSIC_NODE_NAMES =
             new String[] {"node1", "node2", "node3", "node4", "node5", "node6", "node7", "node8"};
     private static final String GOSSIP_CERTS_RESOURCE = "hapi-test-gossip-certs.json";
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+    private static final Pattern NUMERIC_KEY_PATTERN = Pattern.compile("\\d+");
     private static final Map<Long, GossipKeyMaterial> GOSSIP_KEY_MATERIAL =
             new ConcurrentHashMap<>(loadPreGeneratedGossipKeys());
     private static final Map<Long, byte[]> GOSSIP_CERT_CACHE = new ConcurrentHashMap<>();
@@ -122,7 +124,7 @@ public class AddressBookUtils {
         if (cert == null) {
             throw new IllegalStateException(missingKeyMaterialMessage(Set.of(nodeId)));
         }
-        return cert;
+        return Arrays.copyOf(cert, cert.length);
     }
 
     /**
@@ -245,15 +247,30 @@ public class AddressBookUtils {
             if (input == null) {
                 return Map.of();
             }
-            final var mapper = new ObjectMapper();
-            final Map<String, GossipKeyMaterialJson> encoded =
-                    mapper.readValue(input, new TypeReference<Map<String, GossipKeyMaterialJson>>() {});
+            final var root = OBJECT_MAPPER.readTree(input);
+            if (!root.isObject()) {
+                throw new IllegalStateException("Invalid gossip key material JSON: expected object");
+            }
             final Map<Long, GossipKeyMaterial> decoded = new HashMap<>();
-            for (final var entry : encoded.entrySet()) {
-                final long nodeId = Long.parseLong(entry.getKey());
-                final var material = requireNonNull(entry.getValue());
-                final var sigCertPem = Base64.getDecoder().decode(requireNonNull(material.sigCertPem));
-                final var sigPrivateKeyPem = Base64.getDecoder().decode(requireNonNull(material.sigPrivateKeyPem));
+            final var fields = root.fields();
+            while (fields.hasNext()) {
+                final var entry = fields.next();
+                final var key = entry.getKey();
+                if (!NUMERIC_KEY_PATTERN.matcher(key).matches()) {
+                    continue;
+                }
+                final var node = entry.getValue();
+                if (!node.isObject()) {
+                    throw new IllegalStateException("Invalid gossip key material entry for node " + key);
+                }
+                final var sigCertNode = node.get("sigCertPem");
+                final var sigPrivateNode = node.get("sigPrivateKeyPem");
+                if (sigCertNode == null || sigPrivateNode == null) {
+                    throw new IllegalStateException("Incomplete gossip key material for node " + key);
+                }
+                final var sigCertPem = Base64.getDecoder().decode(sigCertNode.asText());
+                final var sigPrivateKeyPem = Base64.getDecoder().decode(sigPrivateNode.asText());
+                final long nodeId = Long.parseLong(key);
                 decoded.put(
                         nodeId, new GossipKeyMaterial(sigCertPem, sigPrivateKeyPem, decodeCertificateDer(sigCertPem)));
             }

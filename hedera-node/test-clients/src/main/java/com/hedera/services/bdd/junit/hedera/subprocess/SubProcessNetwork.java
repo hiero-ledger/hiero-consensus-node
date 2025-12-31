@@ -26,6 +26,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.protobuf.ByteString;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.state.roster.RosterEntry;
+import com.hedera.hapi.util.HapiUtils;
 import com.hedera.node.app.info.DiskStartupNetworks;
 import com.hedera.node.app.tss.TssBlockHashSigner;
 import com.hedera.node.app.workflows.handle.HandleWorkflow;
@@ -49,6 +50,7 @@ import com.hedera.services.bdd.spec.infrastructure.HapiClients;
 import com.hedera.services.bdd.spec.props.MapPropertySource;
 import com.hedera.services.bdd.spec.utilops.FakeNmt;
 import com.hederahashgraph.api.proto.java.ServiceEndpoint;
+import com.swirlds.platform.state.snapshot.SavedStateMetadata;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.IOException;
@@ -98,7 +100,8 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
     private static final String PRECONSENSUS_EVENTS_DIR = "preconsensus-events";
     private static final Pattern NUMBER_DIR_PATTERN = Pattern.compile("\\d+");
     private static final Duration SIGNED_STATE_POLL_INTERVAL = Duration.ofMillis(500);
-    private static final Pattern SOFTWARE_VERSION_BUILD_PATTERN = Pattern.compile("build=(\\d+)");
+    private static final Pattern SOFTWARE_VERSION_TO_STRING_PATTERN = Pattern.compile(
+            "SemanticVersion\\[major=(\\d+), minor=(\\d+), patch=(\\d+), pre=([^,]*), build=([^\\]]*)\\]");
 
     private static final String SUBPROCESS_HOST = "127.0.0.1";
     private static final ByteString SUBPROCESS_ENDPOINT = asOctets(SUBPROCESS_HOST);
@@ -664,16 +667,41 @@ public class SubProcessNetwork extends AbstractGrpcNetwork implements HederaNetw
         if (!Files.exists(metadataPath)) {
             return 0;
         }
-        try (var lines = Files.lines(metadataPath, java.nio.charset.StandardCharsets.UTF_8)) {
-            return lines.filter(line -> line.startsWith("SOFTWARE_VERSION:"))
-                    .map(line -> {
-                        final var matcher = SOFTWARE_VERSION_BUILD_PATTERN.matcher(line);
-                        return matcher.find() ? Integer.parseInt(matcher.group(1)) : 0;
-                    })
-                    .findFirst()
-                    .orElse(0);
+        try {
+            final var metadata = SavedStateMetadata.parse(metadataPath);
+            return configVersionFromSoftwareVersion(metadata.softwareVersion());
         } catch (IOException e) {
             throw new UncheckedIOException(e);
+        }
+    }
+
+    private static int configVersionFromSoftwareVersion(@NonNull final String softwareVersion) {
+        if (softwareVersion.isBlank() || "null".equalsIgnoreCase(softwareVersion)) {
+            return 0;
+        }
+        final var matcher = SOFTWARE_VERSION_TO_STRING_PATTERN.matcher(softwareVersion);
+        final String build;
+        if (matcher.matches()) {
+            build = matcher.group(5);
+        } else {
+            try {
+                build = HapiUtils.fromString(softwareVersion).build();
+            } catch (Exception e) {
+                return 0;
+            }
+        }
+        return configVersionFromBuild(build);
+    }
+
+    private static int configVersionFromBuild(@NonNull final String build) {
+        if (build.isBlank()) {
+            return 0;
+        }
+        try {
+            final var start = build.indexOf('c') >= 0 ? build.indexOf('c') + 1 : 0;
+            return Integer.parseInt(build.substring(start));
+        } catch (NumberFormatException e) {
+            return 0;
         }
     }
 
