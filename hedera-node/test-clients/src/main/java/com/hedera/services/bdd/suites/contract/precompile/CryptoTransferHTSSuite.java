@@ -100,7 +100,7 @@ import org.junit.jupiter.api.Tag;
 @Tag(LONG_RUNNING)
 public class CryptoTransferHTSSuite {
 
-    //TODO Glib test cryptoTransfer v2
+    // TODO Glib: test cryptoTransfer v2
 
     private static final long GAS_FOR_AUTO_ASSOCIATING_CALLS = 2_000_000;
     private static final long GAS_TO_OFFER = 4_000_000L;
