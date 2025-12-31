@@ -243,8 +243,7 @@ public class CryptoBench extends VirtualMapBench {
 
             // Warm keys in parallel asynchronously
             final VirtualMap currentMap = virtualMap;
-//            prefetchPool.submit(() -> Arrays.stream(keys).forEach(key -> prefetchPool.submit(() -> currentMap.warm(BenchmarkKey.longToKey(key)))));
-            Arrays.stream(keys).parallel().forEach(key -> currentMap.warm(BenchmarkKey.longToKey(key)));
+            prefetchPool.submit(() -> Arrays.stream(keys).forEach(key -> prefetchPool.submit(() -> currentMap.warm(BenchmarkKey.longToKey(key)))));
 
             // Update values in order
             for (int j = 0; j < numRecords; ++j) {
