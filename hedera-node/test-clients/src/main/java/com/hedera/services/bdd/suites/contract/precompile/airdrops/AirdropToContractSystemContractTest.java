@@ -77,7 +77,6 @@ import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
 import com.hedera.services.bdd.suites.contract.precompile.token.TransferTokenTest;
 import com.hederahashgraph.api.proto.java.AccountID;
 import edu.umd.cs.findbugs.annotations.NonNull;
-
 import java.math.BigInteger;
 import java.util.List;
 import java.util.Optional;
@@ -85,7 +84,6 @@ import java.util.OptionalLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
-
 import org.apache.commons.lang3.function.TriFunction;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -122,7 +120,7 @@ public class AirdropToContractSystemContractTest {
         @DisplayName("Can airdrop fungible token to a contract that is already associated to it")
         public Stream<DynamicTest> airdropToContract(
                 @Contract(contract = "AssociateContract", isImmutable = true, creationGas = 3_000_000)
-                SpecContract receiverContract,
+                        SpecContract receiverContract,
                 @FungibleToken(initialSupply = 1000L) SpecFungibleToken token) {
             return hapiTest(
                     receiverContract.call("associateTokenToThisContract", token).gas(1_000_000L),
@@ -155,7 +153,7 @@ public class AirdropToContractSystemContractTest {
         @DisplayName("Can airdrop multiple tokens to contract that is already associated with them")
         public Stream<DynamicTest> airdropTokensToContract(
                 @Contract(contract = "AssociateContract", isImmutable = true, creationGas = 3_000_000)
-                SpecContract receiverContract,
+                        SpecContract receiverContract,
                 @NonNull @FungibleToken(initialSupply = 1_000_000L) final SpecFungibleToken token1,
                 @NonNull @FungibleToken(initialSupply = 1_000_000L) final SpecFungibleToken token2,
                 @NonNull @FungibleToken(initialSupply = 1_000_000L) final SpecFungibleToken token3,
@@ -182,7 +180,7 @@ public class AirdropToContractSystemContractTest {
                         spec,
                         checkForEmptyBalance(
                                 receiverContract, List.of(token1, token2, token3), List.of(nft1, nft2, nft3)));
-                final var serials = new long[]{1L, 1L, 1L};
+                final var serials = new long[] {1L, 1L, 1L};
                 final var receiverId = spec.registry().getContractId(receiverContract.name());
                 final var token1Id = spec.registry().getTokenID(token1.name());
                 final var token2Id = spec.registry().getTokenID(token2.name());
@@ -236,11 +234,11 @@ public class AirdropToContractSystemContractTest {
         @DisplayName("Can airdrop multiple tokens to a contract that is already associated to some of them")
         public Stream<DynamicTest> canAirdropTokensToContractWithSomeAssociations(
                 @Contract(
-                        contract = "AssociateContract",
-                        isImmutable = true,
-                        maxAutoAssociations = 2,
-                        creationGas = 3_000_000)
-                SpecContract receiverContract,
+                                contract = "AssociateContract",
+                                isImmutable = true,
+                                maxAutoAssociations = 2,
+                                creationGas = 3_000_000)
+                        SpecContract receiverContract,
                 @NonNull @FungibleToken(initialSupply = 1_000_000L) final SpecFungibleToken token1,
                 @NonNull @FungibleToken(initialSupply = 1_000_000L) final SpecFungibleToken token2,
                 @NonNull @NonFungibleToken(numPreMints = 1) final SpecNonFungibleToken nft1,
@@ -260,7 +258,7 @@ public class AirdropToContractSystemContractTest {
                                         prepareTokenAddresses(spec, token1, nft1))
                                 .gas(1_500_000L));
                 allRunFor(spec, checkForEmptyBalance(receiverContract, List.of(token1, token2), List.of(nft1, nft2)));
-                final var serials = new long[]{1L, 1L};
+                final var serials = new long[] {1L, 1L};
                 final var receiverId = spec.registry().getContractId(receiverContract.name());
                 final var token1Id = spec.registry().getTokenID(token1.name());
                 final var token2Id = spec.registry().getTokenID(token2.name());
@@ -312,11 +310,11 @@ public class AirdropToContractSystemContractTest {
                 "Can airdrop two tokens to contract with no remaining auto assoc slot and already associated to one of the tokens")
         public Stream<DynamicTest> canAirdropTwoTokensToContractWithNoAutoAssocSlots(
                 @Contract(
-                        contract = "AssociateContract",
-                        isImmutable = true,
-                        maxAutoAssociations = 0,
-                        creationGas = 3_000_000)
-                SpecContract receiverContract,
+                                contract = "AssociateContract",
+                                isImmutable = true,
+                                maxAutoAssociations = 0,
+                                creationGas = 3_000_000)
+                        SpecContract receiverContract,
                 @NonNull @FungibleToken(initialSupply = 1_000_000L) final SpecFungibleToken token1,
                 @NonNull @FungibleToken(initialSupply = 1_000_000L) final SpecFungibleToken token2) {
             return hapiTest(withOpContext((spec, opLog) -> {
@@ -372,11 +370,12 @@ public class AirdropToContractSystemContractTest {
                 "Airdropped token with custom fees to be paid by the contract receiver should be paid by the sender")
         public Stream<DynamicTest> airdropWithCustomFees(
                 @Contract(contract = "AssociateContract", isImmutable = true, creationGas = 3_000_000)
-                SpecContract receiverContract,
+                        SpecContract receiverContract,
                 @NonNull
-                @FungibleToken(
-                        initialSupply = 1_000_000L,
-                        keys = {ADMIN_KEY, FEE_SCHEDULE_KEY}) final SpecFungibleToken token) {
+                        @FungibleToken(
+                                initialSupply = 1_000_000L,
+                                keys = {ADMIN_KEY, FEE_SCHEDULE_KEY})
+                        final SpecFungibleToken token) {
             return hapiTest(withOpContext((spec, opLog) -> {
                 allRunFor(
                         spec,
@@ -426,11 +425,12 @@ public class AirdropToContractSystemContractTest {
                 "Airdropped token with custom fees (net of transfers = true) to be paid by the contract receiver should be paid by the sender")
         public Stream<DynamicTest> airdropWithCustomFeesNetOfTransfersTrue(
                 @Contract(contract = "AssociateContract", isImmutable = true, creationGas = 3_000_000)
-                SpecContract receiverContract,
+                        SpecContract receiverContract,
                 @NonNull
-                @FungibleToken(
-                        initialSupply = 1_000_000L,
-                        keys = {ADMIN_KEY, FEE_SCHEDULE_KEY}) final SpecFungibleToken token) {
+                        @FungibleToken(
+                                initialSupply = 1_000_000L,
+                                keys = {ADMIN_KEY, FEE_SCHEDULE_KEY})
+                        final SpecFungibleToken token) {
             return hapiTest(withOpContext((spec, opLog) -> {
                 allRunFor(
                         spec,
@@ -482,11 +482,12 @@ public class AirdropToContractSystemContractTest {
                 "Airdropped token with custom fees to be paid by the contract receiver that is a fee collector for another fee would not be paid")
         public Stream<DynamicTest> airdropWithCustomFeeWhereReceiverIsCollectorForAnotherFee(
                 @Contract(contract = "AssociateContract", isImmutable = true, creationGas = 3_000_000)
-                SpecContract receiverContract,
+                        SpecContract receiverContract,
                 @NonNull
-                @FungibleToken(
-                        initialSupply = 1_000_000L,
-                        keys = {ADMIN_KEY, FEE_SCHEDULE_KEY}) final SpecFungibleToken token) {
+                        @FungibleToken(
+                                initialSupply = 1_000_000L,
+                                keys = {ADMIN_KEY, FEE_SCHEDULE_KEY})
+                        final SpecFungibleToken token) {
             return hapiTest(withOpContext((spec, opLog) -> {
                 allRunFor(
                         spec,
@@ -596,7 +597,7 @@ public class AirdropToContractSystemContractTest {
         @DisplayName("Can airdrop token to a contract that is not associated to it with free auto association slots")
         public Stream<DynamicTest> airdropToContractWithFreeAutoAssocSlots(
                 @Contract(contract = "EmptyOne", isImmutable = true, maxAutoAssociations = 10)
-                SpecContract receiverContract,
+                        SpecContract receiverContract,
                 @FungibleToken(initialSupply = 1_000_000L) SpecFungibleToken token,
                 @NonFungibleToken(numPreMints = 1) SpecNonFungibleToken nft) {
             return hapiTest(withOpContext((spec, opLog) -> {
@@ -674,7 +675,7 @@ public class AirdropToContractSystemContractTest {
                             .exposingContractIdTo(id -> factoryEvmAddress.set(asHexedSolidityAddress(id))),
                     // GET BYTECODE OF THE CREATE2 CONTRACT
                     sourcing(() -> contractCallLocal(
-                            contract, GET_BYTECODE, asHeadlongAddress(factoryEvmAddress.get()), salt)
+                                    contract, GET_BYTECODE, asHeadlongAddress(factoryEvmAddress.get()), salt)
                             .exposingTypedResultsTo(results -> {
                                 final var tcInitcode = (byte[]) results[0];
                                 testContractInitcode.set(tcInitcode);
@@ -703,22 +704,22 @@ public class AirdropToContractSystemContractTest {
                     nft.treasury().transferNFTsTo(sender, nft, 1L),
                     // Airdrop token and nft to the contract's alias
                     sourcing(() -> contractCall(
-                            airdropContract.name(),
-                            "tokenAirdrop",
-                            token.addressOn(spec.targetNetworkOrThrow()),
-                            sender.addressOn(spec.targetNetworkOrThrow()),
-                            asHeadlongAddress(expectedCreate2Address.get()),
-                            10L)
+                                    airdropContract.name(),
+                                    "tokenAirdrop",
+                                    token.addressOn(spec.targetNetworkOrThrow()),
+                                    sender.addressOn(spec.targetNetworkOrThrow()),
+                                    asHeadlongAddress(expectedCreate2Address.get()),
+                                    10L)
                             .sending(85_000_000L)
                             .gas(1_500_000L)
                             .via("pendingFTAirdrop")),
                     sourcing(() -> contractCall(
-                            airdropContract.name(),
-                            "nftAirdrop",
-                            nft.addressOn(spec.targetNetworkOrThrow()),
-                            sender.addressOn(spec.targetNetworkOrThrow()),
-                            asHeadlongAddress(expectedCreate2Address.get()),
-                            1L)
+                                    airdropContract.name(),
+                                    "nftAirdrop",
+                                    nft.addressOn(spec.targetNetworkOrThrow()),
+                                    sender.addressOn(spec.targetNetworkOrThrow()),
+                                    asHeadlongAddress(expectedCreate2Address.get()),
+                                    1L)
                             .sending(85_000_000L)
                             .gas(1_500_000L)
                             .via("pendingNFTAirdrop")),
@@ -745,7 +746,7 @@ public class AirdropToContractSystemContractTest {
         @DisplayName("Airdrop to Contract with maxAutoAssociations = 0")
         public Stream<DynamicTest> airdropToContractWithMaxAutoAssocZero(
                 @Contract(contract = "EmptyOne", isImmutable = true, maxAutoAssociations = 0)
-                SpecContract receiverContract,
+                        SpecContract receiverContract,
                 @FungibleToken(initialSupply = 1_000_000L) SpecFungibleToken token,
                 @NonFungibleToken(numPreMints = 1) SpecNonFungibleToken nft) {
             return hapiTest(withOpContext((spec, opLog) -> {
@@ -791,7 +792,7 @@ public class AirdropToContractSystemContractTest {
         @Tag(MATS)
         public Stream<DynamicTest> airdropToContractWithFilledMaxAutoAssoc(
                 @Contract(contract = "EmptyOne", isImmutable = true, maxAutoAssociations = 1)
-                SpecContract receiverContract,
+                        SpecContract receiverContract,
                 @FungibleToken(initialSupply = 1_000_000L) SpecFungibleToken tokenFillingTheSlot,
                 @FungibleToken(initialSupply = 1_000_000L) SpecFungibleToken token,
                 @NonFungibleToken(numPreMints = 1) SpecNonFungibleToken nft) {
@@ -845,11 +846,11 @@ public class AirdropToContractSystemContractTest {
         @Tag(MATS)
         public Stream<DynamicTest> airdropTokensToContractWithFreeSlots(
                 @Contract(
-                        contract = "AssociateContract",
-                        isImmutable = true,
-                        maxAutoAssociations = -1,
-                        creationGas = 3_000_000L)
-                SpecContract receiverContract,
+                                contract = "AssociateContract",
+                                isImmutable = true,
+                                maxAutoAssociations = -1,
+                                creationGas = 3_000_000L)
+                        SpecContract receiverContract,
                 @NonNull @FungibleToken(initialSupply = 1_000_000L) final SpecFungibleToken token1,
                 @NonNull @FungibleToken(initialSupply = 1_000_000L) final SpecFungibleToken token2,
                 @NonNull @FungibleToken(initialSupply = 1_000_000L) final SpecFungibleToken token3,
@@ -872,7 +873,7 @@ public class AirdropToContractSystemContractTest {
                         spec,
                         checkForEmptyBalance(
                                 receiverContract, List.of(token1, token2, token3), List.of(nft1, nft2, nft3)));
-                final var serials = new long[]{1L, 1L, 1L};
+                final var serials = new long[] {1L, 1L, 1L};
                 final var receiverId = spec.registry().getContractId(receiverContract.name());
                 final var token1Id = spec.registry().getTokenID(token1.name());
                 final var token2Id = spec.registry().getTokenID(token2.name());
@@ -927,11 +928,11 @@ public class AirdropToContractSystemContractTest {
         @DisplayName("Can airdrop multiple tokens to contract that has no free auto association slots")
         public Stream<DynamicTest> airdropTokensToContractWithoutFreeSlots(
                 @Contract(
-                        contract = "AssociateContract",
-                        isImmutable = true,
-                        maxAutoAssociations = 0,
-                        creationGas = 3_000_000L)
-                SpecContract receiverContract,
+                                contract = "AssociateContract",
+                                isImmutable = true,
+                                maxAutoAssociations = 0,
+                                creationGas = 3_000_000L)
+                        SpecContract receiverContract,
                 @NonNull @FungibleToken(initialSupply = 1_000_000L) final SpecFungibleToken token1,
                 @NonNull @FungibleToken(initialSupply = 1_000_000L) final SpecFungibleToken token2,
                 @NonNull @FungibleToken(initialSupply = 1_000_000L) final SpecFungibleToken token3,
@@ -954,7 +955,7 @@ public class AirdropToContractSystemContractTest {
                         spec,
                         checkForEmptyBalance(
                                 receiverContract, List.of(token1, token2, token3), List.of(nft1, nft2, nft3)));
-                final var serials = new long[]{1L, 1L, 1L};
+                final var serials = new long[] {1L, 1L, 1L};
                 allRunFor(
                         spec,
                         airdropContract
@@ -977,7 +978,7 @@ public class AirdropToContractSystemContractTest {
                                 .logged()
                                 .hasChildRecords(recordWith()
                                         .pendingAirdrops(includingFungiblePendingAirdrop(prepareFTAirdrops(
-                                                sender, receiverContract, List.of(token1, token2, token3))
+                                                        sender, receiverContract, List.of(token1, token2, token3))
                                                 .toArray(TokenMovement[]::new)))
                                         .pendingAirdrops(includingNftPendingAirdrop(
                                                 prepareNFTAirdrops(sender, receiverContract, List.of(nft1, nft2, nft3))
@@ -996,47 +997,47 @@ public class AirdropToContractSystemContractTest {
                 @NonNull @Account final SpecAccount sender4,
                 @NonNull @Account final SpecAccount sender5,
                 @NonNull
-                @Contract(
-                        contract = "EmptyOne",
-                        name = "receiver1",
-                        isImmutable = true,
-                        maxAutoAssociations = -1)
-                SpecContract receiverContract1,
+                        @Contract(
+                                contract = "EmptyOne",
+                                name = "receiver1",
+                                isImmutable = true,
+                                maxAutoAssociations = -1)
+                        SpecContract receiverContract1,
                 @NonNull
-                @Contract(
-                        contract = "EmptyOne",
-                        name = "receiver2",
-                        isImmutable = true,
-                        maxAutoAssociations = -1)
-                SpecContract receiverContract2,
+                        @Contract(
+                                contract = "EmptyOne",
+                                name = "receiver2",
+                                isImmutable = true,
+                                maxAutoAssociations = -1)
+                        SpecContract receiverContract2,
                 @NonNull
-                @Contract(
-                        contract = "EmptyOne",
-                        name = "receiver3",
-                        isImmutable = true,
-                        maxAutoAssociations = -1)
-                SpecContract receiverContract3,
+                        @Contract(
+                                contract = "EmptyOne",
+                                name = "receiver3",
+                                isImmutable = true,
+                                maxAutoAssociations = -1)
+                        SpecContract receiverContract3,
                 @NonNull
-                @Contract(
-                        contract = "EmptyOne",
-                        name = "receiver4",
-                        isImmutable = true,
-                        maxAutoAssociations = -1)
-                SpecContract receiverContract4,
+                        @Contract(
+                                contract = "EmptyOne",
+                                name = "receiver4",
+                                isImmutable = true,
+                                maxAutoAssociations = -1)
+                        SpecContract receiverContract4,
                 @NonNull
-                @Contract(
-                        contract = "EmptyOne",
-                        name = "receiver5",
-                        isImmutable = true,
-                        maxAutoAssociations = -1)
-                SpecContract receiverContract5,
+                        @Contract(
+                                contract = "EmptyOne",
+                                name = "receiver5",
+                                isImmutable = true,
+                                maxAutoAssociations = -1)
+                        SpecContract receiverContract5,
                 @NonNull
-                @Contract(
-                        contract = "EmptyOne",
-                        name = "receiver6",
-                        isImmutable = true,
-                        maxAutoAssociations = -1)
-                SpecContract receiverContract6,
+                        @Contract(
+                                contract = "EmptyOne",
+                                name = "receiver6",
+                                isImmutable = true,
+                                maxAutoAssociations = -1)
+                        SpecContract receiverContract6,
                 @NonNull @FungibleToken(initialSupply = 1_000_000L, name = "token1") final SpecFungibleToken token1,
                 @NonNull @FungibleToken(initialSupply = 1_000_000L, name = "token2") final SpecFungibleToken token2,
                 @NonNull @FungibleToken(initialSupply = 1_000_000L, name = "token3") final SpecFungibleToken token3,
@@ -1066,26 +1067,26 @@ public class AirdropToContractSystemContractTest {
         @DisplayName("Multiple airdrops with single sender and single/multiple contract receivers")
         public Stream<DynamicTest> multipleAirdropsSingleSender(
                 @NonNull
-                @Contract(
-                        contract = "EmptyOne",
-                        name = "receiver1",
-                        isImmutable = true,
-                        maxAutoAssociations = -1)
-                SpecContract receiverContract1,
+                        @Contract(
+                                contract = "EmptyOne",
+                                name = "receiver1",
+                                isImmutable = true,
+                                maxAutoAssociations = -1)
+                        SpecContract receiverContract1,
                 @NonNull
-                @Contract(
-                        contract = "EmptyOne",
-                        name = "receiver2",
-                        isImmutable = true,
-                        maxAutoAssociations = -1)
-                SpecContract receiverContract2,
+                        @Contract(
+                                contract = "EmptyOne",
+                                name = "receiver2",
+                                isImmutable = true,
+                                maxAutoAssociations = -1)
+                        SpecContract receiverContract2,
                 @NonNull
-                @Contract(
-                        contract = "EmptyOne",
-                        name = "receiver3",
-                        isImmutable = true,
-                        maxAutoAssociations = -1)
-                SpecContract receiverContract3,
+                        @Contract(
+                                contract = "EmptyOne",
+                                name = "receiver3",
+                                isImmutable = true,
+                                maxAutoAssociations = -1)
+                        SpecContract receiverContract3,
                 @NonNull @FungibleToken(initialSupply = 1_000_000L, name = "token1") final SpecFungibleToken token1,
                 @NonNull @FungibleToken(initialSupply = 1_000_000L, name = "token2") final SpecFungibleToken token2,
                 @NonNull @FungibleToken(initialSupply = 1_000_000L, name = "token3") final SpecFungibleToken token3,
@@ -1113,12 +1114,12 @@ public class AirdropToContractSystemContractTest {
         @DisplayName("Airdrop token to a contract that is not associated to it with free auto association slots")
         public Stream<DynamicTest> airdropTokenToNotAssociatedContract(
                 @NonNull
-                @Contract(
-                        contract = "EmptyOne",
-                        name = "receiver",
-                        isImmutable = true,
-                        maxAutoAssociations = -1)
-                SpecContract receiverContract,
+                        @Contract(
+                                contract = "EmptyOne",
+                                name = "receiver",
+                                isImmutable = true,
+                                maxAutoAssociations = -1)
+                        SpecContract receiverContract,
                 @NonNull @FungibleToken(initialSupply = 1_000_000L) final SpecFungibleToken token) {
             return hapiTest(withOpContext((spec, opLog) -> {
                 allRunFor(spec, sender.associateTokens(token), token.treasury().transferUnitsTo(sender, 1_000L, token));
@@ -1288,12 +1289,13 @@ public class AirdropToContractSystemContractTest {
         private SpecOperation[] getContractsTokenBalance(
                 @NonNull final List<SpecContract> receiverContracts,
                 @NonNull final List<SpecFungibleToken> tokens,
-                @NonNull final TriFunction<
-                        SpecContract,
-                        List<SpecFungibleToken>,
-                        List<SpecNonFungibleToken>,
-                        GetBalanceOperation>
-                        methodChecker) {
+                @NonNull
+                        final TriFunction<
+                                        SpecContract,
+                                        List<SpecFungibleToken>,
+                                        List<SpecNonFungibleToken>,
+                                        GetBalanceOperation>
+                                methodChecker) {
             return IntStream.range(0, receiverContracts.size())
                     .mapToObj(i -> methodChecker.apply(receiverContracts.get(i), List.of(tokens.get(i)), List.of()))
                     .toArray(SpecOperation[]::new);
@@ -1310,11 +1312,11 @@ public class AirdropToContractSystemContractTest {
         @Tag(MATS)
         public Stream<DynamicTest> airdropFrozenToken(
                 @Contract(contract = "AssociateContract", isImmutable = true, creationGas = 3_000_000)
-                SpecContract receiverContract,
+                        SpecContract receiverContract,
                 @FungibleToken(
-                        initialSupply = 1_000_000L,
-                        keys = {ADMIN_KEY, FREEZE_KEY})
-                SpecFungibleToken token) {
+                                initialSupply = 1_000_000L,
+                                keys = {ADMIN_KEY, FREEZE_KEY})
+                        SpecFungibleToken token) {
             return hapiTest(withOpContext((spec, opLog) -> {
                 allRunFor(
                         spec,
@@ -1341,7 +1343,7 @@ public class AirdropToContractSystemContractTest {
                 "Airdrop token to a contract that results in a pending state then transfer same token to the same contract should fail")
         public Stream<DynamicTest> airdropToContractWithPendingAirdrop(
                 @Contract(contract = "EmptyOne", isImmutable = true, maxAutoAssociations = 0)
-                SpecContract receiverContract,
+                        SpecContract receiverContract,
                 @FungibleToken(initialSupply = 1_000_000L) SpecFungibleToken token) {
             return hapiTest(withOpContext((spec, opLog) -> {
                 allRunFor(
@@ -1359,8 +1361,7 @@ public class AirdropToContractSystemContractTest {
                 allRunFor(
                         spec,
                         // check there is no ERC20 event for pendingAirdrop
-                        TransferTokenTest.validateErcEvent(
-                                        getTxnRecord("pendingAirdrop"))
+                        TransferTokenTest.validateErcEvent(getTxnRecord("pendingAirdrop"))
                                 .hasChildRecords(recordWith()
                                         .pendingAirdrops(includingFungiblePendingAirdrop(
                                                 prepareFTAirdrops(sender, receiverContract, List.of(token))
@@ -1377,7 +1378,7 @@ public class AirdropToContractSystemContractTest {
                 "Transfer token to a contract not associated to it with no available auto association slots should fail")
         public Stream<DynamicTest> transferToContractWithNoFreeSlotsShouldFail(
                 @Contract(contract = "EmptyOne", isImmutable = true, maxAutoAssociations = 0)
-                SpecContract receiverContract,
+                        SpecContract receiverContract,
                 @FungibleToken(initialSupply = 1_000_000L) SpecFungibleToken token) {
             return hapiTest(withOpContext((spec, opLog) -> {
                 allRunFor(
@@ -1423,7 +1424,7 @@ public class AirdropToContractSystemContractTest {
                                 .exposingContractIdTo(id -> factoryEvmAddress.set(asHexedSolidityAddress(id))),
                         // GET BYTECODE OF THE CREATE2 CONTRACT
                         sourcing(() -> contractCallLocal(
-                                create2Contract, GET_BYTECODE, asHeadlongAddress(factoryEvmAddress.get()), salt)
+                                        create2Contract, GET_BYTECODE, asHeadlongAddress(factoryEvmAddress.get()), salt)
                                 .exposingTypedResultsTo(results -> {
                                     final var tcInitcode = (byte[]) results[0];
                                     testContractInitcode.set(tcInitcode);
@@ -1448,20 +1449,22 @@ public class AirdropToContractSystemContractTest {
                                 .has(AccountInfoAsserts.accountWith().maxAutoAssociations(0))),
                         // Airdrop token to the contract's alias
                         sourcing(() -> contractCall(
-                                airdropContract.name(),
-                                "tokenAirdrop",
-                                token.addressOn(spec.targetNetworkOrThrow()),
-                                sender.addressOn(spec.targetNetworkOrThrow()),
-                                asHeadlongAddress(expectedCreate2Address.get()),
-                                10L)
+                                        airdropContract.name(),
+                                        "tokenAirdrop",
+                                        token.addressOn(spec.targetNetworkOrThrow()),
+                                        sender.addressOn(spec.targetNetworkOrThrow()),
+                                        asHeadlongAddress(expectedCreate2Address.get()),
+                                        10L)
                                 .sending(85_000_000L)
                                 .gas(1_500_000L)
                                 .via("pendingFTAirdrop")),
                         // Check for the pending airdrop records
-                        sourcing(() -> // check there is no ERC20 event for pendingAirdrop
+                        sourcing(
+                                () -> // check there is no ERC20 event for pendingAirdrop
                                 TransferTokenTest.validateErcEvent(getTxnRecord("pendingFTAirdrop"))
                                         .hasChildRecords(recordWith()
-                                                .pendingAirdrops(includingFungiblePendingAirdrop(moving(10, token.name())
+                                                .pendingAirdrops(includingFungiblePendingAirdrop(moving(
+                                                                10, token.name())
                                                         .between(sender.name(), hollowCreationAddress.get()))))),
                         sourcing(() -> contractCall(create2Contract, DEPLOY, testContractInitcode.get(), salt)
                                 .payingWith(GENESIS)
