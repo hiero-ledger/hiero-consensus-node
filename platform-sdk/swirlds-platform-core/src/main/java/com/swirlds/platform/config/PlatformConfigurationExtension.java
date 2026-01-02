@@ -2,20 +2,16 @@
 package com.swirlds.platform.config;
 
 import com.google.auto.service.AutoService;
-import com.swirlds.common.config.BasicCommonConfig;
 import com.swirlds.common.config.StateCommonConfig;
 import com.swirlds.common.io.config.FileSystemManagerConfig;
 import com.swirlds.common.io.config.TemporaryFileConfig;
 import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
-import com.swirlds.common.metrics.config.MetricsConfig;
-import com.swirlds.common.metrics.platform.prometheus.PrometheusConfig;
 import com.swirlds.common.platform.NodeIdConverter;
 import com.swirlds.component.framework.WiringConfig;
 import com.swirlds.component.framework.schedulers.builders.TaskSchedulerConfiguration;
 import com.swirlds.config.api.ConfigurationExtension;
 import com.swirlds.logging.api.internal.configuration.InternalLoggingConfig;
 import com.swirlds.merkledb.config.MerkleDbConfig;
-import com.swirlds.platform.event.preconsensus.PcesConfig;
 import com.swirlds.platform.gossip.ProtocolConfig;
 import com.swirlds.platform.gossip.config.GossipConfig;
 import com.swirlds.platform.gossip.config.NetworkEndpoint;
@@ -31,11 +27,16 @@ import com.swirlds.virtualmap.config.VirtualMapConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Set;
 import org.hiero.base.crypto.config.CryptoConfig;
+import org.hiero.consensus.concurrent.config.BasicCommonConfig;
 import org.hiero.consensus.config.EventConfig;
 import org.hiero.consensus.event.creator.config.EventCreationConfig;
 import org.hiero.consensus.event.creator.config.EventCreationWiringConfig;
+import org.hiero.consensus.event.intake.config.EventIntakeWiringConfig;
 import org.hiero.consensus.hashgraph.ConsensusConfig;
+import org.hiero.consensus.metrics.config.MetricsConfig;
+import org.hiero.consensus.metrics.platform.prometheus.PrometheusConfig;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.pces.PcesConfig;
 
 /**
  * Registers configuration types for the platform.
@@ -61,6 +62,7 @@ public class PlatformConfigurationExtension implements ConfigurationExtension {
                 EventConfig.class,
                 EventCreationConfig.class,
                 EventCreationWiringConfig.class,
+                EventIntakeWiringConfig.class,
                 MerkleDbConfig.class,
                 MetricsConfig.class,
                 OSHealthCheckConfig.class,

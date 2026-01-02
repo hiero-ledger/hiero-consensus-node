@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.otter.fixtures.util;
 
-import com.swirlds.common.utility.Threshold;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.List;
+import org.hiero.base.utility.Threshold;
 import org.hiero.otter.fixtures.Node;
 
 /**

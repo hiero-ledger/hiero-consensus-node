@@ -14,6 +14,7 @@ import io.helidon.webclient.api.WebClient;
 import io.helidon.webclient.spi.ProtocolConfig;
 import java.time.Duration;
 import java.util.Optional;
+import org.hiero.block.api.BlockNodeServiceInterface.BlockNodeServiceClient;
 import org.hiero.block.api.BlockStreamPublishServiceInterface.BlockStreamPublishServiceClient;
 
 /**
@@ -35,6 +36,11 @@ public class BlockNodeClientFactory {
         }
     }
 
+    private enum ClientType {
+        STREAMING,
+        SERVICE
+    }
+
     /**
      * Create a new PBJ gRPC client using the specified configuration.
      *
@@ -43,18 +49,26 @@ public class BlockNodeClientFactory {
      * @return a new {@link PbjGrpcClient} instance
      */
     private PbjGrpcClient buildPbjClient(
-            @NonNull final BlockNodeConfiguration config, @NonNull final Duration timeout) {
+            @NonNull final ClientType clientType,
+            @NonNull final BlockNodeConfiguration config,
+            @NonNull final Duration timeout) {
         requireNonNull(config, "config is required");
         requireNonNull(timeout, "timeout is required");
+        requireNonNull(clientType, "client type is required");
 
         final Tls tls = Tls.builder().enabled(false).build();
         final PbjGrpcClientConfig pbjConfig =
                 new PbjGrpcClientConfig(timeout, tls, Optional.of(""), "application/grpc");
         final ProtocolConfig httpConfig = config.clientHttpConfig().toHttp2ClientProtocolConfig();
         final ProtocolConfig grpcConfig = config.clientGrpcConfig().toGrpcClientProtocolConfig();
+        final int port =
+                switch (clientType) {
+                    case STREAMING -> config.streamingPort();
+                    case SERVICE -> config.servicePort();
+                };
 
         final WebClient webClient = WebClient.builder()
-                .baseUri("http://" + config.address() + ":" + config.port())
+                .baseUri("http://" + config.address() + ":" + port)
                 .tls(tls)
                 .addProtocolConfig(httpConfig)
                 .addProtocolConfig(grpcConfig)
@@ -73,7 +87,20 @@ public class BlockNodeClientFactory {
      */
     public BlockStreamPublishServiceClient createStreamingClient(
             @NonNull final BlockNodeConfiguration config, @NonNull final Duration timeout) {
-        final PbjGrpcClient client = buildPbjClient(config, timeout);
+        final PbjGrpcClient client = buildPbjClient(ClientType.STREAMING, config, timeout);
         return new BlockStreamPublishServiceClient(client, new DefaultRequestOptions());
+    }
+
+    /**
+     * Create a new {@link BlockNodeServiceClient} instance using the specified configuration.
+     *
+     * @param config the block node configuration to use
+     * @param timeout the timeout to use
+     * @return a new {@link BlockNodeServiceClient} instance
+     */
+    public BlockNodeServiceClient createServiceClient(
+            @NonNull final BlockNodeConfiguration config, @NonNull final Duration timeout) {
+        final PbjGrpcClient client = buildPbjClient(ClientType.SERVICE, config, timeout);
+        return new BlockNodeServiceClient(client, new DefaultRequestOptions());
     }
 }

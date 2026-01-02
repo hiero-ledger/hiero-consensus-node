@@ -1,14 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.formatting;
 
-import static com.swirlds.common.formatting.TextEffect.CROSSED_OUT;
-import static com.swirlds.common.formatting.TextEffect.RED;
-import static com.swirlds.common.formatting.TextEffect.UNDERLINE;
-import static com.swirlds.common.formatting.TextEffect.applyEffects;
-import static com.swirlds.common.formatting.TextEffect.getPrintableTextLength;
+import static com.swirlds.base.formatting.TextEffect.CROSSED_OUT;
+import static com.swirlds.base.formatting.TextEffect.RED;
+import static com.swirlds.base.formatting.TextEffect.UNDERLINE;
+import static com.swirlds.base.formatting.TextEffect.applyEffects;
+import static com.swirlds.base.formatting.TextEffect.getPrintableTextLength;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.swirlds.base.formatting.TextEffect;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;

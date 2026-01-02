@@ -4,8 +4,6 @@ package com.swirlds.component.framework.model.internal.deterministic;
 import static com.swirlds.component.framework.schedulers.builders.TaskSchedulerType.DIRECT_THREADSAFE;
 import static com.swirlds.component.framework.schedulers.builders.TaskSchedulerType.NO_OP;
 
-import com.swirlds.common.metrics.extensions.FractionalTimer;
-import com.swirlds.common.metrics.extensions.NoOpFractionalTimer;
 import com.swirlds.component.framework.model.DeterministicWiringModel;
 import com.swirlds.component.framework.model.TraceableWiringModel;
 import com.swirlds.component.framework.schedulers.ExceptionHandlers;
@@ -18,6 +16,8 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
 import java.util.concurrent.ForkJoinPool;
 import java.util.function.Consumer;
+import org.hiero.consensus.metrics.extensions.FractionalTimer;
+import org.hiero.consensus.metrics.extensions.NoOpFractionalTimer;
 
 /**
  * Builds schedulers for a {@link DeterministicWiringModel}.
