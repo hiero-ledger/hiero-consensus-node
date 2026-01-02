@@ -86,7 +86,32 @@ public class TransferTokenTest {
     static SpecNonFungibleToken nonFungibleToken;
 
     public record ReceiverAmount(
-            Supplier<Long> tokenNum, boolean isNFT, Supplier<ByteString> from, Supplier<ByteString> to, Long amount) {}
+            Supplier<Long> tokenNum, boolean isNFT, Supplier<ByteString> from, Supplier<ByteString> to, Long amount) {
+
+        // from account to contract
+        public static ReceiverAmount of(TokenID token, boolean isNFT, AccountID from, ContractID to, Long amount) {
+            return new ReceiverAmount(
+                    token::getTokenNum, isNFT, () -> parsedToByteString(from), () -> parsedToByteString(to), amount);
+        }
+
+        // from account to account
+        public static ReceiverAmount of(TokenID token, boolean isNFT, AccountID from, AccountID to, Long amount) {
+            return new ReceiverAmount(
+                    token::getTokenNum, isNFT, () -> parsedToByteString(from), () -> parsedToByteString(to), amount);
+        }
+
+        // from contract to account
+        public static ReceiverAmount of(TokenID token, boolean isNFT, ContractID from, AccountID to, Long amount) {
+            return new ReceiverAmount(
+                    token::getTokenNum, isNFT, () -> parsedToByteString(from), () -> parsedToByteString(to), amount);
+        }
+
+        // from contract to contract
+        public static ReceiverAmount of(TokenID token, boolean isNFT, ContractID from, ContractID to, Long amount) {
+            return new ReceiverAmount(
+                    token::getTokenNum, isNFT, () -> parsedToByteString(from), () -> parsedToByteString(to), amount);
+        }
+    }
 
     private static HapiGetTxnRecord validateErcEvent(final ReceiverAmount... receivers) {
         final var withLastEvent = new ArrayList<>(List.of(receivers));

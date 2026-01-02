@@ -49,7 +49,7 @@ import org.junit.jupiter.api.Tag;
 @HapiTestLifecycle
 class TokenClaimAirdropSystemContractTest {
 
-    // TODO covert with ERC?
+    // TODO Glib: covert with ERC?
 
     @Contract(contract = "ClaimAirdrop", creationGas = 2_000_000L)
     static SpecContract claimAirdrop;

@@ -123,6 +123,9 @@ public class TokenAirdropDecoder {
     }
 
     private void checkForSystemAccount(@NonNull final AccountID account) {
-        validateFalse(account.accountNumOrThrow() <= LAST_RESERVED_SYSTEM_ACCOUNT, INVALID_RECEIVING_NODE_ACCOUNT);
+        // TODO Glib: Discuss with Stan. Should be use this fix?
+        if (account.hasAccountNum()) { // account can hold and alias instead of accountNum
+            validateFalse(account.accountNumOrThrow() <= LAST_RESERVED_SYSTEM_ACCOUNT, INVALID_RECEIVING_NODE_ACCOUNT);
+        }
     }
 }

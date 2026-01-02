@@ -34,7 +34,6 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.*;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.contract.Utils.asHexedSolidityAddress;
-import static com.hedera.services.bdd.suites.contract.Utils.parsedToByteString;
 import static com.hedera.services.bdd.suites.contract.opcodes.Create2OperationSuite.CREATE_2_TXN;
 import static com.hedera.services.bdd.suites.contract.opcodes.Create2OperationSuite.CREATION;
 import static com.hedera.services.bdd.suites.contract.opcodes.Create2OperationSuite.DEPLOY;
@@ -139,12 +138,8 @@ public class AirdropToContractSystemContractTest {
                                 spec,
                                 TransferTokenTest.validateErcEvent(
                                         getTxnRecord(TXN_NAME),
-                                        new TransferTokenTest.ReceiverAmount(
-                                                tokenId::getTokenNum,
-                                                false,
-                                                () -> parsedToByteString(senderId.get()),
-                                                () -> parsedToByteString(receiverId),
-                                                10L)));
+                                        TransferTokenTest.ReceiverAmount.of(
+                                                tokenId, false, senderId.get(), receiverId, 10L)));
                     }));
         }
 
@@ -212,20 +207,12 @@ public class AirdropToContractSystemContractTest {
                                 Stream.concat(
                                                 // ERC20 events
                                                 Stream.of(token1Id, token2Id, token3Id)
-                                                        .map(e -> new TransferTokenTest.ReceiverAmount(
-                                                                e::getTokenNum,
-                                                                false,
-                                                                () -> parsedToByteString(senderId.get()),
-                                                                () -> parsedToByteString(receiverId),
-                                                                10L)),
+                                                        .map(e -> TransferTokenTest.ReceiverAmount.of(
+                                                                e, false, senderId.get(), receiverId, 10L)),
                                                 // ERC721 events
                                                 Stream.of(nft1Id, nft2Id, nft3Id)
-                                                        .map(e -> new TransferTokenTest.ReceiverAmount(
-                                                                e::getTokenNum,
-                                                                true,
-                                                                () -> parsedToByteString(senderId.get()),
-                                                                () -> parsedToByteString(receiverId),
-                                                                1L)))
+                                                        .map(e -> TransferTokenTest.ReceiverAmount.of(
+                                                                e, true, senderId.get(), receiverId, 1L)))
                                         .toArray(TransferTokenTest.ReceiverAmount[]::new)));
             }));
         }
@@ -287,20 +274,12 @@ public class AirdropToContractSystemContractTest {
                                 Stream.concat(
                                                 // ERC20 events
                                                 Stream.of(token1Id, token2Id)
-                                                        .map(e -> new TransferTokenTest.ReceiverAmount(
-                                                                e::getTokenNum,
-                                                                false,
-                                                                () -> parsedToByteString(senderId.get()),
-                                                                () -> parsedToByteString(receiverId),
-                                                                10L)),
+                                                        .map(e -> TransferTokenTest.ReceiverAmount.of(
+                                                                e, false, senderId.get(), receiverId, 10L)),
                                                 // ERC721 events
                                                 Stream.of(nft1Id, nft2Id)
-                                                        .map(e -> new TransferTokenTest.ReceiverAmount(
-                                                                e::getTokenNum,
-                                                                true,
-                                                                () -> parsedToByteString(senderId.get()),
-                                                                () -> parsedToByteString(receiverId),
-                                                                1L)))
+                                                        .map(e -> TransferTokenTest.ReceiverAmount.of(
+                                                                e, true, senderId.get(), receiverId, 1L)))
                                         .toArray(TransferTokenTest.ReceiverAmount[]::new)));
             }));
         }
@@ -349,12 +328,7 @@ public class AirdropToContractSystemContractTest {
                         // have ERC20 event for token1
                         TransferTokenTest.validateErcEvent(
                                 getTxnRecord("pendingAirdrop"),
-                                new TransferTokenTest.ReceiverAmount(
-                                        token1Id::getTokenNum,
-                                        false,
-                                        () -> parsedToByteString(senderId.get()),
-                                        () -> parsedToByteString(receiverId),
-                                        10L)),
+                                TransferTokenTest.ReceiverAmount.of(token1Id, false, senderId.get(), receiverId, 10L)),
                         // have pendingAirdrop for token2
                         getTxnRecord("pendingAirdrop")
                                 .logged()
@@ -405,18 +379,8 @@ public class AirdropToContractSystemContractTest {
                         // check ERC20 events with fee
                         TransferTokenTest.validateErcEvent(
                                 getTxnRecord(TXN_NAME),
-                                new TransferTokenTest.ReceiverAmount(
-                                        tokenId::getTokenNum,
-                                        false,
-                                        () -> parsedToByteString(senderId.get()),
-                                        () -> parsedToByteString(airdropId),
-                                        1L),
-                                new TransferTokenTest.ReceiverAmount(
-                                        tokenId::getTokenNum,
-                                        false,
-                                        () -> parsedToByteString(senderId.get()),
-                                        () -> parsedToByteString(receiverId),
-                                        9L)));
+                                TransferTokenTest.ReceiverAmount.of(tokenId, false, senderId.get(), airdropId, 1L),
+                                TransferTokenTest.ReceiverAmount.of(tokenId, false, senderId.get(), receiverId, 9L)));
             }));
         }
 
@@ -462,18 +426,8 @@ public class AirdropToContractSystemContractTest {
                         // check ERC20 events with fee
                         TransferTokenTest.validateErcEvent(
                                 getTxnRecord(TXN_NAME),
-                                new TransferTokenTest.ReceiverAmount(
-                                        tokenId::getTokenNum,
-                                        false,
-                                        () -> parsedToByteString(senderId.get()),
-                                        () -> parsedToByteString(airdropId),
-                                        1L),
-                                new TransferTokenTest.ReceiverAmount(
-                                        tokenId::getTokenNum,
-                                        false,
-                                        () -> parsedToByteString(senderId.get()),
-                                        () -> parsedToByteString(receiverId),
-                                        10L)));
+                                TransferTokenTest.ReceiverAmount.of(tokenId, false, senderId.get(), airdropId, 1L),
+                                TransferTokenTest.ReceiverAmount.of(tokenId, false, senderId.get(), receiverId, 10L)));
             }));
         }
 
@@ -518,12 +472,7 @@ public class AirdropToContractSystemContractTest {
                         // check ERC20 events with fee
                         TransferTokenTest.validateErcEvent(
                                 getTxnRecord(TXN_NAME),
-                                new TransferTokenTest.ReceiverAmount(
-                                        tokenId::getTokenNum,
-                                        false,
-                                        () -> parsedToByteString(senderId.get()),
-                                        () -> parsedToByteString(receiverId),
-                                        10L)));
+                                TransferTokenTest.ReceiverAmount.of(tokenId, false, senderId.get(), receiverId, 10L)));
             }));
         }
 
@@ -579,12 +528,7 @@ public class AirdropToContractSystemContractTest {
                         // check ERC20 events with fee
                         TransferTokenTest.validateErcEvent(
                                 getTxnRecord(TXN_NAME),
-                                new TransferTokenTest.ReceiverAmount(
-                                        tokenId::getTokenNum,
-                                        false,
-                                        () -> parsedToByteString(senderId.get()),
-                                        () -> parsedToByteString(receiverId),
-                                        10L)));
+                                TransferTokenTest.ReceiverAmount.of(tokenId, false, senderId.get(), receiverId, 10L)));
             }));
         }
     }
@@ -630,21 +574,11 @@ public class AirdropToContractSystemContractTest {
                         // check ERC20 events with fee
                         TransferTokenTest.validateErcEvent(
                                 getTxnRecord(TXN_NAME + "1"),
-                                new TransferTokenTest.ReceiverAmount(
-                                        tokenId::getTokenNum,
-                                        false,
-                                        () -> parsedToByteString(senderId.get()),
-                                        () -> parsedToByteString(receiverId),
-                                        10L)),
+                                TransferTokenTest.ReceiverAmount.of(tokenId, false, senderId.get(), receiverId, 10L)),
                         // check ERC721 events with fee
                         TransferTokenTest.validateErcEvent(
                                 getTxnRecord(TXN_NAME + "2"),
-                                new TransferTokenTest.ReceiverAmount(
-                                        nftId::getTokenNum,
-                                        true,
-                                        () -> parsedToByteString(senderId.get()),
-                                        () -> parsedToByteString(receiverId),
-                                        1L)));
+                                TransferTokenTest.ReceiverAmount.of(nftId, true, senderId.get(), receiverId, 1L)));
             }));
         }
 
@@ -906,20 +840,12 @@ public class AirdropToContractSystemContractTest {
                                 Stream.concat(
                                                 // ERC20 events
                                                 Stream.of(token1Id, token2Id, token3Id)
-                                                        .map(e -> new TransferTokenTest.ReceiverAmount(
-                                                                e::getTokenNum,
-                                                                false,
-                                                                () -> parsedToByteString(senderId.get()),
-                                                                () -> parsedToByteString(receiverId),
-                                                                10L)),
+                                                        .map(e -> TransferTokenTest.ReceiverAmount.of(
+                                                                e, false, senderId.get(), receiverId, 10L)),
                                                 // ERC721 events
                                                 Stream.of(nft1Id, nft2Id, nft3Id)
-                                                        .map(e -> new TransferTokenTest.ReceiverAmount(
-                                                                e::getTokenNum,
-                                                                true,
-                                                                () -> parsedToByteString(senderId.get()),
-                                                                () -> parsedToByteString(receiverId),
-                                                                1L)))
+                                                        .map(e -> TransferTokenTest.ReceiverAmount.of(
+                                                                e, true, senderId.get(), receiverId, 1L)))
                                         .toArray(TransferTokenTest.ReceiverAmount[]::new)));
             }));
         }
@@ -1144,12 +1070,7 @@ public class AirdropToContractSystemContractTest {
                         // check ERC20 events
                         TransferTokenTest.validateErcEvent(
                                 getTxnRecord(TXN_NAME),
-                                new TransferTokenTest.ReceiverAmount(
-                                        tokenId::getTokenNum,
-                                        false,
-                                        () -> parsedToByteString(senderId.get()),
-                                        () -> parsedToByteString(receiverId),
-                                        10L)));
+                                TransferTokenTest.ReceiverAmount.of(tokenId, false, senderId.get(), receiverId, 10L)));
             }));
         }
 
@@ -1158,7 +1079,7 @@ public class AirdropToContractSystemContractTest {
                 @NonNull final List<SpecContract> receiverContracts,
                 @NonNull final List<SpecFungibleToken> tokens,
                 @NonNull final HapiSpec spec) {
-            final var senderTopic = parsedToByteString(spec.registry().getAccountID(sender.name()));
+            final var senderId = spec.registry().getAccountID(sender.name());
             allRunFor(
                     spec,
                     // Single sender to multiple contracts
@@ -1179,14 +1100,11 @@ public class AirdropToContractSystemContractTest {
                             getTxnRecord("pendingAirdrops"),
                             tokens.stream()
                                     .flatMap(token -> receiverContracts.stream()
-                                            .map(receiver -> new TransferTokenTest.ReceiverAmount(
-                                                    () -> spec.registry()
-                                                            .getTokenID(token.name())
-                                                            .getTokenNum(),
+                                            .map(receiver -> TransferTokenTest.ReceiverAmount.of(
+                                                    spec.registry().getTokenID(token.name()),
                                                     false,
-                                                    () -> senderTopic,
-                                                    () -> parsedToByteString(
-                                                            spec.registry().getAccountID(receiver.name())),
+                                                    senderId,
+                                                    spec.registry().getAccountID(receiver.name()),
                                                     10L)))
                                     .toArray(TransferTokenTest.ReceiverAmount[]::new)));
             allRunFor(
@@ -1201,7 +1119,7 @@ public class AirdropToContractSystemContractTest {
                 @NonNull final SpecContract receiverContract,
                 @NonNull final List<SpecFungibleToken> tokens,
                 @NonNull final HapiSpec spec) {
-            final var receiverTopic = parsedToByteString(spec.registry().getContractId(receiverContract.name()));
+            final var receiverId = spec.registry().getContractId(receiverContract.name());
             allRunFor(
                     spec,
                     // Multiple senders to single contract
@@ -1228,14 +1146,13 @@ public class AirdropToContractSystemContractTest {
                     TransferTokenTest.validateErcEvent(
                             getTxnRecord("pendingAirdrops"),
                             IntStream.range(0, senders.size())
-                                    .mapToObj(e -> new TransferTokenTest.ReceiverAmount(
-                                            () -> spec.registry()
-                                                    .getTokenID(tokens.get(e).name())
-                                                    .getTokenNum(),
+                                    .mapToObj(e -> TransferTokenTest.ReceiverAmount.of(
+                                            spec.registry()
+                                                    .getTokenID(tokens.get(e).name()),
                                             false,
-                                            () -> parsedToByteString(spec.registry()
-                                                    .getAccountID(senders.get(e).name())),
-                                            () -> receiverTopic,
+                                            spec.registry()
+                                                    .getAccountID(senders.get(e).name()),
+                                            receiverId,
                                             10L))
                                     .toArray(TransferTokenTest.ReceiverAmount[]::new)));
         }
@@ -1268,17 +1185,16 @@ public class AirdropToContractSystemContractTest {
                     TransferTokenTest.validateErcEvent(
                             getTxnRecord("pendingAirdropsMulti"),
                             IntStream.range(0, senders.size())
-                                    .mapToObj(e -> new TransferTokenTest.ReceiverAmount(
-                                            () -> spec.registry()
-                                                    .getTokenID(tokens.get(e).name())
-                                                    .getTokenNum(),
+                                    .mapToObj(e -> TransferTokenTest.ReceiverAmount.of(
+                                            spec.registry()
+                                                    .getTokenID(tokens.get(e).name()),
                                             false,
-                                            () -> parsedToByteString(spec.registry()
-                                                    .getAccountID(senders.get(e).name())),
-                                            () -> parsedToByteString(spec.registry()
+                                            spec.registry()
+                                                    .getAccountID(senders.get(e).name()),
+                                            spec.registry()
                                                     .getAccountID(receiverContracts
                                                             .get(e)
-                                                            .name())),
+                                                            .name()),
                                             10L))
                                     .toArray(TransferTokenTest.ReceiverAmount[]::new)));
             allRunFor(
