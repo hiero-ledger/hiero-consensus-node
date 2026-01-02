@@ -64,7 +64,7 @@ public class AirdropSystemContractTest {
 
     private static void checkBasicERC20Event(
             final HapiSpec spec, final SpecFungibleToken token, final SpecAccount sender, final SpecAccount receiver) {
-        checkErcEvents(spec, List.of(token), List.of(), List.of(sender), List.of(receiver), List.of(10L));
+        checkErcEvents(TXN_NAME, spec, List.of(token), List.of(), List.of(sender), List.of(receiver), List.of(10L));
     }
 
     private static void checkBasicERC721Event(
@@ -72,10 +72,11 @@ public class AirdropSystemContractTest {
             final SpecNonFungibleToken token,
             final SpecAccount sender,
             final SpecAccount receiver) {
-        checkErcEvents(spec, List.of(), List.of(token), List.of(sender), List.of(receiver), List.of(1L));
+        checkErcEvents(TXN_NAME, spec, List.of(), List.of(token), List.of(sender), List.of(receiver), List.of(1L));
     }
 
-    private static void checkErcEvents(
+    public static void checkErcEvents(
+            final String txnName,
             final HapiSpec spec,
             final List<SpecFungibleToken> fts,
             final List<SpecNonFungibleToken> nfts,
@@ -121,7 +122,7 @@ public class AirdropSystemContractTest {
                 spec,
                 // check ERC20/ERC721 event
                 TransferTokenTest.validateErcEvent(
-                        getTxnRecord(TXN_NAME), erc.toArray(TransferTokenTest.ErcEventRecord[]::new)));
+                        getTxnRecord(txnName), erc.toArray(TransferTokenTest.ErcEventRecord[]::new)));
     }
 
     @RepeatableHapiTest(RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
@@ -204,6 +205,7 @@ public class AirdropSystemContractTest {
                     receiver3.getBalance().andAssert(balance -> balance.hasTokenBalance(token3.name(), 10L)));
             // check ERC20 event
             checkErcEvents(
+                    TXN_NAME,
                     spec,
                     List.of(token1, token2, token3),
                     List.of(),
@@ -256,6 +258,7 @@ public class AirdropSystemContractTest {
                     nft3.serialNo(1L).assertOwnerIs(receiver3));
             // check ERC721 event
             checkErcEvents(
+                    TXN_NAME,
                     spec,
                     List.of(),
                     List.of(nft1, nft2, nft3),
@@ -333,6 +336,7 @@ public class AirdropSystemContractTest {
                     nft3.serialNo(1L).assertOwnerIs(receiver6));
             // check ERC20/ERC721 event
             checkErcEvents(
+                    TXN_NAME,
                     spec,
                     List.of(token1, token2, token3),
                     List.of(nft1, nft2, nft3),
@@ -410,7 +414,8 @@ public class AirdropSystemContractTest {
                                             spec, receiver6, receiver7, receiver8, receiver9, receiver10),
                                     10L,
                                     serials)
-                            .gas(1550000).via(TXN_NAME));
+                            .gas(1550000)
+                            .via(TXN_NAME));
             allRunFor(
                     spec,
                     receiver1.getBalance().andAssert(balance -> balance.hasTokenBalance(token1.name(), 10L)),
@@ -430,11 +435,22 @@ public class AirdropSystemContractTest {
                     nft5.serialNo(1L).assertOwnerIs(receiver10));
             // check ERC20/ERC721 event
             checkErcEvents(
+                    TXN_NAME,
                     spec,
                     List.of(token1, token2, token3, token4, token5),
                     List.of(nft1, nft2, nft3, nft4, nft5),
                     List.of(sender),
-                    List.of(receiver1, receiver2, receiver3, receiver4, receiver5, receiver6, receiver7, receiver8, receiver9, receiver10),
+                    List.of(
+                            receiver1,
+                            receiver2,
+                            receiver3,
+                            receiver4,
+                            receiver5,
+                            receiver6,
+                            receiver7,
+                            receiver8,
+                            receiver9,
+                            receiver10),
                     List.of(10L, 10L, 10L, 10L, 10L, 1L, 1L, 1L, 1L, 1L));
         }));
     }
@@ -617,7 +633,8 @@ public class AirdropSystemContractTest {
                                     nft,
                                     sender,
                                     prepareAccountAddresses(spec, receiver1, receiver2, receiver3))
-                            .gas(1500000).via(TXN_NAME),
+                            .gas(1500000)
+                            .via(TXN_NAME),
                     receiver1.getBalance().andAssert(balance -> balance.hasTokenBalance(nft.name(), 1L)),
                     receiver2.getBalance().andAssert(balance -> balance.hasTokenBalance(nft.name(), 1L)),
                     receiver3.getBalance().andAssert(balance -> balance.hasTokenBalance(nft.name(), 1L)),
@@ -626,16 +643,16 @@ public class AirdropSystemContractTest {
                     nft.serialNo(3L).assertOwnerIs(receiver3));
             // check ERC20/ERC721 event
             checkErcEvents(
+                    TXN_NAME,
                     spec,
                     List.of(),
                     List.of(nft),
                     List.of(sender),
                     List.of(receiver1, receiver2, receiver3),
-                    List.of( 1L, 2L, 3L));
+                    List.of(1L, 2L, 3L));
         }));
     }
 
-    @HapiTest
     @RepeatableHapiTest(RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
     @DisplayName("Cannot Distribute 11 NFTs to multiple accounts")
     public Stream<DynamicTest> distributeNftsOutOfBound(
@@ -703,7 +720,6 @@ public class AirdropSystemContractTest {
         }));
     }
 
-    @HapiTest
     @RepeatableHapiTest(RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
     @DisplayName("Cannot distribute NFTs to multiple accounts when some of the NFTs do not exist")
     public Stream<DynamicTest> failToDistributeNfts(
