@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.metrics.platform.prometheus;
 
-import static com.swirlds.common.metrics.platform.prometheus.PrometheusEndpoint.AdapterType.GLOBAL;
-import static com.swirlds.common.metrics.platform.prometheus.PrometheusEndpoint.AdapterType.PLATFORM;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.data.Offset.offset;
+import static org.hiero.consensus.metrics.platform.prometheus.PrometheusEndpoint.AdapterType.GLOBAL;
+import static org.hiero.consensus.metrics.platform.prometheus.PrometheusEndpoint.AdapterType.PLATFORM;
 
 import com.swirlds.metrics.api.Counter;
 import com.swirlds.metrics.api.Metric;
@@ -13,6 +13,7 @@ import com.swirlds.metrics.api.snapshot.Snapshot;
 import com.swirlds.metrics.impl.DefaultCounter;
 import io.prometheus.client.Collector;
 import io.prometheus.client.CollectorRegistry;
+import org.hiero.consensus.metrics.platform.prometheus.CounterAdapter;
 import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.Test;
 

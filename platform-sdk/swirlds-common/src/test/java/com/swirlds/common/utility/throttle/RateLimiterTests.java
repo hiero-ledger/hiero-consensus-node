@@ -9,6 +9,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import com.swirlds.base.test.fixtures.time.FakeTime;
 import java.time.Duration;
 import java.util.Random;
+import org.hiero.consensus.concurrent.utility.throttle.RateLimiter;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;

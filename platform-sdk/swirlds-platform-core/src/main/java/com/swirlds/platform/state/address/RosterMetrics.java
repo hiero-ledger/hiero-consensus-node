@@ -2,9 +2,9 @@
 package com.swirlds.platform.state.address;
 
 import com.hedera.hapi.node.state.roster.Roster;
-import com.swirlds.common.metrics.FunctionGauge;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import org.hiero.consensus.metrics.FunctionGauge;
 import org.hiero.consensus.model.node.NodeId;
 
 /**

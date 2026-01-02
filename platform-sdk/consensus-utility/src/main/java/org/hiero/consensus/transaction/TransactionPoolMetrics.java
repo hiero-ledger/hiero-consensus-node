@@ -3,11 +3,11 @@ package org.hiero.consensus.transaction;
 
 import static com.swirlds.metrics.api.Metrics.PLATFORM_CATEGORY;
 
-import com.swirlds.common.metrics.FunctionGauge;
-import com.swirlds.common.metrics.SpeedometerMetric;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.function.Supplier;
+import org.hiero.consensus.metrics.FunctionGauge;
+import org.hiero.consensus.metrics.SpeedometerMetric;
 
 /**
  * Encapsulates metrics for the transaction pool.

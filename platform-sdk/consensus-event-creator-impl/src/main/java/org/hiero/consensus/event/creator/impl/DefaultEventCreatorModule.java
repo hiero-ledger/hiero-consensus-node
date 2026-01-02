@@ -4,6 +4,7 @@ package org.hiero.consensus.event.creator.impl;
 import static com.swirlds.component.framework.wires.SolderType.OFFER;
 import static java.util.Objects.requireNonNull;
 
+import com.google.auto.service.AutoService;
 import com.hedera.hapi.node.state.roster.Roster;
 import com.swirlds.base.time.Time;
 import com.swirlds.component.framework.component.ComponentWiring;
@@ -35,6 +36,7 @@ import org.hiero.consensus.model.transaction.SignatureTransactionCheck;
 /**
  * Default implementation of the {@link EventCreatorModule}.
  */
+@AutoService(EventCreatorModule.class)
 public class DefaultEventCreatorModule implements EventCreatorModule {
 
     @Nullable
@@ -70,7 +72,9 @@ public class DefaultEventCreatorModule implements EventCreatorModule {
 
         // Set up heartbeat wire
         model.buildHeartbeatWire(eventCreationConfig.creationAttemptRate())
-                .solderTo(eventCreationManagerWiring.getInputWire(EventCreationManager::maybeCreateEvent), OFFER);
+                .solderTo(
+                        eventCreationManagerWiring.getInputWire(EventCreationManager::maybeCreateEvent, "heartbeat"),
+                        OFFER);
 
         // Force not soldered wires to be built
         eventCreationManagerWiring.getInputWire(EventCreationManager::clear);
@@ -111,7 +115,7 @@ public class DefaultEventCreatorModule implements EventCreatorModule {
     @NonNull
     public InputWire<EventWindow> eventWindowInputWire() {
         return requireNonNull(eventCreationManagerWiring, "Not initialized")
-                .getInputWire(EventCreationManager::setEventWindow);
+                .getInputWire(EventCreationManager::setEventWindow, "event window");
     }
 
     /**
@@ -121,7 +125,7 @@ public class DefaultEventCreatorModule implements EventCreatorModule {
     @NonNull
     public InputWire<PlatformStatus> platformStatusInputWire() {
         return requireNonNull(eventCreationManagerWiring, "Not initialized")
-                .getInputWire(EventCreationManager::updatePlatformStatus);
+                .getInputWire(EventCreationManager::updatePlatformStatus, "PlatformStatus");
     }
 
     /**
@@ -131,7 +135,7 @@ public class DefaultEventCreatorModule implements EventCreatorModule {
     @NonNull
     public InputWire<Duration> healthStatusInputWire() {
         return requireNonNull(eventCreationManagerWiring, "Not initialized")
-                .getInputWire(EventCreationManager::reportUnhealthyDuration);
+                .getInputWire(EventCreationManager::reportUnhealthyDuration, "health info");
     }
 
     /**

@@ -14,8 +14,6 @@ import com.swirlds.platform.components.EventWindowManager;
 import com.swirlds.platform.components.consensus.ConsensusEngine;
 import com.swirlds.platform.event.branching.BranchDetector;
 import com.swirlds.platform.event.branching.BranchReporter;
-import com.swirlds.platform.event.deduplication.EventDeduplicator;
-import com.swirlds.platform.event.orphan.OrphanBuffer;
 import com.swirlds.platform.event.preconsensus.InlinePcesWriter;
 import com.swirlds.platform.event.validation.EventSignatureValidator;
 import com.swirlds.platform.listeners.ReconnectCompleteNotification;
@@ -39,8 +37,9 @@ import org.hiero.consensus.hashgraph.ConsensusConfig;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.quiescence.QuiescenceCommand;
+import org.hiero.consensus.orphan.OrphanBuffer;
 import org.hiero.consensus.roster.RosterHistory;
-import org.hiero.consensus.roster.RosterUtils;
+import org.hiero.consensus.roster.RosterStateUtils;
 import org.hiero.consensus.round.EventWindowUtils;
 
 /**
@@ -70,9 +69,7 @@ public record PlatformCoordinator(@NonNull PlatformComponents components, @NonNu
         // lines without understanding the implications of doing so. Consult the wiring diagram when deciding
         // whether to change the order of these lines.
 
-        components.eventHasherWiring().flush();
-        components.internalEventValidatorWiring().flush();
-        components.eventDeduplicatorWiring().flush();
+        components.eventIntakeModule().flush();
         components.eventSignatureValidatorWiring().flush();
         components.orphanBufferWiring().flush();
         components.pcesInlineWriterWiring().flush();
@@ -128,10 +125,7 @@ public record PlatformCoordinator(@NonNull PlatformComponents components, @NonNu
 
         // Phase 4: clear
         // Data is no longer moving through the system. Clear all the internal data structures in the wiring objects.
-        components
-                .eventDeduplicatorWiring()
-                .getInputWire(EventDeduplicator::clear)
-                .inject(NoInput.getInstance());
+        components.eventIntakeModule().clearComponentsInputWire().inject(NoInput.getInstance());
         components.orphanBufferWiring().getInputWire(OrphanBuffer::clear).inject(NoInput.getInstance());
         components.gossipWiring().getClearInput().inject(NoInput.getInstance());
         components
@@ -395,7 +389,7 @@ public record PlatformCoordinator(@NonNull PlatformComponents components, @NonNu
         final ConsensusSnapshot consensusSnapshot = Objects.requireNonNull(consensusSnapshotOf(state));
         this.consensusSnapshotOverride(consensusSnapshot);
 
-        final RosterHistory rosterHistory = RosterUtils.createRosterHistory(state);
+        final RosterHistory rosterHistory = RosterStateUtils.createRosterHistory(state);
         this.injectRosterHistory(rosterHistory);
 
         final int roundsNonAncient =

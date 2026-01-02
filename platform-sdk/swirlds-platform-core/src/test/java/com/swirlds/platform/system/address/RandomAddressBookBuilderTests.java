@@ -8,13 +8,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.test.fixtures.Randotron;
-import com.swirlds.platform.crypto.CryptoStatic;
 import com.swirlds.platform.test.fixtures.addressbook.RandomAddressBookBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.security.PublicKey;
 import org.hiero.base.crypto.Cryptography;
 import org.hiero.base.crypto.CryptographyProvider;
 import org.hiero.base.crypto.Signature;
+import org.hiero.consensus.crypto.ConsensusCryptoUtils;
 import org.hiero.consensus.crypto.PlatformSigner;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
@@ -101,22 +101,23 @@ class RandomAddressBookBuilderTests {
             final Bytes dataBytes = Bytes.wrap(dataArray);
             final Signature signature = new PlatformSigner(privateKeys).sign(dataArray);
 
-            assertTrue(CryptoStatic.verifySignature(dataBytes, signature.getBytes(), signaturePublicKey));
+            assertTrue(ConsensusCryptoUtils.verifySignature(dataBytes, signature.getBytes(), signaturePublicKey));
 
             // Sanity check: validating using the wrong public key should fail
             final NodeId wrongId = addressBookA.getNodeId((i + 1) % size);
             final Address wrongAddress = addressBookA.getAddress(wrongId);
             final PublicKey wrongPublicKey = wrongAddress.getSigPublicKey();
-            assertFalse(CryptoStatic.verifySignature(dataBytes, signature.getBytes(), wrongPublicKey));
+            assertFalse(ConsensusCryptoUtils.verifySignature(dataBytes, signature.getBytes(), wrongPublicKey));
 
             // Sanity check: validating against the wrong data should fail
             final Bytes wrongData = randotron.nextHashBytes();
-            assertFalse(CryptoStatic.verifySignature(wrongData, signature.getBytes(), signaturePublicKey));
+            assertFalse(ConsensusCryptoUtils.verifySignature(wrongData, signature.getBytes(), signaturePublicKey));
 
             // Sanity check: validating with a modified signature should fail
             final byte[] modifiedSignature = signature.getBytes().toByteArray();
             modifiedSignature[0] = (byte) ~modifiedSignature[0];
-            assertFalse(CryptoStatic.verifySignature(dataBytes, Bytes.wrap(modifiedSignature), signaturePublicKey));
+            assertFalse(
+                    ConsensusCryptoUtils.verifySignature(dataBytes, Bytes.wrap(modifiedSignature), signaturePublicKey));
         }
     }
 }

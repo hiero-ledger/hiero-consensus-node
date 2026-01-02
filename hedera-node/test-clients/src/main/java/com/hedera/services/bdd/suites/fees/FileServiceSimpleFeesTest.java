@@ -3,7 +3,6 @@ package com.hedera.services.bdd.suites.fees;
 
 import static com.hedera.services.bdd.junit.TestTags.MATS;
 import static com.hedera.services.bdd.junit.TestTags.SIMPLE_FEES;
-import static com.hedera.services.bdd.spec.HapiSpec.customizedHapiTest;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getFileContents;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getFileInfo;
@@ -15,14 +14,15 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.fileUpdate;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyListNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsd;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateChargedUsdForQueries;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.THREE_MONTHS_IN_SECONDS;
 
 import com.hedera.services.bdd.junit.HapiTest;
 import com.hedera.services.bdd.spec.keys.KeyShape;
+import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
@@ -64,7 +64,6 @@ public class FileServiceSimpleFeesTest {
     @DisplayName("USD fee as expected for file create transaction with extra bytes")
     final Stream<DynamicTest> fileCreateExtraBytes() {
         // included bytes are 1000 so we are 4000 above
-        final var contents = "0".repeat(5000).getBytes();
         final var feeFromBytes = 4000 * SINGLE_BYTE_FEE;
 
         return hapiTest(
@@ -73,7 +72,7 @@ public class FileServiceSimpleFeesTest {
                 newKeyListNamed("WACL", List.of(CIVILIAN)),
                 fileCreate("test")
                         .key("WACL")
-                        .contents(contents)
+                        .contents(bytesWithLength(5000))
                         .payingWith(CIVILIAN)
                         .via("fileCreateExtraBytes"),
                 validateChargedUsd("fileCreateExtraBytes", BASE_FEE_FILE_CREATE + feeFromBytes));
@@ -166,22 +165,36 @@ public class FileServiceSimpleFeesTest {
     @HapiTest
     @DisplayName("USD base fee as expected for file get content transaction")
     final Stream<DynamicTest> fileGetContentBaseUSDFee() {
-        return customizedHapiTest(
-                Map.of("memo.useSpecName", "false"),
+        return hapiTest(
                 cryptoCreate(CIVILIAN).balance(5 * ONE_HUNDRED_HBARS),
                 fileCreate("ntb").key(CIVILIAN).contents("Nothing much!"),
                 getFileContents("ntb").payingWith(CIVILIAN).signedBy(CIVILIAN).via("getFileContentsBasic"),
-                validateChargedUsd("getFileContentsBasic", BASE_FEE_FILE_GET_CONTENT));
+                validateChargedUsdForQueries("getFileContentsBasic", BASE_FEE_FILE_GET_CONTENT, 1));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> fileGetContentAboveIncludedBytes() {
+        return hapiTest(
+                cryptoCreate(CIVILIAN).balance(5 * ONE_HUNDRED_HBARS),
+                fileCreate("ntb").key(CIVILIAN).contents(bytesWithLength(1500)),
+                getFileContents("ntb").payingWith(CIVILIAN).signedBy(CIVILIAN).via("getFileContentsBasic"),
+                validateChargedUsdForQueries(
+                        "getFileContentsBasic", BASE_FEE_FILE_GET_CONTENT + 500 * SINGLE_BYTE_FEE, 1));
     }
 
     @HapiTest
     @DisplayName("USD base fee as expected for file get info transaction")
     final Stream<DynamicTest> fileGetInfoBaseUSDFee() {
-        return customizedHapiTest(
-                Map.of("memo.useSpecName", "false"),
+        return hapiTest(
                 cryptoCreate(CIVILIAN).balance(5 * ONE_HUNDRED_HBARS),
                 fileCreate("ntb").key(CIVILIAN).contents("Nothing much!"),
                 getFileInfo("ntb").payingWith(CIVILIAN).signedBy(CIVILIAN).via("getFileInfoBasic"),
-                validateChargedUsd("getFileInfoBasic", BASE_FEE_FILE_GET_FILE));
+                validateChargedUsdForQueries("getFileInfoBasic", BASE_FEE_FILE_GET_FILE, 1));
+    }
+
+    private static byte[] bytesWithLength(final int length) {
+        final var result = new byte[length];
+        Arrays.fill(result, (byte) 'a');
+        return result;
     }
 }

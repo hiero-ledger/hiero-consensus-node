@@ -20,6 +20,7 @@ import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.transactions.TxnUtils.accountAllowanceHook;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.accountLambdaSStore;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoCreate;
+import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.viewAccount;
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.viewSingleton;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
@@ -348,6 +349,29 @@ public class RepeatableLambdaSStoreTests {
     }
 
     @Order(12)
+    @RepeatableHapiTest(NEEDS_STATE_ACCESS)
+    Stream<DynamicTest> duplicateKeyUpdatesCountedCorrectly() {
+        return hapiTest(
+                cryptoCreate(CIVILIAN_PAYER)
+                        .balance(ONE_HUNDRED_HBARS)
+                        .withHook(accountAllowanceHook(1L, HOOK_CONTRACT.name())),
+                // Two updates to the same key should count as one net new slot
+                accountLambdaSStore(CIVILIAN_PAYER, 1L)
+                        .payingWith(CIVILIAN_PAYER)
+                        .putMappingEntryWithKey(Bytes.EMPTY, A, E)
+                        .putMappingEntryWithKey(Bytes.EMPTY, B, F)
+                        .putMappingEntryWithKey(Bytes.EMPTY, A, F),
+                viewAccount(CIVILIAN_PAYER, account -> assertEquals(2, account.numberLambdaStorageSlots())),
+                // And three removals for same key should count as one net removal
+                accountLambdaSStore(CIVILIAN_PAYER, 1L)
+                        .payingWith(CIVILIAN_PAYER)
+                        .removeMappingEntry(Bytes.EMPTY, A)
+                        .removeMappingEntry(Bytes.EMPTY, A)
+                        .removeMappingEntry(Bytes.EMPTY, A),
+                viewAccount(CIVILIAN_PAYER, account -> assertEquals(1, account.numberLambdaStorageSlots())));
+    }
+
+    @Order(13)
     @LeakyRepeatableHapiTest(
             value = NEEDS_STATE_ACCESS,
             overrides = {"hooks.maxLambdaStorageSlots"})

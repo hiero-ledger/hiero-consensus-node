@@ -1,19 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.system.address;
 
-import static com.swirlds.platform.state.service.PlatformStateUtils.roundOf;
-import static com.swirlds.platform.util.BootstrapUtils.detectSoftwareUpgrade;
-
-import com.hedera.hapi.node.base.SemanticVersion;
 import com.hedera.hapi.node.base.ServiceEndpoint;
-import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.formatting.TextTable;
-import com.swirlds.platform.state.ConsensusStateEventHandler;
-import com.swirlds.platform.state.address.AddressBookInitializer;
-import com.swirlds.platform.state.signed.ReservedSignedState;
-import com.swirlds.state.State;
+import com.swirlds.base.formatting.TextTable;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.text.ParseException;
@@ -22,8 +12,6 @@ import java.util.regex.Pattern;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.roster.Address;
 import org.hiero.consensus.model.roster.AddressBook;
-import org.hiero.consensus.roster.RosterRetriever;
-import org.hiero.consensus.roster.RosterUtils;
 
 /**
  * A utility class for AddressBook functionality.
@@ -218,72 +206,5 @@ public class AddressBookUtils {
             builder.domainName(host);
         }
         return builder.build();
-    }
-
-    /**
-     * Initializes the address book from the configuration and platform saved state.
-     *
-     * @param selfId               the node ID of the current node
-     * @param version              the software version of the current node
-     * @param initialState         the initial state of the platform
-     * @param bootstrapAddressBook the bootstrap address book
-     * @param platformContext      the platform context
-     */
-    public static void initializeAddressBook(
-            @NonNull final NodeId selfId,
-            @NonNull final SemanticVersion version,
-            @NonNull final ReservedSignedState initialState,
-            @NonNull final AddressBook bootstrapAddressBook,
-            @NonNull final PlatformContext platformContext,
-            @NonNull final ConsensusStateEventHandler<?> consensusStateEventHandler) {
-        final boolean softwareUpgrade = detectSoftwareUpgrade(version, initialState.get());
-        // Initialize the address book from the configuration and platform saved state.
-        final AddressBookInitializer addressBookInitializer = new AddressBookInitializer(
-                selfId,
-                softwareUpgrade,
-                initialState.get(),
-                bootstrapAddressBook.copy(),
-                platformContext,
-                consensusStateEventHandler);
-        final State state = initialState.get().getState();
-
-        if (addressBookInitializer.hasAddressBookChanged()) {
-            if (addressBookInitializer.getPreviousAddressBook() != null) {
-                // We cannot really "update" the previous roster because we don't know the round number
-                // at which it became active. And we shouldn't do that anyway because under normal circumstances
-                // the RosterService tracks the roster history correctly. However, since we're given a non-null
-                // previous AddressBook, and per the current implementation we know it comes from the state,
-                // we might as well validate this fact here just to ensure the update is correct.
-                final Roster previousRoster =
-                        RosterRetriever.buildRoster(addressBookInitializer.getPreviousAddressBook());
-                final long round = roundOf(state);
-                if (!previousRoster.equals(RosterRetriever.retrieveActive(state, round))
-                        && !previousRoster.equals(RosterRetriever.retrievePreviousRoster(state))) {
-                    throw new IllegalStateException(
-                            "The previousRoster in the AddressBookInitializer doesn't match either the active or previous roster in state."
-                                    + " AddressBookInitializer previousRoster = " + RosterUtils.toString(previousRoster)
-                                    + ", state currentRoster = "
-                                    + RosterUtils.toString(RosterRetriever.retrieveActive(state, round))
-                                    + ", state previousRoster = "
-                                    + RosterUtils.toString(RosterRetriever.retrievePreviousRoster(state)));
-                }
-            }
-
-            // The active roster is already initialized when creating a genesis state, so only set it here
-            // if it's not for the genesis state (round 0)
-            if (initialState.get().getRound() > 0) {
-                RosterUtils.setActiveRoster(
-                        state,
-                        RosterRetriever.buildRoster(addressBookInitializer.getCurrentAddressBook()),
-                        roundOf(state) + 1);
-            }
-        }
-
-        // At this point the initial state must have the current address book set.  If not, something is wrong.
-        final long round = roundOf(state);
-        final AddressBook addressBook = RosterUtils.buildAddressBook(RosterRetriever.retrieveActive(state, round));
-        if (addressBook == null) {
-            throw new IllegalStateException("The current address book of the initial state is null.");
-        }
     }
 }

@@ -3,7 +3,6 @@ package org.hiero.consensus.event;
 
 import static org.hiero.consensus.model.hashgraph.ConsensusConstants.ROUND_FIRST;
 
-import com.swirlds.common.metrics.FunctionGauge;
 import com.swirlds.metrics.api.LongGauge;
 import com.swirlds.metrics.api.LongGauge.Config;
 import com.swirlds.metrics.api.Metrics;
@@ -14,6 +13,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
+import org.hiero.consensus.metrics.FunctionGauge;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.sequence.map.SequenceMap;

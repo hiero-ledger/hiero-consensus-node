@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.metrics.platform;
 
-import static com.swirlds.common.metrics.platform.DefaultPlatformMetrics.calculateMetricKey;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hiero.consensus.metrics.platform.DefaultPlatformMetrics.calculateMetricKey;
 
 import com.swirlds.metrics.api.Counter;
 import com.swirlds.metrics.api.IntegerGauge;
+import org.hiero.consensus.metrics.platform.MetricKeyRegistry;
 import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.Test;
 

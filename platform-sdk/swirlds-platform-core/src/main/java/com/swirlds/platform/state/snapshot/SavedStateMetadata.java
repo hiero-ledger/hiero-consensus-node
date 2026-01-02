@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.state.snapshot;
 
-import static com.swirlds.common.formatting.StringFormattingUtils.formattedList;
+import static com.swirlds.base.formatting.StringFormattingUtils.formattedList;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static com.swirlds.platform.state.service.PlatformStateUtils.ancientThresholdOf;
 import static com.swirlds.platform.state.service.PlatformStateUtils.consensusSnapshotOf;
@@ -26,7 +26,7 @@ import static com.swirlds.platform.state.snapshot.SavedStateMetadataField.WALL_C
 import static org.hiero.base.utility.CommonUtils.unhex;
 
 import com.hedera.hapi.node.state.roster.Roster;
-import com.swirlds.common.formatting.TextTable;
+import com.swirlds.base.formatting.TextTable;
 import com.swirlds.common.utility.Mnemonics;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.state.State;

@@ -15,6 +15,7 @@ module com.swirlds.merkledb.test.fixtures {
     requires com.swirlds.common;
     requires com.swirlds.config.extensions.test.fixtures;
     requires com.swirlds.merkledb;
+    requires org.hiero.consensus.metrics;
     requires org.hiero.consensus.model;
     requires java.management;
     requires jdk.management;

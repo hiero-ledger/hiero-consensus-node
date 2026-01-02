@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.merkle.route;
 
-import static com.swirlds.common.formatting.StringFormattingUtils.formattedList;
+import static com.swirlds.base.formatting.StringFormattingUtils.formattedList;
 
 import java.util.ArrayList;
 import java.util.List;

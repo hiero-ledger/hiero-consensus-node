@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.gossip.permits;
 
-import static com.swirlds.common.units.TimeUnit.UNIT_NANOSECONDS;
-import static com.swirlds.common.units.TimeUnit.UNIT_SECONDS;
+import static com.swirlds.base.units.TimeUnit.UNIT_NANOSECONDS;
+import static com.swirlds.base.units.TimeUnit.UNIT_SECONDS;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static org.hiero.base.CompareTo.isLessThan;
 

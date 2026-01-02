@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.event.preconsensus;
 
-import static com.swirlds.common.metrics.IntegerPairAccumulator.AVERAGE;
 import static com.swirlds.metrics.api.Metrics.PLATFORM_CATEGORY;
+import static org.hiero.consensus.metrics.IntegerPairAccumulator.AVERAGE;
 
 import com.swirlds.base.time.Time;
-import com.swirlds.common.metrics.IntegerPairAccumulator;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import org.hiero.consensus.metrics.IntegerPairAccumulator;
 
 /**
  * Used by {@link DefaultInlinePcesWriter} to keep track of the write and sync duration.

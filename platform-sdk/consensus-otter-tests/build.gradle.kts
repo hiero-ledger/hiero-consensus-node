@@ -45,6 +45,8 @@ testModuleInfo {
     requires("org.apache.logging.log4j")
     requires("org.assertj.core")
     requires("org.hiero.consensus.utility")
+    requires("org.hiero.consensus.metrics")
+    requires("org.hiero.consensus.roster")
     requires("org.junit.jupiter.params")
     requires("org.mockito")
     requiresStatic("com.github.spotbugs.annotations")

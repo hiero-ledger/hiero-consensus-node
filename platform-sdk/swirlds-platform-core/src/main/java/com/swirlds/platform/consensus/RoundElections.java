@@ -4,7 +4,6 @@ package com.swirlds.platform.consensus;
 import static com.swirlds.logging.legacy.LogMarker.CONSENSUS_VOTING;
 
 import com.hedera.hapi.platform.state.MinimumJudgeInfo;
-import com.swirlds.common.utility.IntReference;
 import com.swirlds.platform.internal.EventImpl;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -16,6 +15,7 @@ import java.util.List;
 import java.util.Map;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.base.IntReference;
 import org.hiero.base.utility.ArrayUtils;
 import org.hiero.consensus.model.event.EventConstants;
 import org.hiero.consensus.model.event.NonDeterministicGeneration;

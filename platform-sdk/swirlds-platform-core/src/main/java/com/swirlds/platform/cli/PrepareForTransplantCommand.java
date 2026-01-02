@@ -9,13 +9,13 @@ import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.io.filesystem.FileSystemManager;
 import com.swirlds.common.io.utility.SimpleRecycleBin;
 import com.swirlds.common.merkle.crypto.MerkleCryptographyFactory;
-import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.platform.state.SavedStateUtils;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Scanner;
+import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import picocli.CommandLine;
 
 @CommandLine.Command(

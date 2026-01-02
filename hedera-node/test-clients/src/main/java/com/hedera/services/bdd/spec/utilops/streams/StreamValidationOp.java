@@ -11,7 +11,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoTransfer;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.freezeOnly;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.noOp;
-import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overridingTwo;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sleepFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.waitForFrozenNetwork;
 import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
@@ -100,7 +100,7 @@ public class StreamValidationOp extends UtilOp implements LifecycleTest {
         allRunFor(
                 spec,
                 // Ensure only top-level txs could change balances before validations
-                overriding("nodes.nodeRewardsEnabled", "false"),
+                overridingTwo("nodes.nodeRewardsEnabled", "false", "nodes.feeCollectionAccountEnabled", "false"),
                 // Ensure the CryptoTransfer below will be in a new block period
                 sleepFor(MAX_BLOCK_TIME_MS + BUFFER_MS),
                 cryptoTransfer((ignore, b) -> {}).payingWith(GENESIS),

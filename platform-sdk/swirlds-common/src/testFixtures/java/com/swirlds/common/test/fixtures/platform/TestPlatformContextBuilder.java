@@ -11,7 +11,6 @@ import com.swirlds.common.io.utility.NoOpRecycleBin;
 import com.swirlds.common.io.utility.RecycleBin;
 import com.swirlds.common.merkle.crypto.MerkleCryptography;
 import com.swirlds.common.merkle.crypto.MerkleCryptographyFactory;
-import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.common.test.fixtures.TestFileSystemManager;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
@@ -23,6 +22,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Objects;
 import org.hiero.base.concurrent.ExecutorFactory;
+import org.hiero.consensus.metrics.noop.NoOpMetrics;
 
 /**
  * A simple builder to create a {@link PlatformContext} for unit tests.

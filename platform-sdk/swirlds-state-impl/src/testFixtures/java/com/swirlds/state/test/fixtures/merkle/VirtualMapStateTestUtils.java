@@ -3,10 +3,10 @@ package com.swirlds.state.test.fixtures.merkle;
 
 import static com.swirlds.state.test.fixtures.merkle.VirtualMapUtils.CONFIGURATION;
 
-import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.state.merkle.VirtualMapState;
 import com.swirlds.virtualmap.VirtualMap;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import org.hiero.consensus.metrics.noop.NoOpMetrics;
 
 /**
  * Utility methods for creating {@link VirtualMapState} instances for use in tests.

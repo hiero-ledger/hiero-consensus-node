@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.metrics;
 
-import static com.swirlds.common.metrics.IntegerPairAccumulator.AVERAGE;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.hiero.consensus.metrics.IntegerPairAccumulator.AVERAGE;
 import static org.mockito.Mockito.mock;
 
 import java.util.function.BiFunction;
 import java.util.function.IntBinaryOperator;
+import org.hiero.consensus.metrics.IntegerPairAccumulator;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 

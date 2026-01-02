@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.event.creator.impl.tipset;
 
-import com.swirlds.platform.event.orphan.OrphanBuffer;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.hiero.consensus.event.creator.impl.EventCreator;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.orphan.OrphanBuffer;
 
 /**
  * A "node" with the classes required for testing event creation and verifying the results.

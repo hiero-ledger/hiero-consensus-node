@@ -28,7 +28,8 @@ import org.hiero.consensus.model.hashgraph.Round;
  * Merkle trees will be in the order they are written.
  */
 public interface BlockStreamManager extends BlockRecordInfo, StateHashedListener {
-    Bytes ZERO_BLOCK_HASH = Bytes.wrap(new byte[48]);
+    Bytes ZERO_BLOCK_HASH = Bytes.wrap(new byte[StreamingTreeHasher.HASH_LENGTH]);
+    int NUM_SIBLINGS_PER_BLOCK = 4;
 
     /**
      * The types of work that may be identified as pending within a block.

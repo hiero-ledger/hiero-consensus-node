@@ -3,7 +3,7 @@ package com.swirlds.cli.logging;
 
 import static com.swirlds.cli.logging.LogProcessingUtils.colorizeLogLineAnsi;
 
-import com.swirlds.common.formatting.TextEffect;
+import com.swirlds.base.formatting.TextEffect;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.common.utility;
 
-import static com.swirlds.common.formatting.StringFormattingUtils.formattedList;
+import static com.swirlds.base.formatting.StringFormattingUtils.formattedList;
 
 import java.util.ArrayDeque;
 import java.util.Deque;

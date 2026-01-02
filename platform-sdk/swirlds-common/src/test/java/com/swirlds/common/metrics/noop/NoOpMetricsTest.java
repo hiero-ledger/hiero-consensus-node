@@ -9,12 +9,6 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.swirlds.common.metrics.DurationGauge;
-import com.swirlds.common.metrics.FunctionGauge;
-import com.swirlds.common.metrics.IntegerPairAccumulator;
-import com.swirlds.common.metrics.RunningAverageMetric;
-import com.swirlds.common.metrics.SpeedometerMetric;
-import com.swirlds.common.metrics.StatEntry;
 import com.swirlds.metrics.api.Counter;
 import com.swirlds.metrics.api.DoubleAccumulator;
 import com.swirlds.metrics.api.DoubleGauge;
@@ -29,6 +23,13 @@ import java.time.temporal.ChronoUnit;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.function.Supplier;
+import org.hiero.consensus.metrics.DurationGauge;
+import org.hiero.consensus.metrics.FunctionGauge;
+import org.hiero.consensus.metrics.IntegerPairAccumulator;
+import org.hiero.consensus.metrics.RunningAverageMetric;
+import org.hiero.consensus.metrics.SpeedometerMetric;
+import org.hiero.consensus.metrics.StatEntry;
+import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 

@@ -97,7 +97,8 @@ public class RepeatableHip1064Tests {
         testLifecycle.overrideInClass(Map.of(
                 "nodes.nodeRewardsEnabled", "true",
                 "nodes.preserveMinNodeRewardBalance", "true",
-                "ledger.transfers.maxLen", "2"));
+                "ledger.transfers.maxLen", "2",
+                "nodes.feeCollectionAccountEnabled", "false"));
         testLifecycle.doAdhoc(
                 nodeUpdate("0").declineReward(false),
                 nodeUpdate("1").declineReward(false),
@@ -135,6 +136,7 @@ public class RepeatableHip1064Tests {
                 waitUntilStartOfNextStakingPeriod(1),
                 // First get any node fees already collected at the end of this block
                 sleepForBlockPeriod(),
+                cryptoTransfer(TokenMovement.movingHbar(10 * ONE_HBAR).between(GENESIS, NODE_REWARD)),
                 cryptoCreate(CIVILIAN_PAYER),
                 EmbeddedVerbs.<NodeRewards>viewSingleton(
                         TokenService.NAME,
@@ -236,6 +238,7 @@ public class RepeatableHip1064Tests {
                 nodeUpdate("0").declineReward(true),
                 // Start a new period
                 waitUntilStartOfNextStakingPeriod(1),
+                cryptoTransfer(TokenMovement.movingHbar(10 * ONE_HBAR).between(GENESIS, NODE_REWARD)),
                 // Collect some node fees with a non-system payer
                 cryptoCreate(CIVILIAN_PAYER),
                 fileCreate("something")
@@ -433,6 +436,7 @@ public class RepeatableHip1064Tests {
                 nodeUpdate("0").declineReward(true),
                 // Start a new period
                 waitUntilStartOfNextStakingPeriod(1),
+                cryptoTransfer(TokenMovement.movingHbar(10 * ONE_HBAR).between(GENESIS, NODE_REWARD)),
                 // Collect some node fees with a non-system payer
                 cryptoCreate(CIVILIAN_PAYER),
                 fileCreate("something")
@@ -516,6 +520,7 @@ public class RepeatableHip1064Tests {
                 nodeUpdate("0").declineReward(true),
                 // Start a new period
                 waitUntilStartOfNextStakingPeriod(1),
+                cryptoTransfer(TokenMovement.movingHbar(10 * ONE_HBAR).between(GENESIS, NODE_REWARD)),
                 // Collect some node fees with a non-system payer
                 cryptoCreate(CIVILIAN_PAYER),
                 fileCreate("something")
@@ -598,6 +603,7 @@ public class RepeatableHip1064Tests {
                 nodeUpdate("0").declineReward(true),
                 // Start a new period
                 waitUntilStartOfNextStakingPeriod(1),
+                cryptoTransfer(TokenMovement.movingHbar(10 * ONE_HBAR).between(GENESIS, NODE_REWARD)),
                 // Collect some node fees with a non-system payer
                 cryptoCreate(CIVILIAN_PAYER),
                 fileCreate("something")
@@ -657,12 +663,14 @@ public class RepeatableHip1064Tests {
     Stream<DynamicTest> nodeRewardPaymentsAlsoTriggersStakePeriodBoundarySideEffects() {
         return hapiTest(
                 waitUntilStartOfNextStakingPeriod(1),
+                cryptoTransfer(TokenMovement.movingHbar(10 * ONE_HBAR).between(GENESIS, NODE_REWARD)),
                 nodeUpdate("0").declineReward(false),
                 sleepForBlockPeriod(),
                 setAllNodesActive(),
                 cryptoTransfer(tinyBarsFromTo(GENESIS, NODE_REWARD, ONE_MILLION_HBARS)),
                 // Move into a new staking period
                 waitUntilStartOfNextStakingPeriod(1),
+                setAllNodesActive(),
                 // Simulate a few transactions to close a block, whose only chance of exporting a NodeStakeUpdate is the
                 // node reward payment
                 doingContextual(spec -> spec.repeatableEmbeddedHederaOrThrow().handleRoundWithNoUserTransactions()),

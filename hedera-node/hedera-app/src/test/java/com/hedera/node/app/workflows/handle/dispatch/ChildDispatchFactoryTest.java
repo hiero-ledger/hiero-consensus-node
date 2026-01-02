@@ -31,6 +31,7 @@ import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.api.TokenServiceApi;
 import com.hedera.node.app.services.ServiceScopeLookup;
 import com.hedera.node.app.spi.authorization.Authorizer;
+import com.hedera.node.app.spi.fees.NodeFeeAccumulator;
 import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.records.BlockRecordInfo;
@@ -149,7 +150,8 @@ class ChildDispatchFactoryTest {
                 serviceScopeLookup,
                 exchangeRateManager,
                 transactionChecker,
-                Map.of(TokenServiceApi.class, TOKEN_SERVICE_API_PROVIDER));
+                Map.of(TokenServiceApi.class, TOKEN_SERVICE_API_PROVIDER),
+                NodeFeeAccumulator.NOOP);
     }
 
     @Test

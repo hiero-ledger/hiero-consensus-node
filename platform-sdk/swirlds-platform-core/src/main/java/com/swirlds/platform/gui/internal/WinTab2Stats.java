@@ -4,7 +4,6 @@ package com.swirlds.platform.gui.internal;
 import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.platform.gui.GuiUtils.wrap;
 
-import com.swirlds.common.metrics.platform.AbstractDistributionMetric;
 import com.swirlds.metrics.api.Metric;
 import com.swirlds.metrics.api.Metric.ValueType;
 import com.swirlds.metrics.api.Metrics;
@@ -33,6 +32,7 @@ import javax.swing.JPanel;
 import javax.swing.JTextArea;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.metrics.platform.AbstractDistributionMetric;
 
 class WinTab2Stats extends PrePaintableJPanel implements ChartLabelModel {
     private static final long serialVersionUID = 1L;

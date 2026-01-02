@@ -4,8 +4,6 @@ package com.hedera.services.bdd.junit.hedera.utils;
 import static com.hedera.node.app.hapi.utils.CommonPbjConverters.toPbj;
 import static com.hedera.node.app.info.DiskStartupNetworks.GENESIS_NETWORK_JSON;
 import static java.util.Objects.requireNonNull;
-import static java.util.Spliterators.spliteratorUnknownSize;
-import static java.util.stream.StreamSupport.stream;
 
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.SemanticVersion;
@@ -18,7 +16,6 @@ import com.hedera.node.internal.network.NodeMetadata;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.services.bdd.spec.HapiPropertySource;
 import com.hedera.services.bdd.spec.props.JutilPropertySource;
-import com.swirlds.platform.config.legacy.LegacyConfigPropertiesLoader;
 import com.swirlds.platform.test.fixtures.addressbook.RandomAddressBookBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
@@ -39,7 +36,6 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.Random;
 import java.util.stream.Stream;
-import org.hiero.consensus.model.roster.AddressBook;
 
 public class WorkingDirUtils {
     private static final Key CLASSIC_ADMIN_KEY = Key.newBuilder()
@@ -371,22 +367,6 @@ public class WorkingDirUtils {
         if (!f.exists() && !f.mkdirs()) {
             throw new IllegalStateException("Failed to create directory: " + f.getAbsolutePath());
         }
-    }
-
-    /**
-     * Load the address book from the given path, using {@link RandomAddressBookBuilder} to
-     * set a {@code sigCert} for each address.
-     *
-     * @param path the path to the address book file
-     * @return the loaded address book
-     */
-    public static AddressBook loadAddressBook(@NonNull final Path path) {
-        requireNonNull(path);
-        final var configFile = LegacyConfigPropertiesLoader.loadConfigFile(path.toAbsolutePath());
-        final var addressBook = configFile.getAddressBook();
-        return new AddressBook(stream(spliteratorUnknownSize(addressBook.iterator(), 0), false)
-                .map(address -> address.copySetSigCert(SIG_CERT))
-                .toList());
     }
 
     /**

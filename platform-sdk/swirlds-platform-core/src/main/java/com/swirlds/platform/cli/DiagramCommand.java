@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.platform.cli;
 
+import static com.swirlds.platform.builder.ConsensusModuleBuilder.createNoOpEventCreatorModule;
+import static com.swirlds.platform.builder.ConsensusModuleBuilder.createNoOpEventIntakeModule;
+
 import com.swirlds.cli.PlatformCli;
 import com.swirlds.cli.utility.AbstractCommand;
 import com.swirlds.cli.utility.SubcommandOf;
@@ -13,7 +16,6 @@ import com.swirlds.component.framework.model.diagram.ModelManualLink;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.platform.builder.ApplicationCallbacks;
-import com.swirlds.platform.cli.helper.NoOpEventCreatorModule;
 import com.swirlds.platform.config.DefaultConfiguration;
 import com.swirlds.platform.util.VirtualTerminal;
 import com.swirlds.platform.wiring.PlatformComponents;
@@ -26,6 +28,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import org.hiero.consensus.event.creator.EventCreatorModule;
+import org.hiero.consensus.event.intake.EventIntakeModule;
 import picocli.CommandLine;
 
 @CommandLine.Command(
@@ -104,15 +107,14 @@ public final class DiagramCommand extends AbstractCommand {
         final Configuration configuration = DefaultConfiguration.buildBasicConfiguration(ConfigurationBuilder.create());
         final PlatformContext platformContext = PlatformContext.create(configuration);
 
-        final ApplicationCallbacks callbacks = new ApplicationCallbacks(x -> {}, x -> {}, x -> {});
-
         final WiringModel model = WiringModelBuilder.create(platformContext.getMetrics(), platformContext.getTime())
                 .build();
 
-        final EventCreatorModule eventCreatorModule = new NoOpEventCreatorModule(configuration, model);
+        final EventCreatorModule eventCreatorModule = createNoOpEventCreatorModule(model, configuration);
+        final EventIntakeModule eventIntakeModule = createNoOpEventIntakeModule(model, configuration);
 
         final PlatformComponents platformComponents =
-                PlatformComponents.create(platformContext, model, eventCreatorModule);
+                PlatformComponents.create(platformContext, model, eventCreatorModule, eventIntakeModule);
 
         PlatformWiring.wire(platformContext, new NoOpExecutionLayer(), platformComponents, ApplicationCallbacks.EMPTY);
 

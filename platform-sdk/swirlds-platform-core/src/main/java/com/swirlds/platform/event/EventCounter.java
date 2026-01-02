@@ -3,10 +3,10 @@ package com.swirlds.platform.event;
 
 import static com.swirlds.metrics.api.Metrics.INTERNAL_CATEGORY;
 
-import com.swirlds.common.metrics.RunningAverageMetric;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.concurrent.atomic.AtomicLong;
+import org.hiero.consensus.metrics.RunningAverageMetric;
 
 /**
  * A class that tracks the number of events in memory

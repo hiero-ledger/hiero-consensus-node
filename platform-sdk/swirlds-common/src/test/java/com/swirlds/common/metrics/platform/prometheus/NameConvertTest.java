@@ -4,6 +4,7 @@ package com.swirlds.common.metrics.platform.prometheus;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import org.hiero.consensus.metrics.platform.prometheus.NameConverter;
 import org.junit.jupiter.api.Test;
 
 class NameConvertTest {

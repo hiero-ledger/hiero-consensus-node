@@ -3,11 +3,11 @@ package com.swirlds.platform;
 
 import static com.swirlds.metrics.api.FloatFormats.FORMAT_11_3;
 
-import com.swirlds.common.metrics.RunningAverageMetric;
-import com.swirlds.common.metrics.SpeedometerMetric;
 import com.swirlds.metrics.api.Counter;
 import com.swirlds.metrics.api.LongAccumulator;
 import com.swirlds.metrics.api.Metrics;
+import org.hiero.consensus.metrics.RunningAverageMetric;
+import org.hiero.consensus.metrics.SpeedometerMetric;
 
 /**
  * This class collects and reports various statistics about advanced cryptography module operation.

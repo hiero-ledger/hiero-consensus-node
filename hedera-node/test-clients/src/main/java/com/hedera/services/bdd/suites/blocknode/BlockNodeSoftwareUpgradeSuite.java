@@ -107,7 +107,8 @@ public class BlockNodeSoftwareUpgradeSuite implements LifecycleTest {
                     final List<com.hedera.node.internal.network.BlockNodeConfig> blockNodes = new ArrayList<>();
                     blockNodes.add(com.hedera.node.internal.network.BlockNodeConfig.newBuilder()
                             .address("localhost")
-                            .port(node0Port)
+                            .streamingPort(node0Port)
+                            .servicePort(node0Port)
                             .priority(0)
                             .build());
                     final BlockNodeConnectionInfo connectionInfo = new BlockNodeConnectionInfo(blockNodes);

@@ -5,8 +5,8 @@ import static com.swirlds.common.io.utility.LegacyTemporaryFileBuilder.buildTemp
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static java.nio.file.StandardCopyOption.ATOMIC_MOVE;
 
+import com.swirlds.base.formatting.TextTable;
 import com.swirlds.common.config.StateCommonConfig;
-import com.swirlds.common.formatting.TextTable;
 import com.swirlds.common.io.utility.FileUtils;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.platform.scratchpad.Scratchpad;

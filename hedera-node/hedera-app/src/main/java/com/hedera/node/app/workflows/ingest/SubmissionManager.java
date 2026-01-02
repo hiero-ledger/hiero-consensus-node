@@ -17,12 +17,12 @@ import com.hedera.node.config.data.StatsConfig;
 import com.hedera.node.config.types.Profile;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.metrics.SpeedometerMetric;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.platform.system.Platform;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import org.hiero.consensus.metrics.SpeedometerMetric;
 import org.hiero.consensus.transaction.TransactionPoolNexus;
 
 /**

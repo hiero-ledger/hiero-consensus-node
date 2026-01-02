@@ -6,9 +6,6 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.StatsConfig;
-import com.swirlds.common.metrics.IntegerPairAccumulator;
-import com.swirlds.common.metrics.RunningAverageMetric;
-import com.swirlds.common.metrics.RunningAverageMetric.Config;
 import com.swirlds.metrics.api.Counter;
 import com.swirlds.metrics.api.IntegerAccumulator;
 import com.swirlds.metrics.api.Metrics;
@@ -18,6 +15,9 @@ import java.util.Map;
 import java.util.function.BinaryOperator;
 import javax.inject.Inject;
 import javax.inject.Singleton;
+import org.hiero.consensus.metrics.IntegerPairAccumulator;
+import org.hiero.consensus.metrics.RunningAverageMetric;
+import org.hiero.consensus.metrics.RunningAverageMetric.Config;
 
 /**
  * A class to handle the metrics for all operations (transactions and queries)

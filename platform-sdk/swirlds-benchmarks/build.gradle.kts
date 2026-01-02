@@ -24,6 +24,8 @@ jmhModuleInfo {
     requires("org.hiero.base.crypto")
     requires("org.hiero.base.utility")
     requires("org.hiero.consensus.model")
+    requires("org.hiero.consensus.concurrent")
+    requires("org.hiero.consensus.metrics")
     requires("jmh.core")
     requires("org.apache.logging.log4j")
     requires("org.hiero.consensus.model")

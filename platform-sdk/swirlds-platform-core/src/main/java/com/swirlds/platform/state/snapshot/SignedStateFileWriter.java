@@ -164,7 +164,7 @@ public final class SignedStateFileWriter {
 
         if (selfId != null) {
             copyPcesFilesRetryOnFailure(
-                    platformContext,
+                    platformContext.getConfiguration(),
                     selfId,
                     directory,
                     ancientThresholdOf(signedState.getState()),

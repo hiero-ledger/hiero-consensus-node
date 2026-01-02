@@ -5,12 +5,12 @@ import static com.swirlds.component.framework.schedulers.builders.TaskSchedulerB
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.swirlds.base.test.fixtures.time.FakeTime;
-import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.component.framework.schedulers.TaskScheduler;
 import com.swirlds.component.framework.wires.input.BindableInputWire;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.concurrent.atomic.AtomicLong;
+import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.junit.jupiter.api.Test;
 
 public class DeterministicHeartbeatSchedulerTests {

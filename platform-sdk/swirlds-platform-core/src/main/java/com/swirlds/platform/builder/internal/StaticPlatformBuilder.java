@@ -7,7 +7,6 @@ import static com.swirlds.platform.builder.PlatformBuildConstants.LOG4J_FILE_NAM
 import static com.swirlds.platform.util.BootstrapUtils.startJVMPauseDetectorThread;
 import static com.swirlds.platform.util.BootstrapUtils.writeSettingsUsed;
 
-import com.swirlds.common.metrics.platform.DefaultMetricsProvider;
 import com.swirlds.common.startup.Log4jSetup;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.logging.legacy.payload.NodeStartPayload;
@@ -19,6 +18,7 @@ import edu.umd.cs.findbugs.annotations.Nullable;
 import java.nio.file.Path;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hiero.consensus.metrics.platform.DefaultMetricsProvider;
 
 /**
  * Static setup code for a platform. Logic in this class should gradually disappear as we move away from the use of

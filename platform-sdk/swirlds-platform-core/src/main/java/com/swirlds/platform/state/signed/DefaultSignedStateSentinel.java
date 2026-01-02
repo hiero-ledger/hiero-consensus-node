@@ -7,7 +7,6 @@ import com.swirlds.base.time.Time;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.utility.RuntimeObjectRecord;
 import com.swirlds.common.utility.RuntimeObjectRegistry;
-import com.swirlds.common.utility.throttle.RateLimiter;
 import com.swirlds.platform.config.StateConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
@@ -15,6 +14,7 @@ import java.time.Instant;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.base.CompareTo;
+import org.hiero.consensus.concurrent.utility.throttle.RateLimiter;
 
 /**
  * This object is responsible for observing the lifespans of signed states, and taking action if a state suspected of a

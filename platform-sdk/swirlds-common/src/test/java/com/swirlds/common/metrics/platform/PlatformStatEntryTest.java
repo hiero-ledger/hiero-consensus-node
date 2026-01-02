@@ -16,9 +16,6 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.swirlds.common.metrics.StatEntry;
-import com.swirlds.common.metrics.config.MetricsConfig;
-import com.swirlds.common.metrics.statistics.StatsBuffered;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.metrics.api.IntegerGauge;
 import com.swirlds.metrics.api.Metric;
@@ -28,6 +25,10 @@ import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import org.hiero.consensus.metrics.StatEntry;
+import org.hiero.consensus.metrics.config.MetricsConfig;
+import org.hiero.consensus.metrics.platform.PlatformStatEntry;
+import org.hiero.consensus.metrics.statistics.StatsBuffered;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 

@@ -213,7 +213,8 @@ public class CryptoTransferHandler extends TransferExecutor implements Transacti
 
         final var transactionCategory =
                 context.savepointStack().getBaseBuilder(StreamBuilder.class).category();
-        validator.validateSemantics(op, ledgerConfig, accountsConfig, hooksConfig, transactionCategory);
+        final var payer = context.payer();
+        validator.validateSemantics(op, ledgerConfig, accountsConfig, hooksConfig, transactionCategory, payer);
 
         // create a new transfer context that is specific only for this transaction
         final var transferContext =

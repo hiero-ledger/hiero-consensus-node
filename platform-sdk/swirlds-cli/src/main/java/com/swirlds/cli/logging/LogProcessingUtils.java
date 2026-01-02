@@ -5,7 +5,7 @@ import static com.swirlds.cli.logging.LogLine.ERROR_LOG_LEVEL_COLOR;
 import static com.swirlds.cli.logging.LogLine.HARMLESS_LOG_LEVEL_COLOR;
 import static com.swirlds.cli.logging.LogLine.WARN_LOG_LEVEL_COLOR;
 
-import com.swirlds.common.formatting.TextEffect;
+import com.swirlds.base.formatting.TextEffect;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.time.LocalDateTime;
@@ -32,7 +32,7 @@ public class LogProcessingUtils {
         return switch (logLevel) {
             case "TRACE", "DEBUG", "INFO" -> HARMLESS_LOG_LEVEL_COLOR;
             case "WARN" -> WARN_LOG_LEVEL_COLOR;
-                // all other log levels are critical
+            // all other log levels are critical
             default -> ERROR_LOG_LEVEL_COLOR;
         };
     }

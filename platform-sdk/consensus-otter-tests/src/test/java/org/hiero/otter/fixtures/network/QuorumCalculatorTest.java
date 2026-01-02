@@ -6,9 +6,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import com.swirlds.common.utility.Threshold;
 import java.util.ArrayList;
 import java.util.List;
+import org.hiero.base.utility.Threshold;
 import org.hiero.otter.fixtures.Node;
 import org.hiero.otter.fixtures.util.QuorumCalculator;
 import org.junit.jupiter.api.DisplayName;

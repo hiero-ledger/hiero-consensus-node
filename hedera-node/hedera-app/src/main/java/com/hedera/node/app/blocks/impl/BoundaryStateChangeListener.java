@@ -22,6 +22,7 @@ import com.hedera.hapi.node.state.primitives.ProtoString;
 import com.hedera.hapi.node.state.roster.RosterState;
 import com.hedera.hapi.node.state.throttles.ThrottleUsageSnapshots;
 import com.hedera.hapi.node.state.token.NetworkStakingRewards;
+import com.hedera.hapi.node.state.token.NodePayments;
 import com.hedera.hapi.node.state.token.NodeRewards;
 import com.hedera.hapi.node.transaction.ExchangeRateSet;
 import com.hedera.hapi.platform.state.PlatformState;
@@ -218,6 +219,9 @@ public class BoundaryStateChangeListener implements StateChangeListener {
             }
             case NodeRewards nodeRewards -> {
                 return new OneOf<>(SingletonUpdateChange.NewValueOneOfType.NODE_REWARDS_VALUE, nodeRewards);
+            }
+            case NodePayments nodePayments -> {
+                return new OneOf<>(SingletonUpdateChange.NewValueOneOfType.NODE_PAYMENTS_VALUE, nodePayments);
             }
             case ProtoBytes protoBytes -> {
                 return new OneOf<>(SingletonUpdateChange.NewValueOneOfType.BYTES_VALUE, protoBytes.value());

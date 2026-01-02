@@ -15,6 +15,7 @@ import com.hedera.node.app.service.schedule.ScheduleStreamBuilder;
 import com.hedera.node.app.service.schedule.WritableScheduleStore;
 import com.hedera.node.app.service.schedule.impl.calculator.ScheduleCreateFeeCalculator;
 import com.hedera.node.app.service.schedule.impl.calculator.ScheduleDeleteFeeCalculator;
+import com.hedera.node.app.service.schedule.impl.calculator.ScheduleGetInfoFeeCalculator;
 import com.hedera.node.app.service.schedule.impl.calculator.ScheduleSignFeeCalculator;
 import com.hedera.node.app.service.schedule.impl.handlers.ScheduleHandlers;
 import com.hedera.node.app.service.schedule.impl.schemas.V0490ScheduleSchema;
@@ -23,6 +24,7 @@ import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.spi.AppContext;
 import com.hedera.node.app.spi.RpcService;
 import com.hedera.node.app.spi.api.ServiceApiProvider;
+import com.hedera.node.app.spi.fees.QueryFeeCalculator;
 import com.hedera.node.app.spi.fees.ServiceFeeCalculator;
 import com.hedera.node.app.spi.store.StoreFactory;
 import com.swirlds.state.lifecycle.SchemaRegistry;
@@ -292,5 +294,10 @@ public final class ScheduleServiceImpl implements ScheduleService {
         // TODO: add ScheduleCreateWithContractCallFeeCalculator
         return Set.of(
                 new ScheduleCreateFeeCalculator(), new ScheduleSignFeeCalculator(), new ScheduleDeleteFeeCalculator());
+    }
+
+    @Override
+    public Set<QueryFeeCalculator> queryFeeCalculators() {
+        return Set.of(new ScheduleGetInfoFeeCalculator());
     }
 }

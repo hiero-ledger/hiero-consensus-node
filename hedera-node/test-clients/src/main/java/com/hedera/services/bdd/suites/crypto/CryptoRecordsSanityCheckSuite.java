@@ -24,6 +24,7 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateRecordTrans
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.validateTransferListForBalances;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
+import static com.hedera.services.bdd.suites.HapiSuite.FEE_COLLECTOR;
 import static com.hedera.services.bdd.suites.HapiSuite.FUNDING;
 import static com.hedera.services.bdd.suites.HapiSuite.NODE;
 import static com.hedera.services.bdd.suites.HapiSuite.NODE_REWARD;
@@ -37,20 +38,31 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.OK;
 import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
 
 import com.google.protobuf.ByteString;
+import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
+import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.keys.KeyFactory;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Stream;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
 @Tag(CRYPTO)
+@HapiTestLifecycle
 public class CryptoRecordsSanityCheckSuite {
     private static final String PAYER = "payer";
     private static final String RECEIVER = "receiver";
     private static final String NEW_KEY = "newKey";
     private static final String ORIG_KEY = "origKey";
+
+    @BeforeAll
+    static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
+        testLifecycle.overrideInClass(Map.of("nodes.feeCollectionAccountEnabled", "false"));
+    }
 
     @LeakyHapiTest(requirement = SYSTEM_ACCOUNT_BALANCES)
     @Tag(MATS)
@@ -86,10 +98,11 @@ public class CryptoRecordsSanityCheckSuite {
     @LeakyHapiTest(requirement = SYSTEM_ACCOUNT_BALANCES)
     final Stream<DynamicTest> cryptoCreateRecordSanityChecks() {
         return hapiTest(flattened(
-                takeBalanceSnapshots(FUNDING, NODE, STAKING_REWARD, NODE_REWARD, DEFAULT_PAYER),
+                takeBalanceSnapshots(FUNDING, NODE, STAKING_REWARD, NODE_REWARD, DEFAULT_PAYER, FEE_COLLECTOR),
                 cryptoCreate("test").via("txn"),
                 validateTransferListForBalances(
-                        "txn", List.of("test", FUNDING, NODE, STAKING_REWARD, NODE_REWARD, DEFAULT_PAYER)),
+                        "txn",
+                        List.of("test", FUNDING, NODE, STAKING_REWARD, NODE_REWARD, DEFAULT_PAYER, FEE_COLLECTOR)),
                 withOpContext((spec, opLog) -> validateRecordTransactionFees(spec, "txn"))));
     }
 
@@ -98,11 +111,11 @@ public class CryptoRecordsSanityCheckSuite {
     final Stream<DynamicTest> cryptoDeleteRecordSanityChecks() {
         return hapiTest(flattened(
                 cryptoCreate("test"),
-                takeBalanceSnapshots(FUNDING, NODE, STAKING_REWARD, NODE_REWARD, DEFAULT_PAYER, "test"),
+                takeBalanceSnapshots(FUNDING, NODE, STAKING_REWARD, NODE_REWARD, DEFAULT_PAYER, "test", FEE_COLLECTOR),
                 cryptoDelete("test").via("txn").transfer(DEFAULT_PAYER),
                 validateTransferListForBalances(
                         "txn",
-                        List.of(FUNDING, NODE, STAKING_REWARD, NODE_REWARD, DEFAULT_PAYER, "test"),
+                        List.of(FUNDING, NODE, STAKING_REWARD, NODE_REWARD, DEFAULT_PAYER, "test", FEE_COLLECTOR),
                         Set.of("test")),
                 withOpContext((spec, opLog) -> validateRecordTransactionFees(spec, "txn"))));
     }
@@ -111,10 +124,10 @@ public class CryptoRecordsSanityCheckSuite {
     final Stream<DynamicTest> cryptoTransferRecordSanityChecks() {
         return hapiTest(flattened(
                 cryptoCreate("a").balance(100_000L),
-                takeBalanceSnapshots(FUNDING, NODE, STAKING_REWARD, NODE_REWARD, DEFAULT_PAYER, "a"),
+                takeBalanceSnapshots(FUNDING, NODE, STAKING_REWARD, NODE_REWARD, DEFAULT_PAYER, "a", FEE_COLLECTOR),
                 cryptoTransfer(tinyBarsFromTo(DEFAULT_PAYER, "a", 1_234L)).via("txn"),
                 validateTransferListForBalances(
-                        "txn", List.of(FUNDING, NODE, STAKING_REWARD, NODE_REWARD, DEFAULT_PAYER, "a")),
+                        "txn", List.of(FUNDING, NODE, STAKING_REWARD, NODE_REWARD, DEFAULT_PAYER, "a", FEE_COLLECTOR)),
                 withOpContext((spec, opLog) -> validateRecordTransactionFees(spec, "txn"))));
     }
 
@@ -124,10 +137,11 @@ public class CryptoRecordsSanityCheckSuite {
         return hapiTest(flattened(
                 cryptoCreate("test"),
                 newKeyNamed(NEW_KEY).type(KeyFactory.KeyType.SIMPLE),
-                takeBalanceSnapshots(FUNDING, NODE, STAKING_REWARD, NODE_REWARD, DEFAULT_PAYER, "test"),
+                takeBalanceSnapshots(FUNDING, NODE, STAKING_REWARD, NODE_REWARD, DEFAULT_PAYER, "test", FEE_COLLECTOR),
                 cryptoUpdate("test").key(NEW_KEY).via("txn").fee(500_000L).payingWith("test"),
                 validateTransferListForBalances(
-                        "txn", List.of(FUNDING, NODE, STAKING_REWARD, NODE_REWARD, DEFAULT_PAYER, "test")),
+                        "txn",
+                        List.of(FUNDING, NODE, STAKING_REWARD, NODE_REWARD, DEFAULT_PAYER, "test", FEE_COLLECTOR)),
                 withOpContext((spec, opLog) -> validateRecordTransactionFees(spec, "txn"))));
     }
 
@@ -138,7 +152,7 @@ public class CryptoRecordsSanityCheckSuite {
         return hapiTest(flattened(
                 cryptoCreate(PAYER).balance(BALANCE),
                 cryptoCreate(RECEIVER),
-                takeBalanceSnapshots(FUNDING, NODE, STAKING_REWARD, NODE_REWARD, PAYER, RECEIVER),
+                takeBalanceSnapshots(FUNDING, NODE, STAKING_REWARD, NODE_REWARD, PAYER, RECEIVER, FEE_COLLECTOR),
                 cryptoTransfer(tinyBarsFromTo(PAYER, RECEIVER, BALANCE / 2))
                         .payingWith(PAYER)
                         .via("txn1")
@@ -152,7 +166,7 @@ public class CryptoRecordsSanityCheckSuite {
                 sleepFor(1_000L),
                 validateTransferListForBalances(
                         List.of("txn1", "txn2"),
-                        List.of(FUNDING, NODE, STAKING_REWARD, NODE_REWARD, PAYER, RECEIVER))));
+                        List.of(FUNDING, NODE, STAKING_REWARD, NODE_REWARD, PAYER, RECEIVER, FEE_COLLECTOR))));
     }
 
     @LeakyHapiTest(requirement = SYSTEM_ACCOUNT_BALANCES)

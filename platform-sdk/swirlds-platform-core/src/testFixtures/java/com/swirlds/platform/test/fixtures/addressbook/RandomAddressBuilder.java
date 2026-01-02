@@ -4,13 +4,13 @@ package com.swirlds.platform.test.fixtures.addressbook;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.randomIp;
 import static org.hiero.base.utility.test.fixtures.RandomUtils.randomString;
 
-import com.swirlds.platform.test.fixtures.crypto.PreGeneratedX509Certs;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
 import java.util.Random;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.roster.Address;
 import org.hiero.consensus.model.roster.SerializableX509Certificate;
+import org.hiero.consensus.test.fixtures.crypto.PreGeneratedX509Certs;
 
 /**
  * A builder for creating random {@link Address} instances.

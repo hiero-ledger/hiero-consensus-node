@@ -13,7 +13,6 @@ import com.hedera.node.app.hapi.utils.blocks.BlockStreamUtils;
 import com.hedera.statevalidation.util.PlatformContextHelper;
 import com.hedera.statevalidation.util.StateUtils;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.platform.crypto.CryptoStatic;
 import com.swirlds.platform.state.signed.SignedState;
 import com.swirlds.platform.state.snapshot.DeserializedSignedState;
 import com.swirlds.platform.state.snapshot.SignedStateFileWriter;
@@ -29,6 +28,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
 import org.hiero.base.constructable.ConstructableRegistryException;
+import org.hiero.consensus.crypto.ConsensusCryptoUtils;
 import org.hiero.consensus.model.node.NodeId;
 
 /**
@@ -144,7 +144,7 @@ public class BlockStreamRecoveryWorkflow {
 
         final SignedState signedState = new SignedState(
                 platformContext.getConfiguration(),
-                CryptoStatic::verifySignature,
+                ConsensusCryptoUtils::verifySignature,
                 state,
                 "BlockStreamWorkflow.applyBlocks()",
                 false,

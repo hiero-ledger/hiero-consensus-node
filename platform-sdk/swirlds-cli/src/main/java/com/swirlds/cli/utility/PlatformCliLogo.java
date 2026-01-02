@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.cli.utility;
 
-import static com.swirlds.common.formatting.TextEffect.BRIGHT_RED;
-import static com.swirlds.common.formatting.TextEffect.BRIGHT_WHITE;
-import static com.swirlds.common.formatting.TextEffect.BRIGHT_YELLOW;
-import static com.swirlds.common.formatting.TextEffect.RED;
-import static com.swirlds.common.formatting.TextEffect.YELLOW;
+import static com.swirlds.base.formatting.TextEffect.BRIGHT_RED;
+import static com.swirlds.base.formatting.TextEffect.BRIGHT_WHITE;
+import static com.swirlds.base.formatting.TextEffect.BRIGHT_YELLOW;
+import static com.swirlds.base.formatting.TextEffect.RED;
+import static com.swirlds.base.formatting.TextEffect.YELLOW;
 
-import com.swirlds.common.formatting.TextEffect;
+import com.swirlds.base.formatting.TextEffect;
 
 /**
  * ASCII art logo for the platform CLI.

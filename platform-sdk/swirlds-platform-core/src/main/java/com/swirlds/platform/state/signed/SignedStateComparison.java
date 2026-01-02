@@ -3,7 +3,7 @@ package com.swirlds.platform.state.signed;
 
 import static com.swirlds.common.merkle.iterators.MerkleIterationOrder.PRE_ORDERED_DEPTH_FIRST;
 
-import com.swirlds.common.formatting.TextTable;
+import com.swirlds.base.formatting.TextTable;
 import com.swirlds.common.merkle.MerkleInternal;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.exceptions.MerkleRouteException;

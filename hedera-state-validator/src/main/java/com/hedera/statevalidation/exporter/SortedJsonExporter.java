@@ -176,7 +176,16 @@ public class SortedJsonExporter {
         }
 
         LongStream.range(firstLeafPath, lastLeafPath + 1).parallel().forEach(path -> {
-            final VirtualLeafBytes leafRecord = vm.getRecords().findLeafRecord(path);
+            VirtualLeafBytes leafRecord = null;
+            try {
+                leafRecord = vm.getRecords().findLeafRecord(path);
+            } catch (final Exception e) {
+                log.error("Unexpected error while finding leaf record by path", e);
+            }
+            if (leafRecord == null) {
+                log.error("No leaf record for path {}", path);
+                return;
+            }
             final Bytes keyBytes = leafRecord.keyBytes();
             final ReadableSequentialData keyData = keyBytes.toReadableSequentialData();
             final int tag = keyData.readVarInt(false);

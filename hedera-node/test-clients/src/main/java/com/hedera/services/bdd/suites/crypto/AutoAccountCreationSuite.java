@@ -1165,7 +1165,8 @@ public class AutoAccountCreationSuite {
                     || id.equals(sponsor)
                     || id.equals(defaultPayer)
                     || id.getAccountNum() == 800
-                    || id.getAccountNum() == 801)) {
+                    || id.getAccountNum() == 801
+                    || id.getAccountNum() == 802)) {
                 receivedBalance = adjust.getAmount();
             }
 
@@ -1173,7 +1174,8 @@ public class AutoAccountCreationSuite {
             if ((id.getAccountNum() <= 98
                     || id.equals(defaultPayer)
                     || id.getAccountNum() == 800
-                    || id.getAccountNum() == 801)) {
+                    || id.getAccountNum() == 801
+                    || id.getAccountNum() == 802)) {
                 payerBalWithAutoCreationFee += adjust.getAmount();
             }
         }

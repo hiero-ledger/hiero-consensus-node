@@ -273,6 +273,7 @@ tasks.register<Test>("testSubprocess") {
     val hintsThresholdDenominator =
         if (gradle.startParameter.taskNames.contains("hapiTestRestart")) "4" else "3"
     systemProperty("hapi.spec.hintsThresholdDenominator", hintsThresholdDenominator)
+    systemProperty("hapi.spec.block.stateproof.verification", "false")
 
     // Default quiet mode is "false" unless we are running in CI or set it explicitly to "true"
     systemProperty(
@@ -363,14 +364,17 @@ tasks.register<Test>("testRemote") {
     maxParallelForks = 1
 }
 
-val embeddedBaseTags = mapOf("hapiEmbeddedMisc" to "EMBEDDED")
+val embeddedBaseTags =
+    mapOf(
+        "hapiEmbeddedMisc" to "EMBEDDED&!(SIMPLE_FEES)",
+        "hapiEmbeddedSimpleFees" to "EMBEDDED&SIMPLE_FEES",
+    )
 
 val prEmbeddedCheckTags =
     buildMap<String, String> {
         embeddedBaseTags.forEach { (taskName, tags) ->
-
-            // XTS embedded → EXCLUDE MATS
-            put(taskName, "($tags)&(!MATS)")
+            // XTS embedded → all tests
+            put(taskName, "($tags)")
 
             // Embedded MATS variant → REQUIRE MATS
             put("$taskName$matsSuffix", "($tags)&MATS")
@@ -379,7 +383,10 @@ val prEmbeddedCheckTags =
 
 tasks {
     prEmbeddedCheckTags.forEach { (taskName, _) ->
-        register(taskName) { dependsOn("testEmbedded") }
+        register(taskName) {
+            getByName(taskName).group = "hapi-test-embedded"
+            dependsOn("testEmbedded")
+        }
     }
 }
 
@@ -421,6 +428,14 @@ tasks.register<Test>("testEmbedded") {
     // so we can maintain confidence that there are no regressions in the code.
     systemProperty("hapi.spec.default.shard", 0)
     systemProperty("hapi.spec.default.realm", 0)
+
+    if (
+        gradle.startParameter.taskNames.contains("hapiEmbeddedSimpleFees") ||
+            gradle.startParameter.taskNames.contains("hapiEmbeddedSimpleFeesMATS")
+    ) {
+        systemProperty("fees.createSimpleFeeSchedule", "true")
+        systemProperty("fees.simpleFeesEnabled", "true")
+    }
 
     // Limit heap and number of processors
     maxHeapSize = "8g"

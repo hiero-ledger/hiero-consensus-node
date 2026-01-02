@@ -36,6 +36,8 @@ import com.swirlds.config.api.ConfigurationBuilder;
 import com.swirlds.config.extensions.sources.SystemEnvironmentConfigSource;
 import com.swirlds.config.extensions.sources.SystemPropertiesConfigSource;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
+import java.util.Map;
 
 /**
  * Constructs and returns a {@link Configuration} instance that contains only those configs used at startup during
@@ -45,6 +47,10 @@ public class BootstrapConfigProviderImpl extends ConfigProviderBase {
     /** The bootstrap configuration. */
     private final Configuration bootstrapConfig;
 
+    public BootstrapConfigProviderImpl() {
+        this(null);
+    }
+
     /**
      * Create a new instance.
      *
@@ -53,7 +59,7 @@ public class BootstrapConfigProviderImpl extends ConfigProviderBase {
      * ({@link ConfigProviderBase#APPLICATION_PROPERTIES_PATH_ENV}), to get other properties. None of these properties
      * used at bootstrap are those stored in the ledger state.
      */
-    public BootstrapConfigProviderImpl() {
+    public BootstrapConfigProviderImpl(@Nullable final Map<String, String> overrideValues) {
         final var builder = ConfigurationBuilder.create()
                 .withSource(SystemEnvironmentConfigSource.getInstance())
                 .withSource(SystemPropertiesConfigSource.getInstance())
@@ -85,7 +91,9 @@ public class BootstrapConfigProviderImpl extends ConfigProviderBase {
         } catch (final Exception e) {
             throw new IllegalStateException("Can not create config source for application properties", e);
         }
-
+        if (overrideValues != null) {
+            overrideValues.forEach(builder::withValue);
+        }
         this.bootstrapConfig = builder.build();
     }
 

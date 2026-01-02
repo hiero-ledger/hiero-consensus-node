@@ -3,6 +3,7 @@ package com.swirlds.common.metrics.statistics;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import org.hiero.consensus.metrics.statistics.AtomicAverage;
 import org.junit.jupiter.api.Test;
 
 class AtomicAverageTest {
