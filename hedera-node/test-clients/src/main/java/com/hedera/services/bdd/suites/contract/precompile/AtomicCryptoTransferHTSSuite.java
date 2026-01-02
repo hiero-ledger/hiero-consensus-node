@@ -333,7 +333,7 @@ public class AtomicCryptoTransferHTSSuite {
                             // check there is ERC20 event
                             TransferTokenTest.validateErcEvent(
                                             getTxnRecord(cryptoTransferTxnForFungible),
-                                            new TransferTokenTest.ReceiverAmount(
+                                            new TransferTokenTest.ErcEventRecord(
                                                     token::getTokenNum,
                                                     false,
                                                     () -> parsedToByteString(sender),
@@ -440,19 +440,19 @@ public class AtomicCryptoTransferHTSSuite {
                             // check there is ERC20 event with fees
                             TransferTokenTest.validateErcEvent(
                                             getTxnRecord(cryptoTransferTxnForFungible),
-                                            new TransferTokenTest.ReceiverAmount(
+                                            new TransferTokenTest.ErcEventRecord(
                                                     feeToken::getTokenNum,
                                                     false,
                                                     () -> parsedToByteString(sender),
                                                     () -> parsedToByteString(treasury),
                                                     1L), // feeToken fixedHtsFee
-                                            new TransferTokenTest.ReceiverAmount(
+                                            new TransferTokenTest.ErcEventRecord(
                                                     token::getTokenNum,
                                                     false,
                                                     () -> parsedToByteString(sender),
                                                     () -> parsedToByteString(receiver),
                                                     amountToBeSent - (amountToBeSent / 10)), // transfer
-                                            new TransferTokenTest.ReceiverAmount(
+                                            new TransferTokenTest.ErcEventRecord(
                                                     token::getTokenNum,
                                                     false,
                                                     () -> parsedToByteString(sender),
@@ -546,13 +546,13 @@ public class AtomicCryptoTransferHTSSuite {
                             // check there is ERC721 event with fees
                             TransferTokenTest.validateErcEvent(
                                             getTxnRecord(cryptoTransferTxnForNonFungible),
-                                            new TransferTokenTest.ReceiverAmount(
+                                            new TransferTokenTest.ErcEventRecord(
                                                     feeToken::getTokenNum,
                                                     false,
                                                     () -> parsedToByteString(receiver),
                                                     () -> parsedToByteString(treasury),
                                                     1L), // feeToken fixedHtsFee
-                                            new TransferTokenTest.ReceiverAmount(
+                                            new TransferTokenTest.ErcEventRecord(
                                                     token::getTokenNum,
                                                     true,
                                                     () -> parsedToByteString(sender),
@@ -636,7 +636,7 @@ public class AtomicCryptoTransferHTSSuite {
                             // check there is ERC721 event
                             TransferTokenTest.validateErcEvent(
                                             getTxnRecord(cryptoTransferTxnForNft),
-                                            new TransferTokenTest.ReceiverAmount(
+                                            new TransferTokenTest.ErcEventRecord(
                                                     token::getTokenNum,
                                                     true,
                                                     () -> parsedToByteString(sender),
@@ -768,13 +768,13 @@ public class AtomicCryptoTransferHTSSuite {
                             // check there is ERC20/ERC721 event
                             TransferTokenTest.validateErcEvent(
                                             getTxnRecord(cryptoTransferTxnForAll),
-                                            new TransferTokenTest.ReceiverAmount(
+                                            new TransferTokenTest.ErcEventRecord(
                                                     fungibleToken::getTokenNum,
                                                     false,
                                                     () -> parsedToByteString(fungibleTokenSender),
                                                     () -> parsedToByteString(fungibleTokenReceiver),
                                                     45L),
-                                            new TransferTokenTest.ReceiverAmount(
+                                            new TransferTokenTest.ErcEventRecord(
                                                     nonFungibleToken::getTokenNum,
                                                     true,
                                                     () -> parsedToByteString(nonFungibleTokenSender),
@@ -1061,7 +1061,7 @@ public class AtomicCryptoTransferHTSSuite {
                             // check there is ERC20 event
                             TransferTokenTest.validateErcEvent(
                                             getTxnRecord(successfulTransferFromTxn),
-                                            new TransferTokenTest.ReceiverAmount(
+                                            new TransferTokenTest.ErcEventRecord(
                                                     token::getTokenNum,
                                                     false,
                                                     () -> parsedToByteString(owner),
@@ -1089,7 +1089,7 @@ public class AtomicCryptoTransferHTSSuite {
                             // check there is ERC20 event
                             TransferTokenTest.validateErcEvent(
                                             getTxnRecord(successfulTransferFromTxn2),
-                                            new TransferTokenTest.ReceiverAmount(
+                                            new TransferTokenTest.ErcEventRecord(
                                                     token::getTokenNum,
                                                     false,
                                                     () -> parsedToByteString(owner),
@@ -1117,7 +1117,7 @@ public class AtomicCryptoTransferHTSSuite {
                             // check there is ERC20 event
                             TransferTokenTest.validateErcEvent(
                                             getTxnRecord(successfulTransferFromTxn3),
-                                            new TransferTokenTest.ReceiverAmount(
+                                            new TransferTokenTest.ErcEventRecord(
                                                     token::getTokenNum,
                                                     false,
                                                     () -> parsedToByteString(owner),
@@ -1259,7 +1259,7 @@ public class AtomicCryptoTransferHTSSuite {
                             // check there is ERC721 event
                             TransferTokenTest.validateErcEvent(
                                             getTxnRecord(successfulTransferFromTxn),
-                                            new TransferTokenTest.ReceiverAmount(
+                                            new TransferTokenTest.ErcEventRecord(
                                                     token::getTokenNum,
                                                     true,
                                                     () -> parsedToByteString(owner),
@@ -1342,7 +1342,7 @@ public class AtomicCryptoTransferHTSSuite {
                             // check there is ERC20 event
                             TransferTokenTest.validateErcEvent(
                                             getTxnRecord(successfulTransferFromTxn),
-                                            new TransferTokenTest.ReceiverAmount(
+                                            new TransferTokenTest.ErcEventRecord(
                                                     token::getTokenNum,
                                                     false,
                                                     () -> parsedToByteString(owner),

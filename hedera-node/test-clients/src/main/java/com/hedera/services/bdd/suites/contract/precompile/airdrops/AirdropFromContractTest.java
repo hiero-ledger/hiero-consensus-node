@@ -55,11 +55,9 @@ import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
 import com.hedera.services.bdd.suites.contract.precompile.token.TransferTokenTest;
 import com.hederahashgraph.api.proto.java.ContractID;
 import edu.umd.cs.findbugs.annotations.NonNull;
-
 import java.util.List;
 import java.util.OptionalLong;
 import java.util.stream.Stream;
-
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Nested;
@@ -75,28 +73,35 @@ public class AirdropFromContractTest {
     @Contract(contract = "Airdrop", creationGas = 5_000_000)
     static SpecContract airdropContract;
 
-    private static void checkBasicERC20Event(HapiSpec spec, SpecFungibleToken token, SpecContract sender, SpecAccount receiver) {
+    private static void checkBasicERC20Event(
+            final HapiSpec spec, final SpecFungibleToken token, final SpecContract sender, final SpecAccount receiver) {
         final var tokenId = spec.registry().getTokenID(token.name());
         final var senderId = spec.registry().getContractId(sender.name());
         final var receiverId = spec.registry().getAccountID(receiver.name());
-        allRunFor(spec,
+        allRunFor(
+                spec,
                 // check ERC20 event
-                TransferTokenTest.validateErcEvent(getTxnRecord(TXN_NAME),
-                        TransferTokenTest.ReceiverAmount.of(tokenId, false, senderId, receiverId, 10L)
-                ).andAllChildRecords()
-        );
+                TransferTokenTest.validateErcEvent(
+                                getTxnRecord(TXN_NAME),
+                                TransferTokenTest.ErcEventRecord.of(tokenId, false, senderId, receiverId, 10L))
+                        .andAllChildRecords());
     }
 
-    private static void checkBasicERC721Event(HapiSpec spec, SpecNonFungibleToken token, SpecContract sender, SpecAccount receiver) {
+    private static void checkBasicERC721Event(
+            final HapiSpec spec,
+            final SpecNonFungibleToken token,
+            final SpecContract sender,
+            final SpecAccount receiver) {
         final var tokenId = spec.registry().getTokenID(token.name());
         final var senderId = spec.registry().getContractId(sender.name());
         final var receiverId = spec.registry().getAccountID(receiver.name());
-        allRunFor(spec,
+        allRunFor(
+                spec,
                 // check ERC721 event
-                TransferTokenTest.validateErcEvent(getTxnRecord(NFT_TXN_NAME),
-                        TransferTokenTest.ReceiverAmount.of(tokenId, true, senderId, receiverId, 1L)
-                ).andAllChildRecords()
-        );
+                TransferTokenTest.validateErcEvent(
+                                getTxnRecord(NFT_TXN_NAME),
+                                TransferTokenTest.ErcEventRecord.of(tokenId, true, senderId, receiverId, 1L))
+                        .andAllChildRecords());
     }
 
     @RepeatableHapiTest(RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
@@ -106,28 +111,26 @@ public class AirdropFromContractTest {
             @Contract(contract = "EmptyOne", creationGas = 10_000_000L) final SpecContract sender,
             @NonNull @FungibleToken(initialSupply = 1_000_000L) final SpecFungibleToken token) {
         return hapiTest(withOpContext((spec, opLog) -> {
-                    allRunFor(
-                            spec,
-                            sender.authorizeContract(airdropContract),
-                            sender.associateTokens(token),
-                            airdropContract.associateTokens(token),
-                            receiver.getBalance().andAssert(balance -> balance.hasTokenBalance(token.name(), 0L)),
-                            token.treasury().transferUnitsTo(sender, 1_000L, token),
-                            airdropContract
-                                    .call("tokenAirdrop", token, sender, receiver, 10L)
-                                    .sending(85_000_000L)
-                                    .gas(1_500_000L)
-                                    .via(TXN_NAME),
-                            getTxnRecord(TXN_NAME).hasPriority(recordWith().pendingAirdropsCount(0)),
-                            receiver.getBalance()
-                                    .andAssert(balance -> balance.hasTokenBalance(token.name(), 10L))
-                                    .andAssert(balance -> balance.hasTinyBars(100L)),
-                            receiver.getInfo().andAssert(info -> info.hasAlreadyUsedAutomaticAssociations(1))
-                    );
-                    // check ERC20 event
-                    checkBasicERC20Event(spec, token, sender, receiver);
-                }
-        ));
+            allRunFor(
+                    spec,
+                    sender.authorizeContract(airdropContract),
+                    sender.associateTokens(token),
+                    airdropContract.associateTokens(token),
+                    receiver.getBalance().andAssert(balance -> balance.hasTokenBalance(token.name(), 0L)),
+                    token.treasury().transferUnitsTo(sender, 1_000L, token),
+                    airdropContract
+                            .call("tokenAirdrop", token, sender, receiver, 10L)
+                            .sending(85_000_000L)
+                            .gas(1_500_000L)
+                            .via(TXN_NAME),
+                    getTxnRecord(TXN_NAME).hasPriority(recordWith().pendingAirdropsCount(0)),
+                    receiver.getBalance()
+                            .andAssert(balance -> balance.hasTokenBalance(token.name(), 10L))
+                            .andAssert(balance -> balance.hasTinyBars(100L)),
+                    receiver.getInfo().andAssert(info -> info.hasAlreadyUsedAutomaticAssociations(1)));
+            // check ERC20 event
+            checkBasicERC20Event(spec, token, sender, receiver);
+        }));
     }
 
     @RepeatableHapiTest(RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
@@ -136,9 +139,10 @@ public class AirdropFromContractTest {
             @NonNull @Account(maxAutoAssociations = 10, tinybarBalance = 100L) final SpecAccount receiver,
             @NonNull @Contract(contract = "EmptyOne", creationGas = 10_000_000L) final SpecContract sender,
             @NonNull
-            @FungibleToken(
-                    initialSupply = 1_000_000L,
-                    keys = {FEE_SCHEDULE_KEY}) final SpecFungibleToken token) {
+                    @FungibleToken(
+                            initialSupply = 1_000_000L,
+                            keys = {FEE_SCHEDULE_KEY})
+                    final SpecFungibleToken token) {
         return hapiTest(withOpContext((spec, opLog) -> {
             allRunFor(
                     spec,
@@ -164,10 +168,10 @@ public class AirdropFromContractTest {
                             .via(TXN_NAME),
                     getTxnRecord(TXN_NAME).hasPriority(recordWith().pendingAirdropsCount(0)),
                     // check ERC20 event with fee
-                    TransferTokenTest.validateErcEvent(getTxnRecord(TXN_NAME),
-                            TransferTokenTest.ReceiverAmount.of(tokenId, false, senderId, contractId, 1L),
-                            TransferTokenTest.ReceiverAmount.of(tokenId, false, senderId, receiverId, 10L)
-                    ),
+                    TransferTokenTest.validateErcEvent(
+                            getTxnRecord(TXN_NAME),
+                            TransferTokenTest.ErcEventRecord.of(tokenId, false, senderId, contractId, 1L),
+                            TransferTokenTest.ErcEventRecord.of(tokenId, false, senderId, receiverId, 10L)),
                     sender.getBalance().andAssert(balance -> balance.hasTokenBalance(token.name(), 500989)),
                     receiver.getBalance().andAssert(balance -> balance.hasTokenBalance(token.name(), 10)),
                     airdropContract.getBalance().andAssert(balance -> balance.hasTokenBalance(token.name(), 1L)),
@@ -201,7 +205,7 @@ public class AirdropFromContractTest {
                     nft3.treasury().transferNFTsTo(sender, nft3, 1L),
                     receiver.associateTokens(token1, token2, token3, nft1, nft2, nft3));
             allRunFor(spec, checkForEmptyBalance(receiver, List.of(token1, token2, token3), List.of()));
-            final var serials = new long[]{1L, 1L, 1L};
+            final var serials = new long[] {1L, 1L, 1L};
             final var token1Id = spec.registry().getTokenID(token1.name());
             final var token2Id = spec.registry().getTokenID(token2.name());
             final var token3Id = spec.registry().getTokenID(token3.name());
@@ -223,18 +227,18 @@ public class AirdropFromContractTest {
                                     prepareAccountAddresses(spec, receiver, receiver, receiver),
                                     10L,
                                     serials)
-                            .gas(1750000).via(TXN_NAME),
+                            .gas(1750000)
+                            .via(TXN_NAME),
                     checkForBalances(receiver, List.of(token1, token2, token3), List.of(nft1, nft2, nft3)),
                     // check ERC20/ERC721 event
-                    TransferTokenTest.validateErcEvent(getTxnRecord(TXN_NAME),
-                            TransferTokenTest.ReceiverAmount.of(token1Id, false, senderId, receiverId, 10L),
-                            TransferTokenTest.ReceiverAmount.of(token2Id, false, senderId, receiverId, 10L),
-                            TransferTokenTest.ReceiverAmount.of(token3Id, false, senderId, receiverId, 10L),
-                            TransferTokenTest.ReceiverAmount.of(nft1Id, true, senderId, receiverId, 1L),
-                            TransferTokenTest.ReceiverAmount.of(nft2Id, true, senderId, receiverId, 1L),
-                            TransferTokenTest.ReceiverAmount.of(nft3Id, true, senderId, receiverId, 1L)
-                    )
-            );
+                    TransferTokenTest.validateErcEvent(
+                            getTxnRecord(TXN_NAME),
+                            TransferTokenTest.ErcEventRecord.of(token1Id, false, senderId, receiverId, 10L),
+                            TransferTokenTest.ErcEventRecord.of(token2Id, false, senderId, receiverId, 10L),
+                            TransferTokenTest.ErcEventRecord.of(token3Id, false, senderId, receiverId, 10L),
+                            TransferTokenTest.ErcEventRecord.of(nft1Id, true, senderId, receiverId, 1L),
+                            TransferTokenTest.ErcEventRecord.of(nft2Id, true, senderId, receiverId, 1L),
+                            TransferTokenTest.ErcEventRecord.of(nft3Id, true, senderId, receiverId, 1L)));
         }));
     }
 
@@ -245,26 +249,25 @@ public class AirdropFromContractTest {
             @Contract(contract = "EmptyOne", creationGas = 10_000_000L) final SpecContract sender,
             @NonNull @FungibleToken(initialSupply = 1_000_000L) final SpecFungibleToken token) {
         return hapiTest(withOpContext((spec, opLog) -> {
-                    allRunFor(
-                            spec,
-                            receiver.associateTokens(token),
-                            sender.associateTokens(token),
-                            sender.authorizeContract(airdropContract),
-                            token.treasury().transferUnitsTo(sender, 500_000L, token),
-                            airdropContract
-                                    .call("tokenAirdrop", token, sender, receiver, 10L)
-                                    .gas(10000000)
-                                    .sending(5L)
-                                    .via(TXN_NAME),
-                            getTxnRecord(TXN_NAME).logged().andAllChildRecords(),
-                            receiver.getBalance()
-                                    .andAssert(balance -> balance.hasTokenBalance(token.name(), 10L))
-                                    .andAssert(balance -> balance.hasTinyBars(100L)),
-                            receiver.getInfo().andAssert(info -> info.hasAlreadyUsedAutomaticAssociations(0)));
-                    // check ERC20 event
-                    checkBasicERC20Event(spec, token, sender, receiver);
-                })
-        );
+            allRunFor(
+                    spec,
+                    receiver.associateTokens(token),
+                    sender.associateTokens(token),
+                    sender.authorizeContract(airdropContract),
+                    token.treasury().transferUnitsTo(sender, 500_000L, token),
+                    airdropContract
+                            .call("tokenAirdrop", token, sender, receiver, 10L)
+                            .gas(10000000)
+                            .sending(5L)
+                            .via(TXN_NAME),
+                    getTxnRecord(TXN_NAME).logged().andAllChildRecords(),
+                    receiver.getBalance()
+                            .andAssert(balance -> balance.hasTokenBalance(token.name(), 10L))
+                            .andAssert(balance -> balance.hasTinyBars(100L)),
+                    receiver.getInfo().andAssert(info -> info.hasAlreadyUsedAutomaticAssociations(0)));
+            // check ERC20 event
+            checkBasicERC20Event(spec, token, sender, receiver);
+        }));
     }
 
     @RepeatableHapiTest(RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
@@ -355,11 +358,13 @@ public class AirdropFromContractTest {
                     airdropContract
                             .call("tokenAirdrop", token, sender, receiver, 10L)
                             .sending(85_000_000L)
-                            .gas(1_500_000L).via(TXN_NAME),
+                            .gas(1_500_000L)
+                            .via(TXN_NAME),
                     airdropContract
                             .call("nftAirdrop", nft, sender, receiver, 1L)
                             .sending(85_000_000L)
-                            .gas(1_500_000L).via(NFT_TXN_NAME),
+                            .gas(1_500_000L)
+                            .via(NFT_TXN_NAME),
                     receiver.getInfo().andAssert(info -> info.hasAlreadyUsedAutomaticAssociations(2)),
                     receiver.getBalance().andAssert(balance -> balance.hasTokenBalance(token.name(), 10L)),
                     receiver.getBalance().andAssert(balance -> balance.hasTokenBalance(nft.name(), 1L)));
@@ -373,7 +378,8 @@ public class AirdropFromContractTest {
     @RepeatableHapiTest(RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
     @DisplayName("Contract account airdrops multiple tokens to contract alias with unlimited association slots")
     public Stream<DynamicTest> airdropToAccountWithUnlimitedAutoAssocSlots(
-            @NonNull @Contract(contract = "EmptyOne", creationGas = 100_000_000L, maxAutoAssociations = -1) final SpecContract receiver,
+            @NonNull @Contract(contract = "EmptyOne", creationGas = 100_000_000L, maxAutoAssociations = -1)
+                    final SpecContract receiver,
             @NonNull @Contract(contract = "EmptyOne", creationGas = 100_000_000L) final SpecContract sender,
             @NonNull @FungibleToken(initialSupply = 1_000_000L) final SpecFungibleToken token1,
             @NonNull @FungibleToken(initialSupply = 1_000_000L) final SpecFungibleToken token2) {
@@ -388,9 +394,12 @@ public class AirdropFromContractTest {
             final var token1Id = spec.registry().getTokenID(token1.name());
             final var token2Id = spec.registry().getTokenID(token2.name());
             // com.hedera.hapi.node.base.AccountId
-            final var tempSenderId = sender.contractOrThrow(spec.targetNetworkOrThrow()).accountIdOrThrow();
+            final var tempSenderId =
+                    sender.contractOrThrow(spec.targetNetworkOrThrow()).accountIdOrThrow();
             // getting 'senderId' from 'sender.contract' because it is replaced by alias receiver in registry
-            final var senderId = ContractID.newBuilder().setContractNum(tempSenderId.accountNumOrThrow()).build();
+            final var senderId = ContractID.newBuilder()
+                    .setContractNum(tempSenderId.accountNumOrThrow())
+                    .build();
             final var receiverId = spec.registry().getAccountID(receiver.name());
             allRunFor(
                     spec,
@@ -407,11 +416,11 @@ public class AirdropFromContractTest {
                     receiver.getBalance().andAssert(balance -> balance.hasTokenBalance(token1.name(), 10L)),
                     receiver.getBalance().andAssert(balance -> balance.hasTokenBalance(token2.name(), 10L)),
                     // check ERC20 event
-                    TransferTokenTest.validateErcEvent(getTxnRecord(TXN_NAME),
-                            TransferTokenTest.ReceiverAmount.of(token1Id, false, senderId, receiverId, 10L),
-                            TransferTokenTest.ReceiverAmount.of(token2Id, false, senderId, receiverId, 10L)
-                    ).hasChildRecords(recordWith().pendingAirdropsCount(0))
-            );
+                    TransferTokenTest.validateErcEvent(
+                                    getTxnRecord(TXN_NAME),
+                                    TransferTokenTest.ErcEventRecord.of(token1Id, false, senderId, receiverId, 10L),
+                                    TransferTokenTest.ErcEventRecord.of(token2Id, false, senderId, receiverId, 10L))
+                            .hasChildRecords(recordWith().pendingAirdropsCount(0)));
         }));
     }
 
@@ -446,7 +455,8 @@ public class AirdropFromContractTest {
                     receiver.getBalance().andAssert(balance -> balance.hasTokenBalance(token2.name(), 0L)),
                     // check there is no ERC20 event for 'PendingAirdrop'
                     TransferTokenTest.validateErcEvent(getTxnRecord(TXN_NAME))
-                            .hasChildRecords(recordWith().pendingAirdropsCount(2)
+                            .hasChildRecords(recordWith()
+                                    .pendingAirdropsCount(2)
                                     .pendingAirdrops(includingFungiblePendingAirdrop(
                                             moving(10L, token1.name()).between(sender.name(), receiver.name()),
                                             moving(10L, token2.name()).between(sender.name(), receiver.name())))));
@@ -474,20 +484,28 @@ public class AirdropFromContractTest {
                             .getECDSASecp256K1()
                             .toByteArray();
                     final var evmAddressBytes = recoverAddressFromPubKey(ecdsaKey);
-                    allRunFor(spec,
+                    allRunFor(
+                            spec,
                             airdropContract
-                                    .call("tokenAirdrop", token, sender, HapiParserUtil.asHeadlongAddress(evmAddressBytes), 10L)
+                                    .call(
+                                            "tokenAirdrop",
+                                            token,
+                                            sender,
+                                            HapiParserUtil.asHeadlongAddress(evmAddressBytes),
+                                            10L)
                                     .sending(85_000_000L)
-                                    .gas(1_500_000L).via(TXN_NAME),
+                                    .gas(1_500_000L)
+                                    .via(TXN_NAME),
                             getAutoCreatedAccountBalance(hollowAccountKey).hasTokenBalance(token.name(), 10L),
                             // check ERC20 event
-                            TransferTokenTest.validateErcEvent(getTxnRecord(TXN_NAME),
-                                    new TransferTokenTest.ReceiverAmount(tokenId::getTokenNum, false,
+                            TransferTokenTest.validateErcEvent(
+                                    getTxnRecord(TXN_NAME),
+                                    new TransferTokenTest.ErcEventRecord(
+                                            tokenId::getTokenNum,
+                                            false,
                                             () -> parsedToByteString(senderId),
-                                            () -> ByteString.copyFrom(asAddressInTopic(evmAddressBytes)), 10L
-                                    )
-                            )
-                    );
+                                            () -> ByteString.copyFrom(asAddressInTopic(evmAddressBytes)),
+                                            10L)));
                 }));
     }
 
@@ -534,10 +552,12 @@ public class AirdropFromContractTest {
                     airdropContract
                             .call("tokenAirdrop", token, sender, receiver, 3L)
                             .sending(85_000_000L)
-                            .gas(1_500_000L).via("AirdropTxn2"),
+                            .gas(1_500_000L)
+                            .via("AirdropTxn2"),
                     // check there is ERC20 event
-                    TransferTokenTest.validateErcEvent(getTxnRecord("AirdropTxn2"),
-                            TransferTokenTest.ReceiverAmount.of(tokenId, false, senderId, receiverId, 3L)),
+                    TransferTokenTest.validateErcEvent(
+                            getTxnRecord("AirdropTxn2"),
+                            TransferTokenTest.ErcEventRecord.of(tokenId, false, senderId, receiverId, 3L)),
                     receiver.getBalance().andAssert(balance -> balance.hasTokenBalance(token.name(), 8L)),
                     sender.getBalance().andAssert(balance -> balance.hasTokenBalance(token.name(), 2L)));
         }));
@@ -615,14 +635,16 @@ public class AirdropFromContractTest {
             final var tokenId = spec.registry().getTokenID(token.name());
             final var senderId = spec.registry().getContractId(sender.name());
             final var receiverId = spec.registry().getAccountID(receiver.name());
-            allRunFor(spec,
+            allRunFor(
+                    spec,
                     airdropContract
                             .call("tokenAirdrop", token, sender, receiver, 1L)
                             .sending(85_000_000L)
                             .gas(1_500_000L)
                             .via("AirdropTxn2"),
-                    TransferTokenTest.validateErcEvent(getTxnRecord("AirdropTxn2"),
-                                    TransferTokenTest.ReceiverAmount.of(tokenId, false, senderId, receiverId, 1L))
+                    TransferTokenTest.validateErcEvent(
+                                    getTxnRecord("AirdropTxn2"),
+                                    TransferTokenTest.ErcEventRecord.of(tokenId, false, senderId, receiverId, 1L))
                             .hasChildRecords(recordWith().pendingAirdropsCount(0)),
                     receiver.getBalance().andAssert(balance -> balance.hasTokenBalance(token.name(), 1L)));
         }));
@@ -666,10 +688,10 @@ public class AirdropFromContractTest {
                             .sending(450_000_000L)
                             .gas(2_750_000L)
                             .via("pendingAirdropsMulti"),
-                    TransferTokenTest.validateErcEvent(getTxnRecord("pendingAirdropsMulti"),
-                                    TransferTokenTest.ReceiverAmount.of(token1Id, false, sender1Id, receiver1Id, 1L),
-                                    TransferTokenTest.ReceiverAmount.of(token2Id, false, sender2Id, receiver2Id, 1L)
-                                    )
+                    TransferTokenTest.validateErcEvent(
+                                    getTxnRecord("pendingAirdropsMulti"),
+                                    TransferTokenTest.ErcEventRecord.of(token1Id, false, sender1Id, receiver1Id, 1L),
+                                    TransferTokenTest.ErcEventRecord.of(token2Id, false, sender2Id, receiver2Id, 1L))
                             .hasChildRecords(recordWith().pendingAirdropsCount(0)),
                     receiver1.getBalance().andAssert(balance -> balance.hasTinyBars(100_000_000L)),
                     receiver2.getBalance().andAssert(balance -> balance.hasTinyBars(100_000_000L)),
@@ -687,10 +709,11 @@ public class AirdropFromContractTest {
                 @NonNull @Account(maxAutoAssociations = 10, tinybarBalance = 100L) final SpecAccount receiver,
                 @Contract(contract = "EmptyOne", creationGas = 10_000_000L) final SpecContract sender,
                 @NonNull
-                @FungibleToken(
-                        initialSupply = 1_000_000L,
-                        name = "airdropToken",
-                        keys = {ADMIN_KEY, FEE_SCHEDULE_KEY}) final SpecFungibleToken token,
+                        @FungibleToken(
+                                initialSupply = 1_000_000L,
+                                name = "airdropToken",
+                                keys = {ADMIN_KEY, FEE_SCHEDULE_KEY})
+                        final SpecFungibleToken token,
                 @NonNull @FungibleToken(initialSupply = 1_000_000L) final SpecFungibleToken tokenForFee) {
             return hapiTest(withOpContext((spec, opLog) -> {
                 allRunFor(
@@ -743,7 +766,7 @@ public class AirdropFromContractTest {
                                         prepareContractAddresses(spec, sender, sender, sender),
                                         prepareAccountAddresses(
                                                 spec, associatedReceiver, associatedReceiver, associatedReceiver),
-                                        new long[]{1L, 1L, 1L})
+                                        new long[] {1L, 1L, 1L})
                                 .sending(85_000_000L)
                                 .gas(1_500_000L)
                                 .andAssert(txn -> txn.hasKnownStatuses(
@@ -761,7 +784,7 @@ public class AirdropFromContractTest {
                                                 notAssociatedReceiver,
                                                 notAssociatedReceiver,
                                                 notAssociatedReceiver),
-                                        new long[]{1L, 1L, 1L})
+                                        new long[] {1L, 1L, 1L})
                                 .sending(85_000_000L)
                                 .gas(1_500_000L)
                                 .andAssert(txn -> txn.hasKnownStatuses(
@@ -810,16 +833,18 @@ public class AirdropFromContractTest {
                         airdropContract
                                 .call("tokenAirdrop", token, sender, receiver, Long.MAX_VALUE)
                                 .sending(85_000_000L)
-                                .gas(1_500_000L).via(TXN_NAME));
+                                .gas(1_500_000L)
+                                .via(TXN_NAME));
                 final var tokenId = spec.registry().getTokenID(token.name());
                 final var senderId = spec.registry().getContractId(sender.name());
                 final var receiverId = spec.registry().getAccountID(receiver.name());
                 allRunFor(
                         spec,
                         // check ERC20 event
-                        TransferTokenTest.validateErcEvent(getTxnRecord(TXN_NAME),
-                                TransferTokenTest.ReceiverAmount.of(tokenId, false, senderId, receiverId, Long.MAX_VALUE)
-                        ),
+                        TransferTokenTest.validateErcEvent(
+                                getTxnRecord(TXN_NAME),
+                                TransferTokenTest.ErcEventRecord.of(
+                                        tokenId, false, senderId, receiverId, Long.MAX_VALUE)),
                         receiver.getBalance()
                                 .andAssert(balance -> balance.hasTokenBalance(token.name(), Long.MAX_VALUE)));
                 allRunFor(

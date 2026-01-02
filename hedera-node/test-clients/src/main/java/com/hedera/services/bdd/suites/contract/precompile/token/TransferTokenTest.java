@@ -85,46 +85,46 @@ public class TransferTokenTest {
     @NonFungibleToken(name = "nonFungibleToken", numPreMints = 4)
     static SpecNonFungibleToken nonFungibleToken;
 
-    public record ReceiverAmount(
+    public record ErcEventRecord(
             Supplier<Long> tokenNum, boolean isNFT, Supplier<ByteString> from, Supplier<ByteString> to, Long amount) {
 
         // from account to contract
-        public static ReceiverAmount of(TokenID token, boolean isNFT, AccountID from, ContractID to, Long amount) {
-            return new ReceiverAmount(
+        public static ErcEventRecord of(TokenID token, boolean isNFT, AccountID from, ContractID to, Long amount) {
+            return new ErcEventRecord(
                     token::getTokenNum, isNFT, () -> parsedToByteString(from), () -> parsedToByteString(to), amount);
         }
 
         // from account to account
-        public static ReceiverAmount of(TokenID token, boolean isNFT, AccountID from, AccountID to, Long amount) {
-            return new ReceiverAmount(
+        public static ErcEventRecord of(TokenID token, boolean isNFT, AccountID from, AccountID to, Long amount) {
+            return new ErcEventRecord(
                     token::getTokenNum, isNFT, () -> parsedToByteString(from), () -> parsedToByteString(to), amount);
         }
 
         // from contract to account
-        public static ReceiverAmount of(TokenID token, boolean isNFT, ContractID from, AccountID to, Long amount) {
-            return new ReceiverAmount(
+        public static ErcEventRecord of(TokenID token, boolean isNFT, ContractID from, AccountID to, Long amount) {
+            return new ErcEventRecord(
                     token::getTokenNum, isNFT, () -> parsedToByteString(from), () -> parsedToByteString(to), amount);
         }
 
         // from contract to contract
-        public static ReceiverAmount of(TokenID token, boolean isNFT, ContractID from, ContractID to, Long amount) {
-            return new ReceiverAmount(
+        public static ErcEventRecord of(TokenID token, boolean isNFT, ContractID from, ContractID to, Long amount) {
+            return new ErcEventRecord(
                     token::getTokenNum, isNFT, () -> parsedToByteString(from), () -> parsedToByteString(to), amount);
         }
     }
 
-    private static HapiGetTxnRecord validateErcEvent(final ReceiverAmount... receivers) {
+    private static HapiGetTxnRecord validateErcEvent(final ErcEventRecord... receivers) {
         final var withLastEvent = new ArrayList<>(List.of(receivers));
-        withLastEvent.add(new ReceiverAmount(
+        withLastEvent.add(new ErcEventRecord(
                 null, false, null, null, null)); // last log event is event from 'tokenTransferContract'
         return validateErcEvent(
-                getTxnRecord(TXN_NAME), withLastEvent.toArray(new ReceiverAmount[receivers.length + 1]));
+                getTxnRecord(TXN_NAME), withLastEvent.toArray(new ErcEventRecord[receivers.length + 1]));
     }
 
-    public static HapiGetTxnRecord validateErcEvent(HapiGetTxnRecord request, final ReceiverAmount... receivers) {
+    public static HapiGetTxnRecord validateErcEvent(HapiGetTxnRecord request, final ErcEventRecord... receivers) {
         ContractLogAsserts[] logsChecker = new ContractLogAsserts[receivers.length];
         for (int i = 0; i < receivers.length; i++) {
-            ReceiverAmount receiver = receivers[i];
+            ErcEventRecord receiver = receivers[i];
             if (receiver.tokenNum() == null || receiver.from() == null || receiver.to() == null) {
                 logsChecker[i] = logWith(); // skip this log event
             } else if (receiver.isNFT()) {
@@ -205,7 +205,7 @@ public class TransferTokenTest {
                             .call(TRANSFER_TOKEN, fungibleToken, tokenTransferContract, tokenReceiverContract, 2L)
                             .gas(1_000_000L)
                             .via(TXN_NAME),
-                    validateErcEvent(new ReceiverAmount(
+                    validateErcEvent(new ErcEventRecord(
                             () -> fungibleTokenId.get().getTokenNum(),
                             false,
                             () -> parsedToByteString(tokenTransferContractId.get()),
@@ -232,13 +232,13 @@ public class TransferTokenTest {
                             .gas(1_000_000L)
                             .via(TXN_NAME),
                     validateErcEvent(
-                            new ReceiverAmount(
+                            new ErcEventRecord(
                                     () -> fungibleTokenId.get().getTokenNum(),
                                     false,
                                     () -> parsedToByteString(tokenTransferContractId.get()),
                                     () -> parsedToByteString(tokenReceiverContractId.get()),
                                     2L),
-                            new ReceiverAmount(
+                            new ErcEventRecord(
                                     () -> fungibleTokenId.get().getTokenNum(),
                                     false,
                                     () -> parsedToByteString(tokenTransferContractId.get()),
@@ -264,7 +264,7 @@ public class TransferTokenTest {
                                     BigInteger.valueOf(2L))
                             .gas(1_000_000L)
                             .via(TXN_NAME),
-                    validateErcEvent(new ReceiverAmount(
+                    validateErcEvent(new ErcEventRecord(
                             () -> fungibleTokenId.get().getTokenNum(),
                             false,
                             () -> parsedToByteString(tokenTransferContractId.get()),
@@ -282,7 +282,7 @@ public class TransferTokenTest {
                             .call(TRANSFER_NFT, nonFungibleToken, tokenTransferContract, tokenReceiverContract, 1L)
                             .gas(1_000_000L)
                             .via(TXN_NAME),
-                    validateErcEvent(new ReceiverAmount(
+                    validateErcEvent(new ErcEventRecord(
                             () -> nonFungibleTokenId.get().getTokenNum(),
                             true,
                             () -> parsedToByteString(tokenTransferContractId.get()),
@@ -312,13 +312,13 @@ public class TransferTokenTest {
                             .gas(1_000_000L)
                             .via(TXN_NAME),
                     validateErcEvent(
-                            new ReceiverAmount(
+                            new ErcEventRecord(
                                     () -> nonFungibleTokenId.get().getTokenNum(),
                                     true,
                                     () -> parsedToByteString(tokenTransferContractId.get()),
                                     () -> parsedToByteString(tokenReceiverContractId.get()),
                                     2L),
-                            new ReceiverAmount(
+                            new ErcEventRecord(
                                     () -> nonFungibleTokenId.get().getTokenNum(),
                                     true,
                                     () -> parsedToByteString(tokenTransferContractId.get()),
@@ -356,7 +356,7 @@ public class TransferTokenTest {
                                     BigInteger.valueOf(4L))
                             .gas(1_000_000L)
                             .via(TXN_NAME),
-                    validateErcEvent(new ReceiverAmount(
+                    validateErcEvent(new ErcEventRecord(
                             () -> nonFungibleTokenId.get().getTokenNum(),
                             true,
                             () -> parsedToByteString(nonFungibleTokenTreasuryId.get()),

@@ -855,7 +855,7 @@ public class CryptoTransferHTSSuite {
                             // check ERC20 event
                             TransferTokenTest.validateErcEvent(
                                             getTxnRecord(repeatedIdsPrecompileXferTxn),
-                                            new TransferTokenTest.ReceiverAmount(
+                                            new TransferTokenTest.ErcEventRecord(
                                                     token::getTokenNum,
                                                     false,
                                                     () -> parsedToByteString(sender),
@@ -925,13 +925,13 @@ public class CryptoTransferHTSSuite {
                             // check ERC20 event
                             TransferTokenTest.validateErcEvent(
                                             getTxnRecord(cryptoTransferTxn),
-                                            new TransferTokenTest.ReceiverAmount(
+                                            new TransferTokenTest.ErcEventRecord(
                                                     token::getTokenNum,
                                                     false,
                                                     () -> parsedToByteString(sender),
                                                     () -> parsedToByteString(receiver),
                                                     30L),
-                                            new TransferTokenTest.ReceiverAmount(
+                                            new TransferTokenTest.ErcEventRecord(
                                                     token::getTokenNum,
                                                     false,
                                                     () -> parsedToByteString(sender),
@@ -1003,7 +1003,7 @@ public class CryptoTransferHTSSuite {
                             // check ERC721 event
                             TransferTokenTest.validateErcEvent(
                                             getTxnRecord(cryptoTransferTxn),
-                                            new TransferTokenTest.ReceiverAmount(
+                                            new TransferTokenTest.ErcEventRecord(
                                                     token::getTokenNum,
                                                     true,
                                                     () -> parsedToByteString(sender),
@@ -1086,13 +1086,13 @@ public class CryptoTransferHTSSuite {
                             // check ERC721 event
                             TransferTokenTest.validateErcEvent(
                                             getTxnRecord(cryptoTransferTxn),
-                                            new TransferTokenTest.ReceiverAmount(
+                                            new TransferTokenTest.ErcEventRecord(
                                                     token::getTokenNum,
                                                     true,
                                                     () -> parsedToByteString(sender),
                                                     () -> parsedToByteString(receiver),
                                                     1L),
-                                            new TransferTokenTest.ReceiverAmount(
+                                            new TransferTokenTest.ErcEventRecord(
                                                     token::getTokenNum,
                                                     true,
                                                     () -> parsedToByteString(sender2),
@@ -1197,13 +1197,13 @@ public class CryptoTransferHTSSuite {
                             // check ERC20 and ERC721 event
                             TransferTokenTest.validateErcEvent(
                                             getTxnRecord(cryptoTransferTxn),
-                                            new TransferTokenTest.ReceiverAmount(
+                                            new TransferTokenTest.ErcEventRecord(
                                                     fungibleToken::getTokenNum,
                                                     false,
                                                     () -> parsedToByteString(fungibleTokenSender),
                                                     () -> parsedToByteString(fungibleTokenReceiver),
                                                     45L),
-                                            new TransferTokenTest.ReceiverAmount(
+                                            new TransferTokenTest.ErcEventRecord(
                                                     nonFungibleToken::getTokenNum,
                                                     true,
                                                     () -> parsedToByteString(nonFungibleTokenSender),
@@ -1316,25 +1316,25 @@ public class CryptoTransferHTSSuite {
                             // check ERC20 and ERC721 event
                             TransferTokenTest.validateErcEvent(
                                             getTxnRecord(cryptoTransferTxn),
-                                            new TransferTokenTest.ReceiverAmount(
+                                            new TransferTokenTest.ErcEventRecord(
                                                     fungibleToken::getTokenNum,
                                                     false,
                                                     () -> parsedToByteString(firstSender),
                                                     () -> parsedToByteString(firstReceiver),
                                                     45L),
-                                            new TransferTokenTest.ReceiverAmount(
+                                            new TransferTokenTest.ErcEventRecord(
                                                     fungibleToken::getTokenNum,
                                                     false,
                                                     () -> parsedToByteString(secondSender),
                                                     () -> parsedToByteString(secondReceiver),
                                                     32L),
-                                            new TransferTokenTest.ReceiverAmount(
+                                            new TransferTokenTest.ErcEventRecord(
                                                     nonFungibleToken::getTokenNum,
                                                     true,
                                                     () -> parsedToByteString(firstSender),
                                                     () -> parsedToByteString(firstReceiver),
                                                     1L),
-                                            new TransferTokenTest.ReceiverAmount(
+                                            new TransferTokenTest.ErcEventRecord(
                                                     nonFungibleToken::getTokenNum,
                                                     true,
                                                     () -> parsedToByteString(secondSender),
