@@ -50,6 +50,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.GENESIS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.contract.Utils.asHexedSolidityAddress;
+import static com.hedera.services.bdd.suites.contract.Utils.parsedToByteString;
 import static com.hedera.services.bdd.suites.utils.MiscEETUtils.metadata;
 import static com.hedera.services.bdd.suites.utils.contracts.precompile.HTSPrecompileResult.htsPrecompileResult;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.AMOUNT_EXCEEDS_ALLOWANCE;
@@ -69,20 +70,23 @@ import com.hedera.services.bdd.spec.assertions.NonFungibleTransfers;
 import com.hedera.services.bdd.spec.assertions.SomeFungibleTransfers;
 import com.hedera.services.bdd.spec.keys.KeyShape;
 import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
+import com.hedera.services.bdd.suites.contract.precompile.token.TransferTokenTest;
 import com.hederahashgraph.api.proto.java.TokenSupplyType;
 import com.hederahashgraph.api.proto.java.TokenType;
+
 import java.util.List;
 import java.util.OptionalLong;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
+
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
 @Tag(SMART_CONTRACT)
 public class AtomicCryptoTransferHTSSuite {
     private static final long GAS_FOR_AUTO_ASSOCIATING_CALLS = 2_000_000;
-    private static final Tuple[] EMPTY_TUPLE_ARRAY = new Tuple[] {};
+    private static final Tuple[] EMPTY_TUPLE_ARRAY = new Tuple[]{};
     private static final long GAS_TO_OFFER = 5_000_000L;
     private static final long TOTAL_SUPPLY = 1_000;
     private static final String NFT_TOKEN = "AToken_NFT";
@@ -144,30 +148,32 @@ public class AtomicCryptoTransferHTSSuite {
                             // ONE_HBAR
                             // should succeed
                             contractCall(
-                                            CONTRACT,
-                                            TRANSFER_MULTIPLE_TOKENS,
-                                            transferList()
-                                                    .withAccountAmounts(
-                                                            accountAmount(sender, -amountToBeSent, false),
-                                                            accountAmount(receiver, amountToBeSent, false))
-                                                    .build(),
-                                            EMPTY_TUPLE_ARRAY)
+                                    CONTRACT,
+                                    TRANSFER_MULTIPLE_TOKENS,
+                                    transferList()
+                                            .withAccountAmounts(
+                                                    accountAmount(sender, -amountToBeSent, false),
+                                                    accountAmount(receiver, amountToBeSent, false))
+                                            .build(),
+                                    EMPTY_TUPLE_ARRAY)
                                     .payingWith(GENESIS)
                                     .via(cryptoTransferTxn)
                                     .gas(GAS_TO_OFFER),
+                            // check there is no ERC20 event for HBAR transfer
+                            TransferTokenTest.validateErcEvent(getTxnRecord(cryptoTransferTxn)),
                             // Simple transfer between sender2 and receiver for 50 *
                             // ONE_HBAR
                             // should fail because sender2 does not have the right
                             // key
                             contractCall(
-                                            CONTRACT,
-                                            TRANSFER_MULTIPLE_TOKENS,
-                                            transferList()
-                                                    .withAccountAmounts(
-                                                            accountAmount(sender2, -amountToBeSent, false),
-                                                            accountAmount(receiver, amountToBeSent, false))
-                                                    .build(),
-                                            EMPTY_TUPLE_ARRAY)
+                                    CONTRACT,
+                                    TRANSFER_MULTIPLE_TOKENS,
+                                    transferList()
+                                            .withAccountAmounts(
+                                                    accountAmount(sender2, -amountToBeSent, false),
+                                                    accountAmount(receiver, amountToBeSent, false))
+                                            .build(),
+                                    EMPTY_TUPLE_ARRAY)
                                     .payingWith(GENESIS)
                                     .via(cryptoTransferRevertNoKeyTxn)
                                     .gas(GAS_TO_OFFER)
@@ -176,14 +182,14 @@ public class AtomicCryptoTransferHTSSuite {
                             // * ONE_HUNDRED_HBAR
                             // should fail because sender does not have enough hbars
                             contractCall(
-                                            CONTRACT,
-                                            TRANSFER_MULTIPLE_TOKENS,
-                                            transferList()
-                                                    .withAccountAmounts(
-                                                            accountAmount(sender, -1000 * ONE_HUNDRED_HBARS, false),
-                                                            accountAmount(receiver, 1000 * ONE_HUNDRED_HBARS, false))
-                                                    .build(),
-                                            EMPTY_TUPLE_ARRAY)
+                                    CONTRACT,
+                                    TRANSFER_MULTIPLE_TOKENS,
+                                    transferList()
+                                            .withAccountAmounts(
+                                                    accountAmount(sender, -1000 * ONE_HUNDRED_HBARS, false),
+                                                    accountAmount(receiver, 1000 * ONE_HUNDRED_HBARS, false))
+                                            .build(),
+                                    EMPTY_TUPLE_ARRAY)
                                     .payingWith(GENESIS)
                                     .via(cryptoTransferRevertBalanceTooLowTxn)
                                     .gas(GAS_TO_OFFER)
@@ -194,36 +200,38 @@ public class AtomicCryptoTransferHTSSuite {
                             // 40
                             // should succeed
                             contractCall(
-                                            CONTRACT,
-                                            TRANSFER_MULTIPLE_TOKENS,
-                                            transferList()
-                                                    .withAccountAmounts(
-                                                            accountAmount(sender, -amountToBeSent, false),
-                                                            accountAmount(
-                                                                    receiver, amountToBeSent - (10 * ONE_HBAR), false),
-                                                            accountAmount(
-                                                                    receiver2, amountToBeSent - (40 * ONE_HBAR), false))
-                                                    .build(),
-                                            EMPTY_TUPLE_ARRAY)
+                                    CONTRACT,
+                                    TRANSFER_MULTIPLE_TOKENS,
+                                    transferList()
+                                            .withAccountAmounts(
+                                                    accountAmount(sender, -amountToBeSent, false),
+                                                    accountAmount(
+                                                            receiver, amountToBeSent - (10 * ONE_HBAR), false),
+                                                    accountAmount(
+                                                            receiver2, amountToBeSent - (40 * ONE_HBAR), false))
+                                            .build(),
+                                    EMPTY_TUPLE_ARRAY)
                                     .payingWith(GENESIS)
                                     .via(cryptoTransferMultiTxn)
                                     .gas(GAS_TO_OFFER),
+                            // check there is no ERC20 event for HBAR transfer
+                            TransferTokenTest.validateErcEvent(getTxnRecord(cryptoTransferMultiTxn)),
                             // Simple transfer between sender, receiver and
                             // receiver2 for 50 * ONE_HBAR
                             // sender sends 50, receiver get 5 and receiver2 gets 40
                             // should fail because total does not add to 0
                             contractCall(
-                                            CONTRACT,
-                                            TRANSFER_MULTIPLE_TOKENS,
-                                            transferList()
-                                                    .withAccountAmounts(
-                                                            accountAmount(sender, -amountToBeSent, false),
-                                                            accountAmount(
-                                                                    receiver, amountToBeSent - (5 * ONE_HBAR), false),
-                                                            accountAmount(
-                                                                    receiver2, amountToBeSent - (40 * ONE_HBAR), false))
-                                                    .build(),
-                                            EMPTY_TUPLE_ARRAY)
+                                    CONTRACT,
+                                    TRANSFER_MULTIPLE_TOKENS,
+                                    transferList()
+                                            .withAccountAmounts(
+                                                    accountAmount(sender, -amountToBeSent, false),
+                                                    accountAmount(
+                                                            receiver, amountToBeSent - (5 * ONE_HBAR), false),
+                                                    accountAmount(
+                                                            receiver2, amountToBeSent - (40 * ONE_HBAR), false))
+                                            .build(),
+                                    EMPTY_TUPLE_ARRAY)
                                     .payingWith(GENESIS)
                                     .via(cryptoTransferRevertTxn)
                                     .gas(GAS_TO_OFFER)
@@ -312,39 +320,47 @@ public class AtomicCryptoTransferHTSSuite {
                             cryptoUpdate(SENDER).key(DELEGATE_KEY),
                             cryptoUpdate(RECEIVER).key(DELEGATE_KEY),
                             contractCall(
-                                            CONTRACT,
-                                            TRANSFER_MULTIPLE_TOKENS,
-                                            transferList()
-                                                    .withAccountAmounts(EMPTY_TUPLE_ARRAY)
-                                                    .build(),
-                                            wrapIntoTupleArray(tokenTransferList()
-                                                    .forToken(token)
-                                                    .withAccountAmounts(
-                                                            accountAmount(sender, -amountToBeSent, false),
-                                                            accountAmount(receiver, amountToBeSent, false))
-                                                    .build()))
+                                    CONTRACT,
+                                    TRANSFER_MULTIPLE_TOKENS,
+                                    transferList()
+                                            .withAccountAmounts(EMPTY_TUPLE_ARRAY)
+                                            .build(),
+                                    wrapIntoTupleArray(tokenTransferList()
+                                            .forToken(token)
+                                            .withAccountAmounts(
+                                                    accountAmount(sender, -amountToBeSent, false),
+                                                    accountAmount(receiver, amountToBeSent, false))
+                                            .build()))
                                     .payingWith(GENESIS)
                                     .via(cryptoTransferTxnForFungible)
                                     .gas(GAS_TO_OFFER),
+                            // check there is ERC20 event
+                            TransferTokenTest.validateErcEvent(
+                                    getTxnRecord(cryptoTransferTxnForFungible),
+                                    new TransferTokenTest.ReceiverAmount(
+                                            token::getTokenNum,
+                                            false,
+                                            () -> parsedToByteString(sender),
+                                            () -> parsedToByteString(receiver),
+                                            amountToBeSent)).andAllChildRecords(),
                             // Ensure that the transfer fails when the sender does not have the correct key
                             contractCall(
-                                            CONTRACT,
-                                            TRANSFER_MULTIPLE_TOKENS,
-                                            transferList()
-                                                    .withAccountAmounts(EMPTY_TUPLE_ARRAY)
-                                                    .build(),
-                                            wrapIntoTupleArray(tokenTransferList()
-                                                    .forToken(token)
-                                                    .withAccountAmounts(
-                                                            accountAmount(sender2, -amountToBeSent, false),
-                                                            accountAmount(receiver, amountToBeSent, false))
-                                                    .build()))
+                                    CONTRACT,
+                                    TRANSFER_MULTIPLE_TOKENS,
+                                    transferList()
+                                            .withAccountAmounts(EMPTY_TUPLE_ARRAY)
+                                            .build(),
+                                    wrapIntoTupleArray(tokenTransferList()
+                                            .forToken(token)
+                                            .withAccountAmounts(
+                                                    accountAmount(sender2, -amountToBeSent, false),
+                                                    accountAmount(receiver, amountToBeSent, false))
+                                            .build()))
                                     .payingWith(GENESIS)
                                     .via(cryptoTransferRevertNoKeyTxn)
                                     .hasKnownStatus(CONTRACT_REVERT_EXECUTED)
                                     .gas(GAS_TO_OFFER));
                 }),
-                getTxnRecord(cryptoTransferTxnForFungible).andAllChildRecords(),
                 getTokenInfo(FUNGIBLE_TOKEN).hasTotalSupply(TOTAL_SUPPLY),
                 getAccountBalance(RECEIVER).hasTokenBalance(FUNGIBLE_TOKEN, 50),
                 getAccountBalance(SENDER).hasTokenBalance(FUNGIBLE_TOKEN, 150),
@@ -398,8 +414,10 @@ public class AtomicCryptoTransferHTSSuite {
                 getContractInfo(CONTRACT).has(ContractInfoAsserts.contractWith().maxAutoAssociations(1)),
                 withOpContext((spec, opLog) -> {
                     final var token = spec.registry().getTokenID(FUNGIBLE_TOKEN);
+                    final var feeToken = spec.registry().getTokenID(FEE_TOKEN);
                     final var sender = spec.registry().getAccountID(SENDER);
                     final var receiver = spec.registry().getAccountID(RECEIVER);
+                    final var treasury = spec.registry().getAccountID(TOKEN_TREASURY);
                     final var amountToBeSent = 50L;
 
                     allRunFor(
@@ -408,22 +426,44 @@ public class AtomicCryptoTransferHTSSuite {
                             cryptoUpdate(SENDER).key(DELEGATE_KEY),
                             cryptoUpdate(RECEIVER).key(DELEGATE_KEY),
                             contractCall(
-                                            CONTRACT,
-                                            TRANSFER_MULTIPLE_TOKENS,
-                                            transferList()
-                                                    .withAccountAmounts(EMPTY_TUPLE_ARRAY)
-                                                    .build(),
-                                            wrapIntoTupleArray(tokenTransferList()
-                                                    .forToken(token)
-                                                    .withAccountAmounts(
-                                                            accountAmount(sender, -amountToBeSent, false),
-                                                            accountAmount(receiver, amountToBeSent, false))
-                                                    .build()))
+                                    CONTRACT,
+                                    TRANSFER_MULTIPLE_TOKENS,
+                                    transferList()
+                                            .withAccountAmounts(EMPTY_TUPLE_ARRAY)
+                                            .build(),
+                                    wrapIntoTupleArray(tokenTransferList()
+                                            .forToken(token)
+                                            .withAccountAmounts(
+                                                    accountAmount(sender, -amountToBeSent, false),
+                                                    accountAmount(receiver, amountToBeSent, false))
+                                            .build()))
                                     .payingWith(GENESIS)
                                     .via(cryptoTransferTxnForFungible)
-                                    .gas(GAS_TO_OFFER));
+                                    .gas(GAS_TO_OFFER),
+                            // check there is ERC20 event with fees
+                            TransferTokenTest.validateErcEvent(
+                                    getTxnRecord(cryptoTransferTxnForFungible),
+                                    new TransferTokenTest.ReceiverAmount(
+                                            feeToken::getTokenNum,
+                                            false,
+                                            () -> parsedToByteString(sender),
+                                            () -> parsedToByteString(treasury),
+                                            1L), // feeToken fixedHtsFee
+                                    new TransferTokenTest.ReceiverAmount(
+                                            token::getTokenNum,
+                                            false,
+                                            () -> parsedToByteString(sender),
+                                            () -> parsedToByteString(receiver),
+                                            amountToBeSent - (amountToBeSent / 10)), // transfer
+                                    new TransferTokenTest.ReceiverAmount(
+                                            token::getTokenNum,
+                                            false,
+                                            () -> parsedToByteString(sender),
+                                            () -> parsedToByteString(treasury),
+                                            amountToBeSent / 10) // fractionalFee
+                            ).andAllChildRecords()
+                    );
                 }),
-                getTxnRecord(cryptoTransferTxnForFungible).andAllChildRecords(),
                 getTokenInfo(FUNGIBLE_TOKEN).hasTotalSupply(TOTAL_SUPPLY),
                 getAccountBalance(RECEIVER).hasTokenBalance(FUNGIBLE_TOKEN, 45),
                 getAccountBalance(SENDER).hasTokenBalance(FUNGIBLE_TOKEN, 150),
@@ -483,9 +523,10 @@ public class AtomicCryptoTransferHTSSuite {
                         .logged(),
                 withOpContext((spec, opLog) -> {
                     final var token = spec.registry().getTokenID(NFT_TOKEN);
+                    final var feeToken = spec.registry().getTokenID(FEE_TOKEN);
                     final var sender = spec.registry().getAccountID(SENDER);
                     final var receiver = spec.registry().getAccountID(RECEIVER);
-                    final var amountToBeSent = 50L;
+                    final var treasury = spec.registry().getAccountID(TOKEN_TREASURY);
 
                     allRunFor(
                             spec,
@@ -493,22 +534,36 @@ public class AtomicCryptoTransferHTSSuite {
                             cryptoUpdate(SENDER).key(DELEGATE_KEY),
                             cryptoUpdate(RECEIVER).key(DELEGATE_KEY),
                             contractCall(
-                                            CONTRACT,
-                                            TRANSFER_MULTIPLE_TOKENS,
-                                            transferList()
-                                                    .withAccountAmounts(EMPTY_TUPLE_ARRAY)
-                                                    .build(),
-                                            wrapIntoTupleArray(tokenTransferList()
-                                                    .forToken(token)
-                                                    .withNftTransfers(nftTransfer(sender, receiver, 1L, false))
-                                                    .build()))
+                                    CONTRACT,
+                                    TRANSFER_MULTIPLE_TOKENS,
+                                    transferList()
+                                            .withAccountAmounts(EMPTY_TUPLE_ARRAY)
+                                            .build(),
+                                    wrapIntoTupleArray(tokenTransferList()
+                                            .forToken(token)
+                                            .withNftTransfers(nftTransfer(sender, receiver, 1L, false))
+                                            .build()))
                                     .payingWith(SENDER)
                                     .via(cryptoTransferTxnForNonFungible)
-                                    .gas(GAS_TO_OFFER));
+                                    .gas(GAS_TO_OFFER),
+                            // check there is ERC721 event with fees
+                            TransferTokenTest.validateErcEvent(
+                                    getTxnRecord(cryptoTransferTxnForNonFungible),
+                                    new TransferTokenTest.ReceiverAmount(
+                                            feeToken::getTokenNum,
+                                            false,
+                                            () -> parsedToByteString(receiver),
+                                            () -> parsedToByteString(treasury),
+                                            1L), // feeToken fixedHtsFee
+                                    new TransferTokenTest.ReceiverAmount(
+                                            token::getTokenNum,
+                                            true,
+                                            () -> parsedToByteString(sender),
+                                            () -> parsedToByteString(receiver),
+                                            1L) // transfer
+                            ).andAllChildRecords()
+                            );
                 }),
-                getTxnRecord(cryptoTransferTxnForNonFungible)
-                        .andAllChildRecords()
-                        .logged(),
                 getTokenInfo(NFT_TOKEN).hasTotalSupply(2),
                 getAccountInfo(RECEIVER).hasOwnedNfts(1),
                 getAccountBalance(RECEIVER).hasTokenBalance(NFT_TOKEN, 1),
@@ -569,35 +624,44 @@ public class AtomicCryptoTransferHTSSuite {
                             cryptoUpdate(SENDER).key(DELEGATE_KEY),
                             cryptoUpdate(RECEIVER).key(DELEGATE_KEY),
                             contractCall(
-                                            CONTRACT,
-                                            TRANSFER_MULTIPLE_TOKENS,
-                                            transferList()
-                                                    .withAccountAmounts(EMPTY_TUPLE_ARRAY)
-                                                    .build(),
-                                            wrapIntoTupleArray(tokenTransferList()
-                                                    .forToken(token)
-                                                    .withNftTransfers(nftTransfer(sender, receiver, 1L, false))
-                                                    .build()))
+                                    CONTRACT,
+                                    TRANSFER_MULTIPLE_TOKENS,
+                                    transferList()
+                                            .withAccountAmounts(EMPTY_TUPLE_ARRAY)
+                                            .build(),
+                                    wrapIntoTupleArray(tokenTransferList()
+                                            .forToken(token)
+                                            .withNftTransfers(nftTransfer(sender, receiver, 1L, false))
+                                            .build()))
                                     .payingWith(GENESIS)
                                     .via(cryptoTransferTxnForNft)
                                     .gas(GAS_TO_OFFER),
+                            // check there is ERC721 event
+                            TransferTokenTest.validateErcEvent(
+                                    getTxnRecord(cryptoTransferTxnForNft),
+                                    new TransferTokenTest.ReceiverAmount(
+                                            token::getTokenNum,
+                                            true,
+                                            () -> parsedToByteString(sender),
+                                            () -> parsedToByteString(receiver),
+                                            1L)
+                            ).andAllChildRecords(),
                             // Ensure that the transfer fails when the sender does not have the correct key
                             contractCall(
-                                            CONTRACT,
-                                            TRANSFER_MULTIPLE_TOKENS,
-                                            transferList()
-                                                    .withAccountAmounts(EMPTY_TUPLE_ARRAY)
-                                                    .build(),
-                                            wrapIntoTupleArray(tokenTransferList()
-                                                    .forToken(token)
-                                                    .withNftTransfers(nftTransfer(sender2, receiver, 1L, false))
-                                                    .build()))
+                                    CONTRACT,
+                                    TRANSFER_MULTIPLE_TOKENS,
+                                    transferList()
+                                            .withAccountAmounts(EMPTY_TUPLE_ARRAY)
+                                            .build(),
+                                    wrapIntoTupleArray(tokenTransferList()
+                                            .forToken(token)
+                                            .withNftTransfers(nftTransfer(sender2, receiver, 1L, false))
+                                            .build()))
                                     .payingWith(GENESIS)
                                     .via(cryptoTransferRevertNoKeyTxn)
                                     .hasKnownStatus(CONTRACT_REVERT_EXECUTED)
                                     .gas(GAS_TO_OFFER));
                 }),
-                getTxnRecord(cryptoTransferTxnForNft).andAllChildRecords().logged(),
                 getTokenInfo(NFT_TOKEN).hasTotalSupply(2),
                 getAccountInfo(RECEIVER).hasOwnedNfts(1),
                 getAccountBalance(RECEIVER).hasTokenBalance(NFT_TOKEN, 1),
@@ -674,38 +738,54 @@ public class AtomicCryptoTransferHTSSuite {
                             cryptoUpdate(RECEIVER).key(DELEGATE_KEY),
                             cryptoUpdate(RECEIVER2).key(DELEGATE_KEY),
                             contractCall(
-                                            CONTRACT,
-                                            TRANSFER_MULTIPLE_TOKENS,
-                                            transferList()
-                                                    .withAccountAmounts(
-                                                            accountAmount(fungibleTokenSender, -amountToBeSent, false),
-                                                            accountAmount(fungibleTokenReceiver, amountToBeSent, false))
-                                                    .build(),
-                                            tokenTransferLists()
-                                                    .withTokenTransferList(
-                                                            tokenTransferList()
-                                                                    .forToken(fungibleToken)
-                                                                    .withAccountAmounts(
-                                                                            accountAmount(
-                                                                                    fungibleTokenSender, -45L, false),
-                                                                            accountAmount(
-                                                                                    fungibleTokenReceiver, 45L, false))
-                                                                    .build(),
-                                                            tokenTransferList()
-                                                                    .forToken(nonFungibleToken)
-                                                                    .withNftTransfers(
-                                                                            nftTransfer(
-                                                                                    nonFungibleTokenSender,
-                                                                                    nonFungibleTokenReceiver,
-                                                                                    1L,
-                                                                                    false))
-                                                                    .build())
-                                                    .build())
+                                    CONTRACT,
+                                    TRANSFER_MULTIPLE_TOKENS,
+                                    transferList()
+                                            .withAccountAmounts(
+                                                    accountAmount(fungibleTokenSender, -amountToBeSent, false),
+                                                    accountAmount(fungibleTokenReceiver, amountToBeSent, false))
+                                            .build(),
+                                    tokenTransferLists()
+                                            .withTokenTransferList(
+                                                    tokenTransferList()
+                                                            .forToken(fungibleToken)
+                                                            .withAccountAmounts(
+                                                                    accountAmount(
+                                                                            fungibleTokenSender, -45L, false),
+                                                                    accountAmount(
+                                                                            fungibleTokenReceiver, 45L, false))
+                                                            .build(),
+                                                    tokenTransferList()
+                                                            .forToken(nonFungibleToken)
+                                                            .withNftTransfers(
+                                                                    nftTransfer(
+                                                                            nonFungibleTokenSender,
+                                                                            nonFungibleTokenReceiver,
+                                                                            1L,
+                                                                            false))
+                                                            .build())
+                                            .build())
                                     .payingWith(GENESIS)
                                     .via(cryptoTransferTxnForAll)
-                                    .gas(GAS_TO_OFFER));
+                                    .gas(GAS_TO_OFFER),
+                            // check there is ERC20/ERC721 event
+                            TransferTokenTest.validateErcEvent(
+                                    getTxnRecord(cryptoTransferTxnForAll),
+                                    new TransferTokenTest.ReceiverAmount(
+                                            fungibleToken::getTokenNum,
+                                            false,
+                                            () -> parsedToByteString(fungibleTokenSender),
+                                            () -> parsedToByteString(fungibleTokenReceiver),
+                                            45L),
+                                    new TransferTokenTest.ReceiverAmount(
+                                            nonFungibleToken::getTokenNum,
+                                            true,
+                                            () -> parsedToByteString(nonFungibleTokenSender),
+                                            () -> parsedToByteString(nonFungibleTokenReceiver),
+                                            1L)
+                            ).andAllChildRecords()
+                    );
                 }),
-                getTxnRecord(cryptoTransferTxnForAll).andAllChildRecords().logged(),
                 getTokenInfo(FUNGIBLE_TOKEN).hasTotalSupply(TOTAL_SUPPLY),
                 getAccountBalance(RECEIVER).hasTokenBalance(FUNGIBLE_TOKEN, 45),
                 getAccountBalance(SENDER).hasTokenBalance(FUNGIBLE_TOKEN, 155),
@@ -778,14 +858,14 @@ public class AtomicCryptoTransferHTSSuite {
                             // owner to receiver
                             // should fail
                             contractCall(
-                                            CONTRACT,
-                                            TRANSFER_MULTIPLE_TOKENS,
-                                            transferList()
-                                                    .withAccountAmounts(
-                                                            accountAmount(owner, -(allowance + 1), true),
-                                                            accountAmount(receiver, allowance + 1, true))
-                                                    .build(),
-                                            EMPTY_TUPLE_ARRAY)
+                                    CONTRACT,
+                                    TRANSFER_MULTIPLE_TOKENS,
+                                    transferList()
+                                            .withAccountAmounts(
+                                                    accountAmount(owner, -(allowance + 1), true),
+                                                    accountAmount(receiver, allowance + 1, true))
+                                            .build(),
+                                    EMPTY_TUPLE_ARRAY)
                                     .via(revertingTransferFromTxn)
                                     .hasKnownStatus(CONTRACT_REVERT_EXECUTED),
                             // Try to send allowance amount but turn off isApproval
@@ -793,58 +873,64 @@ public class AtomicCryptoTransferHTSSuite {
                             // This used to fail but now succeeds as the transaction is
                             // automatically retried as with the allowance
                             contractCall(
-                                            CONTRACT,
-                                            TRANSFER_MULTIPLE_TOKENS,
-                                            transferList()
-                                                    .withAccountAmounts(
-                                                            accountAmount(owner, -1L, false),
-                                                            accountAmount(receiver, 1L, false))
-                                                    .build(),
-                                            EMPTY_TUPLE_ARRAY)
+                                    CONTRACT,
+                                    TRANSFER_MULTIPLE_TOKENS,
+                                    transferList()
+                                            .withAccountAmounts(
+                                                    accountAmount(owner, -1L, false),
+                                                    accountAmount(receiver, 1L, false))
+                                            .build(),
+                                    EMPTY_TUPLE_ARRAY)
                                     .via(successfulTransferFromTxn)
                                     .hasKnownStatus(SUCCESS),
+                            // check there is no ERC20 event for HBAR transfer
+                            TransferTokenTest.validateErcEvent(getTxnRecord(successfulTransferFromTxn)),
                             // Try to send 1/2 of the allowance amount from owner to
                             // receiver
                             // should succeed as isApproval is true.
                             contractCall(
-                                            CONTRACT,
-                                            TRANSFER_MULTIPLE_TOKENS,
-                                            transferList()
-                                                    .withAccountAmounts(
-                                                            accountAmount(owner, -(allowance - 1) / 2, true),
-                                                            accountAmount(receiver, (allowance - 1) / 2, true))
-                                                    .build(),
-                                            EMPTY_TUPLE_ARRAY)
+                                    CONTRACT,
+                                    TRANSFER_MULTIPLE_TOKENS,
+                                    transferList()
+                                            .withAccountAmounts(
+                                                    accountAmount(owner, -(allowance - 1) / 2, true),
+                                                    accountAmount(receiver, (allowance - 1) / 2, true))
+                                            .build(),
+                                    EMPTY_TUPLE_ARRAY)
                                     .via(successfulTransferFromTxn2)
                                     .hasKnownStatus(SUCCESS),
+                            // check there is no ERC20 event for HBAR transfer
+                            TransferTokenTest.validateErcEvent(getTxnRecord(successfulTransferFromTxn2)),
                             // Try to send second 1/2 of the allowance amount from
                             // owner to receiver
                             // should succeed as isApproval is true.
                             contractCall(
-                                            CONTRACT,
-                                            TRANSFER_MULTIPLE_TOKENS,
-                                            transferList()
-                                                    .withAccountAmounts(
-                                                            accountAmount(owner, -(allowance - 1) / 2, true),
-                                                            accountAmount(receiver, (allowance - 1) / 2, true))
-                                                    .build(),
-                                            EMPTY_TUPLE_ARRAY)
+                                    CONTRACT,
+                                    TRANSFER_MULTIPLE_TOKENS,
+                                    transferList()
+                                            .withAccountAmounts(
+                                                    accountAmount(owner, -(allowance - 1) / 2, true),
+                                                    accountAmount(receiver, (allowance - 1) / 2, true))
+                                            .build(),
+                                    EMPTY_TUPLE_ARRAY)
                                     .via(successfulTransferFromTxn3)
                                     .hasKnownStatus(SUCCESS),
+                            // check there is no ERC20 event for HBAR transfer
+                            TransferTokenTest.validateErcEvent(getTxnRecord(successfulTransferFromTxn3)),
                             getAccountDetails(OWNER)
                                     .payingWith(GENESIS)
                                     .has(accountDetailsWith().noAllowances()),
                             // Try to send 1 hbar from owner to receiver
                             // should fail as all allowance has been spent
                             contractCall(
-                                            CONTRACT,
-                                            TRANSFER_MULTIPLE_TOKENS,
-                                            transferList()
-                                                    .withAccountAmounts(
-                                                            accountAmount(owner, -1L, true),
-                                                            accountAmount(receiver, 1L, true))
-                                                    .build(),
-                                            EMPTY_TUPLE_ARRAY)
+                                    CONTRACT,
+                                    TRANSFER_MULTIPLE_TOKENS,
+                                    transferList()
+                                            .withAccountAmounts(
+                                                    accountAmount(owner, -1L, true),
+                                                    accountAmount(receiver, 1L, true))
+                                            .build(),
+                                    EMPTY_TUPLE_ARRAY)
                                     .via(revertingTransferFromTxn2)
                                     .hasKnownStatus(CONTRACT_REVERT_EXECUTED));
                 }),
@@ -943,17 +1029,17 @@ public class AtomicCryptoTransferHTSSuite {
                             // owner to receiver
                             // should fail
                             contractCall(
-                                            CONTRACT,
-                                            TRANSFER_MULTIPLE_TOKENS,
-                                            transferList()
-                                                    .withAccountAmounts(EMPTY_TUPLE_ARRAY)
-                                                    .build(),
-                                            wrapIntoTupleArray(tokenTransferList()
-                                                    .forToken(token)
-                                                    .withAccountAmounts(
-                                                            accountAmount(owner, -(allowance + 1), true),
-                                                            accountAmount(receiver, allowance + 1, true))
-                                                    .build()))
+                                    CONTRACT,
+                                    TRANSFER_MULTIPLE_TOKENS,
+                                    transferList()
+                                            .withAccountAmounts(EMPTY_TUPLE_ARRAY)
+                                            .build(),
+                                    wrapIntoTupleArray(tokenTransferList()
+                                            .forToken(token)
+                                            .withAccountAmounts(
+                                                    accountAmount(owner, -(allowance + 1), true),
+                                                    accountAmount(receiver, allowance + 1, true))
+                                            .build()))
                                     .via(revertingTransferFromTxnFungible)
                                     .gas(GAS_FOR_AUTO_ASSOCIATING_CALLS)
                                     .hasKnownStatus(CONTRACT_REVERT_EXECUTED),
@@ -962,73 +1048,103 @@ public class AtomicCryptoTransferHTSSuite {
                             // Used to fail as but code has been changed to automatically
                             // retry with a possible allowance
                             contractCall(
-                                            CONTRACT,
-                                            TRANSFER_MULTIPLE_TOKENS,
-                                            transferList()
-                                                    .withAccountAmounts(EMPTY_TUPLE_ARRAY)
-                                                    .build(),
-                                            wrapIntoTupleArray(tokenTransferList()
-                                                    .forToken(token)
-                                                    .withAccountAmounts(
-                                                            accountAmount(owner, -1L, false),
-                                                            accountAmount(receiver, 1L, false))
-                                                    .build()))
+                                    CONTRACT,
+                                    TRANSFER_MULTIPLE_TOKENS,
+                                    transferList()
+                                            .withAccountAmounts(EMPTY_TUPLE_ARRAY)
+                                            .build(),
+                                    wrapIntoTupleArray(tokenTransferList()
+                                            .forToken(token)
+                                            .withAccountAmounts(
+                                                    accountAmount(owner, -1L, false),
+                                                    accountAmount(receiver, 1L, false))
+                                            .build()))
                                     .via(successfulTransferFromTxn)
                                     .gas(GAS_FOR_AUTO_ASSOCIATING_CALLS)
                                     .hasKnownStatus(SUCCESS),
+                            // check there is ERC20 event
+                            TransferTokenTest.validateErcEvent(
+                                    getTxnRecord(successfulTransferFromTxn),
+                                    new TransferTokenTest.ReceiverAmount(
+                                            token::getTokenNum,
+                                            false,
+                                            () -> parsedToByteString(owner),
+                                            () -> parsedToByteString(receiver),
+                                            1L)
+                            ).andAllChildRecords(),
                             // Try to send 1/2 of the allowance amount from owner to
                             // receiver
                             // should succeed as isApproval is true.
                             contractCall(
-                                            CONTRACT,
-                                            TRANSFER_MULTIPLE_TOKENS,
-                                            transferList()
-                                                    .withAccountAmounts(EMPTY_TUPLE_ARRAY)
-                                                    .build(),
-                                            wrapIntoTupleArray(tokenTransferList()
-                                                    .forToken(token)
-                                                    .withAccountAmounts(
-                                                            accountAmount(owner, -(allowance - 1) / 2, true),
-                                                            accountAmount(receiver, (allowance - 1) / 2, true))
-                                                    .build()))
+                                    CONTRACT,
+                                    TRANSFER_MULTIPLE_TOKENS,
+                                    transferList()
+                                            .withAccountAmounts(EMPTY_TUPLE_ARRAY)
+                                            .build(),
+                                    wrapIntoTupleArray(tokenTransferList()
+                                            .forToken(token)
+                                            .withAccountAmounts(
+                                                    accountAmount(owner, -(allowance - 1) / 2, true),
+                                                    accountAmount(receiver, (allowance - 1) / 2, true))
+                                            .build()))
                                     .via(successfulTransferFromTxn2)
                                     .gas(GAS_FOR_AUTO_ASSOCIATING_CALLS)
                                     .hasKnownStatus(SUCCESS),
+                            // check there is ERC20 event
+                            TransferTokenTest.validateErcEvent(
+                                    getTxnRecord(successfulTransferFromTxn2),
+                                    new TransferTokenTest.ReceiverAmount(
+                                            token::getTokenNum,
+                                            false,
+                                            () -> parsedToByteString(owner),
+                                            () -> parsedToByteString(receiver),
+                                            (allowance - 1) / 2)
+                            ).andAllChildRecords(),
                             // Try to send second 1/2 of the allowance amount from
                             // owner to receiver
                             // should succeed as isApproval is true.
                             contractCall(
-                                            CONTRACT,
-                                            TRANSFER_MULTIPLE_TOKENS,
-                                            transferList()
-                                                    .withAccountAmounts(EMPTY_TUPLE_ARRAY)
-                                                    .build(),
-                                            wrapIntoTupleArray(tokenTransferList()
-                                                    .forToken(token)
-                                                    .withAccountAmounts(
-                                                            accountAmount(owner, -(allowance - 1) / 2, true),
-                                                            accountAmount(receiver, (allowance - 1) / 2, true))
-                                                    .build()))
+                                    CONTRACT,
+                                    TRANSFER_MULTIPLE_TOKENS,
+                                    transferList()
+                                            .withAccountAmounts(EMPTY_TUPLE_ARRAY)
+                                            .build(),
+                                    wrapIntoTupleArray(tokenTransferList()
+                                            .forToken(token)
+                                            .withAccountAmounts(
+                                                    accountAmount(owner, -(allowance - 1) / 2, true),
+                                                    accountAmount(receiver, (allowance - 1) / 2, true))
+                                            .build()))
                                     .via(successfulTransferFromTxn3)
                                     .gas(GAS_FOR_AUTO_ASSOCIATING_CALLS)
                                     .hasKnownStatus(SUCCESS),
+                            // check there is ERC20 event
+                            TransferTokenTest.validateErcEvent(
+                                    getTxnRecord(successfulTransferFromTxn3),
+                                    new TransferTokenTest.ReceiverAmount(
+                                            token::getTokenNum,
+                                            false,
+                                            () -> parsedToByteString(owner),
+                                            () -> parsedToByteString(receiver),
+                                            (allowance - 1) / 2)
+                            ).andAllChildRecords(),
                             getAccountDetails(OWNER)
                                     .payingWith(GENESIS)
                                     .has(accountDetailsWith().noAllowances()),
                             // Try to send 1 token from owner to receiver
                             // should fail as all allowance has been spent
                             contractCall(
-                                            CONTRACT,
-                                            TRANSFER_MULTIPLE_TOKENS,
-                                            transferList()
-                                                    .withAccountAmounts(EMPTY_TUPLE_ARRAY)
-                                                    .build(),
-                                            wrapIntoTupleArray(tokenTransferList()
-                                                    .forToken(token)
-                                                    .withAccountAmounts(
-                                                            accountAmount(owner, -1L, true),
-                                                            accountAmount(receiver, 1L, true))
-                                                    .build()))
+                                    CONTRACT,
+                                    TRANSFER_MULTIPLE_TOKENS,
+                                    transferList()
+                                            .withAccountAmounts(EMPTY_TUPLE_ARRAY)
+                                            .build(),
+                                    wrapIntoTupleArray(tokenTransferList()
+                                            .forToken(token)
+                                            .withAccountAmounts(
+                                                    accountAmount(owner, -1L, true),
+                                                    accountAmount(receiver, 1L, true))
+                                            .build()))
                                     .via(revertingTransferFromTxn2)
                                     .hasKnownStatus(CONTRACT_REVERT_EXECUTED));
                 }),
@@ -1118,32 +1234,43 @@ public class AtomicCryptoTransferHTSSuite {
                             spec,
                             // trying to transfer NFT that is not approved
                             contractCall(
-                                            CONTRACT,
-                                            TRANSFER_MULTIPLE_TOKENS,
-                                            transferList()
-                                                    .withAccountAmounts(EMPTY_TUPLE_ARRAY)
-                                                    .build(),
-                                            wrapIntoTupleArray(tokenTransferList()
-                                                    .forToken(token)
-                                                    .withNftTransfers(nftTransfer(owner, receiver, 1L, true))
-                                                    .build()))
+                                    CONTRACT,
+                                    TRANSFER_MULTIPLE_TOKENS,
+                                    transferList()
+                                            .withAccountAmounts(EMPTY_TUPLE_ARRAY)
+                                            .build(),
+                                    wrapIntoTupleArray(tokenTransferList()
+                                            .forToken(token)
+                                            .withNftTransfers(nftTransfer(owner, receiver, 1L, true))
+                                            .build()))
                                     .via(revertingTransferFromTxnNft)
                                     .gas(GAS_FOR_AUTO_ASSOCIATING_CALLS)
                                     .hasKnownStatus(CONTRACT_REVERT_EXECUTED),
                             // transfer allowed NFT
                             contractCall(
-                                            CONTRACT,
-                                            TRANSFER_MULTIPLE_TOKENS,
-                                            transferList()
-                                                    .withAccountAmounts(EMPTY_TUPLE_ARRAY)
-                                                    .build(),
-                                            wrapIntoTupleArray(tokenTransferList()
-                                                    .forToken(token)
-                                                    .withNftTransfers(nftTransfer(owner, receiver, 2L, true))
-                                                    .build()))
+                                    CONTRACT,
+                                    TRANSFER_MULTIPLE_TOKENS,
+                                    transferList()
+                                            .withAccountAmounts(EMPTY_TUPLE_ARRAY)
+                                            .build(),
+                                    wrapIntoTupleArray(tokenTransferList()
+                                            .forToken(token)
+                                            .withNftTransfers(nftTransfer(owner, receiver, 2L, true))
+                                            .build()))
                                     .via(successfulTransferFromTxn)
                                     .gas(GAS_FOR_AUTO_ASSOCIATING_CALLS)
-                                    .hasKnownStatus(SUCCESS));
+                                    .hasKnownStatus(SUCCESS),
+                            // check there is ERC721 event
+                            TransferTokenTest.validateErcEvent(
+                                    getTxnRecord(successfulTransferFromTxn),
+                                    new TransferTokenTest.ReceiverAmount(
+                                            token::getTokenNum,
+                                            true,
+                                            () -> parsedToByteString(owner),
+                                            () -> parsedToByteString(receiver),
+                                            2L)
+                            ).andAllChildRecords()
+                    );
                 }),
                 childRecordsCheck(
                         revertingTransferFromTxnNft,
@@ -1203,20 +1330,31 @@ public class AtomicCryptoTransferHTSSuite {
                     allRunFor(
                             spec,
                             contractCall(
-                                            CONTRACT,
-                                            TRANSFER_MULTIPLE_TOKENS,
-                                            transferList()
-                                                    .withAccountAmounts(EMPTY_TUPLE_ARRAY)
-                                                    .build(),
-                                            wrapIntoTupleArray(tokenTransferList()
-                                                    .forToken(token)
-                                                    .withAccountAmounts(
-                                                            accountAmount(owner, -allowance, true),
-                                                            accountAmount(receiver, allowance, true))
-                                                    .build()))
+                                    CONTRACT,
+                                    TRANSFER_MULTIPLE_TOKENS,
+                                    transferList()
+                                            .withAccountAmounts(EMPTY_TUPLE_ARRAY)
+                                            .build(),
+                                    wrapIntoTupleArray(tokenTransferList()
+                                            .forToken(token)
+                                            .withAccountAmounts(
+                                                    accountAmount(owner, -allowance, true),
+                                                    accountAmount(receiver, allowance, true))
+                                            .build()))
                                     .via(successfulTransferFromTxn)
                                     .gas(GAS_FOR_AUTO_ASSOCIATING_CALLS)
-                                    .hasKnownStatus(SUCCESS));
+                                    .hasKnownStatus(SUCCESS),
+                            // check there is ERC20 event
+                            TransferTokenTest.validateErcEvent(
+                                    getTxnRecord(successfulTransferFromTxn),
+                                    new TransferTokenTest.ReceiverAmount(
+                                            token::getTokenNum,
+                                            false,
+                                            () -> parsedToByteString(owner),
+                                            () -> parsedToByteString(receiver),
+                                            allowance)
+                            ).andAllChildRecords()
+                            );
                 }));
     }
 
@@ -1240,14 +1378,14 @@ public class AtomicCryptoTransferHTSSuite {
                             newKeyNamed(DELEGATE_KEY).shape(DELEGATE_CONTRACT_KEY_SHAPE.signedWith(sigs(ON, CONTRACT))),
                             cryptoUpdate(SENDER).key(DELEGATE_KEY),
                             contractCall(
-                                            CONTRACT,
-                                            TRANSFER_MULTIPLE_TOKENS,
-                                            transferList()
-                                                    .withAccountAmounts(
-                                                            accountAmount(sender, -amountToBeSent, false),
-                                                            accountAmount(receiver, amountToBeSent, false))
-                                                    .build(),
-                                            EMPTY_TUPLE_ARRAY)
+                                    CONTRACT,
+                                    TRANSFER_MULTIPLE_TOKENS,
+                                    transferList()
+                                            .withAccountAmounts(
+                                                    accountAmount(sender, -amountToBeSent, false),
+                                                    accountAmount(receiver, amountToBeSent, false))
+                                            .build(),
+                                    EMPTY_TUPLE_ARRAY)
                                     .payingWith(GENESIS)
                                     .hasKnownStatus(CONTRACT_REVERT_EXECUTED)
                                     .via(failedTransferFromTxn)
@@ -1283,14 +1421,14 @@ public class AtomicCryptoTransferHTSSuite {
                             newKeyNamed(DELEGATE_KEY).shape(DELEGATE_CONTRACT_KEY_SHAPE.signedWith(sigs(ON, CONTRACT))),
                             cryptoUpdate(SENDER).key(DELEGATE_KEY),
                             contractCall(
-                                            CONTRACT,
-                                            TRANSFER_MULTIPLE_TOKENS_DELEGATE_CALL,
-                                            transferList()
-                                                    .withAccountAmounts(
-                                                            accountAmount(sender, -amountToBeSent, false),
-                                                            accountAmount(receiver, amountToBeSent, false))
-                                                    .build(),
-                                            EMPTY_TUPLE_ARRAY)
+                                    CONTRACT,
+                                    TRANSFER_MULTIPLE_TOKENS_DELEGATE_CALL,
+                                    transferList()
+                                            .withAccountAmounts(
+                                                    accountAmount(sender, -amountToBeSent, false),
+                                                    accountAmount(receiver, amountToBeSent, false))
+                                            .build(),
+                                    EMPTY_TUPLE_ARRAY)
                                     .payingWith(GENESIS)
                                     .hasKnownStatus(CONTRACT_REVERT_EXECUTED)
                                     .via(failedTransferFromTxn)
@@ -1305,7 +1443,7 @@ public class AtomicCryptoTransferHTSSuite {
     final Stream<DynamicTest> cryptoTransferSpecialAccounts() {
         final var cryptoTransferTxn = "cryptoTransferTxn";
         return hapiTest(
-                cryptoCreate(RECEIVER).balance(1 * ONE_HUNDRED_HBARS).receiverSigRequired(true),
+                cryptoCreate(RECEIVER).balance(ONE_HUNDRED_HBARS).receiverSigRequired(true),
                 uploadInitCode(CONTRACT),
                 contractCreate(CONTRACT).maxAutomaticTokenAssociations(1),
                 getContractInfo(CONTRACT)
@@ -1320,32 +1458,32 @@ public class AtomicCryptoTransferHTSSuite {
                     allRunFor(
                             spec,
                             contractCall(
-                                            CONTRACT,
-                                            TRANSFER_MULTIPLE_TOKENS,
-                                            transferList()
-                                                    .withAccountAmounts(
-                                                            accountAmount(senderStaking, -amountToBeSent, false),
-                                                            accountAmount(receiver, amountToBeSent, false))
-                                                    .build(),
-                                            EMPTY_TUPLE_ARRAY)
+                                    CONTRACT,
+                                    TRANSFER_MULTIPLE_TOKENS,
+                                    transferList()
+                                            .withAccountAmounts(
+                                                    accountAmount(senderStaking, -amountToBeSent, false),
+                                                    accountAmount(receiver, amountToBeSent, false))
+                                            .build(),
+                                    EMPTY_TUPLE_ARRAY)
                                     .payingWith(GENESIS)
                                     .via(cryptoTransferTxn)
                                     .hasKnownStatus(CONTRACT_REVERT_EXECUTED),
                             contractCall(
-                                            CONTRACT,
-                                            TRANSFER_MULTIPLE_TOKENS,
-                                            transferList()
-                                                    .withAccountAmounts(
-                                                            accountAmount(senderReward, -amountToBeSent, false),
-                                                            accountAmount(receiver, amountToBeSent, false))
-                                                    .build(),
-                                            EMPTY_TUPLE_ARRAY)
+                                    CONTRACT,
+                                    TRANSFER_MULTIPLE_TOKENS,
+                                    transferList()
+                                            .withAccountAmounts(
+                                                    accountAmount(senderReward, -amountToBeSent, false),
+                                                    accountAmount(receiver, amountToBeSent, false))
+                                            .build(),
+                                    EMPTY_TUPLE_ARRAY)
                                     .payingWith(GENESIS)
                                     .via(cryptoTransferTxn)
                                     .hasKnownStatus(CONTRACT_REVERT_EXECUTED));
                 }),
                 getTxnRecord(cryptoTransferTxn).andAllChildRecords().logged(),
-                getAccountBalance(RECEIVER).hasTinyBars(1 * ONE_HUNDRED_HBARS),
+                getAccountBalance(RECEIVER).hasTinyBars(ONE_HUNDRED_HBARS),
                 childRecordsCheck(
                         cryptoTransferTxn,
                         CONTRACT_REVERT_EXECUTED,
@@ -1368,7 +1506,6 @@ public class AtomicCryptoTransferHTSSuite {
     final Stream<DynamicTest> blockCryptoTransferForPermittedDelegates() {
         final var blockCryptoTransferForPermittedDelegates = "blockCryptoTransferForPermittedDelegates";
         final AtomicLong whitelistedCalleeMirrorNum = new AtomicLong();
-        final AtomicReference<String> whitelistedCalleeMirrorAddr = new AtomicReference<>();
 
         return hapiTest(
                 cryptoCreate(SENDER).balance(10 * ONE_HUNDRED_HBARS),
@@ -1384,7 +1521,6 @@ public class AtomicCryptoTransferHTSSuite {
                 uploadInitCode(CONTRACT),
                 contractCreate(CONTRACT).adminKey(DEFAULT_PAYER).exposingContractIdTo(id -> {
                     whitelistedCalleeMirrorNum.set(id.getContractNum());
-                    whitelistedCalleeMirrorAddr.set(asHexedSolidityAddress(id));
                 }),
                 sourcing(() -> overriding(
                         "contracts.permittedDelegateCallers", String.valueOf(whitelistedCalleeMirrorNum.get()))),
@@ -1397,17 +1533,17 @@ public class AtomicCryptoTransferHTSSuite {
                     allRunFor(
                             spec,
                             contractCall(
-                                            CONTRACT,
-                                            TRANSFER_MULTIPLE_TOKENS,
-                                            transferList()
-                                                    .withAccountAmounts(EMPTY_TUPLE_ARRAY)
-                                                    .build(),
-                                            wrapIntoTupleArray(tokenTransferList()
-                                                    .forToken(token)
-                                                    .withAccountAmounts(
-                                                            accountAmount(sender, -amountToBeSent, false),
-                                                            accountAmount(receiver, amountToBeSent, false))
-                                                    .build()))
+                                    CONTRACT,
+                                    TRANSFER_MULTIPLE_TOKENS,
+                                    transferList()
+                                            .withAccountAmounts(EMPTY_TUPLE_ARRAY)
+                                            .build(),
+                                    wrapIntoTupleArray(tokenTransferList()
+                                            .forToken(token)
+                                            .withAccountAmounts(
+                                                    accountAmount(sender, -amountToBeSent, false),
+                                                    accountAmount(receiver, amountToBeSent, false))
+                                            .build()))
                                     .payingWith(DEFAULT_PAYER)
                                     .via(blockCryptoTransferForPermittedDelegates)
                                     .hasKnownStatus(CONTRACT_REVERT_EXECUTED)
@@ -1441,17 +1577,21 @@ public class AtomicCryptoTransferHTSSuite {
                     allRunFor(
                             spec,
                             contractCall(
-                                            CONTRACT,
-                                            TRANSFER_MULTIPLE_TOKENS,
-                                            transferList()
-                                                    .withAccountAmounts(
-                                                            accountAmount(contract, -amountToBeSent, false),
-                                                            accountAmount(receiver, amountToBeSent, false))
-                                                    .build(),
-                                            EMPTY_TUPLE_ARRAY)
+                                    CONTRACT,
+                                    TRANSFER_MULTIPLE_TOKENS,
+                                    transferList()
+                                            .withAccountAmounts(
+                                                    accountAmount(contract, -amountToBeSent, false),
+                                                    accountAmount(receiver, amountToBeSent, false))
+                                            .build(),
+                                    EMPTY_TUPLE_ARRAY)
                                     .payingWith(GENESIS)
                                     .via(nullAdminKeyXferTxn)
-                                    .gas(GAS_TO_OFFER));
+                                    .gas(GAS_TO_OFFER),
+                            // check there is no ERC20 event for HRAB transfer
+                            TransferTokenTest.validateErcEvent(
+                                    getTxnRecord(nullAdminKeyXferTxn)).andAllChildRecords()
+                            );
                 }),
                 childRecordsCheck(
                         nullAdminKeyXferTxn,

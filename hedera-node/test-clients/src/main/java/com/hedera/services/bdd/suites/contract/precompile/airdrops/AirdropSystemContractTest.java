@@ -42,6 +42,8 @@ import org.junit.jupiter.api.Tag;
 @HapiTestLifecycle
 public class AirdropSystemContractTest {
 
+    // TODO covert with ERC?
+
     @Contract(contract = "Airdrop", creationGas = 20_000_000L)
     static SpecContract airdropContract;
 
