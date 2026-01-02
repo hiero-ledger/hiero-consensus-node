@@ -200,7 +200,7 @@ public record DispatchOptions<T extends StreamBuilder>(
             @NonNull final TransactionBody body,
             @NonNull final Class<T> streamBuilderType) {
         return new DispatchOptions<>(
-                Commit.IMMEDIATELY,
+                Commit.WITH_PARENT,
                 payerId,
                 body,
                 UsePresetTxnId.NO,

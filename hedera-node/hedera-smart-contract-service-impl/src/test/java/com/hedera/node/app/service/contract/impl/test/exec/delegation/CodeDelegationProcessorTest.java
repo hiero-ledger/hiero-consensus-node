@@ -6,7 +6,13 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrowsExactly;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
 
 import com.hedera.node.app.hapi.utils.ethereum.CodeDelegation;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxSigs;
@@ -24,11 +30,24 @@ import org.hyperledger.besu.evm.account.MutableAccount;
 import org.hyperledger.besu.evm.worldstate.WorldUpdater;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
 import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class CodeDelegationProcessorTest {
+
+    @Mock
+    private WorldUpdater world;
+
+    @Mock
+    private HederaEvmTransaction tx;
+
+    @Mock
+    private CodeDelegation del;
+
+    @Mock
+    private ProxyWorldUpdater proxyWorldUpdater;
 
     private static final long CHAIN_ID = 298L;
     private static final BigInteger HALF_ORDER =
@@ -45,8 +64,6 @@ class CodeDelegationProcessorTest {
 
     @Test
     void processReturnsWhenNoDelegations() {
-        final var world = mock(WorldUpdater.class);
-        final var tx = mock(HederaEvmTransaction.class);
         when(tx.codeDelegations()).thenReturn(null);
 
         final var p = new CodeDelegationProcessor(CHAIN_ID);
@@ -58,106 +75,85 @@ class CodeDelegationProcessorTest {
 
     @Test
     void skipsWhenChainIdMismatch() {
-        final var world = mock(WorldUpdater.class);
-        final var tx = mock(HederaEvmTransaction.class);
-        final var del = mock(CodeDelegation.class);
-
         when(tx.codeDelegations()).thenReturn(List.of(del));
         when(del.getChainId()).thenReturn(CHAIN_ID + 1);
+        when(world.updater()).thenReturn(proxyWorldUpdater);
 
         final var p = new CodeDelegationProcessor(CHAIN_ID);
         final var result = p.process(world, tx);
 
         assertNotNull(result);
-        verifyNoInteractions(world);
+        verify(proxyWorldUpdater).commit();
     }
 
     @Test
     void skipsWhenNonceIsMax() {
-        final var world = mock(WorldUpdater.class);
-        final var tx = mock(HederaEvmTransaction.class);
-        final var del = mock(CodeDelegation.class);
-
         when(tx.codeDelegations()).thenReturn(List.of(del));
         when(del.getChainId()).thenReturn(CHAIN_ID);
         when(del.nonce()).thenReturn(Account.MAX_NONCE);
+        when(world.updater()).thenReturn(proxyWorldUpdater);
 
         final var p = new CodeDelegationProcessor(CHAIN_ID);
         final var result = p.process(world, tx);
 
         assertNotNull(result);
-        verifyNoInteractions(world);
+        verify(proxyWorldUpdater).commit();
     }
 
     @Test
     void skipsWhenSAboveHalfOrder() {
-        final var world = mock(WorldUpdater.class);
-        final var tx = mock(HederaEvmTransaction.class);
-        final var del = mock(CodeDelegation.class);
-
         when(tx.codeDelegations()).thenReturn(List.of(del));
         when(del.getChainId()).thenReturn(CHAIN_ID);
         when(del.nonce()).thenReturn(0L);
         when(del.getS()).thenReturn(HALF_ORDER.add(BigInteger.ONE));
+        when(world.updater()).thenReturn(proxyWorldUpdater);
 
         final var p = new CodeDelegationProcessor(CHAIN_ID);
         final var result = p.process(world, tx);
 
         assertNotNull(result);
-        verifyNoInteractions(world);
+        verify(proxyWorldUpdater).commit();
     }
 
     @Test
     void skipsWhenRAboveHalfOrder() {
-        final var world = mock(WorldUpdater.class);
-        final var tx = mock(HederaEvmTransaction.class);
-        final var del = mock(CodeDelegation.class);
-
         when(tx.codeDelegations()).thenReturn(List.of(del));
         when(del.getChainId()).thenReturn(CHAIN_ID);
         when(del.nonce()).thenReturn(0L);
         when(del.getS()).thenReturn(HALF_ORDER.subtract(BigInteger.ONE));
-        when(del.getR()).thenReturn(HALF_ORDER.add(BigInteger.ONE));
+        when(world.updater()).thenReturn(proxyWorldUpdater);
 
         final var p = new CodeDelegationProcessor(CHAIN_ID);
         final var result = p.process(world, tx);
 
         assertNotNull(result);
-        verifyNoInteractions(world);
+        verify(proxyWorldUpdater).commit();
     }
 
     @Test
     void skipsWhenYParityTooBig() {
-        final var world = mock(WorldUpdater.class);
-        final var tx = mock(HederaEvmTransaction.class);
-        final var del = mock(CodeDelegation.class);
-
         when(tx.codeDelegations()).thenReturn(List.of(del));
         when(del.getChainId()).thenReturn(CHAIN_ID);
         when(del.nonce()).thenReturn(0L);
         when(del.getS()).thenReturn(HALF_ORDER.subtract(BigInteger.ONE));
-        when(del.getR()).thenReturn(HALF_ORDER.subtract(BigInteger.ONE));
         when(del.getYParity()).thenReturn(2 ^ 8);
+        when(world.updater()).thenReturn(proxyWorldUpdater);
 
         final var p = new CodeDelegationProcessor(CHAIN_ID);
         final var result = p.process(world, tx);
 
         assertNotNull(result);
-        verifyNoInteractions(world);
+        verify(proxyWorldUpdater).commit();
     }
 
     @Test
     void skipsWhenAuthoritySignatureIsEmpty() {
-        final var world = mock(WorldUpdater.class);
-        final var tx = mock(HederaEvmTransaction.class);
-        final var del = mock(CodeDelegation.class);
-
         when(tx.codeDelegations()).thenReturn(List.of(del));
         when(del.getChainId()).thenReturn(CHAIN_ID);
         when(del.nonce()).thenReturn(0L);
         when(del.getS()).thenReturn(HALF_ORDER.subtract(BigInteger.ONE));
-        when(del.getR()).thenReturn(HALF_ORDER.subtract(BigInteger.ONE));
         when(del.getYParity()).thenReturn(2 ^ 8 - 1);
+        when(world.updater()).thenReturn(proxyWorldUpdater);
 
         try (MockedStatic<EthTxSigs> mocked = mockStatic(EthTxSigs.class)) {
             mocked.when(() -> EthTxSigs.extractAuthoritySignature(del)).thenReturn(Optional.empty());
@@ -166,16 +162,12 @@ class CodeDelegationProcessorTest {
             final var result = p.process(world, tx);
 
             assertNotNull(result);
-            verifyNoInteractions(world);
+            verify(proxyWorldUpdater).commit();
         }
     }
 
     @Test
     void throwsWhenAuthoritySignatureNull() {
-        final var world = mock(WorldUpdater.class);
-        final var tx = mock(HederaEvmTransaction.class);
-        final var del = mock(CodeDelegation.class);
-
         when(tx.codeDelegations()).thenReturn(List.of(del));
         when(del.getChainId()).thenReturn(CHAIN_ID);
         when(del.nonce()).thenReturn(0L);
@@ -195,9 +187,6 @@ class CodeDelegationProcessorTest {
 
     @Test
     void createsNewAccountAndDelegatesWhenMissingAndNonceZero() {
-        final var world = mock(ProxyWorldUpdater.class);
-        final var tx = mock(HederaEvmTransaction.class);
-        final var del = mock(CodeDelegation.class);
         final var acct = mock(MutableAccount.class);
 
         final var authAddr = Address.fromHexString("0x00000000000000000000000000000000000000AA");
@@ -208,12 +197,12 @@ class CodeDelegationProcessorTest {
         when(del.getChainId()).thenReturn(CHAIN_ID);
         when(del.nonce()).thenReturn(0L);
         when(del.getS()).thenReturn(BigInteger.ONE);
-        when(del.getR()).thenReturn(BigInteger.ONE);
         when(del.getYParity()).thenReturn(1);
         when(del.address()).thenReturn(contractAddr.toArray());
+        when(world.updater()).thenReturn(proxyWorldUpdater);
 
-        when(world.getAccount(authAddr)).thenReturn(null, acct);
-        when(world.createAccountWithCodeDelegationIndicator(authAddr, contractAddr))
+        when(proxyWorldUpdater.getAccount(authAddr)).thenReturn(null, acct);
+        when(proxyWorldUpdater.createAccountWithCodeDelegationIndicator(authAddr, contractAddr))
                 .thenReturn(true);
 
         try (MockedStatic<EthTxSigs> mocked = mockStatic(EthTxSigs.class)) {
@@ -224,18 +213,15 @@ class CodeDelegationProcessorTest {
             final var result = p.process(world, tx);
 
             assertNotNull(result);
-            verify(world, times(2)).getAccount(authAddr);
-            verify(world).createAccountWithCodeDelegationIndicator(authAddr, contractAddr);
+            verify(proxyWorldUpdater, times(2)).getAccount(authAddr);
+            verify(proxyWorldUpdater).createAccountWithCodeDelegationIndicator(authAddr, contractAddr);
             verify(acct).incrementNonce();
+            verify(proxyWorldUpdater).commit();
         }
     }
 
     @Test
     void skipsCreatingWhenMissingButNonceNonZero() {
-        final var world = mock(WorldUpdater.class);
-        final var tx = mock(HederaEvmTransaction.class);
-        final var del = mock(CodeDelegation.class);
-
         final var authAddr = Address.fromHexString("0x00000000000000000000000000000000000000AB");
         final var contractAddr = Address.fromHexString("0x00000000000000000000000000000000000000BB");
 
@@ -243,11 +229,11 @@ class CodeDelegationProcessorTest {
         when(del.getChainId()).thenReturn(CHAIN_ID);
         when(del.nonce()).thenReturn(7L);
         when(del.getS()).thenReturn(BigInteger.ONE);
-        when(del.getR()).thenReturn(BigInteger.ONE);
         when(del.getYParity()).thenReturn(1);
         when(del.address()).thenReturn(contractAddr.toArray());
+        when(world.updater()).thenReturn(proxyWorldUpdater);
 
-        when(world.getAccount(authAddr)).thenReturn(null);
+        when(proxyWorldUpdater.getAccount(authAddr)).thenReturn(null);
 
         try (MockedStatic<EthTxSigs> mocked = mockStatic(EthTxSigs.class)) {
             final var sig = mockAuthorityWithAddress(authAddr);
@@ -257,16 +243,13 @@ class CodeDelegationProcessorTest {
             final var result = p.process(world, tx);
 
             assertNotNull(result);
-            verify(world).getAccount(authAddr);
-            verify(world, never()).createAccount(any(Address.class));
+            verify(proxyWorldUpdater).getAccount(authAddr);
+            verify(proxyWorldUpdater, never()).createAccount(any(Address.class));
         }
     }
 
     @Test
     void updatesExistingAccountWithEmptyCodeAndMatchingNonce() {
-        final var world = mock(ProxyWorldUpdater.class);
-        final var tx = mock(HederaEvmTransaction.class);
-        final var del = mock(CodeDelegation.class);
         final var acct = mock(HederaEvmAccount.class);
 
         final var authAddr = Address.fromHexString("0x00000000000000000000000000000000000000AC");
@@ -277,15 +260,15 @@ class CodeDelegationProcessorTest {
         when(del.getChainId()).thenReturn(CHAIN_ID);
         when(del.nonce()).thenReturn(5L);
         when(del.getS()).thenReturn(BigInteger.ONE);
-        when(del.getR()).thenReturn(BigInteger.ONE);
         when(del.getYParity()).thenReturn(1);
         when(del.address()).thenReturn(contractAddr.toArray());
+        when(world.updater()).thenReturn(proxyWorldUpdater);
 
-        when(world.getAccount(authAddr)).thenReturn(acct);
+        when(proxyWorldUpdater.getAccount(authAddr)).thenReturn(acct);
         when(acct.getCode()).thenReturn(Bytes.EMPTY);
         when(acct.getNonce()).thenReturn(5L);
         when(acct.isRegularAccount()).thenReturn(true);
-        when(world.setAccountCodeDelegationIndicator(any(), any())).thenReturn(true);
+        when(proxyWorldUpdater.setAccountCodeDelegationIndicator(any(), any())).thenReturn(true);
 
         try (MockedStatic<EthTxSigs> mocked = mockStatic(EthTxSigs.class)) {
             final var sig = mockAuthorityWithAddress(authAddr);
@@ -295,17 +278,14 @@ class CodeDelegationProcessorTest {
             final var result = p.process(world, tx);
 
             assertNotNull(result);
-            verify(world).getAccount(authAddr);
-            verify(world, never()).createAccount(any(Address.class));
+            verify(proxyWorldUpdater).getAccount(authAddr);
+            verify(proxyWorldUpdater, never()).createAccount(any(Address.class));
             verify(acct).incrementNonce();
         }
     }
 
     @Test
     void blocksWhenExistingAccountHasNonDelegatedNonEmptyCode() {
-        final var world = mock(WorldUpdater.class);
-        final var tx = mock(HederaEvmTransaction.class);
-        final var del = mock(CodeDelegation.class);
         final var acct = mock(MutableAccount.class);
 
         final var authAddr = Address.fromHexString("0x00000000000000000000000000000000000000AD");
@@ -315,11 +295,11 @@ class CodeDelegationProcessorTest {
         when(del.getChainId()).thenReturn(CHAIN_ID);
         when(del.nonce()).thenReturn(1L);
         when(del.getS()).thenReturn(BigInteger.ONE);
-        when(del.getR()).thenReturn(BigInteger.ONE);
         when(del.getYParity()).thenReturn(1);
         when(del.address()).thenReturn(contractAddr.toArray());
+        when(world.updater()).thenReturn(proxyWorldUpdater);
 
-        when(world.getAccount(authAddr)).thenReturn(acct);
+        when(proxyWorldUpdater.getAccount(authAddr)).thenReturn(acct);
         when(acct.getCode()).thenReturn(Bytes.fromHexString("0xabcdef"));
 
         try (MockedStatic<EthTxSigs> mocked = mockStatic(EthTxSigs.class)) {
@@ -330,7 +310,7 @@ class CodeDelegationProcessorTest {
             final var result = p.process(world, tx);
 
             assertNotNull(result);
-            verify(world).getAccount(authAddr);
+            verify(proxyWorldUpdater).getAccount(authAddr);
             verify(acct, never()).setCode(any(Bytes.class));
             verify(acct, never()).incrementNonce();
         }
@@ -338,9 +318,6 @@ class CodeDelegationProcessorTest {
 
     @Test
     void skipsWhenExistingAccountNonceMismatch() {
-        final var world = mock(WorldUpdater.class);
-        final var tx = mock(HederaEvmTransaction.class);
-        final var del = mock(CodeDelegation.class);
         final var acct = mock(MutableAccount.class);
 
         final var authAddr = Address.fromHexString("0x00000000000000000000000000000000000000AE");
@@ -350,11 +327,11 @@ class CodeDelegationProcessorTest {
         when(del.getChainId()).thenReturn(CHAIN_ID);
         when(del.nonce()).thenReturn(9L);
         when(del.getS()).thenReturn(BigInteger.ONE);
-        when(del.getR()).thenReturn(BigInteger.ONE);
         when(del.getYParity()).thenReturn(1);
         when(del.address()).thenReturn(contractAddr.toArray());
 
-        when(world.getAccount(authAddr)).thenReturn(acct);
+        when(world.updater()).thenReturn(proxyWorldUpdater);
+        when(proxyWorldUpdater.getAccount(authAddr)).thenReturn(acct);
         when(acct.getCode()).thenReturn(Bytes.EMPTY);
         when(acct.getNonce()).thenReturn(8L);
 
@@ -366,7 +343,7 @@ class CodeDelegationProcessorTest {
             final var result = p.process(world, tx);
 
             assertNotNull(result);
-            verify(world).getAccount(authAddr);
+            verify(proxyWorldUpdater).getAccount(authAddr);
             verify(acct, never()).setCode(any(Bytes.class));
             verify(acct, never()).incrementNonce();
         }
@@ -374,8 +351,6 @@ class CodeDelegationProcessorTest {
 
     @Test
     void zeroAddressClearsCode() {
-        final var world = mock(ProxyWorldUpdater.class);
-        final var tx = mock(HederaEvmTransaction.class);
         final var del = mock(CodeDelegation.class);
         final var acct = mock(HederaEvmAccount.class);
 
@@ -386,15 +361,15 @@ class CodeDelegationProcessorTest {
         when(del.getChainId()).thenReturn(CHAIN_ID);
         when(del.nonce()).thenReturn(0L);
         when(del.getS()).thenReturn(BigInteger.ONE);
-        when(del.getR()).thenReturn(BigInteger.ONE);
         when(del.getYParity()).thenReturn(1);
         when(del.address()).thenReturn(contractAddr.toArray());
+        when(world.updater()).thenReturn(proxyWorldUpdater);
 
-        when(world.getAccount(zeroAddr)).thenReturn(acct);
+        when(proxyWorldUpdater.getAccount(zeroAddr)).thenReturn(acct);
         when(acct.getCode()).thenReturn(Bytes.EMPTY);
         when(acct.getNonce()).thenReturn(0L);
         when(acct.isRegularAccount()).thenReturn(true);
-        when(world.setAccountCodeDelegationIndicator(any(), any())).thenReturn(true);
+        when(proxyWorldUpdater.setAccountCodeDelegationIndicator(any(), any())).thenReturn(true);
 
         try (MockedStatic<EthTxSigs> mocked = mockStatic(EthTxSigs.class)) {
             final var sig = mockAuthorityWithAddress(zeroAddr);
@@ -404,7 +379,7 @@ class CodeDelegationProcessorTest {
             final var result = p.process(world, tx);
 
             assertNotNull(result);
-            verify(world).getAccount(zeroAddr);
+            verify(proxyWorldUpdater).getAccount(zeroAddr);
             verify(acct).incrementNonce();
         }
     }

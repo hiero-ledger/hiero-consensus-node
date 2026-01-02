@@ -6,8 +6,8 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.OK;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.selfDestructBeneficiariesFor;
 import static com.hedera.node.app.service.contract.impl.utils.SynthTxnUtils.synthHollowAccountCreation;
 import static com.hedera.node.app.spi.fees.NoopFeeCharging.DISPATCH_ONLY_NOOP_FEE_CHARGING;
-import static com.hedera.node.app.spi.workflows.DispatchOptions.independentChildDispatch;
 import static com.hedera.node.app.spi.workflows.DispatchOptions.setupDispatch;
+import static com.hedera.node.app.spi.workflows.DispatchOptions.stepDispatch;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountID;
@@ -30,6 +30,7 @@ import com.hedera.node.app.service.token.records.CryptoCreateStreamBuilder;
 import com.hedera.node.app.spi.workflows.DispatchOptions;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
+import com.hedera.node.app.spi.workflows.record.StreamBuilder.SignedTxCustomizer;
 import com.hedera.node.config.data.EntitiesConfig;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -154,9 +155,8 @@ public class HandleHederaNativeOperations implements HederaNativeOperations {
 
     /**
      * Returns the {@link DispatchOptions} to use.  If the transaction has a delegation address, it will
-     * dispatch an independent transaction that immediately writes to state but will create a child record.
-     * Otherwise, it will dispatch a transaction that is linked to the parent transaction and any state changes will
-     * be rolled back if the parent transaction fails.
+     * dispatch a child transaction.
+     * Otherwise, it will dispatch a preceding transaction.
      *
      * @param hasDelegationAddress whether the transaction has a delegation address
      * @param payerId the ID of the account that will pay for the transaction
@@ -166,12 +166,12 @@ public class HandleHederaNativeOperations implements HederaNativeOperations {
     private static DispatchOptions<CryptoCreateStreamBuilder> dispatchOptionsOf(
             final boolean hasDelegationAddress, @NonNull final AccountID payerId, @NonNull final TransactionBody body) {
         if (hasDelegationAddress) {
-            return independentChildDispatch(payerId, body, CryptoCreateStreamBuilder.class);
+            return stepDispatch(
+                    payerId, body, CryptoCreateStreamBuilder.class, SignedTxCustomizer.NOOP_SIGNED_TX_CUSTOMIZER);
         } else {
             return setupDispatch(payerId, body, CryptoCreateStreamBuilder.class, DISPATCH_ONLY_NOOP_FEE_CHARGING);
         }
     }
-
     /**
      * {@inheritDoc}
      */

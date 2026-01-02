@@ -36,6 +36,7 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.ethereumCryptoT
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenAssociate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
+import static com.hedera.services.bdd.spec.transactions.contract.HapiEthereumCall.fromSignedBytes;
 import static com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil.asHeadlongAddress;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromAccountToAlias;
 import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
@@ -48,6 +49,8 @@ import static com.hedera.services.bdd.spec.utilops.UtilVerbs.newKeyNamed;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.overriding;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
+import static com.hedera.services.bdd.spec.utilops.inventory.SpecKeyFromEcdsaFile.createAndLinkEcdsaKey;
+import static com.hedera.services.bdd.spec.utilops.inventory.SpecKeyFromEcdsaFile.ecdsaFrom;
 import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
 import static com.hedera.services.bdd.suites.HapiSuite.ETH_HASH_KEY;
 import static com.hedera.services.bdd.suites.HapiSuite.FIVE_HBARS;
@@ -124,6 +127,8 @@ import java.math.BigInteger;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
@@ -1330,5 +1335,31 @@ public class EthereumSuite {
                                         .substring(32)
                                         .toByteArray(),
                                 new byte[32])));
+    }
+
+    @HapiTest
+    final Stream<DynamicTest> eip7702Test() {
+        final var delegatedAddress =
+                ByteString.copyFrom(Objects.requireNonNull(unhex("0000000000000000000000000000000000068cDa")));
+        // These signed bytes represent an EIP-7702 transaction delegating to the above address signed by the key below
+        final byte[] signedBytes = unhex(
+                "04f8d18080847735940085a54f4c3c00830186a09415b39b77b9eb6a78ce284840ddff3e1954927b358502540be40080c0f85ef85c82012a940000000000000000000000000000000000068cda8080a0952a118381ba34bf2ead1816efe816340649fbda39ecdfd41a5ddf204e2ba87ea0149789d32d85949aebd8737bcfb9cec8cddb7d4d022fd0f9b5f4d4002a13f88d80a089e13599372f007eee0cf9e2def8d0c0907a5c4428723e0e4a017cfa0cab2256a03ac10e0faeb3787f0561f85fe028641ca89417b0f46e93a88cbaa18aa03dc6f7");
+        // This is the ECDSA secp256k1 key that corresponds to the address that signed the above transaction
+        final var ecdsaKey =
+                ecdsaFrom(new BigInteger("c22c3b87e71d5a702e6ad4bfbe7c324749ad39de6e40454ff98b7c5895686c3e", 16));
+
+        return hapiTest(
+                withOpContext((spec, opLog) -> createAndLinkEcdsaKey(
+                        spec, ecdsaKey, SECP_256K1_SOURCE_KEY, Optional.empty(), Optional.empty(), opLog)),
+                cryptoCreate(ACCOUNT).balance(10 * ONE_HUNDRED_HBARS),
+                // create the expected EOA address that signed the bytes above
+                cryptoTransfer(tinyBarsFromAccountToAlias(ACCOUNT, SECP_256K1_SOURCE_KEY, ONE_HUNDRED_HBARS, true))
+                        .via(AUTO_ACCOUNT_TRANSACTION_NAME)
+                        .logged(),
+                // This new method allows for the submission of pre-signed raw Ethereum transactions
+                fromSignedBytes(signedBytes).via("eip7702Txn"),
+                getTxnRecord("eip7702Txn").logged().andAllChildRecords(),
+                // check that the delegation took place
+                getAliasedAccountInfo(SECP_256K1_SOURCE_KEY).has(accountWith().delegationAddress(delegatedAddress)));
     }
 }

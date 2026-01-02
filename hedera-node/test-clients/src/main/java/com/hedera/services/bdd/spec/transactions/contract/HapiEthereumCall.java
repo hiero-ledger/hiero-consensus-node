@@ -79,6 +79,7 @@ public class HapiEthereumCall extends HapiBaseCall<HapiEthereumCall> {
     private boolean wrongRecId;
     private boolean isJumboTxn = false;
     private byte[] authorizationList = null;
+    private byte[] signedBytes = null;
 
     public HapiEthereumCall withExplicitParams(final Supplier<String> supplier) {
         explicitHexedParams = Optional.of(supplier);
@@ -89,6 +90,11 @@ public class HapiEthereumCall extends HapiBaseCall<HapiEthereumCall> {
         HapiEthereumCall call = new HapiEthereumCall();
         call.details = Optional.of(actionable);
         return call;
+    }
+
+    public static HapiEthereumCall fromSignedBytes(final byte[] signedBytes) {
+        HapiEthereumCall call = new HapiEthereumCall();
+        return call.withSignedBytes(signedBytes);
     }
 
     public HapiEthereumCall withWrongParityRecId() {
@@ -268,6 +274,11 @@ public class HapiEthereumCall extends HapiBaseCall<HapiEthereumCall> {
         return this;
     }
 
+    public HapiEthereumCall withSignedBytes(final byte[] signedBytes) {
+        this.signedBytes = signedBytes;
+        return this;
+    }
+
     @Override
     protected HapiEthereumCall self() {
         return this;
@@ -290,6 +301,10 @@ public class HapiEthereumCall extends HapiBaseCall<HapiEthereumCall> {
 
     @Override
     protected Consumer<TransactionBody.Builder> opBodyDef(HapiSpec spec) throws Throwable {
+        if (signedBytes != null) {
+            return getSignedBytesBuilder(spec);
+        }
+
         if (details.isPresent()) {
             ActionableContractCall actionable = spec.registry().getActionableCall(details.get());
             contract = actionable.getContract();
@@ -299,7 +314,7 @@ public class HapiEthereumCall extends HapiBaseCall<HapiEthereumCall> {
             paramsFn.ifPresent(hapiApiSpecFunction -> params = Optional.of(hapiApiSpecFunction.apply(spec)));
         }
 
-        byte[] callData = initializeCallData();
+        byte[] callData = new byte[] {};
 
         final byte[] to;
         if (explicitTo != null) {
@@ -369,6 +384,16 @@ public class HapiEthereumCall extends HapiBaseCall<HapiEthereumCall> {
                             builder.setEthereumData(ByteString.copyFrom(finalEthTxData.encodeTx()));
                             maxGasAllowance.ifPresent(builder::setMaxGasAllowance);
                             ethFileID.ifPresent(builder::setCallData);
+                        });
+        return b -> b.setEthereumTransaction(ethOpBody);
+    }
+
+    private Consumer<TransactionBody.Builder> getSignedBytesBuilder(HapiSpec spec) throws Throwable {
+        final EthereumTransactionBody ethOpBody = spec.txns()
+                .<EthereumTransactionBody, EthereumTransactionBody.Builder>body(
+                        EthereumTransactionBody.class, builder -> {
+                            builder.setEthereumData(ByteString.copyFrom(signedBytes));
+                            maxGasAllowance.ifPresent(builder::setMaxGasAllowance);
                         });
         return b -> b.setEthereumTransaction(ethOpBody);
     }

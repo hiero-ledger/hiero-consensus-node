@@ -466,29 +466,22 @@ public record EthTxData(
         final List<CodeDelegation> codeDelegations = new ArrayList<>();
         if (authorizationList != null) {
             final var decoder = RLPDecoder.RLP_STRICT.sequenceIterator(authorizationList);
-            final var rlpItem = decoder.next();
-            if (!rlpItem.isList()) {
-                return codeDelegations;
-            }
-
-            for (final var rlpInner : rlpItem.asRLPList().elements()) {
-                if (!rlpInner.isList()) {
-                    throw new IllegalArgumentException("Code authorization is not a list");
+            while (decoder.hasNext()) {
+                final var rlpItem = decoder.next();
+                if (!rlpItem.isList()) {
+                    return codeDelegations;
                 }
-
-                final var rlpInnerList = rlpInner.asRLPList().elements();
-                if (rlpInnerList.size() != 6) {
+                if (rlpItem.asRLPList().elements().size() != 6) {
                     throw new IllegalArgumentException(
                             "Code authorization does not contain expected number of elements");
                 }
-
                 codeDelegations.add(new CodeDelegation(
-                        rlpInnerList.get(0).data(), // chainId)
-                        rlpInnerList.get(1).data(), // address
-                        asLong(rlpInnerList.get(2)), // nonce
-                        asByte(rlpInnerList.get(3)), // yParity
-                        rlpInnerList.get(4).data(), // r
-                        rlpInnerList.get(5).data() // s
+                        rlpItem.asRLPList().elements().get(0).data(), // chainId)
+                        rlpItem.asRLPList().elements().get(1).data(), // address
+                        asLong(rlpItem.asRLPList().elements().get(2)), // nonce
+                        asByte(rlpItem.asRLPList().elements().get(3)), // yParity
+                        rlpItem.asRLPList().elements().get(4).data(), // r
+                        rlpItem.asRLPList().elements().get(5).data() // s
                         ));
             }
         }

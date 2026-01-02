@@ -284,6 +284,9 @@ public class ContextTransactionProcessor implements Callable<CallOutcome> {
             final var hevmTransaction = hevmTransactionFactory.fromHapiTransaction(context.body(), context.payer());
             validatePayloadLength(hevmTransaction);
             return hevmTransaction;
+        } catch (IllegalArgumentException e1) {
+            return hevmTransactionFactory.fromContractTxException(
+                    context.body(), new HandleException(INVALID_TRANSACTION));
         } catch (HandleException e) {
             return hevmTransactionFactory.fromContractTxException(context.body(), e);
         }
