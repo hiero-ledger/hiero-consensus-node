@@ -399,10 +399,6 @@ public class ProxyWorldUpdater implements HederaWorldUpdater {
         contractMustBePresent = false;
     }
 
-    public void begin() {
-        enhancement.operations().begin();
-    }
-
     /**
      * {@inheritDoc}
      */

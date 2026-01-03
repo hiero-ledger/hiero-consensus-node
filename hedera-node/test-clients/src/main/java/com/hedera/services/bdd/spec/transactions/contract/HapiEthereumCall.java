@@ -314,7 +314,7 @@ public class HapiEthereumCall extends HapiBaseCall<HapiEthereumCall> {
             paramsFn.ifPresent(hapiApiSpecFunction -> params = Optional.of(hapiApiSpecFunction.apply(spec)));
         }
 
-        byte[] callData = new byte[] {};
+        byte[] callData = initializeCallData();
 
         final byte[] to;
         if (explicitTo != null) {
