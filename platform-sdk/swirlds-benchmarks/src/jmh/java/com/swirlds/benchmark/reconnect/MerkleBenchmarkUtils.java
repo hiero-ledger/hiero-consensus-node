@@ -150,7 +150,6 @@ public class MerkleBenchmarkUtils {
                         reconnectConfig,
                         BenchmarkMetrics.getMetrics());
                 teacher = new BenchmarkSlowTeachingSynchronizer(
-                        configuration,
                         streams.getTeacherInput(),
                         streams.getTeacherOutput(),
                         desiredTree,

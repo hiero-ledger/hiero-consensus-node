@@ -10,8 +10,6 @@ import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.synchronization.TeachingSynchronizer;
 import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
 import com.swirlds.common.merkle.synchronization.streams.AsyncOutputStream;
-import com.swirlds.config.api.Configuration;
-import edu.umd.cs.findbugs.annotations.NonNull;
 import org.hiero.base.io.SelfSerializable;
 import org.hiero.base.io.streams.SerializableDataOutputStream;
 import org.hiero.consensus.concurrent.pool.StandardWorkGroup;
@@ -31,7 +29,6 @@ public class BenchmarkSlowTeachingSynchronizer extends TeachingSynchronizer {
      * Create a new teaching synchronizer with simulated latency.
      */
     public BenchmarkSlowTeachingSynchronizer(
-            @NonNull final Configuration configuration,
             final MerkleDataInputStream in,
             final MerkleDataOutputStream out,
             final MerkleNode root,
@@ -43,7 +40,6 @@ public class BenchmarkSlowTeachingSynchronizer extends TeachingSynchronizer {
             final Runnable breakConnection,
             final ReconnectConfig reconnectConfig) {
         super(
-                configuration,
                 Time.getCurrent(),
                 getStaticThreadManager(),
                 in,
