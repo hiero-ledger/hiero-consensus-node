@@ -22,7 +22,6 @@ import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.Key;
 import com.hedera.hapi.node.base.KeyList;
 import com.hedera.hapi.node.base.RealmID;
-import com.hedera.hapi.node.base.ServiceEndpoint;
 import com.hedera.hapi.node.base.ShardID;
 import com.hedera.hapi.node.base.Timestamp;
 import com.hedera.hapi.node.base.TransactionID;
@@ -71,7 +70,6 @@ import com.hedera.node.app.service.util.impl.UtilServiceImpl;
 import com.hedera.node.app.services.AppContextImpl;
 import com.hedera.node.app.services.ServicesRegistry;
 import com.hedera.node.app.spi.AppContext;
-import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.migrate.StartupNetworks;
 import com.hedera.node.app.spi.signatures.SignatureVerifier;
@@ -88,11 +86,8 @@ import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.node.config.data.VersionConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.platform.crypto.CryptoStatic;
-import com.swirlds.platform.test.fixtures.addressbook.RandomAddressBookBuilder;
 import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.CommittableWritableStates;
@@ -102,24 +97,14 @@ import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.io.UncheckedIOException;
-import java.security.KeyPair;
-import java.security.KeyPairGenerator;
-import java.security.SecureRandom;
-import java.security.cert.CertificateEncodingException;
-import java.security.cert.X509Certificate;
 import java.time.Instant;
 import java.time.InstantSource;
 import java.util.List;
 import java.util.Map;
-import java.util.Random;
 import java.util.Set;
-import java.util.Spliterators;
 import java.util.function.Function;
-import java.util.stream.StreamSupport;
 import org.apache.tuweni.bytes.Bytes32;
-import org.hiero.consensus.crypto.SigningSchema;
-import org.hiero.consensus.model.node.NodeId;
-import org.hiero.consensus.model.roster.AddressBook;
+import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hyperledger.besu.evm.EVM;
 import org.hyperledger.besu.evm.frame.MessageFrame;
 import org.hyperledger.besu.evm.gascalculator.GasCalculator;
@@ -187,7 +172,7 @@ public class TransactionExecutorsTest {
 
     @Test
     void executesTransactionsAsExpected() {
-        final var overrides = Map.of("hedera.transaction.maxMemoUtf8Bytes", "101");
+        final var overrides = Map.of("hedera.transaction.maxMemoUtf8Bytes", "101", "fees.simpleFeesEnabled", "true");
         // Construct a full implementation of the consensus node State API with all genesis accounts and files
         final var state = genesisState(overrides);
 
@@ -458,7 +443,7 @@ public class TransactionExecutorsTest {
                                     (long) i == accountsConfig.treasury() ? ledgerConfig.totalTinyBarFloat() : 0L)
                             .build());
         }
-        for (final long num : List.of(800L, 801L)) {
+        for (final long num : List.of(800L, 801L, 802L)) {
             final var accountId = AccountID.newBuilder().accountNum(num).build();
             accounts.put(
                     accountId,
@@ -510,80 +495,6 @@ public class TransactionExecutorsTest {
                 .forEach(servicesRegistry::register);
     }
 
-    private static NetworkInfo fakeNetworkInfo() {
-        final AccountID someAccount = idFactory.newAccountId(12345);
-        final var addressBook = new AddressBook(StreamSupport.stream(
-                        Spliterators.spliteratorUnknownSize(
-                                RandomAddressBookBuilder.create(new Random())
-                                        .withSize(1)
-                                        .withRealKeysEnabled(true)
-                                        .build()
-                                        .iterator(),
-                                0),
-                        false)
-                .map(address ->
-                        address.copySetMemo("0.0." + (address.getNodeId().id() + 3)))
-                .toList());
-        return new NetworkInfo() {
-            @NonNull
-            @Override
-            public Bytes ledgerId() {
-                throw new UnsupportedOperationException("Not implemented");
-            }
-
-            @NonNull
-            @Override
-            public NodeInfo selfNodeInfo() {
-                return new NodeInfoImpl(
-                        0,
-                        someAccount,
-                        0,
-                        List.of(ServiceEndpoint.DEFAULT, ServiceEndpoint.DEFAULT),
-                        getCertBytes(randomX509Certificate()),
-                        List.of(ServiceEndpoint.DEFAULT, ServiceEndpoint.DEFAULT),
-                        true,
-                        null);
-            }
-
-            @NonNull
-            @Override
-            public List<NodeInfo> addressBook() {
-                return List.of(new NodeInfoImpl(
-                        0,
-                        someAccount,
-                        0,
-                        List.of(ServiceEndpoint.DEFAULT, ServiceEndpoint.DEFAULT),
-                        getCertBytes(randomX509Certificate()),
-                        List.of(ServiceEndpoint.DEFAULT, ServiceEndpoint.DEFAULT),
-                        false,
-                        null));
-            }
-
-            @Override
-            public NodeInfo nodeInfo(final long nodeId) {
-                return new NodeInfoImpl(
-                        0,
-                        someAccount,
-                        0,
-                        List.of(ServiceEndpoint.DEFAULT, ServiceEndpoint.DEFAULT),
-                        Bytes.EMPTY,
-                        List.of(ServiceEndpoint.DEFAULT, ServiceEndpoint.DEFAULT),
-                        false,
-                        null);
-            }
-
-            @Override
-            public boolean containsNode(final long nodeId) {
-                return addressBook.contains(NodeId.of(nodeId));
-            }
-
-            @Override
-            public void updateFrom(final State state) {
-                throw new UnsupportedOperationException("Not implemented");
-            }
-        };
-    }
-
     private Bytes resourceAsBytes(@NonNull final String loc) {
         try {
             try (final var in = TransactionExecutorsTest.class.getClassLoader().getResourceAsStream(loc)) {
@@ -592,30 +503,6 @@ public class TransactionExecutorsTest {
             }
         } catch (IOException e) {
             throw new UncheckedIOException(e);
-        }
-    }
-
-    public static X509Certificate randomX509Certificate() {
-        try {
-            final SecureRandom secureRandom = SecureRandom.getInstance("SHA1PRNG", "SUN");
-
-            final KeyPairGenerator rsaKeyGen = KeyPairGenerator.getInstance("RSA");
-            rsaKeyGen.initialize(3072, secureRandom);
-            final KeyPair rsaKeyPair1 = rsaKeyGen.generateKeyPair();
-
-            final String name = "CN=Bob";
-            return CryptoStatic.generateCertificate(
-                    name, rsaKeyPair1, name, rsaKeyPair1, secureRandom, SigningSchema.RSA.getSigningAlgorithm());
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    public static Bytes getCertBytes(X509Certificate certificate) {
-        try {
-            return Bytes.wrap(certificate.getEncoded());
-        } catch (CertificateEncodingException e) {
-            throw new RuntimeException(e);
         }
     }
 

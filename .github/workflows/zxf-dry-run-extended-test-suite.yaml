@@ -7,7 +7,7 @@ on:
         required: true
         description: "The commit sha, tag, or branch to check out"
       branch_name:
-        required: true
+        required: false
         description: "The branch name, for JRS Panel output"
       enable-extended-test-suite:
         required: true
@@ -44,6 +44,11 @@ on:
         type: boolean
         default: true
         description: "Run Block Node Regression Panel"
+      execute-state-validator-build:
+        required: true
+        type: boolean
+        default: true
+        description: "Execute the State Validator Uber JAR build job"
 
 permissions:
   id-token: write
@@ -66,10 +71,8 @@ jobs:
       helm-release-name: ${{ steps.params.outputs.helm-release-name }}
       solo-ge-0440: ${{ steps.params.outputs.solo-ge-0440 }}
     steps:
-      - name: Harden Runner
-        uses: step-security/harden-runner@ec9f2d5744a09debf3a187a3f4f675c53b671911 # v2.13.0
-        with:
-          egress-policy: audit
+      - name: Initialize GitHub Job
+        uses: pandaswhocode/initialize-github-job@bfe0b1633012cee3033c757c7095d49c360e23a6 # v1.0.1
 
       - name: Print Params
         id: params
@@ -94,6 +97,14 @@ jobs:
           echo "solo-version=${{ vars.ADHOC_XTS_SOLO_VERSION }}" >> "${GITHUB_OUTPUT}"
           echo "helm-release-name=${HELM_NAME}" >> "${GITHUB_OUTPUT}"
           echo "solo-ge-0440=${SOLO_GE_0440}" >> "${GITHUB_OUTPUT}"
+
+  state-validator-uberjar:
+    name: Build & Publish Hedera State Validator Uber JAR
+    if: ${{ inputs.execute-state-validator-build == true }}
+    uses: ./.github/workflows/zxc-build-publish-state-validator.yaml
+    with:
+      ref: ${{ inputs.commit_sha }}
+      dry-run-enabled: "true"
 
   xts-execution:
     name: Execute XTS
