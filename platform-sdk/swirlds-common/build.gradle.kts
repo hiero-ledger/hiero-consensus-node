@@ -31,8 +31,6 @@ testModuleInfo {
     requires("org.mockito")
     requires("org.mockito.junit.jupiter")
 
-    runtimeOnly("com.swirlds.platform.core")
-
     exportsTo("org.hiero.base.utility")
 }
 
