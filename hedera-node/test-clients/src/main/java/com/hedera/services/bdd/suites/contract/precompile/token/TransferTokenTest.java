@@ -88,34 +88,34 @@ public class TransferTokenTest {
     static SpecNonFungibleToken nonFungibleToken;
 
     public record ErcEventRecord(
-            Supplier<Long> tokenNum, boolean isNFT, Supplier<ByteString> from, Supplier<ByteString> to, Long amount) {
+            Supplier<Long> tokenNum, boolean isNft, Supplier<ByteString> from, Supplier<ByteString> to, Long amount) {
 
         // from account to contract
         public static ErcEventRecord of(
-                final TokenID token, boolean isNFT, final AccountID from, final ContractID to, final Long amount) {
+                final TokenID token, boolean isNft, final AccountID from, final ContractID to, final Long amount) {
             return new ErcEventRecord(
-                    token::getTokenNum, isNFT, () -> parsedToByteString(from), () -> parsedToByteString(to), amount);
+                    token::getTokenNum, isNft, () -> parsedToByteString(from), () -> parsedToByteString(to), amount);
         }
 
         // from account to account
         public static ErcEventRecord of(
-                final TokenID token, boolean isNFT, final AccountID from, final AccountID to, final Long amount) {
+                final TokenID token, boolean isNft, final AccountID from, final AccountID to, final Long amount) {
             return new ErcEventRecord(
-                    token::getTokenNum, isNFT, () -> parsedToByteString(from), () -> parsedToByteString(to), amount);
+                    token::getTokenNum, isNft, () -> parsedToByteString(from), () -> parsedToByteString(to), amount);
         }
 
         // from contract to account
         public static ErcEventRecord of(
-                final TokenID token, boolean isNFT, final ContractID from, final AccountID to, final Long amount) {
+                final TokenID token, boolean isNft, final ContractID from, final AccountID to, final Long amount) {
             return new ErcEventRecord(
-                    token::getTokenNum, isNFT, () -> parsedToByteString(from), () -> parsedToByteString(to), amount);
+                    token::getTokenNum, isNft, () -> parsedToByteString(from), () -> parsedToByteString(to), amount);
         }
 
         // from contract to contract
         public static ErcEventRecord of(
-                final TokenID token, boolean isNFT, final ContractID from, final ContractID to, final Long amount) {
+                final TokenID token, boolean isNft, final ContractID from, final ContractID to, final Long amount) {
             return new ErcEventRecord(
-                    token::getTokenNum, isNFT, () -> parsedToByteString(from), () -> parsedToByteString(to), amount);
+                    token::getTokenNum, isNft, () -> parsedToByteString(from), () -> parsedToByteString(to), amount);
         }
     }
 
@@ -133,7 +133,7 @@ public class TransferTokenTest {
             ErcEventRecord receiver = receivers[i];
             if (receiver.tokenNum() == null || receiver.from() == null || receiver.to() == null) {
                 logsChecker[i] = logWith(); // skip this log event
-            } else if (receiver.isNFT()) {
+            } else if (receiver.isNft()) {
                 logsChecker[i] = logWith()
                         .contract(() -> String.valueOf(receiver.tokenNum().get()))
                         .withTopicsInOrder(() -> List.of(
@@ -281,7 +281,7 @@ public class TransferTokenTest {
         // ------------------------------ NFT ------------------------------
         @HapiTest
         @DisplayName("'transferNFT' function without explicit allowance")
-        public Stream<DynamicTest> transferUsingTransferNFT() {
+        public Stream<DynamicTest> transferUsingTransferNft() {
             return hapiTest(
                     // Transfer using transferToken function
                     tokenTransferContract
@@ -298,7 +298,7 @@ public class TransferTokenTest {
 
         @HapiTest
         @DisplayName("'transferNFTs' function without explicit allowance")
-        public Stream<DynamicTest> transferUsingTransferNFTs() {
+        public Stream<DynamicTest> transferUsingTransferNfts() {
             return hapiTest(withOpContext((spec, opLog) -> allRunFor(
                     spec,
                     // Transfer using transferTokens function

@@ -99,9 +99,9 @@ public class TransferEventLoggingUtilsTest {
     public static void validateNftLogEvent(
             final List<Log> logs, List<TestHelpers.TestTokenTransfer> expectedTransfers) {
         assertEquals(expectedTransfers.size(), logs.size());
-        int i = 0;
+        int index = 0;
         for (Log log : logs) {
-            TestHelpers.TestTokenTransfer expectedTransfer = expectedTransfers.get(i);
+            TestHelpers.TestTokenTransfer expectedTransfer = expectedTransfers.get(index);
             assertEquals(4, log.getTopics().size());
             assertEquals(
                     convertAccountToLog(expectedTransfer.senderAccount()),
@@ -114,7 +114,7 @@ public class TransferEventLoggingUtilsTest {
                     UInt256.fromBytes(Bytes.wrap(
                                     logs.getFirst().getTopics().get(3).toArray()))
                             .toLong());
-            i++;
+            index++;
         }
     }
 

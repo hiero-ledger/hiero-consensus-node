@@ -96,22 +96,28 @@ public class AirdropSystemContractTest {
                 || !sendersQueue.isEmpty()
                 || !receiversQueue.isEmpty()
                 || !amountsQueue.isEmpty()) {
-            if (!sendersQueue.isEmpty())
+            if (!sendersQueue.isEmpty()) {
                 senderId =
                         spec.registry().getAccountID(sendersQueue.removeFirst().name());
-            if (!receiversQueue.isEmpty())
+            }
+            if (!receiversQueue.isEmpty()) {
                 receiverId = spec.registry()
                         .getAccountID(receiversQueue.removeFirst().name());
-            if (!amountsQueue.isEmpty()) amount = amountsQueue.removeFirst();
+            }
+            if (!amountsQueue.isEmpty()) {
+                amount = amountsQueue.removeFirst();
+            }
             if (!ftQueue.isEmpty() || (ftId != null && nftQueue.isEmpty())) {
                 // FT flow
-                if (!ftQueue.isEmpty())
+                if (!ftQueue.isEmpty()) {
                     ftId = spec.registry().getTokenID(ftQueue.removeFirst().name());
+                }
                 erc.add(TransferTokenTest.ErcEventRecord.of(ftId, false, senderId, receiverId, amount));
             } else if (!nftQueue.isEmpty() || nftId != null) {
                 // NFT flow
-                if (!nftQueue.isEmpty())
+                if (!nftQueue.isEmpty()) {
                     nftId = spec.registry().getTokenID(nftQueue.removeFirst().name());
+                }
                 erc.add(TransferTokenTest.ErcEventRecord.of(nftId, true, senderId, receiverId, amount));
             }
         }
