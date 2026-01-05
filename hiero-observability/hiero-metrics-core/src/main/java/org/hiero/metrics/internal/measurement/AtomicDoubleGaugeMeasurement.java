@@ -7,18 +7,13 @@ import java.util.function.DoubleSupplier;
 import org.hiero.metrics.api.core.AtomicDouble;
 import org.hiero.metrics.api.measurement.DoubleGaugeMeasurement;
 
-public class AtomicDoubleGaugeMeasurement implements DoubleGaugeMeasurement {
+public final class AtomicDoubleGaugeMeasurement implements DoubleGaugeMeasurement {
 
-    protected final AtomicDouble container;
+    private final AtomicDouble container;
 
     public AtomicDoubleGaugeMeasurement(@NonNull DoubleSupplier initializer) {
         Objects.requireNonNull(initializer, "initializer must not be null");
         container = new AtomicDouble(initializer);
-    }
-
-    @Override
-    public double getInitValue() {
-        return container.getInitValue();
     }
 
     @Override

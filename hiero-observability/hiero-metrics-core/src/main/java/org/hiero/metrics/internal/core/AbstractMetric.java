@@ -9,8 +9,8 @@ import org.hiero.metrics.api.core.Label;
 import org.hiero.metrics.api.core.Metric;
 import org.hiero.metrics.api.core.MetricType;
 import org.hiero.metrics.api.export.snapshot.MeasurementSnapshot;
+import org.hiero.metrics.internal.export.snapshot.MeasurementAndSnapshot;
 import org.hiero.metrics.internal.export.snapshot.UpdatableMetricSnapshot;
-import org.hiero.metrics.internal.measurement.MeasurementAndSnapshot;
 
 /**
  * Base class for all metric implementations requiring {@link Metric.Builder} for construction.

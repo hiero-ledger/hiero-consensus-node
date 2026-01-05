@@ -7,20 +7,14 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongSupplier;
 import org.hiero.metrics.api.measurement.LongGaugeMeasurement;
 
-public class AtomicLongGaugeMeasurement implements LongGaugeMeasurement {
-
-    protected final AtomicLong container;
+public final class AtomicLongGaugeMeasurement implements LongGaugeMeasurement {
 
     private final LongSupplier initializer;
+    private final AtomicLong container;
 
     public AtomicLongGaugeMeasurement(@NonNull LongSupplier initializer) {
         this.initializer = Objects.requireNonNull(initializer, "initializer must not be null");
         container = new AtomicLong(initializer.getAsLong());
-    }
-
-    @Override
-    public long getInitValue() {
-        return initializer.getAsLong();
     }
 
     @Override
@@ -30,7 +24,7 @@ public class AtomicLongGaugeMeasurement implements LongGaugeMeasurement {
 
     @Override
     public long getAndReset() {
-        return container.getAndSet(getInitValue());
+        return container.getAndSet(initializer.getAsLong());
     }
 
     @Override
@@ -40,6 +34,6 @@ public class AtomicLongGaugeMeasurement implements LongGaugeMeasurement {
 
     @Override
     public void reset() {
-        container.set(getInitValue());
+        container.set(initializer.getAsLong());
     }
 }

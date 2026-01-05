@@ -2,23 +2,41 @@
 package org.hiero.metrics.internal.measurement;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.Objects;
+import java.util.concurrent.atomic.DoubleAccumulator;
 import java.util.function.DoubleBinaryOperator;
 import java.util.function.DoubleSupplier;
-import java.util.function.LongBinaryOperator;
-import org.hiero.metrics.api.core.AtomicDouble;
+import org.hiero.metrics.api.measurement.DoubleGaugeMeasurement;
 
-public final class DoubleAccumulatorGaugeMeasurement extends AtomicDoubleGaugeMeasurement {
+public final class DoubleAccumulatorGaugeMeasurement implements DoubleGaugeMeasurement {
 
-    private final LongBinaryOperator operator;
+    private final DoubleAccumulator accumulator;
 
     public DoubleAccumulatorGaugeMeasurement(
             @NonNull DoubleBinaryOperator operator, @NonNull DoubleSupplier initializer) {
-        super(initializer);
-        this.operator = AtomicDouble.convertBinaryOperator(operator);
+        Objects.requireNonNull(operator, "operator must not be null");
+        Objects.requireNonNull(initializer, "initializer must not be null");
+
+        accumulator = new DoubleAccumulator(operator, initializer.getAsDouble());
     }
 
     @Override
     public void update(double value) {
-        container.accumulateAndGet(value, operator);
+        accumulator.accumulate(value);
+    }
+
+    @Override
+    public double getAndReset() {
+        return accumulator.getThenReset();
+    }
+
+    @Override
+    public double getAsDouble() {
+        return accumulator.get();
+    }
+
+    @Override
+    public void reset() {
+        accumulator.reset();
     }
 }

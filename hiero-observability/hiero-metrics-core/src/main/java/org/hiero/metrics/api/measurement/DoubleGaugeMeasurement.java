@@ -10,19 +10,10 @@ import org.hiero.metrics.api.core.MetricUtils;
  * Some implementations can use additional calculations/aggregations on observed values.
  * <p>
  * This interface extends {@link DoubleSupplier} to provide the current value of the gauge.
- * Additionally, {@link #getAndReset()} returns the gauge value followed by a reset
- * to its initial state defined by {@link #getInitValue()}.
  * <p>
  * <b>All operations are thread-safe and atomic.</b>
  */
 public interface DoubleGaugeMeasurement extends DoubleSupplier, Measurement {
-
-    /**
-     * Get the initial value of the gauge.
-     *
-     * @return the initial value
-     */
-    double getInitValue();
 
     /**
      * Update the gauge by {@code 1.0}.
@@ -40,7 +31,7 @@ public interface DoubleGaugeMeasurement extends DoubleSupplier, Measurement {
     void update(double value);
 
     /**
-     * Reset the gauge to its initial value defined by {@link #getInitValue()} and return the value before reset.
+     * Reset the gauge to its initial value and return the value before reset.
      *
      * @return the value before reset
      */

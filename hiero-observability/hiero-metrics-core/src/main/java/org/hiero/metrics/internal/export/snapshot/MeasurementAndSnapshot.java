@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.metrics.internal.measurement;
+package org.hiero.metrics.internal.export.snapshot;
 
 import org.hiero.metrics.api.export.snapshot.MeasurementSnapshot;
 

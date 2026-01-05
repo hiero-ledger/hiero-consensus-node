@@ -7,7 +7,7 @@ import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 import org.hiero.metrics.api.core.SettableMetric;
-import org.hiero.metrics.internal.measurement.MeasurementAndSnapshot;
+import org.hiero.metrics.internal.export.snapshot.MeasurementAndSnapshot;
 
 /**
  * Abstract implementation of {@link SettableMetric} requiring {@link SettableMetric.Builder} for

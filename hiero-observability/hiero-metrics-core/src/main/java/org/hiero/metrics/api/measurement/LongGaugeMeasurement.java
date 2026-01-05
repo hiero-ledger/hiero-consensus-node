@@ -8,19 +8,10 @@ import java.util.function.LongSupplier;
  * Some implementations can use additional calculations/aggregations on observed values.
  * <p>
  * This interface extends {@link LongSupplier} to provide the current value of the gauge.
- * Additionally, {@link #getAndReset()} returns the gauge value followed by a reset
- * to its initial state defined by {@link #getInitValue()}.
  * <p>
  * <b>All operations are thread-safe and atomic.</b>
  */
 public interface LongGaugeMeasurement extends LongSupplier, Measurement {
-
-    /**
-     * Gets the initial value of the gauge when it was created.
-     *
-     * @return the initial value of the gauge
-     */
-    long getInitValue();
 
     /**
      * Updates the gauge by adding the specified value.

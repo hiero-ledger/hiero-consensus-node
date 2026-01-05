@@ -8,17 +8,12 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
 import java.util.concurrent.atomic.DoubleAdder;
 import java.util.function.DoubleSupplier;
-import org.hiero.metrics.api.core.MetricUtils;
 import org.hiero.metrics.api.measurement.DoubleCounterMeasurement;
 
 public final class DoubleAdderCounterMeasurement implements DoubleCounterMeasurement {
 
     private final DoubleSupplier initializer;
     private final DoubleAdder container = new DoubleAdder();
-
-    public DoubleAdderCounterMeasurement() {
-        this(MetricUtils.DOUBLE_ZERO_INIT);
-    }
 
     public DoubleAdderCounterMeasurement(@NonNull DoubleSupplier initializer) {
         this.initializer = Objects.requireNonNull(initializer, "initializer must not be null");

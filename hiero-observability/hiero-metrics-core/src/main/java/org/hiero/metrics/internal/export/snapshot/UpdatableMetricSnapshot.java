@@ -12,7 +12,6 @@ import org.hiero.metrics.api.core.Metric;
 import org.hiero.metrics.api.core.MetricType;
 import org.hiero.metrics.api.export.snapshot.MeasurementSnapshot;
 import org.hiero.metrics.api.export.snapshot.MetricSnapshot;
-import org.hiero.metrics.internal.measurement.MeasurementAndSnapshot;
 
 public final class UpdatableMetricSnapshot<M> implements MetricSnapshot {
 
