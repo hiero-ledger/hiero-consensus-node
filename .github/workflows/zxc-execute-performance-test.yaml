@@ -230,7 +230,7 @@ jobs:
           n=`expr "${{ inputs.nlg-accounts }}" / 1000`
           NLG_c=32
 
-          NLGargs="-metrics -L -R -c ${NLG_c} -a ${{ inputs.nlg-accounts }}"
+          NLGargs="-metrics -R -c ${NLG_c} -a ${{ inputs.nlg-accounts }}"
 
           case "${{ inputs.nlg-test }}" in
             NftTransferLoadTest)    NLGargs="-K ECDSA ${NLGargs} -n ${n} -T 1000 -S hot -p 50";;
