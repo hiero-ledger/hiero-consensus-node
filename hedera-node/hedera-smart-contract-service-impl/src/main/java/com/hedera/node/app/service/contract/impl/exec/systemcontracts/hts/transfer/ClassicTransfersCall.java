@@ -135,7 +135,6 @@ public class ClassicTransfersCall extends AbstractCall {
                             .externalizePreemptedDispatch(
                                     syntheticTransfer, INVALID_RECEIVING_NODE_ACCOUNT, CRYPTO_TRANSFER));
         }
-        // TODO Glib: move to translator?
         if (executionIsNotSupported()) {
             return haltWith(
                     gasRequirement,

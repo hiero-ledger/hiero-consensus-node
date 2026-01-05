@@ -468,7 +468,6 @@ public class AirdropFromContractTest {
         }));
     }
 
-    // TODO Glib: Discuss with Stan. Should be use this fix?
     @RepeatableHapiTest(RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
     @DisplayName("Contract account airdrops token to an address with no account on it")
     public Stream<DynamicTest> airdropToAddressWithNoAccount(

@@ -149,7 +149,6 @@ public class AirdropToContractSystemContractTest {
                     }));
         }
 
-        // TODO Glib: Stan: why is this test (and next ones) marked as repeatable?
         @RepeatableHapiTest(RepeatableReason.NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
         @DisplayName("Can airdrop multiple tokens to contract that is already associated with them")
         public Stream<DynamicTest> airdropTokensToContract(

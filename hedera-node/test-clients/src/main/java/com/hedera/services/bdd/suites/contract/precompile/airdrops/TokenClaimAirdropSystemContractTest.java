@@ -90,7 +90,6 @@ class TokenClaimAirdropSystemContractTest {
                             .call("claim", sender, receiver, token)
                             .payingWith(receiver)
                             .via(TXN_NAME),
-                    // TODO Glib: Stan pendingAirdropsCount is an 'hasChildRecords' but not 'hasPriority'
                     getTxnRecord(TXN_NAME).hasChildRecords(recordWith().pendingAirdropsCount(0)),
                     receiver.getBalance().andAssert(balance -> balance.hasTokenBalance(token.name(), 10)));
             // check ERC20 events
