@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package com.swirlds.platform.event;
+package org.hiero.consensus.hashgraph.impl.consensus;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;

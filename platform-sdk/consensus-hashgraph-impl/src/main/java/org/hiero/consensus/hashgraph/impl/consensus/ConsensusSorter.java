@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.hashgraph.impl.consensus;
 
-import com.swirlds.platform.internal.EventImpl;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.List;
 import org.hiero.base.utility.ArrayUtils;
+import org.hiero.consensus.hashgraph.impl.EventImpl;
 
 /** Sorts consensus events into their consensus order */
 public class ConsensusSorter {
