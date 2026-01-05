@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.hashgraph.impl.consensus;
 
-import org.hiero.consensus.hashgraph.impl.EventImpl;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.Predicate;
+import org.hiero.consensus.hashgraph.impl.EventImpl;
 
 /** Used for searching for ancestors events in a hashgraph */
 public class AncestorSearch {

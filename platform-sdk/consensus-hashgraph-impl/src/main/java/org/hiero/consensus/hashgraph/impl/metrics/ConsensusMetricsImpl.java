@@ -11,10 +11,10 @@ import static com.swirlds.metrics.api.Metrics.PLATFORM_CATEGORY;
 
 import com.swirlds.metrics.api.Counter;
 import com.swirlds.metrics.api.Metrics;
-import com.swirlds.platform.internal.EventImpl;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Objects;
+import org.hiero.consensus.hashgraph.impl.EventImpl;
 import org.hiero.consensus.metrics.RunningAverageMetric;
 import org.hiero.consensus.metrics.SpeedometerMetric;
 import org.hiero.consensus.metrics.statistics.AverageAndMax;

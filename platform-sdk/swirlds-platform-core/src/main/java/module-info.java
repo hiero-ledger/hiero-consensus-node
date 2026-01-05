@@ -59,16 +59,6 @@ module com.swirlds.platform.core {
             com.swirlds.platform.core.test.fixtures,
             com.fasterxml.jackson.core,
             com.fasterxml.jackson.databind;
-    exports com.swirlds.platform.consensus to
-            com.swirlds.config.extensions,
-            com.swirlds.config.impl,
-            com.swirlds.platform.core.test.fixtures,
-            com.hedera.node.app,
-            org.hiero.otter.fixtures,
-            org.hiero.otter.test;
-    exports org.hiero.consensus.hashgraph.impl.linking to
-            com.swirlds.common,
-            com.swirlds.platform.core.test.fixtures;
     exports com.swirlds.platform.uptime to
             com.swirlds.config.extensions,
             com.swirlds.config.impl,
@@ -93,7 +83,6 @@ module com.swirlds.platform.core {
     exports com.swirlds.platform.wiring;
     exports com.swirlds.platform.wiring.components;
     exports com.swirlds.platform.event.orphan;
-    exports com.swirlds.platform.components.consensus;
     exports com.swirlds.platform.state.snapshot;
     exports com.swirlds.platform.state.service.schemas;
     exports com.swirlds.platform.state.service;
@@ -130,6 +119,7 @@ module com.swirlds.platform.core {
     requires com.swirlds.merkledb;
     requires com.swirlds.state.impl;
     requires com.swirlds.virtualmap;
+    requires org.hiero.consensus.hashgraph.impl;
     requires com.fasterxml.jackson.core;
     requires com.fasterxml.jackson.databind;
     requires com.fasterxml.jackson.dataformat.yaml;

@@ -7,13 +7,13 @@ import static com.swirlds.metrics.api.Metrics.PLATFORM_CATEGORY;
 import com.swirlds.base.time.Time;
 import com.swirlds.metrics.api.LongAccumulator;
 import com.swirlds.metrics.api.Metrics;
-import org.hiero.consensus.hashgraph.impl.EventImpl;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Duration;
 import java.time.Instant;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.consensus.concurrent.utility.throttle.RateLimitedLogger;
+import org.hiero.consensus.hashgraph.impl.EventImpl;
 import org.hiero.consensus.model.event.EventDescriptorWrapper;
 import org.hiero.consensus.model.event.PlatformEvent;
 

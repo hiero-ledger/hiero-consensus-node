@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.hashgraph.impl.consensus;
 
-import com.swirlds.platform.internal.EventImpl;
+import org.hiero.consensus.hashgraph.impl.EventImpl;
 
 /**
  * When searching for events in a graph, this instance is used to mark the ones that have already

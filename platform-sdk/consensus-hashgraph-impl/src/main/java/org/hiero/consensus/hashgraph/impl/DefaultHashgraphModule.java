@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.hashgraph.impl;
 
-import com.swirlds.component.framework.component.ComponentWiring;
-import org.hiero.consensus.hashgraph.config.ConsensusConfig;
-import org.hiero.consensus.hashgraph.config.HashgraphWiringConfig;
+import static java.util.Objects.requireNonNull;
+
 import com.hedera.hapi.node.state.roster.Roster;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.base.time.Time;
+import com.swirlds.component.framework.component.ComponentWiring;
 import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.component.framework.wires.input.InputWire;
 import com.swirlds.component.framework.wires.output.OutputWire;
@@ -16,13 +16,13 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import org.hiero.consensus.hashgraph.FreezePeriodChecker;
 import org.hiero.consensus.hashgraph.HashgraphModule;
+import org.hiero.consensus.hashgraph.config.ConsensusConfig;
+import org.hiero.consensus.hashgraph.config.HashgraphWiringConfig;
 import org.hiero.consensus.hashgraph.impl.metrics.EventCounter;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
-
-import static java.util.Objects.requireNonNull;
 
 /**
  * Default implementation of the {@link HashgraphModule}.
@@ -31,10 +31,13 @@ public class DefaultHashgraphModule implements HashgraphModule {
 
     @Nullable
     private ComponentWiring<ConsensusEngine, ConsensusEngineOutput> consensusEngineWiring;
+
     @Nullable
     private OutputWire<ConsensusRound> consensusRoundOutputWire;
+
     @Nullable
     private OutputWire<PlatformEvent> preconsensusEventOutputWire;
+
     @Nullable
     private OutputWire<PlatformEvent> staleEventOutputWire;
 
@@ -61,13 +64,16 @@ public class DefaultHashgraphModule implements HashgraphModule {
         this.consensusEngineWiring =
                 new ComponentWiring<>(model, ConsensusEngine.class, wiringConfig.consensusEngine());
 
-        this.consensusRoundOutputWire = consensusEngineWiring.getOutputWire()
+        this.consensusRoundOutputWire = consensusEngineWiring
+                .getOutputWire()
                 .buildTransformer("consensusRounds", "consensusEngineOutput", ConsensusEngineOutput::consensusRounds)
                 .buildSplitter("ConsensusRoundsSplitter", "consensus rounds");
-        this.preconsensusEventOutputWire = consensusEngineWiring.getOutputWire()
+        this.preconsensusEventOutputWire = consensusEngineWiring
+                .getOutputWire()
                 .buildTransformer("preconsensusEvents", "consensusRounds", ConsensusEngineOutput::preConsensusEvents)
                 .buildSplitter("PreconsensusEventsSplitter", "preconsensus events");
-        this.staleEventOutputWire = consensusEngineWiring.getOutputWire()
+        this.staleEventOutputWire = consensusEngineWiring
+                .getOutputWire()
                 .buildTransformer("staleEvents", "consensusEngineOutput", ConsensusEngineOutput::staleEvents)
                 .buildSplitter("staleEventsSplitter", "stale events");
 
@@ -78,8 +84,8 @@ public class DefaultHashgraphModule implements HashgraphModule {
 
         // Create and bind components
         final ConsensusConfig consensusConfig = configuration.getConfigData(ConsensusConfig.class);
-        final ConsensusEngine consensusEngine = new DefaultConsensusEngine(consensusConfig, metrics, time, roster,
-                selfId, freezeChecker);
+        final ConsensusEngine consensusEngine =
+                new DefaultConsensusEngine(consensusConfig, metrics, time, roster, selfId, freezeChecker);
         consensusEngineWiring.bind(consensusEngine);
     }
 
@@ -140,17 +146,11 @@ public class DefaultHashgraphModule implements HashgraphModule {
     }
 
     @Override
-    public void startSquelching() {
-
-    }
+    public void startSquelching() {}
 
     @Override
-    public void stopSquelching() {
-
-    }
+    public void stopSquelching() {}
 
     @Override
-    public void flush() {
-
-    }
+    public void flush() {}
 }

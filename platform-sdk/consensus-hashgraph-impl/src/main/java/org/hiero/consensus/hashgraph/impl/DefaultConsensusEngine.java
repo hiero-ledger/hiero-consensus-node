@@ -19,17 +19,17 @@ import org.hiero.consensus.hashgraph.FreezePeriodChecker;
 import org.hiero.consensus.hashgraph.config.ConsensusConfig;
 import org.hiero.consensus.hashgraph.impl.consensus.Consensus;
 import org.hiero.consensus.hashgraph.impl.consensus.ConsensusImpl;
+import org.hiero.consensus.hashgraph.impl.linking.ConsensusLinker;
+import org.hiero.consensus.hashgraph.impl.linking.DefaultLinkerLogsAndMetrics;
 import org.hiero.consensus.hashgraph.impl.metrics.ConsensusEngineMetrics;
 import org.hiero.consensus.hashgraph.impl.metrics.ConsensusMetrics;
 import org.hiero.consensus.hashgraph.impl.metrics.ConsensusMetricsImpl;
-import org.hiero.consensus.round.EventWindowUtils;
-import org.hiero.consensus.hashgraph.impl.linking.ConsensusLinker;
-import org.hiero.consensus.hashgraph.impl.linking.DefaultLinkerLogsAndMetrics;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.node.NodeId;
 import org.hiero.consensus.model.status.PlatformStatus;
+import org.hiero.consensus.round.EventWindowUtils;
 
 /**
  * The default implementation of the {@link ConsensusEngine} interface

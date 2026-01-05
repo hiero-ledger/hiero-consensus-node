@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.hashgraph.impl.consensus;
 
-import org.hiero.consensus.hashgraph.impl.EventImpl;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.time.Instant;
 import java.util.ArrayDeque;
@@ -9,6 +8,7 @@ import java.util.Deque;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 import java.util.function.Predicate;
+import org.hiero.consensus.hashgraph.impl.EventImpl;
 
 /**
  * This is an iterator over all valid ancestors of a given root event, that are reachable through
