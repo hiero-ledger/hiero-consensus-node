@@ -19,6 +19,7 @@ import org.hiero.consensus.model.event.NonDeterministicGeneration;
 import org.hiero.consensus.model.hashgraph.ConsensusConstants;
 import org.hiero.consensus.roster.RosterUtils;
 import org.hiero.consensus.round.RoundCalculationUtils;
+import org.hiero.consensus.structures.SequentialRingBuffer;
 
 /**
  * Stores all hashgraph round information in a single place.
