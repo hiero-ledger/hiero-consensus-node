@@ -63,8 +63,8 @@ public class AirdropSystemContractTest {
     }
 
     private static void checkBasicERC20Event(
-            final HapiSpec spec, final SpecFungibleToken token, final SpecAccount sender, final SpecAccount receiver) {
-        checkErcEvents(TXN_NAME, spec, List.of(token), List.of(), List.of(sender), List.of(receiver), List.of(10L));
+            final HapiSpec spec, final SpecFungibleToken token, final SpecAccount from, final SpecAccount to) {
+        checkErcEvents(TXN_NAME, spec, List.of(token), List.of(), List.of(from), List.of(to), List.of(10L));
     }
 
     private static void checkBasicERC721Event(
