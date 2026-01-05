@@ -7,14 +7,21 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.service.contract.impl.exec.failure.CustomExceptionalHaltReason.ERROR_DECODING_PRECOMPILE_INPUT;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.DispatchForResponseCodeHtsCall.OutputFn.STANDARD_OUTPUT_FN;
 import static com.hedera.node.app.service.contract.impl.exec.utils.FrameUtils.CONFIG_CONTEXT_VARIABLE;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.*;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.ALIASED_RECEIVER;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEFAULT_CONFIG;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEFAULT_CONTRACTS_CONFIG;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.FUNGIBLE_TOKEN_ID;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.OWNER_ACCOUNT;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.OWNER_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.RECEIVER_ID;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.tokenTransfersLists;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_TRANSACTION;
 import static org.assertj.core.api.AssertionsForClassTypes.assertThatExceptionOfType;
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.scheduled.SchedulableTransactionBody;
@@ -26,6 +33,7 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.Dispat
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.ReturnTypes;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.transfer.TransferEventLoggingUtils;
 import com.hedera.node.app.service.contract.impl.records.ContractCallStreamBuilder;
+import com.hedera.node.app.service.contract.impl.test.TestHelpers;
 import com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.common.CallTestBase;
 import com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.hts.transfer.TransferEventLoggingUtilsTest;
 import com.hedera.node.app.service.token.ReadableAccountStore;
@@ -112,7 +120,7 @@ class DispatchForResponseCodeHtsCallTest extends CallTestBase {
                 failureCustomizer,
                 TransferEventLoggingUtils::emitErcLogEventsFor,
                 STANDARD_OUTPUT_FN);
-        final var expectedTransfers = List.of(new TestTokenTransfer(
+        final var expectedTransfers = List.of(new TestHelpers.TestTokenTransfer(
                 FUNGIBLE_TOKEN_ID, false, OWNER_ID, OWNER_ACCOUNT, RECEIVER_ID, ALIASED_RECEIVER, 123));
         given(recordBuilder.tokenTransferLists()).willReturn(tokenTransfersLists(expectedTransfers));
         given(systemContractOperations.dispatch(
@@ -136,7 +144,7 @@ class DispatchForResponseCodeHtsCallTest extends CallTestBase {
         // then
         assertArrayEquals(ReturnTypes.encodedRc(SUCCESS).array(), contractResult.toArray());
         // check that events was added
-        TransferEventLoggingUtilsTest.validateFTLogEvent(logs, expectedTransfers);
+        TransferEventLoggingUtilsTest.validateFtLogEvent(logs, expectedTransfers);
     }
 
     @Test

@@ -12,7 +12,9 @@ import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoApproveAllowance;
 import static com.hedera.services.bdd.spec.utilops.CustomSpecAssert.allRunFor;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.withOpContext;
-import static com.hedera.services.bdd.suites.HapiSuite.*;
+import static com.hedera.services.bdd.suites.HapiSuite.DEFAULT_PAYER;
+import static com.hedera.services.bdd.suites.HapiSuite.ONE_HBAR;
+import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.contract.Utils.eventSignatureOf;
 import static com.hedera.services.bdd.suites.contract.Utils.parsedToByteString;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
@@ -89,25 +91,29 @@ public class TransferTokenTest {
             Supplier<Long> tokenNum, boolean isNFT, Supplier<ByteString> from, Supplier<ByteString> to, Long amount) {
 
         // from account to contract
-        public static ErcEventRecord of(TokenID token, boolean isNFT, AccountID from, ContractID to, Long amount) {
+        public static ErcEventRecord of(
+                final TokenID token, boolean isNFT, final AccountID from, final ContractID to, final Long amount) {
             return new ErcEventRecord(
                     token::getTokenNum, isNFT, () -> parsedToByteString(from), () -> parsedToByteString(to), amount);
         }
 
         // from account to account
-        public static ErcEventRecord of(TokenID token, boolean isNFT, AccountID from, AccountID to, Long amount) {
+        public static ErcEventRecord of(
+                final TokenID token, boolean isNFT, final AccountID from, final AccountID to, final Long amount) {
             return new ErcEventRecord(
                     token::getTokenNum, isNFT, () -> parsedToByteString(from), () -> parsedToByteString(to), amount);
         }
 
         // from contract to account
-        public static ErcEventRecord of(TokenID token, boolean isNFT, ContractID from, AccountID to, Long amount) {
+        public static ErcEventRecord of(
+                final TokenID token, boolean isNFT, final ContractID from, final AccountID to, final Long amount) {
             return new ErcEventRecord(
                     token::getTokenNum, isNFT, () -> parsedToByteString(from), () -> parsedToByteString(to), amount);
         }
 
         // from contract to contract
-        public static ErcEventRecord of(TokenID token, boolean isNFT, ContractID from, ContractID to, Long amount) {
+        public static ErcEventRecord of(
+                final TokenID token, boolean isNFT, final ContractID from, final ContractID to, final Long amount) {
             return new ErcEventRecord(
                     token::getTokenNum, isNFT, () -> parsedToByteString(from), () -> parsedToByteString(to), amount);
         }
@@ -121,7 +127,7 @@ public class TransferTokenTest {
                 getTxnRecord(TXN_NAME), withLastEvent.toArray(new ErcEventRecord[receivers.length + 1]));
     }
 
-    public static HapiGetTxnRecord validateErcEvent(HapiGetTxnRecord request, final ErcEventRecord... receivers) {
+    public static HapiGetTxnRecord validateErcEvent(final HapiGetTxnRecord request, final ErcEventRecord... receivers) {
         ContractLogAsserts[] logsChecker = new ContractLogAsserts[receivers.length];
         for (int i = 0; i < receivers.length; i++) {
             ErcEventRecord receiver = receivers[i];

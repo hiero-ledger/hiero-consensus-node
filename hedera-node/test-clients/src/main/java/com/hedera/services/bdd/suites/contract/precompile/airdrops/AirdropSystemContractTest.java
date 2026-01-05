@@ -68,11 +68,8 @@ public class AirdropSystemContractTest {
     }
 
     private static void checkBasicERC721Event(
-            final HapiSpec spec,
-            final SpecNonFungibleToken token,
-            final SpecAccount sender,
-            final SpecAccount receiver) {
-        checkErcEvents(TXN_NAME, spec, List.of(), List.of(token), List.of(sender), List.of(receiver), List.of(1L));
+            final HapiSpec spec, final SpecNonFungibleToken token, final SpecAccount from, final SpecAccount to) {
+        checkErcEvents(TXN_NAME, spec, List.of(), List.of(token), List.of(from), List.of(to), List.of(1L));
     }
 
     public static void checkErcEvents(
@@ -83,7 +80,7 @@ public class AirdropSystemContractTest {
             final List<SpecAccount> senders,
             final List<SpecAccount> receivers,
             List<Long> amounts) {
-        List<TransferTokenTest.ErcEventRecord> erc = new ArrayList<>();
+        final List<TransferTokenTest.ErcEventRecord> erc = new ArrayList<>();
         final List<SpecFungibleToken> ftQueue = new ArrayList<>(fts);
         final List<SpecNonFungibleToken> nftQueue = new ArrayList<>(nfts);
         final List<SpecAccount> sendersQueue = new ArrayList<>(senders);

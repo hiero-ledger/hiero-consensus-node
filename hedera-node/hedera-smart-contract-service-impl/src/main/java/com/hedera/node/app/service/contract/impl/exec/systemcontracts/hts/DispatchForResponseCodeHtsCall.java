@@ -91,16 +91,16 @@ public class DispatchForResponseCodeHtsCall extends AbstractCall {
         SuccessProcessor NOOP_PROCESSOR = (recordBuilder, accountStore, frame) -> {};
 
         /**
-         * Apply additional logic after success status of a dispatch
+         * Apply additional logic after success status of a dispatch.
          *
          * @param recordBuilder stream builder, the result of the dispatch
          * @param accountStore the readable account store
          * @param frame the message frame
          */
         void apply(
-                @NonNull final ContractCallStreamBuilder recordBuilder,
-                @NonNull final ReadableAccountStore accountStore,
-                @NonNull final MessageFrame frame);
+                @NonNull ContractCallStreamBuilder recordBuilder,
+                @NonNull ReadableAccountStore accountStore,
+                @NonNull MessageFrame frame);
     }
 
     /**

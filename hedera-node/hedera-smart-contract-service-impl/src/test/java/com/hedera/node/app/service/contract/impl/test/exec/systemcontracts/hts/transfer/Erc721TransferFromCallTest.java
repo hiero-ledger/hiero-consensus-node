@@ -2,7 +2,13 @@
 package com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.hts.transfer;
 
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SENDER_DOES_NOT_OWN_NFT_SERIAL_NO;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.*;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.B_NEW_ACCOUNT_ID;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.EIP_1014_ADDRESS;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.NON_FUNGIBLE_TOKEN_ID;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.RECEIVER_ID;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SENDER_ID;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.convertAccountToLog;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.readableRevertReason;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asEvmAddress;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
@@ -18,7 +24,6 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.Addres
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.transfer.Erc721TransferFromCall;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.transfer.SpecialRewardReceivers;
 import com.hedera.node.app.service.contract.impl.records.ContractCallStreamBuilder;
-import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
 import com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.common.CallTestBase;
 import com.hedera.node.app.service.contract.impl.utils.ConversionUtils;
 import com.hedera.node.app.service.token.ReadableAccountStore;
@@ -51,9 +56,6 @@ class Erc721TransferFromCallTest extends CallTestBase {
 
     @Mock
     private ContractCallStreamBuilder recordBuilder;
-
-    @Mock
-    private ProxyWorldUpdater worldUpdater;
 
     private Erc721TransferFromCall subject;
 

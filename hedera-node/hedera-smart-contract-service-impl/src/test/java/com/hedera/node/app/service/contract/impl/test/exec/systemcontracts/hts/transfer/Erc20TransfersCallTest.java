@@ -5,8 +5,16 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.INSUFFICIENT_ACCOUNT_BA
 import static com.hedera.hapi.node.base.ResponseCodeEnum.INVALID_TOKEN_ID;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.transfer.Erc20TransfersTranslator.ERC_20_TRANSFER;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.transfer.Erc20TransfersTranslator.ERC_20_TRANSFER_FROM;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.*;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.ALIASED_RECEIVER;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.A_NEW_ACCOUNT_ID;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.B_NEW_ACCOUNT_ID;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.EIP_1014_ADDRESS;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.FUNGIBLE_TOKEN_ID;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.OWNER_ACCOUNT;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.SENDER_ID;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.asBytesResult;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.convertAccountToLog;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.readableRevertReason;
 import static com.hedera.node.app.service.contract.impl.utils.ConversionUtils.asEvmAddress;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
@@ -23,7 +31,6 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.Addres
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.transfer.Erc20TransfersCall;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.transfer.SpecialRewardReceivers;
 import com.hedera.node.app.service.contract.impl.records.ContractCallStreamBuilder;
-import com.hedera.node.app.service.contract.impl.state.ProxyWorldUpdater;
 import com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.common.CallTestBase;
 import com.hedera.node.app.service.contract.impl.utils.ConversionUtils;
 import com.hedera.node.app.service.token.ReadableAccountStore;
@@ -59,9 +66,6 @@ class Erc20TransfersCallTest extends CallTestBase {
 
     @Mock
     private SpecialRewardReceivers specialRewardReceivers;
-
-    @Mock
-    private ProxyWorldUpdater worldUpdater;
 
     private Erc20TransfersCall subject;
 

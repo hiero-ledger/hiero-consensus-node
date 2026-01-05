@@ -1079,7 +1079,7 @@ public class AirdropToContractSystemContractTest {
                 @NonNull final List<SpecContract> receiverContracts,
                 @NonNull final List<SpecFungibleToken> tokens,
                 @NonNull final HapiSpec spec) {
-            final var senderId = spec.registry().getAccountID(sender.name());
+            final var senderAccountId = spec.registry().getAccountID(sender.name());
             allRunFor(
                     spec,
                     // Single sender to multiple contracts
@@ -1103,7 +1103,7 @@ public class AirdropToContractSystemContractTest {
                                             .map(receiver -> TransferTokenTest.ErcEventRecord.of(
                                                     spec.registry().getTokenID(token.name()),
                                                     false,
-                                                    senderId,
+                                                    senderAccountId,
                                                     spec.registry().getAccountID(receiver.name()),
                                                     10L)))
                                     .toArray(TransferTokenTest.ErcEventRecord[]::new)));

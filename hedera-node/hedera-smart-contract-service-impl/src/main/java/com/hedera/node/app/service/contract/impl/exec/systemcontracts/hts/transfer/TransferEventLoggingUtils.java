@@ -51,7 +51,7 @@ public class TransferEventLoggingUtils {
                     logSuccessfulFungibleTransfer(transfer.tokenOrThrow(), transfer.transfers(), accountStore, frame);
                 }
                 if (!transfer.nftTransfers().isEmpty()) {
-                    for (NftTransfer nftTransfer : transfer.nftTransfers()) {
+                    for (final NftTransfer nftTransfer : transfer.nftTransfers()) {
                         logSuccessfulNftTransfer(transfer.tokenOrThrow(), nftTransfer, accountStore, frame);
                     }
                 }
@@ -127,7 +127,8 @@ public class TransferEventLoggingUtils {
         }
 
         // 2. Convert senders/receivers to transfer events
-        int sIdx = 0, rIdx = 0;
+        int sIdx = 0;
+        int rIdx = 0;
         while (sIdx < senders.size() && rIdx < receivers.size()) {
             AccountChange sender = senders.get(sIdx);
             AccountChange receiver = receivers.get(rIdx);

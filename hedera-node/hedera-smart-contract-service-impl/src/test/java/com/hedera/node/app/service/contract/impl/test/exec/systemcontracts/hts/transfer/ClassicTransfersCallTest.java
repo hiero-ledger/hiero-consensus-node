@@ -9,9 +9,20 @@ import static com.hedera.hapi.node.base.ResponseCodeEnum.NOT_SUPPORTED;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SPENDER_DOES_NOT_HAVE_ALLOWANCE;
 import static com.hedera.hapi.node.base.ResponseCodeEnum.SUCCESS;
 import static com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.ReturnTypes.tuweniEncodedRc;
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.*;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.ALIASED_RECEIVER;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.A_NEW_ACCOUNT_ID;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.DEFAULT_CONFIG;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.FUNGIBLE_TOKEN_ID;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.OWNER_ACCOUNT;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.OWNER_ID;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.RECEIVER_ID;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.V2_TRANSFER_DISABLED_CONFIG;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.asBytesResult;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.readableRevertReason;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.tokenTransfersLists;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
 
@@ -32,6 +43,7 @@ import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.transf
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.transfer.SystemAccountCreditScreen;
 import com.hedera.node.app.service.contract.impl.exec.utils.SystemContractMethod;
 import com.hedera.node.app.service.contract.impl.records.ContractCallStreamBuilder;
+import com.hedera.node.app.service.contract.impl.test.TestHelpers;
 import com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.common.CallTestBase;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
@@ -305,7 +317,7 @@ class ClassicTransfersCallTest extends CallTestBase {
                 specialRewardReceivers);
     }
 
-    public static List<SystemContractMethod> ercEventsEmissionForFTParams() {
+    public static List<SystemContractMethod> ercEventsEmissionForFtParams() {
         return List.of(
                 ClassicTransfersTranslator.CRYPTO_TRANSFER,
                 ClassicTransfersTranslator.CRYPTO_TRANSFER_V2,
@@ -315,8 +327,8 @@ class ClassicTransfersCallTest extends CallTestBase {
     }
 
     @ParameterizedTest
-    @MethodSource("ercEventsEmissionForFTParams")
-    void ercEventsEmissionForFT(SystemContractMethod function) {
+    @MethodSource("ercEventsEmissionForFtParams")
+    void ercEventsEmissionForFT(final SystemContractMethod function) {
         final var localSubject = givenSubject(function.selector());
         given(systemContractOperations.dispatch(
                         any(TransactionBody.class),
@@ -326,7 +338,7 @@ class ClassicTransfersCallTest extends CallTestBase {
                 .willReturn(recordBuilder);
         given(recordBuilder.status()).willReturn(SUCCESS);
         given(nativeOperations.readableAccountStore()).willReturn(readableAccountStore);
-        final var expectedTransfers = List.of(new TestTokenTransfer(
+        final var expectedTransfers = List.of(new TestHelpers.TestTokenTransfer(
                 FUNGIBLE_TOKEN_ID, false, OWNER_ID, OWNER_ACCOUNT, RECEIVER_ID, ALIASED_RECEIVER, 123));
         given(recordBuilder.tokenTransferLists()).willReturn(tokenTransfersLists(expectedTransfers));
         given(readableAccountStore.getAliasedAccountById(OWNER_ID)).willReturn(OWNER_ACCOUNT);
@@ -339,10 +351,10 @@ class ClassicTransfersCallTest extends CallTestBase {
         assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.getState());
         assertEquals(tuweniEncodedRc(SUCCESS), result.getOutput());
         // check that events was added
-        TransferEventLoggingUtilsTest.validateFTLogEvent(logs, expectedTransfers);
+        TransferEventLoggingUtilsTest.validateFtLogEvent(logs, expectedTransfers);
     }
 
-    public static List<SystemContractMethod> ercEventsEmissionForNFTParams() {
+    public static List<SystemContractMethod> ercEventsEmissionForNftParams() {
         return List.of(
                 ClassicTransfersTranslator.CRYPTO_TRANSFER,
                 ClassicTransfersTranslator.CRYPTO_TRANSFER_V2,
@@ -352,8 +364,8 @@ class ClassicTransfersCallTest extends CallTestBase {
     }
 
     @ParameterizedTest
-    @MethodSource("ercEventsEmissionForNFTParams")
-    void ercEventsEmissionForNFT(SystemContractMethod function) {
+    @MethodSource("ercEventsEmissionForNftParams")
+    void ercEventsEmissionForNFT(final SystemContractMethod function) {
         final var localSubject = givenSubject(function.selector());
         given(systemContractOperations.dispatch(
                         any(TransactionBody.class),
@@ -363,7 +375,7 @@ class ClassicTransfersCallTest extends CallTestBase {
                 .willReturn(recordBuilder);
         given(recordBuilder.status()).willReturn(SUCCESS);
         given(nativeOperations.readableAccountStore()).willReturn(readableAccountStore);
-        final var expectedTransfers = List.of(new TestTokenTransfer(
+        final var expectedTransfers = List.of(new TestHelpers.TestTokenTransfer(
                 FUNGIBLE_TOKEN_ID, true, OWNER_ID, OWNER_ACCOUNT, RECEIVER_ID, ALIASED_RECEIVER, 123));
         given(recordBuilder.tokenTransferLists()).willReturn(tokenTransfersLists(expectedTransfers));
         given(readableAccountStore.getAliasedAccountById(OWNER_ID)).willReturn(OWNER_ACCOUNT);
@@ -376,6 +388,6 @@ class ClassicTransfersCallTest extends CallTestBase {
         assertEquals(MessageFrame.State.COMPLETED_SUCCESS, result.getState());
         assertEquals(tuweniEncodedRc(SUCCESS), result.getOutput());
         // check that events was added
-        TransferEventLoggingUtilsTest.validateNFTLogEvent(logs, expectedTransfers);
+        TransferEventLoggingUtilsTest.validateNftLogEvent(logs, expectedTransfers);
     }
 }

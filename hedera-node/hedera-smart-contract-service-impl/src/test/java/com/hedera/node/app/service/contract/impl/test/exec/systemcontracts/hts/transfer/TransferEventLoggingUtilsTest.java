@@ -1,11 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.contract.impl.test.exec.systemcontracts.hts.transfer;
 
-import static com.hedera.node.app.service.contract.impl.test.TestHelpers.*;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.ALIASED_RECEIVER;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.ALIASED_SOMEBODY;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.A_NEW_ACCOUNT_ID;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.B_NEW_ACCOUNT_ID;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.FUNGIBLE_TOKEN_ID;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.OWNER_ACCOUNT;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.OWNER_ID;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.PARANOID_SOMEBODY;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.RECEIVER_ID;
+import static com.hedera.node.app.service.contract.impl.test.TestHelpers.convertAccountToLog;
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.tokenTransfersLists;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
@@ -15,6 +20,7 @@ import com.hedera.hapi.node.base.AccountAmount;
 import com.hedera.hapi.node.base.TokenTransferList;
 import com.hedera.node.app.service.contract.impl.exec.systemcontracts.hts.transfer.TransferEventLoggingUtils;
 import com.hedera.node.app.service.contract.impl.records.ContractCallStreamBuilder;
+import com.hedera.node.app.service.contract.impl.test.TestHelpers;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import java.util.ArrayList;
 import java.util.List;
@@ -41,9 +47,9 @@ public class TransferEventLoggingUtilsTest {
     private MessageFrame frame;
 
     @Test
-    public void emitErcLogEventsForFT() {
+    void emitErcLogEventsForFt() {
         // given
-        final var expectedTransfers = List.of(new TestTokenTransfer(
+        final var expectedTransfers = List.of(new TestHelpers.TestTokenTransfer(
                 FUNGIBLE_TOKEN_ID, false, OWNER_ID, OWNER_ACCOUNT, RECEIVER_ID, ALIASED_RECEIVER, 123));
         given(recordBuilder.tokenTransferLists()).willReturn(tokenTransfersLists(expectedTransfers));
         given(readableAccountStore.getAliasedAccountById(OWNER_ID)).willReturn(OWNER_ACCOUNT);
@@ -53,14 +59,14 @@ public class TransferEventLoggingUtilsTest {
         // when
         TransferEventLoggingUtils.emitErcLogEventsFor(recordBuilder, readableAccountStore, frame);
         // then
-        validateFTLogEvent(logs, expectedTransfers);
+        validateFtLogEvent(logs, expectedTransfers);
     }
 
-    public static void validateFTLogEvent(final List<Log> logs, List<TestTokenTransfer> expectedTransfers) {
+    public static void validateFtLogEvent(final List<Log> logs, List<TestHelpers.TestTokenTransfer> expectedTransfers) {
         assertEquals(expectedTransfers.size(), logs.size());
-        int i = 0;
+        int index = 0;
         for (Log log : logs) {
-            TestTokenTransfer expectedTransfer = expectedTransfers.get(i);
+            TestHelpers.TestTokenTransfer expectedTransfer = expectedTransfers.get(index);
             assertEquals(3, log.getTopics().size());
             assertEquals(
                     convertAccountToLog(expectedTransfer.senderAccount()),
@@ -70,14 +76,14 @@ public class TransferEventLoggingUtilsTest {
                     log.getTopics().get(2));
             assertEquals(
                     expectedTransfer.amount(), UInt256.fromBytes(log.getData()).toLong());
-            i++;
+            index++;
         }
     }
 
     @Test
-    public void emitErcLogEventsForNFT() {
+    void emitErcLogEventsForNft() {
         // given
-        final var expectedTransfers = List.of(new TestTokenTransfer(
+        final var expectedTransfers = List.of(new TestHelpers.TestTokenTransfer(
                 FUNGIBLE_TOKEN_ID, true, OWNER_ID, OWNER_ACCOUNT, RECEIVER_ID, ALIASED_RECEIVER, 123));
         given(recordBuilder.tokenTransferLists()).willReturn(tokenTransfersLists(expectedTransfers));
         given(readableAccountStore.getAliasedAccountById(OWNER_ID)).willReturn(OWNER_ACCOUNT);
@@ -87,14 +93,15 @@ public class TransferEventLoggingUtilsTest {
         // when
         TransferEventLoggingUtils.emitErcLogEventsFor(recordBuilder, readableAccountStore, frame);
         // then
-        validateNFTLogEvent(logs, expectedTransfers);
+        validateNftLogEvent(logs, expectedTransfers);
     }
 
-    public static void validateNFTLogEvent(final List<Log> logs, List<TestTokenTransfer> expectedTransfers) {
+    public static void validateNftLogEvent(
+            final List<Log> logs, List<TestHelpers.TestTokenTransfer> expectedTransfers) {
         assertEquals(expectedTransfers.size(), logs.size());
         int i = 0;
         for (Log log : logs) {
-            TestTokenTransfer expectedTransfer = expectedTransfers.get(i);
+            TestHelpers.TestTokenTransfer expectedTransfer = expectedTransfers.get(i);
             assertEquals(4, log.getTopics().size());
             assertEquals(
                     convertAccountToLog(expectedTransfer.senderAccount()),
@@ -111,15 +118,15 @@ public class TransferEventLoggingUtilsTest {
         }
     }
 
-    private void emitErcLogEventsForFTAirdropCustomFee(
-            List<AccountAmount> transfers, List<TestTokenTransfer> expectedTransfers) {
+    private void emitErcLogEventsForFtAirdropCustomFee(
+            List<AccountAmount> transfers, List<TestHelpers.TestTokenTransfer> expectedTransfers) {
         // given
         given(recordBuilder.tokenTransferLists())
                 .willReturn(List.of(TokenTransferList.newBuilder()
                         .token(FUNGIBLE_TOKEN_ID)
                         .transfers(transfers)
                         .build()));
-        for (TestTokenTransfer transfer : expectedTransfers) {
+        for (final TestHelpers.TestTokenTransfer transfer : expectedTransfers) {
             given(readableAccountStore.getAliasedAccountById(transfer.sender())).willReturn(transfer.senderAccount());
             given(readableAccountStore.getAliasedAccountById(transfer.receiver()))
                     .willReturn(transfer.receiverAccount());
@@ -129,13 +136,13 @@ public class TransferEventLoggingUtilsTest {
         // when
         TransferEventLoggingUtils.emitErcLogEventsFor(recordBuilder, readableAccountStore, frame);
         // then
-        validateFTLogEvent(logs, expectedTransfers);
+        validateFtLogEvent(logs, expectedTransfers);
     }
 
     // Multiple credit accounts. Should be possible with 'Fractional fee'
     @Test
-    public void emitErcLogEventsForFTAirdropCustomFeeMultipleCredit() {
-        emitErcLogEventsForFTAirdropCustomFee(
+    void emitErcLogEventsForFtAirdropCustomFeeMultipleCredit() {
+        emitErcLogEventsForFtAirdropCustomFee(
                 List.of(
                         AccountAmount.newBuilder()
                                 .accountID(OWNER_ID)
@@ -150,9 +157,9 @@ public class TransferEventLoggingUtilsTest {
                                 .amount(1)
                                 .build()),
                 List.of(
-                        new TestTokenTransfer(
+                        new TestHelpers.TestTokenTransfer(
                                 FUNGIBLE_TOKEN_ID, false, OWNER_ID, OWNER_ACCOUNT, RECEIVER_ID, ALIASED_RECEIVER, 10),
-                        new TestTokenTransfer(
+                        new TestHelpers.TestTokenTransfer(
                                 FUNGIBLE_TOKEN_ID,
                                 false,
                                 OWNER_ID,
@@ -164,8 +171,8 @@ public class TransferEventLoggingUtilsTest {
 
     // Multiple debit accounts. Reserved for possible future use cases
     @Test
-    public void emitErcLogEventsForFTAirdropCustomFeeMultipleDebit() {
-        emitErcLogEventsForFTAirdropCustomFee(
+    void emitErcLogEventsForFtAirdropCustomFeeMultipleDebit() {
+        emitErcLogEventsForFtAirdropCustomFee(
                 List.of(
                         AccountAmount.newBuilder()
                                 .accountID(OWNER_ID)
@@ -180,9 +187,9 @@ public class TransferEventLoggingUtilsTest {
                                 .amount(11)
                                 .build()),
                 List.of(
-                        new TestTokenTransfer(
+                        new TestHelpers.TestTokenTransfer(
                                 FUNGIBLE_TOKEN_ID, false, OWNER_ID, OWNER_ACCOUNT, RECEIVER_ID, ALIASED_RECEIVER, 10),
-                        new TestTokenTransfer(
+                        new TestHelpers.TestTokenTransfer(
                                 FUNGIBLE_TOKEN_ID,
                                 false,
                                 A_NEW_ACCOUNT_ID,
@@ -194,8 +201,8 @@ public class TransferEventLoggingUtilsTest {
 
     // Multiple debit and credit accounts. Reserved for possible future use cases
     @Test
-    public void emitErcLogEventsForFTAirdropCustomFeeMultipleDebitAndCredit() {
-        emitErcLogEventsForFTAirdropCustomFee(
+    void emitErcLogEventsForFtAirdropCustomFeeMultipleDebitAndCredit() {
+        emitErcLogEventsForFtAirdropCustomFee(
                 List.of(
                         AccountAmount.newBuilder()
                                 .accountID(OWNER_ID)
@@ -214,9 +221,9 @@ public class TransferEventLoggingUtilsTest {
                                 .amount(1)
                                 .build()),
                 List.of(
-                        new TestTokenTransfer(
+                        new TestHelpers.TestTokenTransfer(
                                 FUNGIBLE_TOKEN_ID, false, OWNER_ID, OWNER_ACCOUNT, RECEIVER_ID, ALIASED_RECEIVER, 10),
-                        new TestTokenTransfer(
+                        new TestHelpers.TestTokenTransfer(
                                 FUNGIBLE_TOKEN_ID,
                                 false,
                                 A_NEW_ACCOUNT_ID,
@@ -224,7 +231,7 @@ public class TransferEventLoggingUtilsTest {
                                 RECEIVER_ID,
                                 ALIASED_RECEIVER,
                                 1),
-                        new TestTokenTransfer(
+                        new TestHelpers.TestTokenTransfer(
                                 FUNGIBLE_TOKEN_ID,
                                 false,
                                 A_NEW_ACCOUNT_ID,
