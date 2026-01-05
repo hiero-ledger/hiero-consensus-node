@@ -67,6 +67,7 @@ import org.hiero.otter.fixtures.app.OtterApp;
 import org.hiero.otter.fixtures.app.OtterExecutionLayer;
 import org.hiero.otter.fixtures.internal.AbstractNode;
 import org.hiero.otter.fixtures.internal.NetworkConfiguration;
+import org.hiero.otter.fixtures.internal.result.ConsensusRoundPool;
 import org.hiero.otter.fixtures.internal.result.NodeResultsCollector;
 import org.hiero.otter.fixtures.internal.result.SingleNodeEventStreamResultImpl;
 import org.hiero.otter.fixtures.internal.result.SingleNodePcesResultImpl;
@@ -136,6 +137,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
      * @param logging the logging instance for the node
      * @param outputDirectory the output directory for the node
      * @param networkConfiguration the network configuration
+     * @param consensusRoundPool the shared pool for deduplicating consensus rounds
      */
     public TurtleNode(
             @NonNull final Randotron randotron,
@@ -145,7 +147,8 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
             @NonNull final SimulatedNetwork network,
             @NonNull final TurtleLogging logging,
             @NonNull final Path outputDirectory,
-            @NonNull final NetworkConfiguration networkConfiguration) {
+            @NonNull final NetworkConfiguration networkConfiguration,
+            @NonNull final ConsensusRoundPool consensusRoundPool) {
         super(selfId, keysAndCerts, networkConfiguration);
         try (final LoggingContextScope ignored = installNodeContext()) {
             this.outputDirectory = requireNonNull(outputDirectory);
@@ -157,7 +160,7 @@ public class TurtleNode extends AbstractNode implements Node, TurtleTimeManager.
             this.logging = requireNonNull(logging);
             this.nodeConfiguration = new TurtleNodeConfiguration(
                     () -> lifeCycle, networkConfiguration.overrideProperties(), outputDirectory);
-            this.resultsCollector = new NodeResultsCollector(selfId);
+            this.resultsCollector = new NodeResultsCollector(selfId, consensusRoundPool);
         }
     }
 
