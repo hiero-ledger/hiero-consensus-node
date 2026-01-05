@@ -2,9 +2,9 @@
 package com.swirlds.common.merkle.synchronization.task;
 
 import com.swirlds.common.merkle.MerkleNode;
+import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
 import com.swirlds.common.merkle.synchronization.views.TeacherPushMerkleTreeView;
 import com.swirlds.common.merkle.synchronization.views.TeacherTreeView;
-import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 
 /**
@@ -18,11 +18,11 @@ public final class TeacherSubtree implements AutoCloseable {
     /**
      * Create a subtree with {@link TeacherPushMerkleTreeView}.
      *
-     * @param configuration the configuration
-     * @param root          the root of the subtree
+     * @param reconnectConfig the reconnect configuration
+     * @param root            the root of the subtree
      */
-    public TeacherSubtree(@NonNull final Configuration configuration, final MerkleNode root) {
-        this(root, new TeacherPushMerkleTreeView(configuration, root));
+    public TeacherSubtree(@NonNull final ReconnectConfig reconnectConfig, final MerkleNode root) {
+        this(root, new TeacherPushMerkleTreeView(reconnectConfig, root));
     }
 
     /**

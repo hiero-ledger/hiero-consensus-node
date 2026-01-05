@@ -43,9 +43,9 @@ import org.junit.jupiter.api.Timeout;
 public class MerkleSynchronizationTests {
 
     private final Configuration configuration = new TestConfigBuilder()
-            // This is important! A low value will cause a failed reconnect to finish more quicly.
+            .withConfigDataType(ReconnectConfig.class)
+            // This is important! A low value will cause a failed reconnect to finish more quickly.
             .withValue("reconnect.asyncStreamTimeout", "5s")
-            .withValue("reconnect.maxAckDelay", "1000ms")
             .getOrCreateConfig();
 
     private final ReconnectConfig reconnectConfig = configuration.getConfigData(ReconnectConfig.class);

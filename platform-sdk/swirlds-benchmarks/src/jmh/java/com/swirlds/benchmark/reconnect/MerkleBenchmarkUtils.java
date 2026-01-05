@@ -115,7 +115,6 @@ public class MerkleBenchmarkUtils {
                         reconnectConfig,
                         BenchmarkMetrics.getMetrics());
                 teacher = new TeachingSynchronizer(
-                        configuration,
                         Time.getCurrent(),
                         getStaticThreadManager(),
                         streams.getTeacherInput(),
