@@ -790,6 +790,7 @@ jobs:
 
       - name: Upload HAPI Test (Block Node Communication) Report Artifacts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: ${{ steps.gradle-hapi-bn-communication.conclusion == 'failure' && !cancelled() }}
         with:
           name: HAPI Test (Block Node Communication) Report
           path: "**/test-clients/build/test-results/testSubprocess/TEST-*.xml"
@@ -797,6 +798,7 @@ jobs:
 
       - name: Upload HAPI Test (Block Node Communication) Network Logs
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: ${{ steps.gradle-hapi-bn-communication.conclusion == 'failure' && !cancelled() }}
         # if: ${{ inputs.enable-network-log-capture && steps.gradle-hapi-bn-communication.conclusion == 'failure' }}
         with:
           name: HAPI Test (Block Node Communication) Network Logs
