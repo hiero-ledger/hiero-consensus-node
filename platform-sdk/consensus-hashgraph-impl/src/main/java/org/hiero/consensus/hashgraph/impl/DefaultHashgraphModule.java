@@ -10,7 +10,7 @@ import com.swirlds.component.framework.wires.output.OutputWire;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import org.hiero.consensus.hashgraph.FreezeCheckHolder;
+import org.hiero.consensus.hashgraph.FreezePeriodChecker;
 import org.hiero.consensus.hashgraph.HashgraphModule;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
@@ -33,7 +33,7 @@ public class DefaultHashgraphModule implements HashgraphModule {
             @NonNull final Time time,
             @NonNull final Roster roster,
             @NonNull final NodeId selfId,
-            @NonNull final FreezeCheckHolder freezeChecker) {
+            @NonNull final FreezePeriodChecker freezeChecker) {
         throw new UnsupportedOperationException("Not yet implemented.");
     }
 

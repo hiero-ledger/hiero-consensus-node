@@ -6,13 +6,16 @@ import com.swirlds.common.test.fixtures.WeightGenerators;
 import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.platform.Consensus;
 import com.swirlds.platform.ConsensusImpl;
+import com.swirlds.platform.gossip.NoOpIntakeEventCounter;
 import com.swirlds.platform.internal.EventImpl;
 import com.swirlds.platform.metrics.NoOpConsensusMetrics;
 import com.swirlds.platform.test.fixtures.event.emitter.EventEmitterBuilder;
 import com.swirlds.platform.test.fixtures.event.emitter.StandardEventEmitter;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
-import org.hiero.consensus.hashgraph.ConsensusConfig;
+import org.hiero.consensus.metrics.noop.NoOpMetrics;
+import org.hiero.consensus.model.event.PlatformEvent;
+import org.hiero.consensus.orphan.DefaultOrphanBuffer;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -29,10 +32,10 @@ import org.openjdk.jmh.infra.Blackhole;
 
 @State(Scope.Thread)
 @Fork(value = 1)
-@Warmup(iterations = 1, time = 1)
+@Warmup(iterations = 1, time = 3)
 @Measurement(iterations = 3, time = 10)
 public class ConsensusBenchmark {
-    @Param({"39"})
+    @Param({"4", "10", "30"})
     public int numNodes;
 
     @Param({"100000"})
@@ -44,7 +47,7 @@ public class ConsensusBenchmark {
     private List<EventImpl> events;
     private Consensus consensus;
 
-    @Setup(Level.Iteration)
+    @Setup(Level.Invocation)
     public void setup() {
         final PlatformContext platformContext =
                 TestPlatformContextBuilder.create().build();
@@ -55,8 +58,18 @@ public class ConsensusBenchmark {
                 .build();
         events = emitter.emitEvents(numEvents);
 
+        // We pass the events through the orphan buffer so that their nGen is set
+        final DefaultOrphanBuffer orphanBuffer =
+                new DefaultOrphanBuffer(new NoOpMetrics(), new NoOpIntakeEventCounter());
+        for (final EventImpl event : events) {
+            final List<PlatformEvent> obOut = orphanBuffer.handleEvent(event.getPlatformEvent());
+            if (obOut.size() != 1) {
+                throw new IllegalStateException("Orphan buffer should not be producing orphans in this benchmark");
+            }
+        }
+
         consensus = new ConsensusImpl(
-                platformContext.getConfiguration().getConfigData(ConsensusConfig.class),
+                platformContext.getConfiguration(),
                 platformContext.getTime(),
                 new NoOpConsensusMetrics(),
                 emitter.getGraphGenerator().getRoster());
@@ -71,9 +84,11 @@ public class ConsensusBenchmark {
         }
 
         /*
-           Results on a M1 Max MacBook Pro:
-           Benchmark                              (numEvents)  (numNodes)  (seed)  Mode  Cnt   Score    Error  Units
-           ConsensusBenchmark.calculateConsensus       100000          39       0  avgt    3  27.551 ± 11.690  ms/op
+            Results on a M1 Max MacBook Pro:
+            Benchmark                              (numEvents)  (numNodes)  (seed)  Mode  Cnt     Score     Error  Units
+            ConsensusBenchmark.calculateConsensus       100000           4       0  avgt    3   373.780 ± 214.697  ms/op
+            ConsensusBenchmark.calculateConsensus       100000          10       0  avgt    3   714.159 ±  50.984  ms/op
+            ConsensusBenchmark.calculateConsensus       100000          30       0  avgt    3  2358.441 ± 311.102  ms/op
         */
     }
 }

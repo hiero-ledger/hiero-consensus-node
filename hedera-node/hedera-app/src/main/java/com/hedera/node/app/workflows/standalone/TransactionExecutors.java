@@ -35,7 +35,6 @@ import com.hedera.node.config.data.BlockStreamConfig;
 import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.types.StreamMode;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.state.State;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -51,6 +50,7 @@ import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hyperledger.besu.evm.operation.Operation;
 import org.hyperledger.besu.evm.tracing.OperationTracer;
 
@@ -197,7 +197,6 @@ public enum TransactionExecutors {
                 properties.appProperties(),
                 properties.customTracerBinding(),
                 properties.customOps(),
-                properties.softwareVersionFactory(),
                 entityIdFactory);
     }
 
@@ -214,12 +213,10 @@ public enum TransactionExecutors {
             @NonNull final Map<String, String> properties,
             @Nullable final TracerBinding customTracerBinding,
             @NonNull final Set<Operation> customOps,
-            @NonNull final SemanticVersion softwareVersionFactory,
             @NonNull final EntityIdFactory entityIdFactory) {
         final var tracerBinding =
                 customTracerBinding != null ? customTracerBinding : DefaultTracerBinding.DEFAULT_TRACER_BINDING;
-        final var executor = newExecutorComponent(
-                state, properties, tracerBinding, customOps, softwareVersionFactory, entityIdFactory);
+        final var executor = newExecutorComponent(state, properties, tracerBinding, customOps, entityIdFactory);
         executor.stateNetworkInfo().initFrom(state);
         executor.initializer().initialize(state, StreamMode.BOTH);
         final var exchangeRateManager = executor.exchangeRateManager();
@@ -239,7 +236,6 @@ public enum TransactionExecutors {
             @NonNull Map<String, String> properties,
             @NonNull final TracerBinding tracerBinding,
             @NonNull final Set<Operation> customOps,
-            @NonNull final SemanticVersion softwareVersionFactory,
             @NonNull final EntityIdFactory entityIdFactory) {
         // Translate legacy executor property name to hedera.nodeTransaction.maxBytes, which
         // now controls the effective max size of a signed transaction after ingest
@@ -250,7 +246,7 @@ public enum TransactionExecutors {
                             : e)
                     .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
         }
-        final var bootstrapConfigProvider = new BootstrapConfigProviderImpl();
+        final var bootstrapConfigProvider = new BootstrapConfigProviderImpl(properties);
         final var bootstrapConfig = bootstrapConfigProvider.getConfiguration();
         final var configProvider = new ConfigProviderImpl(false, null, properties);
         final AtomicReference<ExecutorComponent> componentRef = new AtomicReference<>();

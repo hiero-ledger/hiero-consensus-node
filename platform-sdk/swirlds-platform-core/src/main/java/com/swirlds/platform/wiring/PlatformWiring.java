@@ -6,9 +6,9 @@ import static com.swirlds.component.framework.wires.SolderType.OFFER;
 
 import com.hedera.hapi.platform.event.StateSignatureTransaction;
 import com.swirlds.common.context.PlatformContext;
+import com.swirlds.common.metrics.event.EventPipelineTracker;
 import com.swirlds.component.framework.component.ComponentWiring;
 import com.swirlds.component.framework.transformers.WireFilter;
-import com.swirlds.component.framework.wires.input.InputWire;
 import com.swirlds.component.framework.wires.output.OutputWire;
 import com.swirlds.platform.builder.ApplicationCallbacks;
 import com.swirlds.platform.builder.ExecutionLayer;
@@ -20,18 +20,13 @@ import com.swirlds.platform.components.consensus.ConsensusEngine;
 import com.swirlds.platform.components.consensus.ConsensusEngineOutput;
 import com.swirlds.platform.event.branching.BranchDetector;
 import com.swirlds.platform.event.branching.BranchReporter;
-import com.swirlds.platform.event.deduplication.EventDeduplicator;
-import com.swirlds.platform.event.orphan.OrphanBuffer;
 import com.swirlds.platform.event.preconsensus.InlinePcesWriter;
 import com.swirlds.platform.event.stream.ConsensusEventStream;
 import com.swirlds.platform.event.validation.EventSignatureValidator;
-import com.swirlds.platform.event.validation.InternalEventValidator;
 import com.swirlds.platform.eventhandling.StateWithHashComplexity;
 import com.swirlds.platform.eventhandling.TransactionHandler;
 import com.swirlds.platform.eventhandling.TransactionHandlerResult;
 import com.swirlds.platform.eventhandling.TransactionPrehandler;
-import com.swirlds.platform.metrics.PlatformMetricsConfig;
-import com.swirlds.platform.metrics.event.EventPipelineTracker;
 import com.swirlds.platform.state.hasher.StateHasher;
 import com.swirlds.platform.state.hashlogger.HashLogger;
 import com.swirlds.platform.state.iss.IssDetector;
@@ -48,14 +43,15 @@ import com.swirlds.platform.system.PlatformMonitor;
 import com.swirlds.platform.system.state.notifications.StateHashedNotification;
 import com.swirlds.platform.system.status.PlatformStatusConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.Objects;
 import java.util.Queue;
-import org.hiero.consensus.crypto.EventHasher;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.hashgraph.EventWindow;
 import org.hiero.consensus.model.notification.IssNotification;
 import org.hiero.consensus.model.transaction.ScopedSystemTransaction;
+import org.hiero.consensus.orphan.OrphanBuffer;
 
 /**
  * Encapsulates wiring for {@link com.swirlds.platform.SwirldsPlatform}.
@@ -74,35 +70,29 @@ public class PlatformWiring {
         Objects.requireNonNull(execution);
         Objects.requireNonNull(components);
 
-        final InputWire<PlatformEvent> hasherInputWire =
-                components.eventHasherWiring().getInputWire(EventHasher::hashEvent, "unhashed event");
-        components.gossipWiring().getEventOutput().solderTo(hasherInputWire);
+        components
+                .gossipWiring()
+                .getEventOutput()
+                .solderTo(components.eventIntakeModule().unhashedEventsInputWire());
 
         components
                 .gossipWiring()
                 .getSyncProgressOutput()
                 .solderTo(components.eventCreatorModule().syncProgressInputWire());
 
+        // Note: This is an intermediate step while migrating components to the new event intake module.
+        // Right now, the output wire does not provide validated events, but events that have only
+        // run through the components that have been migrated so far.
         components
-                .eventHasherWiring()
-                .getOutputWire()
-                .solderTo(
-                        components.internalEventValidatorWiring().getInputWire(InternalEventValidator::validateEvent));
-
-        components
-                .internalEventValidatorWiring()
-                .getOutputWire()
-                .solderTo(components.eventDeduplicatorWiring().getInputWire(EventDeduplicator::handleEvent));
-        components
-                .eventDeduplicatorWiring()
-                .getOutputWire()
+                .eventIntakeModule()
+                .validatedEventsOutputWire()
                 .solderTo(components
                         .eventSignatureValidatorWiring()
                         .getInputWire(EventSignatureValidator::validateSignature));
         components
                 .eventSignatureValidatorWiring()
                 .getOutputWire()
-                .solderTo(components.orphanBufferWiring().getInputWire(OrphanBuffer::handleEvent));
+                .solderTo(components.orphanBufferWiring().getInputWire(OrphanBuffer::handleEvent, "unordered events"));
         final OutputWire<PlatformEvent> splitOrphanBufferOutput =
                 components.orphanBufferWiring().getSplitOutput();
 
@@ -162,9 +152,7 @@ public class PlatformWiring {
         components
                 .eventCreatorModule()
                 .createdEventOutputWire()
-                .solderTo(
-                        components.internalEventValidatorWiring().getInputWire(InternalEventValidator::validateEvent),
-                        INJECT);
+                .solderTo(components.eventIntakeModule().nonValidatedEventsInputWire(), INJECT);
 
         if (callbacks.staleEventConsumer() != null) {
             final OutputWire<PlatformEvent> staleEvent = components
@@ -237,7 +225,10 @@ public class PlatformWiring {
 
         solderEventWindow(components);
 
-        components.pcesReplayerWiring().eventOutput().solderTo(hasherInputWire);
+        components
+                .pcesReplayerWiring()
+                .eventOutput()
+                .solderTo(components.eventIntakeModule().unhashedEventsInputWire());
 
         final OutputWire<ConsensusRound> consensusRoundOutputWire = components
                 .consensusEngineWiring()
@@ -413,33 +404,34 @@ public class PlatformWiring {
     /**
      * Solder any metrics tracking wires.
      *
-     * @param platformContext the platform context
      * @param components      the platform components
+     * @param pipelineTracker the pipeline tracker, or {@code null} to skip wiring metrics
      */
     public static void wireMetrics(
-            @NonNull final PlatformContext platformContext, @NonNull final PlatformComponents components) {
-        if (platformContext
-                .getConfiguration()
-                .getConfigData(PlatformMetricsConfig.class)
-                .eventPipelineMetricsEnabled()) {
-            final EventPipelineTracker pipelineTracker = new EventPipelineTracker(platformContext.getMetrics());
-
-            components.eventHasherWiring().getOutputWire().solderForMonitoring(pipelineTracker::afterHashing);
-            components
-                    .internalEventValidatorWiring()
-                    .getOutputWire()
-                    .solderForMonitoring(pipelineTracker::afterValidation);
-            components
-                    .eventDeduplicatorWiring()
-                    .getOutputWire()
-                    .solderForMonitoring(pipelineTracker::afterDeduplication);
+            @NonNull final PlatformComponents components, @Nullable final EventPipelineTracker pipelineTracker) {
+        if (pipelineTracker != null) {
+            pipelineTracker.registerMetric("verification");
             components
                     .eventSignatureValidatorWiring()
                     .getOutputWire()
-                    .solderForMonitoring(pipelineTracker::afterSigVerification);
-            components.orphanBufferWiring().getOutputWire().solderForMonitoring(pipelineTracker::afterOrphanBuffer);
-            components.pcesInlineWriterWiring().getOutputWire().solderForMonitoring(pipelineTracker::afterPces);
-            components.consensusEngineWiring().getOutputWire().solderForMonitoring(pipelineTracker::afterConsensus);
+                    .solderForMonitoring(platformEvent -> pipelineTracker.recordEvent("verification", platformEvent));
+            pipelineTracker.registerMetric("orphanBuffer");
+            components
+                    .orphanBufferWiring()
+                    .getOutputWire()
+                    .solderForMonitoring(
+                            platformEvents -> pipelineTracker.recordEvents("orphanBuffer", platformEvents));
+            pipelineTracker.registerMetric("pces");
+            components
+                    .pcesInlineWriterWiring()
+                    .getOutputWire()
+                    .solderForMonitoring(platformEvent -> pipelineTracker.recordEvent("pces", platformEvent));
+            pipelineTracker.registerMetric("consensus");
+            components
+                    .consensusEngineWiring()
+                    .getOutputWire()
+                    .solderForMonitoring(consensusEngineOutput ->
+                            pipelineTracker.recordRounds("consensus", consensusEngineOutput.consensusRounds()));
         }
     }
 
@@ -450,13 +442,12 @@ public class PlatformWiring {
         final OutputWire<EventWindow> eventWindowOutputWire =
                 components.eventWindowManagerWiring().getOutputWire();
 
-        eventWindowOutputWire.solderTo(
-                components.eventDeduplicatorWiring().getInputWire(EventDeduplicator::setEventWindow), INJECT);
+        eventWindowOutputWire.solderTo(components.eventIntakeModule().eventWindowInputWire(), INJECT);
         eventWindowOutputWire.solderTo(
                 components.eventSignatureValidatorWiring().getInputWire(EventSignatureValidator::setEventWindow),
                 INJECT);
         eventWindowOutputWire.solderTo(
-                components.orphanBufferWiring().getInputWire(OrphanBuffer::setEventWindow), INJECT);
+                components.orphanBufferWiring().getInputWire(OrphanBuffer::setEventWindow, "event window"), INJECT);
         eventWindowOutputWire.solderTo(components.gossipWiring().getEventWindowInput(), INJECT);
         eventWindowOutputWire.solderTo(
                 components.pcesInlineWriterWiring().getInputWire(InlinePcesWriter::updateNonAncientEventBoundary),
@@ -500,7 +491,6 @@ public class PlatformWiring {
      * the lifecycle. This method forces those wires to be built.
      */
     private static void buildUnsolderedWires(final PlatformComponents components) {
-        components.eventDeduplicatorWiring().getInputWire(EventDeduplicator::clear);
         components.consensusEngineWiring().getInputWire(ConsensusEngine::outOfBandSnapshotUpdate);
         components.notifierWiring().getInputWire(AppNotifier::sendReconnectCompleteNotification);
         components.notifierWiring().getInputWire(AppNotifier::sendPlatformStatusChangeNotification);
