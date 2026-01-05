@@ -39,14 +39,7 @@ public class BenchmarkSlowTeachingSynchronizer extends TeachingSynchronizer {
             final double delayNetworkFuzzRangePercent,
             final Runnable breakConnection,
             final ReconnectConfig reconnectConfig) {
-        super(
-                Time.getCurrent(),
-                getStaticThreadManager(),
-                in,
-                out,
-                root,
-                breakConnection,
-                reconnectConfig);
+        super(Time.getCurrent(), getStaticThreadManager(), in, out, root, breakConnection, reconnectConfig);
 
         this.randomSeed = randomSeed;
         this.delayStorageMicroseconds = delayStorageMicroseconds;
