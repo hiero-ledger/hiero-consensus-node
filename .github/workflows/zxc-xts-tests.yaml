@@ -43,7 +43,7 @@ on:
         default: "latest"
       mirror-node-version:
         type: string
-        description: "The mirror node version to deploy for the mirror node regression panel (if not specified, '0.142.2' will be used)"
+        description: "The mirror node version to deploy for the mirror node regression panel (if not specified, '0.145.2' will be used)"
         default: "latest"
       helm-release-name:
         type: string
