@@ -44,36 +44,41 @@ class AddressBookFeeCalculatorsTest {
         var testSchedule = createTestFeeSchedule();
         feeCalculator = new SimpleFeeCalculatorImpl(
                 testSchedule,
-                Set.of(
-                        new NodeCreateFeeCalculator(),
-                        new NodeUpdateFeeCalculator(),
-                        new NodeDeleteFeeCalculator()));
+                Set.of(new NodeCreateFeeCalculator(), new NodeUpdateFeeCalculator(), new NodeDeleteFeeCalculator()));
     }
 
     static Stream<TestCase> provideTestCases() {
         return Stream.of(
                 new TestCase(
                         new NodeCreateFeeCalculator(),
-                        TransactionBody.newBuilder().nodeCreate(com.hedera.hapi.node.addressbook.NodeCreateTransactionBody.newBuilder().build()).build(),
+                        TransactionBody.newBuilder()
+                                .nodeCreate(com.hedera.hapi.node.addressbook.NodeCreateTransactionBody.newBuilder()
+                                        .build())
+                                .build(),
                         1,
                         100000L,
                         123000000L,
                         200000L),
                 new TestCase(
                         new NodeUpdateFeeCalculator(),
-                        TransactionBody.newBuilder().nodeUpdate(com.hedera.hapi.node.addressbook.NodeUpdateTransactionBody.newBuilder().build()).build(),
+                        TransactionBody.newBuilder()
+                                .nodeUpdate(com.hedera.hapi.node.addressbook.NodeUpdateTransactionBody.newBuilder()
+                                        .build())
+                                .build(),
                         2,
                         1100000L,
                         234000000L,
                         2200000L),
                 new TestCase(
                         new NodeDeleteFeeCalculator(),
-                        TransactionBody.newBuilder().nodeDelete(com.hedera.hapi.node.addressbook.NodeDeleteTransactionBody.newBuilder().build()).build(),
+                        TransactionBody.newBuilder()
+                                .nodeDelete(com.hedera.hapi.node.addressbook.NodeDeleteTransactionBody.newBuilder()
+                                        .build())
+                                .build(),
                         1,
                         100000L,
                         345000000L,
-                        200000L)
-        );
+                        200000L));
     }
 
     @ParameterizedTest(name = "{index}: {0}")
@@ -112,9 +117,7 @@ class AddressBookFeeCalculatorsTest {
                                 234000000,
                                 makeExtraIncluded(Extra.KEYS, 1),
                                 makeExtraIncluded(Extra.BYTES, 1000)),
-                        makeServiceFee(
-                                HederaFunctionality.NODE_DELETE,
-                                345000000)))
+                        makeServiceFee(HederaFunctionality.NODE_DELETE, 345000000)))
                 .build();
     }
 
