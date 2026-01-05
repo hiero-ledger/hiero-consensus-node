@@ -74,7 +74,9 @@ import com.hedera.node.config.data.HederaConfig;
 import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.node.config.data.VersionConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
+import com.hedera.node.config.types.StreamMode;
 import com.hedera.pbj.runtime.ParseException;
+import com.hedera.services.stream.proto.RecordStreamFile;
 import com.hedera.services.stream.proto.RecordStreamItem;
 import com.hederahashgraph.api.proto.java.SignedTransaction;
 import com.swirlds.common.metrics.noop.NoOpMetrics;
@@ -321,10 +323,18 @@ public class SimpleFeesMirrorNodeTest {
         // make an entity id factory
         final var entityIdFactory = new AppEntityIdFactory(DEFAULT_CONFIG);
         // load a new executor component
-        final var executorComponent = TRANSACTION_EXECUTORS.newExecutorJoshBetter(properties, entityIdFactory);
+        final var executor = TRANSACTION_EXECUTORS.newExecutorComponent(properties.state()
+                ,properties.appProperties(),
+                properties.customTracerBinding(),
+                properties.customOps(),
+                entityIdFactory);
+        // init
+        executor.stateNetworkInfo().initFrom(properties.state());
+        executor.initializer().initialize(properties.state(), StreamMode.BOTH);
+
         // grab the fee calculator
-        final var calc = executorComponent.feeManager().getSimpleFeeCalculator();
-        System.out.println("got the calculator " +calc);
+        final var calc = executor.feeManager().getSimpleFeeCalculator();
+
 
         final String records_dir = "../../temp/";
 
@@ -341,21 +351,38 @@ public class SimpleFeesMirrorNodeTest {
                         try (final var fin = new FileInputStream(file.toFile())) {
                             final var recordFileVersion = ByteBuffer.wrap(fin.readNBytes(4)).getInt();
                             System.out.println("read version " + recordFileVersion);
-                            final var recordStreamFile = com.hedera.services.stream.proto.RecordStreamFile.parseFrom(fin);
+                            final var recordStreamFile = RecordStreamFile.parseFrom(fin);
                             recordStreamFile.getRecordStreamItemsList().stream()
                                     .forEach(item -> {
                                         try {
                                             TransactionBody body = parseTransactionBody(item);
+                                            if(shouldSkip(body.data().kind())) {
+                                                return;
+                                            }
                                             System.out.println("TXN: memo " + body.memo());
                                             System.out.println("TXN: fee " + body.transactionFee());
+                                            if(body.data().kind() == TransactionBody.DataOneOfType.TOKEN_BURN) {
+                                                System.out.println("burn amount " + body.tokenBurnOrThrow().amount());
+                                                System.out.println("serial numbers " + body.tokenBurnOrThrow().serialNumbers());
+                                            }
                                             System.out.println("TXN: id " + body.transactionID());
-                                            System.out.println("TXN: data case " + body.data().kind());
                                             System.out.println("calculating simple fees for transaction " + body);
                                             final FeeContext feeContext = null;
                                             final var result = calc.calculateTxFee(body,feeContext);
                                             System.out.println("result is " + result);
-                                            System.out.println("original is : " + body.transactionFee());
-                                            System.out.println("simple   is : " + result.total());
+                                            System.out.println("TXN: data case " + body.data().kind());
+                                            // max fee in tiny bar //
+                                            System.out.println("original      is : " + body.transactionFee());
+                                            System.out.println("simple        is : " + result.total());
+                                            final var record = item.getRecord();
+
+                                            // actual fee charged (in tiny bar)?
+                                            System.out.println("record trans fee : " + record.getTransactionFee());
+                                            // rec fee * 12 to get cents
+                                            // 845911
+                                            System.out.println("status is " + record.getReceipt().getStatus());
+                                            System.out.println("exchange rate is " + record.getReceipt().getExchangeRate());
+
                                         } catch (Exception e) {
                                             System.out.println("exception " + e);
                                         }
@@ -367,6 +394,26 @@ public class SimpleFeesMirrorNodeTest {
                         }
                     });
         }
+    }
+
+    private boolean shouldSkip(TransactionBody.DataOneOfType kind) {
+        // requires readable store
+        if(kind == TransactionBody.DataOneOfType.CONSENSUS_SUBMIT_MESSAGE) {  return true;  }
+        if(kind == TransactionBody.DataOneOfType.CRYPTO_TRANSFER) {  return true;  }
+
+        // fee calculator not implemented yet
+        // coming in PR: https://github.com/hiero-ledger/hiero-consensus-node/pull/22584
+        if(kind == TransactionBody.DataOneOfType.TOKEN_AIRDROP) {  return true;  }
+        if(kind == TransactionBody.DataOneOfType.TOKEN_ASSOCIATE) { return true; }
+        if(kind == TransactionBody.DataOneOfType.TOKEN_DISSOCIATE) { return true; }
+        if(kind == TransactionBody.DataOneOfType.TOKEN_UPDATE) { return true; }
+        if(kind == TransactionBody.DataOneOfType.TOKEN_UPDATE_NFTS) { return true; }
+        if(kind == TransactionBody.DataOneOfType.TOKEN_WIPE) { return true; }
+        if(kind == TransactionBody.DataOneOfType.TOKEN_REJECT) { return true; }
+        if(kind == TransactionBody.DataOneOfType.TOKEN_GRANT_KYC) { return true; }
+        if(kind == TransactionBody.DataOneOfType.TOKEN_FEE_SCHEDULE_UPDATE) { return true; }
+
+        return false;
     }
 
     private TransactionBody parseTransactionBody(RecordStreamItem item) throws InvalidProtocolBufferException, ParseException {
@@ -389,9 +436,16 @@ public class SimpleFeesMirrorNodeTest {
         // make an entity id factory
         final var entityIdFactory = new AppEntityIdFactory(DEFAULT_CONFIG);
         // load a new executor component
-        final var executorComponent = TRANSACTION_EXECUTORS.newExecutorJoshBetter(properties, entityIdFactory);
-        // grab the fee calculator
-        final var calc = executorComponent.feeManager().getSimpleFeeCalculator();
+        final var executor = TRANSACTION_EXECUTORS.newExecutorComponent(properties.state()
+                ,properties.appProperties(),
+                properties.customTracerBinding(),
+                properties.customOps(),
+                entityIdFactory);
+        // init
+        executor.stateNetworkInfo().initFrom(properties.state());
+        executor.initializer().initialize(properties.state(), StreamMode.BOTH);
+
+        final var calc = executor.feeManager().getSimpleFeeCalculator();
         System.out.println("got the calculator " +calc);
         final var body = TransactionBody.newBuilder()
                 .tokenCreation(TokenCreateTransactionBody.newBuilder()
