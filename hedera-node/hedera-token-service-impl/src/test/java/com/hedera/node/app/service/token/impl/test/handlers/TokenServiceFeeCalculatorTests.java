@@ -428,8 +428,7 @@ public class TokenServiceFeeCalculatorTests {
                         makeExtraDef(Extra.BYTES, 1),
                         makeExtraDef(Extra.KEYS, 2),
                         makeExtraDef(Extra.SIGNATURES, 3),
-                        makeExtraDef(Extra.TOKEN_MINT_NFT, UNIQUE_TOKEN_FEE),
-                        makeExtraDef(Extra.CUSTOM_FEE, 500))
+                        makeExtraDef(Extra.TOKEN_MINT_NFT, UNIQUE_TOKEN_FEE))
                 .network(NetworkFee.DEFAULT.copyBuilder().multiplier(2).build())
                 .services(makeService(
                         "Token",
