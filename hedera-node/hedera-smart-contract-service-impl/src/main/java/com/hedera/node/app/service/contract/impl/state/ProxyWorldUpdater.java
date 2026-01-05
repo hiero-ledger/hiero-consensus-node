@@ -484,7 +484,7 @@ public class ProxyWorldUpdater implements HederaWorldUpdater {
      * {@inheritDoc}
      */
     @Override
-    public boolean setAccountCodeDelegationIndicator(
+    public boolean setAccountCodeDelegation(
             @NonNull final AccountID accountID, @NonNull final Address delegationAddress) {
         return enhancement.operations().setAccountCodeDelegation(accountID, delegationAddress);
     }
@@ -493,7 +493,7 @@ public class ProxyWorldUpdater implements HederaWorldUpdater {
      * {@inheritDoc}
      */
     @Override
-    public boolean createAccountWithCodeDelegationIndicator(
+    public boolean createAccountWithCodeDelegation(
             @NonNull final Address authority, @NonNull final Address delegationAddress) {
 
         // TODO: check for sufficient gas to create account

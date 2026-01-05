@@ -41,7 +41,8 @@ public record CodeDelegation(byte[] chainId, byte[] address, long nonce, int yPa
      *
      */
     public byte[] calculateSignableMessage() {
-        // Use Long.toBytes for canonical RLP encoding (nonce=0 -> empty byte array, not 8 zeros)
+        // Use Bytes.minimalBytes for canonical RLP encoding (nonce=0 -> empty byte array, not 8 zeros).  Truncate
+        // leading zeros.
         // Use RLPEncoder.list() to wrap in a proper RLP list (not sequence which just concatenates)
         final var nonceBytes = Bytes.minimalBytes(nonce).toArray();
         final var rlpEncoded = RLPEncoder.list(chainId, address, nonceBytes);

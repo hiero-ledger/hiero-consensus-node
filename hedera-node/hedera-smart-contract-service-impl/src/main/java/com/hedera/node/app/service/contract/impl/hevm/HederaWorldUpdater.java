@@ -303,8 +303,7 @@ public interface HederaWorldUpdater extends WorldUpdater {
      * @param delegationAddress the address to set as the delegation indicator
      * @return true if the code delegation was set successfully, false otherwise
      */
-    boolean setAccountCodeDelegationIndicator(
-            @NonNull final AccountID accountID, @NonNull final Address delegationAddress);
+    boolean setAccountCodeDelegation(@NonNull final AccountID accountID, @NonNull final Address delegationAddress);
 
     /**
      * Create a new account with code delegation to the given address for the new account.
@@ -312,6 +311,5 @@ public interface HederaWorldUpdater extends WorldUpdater {
      * @param delegationAddress the address to set as the delegation indicator
      * @return true if the account was created and the code delegation was set successfully, false otherwise
      */
-    boolean createAccountWithCodeDelegationIndicator(
-            @NonNull final Address authority, @NonNull final Address delegationAddress);
+    boolean createAccountWithCodeDelegation(@NonNull final Address authority, @NonNull final Address delegationAddress);
 }

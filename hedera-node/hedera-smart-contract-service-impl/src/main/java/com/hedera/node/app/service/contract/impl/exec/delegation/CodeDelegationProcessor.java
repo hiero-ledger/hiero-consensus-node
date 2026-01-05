@@ -67,15 +67,14 @@ public record CodeDelegationProcessor(long chainId) {
         final ProxyWorldUpdater proxyWorldUpdater = (ProxyWorldUpdater) worldUpdater.updater();
         transaction
                 .codeDelegations()
-                .forEach(codeDelegation ->
-                        setAccountCodeToDelegationIndicator(proxyWorldUpdater, codeDelegation, result));
+                .forEach(codeDelegation -> processCodeDelegation(proxyWorldUpdater, codeDelegation, result));
         // Commit the changes for code delegations.
         proxyWorldUpdater.commit();
 
         return result;
     }
 
-    private void setAccountCodeToDelegationIndicator(
+    private void processCodeDelegation(
             final ProxyWorldUpdater proxyWorldUpdater,
             final CodeDelegation codeDelegation,
             final CodeDelegationResult result) {
@@ -117,8 +116,7 @@ public record CodeDelegationProcessor(long chainId) {
                 return;
             }
 
-            if (!proxyWorldUpdater.createAccountWithCodeDelegationIndicator(
-                    authorizerAddress, delegatedContractAddress)) {
+            if (!proxyWorldUpdater.createAccountWithCodeDelegation(authorizerAddress, delegatedContractAddress)) {
                 return;
             }
 
@@ -142,7 +140,7 @@ public record CodeDelegationProcessor(long chainId) {
                 return;
             }
 
-            if (!proxyWorldUpdater.setAccountCodeDelegationIndicator(
+            if (!proxyWorldUpdater.setAccountCodeDelegation(
                     ((HederaEvmAccount) authority).hederaId(), delegatedContractAddress)) {
                 return;
             }

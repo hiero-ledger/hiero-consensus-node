@@ -475,13 +475,14 @@ public record EthTxData(
                     throw new IllegalArgumentException(
                             "Code authorization does not contain expected number of elements");
                 }
+                final var elements = rlpItem.asRLPList().elements();
                 codeDelegations.add(new CodeDelegation(
-                        rlpItem.asRLPList().elements().get(0).data(), // chainId)
-                        rlpItem.asRLPList().elements().get(1).data(), // address
-                        asLong(rlpItem.asRLPList().elements().get(2)), // nonce
-                        asByte(rlpItem.asRLPList().elements().get(3)), // yParity
-                        rlpItem.asRLPList().elements().get(4).data(), // r
-                        rlpItem.asRLPList().elements().get(5).data() // s
+                        elements.get(0).data(), // chainId)
+                        elements.get(1).data(), // address
+                        asLong(elements.get(2)), // nonce
+                        asByte(elements.get(3)), // yParity
+                        elements.get(4).data(), // r
+                        elements.get(5).data() // s
                         ));
             }
         }

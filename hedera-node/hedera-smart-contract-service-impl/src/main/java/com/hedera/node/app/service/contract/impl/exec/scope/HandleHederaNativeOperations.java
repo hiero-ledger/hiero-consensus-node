@@ -141,8 +141,8 @@ public class HandleHederaNativeOperations implements HederaNativeOperations {
                 .build();
 
         try {
-            return context.dispatch(
-                            dispatchOptionsOf(!delegationAddress.equals(Bytes.EMPTY), context.payer(), synthTxn))
+            return context.dispatch(hollowAccountCreationDispatchOptions(
+                            !delegationAddress.equals(Bytes.EMPTY), context.payer(), synthTxn))
                     .status();
         } catch (HandleException e) {
             // It is critically important we don't let HandleExceptions propagate to the workflow because
@@ -163,7 +163,7 @@ public class HandleHederaNativeOperations implements HederaNativeOperations {
      * @param body the transaction body to dispatch
      * @return the dispatch options to use for the dispatch
      */
-    private static DispatchOptions<CryptoCreateStreamBuilder> dispatchOptionsOf(
+    private static DispatchOptions<CryptoCreateStreamBuilder> hollowAccountCreationDispatchOptions(
             final boolean hasDelegationAddress, @NonNull final AccountID payerId, @NonNull final TransactionBody body) {
         if (hasDelegationAddress) {
             return stepDispatch(

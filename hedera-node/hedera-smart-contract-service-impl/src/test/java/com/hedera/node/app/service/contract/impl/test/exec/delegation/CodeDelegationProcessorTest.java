@@ -202,7 +202,7 @@ class CodeDelegationProcessorTest {
         when(world.updater()).thenReturn(proxyWorldUpdater);
 
         when(proxyWorldUpdater.getAccount(authAddr)).thenReturn(null, acct);
-        when(proxyWorldUpdater.createAccountWithCodeDelegationIndicator(authAddr, contractAddr))
+        when(proxyWorldUpdater.createAccountWithCodeDelegation(authAddr, contractAddr))
                 .thenReturn(true);
 
         try (MockedStatic<EthTxSigs> mocked = mockStatic(EthTxSigs.class)) {
@@ -214,7 +214,7 @@ class CodeDelegationProcessorTest {
 
             assertNotNull(result);
             verify(proxyWorldUpdater, times(2)).getAccount(authAddr);
-            verify(proxyWorldUpdater).createAccountWithCodeDelegationIndicator(authAddr, contractAddr);
+            verify(proxyWorldUpdater).createAccountWithCodeDelegation(authAddr, contractAddr);
             verify(acct).incrementNonce();
             verify(proxyWorldUpdater).commit();
         }
@@ -268,7 +268,7 @@ class CodeDelegationProcessorTest {
         when(acct.getCode()).thenReturn(Bytes.EMPTY);
         when(acct.getNonce()).thenReturn(5L);
         when(acct.isRegularAccount()).thenReturn(true);
-        when(proxyWorldUpdater.setAccountCodeDelegationIndicator(any(), any())).thenReturn(true);
+        when(proxyWorldUpdater.setAccountCodeDelegation(any(), any())).thenReturn(true);
 
         try (MockedStatic<EthTxSigs> mocked = mockStatic(EthTxSigs.class)) {
             final var sig = mockAuthorityWithAddress(authAddr);
@@ -369,7 +369,7 @@ class CodeDelegationProcessorTest {
         when(acct.getCode()).thenReturn(Bytes.EMPTY);
         when(acct.getNonce()).thenReturn(0L);
         when(acct.isRegularAccount()).thenReturn(true);
-        when(proxyWorldUpdater.setAccountCodeDelegationIndicator(any(), any())).thenReturn(true);
+        when(proxyWorldUpdater.setAccountCodeDelegation(any(), any())).thenReturn(true);
 
         try (MockedStatic<EthTxSigs> mocked = mockStatic(EthTxSigs.class)) {
             final var sig = mockAuthorityWithAddress(zeroAddr);
