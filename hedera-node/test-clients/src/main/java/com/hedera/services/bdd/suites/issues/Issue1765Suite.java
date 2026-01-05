@@ -23,20 +23,31 @@ import static com.hedera.services.bdd.suites.HapiSuite.NODE;
 import static com.hedera.services.bdd.suites.HapiSuite.STAKING_REWARD;
 import static com.hedera.services.bdd.suites.HapiSuite.flattened;
 
+import com.hedera.services.bdd.junit.HapiTestLifecycle;
 import com.hedera.services.bdd.junit.LeakyHapiTest;
+import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.keys.KeyFactory;
 import com.hederahashgraph.api.proto.java.ResponseCodeEnum;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Stream;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Tag;
 
+@HapiTestLifecycle
 public class Issue1765Suite {
     private static final String ACCOUNT = "1.1.1";
     private static final String INVALID_UPDATE_TXN = "invalidUpdateTxn";
     private static final String INVALID_APPEND_TXN = "invalidAppendTxn";
     private static final String IMAGINARY = "imaginary";
     private static final String MEMO_IS = "Turning and turning in the widening gyre";
+
+    @BeforeAll
+    static void beforeAll(@NonNull final TestLifecycle testLifecycle) {
+        testLifecycle.overrideInClass(Map.of("nodes.feeCollectionAccountEnabled", "false"));
+    }
 
     @LeakyHapiTest(requirement = SYSTEM_ACCOUNT_BALANCES)
     final Stream<DynamicTest> recordOfInvalidContractUpdateSanityChecks() {
