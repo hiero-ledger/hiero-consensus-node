@@ -318,10 +318,6 @@ public class TokenServiceFeeCalculatorTests {
     @Test
     void associateToken() {
         calculatorState = mock(FeeContext.class);
-        configuration = mock(VersionedConfiguration.class);
-        given(entitiesConfig.unlimitedAutoAssociationsEnabled()).willReturn(true);
-        given(configuration.getConfigData(EntitiesConfig.class)).willReturn(entitiesConfig);
-        given(calculatorState.configuration()).willReturn(configuration);
 
         final var tokenId = TokenID.newBuilder().tokenNum(1234).build();
         final var accountId = AccountID.newBuilder().accountNum(12345).build();

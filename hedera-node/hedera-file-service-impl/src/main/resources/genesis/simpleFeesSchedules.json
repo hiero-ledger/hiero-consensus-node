@@ -206,7 +206,6 @@
           "name": "TokenBurn",
           "baseFee": 9000000,
           "extras": [
-            {"name": "TOKEN_MINT_NFT", "includedCount": 0 }
           ]
         },
         {
@@ -253,14 +252,12 @@
           "name": "TokenAssociateToAccount",
           "baseFee": 499000000,
           "extras": [
-            { "name": "TOKEN_TYPES", "includedCount": 0 }
           ]
         },
         {
           "name": "TokenDissociateFromAccount",
           "baseFee": 499000000,
           "extras": [
-            { "name": "TOKEN_TYPES", "includedCount": 0 }
           ]
         },
         {
@@ -279,14 +276,12 @@
           "name": "TokenReject",
           "baseFee": 9000000,
           "extras": [
-            { "name": "TOKEN_TYPES", "includedCount": 0 }
           ]
         },
         {
           "name": "TokenAccountWipe",
           "baseFee": 9000000,
           "extras": [
-            {"name": "TOKEN_MINT_NFT", "includedCount": 0 }
           ]
         },
         {
@@ -306,7 +301,6 @@
           "name": "TokenUpdateNfts",
           "baseFee": 9000000,
           "extras": [
-            {"name": "TOKEN_MINT_NFT", "includedCount": 0 }
           ]
         },
         {
