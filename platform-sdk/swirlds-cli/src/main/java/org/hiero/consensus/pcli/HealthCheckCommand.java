@@ -1,9 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.consensus.pcli;
 
+import com.swirlds.base.units.UnitConstants;
 import com.swirlds.platform.health.clock.OSClockSourceSpeedCheck;
 import com.swirlds.platform.health.entropy.OSEntropyCheck;
 import com.swirlds.platform.health.filesystem.OSFileSystemCheck;
+import com.swirlds.platform.health.filesystem.OSFileSystemCheck.Report;
+import com.swirlds.platform.health.filesystem.OSFileSystemCheck.TestResultCode;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.nio.file.Path;
 import picocli.CommandLine;
@@ -53,13 +56,13 @@ public class HealthCheckCommand extends AbstractCommand {
         System.out.println(
                 "Please be warned - all these statistics are printed for non-warmed JVM, so they are not representative of the real world performance");
 
-        final long clockSpeed = OSClockSourceSpeedCheck.printReport();
-        final double randomSpeed = OSEntropyCheck.printReport();
+        final long clockSpeed = printOSClockSourceSpeedReport();
+        final double randomSpeed = printOSEntropyReport();
 
         if (file != null) {
-            final double fileSpeed = OSFileSystemCheck.printReport(Path.of(file));
+            final double fileSpeed = printOSFileSystemReport(Path.of(file));
             if (fileLimit > 0 && fileSpeed > fileLimit) {
-                System.out.printf("File read time time too big, above limit of %f ms%n", fileLimit);
+                System.out.printf("File read time too big, above limit of %f ms%n", fileLimit);
                 return 3;
             }
         }
@@ -75,5 +78,58 @@ public class HealthCheckCommand extends AbstractCommand {
         }
 
         return 0;
+    }
+
+    public static long printOSClockSourceSpeedReport() {
+        final OSClockSourceSpeedCheck.Report clockSpeedReport = OSClockSourceSpeedCheck.execute();
+        System.out.printf("Average clock source speed: %d calls/sec%n", clockSpeedReport.callsPerSec());
+        return clockSpeedReport.callsPerSec();
+    }
+
+    public static double printOSEntropyReport() {
+        try {
+            final OSEntropyCheck.Report randomSpeed = OSEntropyCheck.execute();
+            if (randomSpeed.success()) {
+                final double elapsedMillis = randomSpeed.elapsedNanos() * UnitConstants.NANOSECONDS_TO_MILLISECONDS;
+                System.out.printf(
+                        "First random number generation time: %d nanos (%s millis), generated long=%d%n",
+                        randomSpeed.elapsedNanos(), elapsedMillis, randomSpeed.randomLong());
+                return elapsedMillis;
+            } else {
+                System.out.println("Random number generation check failed due to timeout");
+                return Double.POSITIVE_INFINITY;
+            }
+        } catch (InterruptedException e) {
+            System.out.println("Thread interrupted while measuring the random number generation speed");
+            Thread.currentThread().interrupt();
+            throw new RuntimeException(e);
+        }
+    }
+
+    public static double printOSFileSystemReport(final Path fileToRead) {
+        try {
+            final Report report = OSFileSystemCheck.execute(fileToRead);
+            if (report.code() == TestResultCode.SUCCESS) {
+                final double elapsedMillis = report.readNanos() * UnitConstants.NANOSECONDS_TO_MILLISECONDS;
+                System.out.printf(
+                        "File system check, took %d nanos (%s millis) "
+                                + "to open the file and read 1 byte (data=%s)%n",
+                        report.readNanos(), elapsedMillis, report.data());
+                return elapsedMillis;
+            } else {
+                if (report.exception() == null) {
+                    System.out.printf("File system check failed. Reason: %s%n", report.code());
+                } else {
+                    System.out.printf(
+                            "File system check failed with exception. Reason: %s%n%s%n",
+                            report.code(), report.exception());
+                }
+                return Double.POSITIVE_INFINITY;
+            }
+        } catch (InterruptedException e) {
+            System.out.println("Thread interrupted while checking the file system");
+            Thread.currentThread().interrupt();
+            throw new RuntimeException(e);
+        }
     }
 }
