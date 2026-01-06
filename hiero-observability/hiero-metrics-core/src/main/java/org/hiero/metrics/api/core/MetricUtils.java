@@ -122,7 +122,7 @@ public final class MetricUtils {
      * @return {@link LongSupplier} that always returns the provided value.
      */
     @NonNull
-    public static LongSupplier asInitializer(long value) {
+    public static LongSupplier asSupplier(long value) {
         return value == 0L ? LONG_ZERO_INIT : () -> value;
     }
 
@@ -130,7 +130,7 @@ public final class MetricUtils {
      * @return {@link DoubleSupplier} that always returns the provided value.
      */
     @NonNull
-    public static DoubleSupplier asInitializer(double value) {
+    public static DoubleSupplier asSupplier(double value) {
         return value == ZERO ? DOUBLE_ZERO_INIT : () -> value;
     }
 }

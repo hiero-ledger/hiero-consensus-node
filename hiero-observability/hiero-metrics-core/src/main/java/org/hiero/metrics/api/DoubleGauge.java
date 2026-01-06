@@ -91,7 +91,7 @@ public interface DoubleGauge extends SettableMetric<DoubleSupplier, DoubleGaugeM
          */
         @NonNull
         public Builder setInitValue(double initValue) {
-            return setDefaultInitializer(MetricUtils.asInitializer(initValue));
+            return setDefaultInitializer(MetricUtils.asSupplier(initValue));
         }
 
         /**

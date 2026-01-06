@@ -71,7 +71,7 @@ public interface LongCounter extends SettableMetric<LongSupplier, LongCounterMea
          */
         @NonNull
         public Builder setInitValue(long initValue) {
-            return setDefaultInitializer(MetricUtils.asInitializer(initValue));
+            return setDefaultInitializer(MetricUtils.asSupplier(initValue));
         }
 
         /**

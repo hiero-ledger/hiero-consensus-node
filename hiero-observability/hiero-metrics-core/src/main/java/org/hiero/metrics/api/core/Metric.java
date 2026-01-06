@@ -3,7 +3,6 @@ package org.hiero.metrics.api.core;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -174,8 +173,8 @@ public interface Metric extends MetricInfo {
             for (String labelName : labelNames) {
                 MetricUtils.validateLabelNameCharacters(labelName);
                 validateLabelNameNoEqualMetricName(labelName);
+                dynamicLabelNames.add(labelName);
             }
-            dynamicLabelNames.addAll(Arrays.asList(labelNames));
             return self();
         }
 
@@ -184,37 +183,25 @@ public interface Metric extends MetricInfo {
          * dynamic label names or metric name.
          * Exception will be thrown at metric build time, if there is static and dynamic labels with the same name.
          *
-         * @param label the static label to add, must not be {@code null}
+         * @param labels the static labels to add, must not be {@code null}
          * @return the builder instance
          * @throws NullPointerException if label is {@code null}
          * @throws IllegalArgumentException if label name contains invalid characters
          * by {@link MetricUtils#validateLabelNameCharacters(String)} or conflicts with the metric name or other static label.
          */
         @NonNull
-        public final B addStaticLabel(@NonNull Label label) {
-            Objects.requireNonNull(label, "label must not be null");
-            validateLabelNameNoEqualMetricName(label.name());
-
-            Label existingLabel = staticLabels.put(label.name(), label);
-            if (existingLabel != null && !existingLabel.equals(label)) {
-                throw new IllegalArgumentException(label + " conflicts with existing: " + existingLabel);
-            }
-            return self();
-        }
-
-        /**
-         * Iterates and adds static labels to the metric.
-         * See {@link #addStaticLabel(Label)} for details and exceptions.
-         *
-         * @param labels the static labels to add, must not be {@code null}
-         */
-        @NonNull
-        public final B addStaticLabels(@NonNull Iterable<Label> labels) {
-            Objects.requireNonNull(labels, "labels must not be null");
+        public final B addStaticLabels(@NonNull Label... labels) {
+            Objects.requireNonNull(labels, "label must not be null");
 
             for (Label label : labels) {
-                addStaticLabel(label);
+                validateLabelNameNoEqualMetricName(label.name());
+
+                Label existingLabel = staticLabels.put(label.name(), label);
+                if (existingLabel != null && !existingLabel.equals(label)) {
+                    throw new IllegalArgumentException(label + " conflicts with existing: " + existingLabel);
+                }
             }
+
             return self();
         }
 

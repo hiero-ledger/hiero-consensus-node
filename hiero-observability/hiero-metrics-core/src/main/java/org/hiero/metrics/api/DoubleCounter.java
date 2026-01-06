@@ -71,7 +71,7 @@ public interface DoubleCounter extends SettableMetric<DoubleSupplier, DoubleCoun
          */
         @NonNull
         public Builder setInitValue(double initValue) {
-            return setDefaultInitializer(MetricUtils.asInitializer(initValue));
+            return setDefaultInitializer(MetricUtils.asSupplier(initValue));
         }
 
         /**

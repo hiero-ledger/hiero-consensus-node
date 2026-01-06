@@ -44,7 +44,6 @@ Here is the table of all metrics available to use:
 | [LongGauge](../src/main/java/org/hiero/metrics/api/LongGauge.java)                 | Gauge   | Gauge to store and update `long`. May have an accumulator applied to previous and observed values.                                   |
 | [DoubleGauge](../src/main/java/org/hiero/metrics/api/DoubleGauge.java)             | Gauge   | Gauge to store and update `double`. May have an accumulator applied to previous and observed values.                                 |
 | [GaugeAdapter](../src/main/java/org/hiero/metrics/api/GaugeAdapter.java)           | Gauge   | A gauge to adapt to any external class that is used to store and update a single value. Parametrized with external measurement type. |
-| [StatsGaugeAdapter](../src/main/java/org/hiero/metrics/api/StatsGaugeAdapter.java) | Gauge   | Similar to GaugeAdapter, but for multiple numeric values - usually different statistics on same observation/update.                  |
 
 ### Metric Registry
 

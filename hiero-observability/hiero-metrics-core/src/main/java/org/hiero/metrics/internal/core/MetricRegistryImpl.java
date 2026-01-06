@@ -77,7 +77,8 @@ public final class MetricRegistryImpl implements MetricRegistry {
                         "Duplicate metric name: " + metricKey + ". Existing metric: " + existingMetric.name());
             }
 
-            M metric = builder.addStaticLabels(globalLabels).build();
+            M metric =
+                    builder.addStaticLabels(globalLabels.toArray(Label[]::new)).build();
             logger.log(DEBUG, "Registered metric: {}", metric.name());
 
             if (metric instanceof AbstractMetric<?> snapshotableMetric) {

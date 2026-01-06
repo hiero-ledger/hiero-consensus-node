@@ -16,7 +16,6 @@ import org.hiero.metrics.internal.LongGaugeAdapterImpl;
 /**
  * A metric of type {@link MetricType#GAUGE} that holds custom measurement data (provided by the client code)
  * per label set. It allows to adapt any external class holding single numerical value to a gauge metric.
- * For multiple numerical values {@link StatsGaugeAdapter} can be used.
  * <p>
  * This metric can be used for cases when some custom logic is required to handle observed values.
  * It is responsibility of the client to ensure that external measurement is thread safe and provides atomic updates,

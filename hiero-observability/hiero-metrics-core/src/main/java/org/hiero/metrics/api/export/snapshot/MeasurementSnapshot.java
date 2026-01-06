@@ -14,7 +14,6 @@ import edu.umd.cs.findbugs.annotations.NonNull;
  * <ul>
  *     <li> {@link LongValueMeasurementSnapshot}
  *     <li> {@link DoubleValueMeasurementSnapshot}
- *     <li> {@link MultiValueMeasurementSnapshot}
  * </ul>
  *
  * @see MetricSnapshot

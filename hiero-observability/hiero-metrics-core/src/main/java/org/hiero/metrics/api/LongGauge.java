@@ -88,7 +88,7 @@ public interface LongGauge extends SettableMetric<LongSupplier, LongGaugeMeasure
          */
         @NonNull
         public Builder setInitValue(long initValue) {
-            return setDefaultInitializer(MetricUtils.asInitializer(initValue));
+            return setDefaultInitializer(MetricUtils.asSupplier(initValue));
         }
 
         /**
