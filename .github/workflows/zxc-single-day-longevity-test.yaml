@@ -407,7 +407,7 @@ jobs:
         run: |
           set +x
           set +e
-          NLG_IP=$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt get svc -n "${{ steps.set-namespace.outputs.namespace }}" | grep 'nlg-network-load-generator' | awk '{print $3}')
+          NLG_IP=$(sh "${{ github.workspace }}"/.github/workflows/support/citr/kubectlt -n "${{ steps.set-namespace.outputs.namespace }}" describe pod nlg-network-load-generator | grep -E '^IP:' | awk '{print $2}')
 
           cat <<EOF > block-nodes.json
           {
