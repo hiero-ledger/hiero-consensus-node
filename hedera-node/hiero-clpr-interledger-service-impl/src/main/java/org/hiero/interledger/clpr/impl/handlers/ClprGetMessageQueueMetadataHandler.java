@@ -16,7 +16,7 @@ import javax.inject.Inject;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.hapi.interledger.clpr.ClprGetMessageQueueMetadataResponse;
-import org.hiero.interledger.clpr.ReadableClprMessageQueueStore;
+import org.hiero.interledger.clpr.ReadableClprMessageQueueMetadataStore;
 import org.hiero.interledger.clpr.impl.ClprStateProofManager;
 
 public class ClprGetMessageQueueMetadataHandler extends FreeQueryHandler {
@@ -59,7 +59,7 @@ public class ClprGetMessageQueueMetadataHandler extends FreeQueryHandler {
         final var query = context.query();
         final var op = query.getClprMessageQueueMetadata();
         final var ledgerId = op.ledgerId();
-        final var readableMessageQueueMetadataStore = context.createStore(ReadableClprMessageQueueStore.class);
+        final var readableMessageQueueMetadataStore = context.createStore(ReadableClprMessageQueueMetadataStore.class);
         final var metadata = readableMessageQueueMetadataStore.get(ledgerId);
         if (metadata != null) {
             final var result = ClprGetMessageQueueMetadataResponse.newBuilder()

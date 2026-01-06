@@ -9,14 +9,14 @@ import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.hiero.hapi.interledger.state.clpr.ClprLedgerId;
 import org.hiero.hapi.interledger.state.clpr.ClprMessageQueueMetadata;
-import org.hiero.interledger.clpr.WritableClprMessageQueueStore;
+import org.hiero.interledger.clpr.WritableClprMessageQueueMetadataStore;
 
-public class WritableClprMessageQueueStoreImpl extends ReadableClprMessageQueueStoreImpl
-        implements WritableClprMessageQueueStore {
+public class WritableClprMessageQueueMetadataStoreImpl extends ReadableClprMessageQueueMetadataStoreImpl
+        implements WritableClprMessageQueueMetadataStore {
 
     private final WritableKVState<ClprLedgerId, ClprMessageQueueMetadata> writableMessageQueueState;
 
-    public WritableClprMessageQueueStoreImpl(@NonNull final WritableStates states) {
+    public WritableClprMessageQueueMetadataStoreImpl(@NonNull final WritableStates states) {
         super(states);
         writableMessageQueueState = states.get(CLPR_MESSAGE_QUEUE_METADATA_STATE_ID);
     }

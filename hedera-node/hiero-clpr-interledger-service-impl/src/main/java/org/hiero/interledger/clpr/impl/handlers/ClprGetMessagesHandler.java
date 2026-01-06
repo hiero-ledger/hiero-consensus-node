@@ -14,6 +14,9 @@ import com.hedera.node.app.spi.workflows.QueryContext;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import javax.inject.Inject;
 import org.hiero.hapi.interledger.clpr.ClprGetMessagesResponse;
+import org.hiero.hapi.interledger.state.clpr.ClprMessageBundle;
+import org.hiero.hapi.interledger.state.clpr.ClprMessageKey;
+import org.hiero.interledger.clpr.ReadableClprMessageStore;
 import org.hiero.interledger.clpr.impl.ClprStateProofManager;
 
 public class ClprGetMessagesHandler extends FreeQueryHandler {
@@ -52,9 +55,20 @@ public class ClprGetMessagesHandler extends FreeQueryHandler {
         requireNonNull(context);
         requireNonNull(header);
         final var query = context.query();
-        final var op = query.getClprMessages();
-
         // TODO: Implement find response!
+        final var op = query.getClprMessages();
+        final var readableMessagesStore = context.createStore(ReadableClprMessageStore.class);
+        // build msg keys
+        final var key =
+                ClprMessageKey.newBuilder().messageId(0).ledgerShortId(0).build();
+        final var msg = readableMessagesStore.get(key);
+        if (msg != null) {
+            final var result = ClprGetMessagesResponse.newBuilder()
+                    .header(header)
+                    .messageBundle(ClprMessageBundle.newBuilder().messages(msg.message()))
+                    .build();
+            return Response.newBuilder().clprMessages(result).build();
+        }
         return createEmptyResponse(header);
     }
 }

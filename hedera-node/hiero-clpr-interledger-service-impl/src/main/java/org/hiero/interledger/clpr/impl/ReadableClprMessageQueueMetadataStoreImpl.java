@@ -10,13 +10,13 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import org.hiero.hapi.interledger.state.clpr.ClprLedgerId;
 import org.hiero.hapi.interledger.state.clpr.ClprMessageQueueMetadata;
-import org.hiero.interledger.clpr.ReadableClprMessageQueueStore;
+import org.hiero.interledger.clpr.ReadableClprMessageQueueMetadataStore;
 
-public class ReadableClprMessageQueueStoreImpl implements ReadableClprMessageQueueStore {
+public class ReadableClprMessageQueueMetadataStoreImpl implements ReadableClprMessageQueueMetadataStore {
 
     private final ReadableKVState<ClprLedgerId, ClprMessageQueueMetadata> messageQueueState;
 
-    public ReadableClprMessageQueueStoreImpl(@NonNull final ReadableStates states) {
+    public ReadableClprMessageQueueMetadataStoreImpl(@NonNull final ReadableStates states) {
         requireNonNull(states);
         messageQueueState = states.get(CLPR_MESSAGE_QUEUE_METADATA_STATE_ID);
     }

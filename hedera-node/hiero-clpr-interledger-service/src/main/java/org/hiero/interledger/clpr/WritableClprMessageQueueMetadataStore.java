@@ -2,12 +2,10 @@
 package org.hiero.interledger.clpr;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.Nullable;
 import org.hiero.hapi.interledger.state.clpr.ClprLedgerId;
 import org.hiero.hapi.interledger.state.clpr.ClprMessageQueueMetadata;
 
-public interface ReadableClprMessageQueueStore {
+public interface WritableClprMessageQueueMetadataStore extends ReadableClprMessageQueueMetadataStore {
 
-    @Nullable
-    ClprMessageQueueMetadata get(@NonNull ClprLedgerId ledgerId);
+    void put(@NonNull ClprLedgerId ledgerId, @NonNull ClprMessageQueueMetadata messageQueueMetadata);
 }

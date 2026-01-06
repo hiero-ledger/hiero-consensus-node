@@ -14,6 +14,9 @@ import com.hedera.node.app.spi.workflows.TransactionHandler;
 import com.hedera.node.config.ConfigProvider;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import javax.inject.Inject;
+import org.hiero.hapi.interledger.state.clpr.ClprMessageKey;
+import org.hiero.hapi.interledger.state.clpr.ClprMessageValue;
+import org.hiero.interledger.clpr.WritableClprMessageStore;
 import org.hiero.interledger.clpr.impl.ClprStateProofManager;
 
 public class ClprProcessMessageBundleHandler implements TransactionHandler {
@@ -50,8 +53,17 @@ public class ClprProcessMessageBundleHandler implements TransactionHandler {
 
     @Override
     public void handle(@NonNull HandleContext context) throws HandleException {
+        final var writableMessagesStore = context.storeFactory().writableStore(WritableClprMessageStore.class);
         final var txn = context.body();
         final var messageQBundle = txn.clprProcessMessageBundle();
         // TODO: Implement handle!
+        // check first message
+        messageQBundle.ifMessageBundle(messageBundle -> {
+            final var firstMsg = messageBundle.messages().getFirst();
+            final var key =
+                    ClprMessageKey.newBuilder().messageId(0).ledgerShortId(0).build();
+            final var value = ClprMessageValue.newBuilder().message(firstMsg).build();
+            writableMessagesStore.put(key, value);
+        });
     }
 }

@@ -39,6 +39,7 @@
             "GetVersionInfo",
             "ClprGetLedgerConfig",
             "ClprGetMessageQueueMetadata",
+			"ClprGetMessages",
             "NodeCreate",
             "NodeUpdate",
             "NodeDelete",

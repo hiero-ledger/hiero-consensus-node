@@ -38,6 +38,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
+import org.hiero.hapi.interledger.state.clpr.ClprMessage;
+import org.hiero.hapi.interledger.state.clpr.ClprMessageBundle;
 import org.hiero.hapi.interledger.state.clpr.ClprMessageQueueMetadata;
 import org.hiero.hapi.interledger.state.clpr.protoc.ClprEndpoint;
 import org.hiero.hapi.interledger.state.clpr.protoc.ClprLedgerConfiguration;
@@ -212,6 +214,43 @@ public class ClprSuite implements LifecycleTest {
                 }));
     }
 
+    @DisplayName("Process message bundle works")
+    @HapiTest
+    final Stream<DynamicTest> handleProcessMessageBundle() {
+        AtomicReference<HederaNode> targetNode = new AtomicReference<>();
+        AtomicReference<ClprMessageBundle> fetchResult = new AtomicReference<>();
+        Bytes msgData = Bytes.wrap("Hello CLPR".getBytes());
+        ClprMessage msg = ClprMessage.newBuilder().messageData(msgData).build();
+        ClprMessageBundle bundleToProcess =
+                ClprMessageBundle.newBuilder().messages(msg).build();
+        return hapiTest(
+                // set target node
+                doingContextual(spec -> {
+                    final var tNode = spec.getNetworkNodes().stream()
+                            .filter(node -> node.getAccountId().accountNum().equals(3L))
+                            .findFirst();
+                    assertThat(tNode).isNotNull();
+                    targetNode.set(tNode.get());
+                }),
+
+                // try to process message bundle
+                processMessageBundle(targetNode, bundleToProcess),
+
+                // try to fetch message bundle
+                sleepFor(5000),
+                fetchMessageBundle(targetNode, fetchResult),
+
+                // validate the result
+                doingContextual(spec -> {
+                    assertThat(fetchResult.get()).isEqualTo(bundleToProcess);
+                    final var firstMsg = fetchResult.get().messages().getFirst();
+                    assertThat(firstMsg).isNotNull();
+                    final var resultMsgData = firstMsg.messageData();
+                    assertThat(resultMsgData.asUtf8String(0, resultMsgData.length()))
+                            .isEqualTo("Hello CLPR");
+                }));
+    }
+
     private static ClprLedgerConfiguration fetchLedgerConfiguration(final List<HederaNode> nodes) {
         final var deadline = Instant.now().plus(Duration.ofMinutes(1));
         do {
@@ -310,7 +349,36 @@ public class ClprSuite implements LifecycleTest {
             try (final var client = createClient(node.get())) {
                 final var payer = asAccount(spec, 2);
                 client.updateMessageQueueMetadata(
-                        toPbj(payer), node.get().getAccountId(), client.getConfiguration(), clprMessageQueueMetadata);
+                        toPbj(payer),
+                        node.get().getAccountId(),
+                        client.getConfiguration().ledgerId(),
+                        clprMessageQueueMetadata);
+            }
+        });
+    }
+
+    private static ContextualActionOp processMessageBundle(
+            final AtomicReference<HederaNode> node, final ClprMessageBundle messageBundle) {
+
+        return doingContextual(spec -> {
+            try (final var client = createClient(node.get())) {
+                final var payer = asAccount(spec, 2);
+                client.processMessageBundle(
+                        toPbj(payer),
+                        node.get().getAccountId(),
+                        client.getConfiguration().ledgerId(),
+                        messageBundle);
+            }
+        });
+    }
+
+    private static ContextualActionOp fetchMessageBundle(
+            final AtomicReference<HederaNode> node, final AtomicReference<ClprMessageBundle> exposingMessageBundle) {
+        return doingContextual(spec -> {
+            try (final var client = createClient(node.get())) {
+                final var messageBundle =
+                        client.getMessages(client.getConfiguration().ledgerId(), 10, 1000);
+                exposingMessageBundle.set(messageBundle);
             }
         });
     }

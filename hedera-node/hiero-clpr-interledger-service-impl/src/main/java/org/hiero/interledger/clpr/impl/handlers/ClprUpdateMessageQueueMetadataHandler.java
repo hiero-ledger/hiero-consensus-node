@@ -17,7 +17,7 @@ import javax.inject.Inject;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hiero.interledger.clpr.ClprStateProofUtils;
-import org.hiero.interledger.clpr.WritableClprMessageQueueStore;
+import org.hiero.interledger.clpr.WritableClprMessageQueueMetadataStore;
 import org.hiero.interledger.clpr.impl.ClprStateProofManager;
 
 /**
@@ -65,7 +65,7 @@ public class ClprUpdateMessageQueueMetadataHandler implements TransactionHandler
         final var messageQueueMetadata =
                 ClprStateProofUtils.extractMessageQueueMetadata(body.messageQueueMetadataProof());
         final var writableMessageQueueMetadataStore =
-                context.storeFactory().writableStore(WritableClprMessageQueueStore.class);
+                context.storeFactory().writableStore(WritableClprMessageQueueMetadataStore.class);
         // update the state
         writableMessageQueueMetadataStore.put(body.ledgerId(), messageQueueMetadata);
     }

@@ -46,11 +46,11 @@ import java.util.Map;
 import org.hiero.consensus.roster.WritableRosterStore;
 import org.hiero.interledger.clpr.ClprService;
 import org.hiero.interledger.clpr.WritableClprLedgerConfigurationStore;
-import org.hiero.interledger.clpr.WritableClprMessageQueueStore;
+import org.hiero.interledger.clpr.WritableClprMessageQueueMetadataStore;
 import org.hiero.interledger.clpr.WritableClprMessageStore;
 import org.hiero.interledger.clpr.WritableClprMetadataStore;
 import org.hiero.interledger.clpr.impl.WritableClprLedgerConfigurationStoreImpl;
-import org.hiero.interledger.clpr.impl.WritableClprMessageQueueStoreImpl;
+import org.hiero.interledger.clpr.impl.WritableClprMessageQueueMetadataStoreImpl;
 import org.hiero.interledger.clpr.impl.WritableClprMessageStoreImpl;
 import org.hiero.interledger.clpr.impl.WritableClprMetadataStoreImpl;
 
@@ -132,9 +132,10 @@ public class WritableStoreFactory {
                 WritableClprMessageStore.class,
                 new StoreEntry(ClprService.NAME, (states, entityCounters) -> new WritableClprMessageStoreImpl(states)));
         newMap.put(
-                WritableClprMessageQueueStore.class,
+                WritableClprMessageQueueMetadataStore.class,
                 new StoreEntry(
-                        ClprService.NAME, (states, entityCounters) -> new WritableClprMessageQueueStoreImpl(states)));
+                        ClprService.NAME,
+                        (states, entityCounters) -> new WritableClprMessageQueueMetadataStoreImpl(states)));
         return Collections.unmodifiableMap(newMap);
     }
 
