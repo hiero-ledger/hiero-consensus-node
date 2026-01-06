@@ -503,19 +503,28 @@ public class TokenServiceApiImpl implements TokenServiceApi {
         requireNonNull(fees);
         requireNonNull(rb);
         requireNonNull(onNodeRefund);
+        final boolean feeCollectionEnabled = nodesConfig.feeCollectionAccountEnabled();
         long amountRetracted = 0;
         if (fees.nodeFee() > 0) {
-            final var nodeAccount = lookupAccount("Node account", nodeAccountId);
-            final long nodeBalance = nodeAccount.tinybarBalance();
-            final long amountToRetract = Math.min(fees.nodeFee(), nodeBalance);
-            accountStore.put(nodeAccount
-                    .copyBuilder()
-                    .tinybarBalance(nodeBalance - amountToRetract)
-                    .build());
-            onNodeRefund.accept(amountToRetract);
-            amountRetracted += amountToRetract;
+            final long nodeRefunded;
+            if (feeCollectionEnabled) {
+                nodeRefunded = retractFeeCollectionAccount(fees.nodeFee());
+                if (nodeRefunded > 0) {
+                    nodeFeeAccumulator.accumulate(nodeAccountId, -nodeRefunded);
+                }
+            } else {
+                final var nodeAccount = lookupAccount("Node account", nodeAccountId);
+                final long nodeBalance = nodeAccount.tinybarBalance();
+                nodeRefunded = Math.min(fees.nodeFee(), nodeBalance);
+                accountStore.put(nodeAccount
+                        .copyBuilder()
+                        .tinybarBalance(nodeBalance - nodeRefunded)
+                        .build());
+            }
+            onNodeRefund.accept(nodeRefunded);
+            amountRetracted += nodeRefunded;
         }
-        amountRetracted += nodesConfig.feeCollectionAccountEnabled()
+        amountRetracted += feeCollectionEnabled
                 ? retractFeeCollectionAccount(fees.totalWithoutNodeFee())
                 : retractFromNetworkFundingAccounts(fees.totalWithoutNodeFee());
         final var payerAccount = lookupAccount("Payer", payerId);

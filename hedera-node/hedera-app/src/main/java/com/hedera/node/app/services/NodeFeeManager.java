@@ -116,7 +116,14 @@ public class NodeFeeManager implements NodeFeeAccumulator {
      */
     @Override
     public void accumulate(AccountID nodeAccountId, long fees) {
+        if (fees == 0) {
+            return;
+        }
         nodeFees.merge(nodeAccountId, fees, Long::sum);
+        final var updatedFees = nodeFees.get(nodeAccountId);
+        if (updatedFees != null && updatedFees <= 0) {
+            nodeFees.remove(nodeAccountId);
+        }
     }
 
     /**
@@ -312,7 +319,7 @@ public class NodeFeeManager implements NodeFeeAccumulator {
                 nodesConfig.nodeRewardsEnabled() && nodesConfig.preserveMinNodeRewardBalance();
 
         // If 0.0.801 is low, route fees fully there until it reaches the configured minimum
-        if (preservingRewardBalance && nodeRewardAccount.tinybarBalance() <= nodesConfig.minNodeRewardBalance()) {
+        if (preservingRewardBalance && nodeRewardAccount.tinybarBalance() < nodesConfig.minNodeRewardBalance()) {
             // Route all fees to node reward account
             transferAmounts.add(AccountAmount.newBuilder()
                     .accountID(nodeRewardAccountId)
@@ -360,6 +367,7 @@ public class NodeFeeManager implements NodeFeeAccumulator {
 
         // Build updated payments list from in-memory nodeFees map
         final var updatedPayments = nodeFees.entrySet().stream()
+                .filter(entry -> entry.getValue() > 0)
                 .map(entry -> NodePayment.newBuilder()
                         .nodeAccountId(entry.getKey())
                         .fees(entry.getValue())

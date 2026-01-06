@@ -19,6 +19,8 @@ public interface NodeFeeAccumulator {
     /**
      * Accumulates node fees for each transaction processed. This will update an in-memory map of node fees
      * for each transaction, which is then written to state at block boundaries for efficiency.
+     * Implementations should accept negative values to reverse previously accumulated fees (for example,
+     * when a transaction is refunded) and clamp the accumulated balance at zero.
      *
      * @param nodeAccountId the node account id
      * @param fees the fees to accumulate

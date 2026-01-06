@@ -123,6 +123,20 @@ class NodeFeeManagerTest {
     }
 
     @Test
+    void testAccumulateRemovesEntryWhenRefunded() {
+        givenSetup(NodePayments.DEFAULT);
+
+        subject.onOpenBlock(state);
+        subject.accumulate(NODE_ACCOUNT_ID_3, 100L);
+        subject.accumulate(NODE_ACCOUNT_ID_3, -100L);
+        subject.onCloseBlock(state);
+
+        final var updatedPayments = nodePaymentsRef.get();
+        assertNotNull(updatedPayments);
+        assertTrue(updatedPayments.payments().isEmpty());
+    }
+
+    @Test
     void testResetNodeFeesClearsMap() {
         subject.accumulate(NODE_ACCOUNT_ID_3, 100L);
         subject.accumulate(NODE_ACCOUNT_ID_5, 200L);
@@ -421,6 +435,59 @@ class NodeFeeManagerTest {
                 .orElse(null);
         assertNotNull(fundingTransfer);
         assertEquals(720L, fundingTransfer.amount()); // 80% of 900
+    }
+
+    @Test
+    void testDistributeFeesNormalDistributionWhenAtMinBalance() {
+        final var config = HederaTestConfigBuilder.create()
+                .withValue("staking.periodMins", 1)
+                .withValue("nodes.feeCollectionAccountEnabled", true)
+                .withValue("nodes.nodeRewardsEnabled", true)
+                .withValue("nodes.preserveMinNodeRewardBalance", true)
+                .withValue("nodes.minNodeRewardBalance", 500L)
+                .withValue("staking.feesNodeRewardPercentage", 10)
+                .withValue("staking.feesStakingRewardPercentage", 10)
+                .getOrCreateConfig();
+        given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1));
+        subject = new NodeFeeManager(configProvider, entityIdFactory);
+
+        final var nodePayments = NodePayments.newBuilder()
+                .lastNodeFeeDistributionTime(asTimestamp(PREV_PERIOD))
+                .payments(List.of())
+                .build();
+        givenSetupForDistributionWithNodeRewardBalance(nodePayments, 1000L, 500L); // At minimum
+
+        subject.accumulate(NODE_ACCOUNT_ID_3, 100L);
+
+        final var result = subject.distributeFees(state, NOW, systemTransactions);
+
+        assertTrue(result);
+        final var transferCaptor = ArgumentCaptor.forClass(TransferList.class);
+        verify(systemTransactions).dispatchNodePayments(eq(state), eq(NOW), transferCaptor.capture());
+
+        final var transfers = transferCaptor.getValue();
+        assertNotNull(transfers);
+
+        final var nodeRewardTransfer = transfers.accountAmounts().stream()
+                .filter(aa -> aa.accountID().accountNum() == 801L)
+                .findFirst()
+                .orElse(null);
+        assertNotNull(nodeRewardTransfer);
+        assertEquals(90L, nodeRewardTransfer.amount());
+
+        final var stakingRewardTransfer = transfers.accountAmounts().stream()
+                .filter(aa -> aa.accountID().accountNum() == 800L)
+                .findFirst()
+                .orElse(null);
+        assertNotNull(stakingRewardTransfer);
+        assertEquals(90L, stakingRewardTransfer.amount());
+
+        final var fundingTransfer = transfers.accountAmounts().stream()
+                .filter(aa -> aa.accountID().accountNum() == 98L)
+                .findFirst()
+                .orElse(null);
+        assertNotNull(fundingTransfer);
+        assertEquals(720L, fundingTransfer.amount());
     }
 
     @Test
