@@ -4,8 +4,8 @@ package com.swirlds.common.test.fixtures.merkle.dummy;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 
 import com.swirlds.common.merkle.MerkleNode;
+import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
 import com.swirlds.common.merkle.synchronization.views.TeacherPushMerkleTreeView;
-import com.swirlds.config.api.Configuration;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -19,11 +19,11 @@ public class DummyTeacherPushMerkleTreeView extends TeacherPushMerkleTreeView {
     /**
      * Create a view for a standard merkle tree.
      *
-     * @param configuration the configuration
-     * @param root          the root of the tree
+     * @param reconnectConfig the reconnect configuration
+     * @param root            the root of the tree
      */
-    public DummyTeacherPushMerkleTreeView(@NonNull final Configuration configuration, final MerkleNode root) {
-        super(configuration, root);
+    public DummyTeacherPushMerkleTreeView(@NonNull final ReconnectConfig reconnectConfig, final MerkleNode root) {
+        super(reconnectConfig, root);
     }
 
     /**
