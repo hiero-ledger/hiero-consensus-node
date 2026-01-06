@@ -511,6 +511,7 @@ public class TokenServiceApiImpl implements TokenServiceApi {
                 amountRetracted += retractFeeCollectionAccount(nodeFee);
                 // Also need to dissipate the accumulated node fee
                 nodeFeeAccumulator.dissipate(nodeAccountId, nodeFee);
+                onNodeRefund.accept(nodeFee);
             } else {
                 // Retract node fee from node account
                 final var nodeAccount = lookupAccount("Node account", nodeAccountId);
