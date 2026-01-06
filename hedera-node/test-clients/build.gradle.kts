@@ -207,6 +207,7 @@ tasks.register<Test>("testSubprocess") {
         configurations.runtimeClasspath
             .get()
             .plus(files(tasks.jar))
+            // the following line adds access to pregenerated keys in `src/test/resources`.
             .plus(sourceSets.test.get().output)
 
     val ciTagExpression =
