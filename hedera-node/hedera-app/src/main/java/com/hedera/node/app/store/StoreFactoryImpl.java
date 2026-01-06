@@ -29,7 +29,7 @@ public class StoreFactoryImpl implements StoreFactory {
      * @param configuration the configuration for the service
      * @param writableEntityIdStoreImpl the writable entity id store
      * @param apiProviders a map of service API providers, keyed by the API interface class
-     * @param nodeFeeAccumulator the tracker for node fees
+     * @param nodeFeeAccumulator the accumulator for node fees
      * @return a new {@link StoreFactory} instance
      */
     public static StoreFactory from(

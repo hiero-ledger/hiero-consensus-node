@@ -98,7 +98,7 @@ public class TokenServiceApiImpl implements TokenServiceApi {
      * @param writableStates the writable states
      * @param customFeeTest a predicate for determining if a transfer has custom fees
      * @param entityCounters the entity counters
-     * @param nodeFeeAccumulator the tracker for node fees (used for in-memory fee tracking)
+     * @param nodeFeeAccumulator the accumulator for node fees (used for in-memory fee accumulation)
      */
     public TokenServiceApiImpl(
             @NonNull final Configuration config,

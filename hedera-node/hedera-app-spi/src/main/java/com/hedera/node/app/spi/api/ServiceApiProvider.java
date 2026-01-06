@@ -31,7 +31,7 @@ public interface ServiceApiProvider<T> {
      * @param configuration  the node configuration
      * @param writableStates the writable state of the service
      * @param entityCounters the entity counters
-     * @param nodeFeeAccumulator the tracker for node fees (used for in-memory fee tracking)
+     * @param nodeFeeAccumulator the accumulator for node fees (used for in-memory fee accumulation)
      * @return the new API instance
      */
     T newInstance(

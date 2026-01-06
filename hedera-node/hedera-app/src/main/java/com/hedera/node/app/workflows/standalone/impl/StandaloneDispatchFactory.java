@@ -165,7 +165,7 @@ public class StandaloneDispatchFactory {
         final var txnInfo = requireNonNull(preHandleResult.txInfo());
         final var writableStoreFactory =
                 new WritableStoreFactory(stack, serviceScopeLookup.getServiceName(txnInfo.txBody()), entityIdStore);
-        // Standalone executor doesn't need to track node fees
+        // Standalone executor doesn't need to accumulate node fees
         final var serviceApiFactory = new ServiceApiFactory(stack, config, apiProviders, NodeFeeAccumulator.NOOP);
         final var priceCalculator =
                 new ResourcePriceCalculatorImpl(consensusNow, txnInfo, feeManager, readableStoreFactory);
