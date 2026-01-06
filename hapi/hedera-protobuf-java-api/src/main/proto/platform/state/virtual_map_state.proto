@@ -49,6 +49,7 @@ import "services/state/token/account_pending_airdrop.proto";
 import "services/state/token/network_staking_rewards.proto";
 import "services/state/token/node_rewards.proto";
 import "services/state/token/node_payments.proto";
+import "services/state/token/stake_period_time.proto";
 import "services/state/token/nft.proto";
 import "services/state/token/staking_node_info.proto";
 import "services/state/token/token.proto";
@@ -623,6 +624,11 @@ message StateValue {
     com.hedera.hapi.node.state.token.NodePayments TokenService_I_NODE_PAYMENTS = 55;
 
     /**
+     * A state identifier for the stake period time. Singleton state.
+     */
+    com.hedera.hapi.node.state.token.StakePeriodTime TokenService_I_STAKE_PERIOD_TIME = 56;
+
+    /**
      * Metadata of the round receipts queue.
      */
     proto.TransactionReceiptEntries RecordCache_I_TRANSACTION_RECEIPTS = 126;
@@ -805,6 +811,11 @@ enum SingletonType {
    * A state identifier for the node payments. Singleton state.
    */
   TokenService_I_NODE_PAYMENTS = 55;
+
+  /**
+   * A state identifier for the stake period time. Singleton state.
+   */
+  TokenService_I_STAKE_PERIOD_TIME = 56;
 
   // Queue metadata
 

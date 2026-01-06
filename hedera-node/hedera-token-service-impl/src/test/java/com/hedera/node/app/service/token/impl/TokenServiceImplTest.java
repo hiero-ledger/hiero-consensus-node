@@ -11,7 +11,7 @@ import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.token.CryptoServiceDefinition;
 import com.hedera.node.app.service.token.TokenServiceDefinition;
 import com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema;
-import com.hedera.node.app.service.token.impl.schemas.V0700TokenSchema;
+import com.hedera.node.app.service.token.impl.schemas.V0710TokenSchema;
 import com.hedera.node.app.spi.AppContext;
 import com.swirlds.state.lifecycle.Schema;
 import com.swirlds.state.lifecycle.SchemaRegistry;
@@ -52,11 +52,11 @@ class TokenServiceImplTest {
 
         subject.registerSchemas(schemaRegistry);
         final var captor = ArgumentCaptor.forClass(Schema.class);
-        verify(schemaRegistry, times(4)).register(captor.capture());
+        verify(schemaRegistry, times(5)).register(captor.capture());
         final var schemas = captor.getAllValues();
-        assertThat(schemas).hasSize(4);
+        assertThat(schemas).hasSize(5);
         assertThat(schemas.getFirst()).isInstanceOf(V0490TokenSchema.class);
-        assertThat(schemas.getLast()).isInstanceOf(V0700TokenSchema.class);
+        assertThat(schemas.getLast()).isInstanceOf(V0710TokenSchema.class);
     }
 
     @Test
