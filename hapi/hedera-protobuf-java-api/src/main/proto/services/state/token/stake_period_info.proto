@@ -1,6 +1,6 @@
 /**
- * # Stake Period Time
- * This is a Singleton that stores the last time stake period updates were done.
+ * # Stake Period Info
+ * This is a Singleton that stores information about stake period calculations.
  *
  * ### Keywords
  * The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
@@ -20,17 +20,17 @@ option java_multiple_files = true;
 import "services/timestamp.proto";
 
 /**
- * A singleton state object that tracks the last time stake period calculations were done.<br/>
- * This is used to track when the last stake period update occurred, so that
+ * A singleton state object that stores information about stake period calculations.<br/>
+ * This is used to track when the last stake period calculations occurred, so that
  * NodeRewards and NodeFee distributions can depend on this singleton instead of tracking it independently.
  */
-message StakePeriodTime {
+message StakePeriodInfo {
   /**
    * The time when the last stake period calculations were done.
    * <p>
    * This timestamp SHALL be updated at the end of each staking period
-   * when stake period updates are processed.
+   * when stake period calculations are processed.
    */
-  proto.Timestamp last_stake_period_update_time = 1;
+  proto.Timestamp last_stake_period_calculation_time = 1;
 }
 
