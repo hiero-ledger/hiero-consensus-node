@@ -90,6 +90,7 @@ public final class BlockStreamUtils {
             case STATE_ID_CRS_PUBLICATIONS -> "HintsService.CRS_PUBLICATIONS";
             case STATE_ID_NODE_REWARDS -> "TokenService.NODE_REWARDS";
             case STATE_ID_NODE_PAYMENTS -> "TokenService.NODE_PAYMENTS";
+            case STATE_ID_STAKE_PERIOD_INFO -> "TokenService.STAKE_PERIOD_INFO";
         };
     }
 
@@ -115,6 +116,7 @@ public final class BlockStreamUtils {
             case HISTORY_PROOF_CONSTRUCTION_VALUE -> singletonUpdateChange.historyProofConstructionValueOrThrow();
             case CRS_STATE_VALUE -> singletonUpdateChange.crsStateValueOrThrow();
             case NODE_PAYMENTS_VALUE -> singletonUpdateChange.nodePaymentsValueOrThrow();
+            case STAKE_PERIOD_INFO_VALUE -> singletonUpdateChange.stakePeriodInfoValueOrThrow();
         };
     }
 

@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.test.schemas;
 
-import static com.hedera.node.app.service.token.impl.schemas.V0710TokenSchema.STAKE_PERIOD_TIME_KEY;
-import static com.hedera.node.app.service.token.impl.schemas.V0710TokenSchema.STAKE_PERIOD_TIME_STATE_ID;
+import static com.hedera.node.app.service.token.impl.schemas.V0710TokenSchema.STAKE_PERIOD_INFO_KEY;
+import static com.hedera.node.app.service.token.impl.schemas.V0710TokenSchema.STAKE_PERIOD_INFO_STATE_ID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 import com.hedera.hapi.node.base.SemanticVersion;
-import com.hedera.hapi.node.state.token.StakePeriodTime;
+import com.hedera.hapi.node.state.token.StakePeriodInfo;
 import com.hedera.node.app.service.token.impl.schemas.V0710TokenSchema;
 import com.swirlds.state.lifecycle.MigrationContext;
 import com.swirlds.state.lifecycle.StateDefinition;
@@ -55,7 +55,7 @@ class V0710TokenSchemaTest {
     }
 
     @Test
-    @DisplayName("States to create should include STAKE_PERIOD_TIME singleton")
+    @DisplayName("States to create should include STAKE_PERIOD_INFO singleton")
     void testStatesToCreate() {
         final var statesToCreate = subject.statesToCreate();
 
@@ -66,55 +66,55 @@ class V0710TokenSchemaTest {
                 .toList();
 
         final var stakePeriodTimeDef = sortedResult.getFirst();
-        assertThat(stakePeriodTimeDef.stateKey()).isEqualTo(STAKE_PERIOD_TIME_KEY);
-        assertThat(stakePeriodTimeDef.valueCodec()).isEqualTo(StakePeriodTime.PROTOBUF);
+        assertThat(stakePeriodTimeDef.stateKey()).isEqualTo(STAKE_PERIOD_INFO_KEY);
+        assertThat(stakePeriodTimeDef.valueCodec()).isEqualTo(StakePeriodInfo.PROTOBUF);
         assertThat(stakePeriodTimeDef.singleton()).isTrue();
     }
 
     @Test
-    @DisplayName("Migrate should initialize StakePeriodTime on genesis")
+    @DisplayName("Migrate should initialize StakePeriodInfo on genesis")
     void testMigrateOnGenesis() {
         given(ctx.isGenesis()).willReturn(true);
         given(ctx.newStates()).willReturn(newStates);
-        given(newStates.getSingleton(STAKE_PERIOD_TIME_STATE_ID)).willReturn(stakePeriodTimeState);
+        given(newStates.getSingleton(STAKE_PERIOD_INFO_STATE_ID)).willReturn(stakePeriodTimeState);
 
         subject.migrate(ctx);
 
-        verify(stakePeriodTimeState).put(StakePeriodTime.DEFAULT);
+        verify(stakePeriodTimeState).put(StakePeriodInfo.DEFAULT);
     }
 
     @Test
-    @DisplayName("Migrate should initialize StakePeriodTime when state doesn't exist in previous states")
+    @DisplayName("Migrate should initialize StakePeriodInfo when state doesn't exist in previous states")
     void testMigrateWhenStateDoesNotExist() {
         given(ctx.isGenesis()).willReturn(false);
         given(ctx.previousStates()).willReturn(previousStates);
-        given(previousStates.contains(STAKE_PERIOD_TIME_STATE_ID)).willReturn(false);
+        given(previousStates.contains(STAKE_PERIOD_INFO_STATE_ID)).willReturn(false);
         given(ctx.newStates()).willReturn(newStates);
-        given(newStates.getSingleton(STAKE_PERIOD_TIME_STATE_ID)).willReturn(stakePeriodTimeState);
+        given(newStates.getSingleton(STAKE_PERIOD_INFO_STATE_ID)).willReturn(stakePeriodTimeState);
 
         subject.migrate(ctx);
 
-        verify(stakePeriodTimeState).put(StakePeriodTime.DEFAULT);
+        verify(stakePeriodTimeState).put(StakePeriodInfo.DEFAULT);
     }
 
     @Test
-    @DisplayName("Migrate should not initialize StakePeriodTime when state already exists")
+    @DisplayName("Migrate should not initialize StakePeriodInfo when state already exists")
     void testMigrateWhenStateAlreadyExists() {
         given(ctx.isGenesis()).willReturn(false);
         given(ctx.previousStates()).willReturn(previousStates);
-        given(previousStates.contains(STAKE_PERIOD_TIME_STATE_ID)).willReturn(true);
+        given(previousStates.contains(STAKE_PERIOD_INFO_STATE_ID)).willReturn(true);
 
         subject.migrate(ctx);
 
         verify(ctx, never()).newStates();
-        verify(stakePeriodTimeState, never()).put(StakePeriodTime.DEFAULT);
+        verify(stakePeriodTimeState, never()).put(StakePeriodInfo.DEFAULT);
     }
 
     @Test
-    @DisplayName("STAKE_PERIOD_TIME_STATE_ID should match SingletonType ordinal")
-    void testStakePeriodTimeStateId() {
+    @DisplayName("STAKE_PERIOD_INFO_STATE_ID should match SingletonType ordinal")
+    void testStakePeriodInfoStateId() {
         // The state ID should be consistent with the SingletonType enum
-        assertThat(STAKE_PERIOD_TIME_STATE_ID).isPositive();
+        assertThat(STAKE_PERIOD_INFO_STATE_ID).isPositive();
     }
 
     @Test
@@ -123,6 +123,6 @@ class V0710TokenSchemaTest {
         final var statesToCreate = subject.statesToCreate();
         final var stakePeriodTimeDef = statesToCreate.iterator().next();
 
-        assertThat(stakePeriodTimeDef.stateId()).isEqualTo(STAKE_PERIOD_TIME_STATE_ID);
+        assertThat(stakePeriodTimeDef.stateId()).isEqualTo(STAKE_PERIOD_INFO_STATE_ID);
     }
 }

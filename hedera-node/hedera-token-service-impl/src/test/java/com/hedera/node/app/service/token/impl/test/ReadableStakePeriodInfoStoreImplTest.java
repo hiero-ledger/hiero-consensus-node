@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.service.token.impl.test;
 
-import static com.hedera.node.app.service.token.impl.schemas.V0710TokenSchema.STAKE_PERIOD_TIME_STATE_ID;
+import static com.hedera.node.app.service.token.impl.schemas.V0710TokenSchema.STAKE_PERIOD_INFO_STATE_ID;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.BDDMockito.given;
 
 import com.hedera.hapi.node.base.Timestamp;
-import com.hedera.hapi.node.state.token.StakePeriodTime;
-import com.hedera.node.app.service.token.impl.ReadableStakePeriodTimeStoreImpl;
+import com.hedera.hapi.node.state.token.StakePeriodInfo;
+import com.hedera.node.app.service.token.impl.ReadableStakePeriodInfoStoreImpl;
 import com.swirlds.state.spi.ReadableSingletonState;
 import com.swirlds.state.spi.ReadableStates;
 import org.junit.jupiter.api.BeforeEach;
@@ -19,7 +19,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
-class ReadableStakePeriodTimeStoreImplTest {
+class ReadableStakePeriodInfoStoreImplTest {
 
     @Mock
     private ReadableStates states;
@@ -27,18 +27,18 @@ class ReadableStakePeriodTimeStoreImplTest {
     @Mock
     private ReadableSingletonState stakePeriodTimeState;
 
-    private ReadableStakePeriodTimeStoreImpl subject;
+    private ReadableStakePeriodInfoStoreImpl subject;
 
     @BeforeEach
     void setUp() {
-        given(states.getSingleton(STAKE_PERIOD_TIME_STATE_ID)).willReturn(stakePeriodTimeState);
-        subject = new ReadableStakePeriodTimeStoreImpl(states);
+        given(states.getSingleton(STAKE_PERIOD_INFO_STATE_ID)).willReturn(stakePeriodTimeState);
+        subject = new ReadableStakePeriodInfoStoreImpl(states);
     }
 
     @Test
-    void testGetReturnsStakePeriodTime() {
-        final var stakePeriodTime = StakePeriodTime.newBuilder()
-                .lastStakePeriodUpdateTime(
+    void testGetReturnsStakePeriodInfo() {
+        final var stakePeriodTime = StakePeriodInfo.newBuilder()
+                .lastStakePeriodCalculationTime(
                         Timestamp.newBuilder().seconds(1000L).nanos(500).build())
                 .build();
         given(stakePeriodTimeState.get()).willReturn(stakePeriodTime);
@@ -46,24 +46,24 @@ class ReadableStakePeriodTimeStoreImplTest {
         final var result = subject.get();
 
         assertNotNull(result);
-        assertEquals(1000L, result.lastStakePeriodUpdateTime().seconds());
-        assertEquals(500, result.lastStakePeriodUpdateTime().nanos());
+        assertEquals(1000L, result.lastStakePeriodCalculationTime().seconds());
+        assertEquals(500, result.lastStakePeriodCalculationTime().nanos());
     }
 
     @Test
-    void testGetReturnsDefaultStakePeriodTime() {
-        given(stakePeriodTimeState.get()).willReturn(StakePeriodTime.DEFAULT);
+    void testGetReturnsDefaultStakePeriodInfo() {
+        given(stakePeriodTimeState.get()).willReturn(StakePeriodInfo.DEFAULT);
 
         final var result = subject.get();
 
         assertNotNull(result);
-        assertEquals(StakePeriodTime.DEFAULT, result);
+        assertEquals(StakePeriodInfo.DEFAULT, result);
     }
 
     @Test
     void testGetWithDifferentTimestampValues() {
-        final var stakePeriodTime = StakePeriodTime.newBuilder()
-                .lastStakePeriodUpdateTime(
+        final var stakePeriodTime = StakePeriodInfo.newBuilder()
+                .lastStakePeriodCalculationTime(
                         Timestamp.newBuilder().seconds(5000L).nanos(999).build())
                 .build();
         given(stakePeriodTimeState.get()).willReturn(stakePeriodTime);
@@ -71,13 +71,13 @@ class ReadableStakePeriodTimeStoreImplTest {
         final var result = subject.get();
 
         assertNotNull(result);
-        assertEquals(5000L, result.lastStakePeriodUpdateTime().seconds());
-        assertEquals(999, result.lastStakePeriodUpdateTime().nanos());
+        assertEquals(5000L, result.lastStakePeriodCalculationTime().seconds());
+        assertEquals(999, result.lastStakePeriodCalculationTime().nanos());
     }
 
     @Test
     void testConstructorWithNullStatesThrows() {
-        assertThrows(NullPointerException.class, () -> new ReadableStakePeriodTimeStoreImpl(null));
+        assertThrows(NullPointerException.class, () -> new ReadableStakePeriodInfoStoreImpl(null));
     }
 
     @Test
