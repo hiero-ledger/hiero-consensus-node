@@ -3,7 +3,9 @@ package com.hedera.node.config.data;
 
 import static com.hedera.hapi.node.base.HederaFunctionality.ATOMIC_BATCH;
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_GET_LEDGER_CONFIG;
+import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_GET_MESSAGES;
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_GET_MESSAGE_QUEUE_METADATA;
+import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_PROCESS_MESSAGE_BUNDLE;
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_SET_LEDGER_CONFIG;
 import static com.hedera.hapi.node.base.HederaFunctionality.CLPR_UPDATE_MESSAGE_QUEUE_METADATA;
 import static com.hedera.hapi.node.base.HederaFunctionality.CONSENSUS_CREATE_TOPIC;
@@ -288,7 +290,11 @@ public record ApiPermissionConfig(
         @ConfigProperty(defaultValue = "0-0") PermissionedAccountsRange hookDispatch,
         @ConfigProperty(defaultValue = "0-0") PermissionedAccountsRange nodeStakeUpdate,
         @ConfigProperty(defaultValue = "0-*") PermissionedAccountsRange clprGetLedgerConfig,
-        @ConfigProperty(defaultValue = "0-*") PermissionedAccountsRange clprSetLedgerConfig) {
+        @ConfigProperty(defaultValue = "0-*") PermissionedAccountsRange clprSetLedgerConfig,
+        @ConfigProperty(defaultValue = "0-*") PermissionedAccountsRange clprGetMessageQueueMetadata,
+        @ConfigProperty(defaultValue = "0-*") PermissionedAccountsRange clprUpdateMessageQueueMetadata,
+        @ConfigProperty(defaultValue = "0-*") PermissionedAccountsRange clprGetMessages,
+        @ConfigProperty(defaultValue = "0-*") PermissionedAccountsRange clprProcessMessages) {
 
     private static final EnumMap<HederaFunctionality, Function<ApiPermissionConfig, PermissionedAccountsRange>>
             permissionKeys = new EnumMap<>(HederaFunctionality.class);
@@ -341,6 +347,8 @@ public record ApiPermissionConfig(
         permissionKeys.put(TOKEN_AIRDROP, c -> c.tokenAirdrop);
         permissionKeys.put(TOKEN_CANCEL_AIRDROP, c -> c.tokenCancelAirdrop);
         permissionKeys.put(TOKEN_CLAIM_AIRDROP, c -> c.tokenClaimAirdrop);
+        permissionKeys.put(CLPR_UPDATE_MESSAGE_QUEUE_METADATA, c -> c.clprUpdateMessageQueueMetadata);
+        permissionKeys.put(CLPR_PROCESS_MESSAGE_BUNDLE, c -> c.clprProcessMessages);
         /* Queries */
         permissionKeys.put(CONSENSUS_GET_TOPIC_INFO, c -> c.getTopicInfo);
         permissionKeys.put(CONTRACT_CALL_LOCAL, c -> c.contractCallLocalMethod);
@@ -380,9 +388,8 @@ public record ApiPermissionConfig(
         permissionKeys.put(NODE_STAKE_UPDATE, c -> c.nodeStakeUpdate);
         permissionKeys.put(CLPR_GET_LEDGER_CONFIG, c -> c.clprGetLedgerConfig);
         permissionKeys.put(CLPR_SET_LEDGER_CONFIG, c -> c.clprSetLedgerConfig);
-        // TODO add the rest of the CLPR transactions/queries
-        permissionKeys.put(CLPR_UPDATE_MESSAGE_QUEUE_METADATA, c -> c.clprGetLedgerConfig);
-        permissionKeys.put(CLPR_GET_MESSAGE_QUEUE_METADATA, c -> c.clprSetLedgerConfig);
+        permissionKeys.put(CLPR_GET_MESSAGE_QUEUE_METADATA, c -> c.clprGetMessageQueueMetadata);
+        permissionKeys.put(CLPR_GET_MESSAGES, c -> c.clprGetMessages);
     }
 
     /**
