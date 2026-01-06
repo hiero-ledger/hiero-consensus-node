@@ -19,6 +19,7 @@ import com.hedera.node.app.service.contract.impl.utils.ConversionUtils;
 import com.hedera.node.app.service.contract.impl.utils.TODO;
 
 import com.google.common.collect.ImmutableList;
+import com.hedera.node.config.data.ContractsConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import org.jetbrains.annotations.NotNull;
 
@@ -80,7 +81,9 @@ public class BonnevilleEVM extends HEVM {
         if( op == 0xF0 ) return "Crat";
         if( op == 0xF1 ) return "Call";
         if( op == 0xF3 ) return "ret ";
-        if( op == 0xF4 ) return "0xF4";
+        if( op == 0xF4 ) return "dCal";
+        if( op == 0xF5 ) return "Crt2";
+        if( op == 0xFA ) return "sCal";
         if( op == 0xFD ) return "revert ";
         if( op == 0xFF ) return "self-destruct ";
         return String.format("%x",op);
@@ -90,7 +93,7 @@ public class BonnevilleEVM extends HEVM {
         /* 10 */ "ult ", "ugt ", "slt ", "sgt ", "eq  ", "eq0 ", "and ", "or  ", "18  ", "not ", "1A  ", "shl ", "shr ", "1D  ", "1E  ", "1F  ",
         /* 20 */ "kecc", "21  ", "22  ", "23  ", "24  ", "25  ", "26  ", "27  ", "28  ", "29  ", "2A  ", "2B  ", "2C  ", "2D  ", "2E  ", "2F  ",
         /* 30 */ "30  ", "31  ", "32  ", "calr", "cVal", "Load", "Size", "Data", "cdSz", "Copy", "3A  ", "gasP", "3C  ", "retZ", "retC", "hash",
-        /* 40 */ "40  ", "41  ", "42  ", "43  ", "44  ", "45  ", "46  ", "47  ", "48  ", "49  ", "4A  ", "4B  ", "4C  ", "4D  ", "4E  ", "4F  ",
+        /* 40 */ "40  ", "Coin", "42  ", "43  ", "seed", "limi", "chid", "47  ", "fee ", "49  ", "4A  ", "4B  ", "4C  ", "4D  ", "4E  ", "4F  ",
         /* 50 */ "pop ", "mld ", "mst ", "53  ", "Csld", "Csst", "jmp ", "jmpi", "58  ", "59  ", "gas ", "noop", "5C  ", "5D  ", "5E  ", "psh0",
         };
 }
@@ -263,6 +266,10 @@ class BEVM {
                     UI256.getLong(val,0));
     }
 
+    private ExceptionalHaltReason push( Address adr ) {
+        return adr==null ? push0() : push(adr.toArrayUnsafe(),0,20);
+    }
+
     // Push a byte array little-endian; short arrays are zero-filled high.
     private ExceptionalHaltReason push( byte[] src, int off, int len ) {
         // Caller range-checked already
@@ -343,6 +350,8 @@ class BEVM {
     // -----------------------------------------------------------
     // Execute bytecodes until done
     ExceptionalHaltReason _run() {
+        if( _codes.length==0 )
+            return stop();
         SB trace = new SB();
         PrintStream oldSysOut = System.out;
         if( trace != null )
@@ -396,6 +405,12 @@ class BEVM {
             case 0x3E -> returnDataCopy();
             case 0x3F -> customExtCodeHash();
 
+            case 0x41 -> coinBase();
+            case 0x44 -> PRNGSeed();
+            case 0x45 -> gasLimit();
+            case 0x46 -> customChainId();
+            case 0x48 -> baseFee();
+
             case 0x50 -> pop();
 
             // Memory, Storage
@@ -438,24 +453,12 @@ class BEVM {
 
             case 0xA0, 0xA1, 0xA2, 0xA3, 0xA4 -> customLog(op-0xA0);
 
-            case 0xF0 -> {
-                // Nested create contract call; so print the post-trace before the
-                // nested call, and reload the pre-trace state after call.
-                System.out.println(postTrace(trace).nl().nl().p("CONTRACT CREATE").nl());
-                var halt0 = customCreate();
-                preTrace(trace.clear().p("CONTRACT CREATE RETURN").nl().nl(),pc,op);
-                yield halt0;
-            }
-            case 0xF1 -> {
-                // Nested create contract call; so print the post-trace before the
-                // nested call, and reload the pre-trace state after call.
-                System.out.println(postTrace(trace).nl().nl().p("CONTRACT CALL").nl());
-                var halt0 = customCall();
-                preTrace(trace.clear().p("CONTRACT RETURN").nl().nl(),pc,op);
-                yield halt0;
-            }
+            case 0xF0 -> customCreate      (trace,"CREATE"  );
+            case 0xF1 -> customCall        (trace,"CALL"    );
             case 0xF3 -> ret();
-            case 0xF4 -> customDelegateCall();
+            case 0xF4 -> customDelegateCall(trace,"DELEGATE");
+            case 0xF5 -> customCreate2     (trace,"CREATE2" );
+            case 0xFA -> customStaticCall  (trace,"STATIC"  );
             case 0xFD -> revert();
             case 0xFF -> customSelfDestruct();
 
@@ -474,7 +477,6 @@ class BEVM {
 
         if( trace != null ) {
             System.out.println();
-            System.out.println("BEVM HALT "+halt);
             System.setOut(oldSysOut);
         }
 
@@ -494,8 +496,8 @@ class BEVM {
 
     private SB postTrace(SB trace) {
         trace.hex2(_sp);
-        if( _sp > 0 )
-            trace.p(" 0x").hex8(STK3[_sp-1]).hex8(STK2[_sp-1]).hex8(STK1[_sp-1]).hex8(STK0[_sp-1]);
+        // Dump TOS
+        //if( _sp > 0 ) trace.p(" 0x").hex8(STK3[_sp-1]).hex8(STK2[_sp-1]).hex8(STK1[_sp-1]).hex8(STK0[_sp-1]);
         return trace;
     }
 
@@ -526,7 +528,7 @@ class BEVM {
     private static boolean overflowAdd( long x, long y, long sum ) { return (~(x^y) & (x^sum)) < 0; }
 
     private ExceptionalHaltReason mul() {
-        var halt = useGas(_gasCalc.getVeryLowTierGasCost());
+        var halt = useGas(_gasCalc.getLowTierGasCost());
         if( halt!=null ) return halt;
         if( _sp < 2 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
         long lhs0 = STK0[--_sp], lhs1 = STK1[_sp], lhs2 = STK2[_sp], lhs3 = STK3[_sp];
@@ -590,7 +592,7 @@ class BEVM {
     private static boolean overflowSub( long x, long y, long sum ) { return ((x^~y) & (x^sum)) < 0; }
 
     private ExceptionalHaltReason div() {
-        var halt = useGas(_gasCalc.getVeryLowTierGasCost());
+        var halt = useGas(_gasCalc.getLowTierGasCost());
         if( halt!=null ) return halt;
         if( _sp < 2 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
         long lhs0 = STK0[--_sp], lhs1 = STK1[_sp], lhs2 = STK2[_sp], lhs3 = STK3[_sp];
@@ -747,6 +749,8 @@ class BEVM {
 
     // not, bitwise complement (as opposed to a logical not)
     private ExceptionalHaltReason not() {
+        var halt = useGas(_gasCalc.getVeryLowTierGasCost());
+        if( halt!=null ) return halt;
         if( _sp < 1 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
         long not0 = STK0[--_sp], not1 = STK1[_sp], not2 = STK2[_sp], not3 = STK3[_sp];
         return push(~not0, ~not1, ~not2, ~not3);
@@ -831,7 +835,7 @@ class BEVM {
     private ExceptionalHaltReason caller() {
         var halt = useGas(_gasCalc.getBaseTierGasCost());
         if( halt!=null ) return halt;
-        return push(_frame.getSenderAddress().toArrayUnsafe(),0,20);
+        return push(_frame.getSenderAddress());
     }
 
     // Push passed ETH value
@@ -1051,7 +1055,7 @@ class BEVM {
     }
 
     // Custom Delegate Call 6->1
-    private ExceptionalHaltReason customDelegateCall() {
+    private ExceptionalHaltReason customDelegateCall(SB trace, String str) {
         if( FrameUtils.isHookExecution(_frame) && isRedirectFromNativeEntity() )
             return ExceptionalHaltReason.INVALID_OPERATION;
 
@@ -1063,7 +1067,7 @@ class BEVM {
         int srcLen = popInt();
         int dstOff = popInt();
         int dstLen = popInt();
-        return _abstractCall(stipend,to,Wei.ZERO,false,srcOff,srcLen,dstOff,dstLen);
+        return _abstractCall(trace,str, stipend,to,Wei.ZERO,false,srcOff,srcLen,dstOff,dstLen);
     }
     private boolean isRedirectFromNativeEntity() {
         final var updater = (ProxyWorldUpdater) _frame.getWorldUpdater();
@@ -1071,6 +1075,21 @@ class BEVM {
         return recipient.isTokenFacade() || recipient.isScheduleTxnFacade() || recipient.isRegularAccount();
     }
 
+    // Custom Delegate Call 6->1
+    private ExceptionalHaltReason customStaticCall(SB trace, String str) {
+        if( FrameUtils.isHookExecution(_frame) && isRedirectFromNativeEntity() )
+            return ExceptionalHaltReason.INVALID_OPERATION;
+
+        // BasicCustomCall.executeChecked
+        if( _sp < 6 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
+        long stipend = popLong();
+        Address to = popAddress();
+        int srcOff = popInt();
+        int srcLen = popInt();
+        int dstOff = popInt();
+        int dstLen = popInt();
+        return _abstractCall(trace,str, stipend,to,Wei.ZERO,false,srcOff,srcLen,dstOff,dstLen);
+    }
 
     // Revert transaction
     private ExceptionalHaltReason revert() {
@@ -1136,6 +1155,12 @@ class BEVM {
         return _jmpDest.get(x);
     }
 
+    private ExceptionalHaltReason noop() {
+        var halt = useGas(_gasCalc.getJumpDestOperationGasCost());
+        if( halt!=null ) return halt;
+        return null;
+    }
+
     private ExceptionalHaltReason gas() {
         var halt = useGas(_gasCalc.getBaseTierGasCost());
         if( halt!=null ) return halt;
@@ -1145,14 +1170,42 @@ class BEVM {
     private ExceptionalHaltReason gasPrice() {
         var halt = useGas(_gasCalc.getBaseTierGasCost());
         if( halt!=null ) return halt;
-        final UInt256 gasPrice = (UInt256)_frame.getGasPrice().toBytes();
-        return push(gasPrice);
+        return push((UInt256)_frame.getGasPrice().toBytes());
     }
 
-    private ExceptionalHaltReason noop() {
-        var halt = useGas(_gasCalc.getJumpDestOperationGasCost());
+    private ExceptionalHaltReason coinBase() {
+        var halt = useGas(_gasCalc.getBaseTierGasCost());
         if( halt!=null ) return halt;
-        return null;
+        return push(_frame.getMiningBeneficiary() );
+    }
+
+    private ExceptionalHaltReason PRNGSeed() {
+        var halt = useGas(_gasCalc.getBaseTierGasCost());
+        if( halt!=null ) return halt;
+        final Bytes entropy = FrameUtils.proxyUpdaterFor(_frame).entropy();
+        return push32(entropy.toArrayUnsafe());
+    }
+
+    private ExceptionalHaltReason gasLimit() {
+        var halt = useGas(_gasCalc.getBaseTierGasCost());
+        if( halt!=null ) return halt;
+        return push(_frame.getBlockValues().getGasLimit());
+    }
+
+    private ExceptionalHaltReason customChainId() {
+        var halt = useGas(_gasCalc.getBaseTierGasCost());
+        if( halt!=null ) return halt;
+        int chainIdAsInt = FrameUtils.configOf(_frame).getConfigData( ContractsConfig.class).chainId();
+        return push(chainIdAsInt);
+    }
+
+    private ExceptionalHaltReason baseFee() {
+        var halt = useGas(_gasCalc.getBaseTierGasCost());
+        if( halt!=null ) return halt;
+        final Optional<Wei> maybeBaseFee = _frame.getBlockValues().getBaseFee();
+        if( maybeBaseFee.isEmpty() )
+            return ExceptionalHaltReason.INVALID_OPERATION;
+        return push((UInt256)maybeBaseFee.orElseThrow().toBytes());
     }
 
     // ---------------------
@@ -1383,13 +1436,15 @@ class BEVM {
     // ---------------------
     private ExceptionalHaltReason customLog(int ntopics) {
         if( _sp < ntopics ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
-        int adr = popInt();
+        int off = popInt();
         int len = popInt();
         if( _frame.isStatic() ) return ExceptionalHaltReason.ILLEGAL_STATE_CHANGE;
-
-        var halt = useGas(_gasCalc.logOperationGasCost(_frame, adr, len, ntopics));
+        var halt = useGas(375 +           // Frontier.LOG_OPERATION_BASE_GAS_COST,
+                          len * 8L +      // Frontier.LOG_OPERATION_DATA_BYTE_GAS_COST
+                          ntopics * 375 + // Frontier.LOG_OPERATION_TOPIC_GAS_COST
+                          memoryExpansionGasCost(off,len));
         if( halt!=null ) return halt;
-        Bytes data = _mem.copyBytes(adr,len); // Safe copy, since will be crushed by later bytecodes
+        Bytes data = _mem.copyBytes(off,len); // Copy, since backing Memory will be crushed by later bytecodes
 
         ImmutableList.Builder<LogTopic> builder = ImmutableList.builderWithExpectedSize(ntopics);
         for( int i = 0; i < ntopics; i++ )
@@ -1403,7 +1458,11 @@ class BEVM {
         return null;
     }
 
-    private ExceptionalHaltReason customCreate() {
+    private ExceptionalHaltReason customCreate(SB trace, String str) {
+        // Nested create contract call; so print the post-trace before the
+        // nested call, and reload the pre-trace state after call.
+        if( trace != null )
+            System.out.println(postTrace(trace).nl().nl().p("CONTRACT ").p(str).nl());
         if( _sp < 3 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
         if( _frame.isStatic() ) return ExceptionalHaltReason.ILLEGAL_STATE_CHANGE;
         long val0 = STK0[--_sp], val1 = STK1[_sp], val2 = STK2[_sp], val3 = STK3[_sp];
@@ -1411,57 +1470,62 @@ class BEVM {
         // Memory size for code and gas
         int off = popInt();
         int len = popInt();
+        int dstOff = 0;
+        int dstLen = 0;
 
-        ProxyWorldUpdater updater = (ProxyWorldUpdater) _frame.getWorldUpdater();
-        var senderAddress = _frame.getRecipientAddress().equals(HtsSystemContract.HTS_HOOKS_CONTRACT_ADDRESS)
+        var sender = _frame.getRecipientAddress().equals(HtsSystemContract.HTS_HOOKS_CONTRACT_ADDRESS)
             ? FrameUtils.hookOwnerAddress(_frame)
             : _frame.getRecipientAddress();
-        var sender = updater.getAccount(senderAddress);
+        ProxyWorldUpdater updater = (ProxyWorldUpdater) _frame.getWorldUpdater();
+        var senderAccount = updater.getAccount(sender);
 
         _frame.clearReturnData();
 
-        if( value.compareTo(sender.getBalance()) > 0 || _frame.getDepth() >= 1024/*AbstractCustomCreateOperation.MAX_STACK_DEPTH*/)
+        if( value.compareTo(senderAccount.getBalance()) > 0 || _frame.getDepth() >= 1024/*AbstractCustomCreateOperation.MAX_STACK_DEPTH*/)
             return push0();
 
         // since the sender address should be the hook owner for HTS hook executions,
-        // we need to explicitly pass in the senderAddress and not use sender.getAddress()
-        sender.incrementNonce();
+        // we need to explicitly pass in the sender and not use sender.getAddress()
+        senderAccount.incrementNonce();
         Code code = _bevm.getCodeUncached(_mem.asBytes(off,len));
 
+        Bytes src = Bytes.EMPTY;
 
-        long senderAddressNonce = sender.getNonce();
+        long senderNonce = senderAccount.getNonce();
         // Decrement nonce by 1 to normalize the effect of transaction execution
-        Address contractAddress = Address.contractAddress(senderAddress, senderAddressNonce - 1);
-        assert contractAddress != null;
+        Address contract = Address.contractAddress(sender, senderNonce - 1);
+        assert contract != null;
 
-        updater.setupInternalAliasedCreate(senderAddress, contractAddress);
-        _frame.warmUpAddress(contractAddress);
+        updater.setupInternalAliasedCreate(sender, contract);
+        _frame.warmUpAddress(contract);
 
-        // gas cost (not charged yet) for making the contract
-        long gas = _gasCalc.txCreateCost() +
-            _gasCalc.initcodeCost(len) +
-            memoryExpansionGasCost(off,len);
-        long childGasStipend = _gasCalc.gasAvailableForChildCreate(_gas - gas);
-        _frame.setGasRemaining(_gas - gas - childGasStipend);
+        // gas cost for making the contract
+        long gas = _gasCalc.txCreateCost() + // 32000
+            _gasCalc.initcodeCost(len) + // Shanghai: words(544)*2 == 16 words *2 = 32
+            memoryExpansionGasCost(off,len); // 63-63==0
+        var halt = useGas(gas);
+        if( halt != null ) return null;
+        // Gas for child
+        long childGasStipend = _gasCalc.gasAvailableForChildCreate(_gas);
+        _gas -= childGasStipend;
+        _frame.setGasRemaining(_gas);
 
         // ----------------------------
         // child frame is added to frame stack via build method
         MessageFrame child = MessageFrame.builder()
-                .parentMessageFrame(_frame)
-                .type(MessageFrame.Type.CONTRACT_CREATION)
-                .initialGas(childGasStipend)
-                .address(contractAddress)
-                .contract(contractAddress)
-                .inputData(Bytes.EMPTY)
-                .sender(senderAddress)
-                .value(value)
-                .apparentValue(value)
-                .code(code)
-                .completer(child0 -> complete(_frame, child0))
-                .build();
-        // Only charged the gas stipend
-        _gas = _gas - childGasStipend;
-        _frame.setGasRemaining(_gas);
+            .parentMessageFrame(_frame)
+            .type(MessageFrame.Type.CONTRACT_CREATION)
+            .initialGas(childGasStipend)
+            .address(contract)
+            .contract(contract)
+            .inputData(src)
+            .sender(sender)
+            .value(value)
+            .apparentValue(value)
+            .code(code)
+            .isStatic(false)
+            .completer(child0 -> {} )
+            .build();
         _frame.setState(MessageFrame.State.CODE_SUSPENDED);
 
         // Frame lifetime management
@@ -1485,28 +1549,37 @@ class BEVM {
         case MessageFrame.State.COMPLETED_FAILED:  throw new TODO("cant find who sets this");
         };
 
+        _tracing.traceContextExit(child);
+        child.getWorldUpdater().commit();
+        child.getMessageFrameStack().removeFirst(); // Pop child frame
+
         // See AbstractCustomCreateOperation.complete
-        _gas += child.getRemainingGas();
+        _mem.write(dstOff, child.getOutputData(), 0, dstLen);
+        _frame.setReturnData(child.getOutputData());
         _frame.addLogs(child.getLogs());
         _frame.addCreates(child.getCreates());
         _frame.addSelfDestructs(child.getSelfDestructs());
         _frame.incrementGasRefund(child.getGasRefund());
-        if( child.getState() == MessageFrame.State.COMPLETED_SUCCESS ) {
-            Address creation = child.getContractAddress();
-            push(creation.toArrayUnsafe(),0,20);
-        } else {
-            _tracing.traceContextExit(child);
-            _frame.setReturnData(child.getOutputData());
-            push0();
-        }
-        return null;
-        // ----------------------------
+
+        _gas += child.getRemainingGas(); // Refund unused child gas
+
+        if( trace != null )
+            System.out.println(trace.clear().p("RETURN ").p(str).nl());
+        return push(child.getState() == MessageFrame.State.COMPLETED_SUCCESS ? child.getContractAddress() : null);
     }
 
     public void complete( MessageFrame frame, MessageFrame child ) {/*nothing*/}
 
+    private ExceptionalHaltReason customCreate2(SB trace, String str) {
+        throw new TODO();
+    }
+
     // CustomCallOperation
-    private ExceptionalHaltReason customCall() {
+    private ExceptionalHaltReason customCall(SB trace, String str) {
+        // Nested create contract call; so print the post-trace before the
+        // nested call, and reload the pre-trace state after call.
+        if( trace != null )
+            System.out.println(postTrace(trace).nl().nl().p("CONTRACT ").p(str).nl());
         if( _sp < 7 ) return ExceptionalHaltReason.INSUFFICIENT_STACK_ITEMS;
         long stipend = popLong();
         Address to = popAddress();
@@ -1517,13 +1590,12 @@ class BEVM {
         int srcLen = popInt();
         int dstOff = popInt();
         int dstLen = popInt();
-        return _abstractCall(stipend,to,value,hasValue,srcOff,srcLen,dstOff,dstLen);
+        return _abstractCall(trace,str, stipend,to,value,hasValue,srcOff,srcLen,dstOff,dstLen);
     }
 
-    private ExceptionalHaltReason _abstractCall(long stipend, Address to, Wei value, boolean hasValue, int srcOff, int srcLen, int dstOff, int dstLen ) {
-        Account contract = _frame.getWorldUpdater().get(to);
+    private ExceptionalHaltReason _abstractCall(SB trace, String str,long stipend, Address contract, Wei value, boolean hasValue, int srcOff, int srcLen, int dstOff, int dstLen ) {
+        Account contractAddress = _frame.getWorldUpdater().get(contract);
 
-        ProxyWorldUpdater updater = (ProxyWorldUpdater) _frame.getWorldUpdater();
         var sender = _frame.getRecipientAddress().equals(HtsSystemContract.HTS_HOOKS_CONTRACT_ADDRESS)
             ? FrameUtils.hookOwnerAddress(_frame)
             : _frame.getRecipientAddress();
@@ -1538,13 +1610,13 @@ class BEVM {
         long gas = _gasCalc.callOperationBaseGasCost() + memCost;
         if( hasValue )
             gas += _gasCalc.callValueTransferGasCost();
-        if( (contract == null || contract.isEmpty()) && hasValue )
+        if( (contractAddress == null || contractAddress.isEmpty()) && hasValue )
             gas += _gasCalc.newAccountGasCost();
         // Check the cold account cost, but do not charge
         if( _gas < gas+_gasCalc.getColdAccountAccessCost() )
             return ExceptionalHaltReason.INSUFFICIENT_GAS;
 
-        if( mustBePresent(to, hasValue) ) {
+        if( mustBePresent(contract, hasValue) ) {
         //    FrameUtils.invalidAddressContext(_frame).set(to, InvalidAddressContext.InvalidAddressType.InvalidCallTarget);
         //    return new OperationResult(cost, INVALID_SOLIDITY_ADDRESS);
             throw new TODO();
@@ -1557,18 +1629,18 @@ class BEVM {
         // AbstractCallOperation
 
         // There is a 2nd gas check made here, with account possibly being warm
-        // which is lower cost, so never fails... but this is the charged amount.
-        gas += _frame.warmUpAddress(to) || _gasCalc.isPrecompile(to)
+        // which is lower cost, so never fails...
+        gas += _frame.warmUpAddress(contract) || _gasCalc.isPrecompile(contract)
             ? _gasCalc.getWarmStorageReadCost()
             : _gasCalc.getColdAccountAccessCost();
+        // Charge gas for call
         var halt = useGas(gas);
-        assert halt==null;
-        long childGasStipend = _gasCalc.gasAvailableForChildCall(_frame,stipend,hasValue);
+        assert halt==null;      // always works because codeAccount check above is larger
 
         _frame.clearReturnData();
 
         // Not sure how this can be set
-        if( contract!=null && contract.hasDelegatedCode() )
+        if( contractAddress!=null && contractAddress.hasDelegatedCode() )
             throw new TODO();
 
         // If the call is sending more value than the account has or the
@@ -1578,18 +1650,22 @@ class BEVM {
             throw new TODO();
         Bytes src = _mem.asBytes(srcOff, srcLen);
 
-
         // No contract, so child frame always returns success
-        if( contract==null )
+        if( contractAddress==null )
             return push(1);
 
         // GetCode
-        Code code = _bevm.getCode(contract.getCodeHash(), contract.getCode());
+        Code code = _bevm.getCode(contractAddress.getCodeHash(), contractAddress.getCode());
         if( !code.isValid() )
             throw new TODO();
         // No code, so child frame always returns success
-        if( code.getDataSize() == 0 )
+        if( code.getSize() == 0 )
             return push(1);
+
+        // gasAvailableForChildCall; this is the "all but 1/64th" computation
+        long childGasStipend =  Math.min(_gas - (_gas>>6),stipend);
+        _gas -= childGasStipend;
+        _frame.setGasRemaining(_gas);
 
         // ----------------------------
         // child frame is added to frame stack via build method
@@ -1597,19 +1673,16 @@ class BEVM {
             .parentMessageFrame(_frame)
             .type(MessageFrame.Type.MESSAGE_CALL)
             .initialGas(childGasStipend)
-            .address(to)
-            .contract(to)
+            .address(contract)
+            .contract(contract)
             .inputData(src)
             .sender(sender)
             .value(value)
             .apparentValue(value)
             .code(code)
             .isStatic(_frame.isStatic())
-            .completer(child0 -> complete(_frame, child0))
+            .completer( child0 -> {} )
             .build();
-        // see note in stack depth check about incrementing cost
-        _gas += gas;            // Restore gas?
-        _frame.setGasRemaining(_gas);
         _frame.setState(MessageFrame.State.CODE_SUSPENDED);
 
         // Frame lifetime management
@@ -1628,7 +1701,7 @@ class BEVM {
         case MessageFrame.State.CODE_SUSPENDED:    throw new TODO("Should not reach here");
         case MessageFrame.State.CODE_SUCCESS:      msg.codeSuccess(child, _tracing);  break; // Sets COMPLETED_SUCCESS
         case MessageFrame.State.EXCEPTIONAL_HALT:  throw new TODO(); // msg.exceptionalHalt(child); break;
-        case MessageFrame.State.REVERT:            throw new TODO(); // msg.revert(child);  break;
+        case MessageFrame.State.REVERT:            msg.revert(child);  break;
         case MessageFrame.State.COMPLETED_SUCCESS: throw new TODO("cant find who sets this");
         case MessageFrame.State.COMPLETED_FAILED:  throw new TODO("cant find who sets this");
         };
@@ -1641,11 +1714,14 @@ class BEVM {
         _mem.write(dstOff, child.getOutputData(), 0, dstLen);
         _frame.setReturnData(child.getOutputData());
         _frame.addLogs(child.getLogs());
-        _frame.addSelfDestructs(child.getSelfDestructs());
         _frame.addCreates(child.getCreates());
+        _frame.addSelfDestructs(child.getSelfDestructs());
+        _frame.incrementGasRefund(child.getGasRefund());
 
         _gas += child.getRemainingGas();
 
+        if( trace != null )
+            System.out.println(trace.clear().p("RETURN ").p(str).nl());
         return push(child.getState()==MessageFrame.State.COMPLETED_SUCCESS ? 1 : 0);
     }
 

@@ -12,7 +12,6 @@ import java.io.FileOutputStream;
 import java.io.PrintStream;
 import java.util.Optional;
 
-import org.apache.tuweni.bytes.Bytes;
 import org.hyperledger.besu.evm.EvmSpecVersion;
 import org.hyperledger.besu.evm.frame.ExceptionalHaltReason;
 import org.hyperledger.besu.evm.frame.MessageFrame;
@@ -110,14 +109,22 @@ public class HederaEVM extends HEVM {
 
         final SB trace = new SB();
         PrintStream oldSysOut = System.out;
-        if( trace != null )
+        if( trace != null ) {
             System.setOut(new PrintStream(new FileOutputStream( FileDescriptor.out)));
+            int pc = frame.getPC();
+            if( pc != 0 ) {
+                String str = contractStr(code[pc-1]&0xFF);
+                System.out.println(trace.p("RETURN ").p(str).nl());
+                trace.clear();
+            }
+        }
 
+        ExceptionalHaltReason haltReason = null;
+        int opcode = 0;
         while (frame.getState() == State.CODE_EXECUTING) {
             int pc = frame.getPC();
 
             Operation currentOperation;
-            int opcode;
             try {
                 opcode = code[pc] & 255;
                 currentOperation = operationArray[opcode];
@@ -131,10 +138,6 @@ public class HederaEVM extends HEVM {
                 operationTracer.tracePreExecution(frame);
             }
             preTrace(frame,trace,pc,opcode);
-            // Nested contract call; so print the post-trace before the
-            // nested call, and reload the pre-trace state after call.
-            if( opcode==0xF0 || opcode==0xF1 )
-                System.out.println(postTrace(frame,trace).nl().nl().p("CONTRACT ").p(opcode==0xF0 ? "CREATE" : "CALL").nl());
 
             Operation.OperationResult result;
             try {
@@ -215,7 +218,7 @@ public class HederaEVM extends HEVM {
                 result = UNDERFLOW_RESPONSE;
             }
 
-            ExceptionalHaltReason haltReason = result.getHaltReason();
+            haltReason = result.getHaltReason();
             if (haltReason != null) {
                 LOG.trace("MessageFrame evaluation halted because of {}", haltReason);
                 frame.setExceptionalHaltReason(Optional.of(haltReason));
@@ -237,8 +240,6 @@ public class HederaEVM extends HEVM {
             }
 
             if( trace != null ) {
-                if( opcode==0xF0 || opcode==0xF1 )
-                    preTrace(frame,trace.clear().p("CONTRACT RETURN").nl().nl(),pc,opcode);
                 postTrace(frame,trace);
                 if( haltReason!=null )
                     trace.p(" ").p(haltReason.toString());
@@ -259,7 +260,11 @@ public class HederaEVM extends HEVM {
 
         if( trace != null ) {
             System.out.println();
-            System.out.println("HEVM HALT "+frame.getExceptionalHaltReason());
+            String contractStr = contractStr(opcode);
+            if( contractStr != null )
+                System.out.println(trace.p("CONTRACT ").p(contractStr).nl());
+            if( haltReason != null )
+                System.out.println("HEVM HALT "+haltReason);
             System.setOut(oldSysOut);
         }
     }
@@ -271,14 +276,24 @@ public class HederaEVM extends HEVM {
 
     private SB postTrace(MessageFrame frame, SB trace) {
         trace.hex2(frame.stackSize());
-        if( frame.stackSize() > 0 ) {
-            trace.p(" 0x");
-            Bytes bs = frame.getStackItem(0);
-            int len = bs.size();
-            for( int i=0; i<len; i++ )
-                trace.hex1(bs.get(i));
-        }
+        // Dump TOS
+        //if( frame.stackSize() > 0 ) {
+        //    trace.p(" 0x");
+        //    Bytes bs = frame.getStackItem(0);
+        //    int len = bs.size();
+        //    for( int i=0; i<len; i++ )
+        //        trace.hex1(bs.get(i));
+        //}
         return trace;
+    }
+    private static String contractStr(int opcode) {
+        return
+            opcode==0xF0 ? "CREATE"  :
+            opcode==0xF1 ? "CALL"    :
+            opcode==0xF4 ? "DELEGATE":
+            opcode==0xF5 ? "CREATE2" :
+            opcode==0xFA ? "STATIC"  :
+            null;
     }
 
 }
