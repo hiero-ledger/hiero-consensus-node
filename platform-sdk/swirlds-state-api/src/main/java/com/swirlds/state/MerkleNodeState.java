@@ -6,6 +6,8 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.state.lifecycle.StateMetadata;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
+import java.util.List;
 import org.hiero.base.crypto.Hash;
 
 /**
@@ -133,4 +135,98 @@ public interface MerkleNodeState extends State {
      * @return Merkle proof for the given path or null if the path is non-existent
      */
     MerkleProof getMerkleProof(long path);
+
+    /**
+     * Get a map value from the state
+     *
+     * @param stateId the state ID
+     * @param key the binary protobuf encoded key
+     * @return the binary protobuf encoded value, null if not found
+     * @throws IllegalArgumentException if the stateId is not valid
+     */
+    @Nullable
+    Bytes mapValue(final int stateId, @NonNull final Bytes key);
+
+    /**
+     * Get a singleton value from the latest state version
+     *
+     * @param singletonId the singleton ID, from SingletonType enum, eg. SingletonType.ENTITYIDSERVICE_I_ENTITY_ID
+     * @return the binary protobuf encoded value
+     * @throws IllegalArgumentException if the singletonId is not valid
+     */
+    @Nullable
+    Bytes singleton(final int singletonId);
+
+    /**
+     * Get a queue state from the latest state version
+     *
+     * @param stateId the state ID of the queue state
+     * @return the queue state, which has the indexes of head and tail
+     * @throws IllegalArgumentException if the stateId is not valid or not a queue type
+     */
+    QueueState queueState(final int stateId);
+
+    /**
+     * Peek at head element in a queue from the latest state version
+     *
+     * @param stateId the state ID of the queue state
+     * @return the binary protobuf encoded value at head
+     * @throws IllegalArgumentException if the stateId is not valid or not a queue type
+     */
+    Bytes queuePeekHead(final int stateId);
+
+    /**
+     * Peek at tail element in a queue from the latest state version
+     *
+     * @param stateId the state ID of the queue state
+     * @return the binary protobuf encoded value at tail
+     * @throws IllegalArgumentException if the stateID is not valid or not a queue type
+     */
+    Bytes queuePeekTail(final int stateId);
+
+    /**
+     * Peek at element at index in a queue from the latest state version. Index has to be between the head and the tail
+     * inclusive. To find the head and tail indexes use {@link #queueState(int)}
+     *
+     * @param stateId the state ID of the queue state
+     * @param index the index to peek at
+     * @return the binary protobuf encoded value at index
+     * @throws IllegalArgumentException if the stateID is not valid or not a queue type
+     */
+    Bytes queuePeek(final int stateId, final int index);
+
+    /**
+     * Get all elements in a queue from the latest state version as a list. The list will be ordered from head to tail.
+     *
+     * @param stateId the state ID of the queue state
+     * @return the list of binary protobuf encoded values in the queue
+     * @throws IllegalArgumentException if the stateID is not valid or not a queue type
+     */
+    List<Bytes> queueAsList(final int stateId);
+
+    /**
+     * Puts the key/value pair represented as bytes into the state. The key must not be null, but the value
+     * may be null. If the entry was already in the state, the value is replaced. If the mapping was not in the state, then a new entry is made.
+     *
+     * @param key
+     * 		the key bytes, cannot be null.
+     * @param value
+     * 		the value bytes, may be null.
+     */
+    void putBytes(@NonNull final Bytes key, @NonNull final Bytes value);
+
+    /**
+     * Gets the value associated with the given key as raw bytes.
+     *
+     * @param key The key. This must not be null.
+     * @return The value bytes. The value may be null.
+     */
+    Bytes getBytes(@NonNull final Bytes key);
+
+    /**
+     * Removes the key/value pair denoted by the given key from the state. Has no effect
+     * if the key didn't exist.
+     * @param key The key to remove, must not be null
+     */
+    void remove(@NonNull final Bytes key);
 }

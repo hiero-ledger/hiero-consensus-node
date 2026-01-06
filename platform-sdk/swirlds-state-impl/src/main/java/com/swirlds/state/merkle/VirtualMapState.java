@@ -6,6 +6,9 @@ import static com.swirlds.state.StateChangeListener.StateType.QUEUE;
 import static com.swirlds.state.StateChangeListener.StateType.SINGLETON;
 import static com.swirlds.state.lifecycle.StateMetadata.computeLabel;
 import static com.swirlds.state.merkle.StateItem.CODEC;
+import static com.swirlds.state.merkle.StateKeyUtils.kvKey;
+import static com.swirlds.state.merkle.StateKeyUtils.queueKey;
+import static com.swirlds.state.merkle.StateUtils.getStateKeyForSingleton;
 import static com.swirlds.state.merkle.StateValue.extractStateIdFromStateValueOneOf;
 import static com.swirlds.state.merkle.disk.OnDiskQueueHelper.QUEUE_STATE_VALUE_CODEC;
 import static com.swirlds.virtualmap.internal.Path.INVALID_PATH;
@@ -28,6 +31,8 @@ import com.swirlds.merkledb.config.MerkleDbConfig;
 import com.swirlds.metrics.api.Metrics;
 import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.MerkleProof;
+import com.swirlds.state.QueueState;
+import com.swirlds.state.QueueState.QueueStateCodec;
 import com.swirlds.state.SiblingHash;
 import com.swirlds.state.State;
 import com.swirlds.state.StateChangeListener;
@@ -39,7 +44,6 @@ import com.swirlds.state.merkle.disk.OnDiskReadableSingletonState;
 import com.swirlds.state.merkle.disk.OnDiskWritableKVState;
 import com.swirlds.state.merkle.disk.OnDiskWritableQueueState;
 import com.swirlds.state.merkle.disk.OnDiskWritableSingletonState;
-import com.swirlds.state.merkle.disk.QueueState;
 import com.swirlds.state.spi.CommittableWritableStates;
 import com.swirlds.state.spi.EmptyReadableStates;
 import com.swirlds.state.spi.KVChangeListener;
@@ -747,7 +751,7 @@ public class VirtualMapState implements MerkleNodeState {
      * {@inheritDoc}}
      */
     public long singletonPath(final int stateId) {
-        return virtualMap.getRecords().findPath(StateUtils.getStateKeyForSingleton(stateId));
+        return virtualMap.getRecords().findPath(getStateKeyForSingleton(stateId));
     }
 
     /**
@@ -782,7 +786,7 @@ public class VirtualMapState implements MerkleNodeState {
      */
     @Override
     public long kvPath(final int stateId, @NonNull final Bytes key) {
-        return virtualMap.getRecords().findPath(StateKeyUtils.kvKey(stateId, key));
+        return virtualMap.getRecords().findPath(kvKey(stateId, key));
     }
 
     /**
@@ -879,8 +883,7 @@ public class VirtualMapState implements MerkleNodeState {
 
                     if (leafBytes != null) {
                         final StateValue.StateValueCodec<QueueState> queueStateCodec = new StateValue.StateValueCodec<>(
-                                extractStateIdFromStateValueOneOf(leafBytes.valueBytes()),
-                                new QueueState.QueueStateCodec());
+                                extractStateIdFromStateValueOneOf(leafBytes.valueBytes()), new QueueStateCodec());
                         try {
                             final QueueState queueState = queueStateCodec
                                     .parse(leafBytes.valueBytes())
@@ -902,5 +905,137 @@ public class VirtualMapState implements MerkleNodeState {
         rootJson.put("Queues (Queue States)", queues);
 
         return rootJson.toString();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Nullable
+    @Override
+    public Bytes mapValue(final int stateId, @NonNull final Bytes key) {
+        final Bytes stateKey = kvKey(stateId, key);
+        final Bytes stored = virtualMap.getBytes(stateKey);
+        return stored == null ? null : StateValue.StateValueCodec.unwrap(stored);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public Bytes singleton(final int singletonId) {
+        try {
+            final Bytes stateKey = getStateKeyForSingleton(singletonId);
+            final Bytes stored = virtualMap.getBytes(stateKey);
+            return stored == null ? null : StateValue.StateValueCodec.unwrap(stored);
+        } catch (ArrayIndexOutOfBoundsException | IllegalArgumentException e) {
+            // Invalid state IDs (negative or too large) may cause index errors
+            return null;
+        }
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public QueueState queueState(final int stateID) {
+        final Bytes queueStateKey = StateKeyUtils.queueStateKey(stateID);
+        final Bytes queueStateBytes = virtualMap.getBytes(queueStateKey);
+        if (queueStateBytes == null) {
+            return new QueueState(0, 0); // Empty queue
+        }
+        try {
+            final Bytes unwrapped = StateValue.StateValueCodec.unwrap(queueStateBytes);
+            return QueueStateCodec.INSTANCE.parse(unwrapped);
+        } catch (ParseException e) {
+            throw new IllegalStateException("Failed to parse queue state for stateID: " + stateID, e);
+        }
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Nullable
+    @Override
+    public Bytes queuePeekHead(final int stateId) {
+        final QueueState state = queueState(stateId);
+        if (state.head() >= state.tail()) {
+            return null; // Empty queue
+        }
+        final Bytes elementKey = queueKey(stateId, (int) state.head());
+        final Bytes stored = virtualMap.getBytes(elementKey);
+        return stored == null ? null : StateValue.StateValueCodec.unwrap(stored);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Nullable
+    @Override
+    public Bytes queuePeekTail(final int stateId) {
+        final QueueState state = queueState(stateId);
+        if (state.head() >= state.tail()) {
+            return null; // Empty queue
+        }
+        // Tail points to the next position to write, so tail-1 is the last element
+        final Bytes elementKey = queueKey(stateId, (int) (state.tail() - 1));
+        final Bytes stored = virtualMap.getBytes(elementKey);
+        return stored == null ? null : StateValue.StateValueCodec.unwrap(stored);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public Bytes queuePeek(final int stateID, final int index) {
+        final QueueState state = queueState(stateID);
+        if (index < state.head() || index >= state.tail()) {
+            throw new IllegalArgumentException("Index " + index + " is out of bounds. Valid range is [" + state.head()
+                    + ", " + (state.tail() - 1) + "]");
+        }
+        final Bytes elementKey = queueKey(stateID, index);
+        final Bytes stored = virtualMap.getBytes(elementKey);
+        return stored == null ? null : StateValue.StateValueCodec.unwrap(stored);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public List<Bytes> queueAsList(final int stateID) {
+        final QueueState state = queueState(stateID);
+        final List<Bytes> result = new ArrayList<>();
+        for (long i = state.head(); i < state.tail(); i++) {
+            final Bytes elementKey = queueKey(stateID, (int) i);
+            final Bytes stored = virtualMap.getBytes(elementKey);
+            final Bytes element = stored == null ? null : StateValue.StateValueCodec.unwrap(stored);
+            if (element != null) {
+                result.add(element);
+            }
+        }
+        return result;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void putBytes(@NonNull Bytes key, @NonNull Bytes value) {
+        virtualMap.putBytes(key, value);
+    }
+
+    /**
+     *  {@inheritDoc}
+     */
+    @Override
+    public Bytes getBytes(@NonNull Bytes key) {
+        return virtualMap.getBytes(key);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void remove(@NonNull Bytes key) {
+        virtualMap.remove(key);
     }
 }

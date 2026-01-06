@@ -10,6 +10,7 @@ import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.state.MerkleNodeState;
 import com.swirlds.state.MerkleProof;
+import com.swirlds.state.QueueState;
 import com.swirlds.state.State;
 import com.swirlds.state.StateChangeListener;
 import com.swirlds.state.lifecycle.StateMetadata;
@@ -33,6 +34,7 @@ import com.swirlds.state.test.fixtures.MapWritableKVState;
 import com.swirlds.state.test.fixtures.MapWritableStates;
 import com.swirlds.state.test.fixtures.merkle.VirtualMapStateTestUtils;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.Nullable;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -299,7 +301,57 @@ public class FakeState implements MerkleNodeState {
     }
 
     @Override
+    public @Nullable Bytes mapValue(int stateId, @NonNull Bytes key) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public @Nullable Bytes singleton(int singletonId) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public QueueState queueState(int stateId) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public Bytes queuePeekHead(int stateId) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public Bytes queuePeekTail(int stateId) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public Bytes queuePeek(int stateId, int index) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public List<Bytes> queueAsList(int stateId) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public void putBytes(@NonNull Bytes key, @NonNull Bytes value) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public Bytes getBytes(@NonNull Bytes key) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public void remove(@NonNull Bytes key) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
     public void initializeState(@NonNull final StateMetadata<?, ?> md) {
-        // do nothing
+        throw new UnsupportedOperationException();
     }
 }

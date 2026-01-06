@@ -23,8 +23,10 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 import com.hedera.hapi.node.state.primitives.ProtoBytes;
 import com.hedera.pbj.runtime.ParseException;
+import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.state.MutabilityException;
 import com.swirlds.state.MerkleProof;
+import com.swirlds.state.QueueState;
 import com.swirlds.state.SiblingHash;
 import com.swirlds.state.StateChangeListener;
 import com.swirlds.state.lifecycle.StateDefinition;
@@ -1187,5 +1189,133 @@ public class VirtualMapStateTest extends MerkleTestBase {
                         + "\"Singletons\":"
                         + "{\"First-Service." + COUNTRY_STATE_KEY
                         + "\":{\"path\":3,\"mnemonic\":\"cushion-bright-early-flight\"}}}");
+    }
+
+    @Test
+    @DisplayName("mapValue returns value for existing key and null for missing key")
+    void testMapValue() {
+        setupFruitVirtualMap();
+        final VirtualMap vm = (VirtualMap) virtualMapState.getRoot();
+
+        addKvState(vm, fruitMetadata, A_KEY, APPLE);
+
+        virtualMapState.initializeState(fruitMetadata);
+
+        final Bytes found = virtualMapState.mapValue(FRUIT_STATE_ID, ProtoBytes.PROTOBUF.toBytes(A_KEY));
+        final Bytes missing = virtualMapState.mapValue(FRUIT_STATE_ID, ProtoBytes.PROTOBUF.toBytes(B_KEY));
+
+        // Then
+        assertThat(found).isEqualTo(ProtoBytes.PROTOBUF.toBytes(APPLE));
+        assertThat(missing).isNull();
+    }
+
+    @Test
+    @DisplayName("singleton returns bytes for valid singleton and null for invalid IDs")
+    void testSingletonAccessor() {
+        setupSingletonCountry();
+        final VirtualMap vm = (VirtualMap) virtualMapState.getRoot();
+        addSingletonState(vm, countryMetadata, GHANA);
+
+        virtualMapState.initializeState(countryMetadata);
+
+        // When
+        final Bytes value = virtualMapState.singleton(COUNTRY_STATE_ID);
+        final Bytes invalidNegative = virtualMapState.singleton(-1);
+        final Bytes invalidLarge = virtualMapState.singleton(999_999);
+
+        // Then
+        assertThat(value).isEqualTo(ProtoBytes.PROTOBUF.toBytes(GHANA));
+        assertThat(invalidNegative).isNull();
+        assertThat(invalidLarge).isNull();
+    }
+
+    @Test
+    @DisplayName("queueState returns empty when not present and parses head/tail when present")
+    void testQueueStateAccessor() {
+        setupSteamQueue();
+
+        final QueueState empty = virtualMapState.queueState(STEAM_STATE_ID);
+        assertThat(empty.head()).isEqualTo(0L);
+        assertThat(empty.tail()).isEqualTo(0L);
+
+        virtualMapState.initializeState(steamMetadata);
+        final WritableStates writable = virtualMapState.getWritableStates(FIRST_SERVICE);
+        writable.getQueue(STEAM_STATE_ID).add(ART);
+        writable.getQueue(STEAM_STATE_ID).add(BIOLOGY);
+        ((CommittableWritableStates) writable).commit();
+
+        final QueueState state = virtualMapState.queueState(STEAM_STATE_ID);
+        // Queue indices are 1-based when populated
+        assertThat(state.head()).isEqualTo(1L);
+        assertThat(state.tail()).isEqualTo(3L);
+    }
+
+    @Test
+    @DisplayName("queuePeekHead/Tail and queuePeek/index behave correctly")
+    void testQueuePeekAndAsList() {
+        setupSteamQueue();
+        virtualMapState.initializeState(steamMetadata);
+        final WritableStates writable = virtualMapState.getWritableStates(FIRST_SERVICE);
+
+        // Initially empty
+        assertThat(virtualMapState.queuePeekHead(STEAM_STATE_ID)).isNull();
+        assertThat(virtualMapState.queuePeekTail(STEAM_STATE_ID)).isNull();
+
+        // Add elements and commit (indices are 1-based)
+        writable.getQueue(STEAM_STATE_ID).add(ART); // index 1
+        writable.getQueue(STEAM_STATE_ID).add(BIOLOGY); // index 2
+        writable.getQueue(STEAM_STATE_ID).add(CHEMISTRY); // index 3
+        ((CommittableWritableStates) writable).commit();
+
+        // Head and tail
+        assertThat(virtualMapState.queuePeekHead(STEAM_STATE_ID)).isEqualTo(ProtoBytes.PROTOBUF.toBytes(ART));
+        assertThat(virtualMapState.queuePeekTail(STEAM_STATE_ID)).isEqualTo(ProtoBytes.PROTOBUF.toBytes(CHEMISTRY));
+
+        // Peek by index
+        assertThat(virtualMapState.queuePeek(STEAM_STATE_ID, 1)).isEqualTo(ProtoBytes.PROTOBUF.toBytes(ART));
+        assertThat(virtualMapState.queuePeek(STEAM_STATE_ID, 2)).isEqualTo(ProtoBytes.PROTOBUF.toBytes(BIOLOGY));
+        assertThat(virtualMapState.queuePeek(STEAM_STATE_ID, 3)).isEqualTo(ProtoBytes.PROTOBUF.toBytes(CHEMISTRY));
+
+        // Out of bounds
+        assertThatThrownBy(() -> virtualMapState.queuePeek(STEAM_STATE_ID, 0))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> virtualMapState.queuePeek(STEAM_STATE_ID, 4))
+                .isInstanceOf(IllegalArgumentException.class);
+
+        // As list
+        final List<Bytes> list = virtualMapState.queueAsList(STEAM_STATE_ID);
+        assertThat(list)
+                .containsExactly(
+                        ProtoBytes.PROTOBUF.toBytes(ART),
+                        ProtoBytes.PROTOBUF.toBytes(BIOLOGY),
+                        ProtoBytes.PROTOBUF.toBytes(CHEMISTRY));
+    }
+
+    @Test
+    @DisplayName("putBytes/getBytes/remove passthrough to VirtualMap")
+    void testBytesPassthrough() {
+        // Given
+        final Bytes key = ProtoBytes.PROTOBUF.toBytes(A_KEY);
+        final Bytes value = ProtoBytes.PROTOBUF.toBytes(APPLE);
+
+        // When
+        virtualMapState.putBytes(key, value);
+        final Bytes read = virtualMapState.getBytes(key);
+        assertThat(read).isEqualTo(value);
+
+        virtualMapState.remove(key);
+        final Bytes afterRemove = virtualMapState.getBytes(key);
+        assertThat(afterRemove).isNull();
+    }
+
+    @Test
+    @DisplayName("isHashed is false before hashing and true after computing hash")
+    void testIsHashed() {
+        // Initially should be false
+        assertFalse(virtualMapState.isHashed());
+
+        // After computing hash
+        virtualMapState.getHash();
+        assertTrue(virtualMapState.isHashed());
     }
 }

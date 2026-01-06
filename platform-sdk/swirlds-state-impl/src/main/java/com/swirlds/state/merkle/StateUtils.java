@@ -1,12 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.state.merkle;
 
+import static com.swirlds.state.merkle.StateKeyUtils.kvKey;
+
 import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.ParseException;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
-import com.swirlds.state.merkle.disk.QueueState;
+import com.swirlds.state.QueueState;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import java.io.ByteArrayOutputStream;
@@ -110,7 +112,7 @@ public final class StateUtils {
      * @return a state key for a k/v state, serialized into {@link Bytes} object
      */
     public static <K> Bytes getStateKeyForKv(final int stateId, final K key, final Codec<K> keyCodec) {
-        return StateKeyUtils.kvKey(stateId, key, keyCodec);
+        return kvKey(stateId, key, keyCodec);
     }
 
     /**
