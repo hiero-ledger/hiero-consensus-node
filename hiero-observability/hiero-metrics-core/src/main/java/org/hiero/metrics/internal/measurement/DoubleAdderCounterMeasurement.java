@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.metrics.internal.measurement;
 
-import static org.hiero.metrics.api.core.MetricUtils.ONE;
-import static org.hiero.metrics.api.core.MetricUtils.ZERO;
+import static org.hiero.metrics.internal.core.MetricUtils.ONE;
+import static org.hiero.metrics.internal.core.MetricUtils.ZERO;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;

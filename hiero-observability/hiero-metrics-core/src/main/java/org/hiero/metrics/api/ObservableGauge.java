@@ -24,7 +24,7 @@ public interface ObservableGauge extends Metric {
 
     /**
      * Create a metric key for a {@link ObservableGauge} with the given name. <br>
-     * See {@link org.hiero.metrics.api.core.MetricUtils#validateMetricNameCharacters(String)} for name requirements.
+     * Name must match {@value METRIC_NAME_REGEX}.
      *
      * @param name the name of the metric
      * @return the metric key
@@ -47,7 +47,7 @@ public interface ObservableGauge extends Metric {
 
     /**
      * Create a builder for a {@link ObservableGauge} with the given metric name. <br>
-     * See {@link org.hiero.metrics.api.core.MetricUtils#validateMetricNameCharacters(String)} for name requirements.
+     * Name must match {@value METRIC_NAME_REGEX}.
      *
      * @param name the metric name
      * @return the builder

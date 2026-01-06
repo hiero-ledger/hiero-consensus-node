@@ -5,10 +5,10 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.function.LongSupplier;
 import org.hiero.metrics.api.core.MetricKey;
 import org.hiero.metrics.api.core.MetricType;
-import org.hiero.metrics.api.core.MetricUtils;
 import org.hiero.metrics.api.core.SettableMetric;
 import org.hiero.metrics.api.measurement.LongCounterMeasurement;
 import org.hiero.metrics.internal.LongCounterImpl;
+import org.hiero.metrics.internal.core.MetricUtils;
 import org.hiero.metrics.internal.measurement.LongAdderCounterMeasurement;
 
 /**
@@ -18,7 +18,7 @@ public interface LongCounter extends SettableMetric<LongSupplier, LongCounterMea
 
     /**
      * Create a metric key for a {@link LongCounter} with the given name. <br>
-     * See {@link org.hiero.metrics.api.core.MetricUtils#validateMetricNameCharacters(String)} for name requirements.
+     * Name must match {@value METRIC_NAME_REGEX}.
      *
      * @param name the name of the metric
      * @return the metric key
@@ -41,7 +41,7 @@ public interface LongCounter extends SettableMetric<LongSupplier, LongCounterMea
 
     /**
      * Create a builder for a {@link LongCounter} with the given metric name. <br>
-     * See {@link org.hiero.metrics.api.core.MetricUtils#validateMetricNameCharacters(String)} for name requirements.
+     * Name must match {@value METRIC_NAME_REGEX}.
      *
      * @param name the name of the metric
      * @return the builder

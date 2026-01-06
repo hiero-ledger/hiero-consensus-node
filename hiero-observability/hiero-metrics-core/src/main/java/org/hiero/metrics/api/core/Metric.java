@@ -10,6 +10,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import org.hiero.metrics.api.measurement.Measurement;
+import org.hiero.metrics.internal.core.MetricUtils;
 
 /**
  * Base interface for all metrics, extending {@link MetricInfo}.
@@ -130,7 +131,7 @@ public interface Metric extends MetricInfo {
          *
          * @param unit the metric unit, may be {@code null}
          * @return the builder instance
-         * @throws IllegalArgumentException if the unit contains invalid characters by {@link MetricUtils#validateUnitNameCharacters(String)}
+         * @throws IllegalArgumentException if the unit is not null and doesn't match regex {@value MetricInfo#UNIT_LABEL_NAME_REGEX}
          */
         @NonNull
         public final B setUnit(@Nullable String unit) {
@@ -164,8 +165,7 @@ public interface Metric extends MetricInfo {
          * @param labelNames the dynamic label names to add, must not be {@code null}
          * @return the builder instance
          * @throws NullPointerException if any label name is {@code null}
-         * @throws IllegalArgumentException if any label name contains invalid characters
-         * by {@link MetricUtils#validateLabelNameCharacters(String)} or conflicts with the metric name.
+         * @throws IllegalArgumentException if any label name doesn't match regex {@value MetricInfo#UNIT_LABEL_NAME_REGEX}
          */
         @NonNull
         public final B addDynamicLabelNames(@NonNull String... labelNames) {
@@ -186,8 +186,7 @@ public interface Metric extends MetricInfo {
          * @param labels the static labels to add, must not be {@code null}
          * @return the builder instance
          * @throws NullPointerException if label is {@code null}
-         * @throws IllegalArgumentException if label name contains invalid characters
-         * by {@link MetricUtils#validateLabelNameCharacters(String)} or conflicts with the metric name or other static label.
+         * @throws IllegalArgumentException if label name doesn't match regex {@value MetricInfo#UNIT_LABEL_NAME_REGEX}
          */
         @NonNull
         public final B addStaticLabels(@NonNull Label... labels) {

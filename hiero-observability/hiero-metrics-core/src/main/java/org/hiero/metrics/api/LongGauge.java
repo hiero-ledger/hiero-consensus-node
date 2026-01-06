@@ -7,10 +7,10 @@ import java.util.function.LongBinaryOperator;
 import java.util.function.LongSupplier;
 import org.hiero.metrics.api.core.MetricKey;
 import org.hiero.metrics.api.core.MetricType;
-import org.hiero.metrics.api.core.MetricUtils;
 import org.hiero.metrics.api.core.SettableMetric;
 import org.hiero.metrics.api.measurement.LongGaugeMeasurement;
 import org.hiero.metrics.internal.LongGaugeImpl;
+import org.hiero.metrics.internal.core.MetricUtils;
 import org.hiero.metrics.internal.measurement.AtomicLongGaugeMeasurement;
 import org.hiero.metrics.internal.measurement.LongAccumulatorGaugeMeasurement;
 
@@ -24,7 +24,7 @@ public interface LongGauge extends SettableMetric<LongSupplier, LongGaugeMeasure
 
     /**
      * Create a metric key for a {@link LongGauge} with the given name. <br>
-     * See {@link org.hiero.metrics.api.core.MetricUtils#validateMetricNameCharacters(String)} for name requirements.
+     * Name must match {@value METRIC_NAME_REGEX}.
      *
      * @param name the name of the metric
      * @return the metric key
@@ -47,7 +47,7 @@ public interface LongGauge extends SettableMetric<LongSupplier, LongGaugeMeasure
 
     /**
      * Create a builder for a {@link LongGauge} with the given metric name. <br>
-     * See {@link org.hiero.metrics.api.core.MetricUtils#validateMetricNameCharacters(String)} for name requirements.
+     * Name must match {@value METRIC_NAME_REGEX}.
      *
      * @param name the metric name
      * @return the builder

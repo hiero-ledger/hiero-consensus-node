@@ -2,7 +2,7 @@
 package org.hiero.metrics.api.measurement;
 
 import java.util.function.DoubleSupplier;
-import org.hiero.metrics.api.core.MetricUtils;
+import org.hiero.metrics.internal.core.MetricUtils;
 
 /**
  * A {@link Measurement} representing a {@code double} counter that can only be incremented with non-negative value.

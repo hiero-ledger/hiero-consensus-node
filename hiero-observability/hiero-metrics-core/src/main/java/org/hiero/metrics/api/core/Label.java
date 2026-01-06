@@ -2,6 +2,7 @@
 package org.hiero.metrics.api.core;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
+import org.hiero.metrics.internal.core.MetricUtils;
 
 /**
  * A label is an immutable key-value pair that can be associated with a metric to provide additional context or
@@ -9,7 +10,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
  * such as tracking the number of requests to a web server by different HTTP methods (e.g., GET,
  * POST, etc.) or by different response status codes (e.g., 200, 404, 500, etc.).
  * <p>
- * Label names must not be blank and must only contain valid characters - see {@link MetricUtils#validateLabelNameCharacters(String)}
+ * Label names must not be blank and must only contain valid characters defined by {@value MetricInfo#UNIT_LABEL_NAME_REGEX}.
  *
  * @see org.hiero.metrics.api.measurement.Measurement
  */
@@ -21,7 +22,7 @@ public record Label(@NonNull String name, @NonNull String value) implements Comp
      * @param name  the name of the label, must not be blank
      * @param value the value of the label, must not be blank
      * @throws NullPointerException if name or value is {@code null}
-     * @throws IllegalArgumentException if name is blank or contains invalid characters or if value is blank
+     * @throws IllegalArgumentException if value is blank or name doesn't match regex {@value MetricInfo#UNIT_LABEL_NAME_REGEX}
      */
     public Label {
         MetricUtils.validateLabelNameCharacters(name);

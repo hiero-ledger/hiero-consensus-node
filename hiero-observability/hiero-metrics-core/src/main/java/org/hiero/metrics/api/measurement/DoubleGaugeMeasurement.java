@@ -2,7 +2,7 @@
 package org.hiero.metrics.api.measurement;
 
 import java.util.function.DoubleSupplier;
-import org.hiero.metrics.api.core.MetricUtils;
+import org.hiero.metrics.internal.core.MetricUtils;
 
 /**
  * A gauge measurement that holds a {@code double} value that can be updated using {@link #update(double)} to any value.

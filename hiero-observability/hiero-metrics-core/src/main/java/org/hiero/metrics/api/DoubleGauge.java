@@ -1,18 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.metrics.api;
 
-import static org.hiero.metrics.api.core.MetricUtils.DOUBLE_ZERO_INIT;
-
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Objects;
 import java.util.function.DoubleBinaryOperator;
 import java.util.function.DoubleSupplier;
 import org.hiero.metrics.api.core.MetricKey;
 import org.hiero.metrics.api.core.MetricType;
-import org.hiero.metrics.api.core.MetricUtils;
 import org.hiero.metrics.api.core.SettableMetric;
 import org.hiero.metrics.api.measurement.DoubleGaugeMeasurement;
 import org.hiero.metrics.internal.DoubleGaugeImpl;
+import org.hiero.metrics.internal.core.MetricUtils;
 import org.hiero.metrics.internal.measurement.AtomicDoubleGaugeMeasurement;
 import org.hiero.metrics.internal.measurement.DoubleAccumulatorGaugeMeasurement;
 
@@ -26,7 +24,7 @@ public interface DoubleGauge extends SettableMetric<DoubleSupplier, DoubleGaugeM
 
     /**
      * Create a metric key for a {@link DoubleGauge} with the given name. <br>
-     * See {@link org.hiero.metrics.api.core.MetricUtils#validateMetricNameCharacters(String)} for name requirements.
+     * Name must match {@value METRIC_NAME_REGEX}.
      *
      * @param name the name of the metric
      * @return the metric key
@@ -49,7 +47,7 @@ public interface DoubleGauge extends SettableMetric<DoubleSupplier, DoubleGaugeM
 
     /**
      * Create a builder for a {@link DoubleGauge} with the given metric name.<br>
-     * See {@link org.hiero.metrics.api.core.MetricUtils#validateMetricNameCharacters(String)} for name requirements.
+     * Name must match {@value METRIC_NAME_REGEX}.
      *
      * @param name the metric name
      * @return the builder
@@ -72,7 +70,7 @@ public interface DoubleGauge extends SettableMetric<DoubleSupplier, DoubleGaugeM
         private boolean resetOnExport = false;
 
         private Builder(@NonNull MetricKey<DoubleGauge> key) {
-            super(MetricType.GAUGE, key, DOUBLE_ZERO_INIT, AtomicDoubleGaugeMeasurement::new);
+            super(MetricType.GAUGE, key, MetricUtils.DOUBLE_ZERO_INIT, AtomicDoubleGaugeMeasurement::new);
         }
 
         /**

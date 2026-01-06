@@ -28,7 +28,7 @@ public interface GaugeAdapter<M> extends SettableMetric<Supplier<M>, M> {
 
     /**
      * Create a metric key for a {@link GaugeAdapter} with the given name.<br>
-     * See {@link org.hiero.metrics.api.core.MetricUtils#validateMetricNameCharacters(String)} for name requirements.
+     * Name must match {@value METRIC_NAME_REGEX}.
      *
      * @param name the name of the metric
      * @param <M>  the type of the measurement data
@@ -60,7 +60,7 @@ public interface GaugeAdapter<M> extends SettableMetric<Supplier<M>, M> {
     /**
      * Create a builder for a {@link GaugeAdapter} with the given metric name.
      * The measurement will be created using the given factory.<br>
-     * See {@link org.hiero.metrics.api.core.MetricUtils#validateMetricNameCharacters(String)} for name requirements.
+     * Name must match {@value METRIC_NAME_REGEX}.
      *
      * @param name             the metric name
      * @param measurementFactory the factory function to create the measurement

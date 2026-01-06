@@ -18,6 +18,7 @@ import java.util.Set;
 import org.hiero.metrics.api.export.MetricsExporter;
 import org.hiero.metrics.api.export.MetricsExporterFactory;
 import org.hiero.metrics.internal.core.MetricRegistryImpl;
+import org.hiero.metrics.internal.core.MetricUtils;
 
 /**
  * A thread-safe registry for {@link Metric} instances. <br>

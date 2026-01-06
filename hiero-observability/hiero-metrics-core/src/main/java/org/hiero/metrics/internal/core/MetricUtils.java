@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-package org.hiero.metrics.api.core;
+package org.hiero.metrics.internal.core;
 
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.List;
@@ -8,17 +8,15 @@ import java.util.ServiceLoader;
 import java.util.function.DoubleSupplier;
 import java.util.function.LongSupplier;
 import java.util.regex.Pattern;
+import org.hiero.metrics.api.core.MetricInfo;
 
 /**
  * Utility class for metrics-related operations.
  */
 public final class MetricUtils {
 
-    private static final String METRIC_NAME_REGEX = "^[a-zA-Z][a-zA-Z0-9_:]*$";
-    private static final String UNIT_LABEL_NAME_REGEX = "^[a-zA-Z][a-zA-Z0-9_]*$";
-
-    private static final Pattern METRIC_NAME_PATTERN = Pattern.compile(METRIC_NAME_REGEX);
-    private static final Pattern UNIT_LABEL_NAME_PATTERN = Pattern.compile(UNIT_LABEL_NAME_REGEX);
+    private static final Pattern METRIC_NAME_PATTERN = Pattern.compile(MetricInfo.METRIC_NAME_REGEX);
+    private static final Pattern UNIT_LABEL_NAME_PATTERN = Pattern.compile(MetricInfo.UNIT_LABEL_NAME_REGEX);
 
     public static final double ZERO = 0.0;
     public static final double ONE = 1.0;
@@ -30,7 +28,7 @@ public final class MetricUtils {
 
     /**
      * Validates that the provided metric name adheres to the required character set. <br>
-     * Patter to validate is: {@value METRIC_NAME_REGEX} <br>
+     * Patter to validate is: {@value MetricInfo#METRIC_NAME_REGEX} <br>
      * Definition in ABNF (Augmented Backus-Naur Form):
      * <pre>
      *   name = name-initial-char *name-char
@@ -47,7 +45,7 @@ public final class MetricUtils {
 
     /**
      * Validates that the provided unit name adheres to the required character set. <br>
-     * Patter to validate is: {@value UNIT_LABEL_NAME_REGEX} <br>
+     * Patter to validate is: {@value MetricInfo#UNIT_LABEL_NAME_REGEX} <br>
      * Definition in ABNF (Augmented Backus-Naur Form):
      * <pre>
      *   name = name-initial-char *name-char
@@ -64,7 +62,7 @@ public final class MetricUtils {
 
     /**
      * Validates that the provided label name adheres to the required character set. <br>
-     * Patter to validate is: {@value UNIT_LABEL_NAME_REGEX} <br>
+     * Patter to validate is: {@value MetricInfo#UNIT_LABEL_NAME_REGEX} <br>
      * Definition in ABNF (Augmented Backus-Naur Form):
      * <pre>
      *   name = name-initial-char *name-char
