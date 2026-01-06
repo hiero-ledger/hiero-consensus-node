@@ -682,13 +682,15 @@ public class HapiCryptoTransfer extends HapiBaseTransfer<HapiCryptoTransfer> {
                             txn,
                             numPayerKeys,
                             feesObserver.get());
+        } else {
+            fees = spec.fees()
+                    .forActivityBasedOp(
+                            HederaFunctionality.CryptoTransfer,
+                            (_txn, _svo) ->
+                                    usageEstimate(_txn, _svo, spec.fees().tokenTransferUsageMultiplier()),
+                            txn,
+                            numPayerKeys);
         }
-        fees = spec.fees()
-                .forActivityBasedOp(
-                        HederaFunctionality.CryptoTransfer,
-                        (_txn, _svo) -> usageEstimate(_txn, _svo, spec.fees().tokenTransferUsageMultiplier()),
-                        txn,
-                        numPayerKeys);
         final var hookInfo = CryptoTransferHandler.getHookInfo(
                 toPbj(extractTransactionBody(txn)).cryptoTransferOrThrow());
         final int totalHookInvocations = hookInfo.numHookInvocations();
