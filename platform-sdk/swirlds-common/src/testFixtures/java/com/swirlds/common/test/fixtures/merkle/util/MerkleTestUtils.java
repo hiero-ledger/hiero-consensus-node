@@ -11,7 +11,6 @@ import static org.mockito.Mockito.mock;
 
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.swirlds.base.time.Time;
-import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.merkle.MerkleInternal;
 import com.swirlds.common.merkle.MerkleLeaf;
 import com.swirlds.common.merkle.MerkleNode;
@@ -28,7 +27,6 @@ import com.swirlds.common.test.fixtures.merkle.dummy.DummyMerkleInternal2;
 import com.swirlds.common.test.fixtures.merkle.dummy.DummyMerkleLeaf;
 import com.swirlds.common.test.fixtures.merkle.dummy.DummyMerkleLeaf2;
 import com.swirlds.common.test.fixtures.merkle.dummy.DummyMerkleNode;
-import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.metrics.api.Metrics;
@@ -1057,11 +1055,8 @@ public final class MerkleTestUtils {
                                         true);
                             }
                         };
-                final PlatformContext platformContext =
-                        TestPlatformContextBuilder.create().build();
                 teacher =
                         new TeachingSynchronizer(
-                                platformContext.getConfiguration(),
                                 Time.getCurrent(),
                                 getStaticThreadManager(),
                                 streams.getTeacherInput(),
@@ -1105,11 +1100,8 @@ public final class MerkleTestUtils {
                                         true);
                             }
                         };
-                final PlatformContext platformContext =
-                        TestPlatformContextBuilder.create().build();
                 teacher =
                         new LaggingTeachingSynchronizer(
-                                platformContext,
                                 streams.getTeacherInput(),
                                 streams.getTeacherOutput(),
                                 desiredTree,
