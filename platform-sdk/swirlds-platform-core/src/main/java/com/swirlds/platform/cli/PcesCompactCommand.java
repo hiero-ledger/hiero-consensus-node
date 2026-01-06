@@ -3,9 +3,9 @@ package com.swirlds.platform.cli;
 
 import com.swirlds.cli.utility.AbstractCommand;
 import com.swirlds.cli.utility.SubcommandOf;
-import com.swirlds.platform.event.preconsensus.PcesUtilities;
 import com.swirlds.platform.util.BootstrapUtils;
 import java.nio.file.Path;
+import org.hiero.consensus.pces.PcesUtilities;
 import picocli.CommandLine;
 
 @CommandLine.Command(

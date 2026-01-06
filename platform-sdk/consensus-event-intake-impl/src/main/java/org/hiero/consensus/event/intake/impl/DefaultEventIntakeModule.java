@@ -4,6 +4,7 @@ package org.hiero.consensus.event.intake.impl;
 import static com.swirlds.component.framework.wires.SolderType.INJECT;
 import static java.util.Objects.requireNonNull;
 
+import com.google.auto.service.AutoService;
 import com.swirlds.base.time.Time;
 import com.swirlds.common.io.utility.RecycleBin;
 import com.swirlds.common.metrics.event.EventPipelineTracker;
@@ -35,6 +36,7 @@ import org.hiero.consensus.transaction.TransactionLimits;
 /**
  * The default implementation of the {@link EventIntakeModule}.
  */
+@AutoService(EventIntakeModule.class)
 public class DefaultEventIntakeModule implements EventIntakeModule {
 
     /** Transformer to dispatch event windows to components that need them. */
