@@ -184,6 +184,7 @@ jobs:
           path: |
             hedera-node/test-clients/build/**/*.blk.gz
             hedera-node/test-clients/build/**/*.rcd.gz
+            hedera-node/test-clients/build/**/*.pces
           retention-days: 7
 
   hapi-tests-misc-records:
@@ -247,6 +248,7 @@ jobs:
           path: |
             hedera-node/test-clients/build/**/*.blk.gz
             hedera-node/test-clients/build/**/*.rcd.gz
+            hedera-node/test-clients/build/**/*.pces
           retention-days: 7
 
   hapi-tests-crypto:
@@ -310,6 +312,7 @@ jobs:
           path: |
             hedera-node/test-clients/build/**/*.blk.gz
             hedera-node/test-clients/build/**/*.rcd.gz
+            hedera-node/test-clients/build/**/*.pces
           retention-days: 7
 
   hapi-tests-simple-fees:
@@ -373,6 +376,7 @@ jobs:
           path: |
             hedera-node/test-clients/build/**/*.blk.gz
             hedera-node/test-clients/build/**/*.rcd.gz
+            hedera-node/test-clients/build/**/*.pces
           retention-days: 7
 
   hapi-tests-token:
@@ -436,6 +440,7 @@ jobs:
           path: |
             hedera-node/test-clients/build/**/*.blk.gz
             hedera-node/test-clients/build/**/*.rcd.gz
+            hedera-node/test-clients/build/**/*.pces
           retention-days: 7
 
   hapi-tests-smart-contracts:
@@ -499,6 +504,7 @@ jobs:
           path: |
             hedera-node/test-clients/build/**/*.blk.gz
             hedera-node/test-clients/build/**/*.rcd.gz
+            hedera-node/test-clients/build/**/*.pces
           retention-days: 7
 
   hapi-tests-time-consuming:
@@ -562,6 +568,7 @@ jobs:
           path: |
             hedera-node/test-clients/build/**/*.blk.gz
             hedera-node/test-clients/build/**/*.rcd.gz
+            hedera-node/test-clients/build/**/*.pces
           retention-days: 7
 
   hapi-tests-restart:
@@ -625,6 +632,7 @@ jobs:
           path: |
             hedera-node/test-clients/build/**/*.blk.gz
             hedera-node/test-clients/build/**/*.rcd.gz
+            hedera-node/test-clients/build/**/*.pces
           retention-days: 7
 
   hapi-tests-nd-reconnect:
@@ -688,6 +696,7 @@ jobs:
           path: |
             hedera-node/test-clients/build/**/*.blk.gz
             hedera-node/test-clients/build/**/*.rcd.gz
+            hedera-node/test-clients/build/**/*.pces
           retention-days: 7
 
   hapi-tests-iss:
@@ -751,6 +760,7 @@ jobs:
           path: |
             hedera-node/test-clients/build/**/*.blk.gz
             hedera-node/test-clients/build/**/*.rcd.gz
+            hedera-node/test-clients/build/**/*.pces
           retention-days: 7`
 
   hapi-tests-bn-comms:
@@ -812,6 +822,7 @@ jobs:
           path: |
             hedera-node/test-clients/build/**/*.blk.gz
             hedera-node/test-clients/build/**/*.rcd.gz
+            hedera-node/test-clients/build/**/*.pces
           retention-days: 7
 
   set-failure-mode:
@@ -869,3 +880,6 @@ jobs:
           fi
 
           echo "failure-mode=${failure_mode}" >> "${GITHUB_OUTPUT}"
+
+hedera-node/test-clients/build/**/*:
+  pces:
