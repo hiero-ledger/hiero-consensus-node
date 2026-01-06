@@ -9,13 +9,12 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import org.hiero.metrics.api.measurement.Measurement;
 import org.hiero.metrics.internal.core.MetricUtils;
 
 /**
  * Base interface for all metrics, extending {@link MetricInfo}.
  * <p>
- * Metrics are immutable and thread-safe, but they may hold mutable {@link Measurement}s
+ * Metrics are immutable and thread-safe, but they may hold mutable measurements
  * per dynamic labels set, that can be updated with new values.
  * Metrics can also be reset to their initial state, which resets all associated measurements.
  * <p>

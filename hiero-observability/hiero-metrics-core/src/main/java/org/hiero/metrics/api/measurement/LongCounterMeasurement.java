@@ -4,7 +4,7 @@ package org.hiero.metrics.api.measurement;
 import java.util.function.LongSupplier;
 
 /**
- * A {@link Measurement} representing a {@code long} counter that can only be incremented with non-negative value.
+ * A measurement representing a {@code long} counter that can only be incremented with non-negative value.
  * <p>
  * This interface extends {@link LongSupplier} to provide the current value of the counter.
  * <p>

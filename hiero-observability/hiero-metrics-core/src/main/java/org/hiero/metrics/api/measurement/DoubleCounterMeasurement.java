@@ -5,7 +5,7 @@ import java.util.function.DoubleSupplier;
 import org.hiero.metrics.internal.core.MetricUtils;
 
 /**
- * A {@link Measurement} representing a {@code double} counter that can only be incremented with non-negative value.
+ * A measurement representing a {@code double} counter that can only be incremented with non-negative value.
  * <p>
  * This interface extends {@link DoubleSupplier} to provide the current value of the counter.
  * <p>

@@ -11,8 +11,6 @@ import org.hiero.metrics.internal.core.MetricUtils;
  * POST, etc.) or by different response status codes (e.g., 200, 404, 500, etc.).
  * <p>
  * Label names must not be blank and must only contain valid characters defined by {@value MetricInfo#UNIT_LABEL_NAME_REGEX}.
- *
- * @see org.hiero.metrics.api.measurement.Measurement
  */
 public record Label(@NonNull String name, @NonNull String value) implements Comparable<Label> {
 
