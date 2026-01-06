@@ -5,7 +5,7 @@ import static java.util.Objects.requireNonNull;
 
 import com.hedera.node.app.service.entityid.WritableEntityIdStore;
 import com.hedera.node.app.spi.api.ServiceApiProvider;
-import com.hedera.node.app.spi.fees.NodeFeeTracker;
+import com.hedera.node.app.spi.fees.NodeFeeAccumulator;
 import com.hedera.node.app.spi.store.StoreFactory;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.state.State;
@@ -29,7 +29,7 @@ public class StoreFactoryImpl implements StoreFactory {
      * @param configuration the configuration for the service
      * @param writableEntityIdStoreImpl the writable entity id store
      * @param apiProviders a map of service API providers, keyed by the API interface class
-     * @param nodeFeeTracker the tracker for node fees
+     * @param nodeFeeAccumulator the tracker for node fees
      * @return a new {@link StoreFactory} instance
      */
     public static StoreFactory from(
@@ -38,13 +38,13 @@ public class StoreFactoryImpl implements StoreFactory {
             @NonNull final Configuration configuration,
             @NonNull final WritableEntityIdStore writableEntityIdStoreImpl,
             @NonNull final Map<Class<?>, ServiceApiProvider<?>> apiProviders,
-            @NonNull final NodeFeeTracker nodeFeeTracker) {
+            @NonNull final NodeFeeAccumulator nodeFeeAccumulator) {
         requireNonNull(state);
         requireNonNull(serviceName);
         return new StoreFactoryImpl(
                 new ReadableStoreFactory(state),
                 new WritableStoreFactory(state, serviceName, writableEntityIdStoreImpl),
-                new ServiceApiFactory(state, configuration, apiProviders, nodeFeeTracker));
+                new ServiceApiFactory(state, configuration, apiProviders, nodeFeeAccumulator));
     }
 
     public StoreFactoryImpl(

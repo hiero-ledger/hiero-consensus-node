@@ -23,7 +23,7 @@ import com.hedera.node.app.service.token.TokenService;
 import com.hedera.node.app.service.token.impl.ReadableNodePaymentsStoreImpl;
 import com.hedera.node.app.service.token.impl.WritableAccountStore;
 import com.hedera.node.app.service.token.impl.WritableNodePaymentsStore;
-import com.hedera.node.app.spi.fees.NodeFeeTracker;
+import com.hedera.node.app.spi.fees.NodeFeeAccumulator;
 import com.hedera.node.app.workflows.handle.record.SystemTransactions;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.AccountsConfig;
@@ -56,7 +56,7 @@ import org.apache.logging.log4j.Logger;
  * </ol>
  */
 @Singleton
-public class NodeFeeManager implements NodeFeeTracker {
+public class NodeFeeManager implements NodeFeeAccumulator {
     private static final Logger log = LogManager.getLogger(NodeFeeManager.class);
 
     private final EntityIdFactory entityIdFactory;
@@ -126,27 +126,21 @@ public class NodeFeeManager implements NodeFeeTracker {
      * accumulated need to be refunded (e.g., when {@code zeroHapiFees} is enabled for successful
      * Ethereum transactions).
      * <p>
-     * If the dissipate would result in a negative balance for the node, this method clamps the
+     * If the dissipating results in a negative balance for the node, this method clamps the
      * value to zero and logs a warning.
      */
     @Override
     public void dissipate(AccountID nodeAccountId, long fees) {
-        nodeFees.compute(nodeAccountId, (id, currentFees) -> {
-            if (currentFees == null || currentFees == 0) {
-                log.warn(
-                        "Attempted to dissipate {} fees for node {} but no fees were accumulated", fees, nodeAccountId);
-                return null; // Remove the entry if it would be zero or negative
-            }
+        nodeFees.computeIfPresent(nodeAccountId, (id, currentFees) -> {
             final long newFees = currentFees - fees;
             if (newFees < 0) {
                 log.warn(
-                        "Dissipating {} fees for node {} would result in negative balance (current: {}), clamping to zero",
+                        "Dissipating {} fees for node {} exceeds accumulated balance (current: {}), clamping to zero",
                         fees,
                         nodeAccountId,
                         currentFees);
-                return null; // Remove the entry if it would be zero or negative
             }
-            return newFees == 0 ? null : newFees; // Remove entry if zero
+            return newFees > 0 ? newFees : null; // Remove entry if zero or negative
         });
     }
 

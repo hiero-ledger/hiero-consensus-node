@@ -16,7 +16,7 @@ import static org.mockito.BDDMockito.given;
 import com.hedera.node.app.service.entityid.EntityIdService;
 import com.hedera.node.app.service.token.TokenService;
 import com.hedera.node.app.service.token.api.TokenServiceApi;
-import com.hedera.node.app.spi.fees.NodeFeeTracker;
+import com.hedera.node.app.spi.fees.NodeFeeAccumulator;
 import com.hedera.node.app.store.ServiceApiFactory;
 import com.hedera.node.app.workflows.handle.stack.SavepointStackImpl;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
@@ -50,7 +50,10 @@ class ServiceApiFactoryTest {
     @BeforeEach
     void setUp() {
         subject = new ServiceApiFactory(
-                stack, DEFAULT_CONFIG, Map.of(TokenServiceApi.class, TOKEN_SERVICE_API_PROVIDER), NodeFeeTracker.NOOP);
+                stack,
+                DEFAULT_CONFIG,
+                Map.of(TokenServiceApi.class, TOKEN_SERVICE_API_PROVIDER),
+                NodeFeeAccumulator.NOOP);
     }
 
     @Test

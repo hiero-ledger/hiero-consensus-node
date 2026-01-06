@@ -42,7 +42,7 @@ import com.hedera.node.app.service.token.impl.WritableAccountStore;
 import com.hedera.node.app.service.token.impl.api.TokenServiceApiImpl;
 import com.hedera.node.app.service.token.impl.validators.StakingValidator;
 import com.hedera.node.app.spi.fees.Fees;
-import com.hedera.node.app.spi.fees.NodeFeeTracker;
+import com.hedera.node.app.spi.fees.NodeFeeAccumulator;
 import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
@@ -751,9 +751,10 @@ class TokenServiceApiImplTest {
                     .withValue("nodes.preserveMinNodeRewardBalance", false)
                     .getOrCreateConfig();
             final Map<AccountID, Long> adjustments = new HashMap<>();
-            final var nodeFeeTracker = new TestNodeFeeTracker();
+            final var nodeFeeAccumulator = new TestNodeFeeAccumulator();
 
-            subject = new TokenServiceApiImpl(config, writableStates, customFeeTest, entityCounters, nodeFeeTracker);
+            subject =
+                    new TokenServiceApiImpl(config, writableStates, customFeeTest, entityCounters, nodeFeeAccumulator);
 
             // When we charge fees
             final var fees = new Fees(2, 5, 5); // 12 total
@@ -770,7 +771,7 @@ class TokenServiceApiImplTest {
             assertThat(feeCollectionAccount.tinybarBalance()).isEqualTo(12L);
 
             // And node fees are accumulated
-            assertThat(nodeFeeTracker.getAccumulatedFees(NODE_ACCOUNT_ID)).isEqualTo(2L);
+            assertThat(nodeFeeAccumulator.getAccumulatedFees(NODE_ACCOUNT_ID)).isEqualTo(2L);
         }
 
         @Test
@@ -850,7 +851,7 @@ class TokenServiceApiImplTest {
             assertThat(payerAccount.tinybarBalance()).isEqualTo(70L); // 20 + 50 (10 + 40)
         }
 
-        private static class TestNodeFeeTracker implements NodeFeeTracker {
+        private static class TestNodeFeeAccumulator implements NodeFeeAccumulator {
             private final Map<AccountID, Long> accumulatedFees = new HashMap<>();
 
             @Override

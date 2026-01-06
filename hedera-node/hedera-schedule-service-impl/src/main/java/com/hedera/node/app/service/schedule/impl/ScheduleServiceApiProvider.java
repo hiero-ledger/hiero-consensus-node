@@ -14,7 +14,7 @@ import com.hedera.node.app.service.schedule.ScheduleServiceApi;
 import com.hedera.node.app.service.schedule.WritableScheduleStore;
 import com.hedera.node.app.service.schedule.impl.handlers.ScheduleCreateHandler;
 import com.hedera.node.app.spi.api.ServiceApiProvider;
-import com.hedera.node.app.spi.fees.NodeFeeTracker;
+import com.hedera.node.app.spi.fees.NodeFeeAccumulator;
 import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.node.config.data.SchedulingConfig;
 import com.swirlds.config.api.Configuration;
@@ -43,11 +43,11 @@ public class ScheduleServiceApiProvider implements ServiceApiProvider<ScheduleSe
             @NonNull final Configuration configuration,
             @NonNull final WritableStates writableStates,
             @NonNull final WritableEntityCounters entityCounters,
-            @NonNull final NodeFeeTracker nodeFeeTracker) {
+            @NonNull final NodeFeeAccumulator nodeFeeAccumulator) {
         requireNonNull(configuration);
         requireNonNull(writableStates);
         requireNonNull(entityCounters);
-        // nodeFeeTracker is not used by ScheduleServiceApi
+        // nodeFeeAccumulator is not used by ScheduleServiceApi
         return new ScheduleServiceApiImpl(
                 new WritableScheduleStoreImpl(writableStates, entityCounters),
                 configuration.getConfigData(LedgerConfig.class),

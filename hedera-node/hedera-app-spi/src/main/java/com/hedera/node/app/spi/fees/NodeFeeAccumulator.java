@@ -11,17 +11,17 @@ import com.hedera.hapi.node.base.AccountID;
  * <p>
  * When {@code nodesConfig.feeCollectionAccountEnabled()} is true, node fees are
  * accumulated in a fee collection account rather than being paid directly to node accounts.
- * This tracker maintains an in-memory map of how much each node should receive when
+ * This accumulator maintains an in-memory map of how much each node should receive when
  * the fees are eventually distributed at staking period boundaries.
  * <p>
- * The tracker supports both accumulating fees (during charging) and decrementing fees
+ * The accumulator supports both accumulating fees (during charging) and dissipating fees
  * (during refunds) to maintain accurate fee accounting.
  */
-public interface NodeFeeTracker {
+public interface NodeFeeAccumulator {
     /**
-     * A no-op tracker that does nothing. It is only used in tests and in StandaloneDispatchFactory.
+     * A no-op accumulator that does nothing. It is only used in tests and in StandaloneDispatchFactory.
      */
-    NodeFeeTracker NOOP = new NodeFeeTracker() {
+    NodeFeeAccumulator NOOP = new NodeFeeAccumulator() {
         @Override
         public void accumulate(AccountID nodeAccountId, long fees) {
             // No-op
