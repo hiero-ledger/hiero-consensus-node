@@ -13,6 +13,7 @@ import com.hedera.node.app.spi.workflows.PureChecksContext;
 import com.hedera.node.app.spi.workflows.TransactionHandler;
 import com.hedera.node.config.ConfigProvider;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import java.util.concurrent.atomic.AtomicInteger;
 import javax.inject.Inject;
 import org.hiero.hapi.interledger.state.clpr.ClprMessageKey;
 import org.hiero.hapi.interledger.state.clpr.ClprMessageValue;
@@ -57,13 +58,19 @@ public class ClprProcessMessageBundleHandler implements TransactionHandler {
         final var txn = context.body();
         final var messageQBundle = txn.clprProcessMessageBundle();
         // TODO: Implement handle!
-        // check first message
+        //  The full semantics of the handler will be specified in later issues.
+        //  For now just save messages in state
+        final var messageId = new AtomicInteger(0);
+        final var ledgerShortId = new AtomicInteger(0);
         messageQBundle.ifMessageBundle(messageBundle -> {
-            final var firstMsg = messageBundle.messages().getFirst();
-            final var key =
-                    ClprMessageKey.newBuilder().messageId(0).ledgerShortId(0).build();
-            final var value = ClprMessageValue.newBuilder().message(firstMsg).build();
-            writableMessagesStore.put(key, value);
+            messageBundle.messages().forEach(msg -> {
+                final var key = ClprMessageKey.newBuilder()
+                        .messageId(messageId.getAndIncrement())
+                        .ledgerShortId(ledgerShortId.get())
+                        .build();
+                final var value = ClprMessageValue.newBuilder().message(msg).build();
+                writableMessagesStore.put(key, value);
+            });
         });
     }
 }
