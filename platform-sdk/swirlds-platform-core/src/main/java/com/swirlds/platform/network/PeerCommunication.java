@@ -3,10 +3,6 @@ package com.swirlds.platform.network;
 
 import com.google.common.collect.ImmutableList;
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.threading.framework.StoppableThread;
-import com.swirlds.common.threading.framework.TypedStoppableThread;
-import com.swirlds.common.threading.framework.config.StoppableThreadConfiguration;
-import com.swirlds.common.threading.manager.ThreadManager;
 import com.swirlds.platform.config.BasicConfig;
 import com.swirlds.platform.config.ThreadConfig;
 import com.swirlds.platform.gossip.sync.config.SyncConfig;
@@ -32,6 +28,10 @@ import org.apache.logging.log4j.Logger;
 import org.hiero.base.concurrent.interrupt.InterruptableRunnable;
 import org.hiero.base.concurrent.locks.AutoClosableLock;
 import org.hiero.base.concurrent.locks.Locks;
+import org.hiero.consensus.concurrent.framework.StoppableThread;
+import org.hiero.consensus.concurrent.framework.TypedStoppableThread;
+import org.hiero.consensus.concurrent.framework.config.StoppableThreadConfiguration;
+import org.hiero.consensus.concurrent.manager.ThreadManager;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
 

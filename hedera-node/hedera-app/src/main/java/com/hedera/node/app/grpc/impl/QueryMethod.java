@@ -7,10 +7,10 @@ import com.hedera.hapi.node.transaction.Query;
 import com.hedera.node.app.workflows.query.QueryWorkflow;
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
-import com.swirlds.common.metrics.SpeedometerMetric;
 import com.swirlds.metrics.api.Counter;
 import com.swirlds.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import org.hiero.consensus.metrics.SpeedometerMetric;
 
 /**
  * Handles gRPC duties for processing {@link Query} gRPC calls. A single instance of this class is

@@ -8,9 +8,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.swirlds.common.context.PlatformContext;
-import com.swirlds.common.io.utility.FileUtils;
-import com.swirlds.common.metrics.config.MetricsConfig_;
-import com.swirlds.common.metrics.platform.DefaultPlatformMetrics;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.config.extensions.test.fixtures.TestConfigBuilder;
 import com.swirlds.metrics.api.Counter;
@@ -23,6 +20,9 @@ import java.nio.charset.StandardCharsets;
 import java.util.Collection;
 import java.util.List;
 import org.assertj.core.util.Files;
+import org.hiero.base.utility.FileUtils;
+import org.hiero.consensus.metrics.config.MetricsConfig_;
+import org.hiero.consensus.metrics.platform.DefaultPlatformMetrics;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 

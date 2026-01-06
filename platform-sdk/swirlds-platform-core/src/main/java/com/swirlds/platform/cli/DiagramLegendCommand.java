@@ -4,7 +4,6 @@ package com.swirlds.platform.cli;
 import com.swirlds.base.time.Time;
 import com.swirlds.cli.utility.AbstractCommand;
 import com.swirlds.cli.utility.SubcommandOf;
-import com.swirlds.common.metrics.noop.NoOpMetrics;
 import com.swirlds.component.framework.model.WiringModel;
 import com.swirlds.component.framework.model.WiringModelBuilder;
 import com.swirlds.component.framework.model.diagram.ModelEdgeSubstitution;
@@ -17,6 +16,7 @@ import java.io.IOException;
 import java.util.Base64;
 import java.util.List;
 import java.util.Set;
+import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import picocli.CommandLine;
 
 @CommandLine.Command(
