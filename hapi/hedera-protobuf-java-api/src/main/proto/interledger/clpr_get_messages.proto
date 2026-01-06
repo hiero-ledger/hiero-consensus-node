@@ -1,5 +1,5 @@
 /**
- * #
+ * # Get CLPR Messages
  *
  * ### Keywords
  * The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
@@ -24,7 +24,10 @@ import "interledger/state/clpr/clpr_ledger.proto";
 import "interledger/state/clpr/clpr_message_queue.proto";
 
 /**
+ * A response to a `ClprGetMessagesQuery`.
  *
+ * This MAY return a `ClprMessageBundle` containing up to the requested
+ * number of messages and constrained by the requested bundle length.
  */
 message ClprGetMessagesQuery {
   /**
@@ -35,17 +38,22 @@ message ClprGetMessagesQuery {
   proto.QueryHeader header = 1;
 
   /**
-   * The ledger id of the CLPR ledger configuration desired.
+   * The ledger id of the CLPR ledger from which messages are requested.
+   * <p>
+   * If this field is absent, the CLPR messages for the ledger answering the
+   * query are returned.
    */
   org.hiero.hapi.interledger.state.clpr.ClprLedgerId ledger_id = 2;
 
   /**
-   * The max number of messages
+   * The maximum number of messages to return in the response.
+   * <p>
+   * Implementations MAY return fewer messages if fewer are available.
    */
   int32 max_number_of_messages = 3;
 
   /**
-   * The max bundle length in bytes
+   * The maximum bundle length in bytes allowed in the response.
    */
   int64 max_bundle_length = 4;
 }
@@ -53,18 +61,23 @@ message ClprGetMessagesQuery {
 /**
  * A response to a `ClprGetMessagesQuery`.
  *
- * This MAY return a `ClprMessageBundle`
+ * This MAY return a `ClprMessageBundle` containing up to the requested
+ * number of messages and constrained by the requested bundle length.
  */
 message ClprGetMessagesResponse {
   /**
-   * The standard response information for queries.<br/>
+   * The standard response information for queries.
+   * <p>
    * This includes the values requested in the `QueryHeader`
    * (cost, state proof, both, or neither).
    */
   proto.ResponseHeader header = 1;
 
   /**
-   *
+   * The message bundle containing the requested CLPR messages.
+   * <p>
+   * This field may be absent if there are no messages to return for the
+   * requested ledger or if the request could not be satisfied.
    */
   org.hiero.hapi.interledger.state.clpr.ClprMessageBundle message_bundle = 2;
 }

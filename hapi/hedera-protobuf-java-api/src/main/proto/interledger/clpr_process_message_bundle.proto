@@ -1,5 +1,6 @@
 /**
- * #
+ * # Process CLPR Message Bundle Transaction
+ * Submits a `ClprMessageBundle` for processing by the CLPR transaction workflow.
  *
  * ### Keywords
  * The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
@@ -21,11 +22,23 @@ import "interledger/state/clpr/clpr_message_queue.proto";
 
 
 /**
+ * Transaction body for processing a CLPR message bundle.
  *
+ * This transaction contains a single `ClprMessageBundle` that the node
+ * SHOULD process as a unit. The bundle MAY contain multiple messages
+ * which are related or must be handled together to preserve ordering or
+ * atomicity semantics required by the CLPR protocol.
+ *
+ * Implementations MUST validate the bundle contents and MAY reject the
+ * transaction if the bundle is malformed, contains invalid messages, or
+ * violates protocol constraints.
  */
 message ClprProcessMessageBundleTransactionBody {
   /**
-   *
+   * The CLPR message bundle to be processed.
+   * <p>
+   * This field contains the messages that the transaction submits for
+   * processing.
    */
   org.hiero.hapi.interledger.state.clpr.ClprMessageBundle message_bundle = 1;
 }

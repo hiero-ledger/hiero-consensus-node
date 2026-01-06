@@ -1,5 +1,5 @@
 /**
- * # Update CLPR message queue
+ * # Update CLPR message queue metadata
  *
  * ### Keywords
  * The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT",
@@ -22,16 +22,18 @@ import "interledger/state/clpr/clpr_ledger.proto";
 
 
 /**
- * Update CLPR message queue.
+ * Update CLPR message queue metadata.
  */
 message ClprUpdateMessageQueueMetadataTransactionBody {
   /**
-   *
+   * The identifier of the remote ledger for which the message queue metadata is being updated.
    */
   org.hiero.hapi.interledger.state.clpr.ClprLedgerId ledger_id = 1;
 
   /**
-   *
+   * State proof containing the message queue metadata encoded as a state item
+   * leaf. Clients MUST verify the proof to ensure the authenticity of the
+   * metadata before updating the local state.
    */
   com.hedera.hapi.block.stream.StateProof message_queue_metadata_proof = 2;
 }
