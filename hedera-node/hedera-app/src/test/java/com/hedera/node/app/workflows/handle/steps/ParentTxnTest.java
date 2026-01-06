@@ -39,7 +39,7 @@ import com.hedera.node.app.service.token.api.TokenServiceApi;
 import com.hedera.node.app.services.ServiceScopeLookup;
 import com.hedera.node.app.spi.authorization.Authorizer;
 import com.hedera.node.app.spi.fees.Fees;
-import com.hedera.node.app.spi.fees.NodeFeeAccumulator;
+import com.hedera.node.app.spi.fees.NodeFeeTracker;
 import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.store.ReadableStoreFactory;
@@ -286,7 +286,7 @@ class ParentTxnTest {
                 childDispatchFactory,
                 transactionChecker,
                 Map.of(TokenServiceApi.class, TOKEN_SERVICE_API_PROVIDER),
-                NodeFeeAccumulator.NOOP);
+                NodeFeeTracker.NOOP);
     }
 
     private void givenExistingCreator() {

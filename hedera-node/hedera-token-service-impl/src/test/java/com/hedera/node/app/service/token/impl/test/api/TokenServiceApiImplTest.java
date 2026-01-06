@@ -42,7 +42,7 @@ import com.hedera.node.app.service.token.impl.WritableAccountStore;
 import com.hedera.node.app.service.token.impl.api.TokenServiceApiImpl;
 import com.hedera.node.app.service.token.impl.validators.StakingValidator;
 import com.hedera.node.app.spi.fees.Fees;
-import com.hedera.node.app.spi.fees.NodeFeeAccumulator;
+import com.hedera.node.app.spi.fees.NodeFeeTracker;
 import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.workflows.HandleException;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
@@ -751,10 +751,9 @@ class TokenServiceApiImplTest {
                     .withValue("nodes.preserveMinNodeRewardBalance", false)
                     .getOrCreateConfig();
             final Map<AccountID, Long> adjustments = new HashMap<>();
-            final var nodeFeeAccumulator = new TestNodeFeeAccumulator();
+            final var nodeFeeTracker = new TestNodeFeeTracker();
 
-            subject =
-                    new TokenServiceApiImpl(config, writableStates, customFeeTest, entityCounters, nodeFeeAccumulator);
+            subject = new TokenServiceApiImpl(config, writableStates, customFeeTest, entityCounters, nodeFeeTracker);
 
             // When we charge fees
             final var fees = new Fees(2, 5, 5); // 12 total
@@ -771,7 +770,7 @@ class TokenServiceApiImplTest {
             assertThat(feeCollectionAccount.tinybarBalance()).isEqualTo(12L);
 
             // And node fees are accumulated
-            assertThat(nodeFeeAccumulator.getAccumulatedFees(NODE_ACCOUNT_ID)).isEqualTo(2L);
+            assertThat(nodeFeeTracker.getAccumulatedFees(NODE_ACCOUNT_ID)).isEqualTo(2L);
         }
 
         @Test
@@ -851,12 +850,26 @@ class TokenServiceApiImplTest {
             assertThat(payerAccount.tinybarBalance()).isEqualTo(70L); // 20 + 50 (10 + 40)
         }
 
-        private static class TestNodeFeeAccumulator implements NodeFeeAccumulator {
+        private static class TestNodeFeeTracker implements NodeFeeTracker {
             private final Map<AccountID, Long> accumulatedFees = new HashMap<>();
 
             @Override
             public void accumulate(AccountID nodeAccountId, long amount) {
                 accumulatedFees.merge(nodeAccountId, amount, Long::sum);
+            }
+
+            @Override
+            public void dissipate(AccountID nodeAccountId, long amount) {
+                accumulatedFees.compute(nodeAccountId, (id, currentFees) -> {
+                    if (currentFees == null || currentFees == 0) {
+                        return null; // Remove the entry if it would be zero or negative
+                    }
+                    final long newFees = currentFees - amount;
+                    if (newFees < 0) {
+                        return null; // Remove the entry if it would be zero or negative
+                    }
+                    return newFees == 0 ? null : newFees; // Remove entry if zero
+                });
             }
 
             public long getAccumulatedFees(AccountID nodeAccountId) {

@@ -32,7 +32,7 @@ import com.hedera.node.app.service.token.api.TokenServiceApi;
 import com.hedera.node.app.services.ServiceScopeLookup;
 import com.hedera.node.app.spi.api.ServiceApiProvider;
 import com.hedera.node.app.spi.authorization.Authorizer;
-import com.hedera.node.app.spi.fees.NodeFeeAccumulator;
+import com.hedera.node.app.spi.fees.NodeFeeTracker;
 import com.hedera.node.app.spi.info.NetworkInfo;
 import com.hedera.node.app.spi.info.NodeInfo;
 import com.hedera.node.app.spi.metrics.StoreMetricsService;
@@ -165,8 +165,8 @@ public class StandaloneDispatchFactory {
         final var txnInfo = requireNonNull(preHandleResult.txInfo());
         final var writableStoreFactory =
                 new WritableStoreFactory(stack, serviceScopeLookup.getServiceName(txnInfo.txBody()), entityIdStore);
-        // Standalone executor doesn't need to accumulate node fees
-        final var serviceApiFactory = new ServiceApiFactory(stack, config, apiProviders, NodeFeeAccumulator.NOOP);
+        // Standalone executor doesn't need to track node fees
+        final var serviceApiFactory = new ServiceApiFactory(stack, config, apiProviders, NodeFeeTracker.NOOP);
         final var priceCalculator =
                 new ResourcePriceCalculatorImpl(consensusNow, txnInfo, feeManager, readableStoreFactory);
         final var storeFactory = new StoreFactoryImpl(readableStoreFactory, writableStoreFactory, serviceApiFactory);

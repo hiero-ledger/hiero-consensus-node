@@ -10,7 +10,7 @@ import com.hedera.node.app.service.token.impl.ReadableTokenRelationStoreImpl;
 import com.hedera.node.app.service.token.impl.ReadableTokenStoreImpl;
 import com.hedera.node.app.service.token.impl.handlers.transfer.CustomFeeAssessmentStep;
 import com.hedera.node.app.spi.api.ServiceApiProvider;
-import com.hedera.node.app.spi.fees.NodeFeeAccumulator;
+import com.hedera.node.app.spi.fees.NodeFeeTracker;
 import com.swirlds.config.api.Configuration;
 import com.swirlds.state.spi.WritableStates;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -32,7 +32,7 @@ public enum TokenServiceApiProvider implements ServiceApiProvider<TokenServiceAp
             @NonNull final Configuration configuration,
             @NonNull final WritableStates writableStates,
             @NonNull final WritableEntityCounters entityCounters,
-            @NonNull final NodeFeeAccumulator nodeFeeAccumulator) {
+            @NonNull final NodeFeeTracker nodeFeeTracker) {
         return new TokenServiceApiImpl(
                 configuration,
                 writableStates,
@@ -51,6 +51,6 @@ public enum TokenServiceApiProvider implements ServiceApiProvider<TokenServiceAp
                     }
                 },
                 entityCounters,
-                nodeFeeAccumulator);
+                nodeFeeTracker);
     }
 }

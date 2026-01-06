@@ -5,7 +5,7 @@ import com.hedera.node.app.service.file.impl.FileServiceInjectionModule;
 import com.hedera.node.app.service.schedule.ScheduleService;
 import com.hedera.node.app.service.schedule.impl.ScheduleServiceImpl;
 import com.hedera.node.app.service.token.impl.TokenServiceInjectionModule;
-import com.hedera.node.app.spi.fees.NodeFeeAccumulator;
+import com.hedera.node.app.spi.fees.NodeFeeTracker;
 import dagger.Binds;
 import dagger.Module;
 
@@ -22,5 +22,5 @@ public interface ServicesInjectionModule {
     ScheduleService bindScheduleService(ScheduleServiceImpl impl);
 
     @Binds
-    NodeFeeAccumulator bindNodeFeeAccumulator(NodeFeeManager impl);
+    NodeFeeTracker bindNodeFeeTracker(NodeFeeManager impl);
 }
