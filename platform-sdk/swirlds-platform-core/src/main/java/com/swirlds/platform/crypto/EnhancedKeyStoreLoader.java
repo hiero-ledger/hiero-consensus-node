@@ -69,10 +69,9 @@ import org.hiero.consensus.roster.RosterUtils;
  * This class is responsible for loading the key stores for all nodes in the address book.
  *
  * <p>
- * The {@link EnhancedKeyStoreLoader} class is a replacement for the now deprecated
- *  method. This new implementation adds support for
- * loading industry standard PEM formatted PKCS #8 private keys and X.509 certificates. The legacy key stores are still
- * supported, but are no longer the preferred format.
+ * The {@link EnhancedKeyStoreLoader} class is a replacement for the now deprecated method.
+ * This new implementation adds support for loading industry standard PEM formatted PKCS #8 private keys.
+ * The legacy key stores are still supported but are no longer the preferred format.
  *
  * <p>
  * This implementation will attempt to load the private key stores in the following order:
@@ -81,12 +80,8 @@ import org.hiero.consensus.roster.RosterUtils;
  *         <li>Legacy private key store ({@code private-[nodeName].pfx})</li>
  *     </ol>
  * <p>
- *     Public key stores are loaded in the following order:
- *     <ol>
- *          <li>Enhanced certificate store ({@code [type]-public-[nodeName].pem})</li>
- *          <li>Legacy certificate store ({@code public.pfx})</li>
- *     </ol>
- *     where {@code nodeName} is the string "node"+(NodeId+1)
+ *
+ * where {@code nodeName} is the string "node"+(NodeId+1)
  */
 public class EnhancedKeyStoreLoader {
     /**
@@ -477,6 +472,7 @@ public class EnhancedKeyStoreLoader {
      * @return the certificate for the specified {@code nodeId} otherwise, {@code null} if no certificate was found.
      * @throws NullPointerException if {@code nodeId} is {@code null}.
      */
+    @Nullable
     private Certificate resolveNodeCertificate(@NonNull final NodeId nodeId) {
         Objects.requireNonNull(nodeId, MSG_NODE_ID_NON_NULL);
 
@@ -800,21 +796,14 @@ public class EnhancedKeyStoreLoader {
                 // validate private keys for local nodes
                 final Path ksLocation = privateKeyStore(nodeId);
                 final PrivateKey pemPrivateKey = readPrivateKey(nodeId, ksLocation);
-                try {
-                    if (pemPrivateKey == null
-                            || pfxPrivateKeys.get(nodeId) == null
-                            || !Arrays.equals(
-                                    pemPrivateKey.getEncoded(),
-                                    pfxPrivateKeys.get(nodeId).getEncoded())) {
-                        logger.error(
-                                ERROR.getMarker(),
-                                "Private key for nodeId: {} does not match the migrated key",
-                                nodeId);
-                        errorCount.incrementAndGet();
-                    }
-                } catch (final Exception e) {
-                    System.out.println("Node: " + nodeId + " Error: " + e.getMessage());
-                    throw e;
+                if (pemPrivateKey == null
+                        || (pfxPrivateKeys.get(nodeId) != null
+                                && !Arrays.equals(
+                                        pemPrivateKey.getEncoded(),
+                                        pfxPrivateKeys.get(nodeId).getEncoded()))) {
+                    logger.error(
+                            ERROR.getMarker(), "Private key for nodeId: {} does not match the migrated key", nodeId);
+                    errorCount.incrementAndGet();
                 }
             }
         }
