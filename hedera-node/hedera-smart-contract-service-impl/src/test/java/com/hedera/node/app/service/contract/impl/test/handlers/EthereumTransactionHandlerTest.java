@@ -528,6 +528,25 @@ class EthereumTransactionHandlerTest {
     }
 
     @Test
+    void validatePureChecksIfParsingInnerThrowsException() {
+        // check at least intrinsic gas for contract create (hasToAddress() == false)
+        try (MockedStatic<EthTxData> ethTxData = Mockito.mockStatic(EthTxData.class)) {
+            ethTxData.when(() -> EthTxData.populateEthTxData(any())).thenReturn(ethTxDataReturned);
+            given(pureChecksContext.body()).willReturn(ethTxWithTx());
+            given(ethTxDataReturned.value()).willReturn(BigInteger.ZERO);
+            given(ethTxDataReturned.hasToAddress()).willReturn(true);
+            final var toAddress = RECEIVER_ADDRESS.toByteArray();
+            given(ethTxDataReturned.to()).willReturn(toAddress);
+            given(ethTxDataReturned.type()).willReturn(EthTransactionType.EIP7702);
+            given(ethTxDataReturned.authorizationList()).willReturn(new byte[1]);
+            given(ethTxDataReturned.extractCodeDelegations()).willThrow(new IllegalArgumentException());
+            PreCheckException exception =
+                    assertThrows(PreCheckException.class, () -> subject.pureChecks(pureChecksContext));
+            assertEquals(INVALID_ETHEREUM_TRANSACTION, exception.responseCode());
+        }
+    }
+
+    @Test
     @SuppressWarnings("unchecked")
     void handleSetsNewSenderNonceWhenPresent() {
         given(factory.create(context, ETHEREUM_TRANSACTION, EvmFrameStates.DEFAULT))

@@ -23,6 +23,7 @@ import static java.util.Objects.requireNonNull;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.base.SubType;
 import com.hedera.hapi.node.contract.EthereumTransactionBody;
+import com.hedera.node.app.hapi.utils.ethereum.EthTxData;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxData.EthTransactionType;
 import com.hedera.node.app.hapi.utils.ethereum.EthTxSigs;
 import com.hedera.node.app.service.contract.impl.ContractServiceComponent;
@@ -121,6 +122,8 @@ public class EthereumTransactionHandler extends AbstractContractTransactionHandl
                 validateTruePreCheck(
                         ethTxData.authorizationList() != null && ethTxData.authorizationListAsRlp().length > 0,
                         INVALID_ETHEREUM_TRANSACTION);
+                // parse the inner code delegations to ensure they are valid
+                parseInnerCodeDelegations(ethTxData);
             }
             final var authorizationListSize =
                     ethTxData.authorizationList() == null ? 0L : ethTxData.authorizationListAsRlp().length;
@@ -133,6 +136,15 @@ public class EthereumTransactionHandler extends AbstractContractTransactionHandl
                 component.contractMetrics().incrementRejectedType3EthTx();
             }
             throw e;
+        }
+    }
+
+    private static void parseInnerCodeDelegations(EthTxData ethTxData) throws PreCheckException {
+        try {
+            final var codeDelegations = ethTxData.extractCodeDelegations();
+            validateFalsePreCheck(codeDelegations.isEmpty(), INVALID_ETHEREUM_TRANSACTION);
+        } catch (final IllegalArgumentException e) {
+            throw new PreCheckException(INVALID_ETHEREUM_TRANSACTION);
         }
     }
 
