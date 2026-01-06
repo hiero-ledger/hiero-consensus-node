@@ -26,7 +26,6 @@ import com.hedera.node.app.hapi.utils.EthSigsUtils;
 import com.hedera.node.app.hapi.utils.fee.FeeObject;
 import com.hedera.node.app.service.token.impl.handlers.CryptoTransferHandler;
 import com.hedera.services.bdd.spec.HapiSpec;
-import com.hedera.services.bdd.spec.keys.SigMapGenerator;
 import com.hedera.services.bdd.spec.keys.TrieSigMapGenerator;
 import com.hedera.services.bdd.spec.transactions.HapiBaseTransfer;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
