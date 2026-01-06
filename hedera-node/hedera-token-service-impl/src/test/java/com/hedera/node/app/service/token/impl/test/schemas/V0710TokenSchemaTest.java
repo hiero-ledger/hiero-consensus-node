@@ -126,4 +126,3 @@ class V0710TokenSchemaTest {
         assertThat(stakePeriodTimeDef.stateId()).isEqualTo(STAKE_PERIOD_TIME_STATE_ID);
     }
 }
-

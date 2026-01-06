@@ -115,4 +115,3 @@ class WritableStakePeriodTimeStoreTest {
         assertEquals(0, captured.lastStakePeriodUpdateTime().nanos());
     }
 }
-

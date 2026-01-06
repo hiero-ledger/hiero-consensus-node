@@ -34,4 +34,3 @@ public class ReadableStakePeriodInfoStoreImpl implements ReadableStakePeriodInfo
         return requireNonNull(stakePeriodInfoState.get());
     }
 }
-

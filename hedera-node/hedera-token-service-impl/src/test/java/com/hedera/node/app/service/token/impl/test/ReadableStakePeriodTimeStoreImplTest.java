@@ -86,4 +86,3 @@ class ReadableStakePeriodTimeStoreImplTest {
         assertThrows(NullPointerException.class, () -> subject.get());
     }
 }
-

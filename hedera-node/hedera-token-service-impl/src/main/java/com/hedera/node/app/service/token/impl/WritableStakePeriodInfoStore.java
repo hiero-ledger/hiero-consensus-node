@@ -52,4 +52,3 @@ public class WritableStakePeriodInfoStore extends ReadableStakePeriodInfoStoreIm
                 .build());
     }
 }
-

@@ -52,4 +52,3 @@ public class WritableStakePeriodTimeStore extends ReadableStakePeriodTimeStoreIm
                 .build());
     }
 }
-

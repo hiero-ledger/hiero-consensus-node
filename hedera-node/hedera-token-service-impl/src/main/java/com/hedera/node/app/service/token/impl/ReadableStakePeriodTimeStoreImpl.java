@@ -34,4 +34,3 @@ public class ReadableStakePeriodTimeStoreImpl implements ReadableStakePeriodTime
         return requireNonNull(stakePeriodTimeState.get());
     }
 }
-

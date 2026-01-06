@@ -86,7 +86,8 @@ public class WritableStoreFactory {
                 new StoreEntry(TokenService.NAME, (states, entityCounters) -> new WritableNodePaymentsStore(states)));
         newMap.put(
                 WritableStakePeriodTimeStore.class,
-                new StoreEntry(TokenService.NAME, (states, entityCounters) -> new WritableStakePeriodTimeStore(states)));
+                new StoreEntry(
+                        TokenService.NAME, (states, entityCounters) -> new WritableStakePeriodTimeStore(states)));
         // FreezeService
         newMap.put(
                 WritableFreezeStore.class,

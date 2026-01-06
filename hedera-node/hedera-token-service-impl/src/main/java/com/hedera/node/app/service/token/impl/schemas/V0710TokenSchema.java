@@ -20,10 +20,8 @@ import java.util.Set;
 public class V0710TokenSchema extends Schema<SemanticVersion> {
 
     public static final String STAKE_PERIOD_INFO_KEY = "STAKE_PERIOD_INFO";
-    public static final int STAKE_PERIOD_INFO_STATE_ID =
-            SingletonType.TOKENSERVICE_I_STAKE_PERIOD_INFO.protoOrdinal();
-    public static final String STAKE_PERIOD_INFO_STATE_LABEL =
-            computeLabel(TokenService.NAME, STAKE_PERIOD_INFO_KEY);
+    public static final int STAKE_PERIOD_INFO_STATE_ID = SingletonType.TOKENSERVICE_I_STAKE_PERIOD_INFO.protoOrdinal();
+    public static final String STAKE_PERIOD_INFO_STATE_LABEL = computeLabel(TokenService.NAME, STAKE_PERIOD_INFO_KEY);
 
     private static final SemanticVersion VERSION =
             SemanticVersion.newBuilder().major(0).minor(71).patch(0).build();
@@ -49,4 +47,3 @@ public class V0710TokenSchema extends Schema<SemanticVersion> {
         }
     }
 }
-
