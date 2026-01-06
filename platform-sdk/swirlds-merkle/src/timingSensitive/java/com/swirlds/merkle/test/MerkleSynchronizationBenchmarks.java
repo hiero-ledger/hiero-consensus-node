@@ -30,7 +30,8 @@ import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 public class MerkleSynchronizationBenchmarks {
 
     private static MerkleCryptography cryptography;
-    private final Configuration configuration = new TestConfigBuilder().getOrCreateConfig();
+    private final Configuration configuration =
+            new TestConfigBuilder().withConfigDataType(ReconnectConfig.class).getOrCreateConfig();
     private final ReconnectConfig reconnectConfig = configuration.getConfigData(ReconnectConfig.class);
 
     @BeforeAll

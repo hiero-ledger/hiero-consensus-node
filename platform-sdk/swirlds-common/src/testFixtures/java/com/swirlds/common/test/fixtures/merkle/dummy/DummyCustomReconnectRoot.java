@@ -3,7 +3,6 @@ package com.swirlds.common.test.fixtures.merkle.dummy;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.swirlds.common.context.PlatformContext;
 import com.swirlds.common.merkle.MerkleNode;
 import com.swirlds.common.merkle.synchronization.config.ReconnectConfig;
 import com.swirlds.common.merkle.synchronization.stats.ReconnectMapStats;
@@ -11,7 +10,6 @@ import com.swirlds.common.merkle.synchronization.task.NodeToSend;
 import com.swirlds.common.merkle.synchronization.views.CustomReconnectRoot;
 import com.swirlds.common.merkle.synchronization.views.LearnerTreeView;
 import com.swirlds.common.merkle.synchronization.views.TeacherTreeView;
-import com.swirlds.common.test.fixtures.platform.TestPlatformContextBuilder;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.LinkedList;
 import java.util.List;
@@ -59,10 +57,7 @@ public class DummyCustomReconnectRoot extends DummyMerkleInternal
      */
     @Override
     public TeacherTreeView<NodeToSend> buildTeacherView(@NonNull final ReconnectConfig reconnectConfig) {
-        final PlatformContext platformContext =
-                TestPlatformContextBuilder.create().build();
-        final DummyTeacherPushMerkleTreeView view =
-                new DummyTeacherPushMerkleTreeView(platformContext.getConfiguration(), this);
+        final DummyTeacherPushMerkleTreeView view = new DummyTeacherPushMerkleTreeView(reconnectConfig, this);
         views.add(view);
         return view;
     }
