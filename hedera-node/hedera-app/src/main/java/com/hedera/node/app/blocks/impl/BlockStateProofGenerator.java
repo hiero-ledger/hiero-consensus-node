@@ -123,7 +123,6 @@ public class BlockStateProofGenerator {
                         .isLeft(!blockSibling.isRight())
                         .hash(blockSibling.hash().getBytes())
                         .build();
-                ;
             }
 
             // Convert this pending block's timestamp into a sibling hash

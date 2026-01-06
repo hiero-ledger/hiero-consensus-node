@@ -8,6 +8,7 @@ import static com.hedera.services.bdd.junit.RepeatableReason.NEEDS_VIRTUAL_TIME_
 import static com.hedera.services.bdd.junit.TestTags.INTEGRATION;
 import static com.hedera.services.bdd.junit.hedera.embedded.EmbeddedMode.REPEATABLE;
 import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
+import static com.hedera.services.bdd.spec.assertions.TransactionRecordAsserts.recordWith;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getAccountBalance;
 import static com.hedera.services.bdd.spec.queries.QueryVerbs.getTxnRecord;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.contractCall;
@@ -19,11 +20,14 @@ import static com.hedera.services.bdd.spec.transactions.TxnVerbs.cryptoUpdate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.fileCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.mintToken;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.nodeUpdate;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.scheduleCreate;
+import static com.hedera.services.bdd.spec.transactions.TxnVerbs.scheduleSign;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenAirdrop;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenAssociate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.tokenCreate;
 import static com.hedera.services.bdd.spec.transactions.TxnVerbs.uploadInitCode;
 import static com.hedera.services.bdd.spec.transactions.contract.HapiParserUtil.asHeadlongAddress;
+import static com.hedera.services.bdd.spec.transactions.crypto.HapiCryptoTransfer.tinyBarsFromTo;
 import static com.hedera.services.bdd.spec.transactions.token.CustomFeeSpecs.fixedHbarFee;
 import static com.hedera.services.bdd.spec.utilops.EmbeddedVerbs.mutateSingleton;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
@@ -43,6 +47,7 @@ import static com.hedera.services.bdd.suites.HapiSuite.ONE_HUNDRED_HBARS;
 import static com.hedera.services.bdd.suites.HapiSuite.ONE_MILLION_HBARS;
 import static com.hedera.services.bdd.suites.contract.Utils.asSolidityAddress;
 import static com.hedera.services.bdd.suites.contract.hapi.ContractCallSuite.TRANSFERRING_CONTRACT;
+import static com.hedera.services.bdd.suites.hip423.ScheduleLongTermSignTest.THIRTY_MINUTES;
 import static com.hedera.services.bdd.suites.integration.hip1259.ValidationUtils.*;
 import static com.hedera.services.bdd.suites.integration.hip1259.ValidationUtils.feeDistributionValidator;
 import static com.hedera.services.bdd.suites.integration.hip1259.ValidationUtils.validateRecordContains;
@@ -68,6 +73,7 @@ import com.hedera.services.bdd.junit.support.TestLifecycle;
 import com.hedera.services.bdd.spec.transactions.TxnUtils;
 import com.hedera.services.bdd.spec.transactions.token.TokenMovement;
 import com.hedera.services.bdd.spec.utilops.EmbeddedVerbs;
+import com.hederahashgraph.api.proto.java.AccountID;
 import com.hederahashgraph.api.proto.java.TokenSupplyType;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.math.BigInteger;
@@ -567,5 +573,90 @@ public class Hip1259EnabledTests {
                         .via("contractTxn"),
                 validateRecordContains("contractTxn", FEE_COLLECTOR_ACCOUNT),
                 validateRecordNotContains("contractTxn", UNEXPECTED_FEE_ACCOUNTS));
+    }
+    /**
+     * Verifies that deleting an account with transfer to the fee collection account (0.0.802) fails.
+     * Per HIP-1259: "Reject any transaction that would send any hbar to the fee account"
+     */
+    @Order(15)
+    @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
+    final Stream<DynamicTest> cryptoDeleteWithTransferToFeeCollectionAccountFails() {
+        return hapiTest(
+                cryptoCreate(CIVILIAN_PAYER).balance(ONE_MILLION_HBARS),
+                cryptoCreate("accountToDelete").balance(ONE_HBAR).payingWith(CIVILIAN_PAYER),
+                cryptoCreate("beneficiary").balance(0L).payingWith(CIVILIAN_PAYER),
+                // Use explicitDef to set the transfer account ID directly to 0.0.802
+                cryptoDelete((spec, b) -> {
+                            b.setDeleteAccountID(spec.registry().getAccountID("accountToDelete"));
+                            b.setTransferAccountID(
+                                    AccountID.newBuilder().setAccountNum(802L).build());
+                        })
+                        .signedBy(CIVILIAN_PAYER, "accountToDelete")
+                        .payingWith(CIVILIAN_PAYER)
+                        .hasKnownStatus(TRANSFER_TO_FEE_COLLECTION_ACCOUNT_NOT_ALLOWED));
+    }
+
+    @Order(15)
+    @RepeatableHapiTest(NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION)
+    final Stream<DynamicTest> scheduledTransactionFailsWithFeeCollectorCreadit() {
+        return hapiTest(
+                cryptoCreate("sender").balance(ONE_HBAR),
+                cryptoCreate(CIVILIAN_PAYER),
+                cryptoCreate("dummy"),
+                scheduleCreate("schedule", cryptoTransfer(tinyBarsFromTo("sender", FEE_COLLECTOR, 1L)))
+                        .waitForExpiry(false)
+                        .expiringIn(THIRTY_MINUTES)
+                        .payingWith(CIVILIAN_PAYER)
+                        .via("scheduleCreateTxn"),
+                validateRecordContains("scheduleCreateTxn", FEE_COLLECTOR_ACCOUNT),
+                scheduleSign("schedule").alsoSigningWith("sender").payingWith(CIVILIAN_PAYER),
+                cryptoCreate("trigger").balance(ONE_HBAR).payingWith(CIVILIAN_PAYER),
+                getTxnRecord("scheduleCreateTxn")
+                        .scheduled()
+                        .hasPriority(recordWith().status(TRANSFER_TO_FEE_COLLECTION_ACCOUNT_NOT_ALLOWED)));
+    }
+
+    /**
+     * Verifies that fees accumulate correctly across multiple transactions within the same staking period.
+     * Per HIP-1259: "Add the node fee to the corresponding entry in the NodePayments map"
+     */
+    @Order(16)
+    @RepeatableHapiTest({NEEDS_VIRTUAL_TIME_FOR_FAST_EXECUTION, NEEDS_STATE_ACCESS})
+    final Stream<DynamicTest> feesAccumulateAcrossMultipleTransactions() {
+        final AtomicLong initialFeeCollectionBalance = new AtomicLong(0);
+        final AtomicLong balanceAfterTransactions = new AtomicLong(0);
+        final AtomicLong firstTxnFee = new AtomicLong(0);
+        final AtomicLong secondTxnFee = new AtomicLong(0);
+        final AtomicLong thirdTxnFee = new AtomicLong(0);
+
+        return hapiTest(
+                cryptoCreate(CIVILIAN_PAYER).balance(ONE_MILLION_HBARS),
+                getAccountBalance(FEE_COLLECTOR).exposingBalanceTo(initialFeeCollectionBalance::set),
+                // Execute multiple transactions and capture their fees
+                cryptoCreate("account1")
+                        .balance(ONE_HBAR)
+                        .payingWith(CIVILIAN_PAYER)
+                        .via("txn1"),
+                getTxnRecord("txn1").exposingTo(record -> firstTxnFee.set(record.getTransactionFee())),
+                cryptoCreate("account2")
+                        .balance(ONE_HBAR)
+                        .payingWith(CIVILIAN_PAYER)
+                        .via("txn2"),
+                getTxnRecord("txn2").exposingTo(record -> secondTxnFee.set(record.getTransactionFee())),
+                cryptoCreate("account3")
+                        .balance(ONE_HBAR)
+                        .payingWith(CIVILIAN_PAYER)
+                        .via("txn3"),
+                getTxnRecord("txn3").exposingTo(record -> thirdTxnFee.set(record.getTransactionFee())),
+                // Verify fee collection account balance increased by approximately the sum of fees
+                getAccountBalance(FEE_COLLECTOR).exposingBalanceTo(balanceAfterTransactions::set),
+                doingContextual(spec -> {
+                    final long totalFees = firstTxnFee.get() + secondTxnFee.get() + thirdTxnFee.get();
+                    final long balanceIncrease = balanceAfterTransactions.get() - initialFeeCollectionBalance.get();
+                    assertTrue(
+                            balanceIncrease >= totalFees,
+                            "Fee collection account balance should increase by at least the sum of transaction fees. "
+                                    + "Expected at least " + totalFees + " but got " + balanceIncrease);
+                }));
     }
 }
