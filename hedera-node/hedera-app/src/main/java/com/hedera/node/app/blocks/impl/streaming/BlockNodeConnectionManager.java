@@ -626,7 +626,10 @@ public class BlockNodeConnectionManager {
             Thread.currentThread().interrupt();
             return null;
         } catch (final TimeoutException e) {
-            // do nothing - the task that timed out will be logged later when the individual tasks are processed
+            logger.warn(
+                    "Block node status retrieval batch contained one or more sub-futures that exceeded timeout (timeout: {}ms)",
+                    timeout.toMillis());
+            // do nothing else - the task(s) that timed out will be logged later when the individual tasks are processed
         } catch (final Exception e) {
             // log the error, but otherwise ignore it...
             // handling of failures will happen when the individual tasks are processed
@@ -655,6 +658,10 @@ public class BlockNodeConnectionManager {
                                 // we don't have any information so mark it unreachable... hopefully this never happens
                                 yield BlockNodeStatus.notReachable();
                             } else {
+                                logger.debug(
+                                        "[{}:{}] Successfully retrieved block node status",
+                                        nodeConfig.address(),
+                                        nodeConfig.servicePort());
                                 yield bns;
                             }
                         }
@@ -667,10 +674,20 @@ public class BlockNodeConnectionManager {
                             yield BlockNodeStatus.notReachable();
                         }
                         case RUNNING -> {
+                            logger.warn(
+                                    "[{}:{}] Timed out waiting for block node status",
+                                    nodeConfig.address(),
+                                    nodeConfig.servicePort());
                             future.cancel(true);
                             yield BlockNodeStatus.notReachable();
                         }
-                        default -> BlockNodeStatus.notReachable();
+                        default -> {
+                            logger.warn(
+                                    "[{}:{}] Unknown outcome while waiting for block node status",
+                                    nodeConfig.address(),
+                                    nodeConfig.servicePort());
+                            yield BlockNodeStatus.notReachable();
+                        }
                     };
 
             if (!status.wasReachable()) {
