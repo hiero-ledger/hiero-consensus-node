@@ -880,6 +880,3 @@ jobs:
           fi
 
           echo "failure-mode=${failure_mode}" >> "${GITHUB_OUTPUT}"
-
-hedera-node/test-clients/build/**/*:
-  pces:
