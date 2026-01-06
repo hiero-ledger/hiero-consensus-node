@@ -44,6 +44,7 @@ import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.entityid.EntityIdService;
 import com.hedera.node.app.service.roster.RosterService;
 import com.hedera.node.app.service.token.TokenService;
+import com.hedera.node.app.services.StakePeriodTimeManager.LastStakePeriodUpdateTime;
 import com.hedera.node.app.spi.fixtures.ids.FakeEntityIdFactoryImpl;
 import com.hedera.node.app.workflows.handle.record.SystemTransactions;
 import com.hedera.node.config.ConfigProvider;
@@ -99,6 +100,9 @@ class NodeRewardManagerTest {
     @Mock
     private SystemTransactions systemTransactions;
 
+    @Mock(strictness = Mock.Strictness.LENIENT)
+    private StakePeriodTimeManager stakePeriodTimeManager;
+
     private NodeRewardManager nodeRewardManager;
     private final AtomicReference<NodeRewards> nodeRewardsRef = new AtomicReference<>();
     private WritableSingletonStateBase<NodeRewards> nodeRewardsState;
@@ -119,8 +123,11 @@ class NodeRewardManagerTest {
                 .withValue("staking.periodMins", 1)
                 .getOrCreateConfig();
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1));
+        // Default to PREVIOUS_PERIOD for most tests - override in specific tests as needed
+        given(stakePeriodTimeManager.classifyLastStakePeriodUpdateTime(any(), any()))
+                .willReturn(LastStakePeriodUpdateTime.PREVIOUS_PERIOD);
         nodeRewardManager = new NodeRewardManager(
-                configProvider, entityIdFactory, exchangeRateManager, new NodeMetrics(new NoOpMetrics()));
+                configProvider, entityIdFactory, exchangeRateManager, stakePeriodTimeManager, new NodeMetrics(new NoOpMetrics()));
     }
 
     @Test
@@ -201,7 +208,7 @@ class NodeRewardManagerTest {
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1L));
 
         nodeRewardManager = new NodeRewardManager(
-                configProvider, entityIdFactory, exchangeRateManager, new NodeMetrics(new NoOpMetrics()));
+                configProvider, entityIdFactory, exchangeRateManager, stakePeriodTimeManager, new NodeMetrics(new NoOpMetrics()));
 
         nodeRewardManager.maybeRewardActiveNodes(state, Instant.now(), systemTransactions);
         verify(systemTransactions, never())
@@ -211,8 +218,11 @@ class NodeRewardManagerTest {
     @Test
     void testMaybeRewardActiveNodesWhenCurrentPeriod() {
         givenSetup(NodeRewards.DEFAULT, platformStateWithFreezeTime(null), null);
+        // Override to return CURRENT_PERIOD for this test
+        given(stakePeriodTimeManager.classifyLastStakePeriodUpdateTime(any(), any()))
+                .willReturn(LastStakePeriodUpdateTime.CURRENT_PERIOD);
         nodeRewardManager = new NodeRewardManager(
-                configProvider, entityIdFactory, exchangeRateManager, new NodeMetrics(new NoOpMetrics()));
+                configProvider, entityIdFactory, exchangeRateManager, stakePeriodTimeManager, new NodeMetrics(new NoOpMetrics()));
         nodeRewardManager.maybeRewardActiveNodes(state, NOW_MINUS_600, systemTransactions);
         verify(systemTransactions, never())
                 .dispatchNodeRewards(any(), any(), any(), anyLong(), any(), anyLong(), anyLong(), any());
@@ -229,7 +239,7 @@ class NodeRewardManagerTest {
                 .build();
         givenSetup(NodeRewards.DEFAULT, platformStateWithFreezeTime(null), networkStakingRewards);
         nodeRewardManager = new NodeRewardManager(
-                configProvider, entityIdFactory, exchangeRateManager, new NodeMetrics(new NoOpMetrics()));
+                configProvider, entityIdFactory, exchangeRateManager, stakePeriodTimeManager, new NodeMetrics(new NoOpMetrics()));
         when(exchangeRateManager.getTinybarsFromTinycents(anyLong(), any())).thenReturn(5000L);
 
         nodeRewardManager.maybeRewardActiveNodes(state, NOW, systemTransactions);

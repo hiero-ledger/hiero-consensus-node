@@ -806,6 +806,11 @@ enum SingletonType {
    */
   TokenService_I_NODE_PAYMENTS = 55;
 
+  /**
+   * A state identifier for the stake period updated time. Singleton state.
+   */
+  TokenService_I_STAKE_PERIOD_UPDATED_TIME = 56;
+
   // Queue metadata
 
   /**

@@ -1,13 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.services;
 
-import static com.hedera.hapi.util.HapiUtils.asInstant;
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
 import static com.hedera.node.app.service.token.impl.schemas.V0700TokenSchema.NODE_PAYMENTS_STATE_ID;
-import static com.hedera.node.app.services.NodeFeeManager.LastNodeFeesPaymentTime.CURRENT_PERIOD;
-import static com.hedera.node.app.services.NodeFeeManager.LastNodeFeesPaymentTime.PREVIOUS_PERIOD;
 import static com.hedera.node.app.workflows.handle.HandleWorkflow.ALERT_MESSAGE;
-import static com.hedera.node.app.workflows.handle.steps.StakePeriodChanges.isNextStakingPeriod;
 import static java.util.Objects.requireNonNull;
 
 import com.hedera.hapi.node.base.AccountAmount;
@@ -20,9 +16,9 @@ import com.hedera.node.app.service.entityid.EntityIdService;
 import com.hedera.node.app.service.entityid.impl.WritableEntityIdStoreImpl;
 import com.hedera.node.app.service.token.ReadableAccountStore;
 import com.hedera.node.app.service.token.TokenService;
-import com.hedera.node.app.service.token.impl.ReadableNodePaymentsStoreImpl;
 import com.hedera.node.app.service.token.impl.WritableAccountStore;
 import com.hedera.node.app.service.token.impl.WritableNodePaymentsStore;
+import com.hedera.node.app.services.StakePeriodTimeManager.LastStakePeriodUpdateTime;
 import com.hedera.node.app.spi.fees.NodeFeeAccumulator;
 import com.hedera.node.app.workflows.handle.record.SystemTransactions;
 import com.hedera.node.config.ConfigProvider;
@@ -61,6 +57,7 @@ public class NodeFeeManager implements NodeFeeAccumulator {
 
     private final EntityIdFactory entityIdFactory;
     private final ConfigProvider configProvider;
+    private final StakePeriodTimeManager stakePeriodTimeManager;
 
     // The amount of fees to pay to each node. This is updated in-memory each transaction
     // and will be written back to state at the end of every block
@@ -71,12 +68,16 @@ public class NodeFeeManager implements NodeFeeAccumulator {
      *
      * @param configProvider the configuration provider
      * @param entityIdFactory the entity ID factory
+     * @param stakePeriodTimeManager the stake period time manager
      */
     @Inject
     public NodeFeeManager(
-            @NonNull final ConfigProvider configProvider, @NonNull final EntityIdFactory entityIdFactory) {
+            @NonNull final ConfigProvider configProvider,
+            @NonNull final EntityIdFactory entityIdFactory,
+            @NonNull final StakePeriodTimeManager stakePeriodTimeManager) {
         this.configProvider = configProvider;
         this.entityIdFactory = entityIdFactory;
+        this.stakePeriodTimeManager = requireNonNull(stakePeriodTimeManager);
     }
 
     /**
@@ -120,50 +121,23 @@ public class NodeFeeManager implements NodeFeeAccumulator {
     }
 
     /**
+     * {@inheritDoc}
+     * <p>
+     * Deaccumulates (refunds) node fees for a transaction. This is called when a transaction
+     * is rolled back or fees need to be refunded.
+     */
+    @Override
+    public void deaccumulate(AccountID nodeAccountId, long fees) {
+        nodeFees.merge(nodeAccountId, -fees, Long::sum);
+        // Remove the entry if the balance becomes zero or negative
+        nodeFees.computeIfPresent(nodeAccountId, (k, v) -> v <= 0 ? null : v);
+    }
+
+    /**
      * Resets the in-memory node fees map.
      */
     public void resetNodeFees() {
         nodeFees.clear();
-    }
-
-    /**
-     * The possible times at which the last time node fees were distributed
-     */
-    enum LastNodeFeesPaymentTime {
-        /**
-         * Node fees have never been distributed. In the genesis edge case, we don't need to distribute fees.
-         */
-        NEVER,
-        /**
-         * The last time node fees were distributed was in the previous staking period.
-         */
-        PREVIOUS_PERIOD,
-        /**
-         * The last time node fees were distributed was in the current staking period.
-         */
-        CURRENT_PERIOD,
-    }
-
-    /**
-     * Checks if the last time node fees were distributed was a different staking period.
-     *
-     * @param state the state
-     * @param now the current time
-     * @return whether the last time node fees were distributed was a different staking period
-     */
-    private LastNodeFeesPaymentTime classifyLastNodeFeesPaymentTime(
-            @NonNull final State state, @NonNull final Instant now) {
-        final var nodeFeePaymentsStore = new ReadableNodePaymentsStoreImpl(state.getReadableStates(TokenService.NAME));
-        final var lastPaidTime = nodeFeePaymentsStore.get().lastNodeFeeDistributionTime();
-        if (lastPaidTime == null) {
-            return LastNodeFeesPaymentTime.NEVER;
-        }
-        final long stakePeriodMins = configProvider
-                .getConfiguration()
-                .getConfigData(StakingConfig.class)
-                .periodMins();
-        final boolean isNextPeriod = isNextStakingPeriod(now, asInstant(lastPaidTime), stakePeriodMins);
-        return isNextPeriod ? PREVIOUS_PERIOD : CURRENT_PERIOD;
     }
 
     /**
@@ -192,17 +166,17 @@ public class NodeFeeManager implements NodeFeeAccumulator {
         final var ledgerConfig = configProvider.getConfiguration().getConfigData(LedgerConfig.class);
         final var stakingConfig = configProvider.getConfiguration().getConfigData(StakingConfig.class);
 
-        final var lastNodeFeesPaymentTime = classifyLastNodeFeesPaymentTime(state, now);
-        // If we're in the same staking period as the last time node fees were paid, we don't
+        final var lastStakePeriodUpdateTime = stakePeriodTimeManager.classifyLastStakePeriodUpdateTime(state, now);
+        // If we're in the same staking period as the last time stake period updates were done, we don't
         // need to do anything
-        if (lastNodeFeesPaymentTime == LastNodeFeesPaymentTime.CURRENT_PERIOD) {
+        if (lastStakePeriodUpdateTime == LastStakePeriodUpdateTime.CURRENT_PERIOD) {
             return false;
         }
 
         final var writableTokenStates = state.getWritableStates(TokenService.NAME);
         final var entityIdStore = new WritableEntityIdStoreImpl(state.getWritableStates(EntityIdService.NAME));
         final var nodePaymentsStore = new WritableNodePaymentsStore(writableTokenStates);
-        if (lastNodeFeesPaymentTime == LastNodeFeesPaymentTime.PREVIOUS_PERIOD) {
+        if (lastStakePeriodUpdateTime == LastStakePeriodUpdateTime.PREVIOUS_PERIOD) {
             log.info("Considering distributing node fees for staking period @ {}", asTimestamp(now));
             // commit the node fees accumulated in the previous period from nodeFees to nodePaymentsStore
             updateNodePaymentsState(state);

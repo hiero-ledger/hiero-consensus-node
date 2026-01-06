@@ -10,6 +10,7 @@ import com.hedera.services.bdd.junit.support.BlockStreamValidator;
 import com.hedera.services.bdd.spec.HapiSpec;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.io.IOException;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
 import java.util.Set;
@@ -42,8 +43,8 @@ public class EventHashBlockStreamValidator implements BlockStreamValidator {
                 .toAbsolutePath()
                 .normalize();
         final var blocksLoc =
-                node0Data.resolve("blockStreams/block-11.12.3").toAbsolutePath().normalize();
-        final var blocks = BlockStreamAccess.BLOCK_STREAM_ACCESS.readBlocks(blocksLoc);
+               "/Users/neeharikasompalli/Downloads/debugJan5/hapi-test/node0/data/blockStreams/block-11.12.3";
+        final var blocks = BlockStreamAccess.BLOCK_STREAM_ACCESS.readBlocks(Path.of(blocksLoc));
 
         final var validator = new EventHashBlockStreamValidator();
         validator.validateBlocks(blocks);

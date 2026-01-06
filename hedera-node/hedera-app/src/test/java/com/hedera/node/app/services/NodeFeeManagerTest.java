@@ -29,6 +29,7 @@ import com.hedera.hapi.node.state.token.NodePayments;
 import com.hedera.node.app.service.entityid.EntityIdFactory;
 import com.hedera.node.app.service.entityid.EntityIdService;
 import com.hedera.node.app.service.token.TokenService;
+import com.hedera.node.app.services.StakePeriodTimeManager.LastStakePeriodUpdateTime;
 import com.hedera.node.app.spi.fixtures.ids.FakeEntityIdFactoryImpl;
 import com.hedera.node.app.workflows.handle.record.SystemTransactions;
 import com.hedera.node.config.ConfigProvider;
@@ -68,6 +69,9 @@ class NodeFeeManagerTest {
     @Mock
     private SystemTransactions systemTransactions;
 
+    @Mock(strictness = Mock.Strictness.LENIENT)
+    private StakePeriodTimeManager stakePeriodTimeManager;
+
     private MapWritableStates writableStates;
     private MapReadableStates readableStates;
 
@@ -88,7 +92,10 @@ class NodeFeeManagerTest {
                 .withValue("staking.fees.stakingRewardPercentage", 10)
                 .getOrCreateConfig();
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1));
-        subject = new NodeFeeManager(configProvider, entityIdFactory);
+        // Default to PREVIOUS_PERIOD for most tests - override in specific tests as needed
+        given(stakePeriodTimeManager.classifyLastStakePeriodUpdateTime(any(), any()))
+                .willReturn(LastStakePeriodUpdateTime.PREVIOUS_PERIOD);
+        subject = new NodeFeeManager(configProvider, entityIdFactory, stakePeriodTimeManager);
     }
 
     @Test
@@ -203,7 +210,7 @@ class NodeFeeManagerTest {
                 .withValue("nodes.feeCollectionAccountEnabled", false)
                 .getOrCreateConfig();
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1));
-        subject = new NodeFeeManager(configProvider, entityIdFactory);
+        subject = new NodeFeeManager(configProvider, entityIdFactory, stakePeriodTimeManager);
 
         final var result = subject.distributeFees(state, NOW, systemTransactions);
 
@@ -213,14 +220,11 @@ class NodeFeeManagerTest {
 
     @Test
     void testDistributeFeesWhenCurrentPeriod() {
-        // Set up with last distribution time in current period
-        // With 1 minute staking period, we need to ensure both times are in the same period
-        // NOW = 1234567 seconds. To be in the same 1-minute period, use a time within the same minute
-        // 1234567 / 60 = 20576.11... so period 20576 starts at 20576 * 60 = 1234560
-        // Use a time that's definitely in the same period (same minute)
-        final var sameMinuteTime = Instant.ofEpochSecond(1234565L); // 2 seconds before NOW, same minute
+        // Mock the stake period manager to return CURRENT_PERIOD
+        given(stakePeriodTimeManager.classifyLastStakePeriodUpdateTime(any(), any()))
+                .willReturn(LastStakePeriodUpdateTime.CURRENT_PERIOD);
+
         final var nodePayments = NodePayments.newBuilder()
-                .lastNodeFeeDistributionTime(asTimestamp(sameMinuteTime))
                 .payments(List.of())
                 .build();
         givenSetupForDistribution(nodePayments, 1000L);
@@ -233,9 +237,11 @@ class NodeFeeManagerTest {
 
     @Test
     void testDistributeFeesWhenPreviousPeriod() {
-        // Set up with last distribution time in previous period
+        // Mock the stake period manager to return PREVIOUS_PERIOD
+        given(stakePeriodTimeManager.classifyLastStakePeriodUpdateTime(any(), any()))
+                .willReturn(LastStakePeriodUpdateTime.PREVIOUS_PERIOD);
+
         final var nodePayments = NodePayments.newBuilder()
-                .lastNodeFeeDistributionTime(asTimestamp(PREV_PERIOD))
                 .payments(List.of(NodePayment.newBuilder()
                         .nodeAccountId(NODE_ACCOUNT_ID_3)
                         .fees(100L)
@@ -256,9 +262,11 @@ class NodeFeeManagerTest {
 
     @Test
     void testDistributeFeesWhenNeverPaid() {
-        // Set up with null last distribution time (genesis case)
+        // Mock the stake period manager to return NEVER
+        given(stakePeriodTimeManager.classifyLastStakePeriodUpdateTime(any(), any()))
+                .willReturn(LastStakePeriodUpdateTime.NEVER);
+
         final var nodePayments = NodePayments.newBuilder()
-                .lastNodeFeeDistributionTime((Timestamp) null)
                 .payments(List.of())
                 .build();
         givenSetupForDistribution(nodePayments, 1000L);
@@ -303,7 +311,7 @@ class NodeFeeManagerTest {
                 .withValue("nodes.feeCollectionAccountEnabled", false)
                 .getOrCreateConfig();
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1));
-        subject = new NodeFeeManager(configProvider, entityIdFactory);
+        subject = new NodeFeeManager(configProvider, entityIdFactory, stakePeriodTimeManager);
 
         subject.onOpenBlock(state);
 
@@ -316,7 +324,7 @@ class NodeFeeManagerTest {
                 .withValue("nodes.feeCollectionAccountEnabled", false)
                 .getOrCreateConfig();
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1));
-        subject = new NodeFeeManager(configProvider, entityIdFactory);
+        subject = new NodeFeeManager(configProvider, entityIdFactory, stakePeriodTimeManager);
 
         subject.onCloseBlock(state);
 
@@ -336,7 +344,7 @@ class NodeFeeManagerTest {
                 .withValue("staking.feesStakingRewardPercentage", 10)
                 .getOrCreateConfig();
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1));
-        subject = new NodeFeeManager(configProvider, entityIdFactory);
+        subject = new NodeFeeManager(configProvider, entityIdFactory, stakePeriodTimeManager);
 
         // Set up with 0.0.801 having low balance (below minimum)
         final var nodePayments = NodePayments.newBuilder()
@@ -379,7 +387,7 @@ class NodeFeeManagerTest {
                 .withValue("staking.feesStakingRewardPercentage", 10)
                 .getOrCreateConfig();
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1));
-        subject = new NodeFeeManager(configProvider, entityIdFactory);
+        subject = new NodeFeeManager(configProvider, entityIdFactory, stakePeriodTimeManager);
 
         // Set up with 0.0.801 having high balance (above minimum)
         final var nodePayments = NodePayments.newBuilder()
@@ -650,7 +658,7 @@ class NodeFeeManagerTest {
                 .withValue("staking.fees.stakingRewardPercentage", 10)
                 .getOrCreateConfig();
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1));
-        subject = new NodeFeeManager(configProvider, entityIdFactory);
+        subject = new NodeFeeManager(configProvider, entityIdFactory, stakePeriodTimeManager);
 
         final var nodePayments = NodePayments.newBuilder()
                 .lastNodeFeeDistributionTime(asTimestamp(PREV_PERIOD))
@@ -687,7 +695,7 @@ class NodeFeeManagerTest {
                 .withValue("staking.fees.stakingRewardPercentage", 0)
                 .getOrCreateConfig();
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1));
-        subject = new NodeFeeManager(configProvider, entityIdFactory);
+        subject = new NodeFeeManager(configProvider, entityIdFactory, stakePeriodTimeManager);
 
         final var nodePayments = NodePayments.newBuilder()
                 .lastNodeFeeDistributionTime(asTimestamp(PREV_PERIOD))

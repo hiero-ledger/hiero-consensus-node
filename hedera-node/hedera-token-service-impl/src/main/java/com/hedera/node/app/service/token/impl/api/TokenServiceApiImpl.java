@@ -505,15 +505,25 @@ public class TokenServiceApiImpl implements TokenServiceApi {
         requireNonNull(onNodeRefund);
         long amountRetracted = 0;
         if (fees.nodeFee() > 0) {
-            final var nodeAccount = lookupAccount("Node account", nodeAccountId);
-            final long nodeBalance = nodeAccount.tinybarBalance();
-            final long amountToRetract = Math.min(fees.nodeFee(), nodeBalance);
-            accountStore.put(nodeAccount
-                    .copyBuilder()
-                    .tinybarBalance(nodeBalance - amountToRetract)
-                    .build());
-            onNodeRefund.accept(amountToRetract);
-            amountRetracted += amountToRetract;
+            if (nodesConfig.feeCollectionAccountEnabled()) {
+                // When fee collection is enabled, the node fee was paid to the fee collection account
+                // and accumulated in-memory. We need to retract from fee collection account and
+                // deaccumulate from the in-memory accumulator.
+                amountRetracted += retractFeeCollectionAccount(fees.nodeFee());
+                nodeFeeAccumulator.deaccumulate(nodeAccountId, fees.nodeFee());
+                onNodeRefund.accept(fees.nodeFee());
+            } else {
+                // When fee collection is disabled, the node fee was paid directly to the node account
+                final var nodeAccount = lookupAccount("Node account", nodeAccountId);
+                final long nodeBalance = nodeAccount.tinybarBalance();
+                final long amountToRetract = Math.min(fees.nodeFee(), nodeBalance);
+                accountStore.put(nodeAccount
+                        .copyBuilder()
+                        .tinybarBalance(nodeBalance - amountToRetract)
+                        .build());
+                onNodeRefund.accept(amountToRetract);
+                amountRetracted += amountToRetract;
+            }
         }
         amountRetracted += nodesConfig.feeCollectionAccountEnabled()
                 ? retractFeeCollectionAccount(fees.totalWithoutNodeFee())

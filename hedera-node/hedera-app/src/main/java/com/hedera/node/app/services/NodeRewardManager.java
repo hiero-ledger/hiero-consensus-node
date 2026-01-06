@@ -1,11 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.node.app.services;
 
-import static com.hedera.hapi.util.HapiUtils.asInstant;
 import static com.hedera.hapi.util.HapiUtils.asTimestamp;
 import static com.hedera.node.app.hapi.fees.pricing.FeeSchedules.USD_TO_TINYCENTS;
 import static com.hedera.node.app.service.token.impl.schemas.V0610TokenSchema.NODE_REWARDS_STATE_ID;
-import static com.hedera.node.app.workflows.handle.steps.StakePeriodChanges.isNextStakingPeriod;
 import static com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID;
 import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.toCollection;
@@ -25,14 +23,13 @@ import com.hedera.node.app.service.entityid.impl.ReadableEntityIdStoreImpl;
 import com.hedera.node.app.service.roster.RosterService;
 import com.hedera.node.app.service.token.TokenService;
 import com.hedera.node.app.service.token.impl.ReadableAccountStoreImpl;
-import com.hedera.node.app.service.token.impl.ReadableNetworkStakingRewardsStoreImpl;
 import com.hedera.node.app.service.token.impl.WritableNetworkStakingRewardsStore;
 import com.hedera.node.app.service.token.impl.WritableNodeRewardsStoreImpl;
+import com.hedera.node.app.services.StakePeriodTimeManager.LastStakePeriodUpdateTime;
 import com.hedera.node.app.workflows.handle.record.SystemTransactions;
 import com.hedera.node.config.ConfigProvider;
 import com.hedera.node.config.data.AccountsConfig;
 import com.hedera.node.config.data.NodesConfig;
-import com.hedera.node.config.data.StakingConfig;
 import com.swirlds.platform.state.service.PlatformStateService;
 import com.swirlds.state.State;
 import com.swirlds.state.spi.CommittableWritableStates;
@@ -63,6 +60,7 @@ public class NodeRewardManager {
     private final ConfigProvider configProvider;
     private final EntityIdFactory entityIdFactory;
     private final ExchangeRateManager exchangeRateManager;
+    private final StakePeriodTimeManager stakePeriodTimeManager;
 
     // The number of rounds so far in the staking period
     private long roundsThisStakingPeriod = 0;
@@ -76,10 +74,12 @@ public class NodeRewardManager {
             @NonNull final ConfigProvider configProvider,
             @NonNull final EntityIdFactory entityIdFactory,
             @NonNull final ExchangeRateManager exchangeRateManager,
+            @NonNull final StakePeriodTimeManager stakePeriodTimeManager,
             @Nullable final NodeMetrics metrics) {
         this.configProvider = requireNonNull(configProvider);
         this.entityIdFactory = requireNonNull(entityIdFactory);
         this.exchangeRateManager = requireNonNull(exchangeRateManager);
+        this.stakePeriodTimeManager = requireNonNull(stakePeriodTimeManager);
         this.metrics = metrics;
     }
 
@@ -134,47 +134,6 @@ public class NodeRewardManager {
     }
 
     /**
-     * The possible times at which the last time node rewards were paid.
-     */
-    private enum LastNodeRewardsPaymentTime {
-        /**
-         * Node rewards have never been paid. In the genesis edge case, we don't need to pay rewards.
-         */
-        NEVER,
-        /**
-         * The last time node rewards were paid was in the previous staking period.
-         */
-        PREVIOUS_PERIOD,
-        /**
-         * The last time node rewards were paid was in the current staking period.
-         */
-        CURRENT_PERIOD,
-    }
-
-    /**
-     * Checks if the last time node rewards were paid was a different staking period.
-     *
-     * @param state the state
-     * @param now   the current time
-     * @return whether the last time node rewards were paid was a different staking period
-     */
-    private LastNodeRewardsPaymentTime classifyLastNodeRewardsPaymentTime(
-            @NonNull final State state, @NonNull final Instant now) {
-        final var networkRewardsStore =
-                new ReadableNetworkStakingRewardsStoreImpl(state.getReadableStates(TokenService.NAME));
-        final var lastPaidTime = networkRewardsStore.get().lastNodeRewardPaymentsTime();
-        if (lastPaidTime == null) {
-            return LastNodeRewardsPaymentTime.NEVER;
-        }
-        final long stakePeriodMins = configProvider
-                .getConfiguration()
-                .getConfigData(StakingConfig.class)
-                .periodMins();
-        final boolean isNextPeriod = isNextStakingPeriod(now, asInstant(lastPaidTime), stakePeriodMins);
-        return isNextPeriod ? LastNodeRewardsPaymentTime.PREVIOUS_PERIOD : LastNodeRewardsPaymentTime.CURRENT_PERIOD;
-    }
-
-    /**
      * If the consensus time just crossed a stake period, rewards sufficiently active nodes for the previous period.
      *
      * @param state              the state
@@ -189,16 +148,16 @@ public class NodeRewardManager {
         if (!nodesConfig.nodeRewardsEnabled()) {
             return false;
         }
-        final var lastNodeRewardsPaymentTime = classifyLastNodeRewardsPaymentTime(state, now);
-        // If we're in the same staking period as the last time node rewards were paid, we don't
+        final var lastStakePeriodUpdateTime = stakePeriodTimeManager.classifyLastStakePeriodUpdateTime(state, now);
+        // If we're in the same staking period as the last time stake period updates were done, we don't
         // need to do anything
-        if (lastNodeRewardsPaymentTime == LastNodeRewardsPaymentTime.CURRENT_PERIOD) {
+        if (lastStakePeriodUpdateTime == LastStakePeriodUpdateTime.CURRENT_PERIOD) {
             return false;
         }
         final var writableStates = state.getWritableStates(TokenService.NAME);
         final var nodeRewardStore = new WritableNodeRewardsStoreImpl(writableStates);
-        // Don't try to pay rewards in the genesis edge case when LastNodeRewardsPaymentTime.NEVER
-        if (lastNodeRewardsPaymentTime == LastNodeRewardsPaymentTime.PREVIOUS_PERIOD) {
+        // Don't try to pay rewards in the genesis edge case when LastStakePeriodUpdateTime.NEVER
+        if (lastStakePeriodUpdateTime == LastStakePeriodUpdateTime.PREVIOUS_PERIOD) {
             log.info("Considering paying node rewards for the last staking period at {}", asTimestamp(now));
             // Identify the nodes active in the last staking period
             final var rosterStore = new ReadableRosterStoreImpl(state.getReadableStates(RosterService.NAME));

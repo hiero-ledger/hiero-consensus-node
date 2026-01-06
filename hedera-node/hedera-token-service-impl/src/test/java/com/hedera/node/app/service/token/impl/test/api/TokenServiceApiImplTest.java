@@ -832,23 +832,30 @@ class TokenServiceApiImplTest {
                     .build());
 
             final var config = configBuilder.getOrCreateConfig();
-            subject = new TokenServiceApiImpl(config, writableStates, customFeeTest, entityCounters);
+            final var nodeFeeAccumulator = new TestNodeFeeAccumulator();
+            // Simulate that node fees were accumulated
+            nodeFeeAccumulator.accumulate(NODE_ACCOUNT_ID, 10L);
+            subject = new TokenServiceApiImpl(config, writableStates, customFeeTest, entityCounters, nodeFeeAccumulator);
 
             // When we refund fees (with node fee)
             final var fees = new Fees(10, 20, 20); // 10 node, 40 network+service
             subject.refundFees(EOA_ACCOUNT_ID, NODE_ACCOUNT_ID, fees, rb, (amount) -> {});
 
-            // Then fee collection account balance is reduced by network+service fees
+            // Then fee collection account balance is reduced by BOTH node fee AND network+service fees
+            // because when fee collection is enabled, node fees go to fee collection account
             final var feeCollectionAccount = requireNonNull(accountState.get(FEE_COLLECTION_ACCOUNT_ID));
-            assertThat(feeCollectionAccount.tinybarBalance()).isEqualTo(60L); // 100 - 40
+            assertThat(feeCollectionAccount.tinybarBalance()).isEqualTo(50L); // 100 - 50 (10 node + 40 network+service)
 
-            // And node account balance is reduced by node fee
+            // And node account balance is UNCHANGED (node fees are not paid directly to node when fee collection is enabled)
             final var nodeAccount = requireNonNull(accountState.get(NODE_ACCOUNT_ID));
-            assertThat(nodeAccount.tinybarBalance()).isEqualTo(40L); // 50 - 10
+            assertThat(nodeAccount.tinybarBalance()).isEqualTo(50L); // unchanged
 
             // And payer balance is increased by total refund
             final var payerAccount = requireNonNull(accountState.get(EOA_ACCOUNT_ID));
             assertThat(payerAccount.tinybarBalance()).isEqualTo(70L); // 20 + 50 (10 + 40)
+
+            // And the node fee accumulator should have deaccumulated the node fee
+            assertThat(nodeFeeAccumulator.getAccumulatedFees(NODE_ACCOUNT_ID)).isEqualTo(0L);
         }
 
         private static class TestNodeFeeAccumulator implements NodeFeeAccumulator {
@@ -857,6 +864,12 @@ class TokenServiceApiImplTest {
             @Override
             public void accumulate(AccountID nodeAccountId, long amount) {
                 accumulatedFees.merge(nodeAccountId, amount, Long::sum);
+            }
+
+            @Override
+            public void deaccumulate(AccountID nodeAccountId, long amount) {
+                accumulatedFees.merge(nodeAccountId, -amount, Long::sum);
+                accumulatedFees.computeIfPresent(nodeAccountId, (k, v) -> v <= 0 ? null : v);
             }
 
             public long getAccumulatedFees(AccountID nodeAccountId) {
