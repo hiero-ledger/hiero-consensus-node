@@ -10,8 +10,7 @@ import org.hiero.metrics.internal.core.LabelValues;
 import org.hiero.metrics.internal.export.snapshot.DoubleValueMeasurementSnapshotImpl;
 import org.hiero.metrics.internal.measurement.DoubleAdderCounterMeasurement;
 
-public final class DoubleCounterImpl
-        extends AbstractSettableMetric<DoubleSupplier, DoubleCounterMeasurement, DoubleAdderCounterMeasurement>
+public final class DoubleCounterImpl extends AbstractSettableMetric<DoubleSupplier, DoubleCounterMeasurement>
         implements DoubleCounter {
 
     public DoubleCounterImpl(DoubleCounter.Builder builder) {
@@ -19,18 +18,22 @@ public final class DoubleCounterImpl
     }
 
     @Override
-    protected void reset(DoubleAdderCounterMeasurement measurement) {
-        measurement.reset();
-    }
-
-    @Override
-    protected DoubleValueMeasurementSnapshotImpl createMeasurementSnapshot(
-            DoubleAdderCounterMeasurement measurement, LabelValues dynamicLabelValues) {
+    protected MeasurementSnapshot createMeasurementSnapshot(
+            DoubleCounterMeasurement measurement, LabelValues dynamicLabelValues) {
         return new DoubleValueMeasurementSnapshotImpl(dynamicLabelValues);
     }
 
     @Override
-    protected void updateMeasurementSnapshot(DoubleAdderCounterMeasurement measurement, MeasurementSnapshot snapshot) {
-        ((DoubleValueMeasurementSnapshotImpl) snapshot).set(measurement.get());
+    protected void updateMeasurementSnapshot(DoubleCounterMeasurement measurement, MeasurementSnapshot snapshot) {
+        ((DoubleValueMeasurementSnapshotImpl) snapshot).set(cast(measurement).get());
+    }
+
+    @Override
+    protected void reset(DoubleCounterMeasurement measurement) {
+        cast(measurement).reset();
+    }
+
+    private DoubleAdderCounterMeasurement cast(DoubleCounterMeasurement measurement) {
+        return (DoubleAdderCounterMeasurement) measurement;
     }
 }

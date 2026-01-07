@@ -10,8 +10,7 @@ import org.hiero.metrics.internal.core.LabelValues;
 import org.hiero.metrics.internal.export.snapshot.DoubleValueMeasurementSnapshotImpl;
 import org.hiero.metrics.internal.measurement.AtomicDoubleGaugeMeasurement;
 
-public final class DoubleGaugeImpl
-        extends AbstractSettableMetric<DoubleSupplier, DoubleGaugeMeasurement, AtomicDoubleGaugeMeasurement>
+public final class DoubleGaugeImpl extends AbstractSettableMetric<DoubleSupplier, DoubleGaugeMeasurement>
         implements DoubleGauge {
 
     public DoubleGaugeImpl(DoubleGauge.Builder builder) {
@@ -20,17 +19,21 @@ public final class DoubleGaugeImpl
 
     @Override
     protected DoubleValueMeasurementSnapshotImpl createMeasurementSnapshot(
-            AtomicDoubleGaugeMeasurement measurement, LabelValues dynamicLabelValues) {
+            DoubleGaugeMeasurement measurement, LabelValues dynamicLabelValues) {
         return new DoubleValueMeasurementSnapshotImpl(dynamicLabelValues);
     }
 
     @Override
-    protected void updateMeasurementSnapshot(AtomicDoubleGaugeMeasurement measurement, MeasurementSnapshot snapshot) {
-        ((DoubleValueMeasurementSnapshotImpl) snapshot).set(measurement.get());
+    protected void updateMeasurementSnapshot(DoubleGaugeMeasurement measurement, MeasurementSnapshot snapshot) {
+        ((DoubleValueMeasurementSnapshotImpl) snapshot).set(cast(measurement).get());
     }
 
     @Override
-    protected void reset(AtomicDoubleGaugeMeasurement measurement) {
-        measurement.reset();
+    protected void reset(DoubleGaugeMeasurement measurement) {
+        cast(measurement).reset();
+    }
+
+    private AtomicDoubleGaugeMeasurement cast(DoubleGaugeMeasurement measurement) {
+        return (AtomicDoubleGaugeMeasurement) measurement;
     }
 }

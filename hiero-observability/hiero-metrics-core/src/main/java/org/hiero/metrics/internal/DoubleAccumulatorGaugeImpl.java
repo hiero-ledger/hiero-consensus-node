@@ -12,8 +12,7 @@ import org.hiero.metrics.internal.export.snapshot.DoubleValueMeasurementSnapshot
 import org.hiero.metrics.internal.measurement.DoubleAccumulatorGaugeMeasurementImpl;
 
 public class DoubleAccumulatorGaugeImpl
-        extends AbstractSettableMetric<
-                DoubleSupplier, DoubleAccumulatorGaugeMeasurement, DoubleAccumulatorGaugeMeasurementImpl>
+        extends AbstractSettableMetric<DoubleSupplier, DoubleAccumulatorGaugeMeasurement>
         implements DoubleAccumulatorGauge {
 
     private final ToDoubleFunction<DoubleAccumulatorGaugeMeasurementImpl> exportValueSupplier;
@@ -27,19 +26,23 @@ public class DoubleAccumulatorGaugeImpl
     }
 
     @Override
-    protected DoubleValueMeasurementSnapshotImpl createMeasurementSnapshot(
-            DoubleAccumulatorGaugeMeasurementImpl measurement, LabelValues dynamicLabelValues) {
+    protected MeasurementSnapshot createMeasurementSnapshot(
+            DoubleAccumulatorGaugeMeasurement measurement, LabelValues dynamicLabelValues) {
         return new DoubleValueMeasurementSnapshotImpl(dynamicLabelValues);
     }
 
     @Override
     protected void updateMeasurementSnapshot(
-            DoubleAccumulatorGaugeMeasurementImpl measurement, MeasurementSnapshot snapshot) {
-        ((DoubleValueMeasurementSnapshotImpl) snapshot).set(exportValueSupplier.applyAsDouble(measurement));
+            DoubleAccumulatorGaugeMeasurement measurement, MeasurementSnapshot snapshot) {
+        ((DoubleValueMeasurementSnapshotImpl) snapshot).set(exportValueSupplier.applyAsDouble(cast(measurement)));
     }
 
     @Override
-    protected void reset(DoubleAccumulatorGaugeMeasurementImpl measurement) {
-        measurement.reset();
+    protected void reset(DoubleAccumulatorGaugeMeasurement measurement) {
+        cast(measurement).reset();
+    }
+
+    private DoubleAccumulatorGaugeMeasurementImpl cast(DoubleAccumulatorGaugeMeasurement measurement) {
+        return (DoubleAccumulatorGaugeMeasurementImpl) measurement;
     }
 }

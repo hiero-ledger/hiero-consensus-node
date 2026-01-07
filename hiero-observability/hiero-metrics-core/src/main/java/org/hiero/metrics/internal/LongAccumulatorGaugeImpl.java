@@ -11,9 +11,7 @@ import org.hiero.metrics.internal.core.LabelValues;
 import org.hiero.metrics.internal.export.snapshot.LongValueMeasurementSnapshotImpl;
 import org.hiero.metrics.internal.measurement.LongAccumulatorGaugeMeasurementImpl;
 
-public class LongAccumulatorGaugeImpl
-        extends AbstractSettableMetric<
-                LongSupplier, LongAccumulatorGaugeMeasurement, LongAccumulatorGaugeMeasurementImpl>
+public class LongAccumulatorGaugeImpl extends AbstractSettableMetric<LongSupplier, LongAccumulatorGaugeMeasurement>
         implements LongAccumulatorGauge {
 
     private final ToLongFunction<LongAccumulatorGaugeMeasurementImpl> exportValueSupplier;
@@ -28,18 +26,22 @@ public class LongAccumulatorGaugeImpl
 
     @Override
     protected LongValueMeasurementSnapshotImpl createMeasurementSnapshot(
-            LongAccumulatorGaugeMeasurementImpl measurement, LabelValues dynamicLabelValues) {
+            LongAccumulatorGaugeMeasurement measurement, LabelValues dynamicLabelValues) {
         return new LongValueMeasurementSnapshotImpl(dynamicLabelValues);
     }
 
     @Override
     protected void updateMeasurementSnapshot(
-            LongAccumulatorGaugeMeasurementImpl measurement, MeasurementSnapshot snapshot) {
-        ((LongValueMeasurementSnapshotImpl) snapshot).set(exportValueSupplier.applyAsLong(measurement));
+            LongAccumulatorGaugeMeasurement measurement, MeasurementSnapshot snapshot) {
+        ((LongValueMeasurementSnapshotImpl) snapshot).set(exportValueSupplier.applyAsLong(cast(measurement)));
     }
 
     @Override
-    protected void reset(LongAccumulatorGaugeMeasurementImpl measurement) {
-        measurement.reset();
+    protected void reset(LongAccumulatorGaugeMeasurement measurement) {
+        cast(measurement).reset();
+    }
+
+    private LongAccumulatorGaugeMeasurementImpl cast(LongAccumulatorGaugeMeasurement measurement) {
+        return (LongAccumulatorGaugeMeasurementImpl) measurement;
     }
 }

@@ -17,19 +17,17 @@ import org.hiero.metrics.api.core.SettableMetric;
  * when requested for observation.
  *
  * @param <I> The type of the initializer used to create new measurements.
- * @param <M_API> The type of the measurement API associated with this metric.
- * @param <M_IMPL> The type of the measurement implementation associated with this metric (extends {@link M_API}).
+ * @param <M> The type of the measurement API associated with this metric.
  */
-public abstract class AbstractSettableMetric<I, M_API, M_IMPL extends M_API> extends AbstractMetric<M_IMPL>
-        implements SettableMetric<I, M_API> {
+public abstract class AbstractSettableMetric<I, M> extends AbstractMetric<M> implements SettableMetric<I, M> {
 
     private final I defaultInitializer;
-    private final Function<I, M_IMPL> measurementFactory;
+    private final Function<I, M> measurementFactory;
 
-    private volatile M_IMPL noLabelsMeasurement;
-    private final Map<LabelValues, M_IMPL> measurements;
+    private volatile M noLabelsMeasurement;
+    private final Map<LabelValues, M> measurements;
 
-    protected AbstractSettableMetric(SettableMetric.Builder<I, ?, ?> builder, Function<I, M_IMPL> measurementFactory) {
+    protected AbstractSettableMetric(SettableMetric.Builder<I, ?, ?> builder, Function<I, M> measurementFactory) {
         super(builder);
 
         this.measurementFactory = measurementFactory;
@@ -42,7 +40,7 @@ public abstract class AbstractSettableMetric<I, M_API, M_IMPL extends M_API> ext
         }
     }
 
-    protected abstract void reset(M_IMPL measurement);
+    protected abstract void reset(M measurement);
 
     @Override
     public final void reset() {
@@ -57,12 +55,12 @@ public abstract class AbstractSettableMetric<I, M_API, M_IMPL extends M_API> ext
 
     @NonNull
     @Override
-    public final M_API getOrCreateNotLabeled() {
+    public final M getOrCreateNotLabeled() {
         if (measurements != null) {
             throw new IllegalStateException("This metric has dynamic labels, so you must call getOrCreateLabeled()");
         }
         // lazy init of no labels measurement
-        M_IMPL localRef = noLabelsMeasurement;
+        M localRef = noLabelsMeasurement;
         if (localRef == null) {
             synchronized (this) {
                 localRef = noLabelsMeasurement;
@@ -76,7 +74,7 @@ public abstract class AbstractSettableMetric<I, M_API, M_IMPL extends M_API> ext
 
     @NonNull
     @Override
-    public M_API getOrCreateLabeled(@NonNull String... namesAndValues) {
+    public M getOrCreateLabeled(@NonNull String... namesAndValues) {
         final LabelValues labelValues = createLabelValues(namesAndValues);
         if (labelValues.size() == 0) {
             return getOrCreateNotLabeled();
@@ -87,7 +85,7 @@ public abstract class AbstractSettableMetric<I, M_API, M_IMPL extends M_API> ext
 
     @NonNull
     @Override
-    public M_API getOrCreateLabeled(@NonNull I initializer, @NonNull String... namesAndValues) {
+    public M getOrCreateLabeled(@NonNull I initializer, @NonNull String... namesAndValues) {
         if (measurements == null) {
             throw new IllegalStateException(
                     "This metric has no dynamic labels, so you must call getOrCreateNotLabeled()");
@@ -98,12 +96,12 @@ public abstract class AbstractSettableMetric<I, M_API, M_IMPL extends M_API> ext
                 labelValues -> createMeasurementAndSnapshot(labelValues, initializer));
     }
 
-    private M_IMPL createMeasurementAndSnapshot(LabelValues labelValues) {
+    private M createMeasurementAndSnapshot(LabelValues labelValues) {
         return createMeasurementAndSnapshot(labelValues, defaultInitializer);
     }
 
-    private M_IMPL createMeasurementAndSnapshot(LabelValues labelValues, @NonNull I initializer) {
-        M_IMPL measurement = measurementFactory.apply(initializer);
+    private M createMeasurementAndSnapshot(LabelValues labelValues, @NonNull I initializer) {
+        M measurement = measurementFactory.apply(initializer);
         addMeasurementSnapshot(measurement, labelValues);
         return measurement;
     }

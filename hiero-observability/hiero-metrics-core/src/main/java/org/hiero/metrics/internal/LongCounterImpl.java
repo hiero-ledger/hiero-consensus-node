@@ -10,8 +10,7 @@ import org.hiero.metrics.internal.core.LabelValues;
 import org.hiero.metrics.internal.export.snapshot.LongValueMeasurementSnapshotImpl;
 import org.hiero.metrics.internal.measurement.LongAdderCounterMeasurement;
 
-public final class LongCounterImpl
-        extends AbstractSettableMetric<LongSupplier, LongCounterMeasurement, LongAdderCounterMeasurement>
+public final class LongCounterImpl extends AbstractSettableMetric<LongSupplier, LongCounterMeasurement>
         implements LongCounter {
 
     public LongCounterImpl(LongCounter.Builder builder) {
@@ -19,18 +18,22 @@ public final class LongCounterImpl
     }
 
     @Override
-    protected void reset(LongAdderCounterMeasurement measurement) {
-        measurement.reset();
-    }
-
-    @Override
     protected LongValueMeasurementSnapshotImpl createMeasurementSnapshot(
-            LongAdderCounterMeasurement measurement, LabelValues dynamicLabelValues) {
+            LongCounterMeasurement measurement, LabelValues dynamicLabelValues) {
         return new LongValueMeasurementSnapshotImpl(dynamicLabelValues);
     }
 
     @Override
-    protected void updateMeasurementSnapshot(LongAdderCounterMeasurement measurement, MeasurementSnapshot snapshot) {
-        ((LongValueMeasurementSnapshotImpl) snapshot).set(measurement.get());
+    protected void updateMeasurementSnapshot(LongCounterMeasurement measurement, MeasurementSnapshot snapshot) {
+        ((LongValueMeasurementSnapshotImpl) snapshot).set(cast(measurement).get());
+    }
+
+    @Override
+    protected void reset(LongCounterMeasurement measurement) {
+        cast(measurement).reset();
+    }
+
+    private LongAdderCounterMeasurement cast(LongCounterMeasurement measurement) {
+        return (LongAdderCounterMeasurement) measurement;
     }
 }

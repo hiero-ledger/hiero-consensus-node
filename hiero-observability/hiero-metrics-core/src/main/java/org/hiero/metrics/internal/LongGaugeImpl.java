@@ -10,8 +10,7 @@ import org.hiero.metrics.internal.core.LabelValues;
 import org.hiero.metrics.internal.export.snapshot.LongValueMeasurementSnapshotImpl;
 import org.hiero.metrics.internal.measurement.AtomicLongGaugeMeasurement;
 
-public final class LongGaugeImpl
-        extends AbstractSettableMetric<LongSupplier, LongGaugeMeasurement, AtomicLongGaugeMeasurement>
+public final class LongGaugeImpl extends AbstractSettableMetric<LongSupplier, LongGaugeMeasurement>
         implements LongGauge {
 
     public LongGaugeImpl(LongGauge.Builder builder) {
@@ -20,17 +19,21 @@ public final class LongGaugeImpl
 
     @Override
     protected LongValueMeasurementSnapshotImpl createMeasurementSnapshot(
-            AtomicLongGaugeMeasurement measurement, LabelValues dynamicLabelValues) {
+            LongGaugeMeasurement measurement, LabelValues dynamicLabelValues) {
         return new LongValueMeasurementSnapshotImpl(dynamicLabelValues);
     }
 
     @Override
-    protected void updateMeasurementSnapshot(AtomicLongGaugeMeasurement measurement, MeasurementSnapshot snapshot) {
-        ((LongValueMeasurementSnapshotImpl) snapshot).set(measurement.get());
+    protected void updateMeasurementSnapshot(LongGaugeMeasurement measurement, MeasurementSnapshot snapshot) {
+        ((LongValueMeasurementSnapshotImpl) snapshot).set(cast(measurement).get());
     }
 
     @Override
-    protected void reset(AtomicLongGaugeMeasurement measurement) {
-        measurement.reset();
+    protected void reset(LongGaugeMeasurement measurement) {
+        cast(measurement).reset();
+    }
+
+    private AtomicLongGaugeMeasurement cast(LongGaugeMeasurement measurement) {
+        return (AtomicLongGaugeMeasurement) measurement;
     }
 }
