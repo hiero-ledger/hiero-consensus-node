@@ -17,9 +17,6 @@ import com.hedera.node.app.service.token.impl.validators.CryptoTransferValidator
 import com.hedera.node.app.spi.fixtures.ids.FakeEntityIdFactoryImpl;
 import com.hedera.node.app.spi.workflows.HandleContext;
 import com.hedera.node.app.spi.workflows.HandleException;
-import com.hedera.node.config.data.AccountsConfig;
-import com.hedera.node.config.data.HooksConfig;
-import com.hedera.node.config.data.LedgerConfig;
 import com.hedera.node.config.testfixtures.HederaTestConfigBuilder;
 import com.swirlds.config.api.Configuration;
 import org.junit.jupiter.api.BeforeEach;
@@ -73,17 +70,8 @@ class CryptoTransferValidatorTest {
                     .tokenTransfers(tokenTransfer)
                     .build();
 
-            final var ledgerConfig = config.getConfigData(com.hedera.node.config.data.LedgerConfig.class);
-            final var accountsConfig = config.getConfigData(com.hedera.node.config.data.AccountsConfig.class);
-            final var hooksConfig = config.getConfigData(com.hedera.node.config.data.HooksConfig.class);
-
             assertThatThrownBy(() -> subject.validateSemantics(
-                            op,
-                            ledgerConfig,
-                            accountsConfig,
-                            hooksConfig,
-                            HandleContext.TransactionCategory.USER,
-                            ACCOUNT_3333))
+                            op, config, HandleContext.TransactionCategory.USER, ACCOUNT_3333))
                     .isInstanceOf(HandleException.class)
                     .has(responseCode(TRANSFER_TO_FEE_COLLECTION_ACCOUNT_NOT_ALLOWED));
         }
@@ -104,17 +92,8 @@ class CryptoTransferValidatorTest {
                     .tokenTransfers(tokenTransfer)
                     .build();
 
-            final var ledgerConfig = config.getConfigData(com.hedera.node.config.data.LedgerConfig.class);
-            final var accountsConfig = config.getConfigData(com.hedera.node.config.data.AccountsConfig.class);
-            final var hooksConfig = config.getConfigData(com.hedera.node.config.data.HooksConfig.class);
-
             assertThatThrownBy(() -> subject.validateSemantics(
-                            op,
-                            ledgerConfig,
-                            accountsConfig,
-                            hooksConfig,
-                            HandleContext.TransactionCategory.USER,
-                            ACCOUNT_3333))
+                            op, config, HandleContext.TransactionCategory.USER, ACCOUNT_3333))
                     .isInstanceOf(HandleException.class)
                     .has(responseCode(TRANSFER_TO_FEE_COLLECTION_ACCOUNT_NOT_ALLOWED));
         }
@@ -139,24 +118,14 @@ class CryptoTransferValidatorTest {
                     .tokenTransfers(tokenTransfer)
                     .build();
 
-            final var ledgerConfig = config.getConfigData(LedgerConfig.class);
-            final var accountsConfig = config.getConfigData(AccountsConfig.class);
-            final var hooksConfig = config.getConfigData(HooksConfig.class);
-
             assertThatCode(() -> subject.validateSemantics(
-                            op,
-                            ledgerConfig,
-                            accountsConfig,
-                            hooksConfig,
-                            HandleContext.TransactionCategory.USER,
-                            ACCOUNT_3333))
+                            op, config, HandleContext.TransactionCategory.USER, ACCOUNT_3333))
                     .doesNotThrowAnyException();
         }
 
         @Test
         @DisplayName("Should allow NFT transfer from fee collection account")
         void allowsNftTransferFromFeeCollectionAccount() {
-            // Given - an NFT transfer from the fee collection account (allowed)
             final var tokenTransfer = TokenTransferList.newBuilder()
                     .token(TOKEN_1234)
                     .nftTransfers(NftTransfer.newBuilder()
@@ -170,28 +139,14 @@ class CryptoTransferValidatorTest {
                     .tokenTransfers(tokenTransfer)
                     .build();
 
-            final var config = HederaTestConfigBuilder.create()
-                    .withValue("accounts.feeCollectionAccount", FEE_COLLECTION_ACCOUNT_NUM)
-                    .getOrCreateConfig();
-            final var ledgerConfig = config.getConfigData(LedgerConfig.class);
-            final var accountsConfig = config.getConfigData(AccountsConfig.class);
-            final var hooksConfig = config.getConfigData(HooksConfig.class);
-
-            // When/Then - should not throw
             assertThatCode(() -> subject.validateSemantics(
-                            op,
-                            ledgerConfig,
-                            accountsConfig,
-                            hooksConfig,
-                            HandleContext.TransactionCategory.USER,
-                            ACCOUNT_3333))
+                            op, config, HandleContext.TransactionCategory.USER, ACCOUNT_3333))
                     .doesNotThrowAnyException();
         }
 
         @Test
         @DisplayName("Should allow transfers between non-fee-collection accounts")
         void allowsTransfersBetweenNonFeeCollectionAccounts() {
-            // Given - a token transfer between regular accounts
             final var tokenTransfer = TokenTransferList.newBuilder()
                     .token(TOKEN_1234)
                     .transfers(
@@ -209,28 +164,14 @@ class CryptoTransferValidatorTest {
                     .tokenTransfers(tokenTransfer)
                     .build();
 
-            final var config = HederaTestConfigBuilder.create()
-                    .withValue("accounts.feeCollectionAccount", FEE_COLLECTION_ACCOUNT_NUM)
-                    .getOrCreateConfig();
-            final var ledgerConfig = config.getConfigData(LedgerConfig.class);
-            final var accountsConfig = config.getConfigData(AccountsConfig.class);
-            final var hooksConfig = config.getConfigData(HooksConfig.class);
-
-            // When/Then - should not throw
             assertThatCode(() -> subject.validateSemantics(
-                            op,
-                            ledgerConfig,
-                            accountsConfig,
-                            hooksConfig,
-                            HandleContext.TransactionCategory.USER,
-                            ACCOUNT_3333))
+                            op, config, HandleContext.TransactionCategory.USER, ACCOUNT_3333))
                     .doesNotThrowAnyException();
         }
 
         @Test
         @DisplayName("Should allow zero amount to fee collection account")
         void allowsZeroAmountToFeeCollectionAccount() {
-            // Given - a token transfer with zero amount to fee collection account
             final var tokenTransfer = TokenTransferList.newBuilder()
                     .token(TOKEN_1234)
                     .transfers(
@@ -248,28 +189,14 @@ class CryptoTransferValidatorTest {
                     .tokenTransfers(tokenTransfer)
                     .build();
 
-            final var config = HederaTestConfigBuilder.create()
-                    .withValue("accounts.feeCollectionAccount", FEE_COLLECTION_ACCOUNT_NUM)
-                    .getOrCreateConfig();
-            final var ledgerConfig = config.getConfigData(LedgerConfig.class);
-            final var accountsConfig = config.getConfigData(AccountsConfig.class);
-            final var hooksConfig = config.getConfigData(HooksConfig.class);
-
-            // When/Then - should not throw (zero amount is not a credit)
             assertThatCode(() -> subject.validateSemantics(
-                            op,
-                            ledgerConfig,
-                            accountsConfig,
-                            hooksConfig,
-                            HandleContext.TransactionCategory.USER,
-                            ACCOUNT_3333))
+                            op, config, HandleContext.TransactionCategory.USER, ACCOUNT_3333))
                     .doesNotThrowAnyException();
         }
 
         @Test
         @DisplayName("Should allow empty token transfers")
         void allowsEmptyTokenTransfers() {
-            // Given - no token transfers
             final var op = CryptoTransferTransactionBody.newBuilder()
                     .transfers(TransferList.newBuilder()
                             .accountAmounts(
@@ -284,22 +211,48 @@ class CryptoTransferValidatorTest {
                             .build())
                     .build();
 
-            final var config = HederaTestConfigBuilder.create()
-                    .withValue("accounts.feeCollectionAccount", FEE_COLLECTION_ACCOUNT_NUM)
-                    .getOrCreateConfig();
-            final var ledgerConfig = config.getConfigData(LedgerConfig.class);
-            final var accountsConfig = config.getConfigData(AccountsConfig.class);
-            final var hooksConfig = config.getConfigData(HooksConfig.class);
-
-            // When/Then - should not throw
             assertThatCode(() -> subject.validateSemantics(
-                            op,
-                            ledgerConfig,
-                            accountsConfig,
-                            hooksConfig,
-                            HandleContext.TransactionCategory.USER,
-                            ACCOUNT_3333))
+                            op, config, HandleContext.TransactionCategory.USER, ACCOUNT_3333))
                     .doesNotThrowAnyException();
+        }
+
+        @Test
+        @DisplayName("Should reject multiple token transfers where one credits fee collection account")
+        void rejectsMultipleTokenTransfersWithFeeCollectionCredit() {
+            final var validTransfer = TokenTransferList.newBuilder()
+                    .token(TOKEN_1234)
+                    .transfers(
+                            AccountAmount.newBuilder()
+                                    .accountID(ACCOUNT_3333)
+                                    .amount(-50L)
+                                    .build(),
+                            AccountAmount.newBuilder()
+                                    .accountID(ACCOUNT_4444)
+                                    .amount(50L)
+                                    .build())
+                    .build();
+
+            final var invalidTransfer = TokenTransferList.newBuilder()
+                    .token(TokenID.newBuilder().tokenNum(5678).build())
+                    .transfers(
+                            AccountAmount.newBuilder()
+                                    .accountID(ACCOUNT_3333)
+                                    .amount(-100L)
+                                    .build(),
+                            AccountAmount.newBuilder()
+                                    .accountID(FEE_COLLECTION_ACCOUNT)
+                                    .amount(100L)
+                                    .build())
+                    .build();
+
+            final var op = CryptoTransferTransactionBody.newBuilder()
+                    .tokenTransfers(validTransfer, invalidTransfer)
+                    .build();
+
+            assertThatThrownBy(() -> subject.validateSemantics(
+                            op, config, HandleContext.TransactionCategory.USER, ACCOUNT_3333))
+                    .isInstanceOf(HandleException.class)
+                    .has(responseCode(TRANSFER_TO_FEE_COLLECTION_ACCOUNT_NOT_ALLOWED));
         }
     }
 }

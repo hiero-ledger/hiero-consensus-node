@@ -249,6 +249,7 @@ public class CryptoTransferValidator {
 
         // The loop below will validate the counts for token transfers (both fungible and non-fungible)
         final var tokenTransfers = op.tokenTransfers();
+        final var feeCollectionAccount = entityIdFactory.newAccountId(accountsConfig.feeCollectionAccount());
         var totalFungibleTransfers = 0;
         var totalNftTransfers = 0;
         for (final TokenTransferList tokenTransfer : tokenTransfers) {
@@ -266,7 +267,6 @@ public class CryptoTransferValidator {
                     TOKEN_TRANSFER_LIST_SIZE_LIMIT_EXCEEDED);
             // Verify that the current total number of (counted) nft transfers does not exceed the limit
             validateTrue(totalNftTransfers <= ledgerConfig.nftTransfersMaxLen(), BATCH_SIZE_LIMIT_EXCEEDED);
-            final var feeCollectionAccount = entityIdFactory.newAccountId(accountsConfig.feeCollectionAccount());
             //  Verify that no credits are going to the fee collection account.
             //  We validate hbar transfers in AdjustHbarChangesStep
             validateNoCreditsToFeeCollectionAccount(tokenTransfer, feeCollectionAccount);
