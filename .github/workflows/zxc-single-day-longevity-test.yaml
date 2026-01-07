@@ -137,7 +137,7 @@ jobs:
           if [ "${{ inputs.perf_analysis }}" == "true" ]
           then
             git clone https://"${{ secrets.perf_ghp }}"@github.com/hashgraph/pbj.git pbj
-            git clone --branch 24.3.3 --single-branch https://github.com/hyperledger/besu.git besu
+            git clone --branch 25.2.2 --single-branch https://github.com/hyperledger/besu.git besu
           fi
 
       - name: Check Test Asset
