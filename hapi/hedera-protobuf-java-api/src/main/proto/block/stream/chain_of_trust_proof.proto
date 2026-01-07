@@ -54,8 +54,7 @@ message AggregatedNodeSignatures {
    */
   repeated uint64 signing_node_ids = 2;
   /**
-   * The hinTS key that this signature verifies under; a stream consumer should
-   * only use this key after first checking the chain of trust proof.
+   * The hinTS key that this signature witnesses.
    */
   bytes verification_key = 3;
 }
