@@ -1291,23 +1291,6 @@ public class VirtualMapStateTest extends MerkleTestBase {
     }
 
     @Test
-    @DisplayName("putBytes/getBytes/remove passthrough to VirtualMap")
-    void testBytesPassthrough() {
-        // Given
-        final Bytes key = ProtoBytes.PROTOBUF.toBytes(A_KEY);
-        final Bytes value = ProtoBytes.PROTOBUF.toBytes(APPLE);
-
-        // When
-        virtualMapState.putBytes(key, value);
-        final Bytes read = virtualMapState.getBytes(key);
-        assertThat(read).isEqualTo(value);
-
-        virtualMapState.remove(key);
-        final Bytes afterRemove = virtualMapState.getBytes(key);
-        assertThat(afterRemove).isNull();
-    }
-
-    @Test
     @DisplayName("isHashed is false before hashing and true after computing hash")
     void testIsHashed() {
         // Initially should be false

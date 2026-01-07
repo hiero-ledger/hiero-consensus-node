@@ -1144,28 +1144,4 @@ public class VirtualMapState implements MerkleNodeState {
 
         return value;
     }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void putBytes(@NonNull Bytes key, @NonNull Bytes value) {
-        virtualMap.putBytes(key, value);
-    }
-
-    /**
-     *  {@inheritDoc}
-     */
-    @Override
-    public Bytes getBytes(@NonNull Bytes key) {
-        return virtualMap.getBytes(key);
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public void remove(@NonNull Bytes key) {
-        virtualMap.remove(key);
-    }
 }

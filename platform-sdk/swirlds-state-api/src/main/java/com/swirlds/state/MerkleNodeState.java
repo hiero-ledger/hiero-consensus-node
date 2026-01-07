@@ -17,7 +17,6 @@ import org.hiero.base.crypto.Hash;
  * <ul>
  *     <li> codec-based State API, as used by execution </li>
  *     <li> protobuf binary states API supporting notions of singletons, queues, and key-value pairs</li>
- *     <li> pure binary API working with raw bytes </li>
  * </ul>
  */
 public interface MerkleNodeState extends State {
@@ -263,34 +262,4 @@ public interface MerkleNodeState extends State {
      */
     @Nullable
     Bytes queuePop(int stateId);
-
-    //
-    // The following block of methods is for the low-level API working with raw bytes key-value pairs.
-    //
-
-    /**
-     * Puts the key/value pair represented as bytes into the state. The key must not be null, but the value
-     * may be null. If the entry was already in the state, the value is replaced. If the mapping was not in the state, then a new entry is made.
-     *
-     * @param key
-     * 		the key bytes, cannot be null.
-     * @param value
-     * 		the value bytes, may be null.
-     */
-    void putBytes(@NonNull final Bytes key, @NonNull final Bytes value);
-
-    /**
-     * Gets the value associated with the given key as raw bytes.
-     *
-     * @param key The key. This must not be null.
-     * @return The value bytes. The value may be null.
-     */
-    Bytes getBytes(@NonNull final Bytes key);
-
-    /**
-     * Removes the key/value pair denoted by the given key from the state. Has no effect
-     * if the key didn't exist.
-     * @param key The key to remove, must not be null
-     */
-    void remove(@NonNull final Bytes key);
 }

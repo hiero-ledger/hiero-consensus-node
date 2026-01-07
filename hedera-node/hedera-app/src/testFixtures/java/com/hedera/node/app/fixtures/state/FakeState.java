@@ -336,21 +336,6 @@ public class FakeState implements MerkleNodeState {
     }
 
     @Override
-    public void putBytes(@NonNull Bytes key, @NonNull Bytes value) {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public Bytes getBytes(@NonNull Bytes key) {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public void remove(@NonNull Bytes key) {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
     public void initializeState(@NonNull final StateMetadata<?, ?> md) {
         throw new UnsupportedOperationException();
     }
