@@ -495,9 +495,15 @@ enum StateIdentifier {
      */
     STATE_ID_CLPR_LEDGER_CONFIGURATIONS = 56;
 
-    STATE_ID_CLPR_MESSAGE_QUEUE_METADATA = 56;
+    /**
+     * A state identifier for CLPR message queue metadata. Key/value state.
+     */
+    STATE_ID_CLPR_MESSAGE_QUEUE_METADATA = 57;
 
-    STATE_ID_CLPR_MESSAGES = 57;
+    /**
+     * A state identifier for CLPR messages.
+     */
+    STATE_ID_CLPR_MESSAGES = 58;
 
     /**
      * A state identifier for the round receipts queue. Queue state.
@@ -941,6 +947,11 @@ message MapChangeKey {
          * A CLPR ledger identifier key.
          */
         org.hiero.hapi.interledger.state.clpr.ClprLedgerId clpr_ledger_id_key = 30;
+
+        /**
+         * A CLPR message key.
+         */
+        org.hiero.hapi.interledger.state.clpr.ClprMessageKey clpr_message_key = 31;
     }
 }
 
@@ -1127,7 +1138,15 @@ message MapChangeValue {
          */
         org.hiero.hapi.interledger.state.clpr.ClprLedgerConfiguration clpr_ledger_configuration_value = 32;
 
+        /**
+         * A CLPR message queue metadata value.
+         */
         org.hiero.hapi.interledger.state.clpr.ClprMessageQueueMetadata clpr_message_queue_metadata_value = 33;
+
+        /**
+         * A CLPR message value.
+         */
+        org.hiero.hapi.interledger.state.clpr.ClprMessageValue clpr_message_value = 34;
     }
 }
 

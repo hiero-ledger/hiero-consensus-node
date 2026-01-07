@@ -62,6 +62,8 @@ import java.util.List;
 import java.util.Set;
 import org.hiero.hapi.interledger.state.clpr.ClprLedgerConfiguration;
 import org.hiero.hapi.interledger.state.clpr.ClprLedgerId;
+import org.hiero.hapi.interledger.state.clpr.ClprMessageKey;
+import org.hiero.hapi.interledger.state.clpr.ClprMessageValue;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -258,6 +260,12 @@ class ImmediateStateChangeListenerTest {
                                 StateIdentifier.STATE_ID_EVM_HOOK_STORAGE.protoOrdinal(),
                                 EvmHookSlotKey.DEFAULT,
                                 SlotValue.DEFAULT);
+
+                    case CLPR_MESSAGE_KEY ->
+                        new MapUpdateScenario<>(
+                                StateIdentifier.STATE_ID_CLPR_MESSAGES.protoOrdinal(),
+                                ClprMessageKey.DEFAULT,
+                                ClprMessageValue.DEFAULT);
                 };
         if (scenario != null) {
             assertDoesNotThrow(() -> listener.mapUpdateChange(scenario.stateId, scenario.key, scenario.value));
