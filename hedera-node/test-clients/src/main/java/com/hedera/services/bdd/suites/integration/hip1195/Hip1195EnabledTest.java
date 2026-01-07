@@ -54,6 +54,7 @@ import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.INVALID_SIGNAT
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.MAX_GAS_LIMIT_EXCEEDED;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK;
 import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.SUCCESS;
+import static com.hederahashgraph.api.proto.java.ResponseCodeEnum.TOO_MANY_HOOK_INVOCATIONS;
 import static com.hederahashgraph.api.proto.java.TokenType.NON_FUNGIBLE_UNIQUE;
 import static org.hiero.base.utility.CommonUtils.unhex;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -1248,5 +1249,57 @@ public class Hip1195EnabledTest {
                             .via("onlyOwner2ByNonOwner");
                     allRunFor(spec, op1, op2);
                 }));
+    }
+
+    /**
+     * Verifies that exceeding the maximum number of hook invocations per transaction
+     * (default 10) fails with TOO_MANY_HOOK_INVOCATIONS.
+     * Each pre-only hook counts as 1 invocation, each pre+post hook counts as 2.
+     */
+    @LeakyHapiTest(overrides = {"contracts.maxGasPerTransaction"})
+    final Stream<DynamicTest> tooManyHookInvocationsFails() {
+        return hapiTest(
+                overriding("contracts.maxGasPerTransaction", "15000000"),
+                cryptoCreate(PAYER).balance(100 * THOUSAND_HBAR),
+                // Create accounts with hooks - each pre+post hook counts as 2 invocations
+                cryptoCreate("owner1").withHooks(accountAllowanceHook(1L, TRUE_PRE_POST_ALLOWANCE_HOOK.name())),
+                cryptoCreate("owner2").withHooks(accountAllowanceHook(2L, TRUE_PRE_POST_ALLOWANCE_HOOK.name())),
+                cryptoCreate("owner3").withHooks(accountAllowanceHook(3L, TRUE_PRE_POST_ALLOWANCE_HOOK.name())),
+                cryptoCreate("owner4").withHooks(accountAllowanceHook(4L, TRUE_PRE_POST_ALLOWANCE_HOOK.name())),
+                cryptoCreate("owner5").withHooks(accountAllowanceHook(5L, TRUE_PRE_POST_ALLOWANCE_HOOK.name())),
+                cryptoCreate("owner6").withHooks(accountAllowanceHook(6L, TRUE_PRE_POST_ALLOWANCE_HOOK.name())),
+                // 5 pre+post hooks = 10 invocations, should succeed
+                cryptoTransfer(
+                                movingHbar(1).between("owner1", GENESIS),
+                                movingHbar(1).between("owner2", GENESIS),
+                                movingHbar(1).between("owner3", GENESIS),
+                                movingHbar(1).between("owner4", GENESIS),
+                                movingHbar(1).between("owner5", GENESIS))
+                        .withPrePostHookFor("owner1", 1L, 25_000L, "")
+                        .withPrePostHookFor("owner2", 2L, 25_000L, "")
+                        .withPrePostHookFor("owner3", 3L, 25_000L, "")
+                        .withPrePostHookFor("owner4", 4L, 25_000L, "")
+                        .withPrePostHookFor("owner5", 5L, 25_000L, "")
+                        .payingWith(PAYER)
+                        .signedBy(PAYER)
+                        .via("exactlyMaxHooks"),
+                getTxnRecord("exactlyMaxHooks").logged(),
+                // 6 pre+post hooks = 12 invocations, should fail
+                cryptoTransfer(
+                                movingHbar(1).between("owner1", GENESIS),
+                                movingHbar(1).between("owner2", GENESIS),
+                                movingHbar(1).between("owner3", GENESIS),
+                                movingHbar(1).between("owner4", GENESIS),
+                                movingHbar(1).between("owner5", GENESIS),
+                                movingHbar(1).between("owner6", GENESIS))
+                        .withPrePostHookFor("owner1", 1L, 25_000L, "")
+                        .withPrePostHookFor("owner2", 2L, 25_000L, "")
+                        .withPrePostHookFor("owner3", 3L, 25_000L, "")
+                        .withPrePostHookFor("owner4", 4L, 25_000L, "")
+                        .withPrePostHookFor("owner5", 5L, 25_000L, "")
+                        .withPrePostHookFor("owner6", 6L, 25_000L, "")
+                        .payingWith(PAYER)
+                        .signedBy(PAYER)
+                        .hasKnownStatus(TOO_MANY_HOOK_INVOCATIONS));
     }
 }
