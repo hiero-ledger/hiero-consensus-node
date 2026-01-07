@@ -1191,8 +1191,8 @@ public class VirtualMapStateTest extends MerkleTestBase {
     }
 
     @Test
-    @DisplayName("mapValue returns value for existing key and null for missing key")
-    void testMapValue() {
+    @DisplayName("getKv returns value for existing key and null for missing key")
+    void testGetKv() {
         setupFruitVirtualMap();
         final VirtualMap vm = (VirtualMap) virtualMapState.getRoot();
 
@@ -1200,8 +1200,8 @@ public class VirtualMapStateTest extends MerkleTestBase {
 
         virtualMapState.initializeState(fruitMetadata);
 
-        final Bytes found = virtualMapState.mapValue(FRUIT_STATE_ID, ProtoBytes.PROTOBUF.toBytes(A_KEY));
-        final Bytes missing = virtualMapState.mapValue(FRUIT_STATE_ID, ProtoBytes.PROTOBUF.toBytes(B_KEY));
+        final Bytes found = virtualMapState.getKv(FRUIT_STATE_ID, ProtoBytes.PROTOBUF.toBytes(A_KEY));
+        final Bytes missing = virtualMapState.getKv(FRUIT_STATE_ID, ProtoBytes.PROTOBUF.toBytes(B_KEY));
 
         // Then
         assertThat(found).isEqualTo(ProtoBytes.PROTOBUF.toBytes(APPLE));
@@ -1218,9 +1218,9 @@ public class VirtualMapStateTest extends MerkleTestBase {
         virtualMapState.initializeState(countryMetadata);
 
         // When
-        final Bytes value = virtualMapState.singleton(COUNTRY_STATE_ID);
-        final Bytes invalidNegative = virtualMapState.singleton(-1);
-        final Bytes invalidLarge = virtualMapState.singleton(999_999);
+        final Bytes value = virtualMapState.getSingleton(COUNTRY_STATE_ID);
+        final Bytes invalidNegative = virtualMapState.getSingleton(-1);
+        final Bytes invalidLarge = virtualMapState.getSingleton(999_999);
 
         // Then
         assertThat(value).isEqualTo(ProtoBytes.PROTOBUF.toBytes(GHANA));
@@ -1229,13 +1229,12 @@ public class VirtualMapStateTest extends MerkleTestBase {
     }
 
     @Test
-    @DisplayName("queueState returns empty when not present and parses head/tail when present")
-    void testQueueStateAccessor() {
+    @DisplayName("getQueueState returns null when not present and parses head/tail when present")
+    void testGetQueueStateAccessor() {
         setupSteamQueue();
 
-        final QueueState empty = virtualMapState.queueState(STEAM_STATE_ID);
-        assertThat(empty.head()).isEqualTo(0L);
-        assertThat(empty.tail()).isEqualTo(0L);
+        final QueueState empty = virtualMapState.getQueueState(STEAM_STATE_ID);
+        assertThat(empty).isNull();
 
         virtualMapState.initializeState(steamMetadata);
         final WritableStates writable = virtualMapState.getWritableStates(FIRST_SERVICE);
@@ -1243,7 +1242,7 @@ public class VirtualMapStateTest extends MerkleTestBase {
         writable.getQueue(STEAM_STATE_ID).add(BIOLOGY);
         ((CommittableWritableStates) writable).commit();
 
-        final QueueState state = virtualMapState.queueState(STEAM_STATE_ID);
+        final QueueState state = virtualMapState.getQueueState(STEAM_STATE_ID);
         // Queue indices are 1-based when populated
         assertThat(state.head()).isEqualTo(1L);
         assertThat(state.tail()).isEqualTo(3L);
@@ -1291,6 +1290,18 @@ public class VirtualMapStateTest extends MerkleTestBase {
     }
 
     @Test
+    @DisplayName("queue peek methods return null when queue state is missing")
+    void testQueuePeekWhenQueueStateMissing() {
+        // Given a queue definition but no initialization/commits yet
+        setupSteamQueue();
+
+        // Then peeks should all return null rather than throwing
+        assertThat(virtualMapState.queuePeekHead(STEAM_STATE_ID)).isNull();
+        assertThat(virtualMapState.queuePeekTail(STEAM_STATE_ID)).isNull();
+        assertThat(virtualMapState.queuePeek(STEAM_STATE_ID, 1)).isNull();
+    }
+
+    @Test
     @DisplayName("isHashed is false before hashing and true after computing hash")
     void testIsHashed() {
         // Initially should be false
@@ -1312,7 +1323,7 @@ public class VirtualMapStateTest extends MerkleTestBase {
         virtualMapState.updateSingleton(COUNTRY_STATE_ID, ProtoBytes.PROTOBUF.toBytes(GHANA));
 
         // Then
-        final Bytes value = virtualMapState.singleton(COUNTRY_STATE_ID);
+        final Bytes value = virtualMapState.getSingleton(COUNTRY_STATE_ID);
         assertThat(value).isEqualTo(ProtoBytes.PROTOBUF.toBytes(GHANA));
         assertThat(virtualMapState.singletonPath(COUNTRY_STATE_ID)).isNotEqualTo(INVALID_PATH);
     }
@@ -1327,21 +1338,21 @@ public class VirtualMapStateTest extends MerkleTestBase {
         // Insert
         virtualMapState.updateKv(
                 FRUIT_STATE_ID, ProtoBytes.PROTOBUF.toBytes(A_KEY), ProtoBytes.PROTOBUF.toBytes(APPLE));
-        assertThat(virtualMapState.mapValue(FRUIT_STATE_ID, ProtoBytes.PROTOBUF.toBytes(A_KEY)))
+        assertThat(virtualMapState.getKv(FRUIT_STATE_ID, ProtoBytes.PROTOBUF.toBytes(A_KEY)))
                 .isEqualTo(ProtoBytes.PROTOBUF.toBytes(APPLE));
 
         // Update with null -> remove
         virtualMapState.updateKv(FRUIT_STATE_ID, ProtoBytes.PROTOBUF.toBytes(A_KEY), null);
-        assertThat(virtualMapState.mapValue(FRUIT_STATE_ID, ProtoBytes.PROTOBUF.toBytes(A_KEY)))
+        assertThat(virtualMapState.getKv(FRUIT_STATE_ID, ProtoBytes.PROTOBUF.toBytes(A_KEY)))
                 .isNull();
 
         // Insert again and removeKv
         virtualMapState.updateKv(
                 FRUIT_STATE_ID, ProtoBytes.PROTOBUF.toBytes(B_KEY), ProtoBytes.PROTOBUF.toBytes(BANANA));
-        assertThat(virtualMapState.mapValue(FRUIT_STATE_ID, ProtoBytes.PROTOBUF.toBytes(B_KEY)))
+        assertThat(virtualMapState.getKv(FRUIT_STATE_ID, ProtoBytes.PROTOBUF.toBytes(B_KEY)))
                 .isEqualTo(ProtoBytes.PROTOBUF.toBytes(BANANA));
         virtualMapState.removeKv(FRUIT_STATE_ID, ProtoBytes.PROTOBUF.toBytes(B_KEY));
-        assertThat(virtualMapState.mapValue(FRUIT_STATE_ID, ProtoBytes.PROTOBUF.toBytes(B_KEY)))
+        assertThat(virtualMapState.getKv(FRUIT_STATE_ID, ProtoBytes.PROTOBUF.toBytes(B_KEY)))
                 .isNull();
     }
 
@@ -1353,30 +1364,29 @@ public class VirtualMapStateTest extends MerkleTestBase {
         virtualMapState.initializeState(steamMetadata);
 
         // Initially empty
-        assertThat(virtualMapState.queueState(STEAM_STATE_ID).head()).isEqualTo(0L);
-        assertThat(virtualMapState.queueState(STEAM_STATE_ID).tail()).isEqualTo(0L);
+        assertThat(virtualMapState.getQueueState(STEAM_STATE_ID)).isNull();
 
         // Push two elements
         virtualMapState.queuePush(STEAM_STATE_ID, ProtoBytes.PROTOBUF.toBytes(ART));
-        var stateAfterFirst = virtualMapState.queueState(STEAM_STATE_ID);
+        var stateAfterFirst = virtualMapState.getQueueState(STEAM_STATE_ID);
         assertThat(stateAfterFirst.head()).isEqualTo(1L);
         assertThat(stateAfterFirst.tail()).isEqualTo(2L);
 
         virtualMapState.queuePush(STEAM_STATE_ID, ProtoBytes.PROTOBUF.toBytes(BIOLOGY));
-        var stateAfterSecond = virtualMapState.queueState(STEAM_STATE_ID);
+        var stateAfterSecond = virtualMapState.getQueueState(STEAM_STATE_ID);
         assertThat(stateAfterSecond.head()).isEqualTo(1L);
         assertThat(stateAfterSecond.tail()).isEqualTo(3L);
 
         // Pop in order
         final Bytes first = virtualMapState.queuePop(STEAM_STATE_ID);
         assertThat(first).isEqualTo(ProtoBytes.PROTOBUF.toBytes(ART));
-        var stateAfterPop1 = virtualMapState.queueState(STEAM_STATE_ID);
+        var stateAfterPop1 = virtualMapState.getQueueState(STEAM_STATE_ID);
         assertThat(stateAfterPop1.head()).isEqualTo(2L);
         assertThat(stateAfterPop1.tail()).isEqualTo(3L);
 
         final Bytes second = virtualMapState.queuePop(STEAM_STATE_ID);
         assertThat(second).isEqualTo(ProtoBytes.PROTOBUF.toBytes(BIOLOGY));
-        var stateAfterPop2 = virtualMapState.queueState(STEAM_STATE_ID);
+        var stateAfterPop2 = virtualMapState.getQueueState(STEAM_STATE_ID);
         assertThat(stateAfterPop2.head()).isEqualTo(3L);
         assertThat(stateAfterPop2.tail()).isEqualTo(3L);
 

@@ -301,17 +301,17 @@ public class FakeState implements MerkleNodeState {
     }
 
     @Override
-    public @Nullable Bytes mapValue(int stateId, @NonNull Bytes key) {
+    public @Nullable Bytes getKv(int stateId, @NonNull Bytes key) {
         throw new UnsupportedOperationException();
     }
 
     @Override
-    public @Nullable Bytes singleton(int singletonId) {
+    public @Nullable Bytes getSingleton(int singletonId) {
         throw new UnsupportedOperationException();
     }
 
     @Override
-    public QueueState queueState(int stateId) {
+    public QueueState getQueueState(int stateId) {
         throw new UnsupportedOperationException();
     }
 

@@ -159,7 +159,7 @@ public interface MerkleNodeState extends State {
      * @throws IllegalArgumentException if the stateId is not valid
      */
     @Nullable
-    Bytes mapValue(final int stateId, @NonNull final Bytes key);
+    Bytes getKv(final int stateId, @NonNull final Bytes key);
 
     /**
      * Get a singleton value from the latest state version
@@ -169,7 +169,7 @@ public interface MerkleNodeState extends State {
      * @throws IllegalArgumentException if the singletonId is not valid
      */
     @Nullable
-    Bytes singleton(final int singletonId);
+    Bytes getSingleton(final int singletonId);
 
     /**
      * Get a queue state from the latest state version
@@ -178,7 +178,7 @@ public interface MerkleNodeState extends State {
      * @return the queue state, which has the indexes of head and tail
      * @throws IllegalArgumentException if the stateId is not valid or not a queue type
      */
-    QueueState queueState(final int stateId);
+    QueueState getQueueState(final int stateId);
 
     /**
      * Peek at head element in a queue from the latest state version
@@ -200,7 +200,7 @@ public interface MerkleNodeState extends State {
 
     /**
      * Peek at element at index in a queue from the latest state version. Index has to be between the head and the tail
-     * inclusive. To find the head and tail indexes use {@link #queueState(int)}
+     * inclusive. To find the head and tail indexes use {@link #getQueueState(int)}
      *
      * @param stateId the state ID of the queue state
      * @param index the index to peek at
@@ -211,6 +211,8 @@ public interface MerkleNodeState extends State {
 
     /**
      * Get all elements in a queue from the latest state version as a list. The list will be ordered from head to tail.
+     * <br/>
+     * <b>WARNING</b>: This method may be expensive and slow for large queues.
      *
      * @param stateId the state ID of the queue state
      * @return the list of binary protobuf encoded values in the queue

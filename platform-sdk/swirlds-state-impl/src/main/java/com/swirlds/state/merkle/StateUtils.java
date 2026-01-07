@@ -1,10 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.swirlds.state.merkle;
 
+import static com.hedera.pbj.runtime.ProtoConstants.WIRE_TYPE_DELIMITED;
+import static com.hedera.pbj.runtime.ProtoParserTools.TAG_FIELD_OFFSET;
+import static com.hedera.pbj.runtime.ProtoWriterTools.sizeOfVarInt32;
 import static com.swirlds.state.merkle.StateKeyUtils.kvKey;
 
 import com.hedera.pbj.runtime.Codec;
 import com.hedera.pbj.runtime.ParseException;
+import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
 import com.hedera.pbj.runtime.io.stream.ReadableStreamingData;
 import com.hedera.pbj.runtime.io.stream.WritableStreamingData;
@@ -163,5 +167,24 @@ public final class StateUtils {
      */
     public static <V> StateValue<V> getStateValueForKv(final int stateId, final V value) {
         return new StateValue<>(stateId, value);
+    }
+
+    /**
+     * Wrap raw value bytes into a StateValue oneof for the given stateId.
+     */
+    static Bytes wrapValue(final int stateId, @NonNull final Bytes rawValue) {
+        // Build a protobuf StateValue message with a single length-delimited field number = stateId
+        final int tag = (stateId << TAG_FIELD_OFFSET) | WIRE_TYPE_DELIMITED.ordinal();
+        final int valueLength = (int) rawValue.length();
+        final int tagSize = sizeOfVarInt32(tag);
+        final int valueSize = sizeOfVarInt32(valueLength);
+        final int total = tagSize + valueSize + valueLength;
+        final byte[] buffer = new byte[total];
+        final BufferedData out = BufferedData.wrap(buffer);
+        out.writeVarInt(tag, false);
+        out.writeVarInt(valueLength, false);
+        final int offset = (int) out.position();
+        rawValue.writeTo(buffer, offset);
+        return Bytes.wrap(buffer);
     }
 }
