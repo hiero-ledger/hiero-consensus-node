@@ -8,6 +8,9 @@ import static org.hiero.hapi.fees.FeeScheduleUtils.makeService;
 import static org.hiero.hapi.fees.FeeScheduleUtils.makeServiceFee;
 import static org.mockito.Mockito.lenient;
 
+import com.hedera.hapi.node.addressbook.NodeCreateTransactionBody;
+import com.hedera.hapi.node.addressbook.NodeDeleteTransactionBody;
+import com.hedera.hapi.node.addressbook.NodeUpdateTransactionBody;
 import com.hedera.hapi.node.base.HederaFunctionality;
 import com.hedera.hapi.node.transaction.TransactionBody;
 import com.hedera.node.app.service.addressbook.impl.calculator.NodeCreateFeeCalculator;
@@ -34,6 +37,19 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class AddressBookFeeCalculatorsTest {
+    // describe expected fees
+    private static final long NODE_CREATE_NODE_FEE = 100_000L;
+    private static final long NODE_CREATE_NETWORK_FEE = 123_000_000L;
+    private static final long NODE_CREATE_SERVICE_FEE = 200_000L;
+
+    private static final long NODE_UPDATE_NODE_FEE = 1_100_000L;
+    private static final long NODE_UPDATE_NETWORK_FEE = 234_000_000L;
+    private static final long NODE_UPDATE_SERVICE_FEE = 2_200_000L;
+
+    private static final long NODE_DELETE_NODE_FEE = 100_000L;
+    private static final long NODE_DELETE_NETWORK_FEE = 345_000_000L;
+    private static final long NODE_DELETE_SERVICE_FEE = 200_000L;
+
     @Mock
     private FeeContext feeContext;
 
@@ -52,33 +68,33 @@ class AddressBookFeeCalculatorsTest {
                 new TestCase(
                         new NodeCreateFeeCalculator(),
                         TransactionBody.newBuilder()
-                                .nodeCreate(com.hedera.hapi.node.addressbook.NodeCreateTransactionBody.newBuilder()
-                                        .build())
+                                .nodeCreate(
+                                        NodeCreateTransactionBody.newBuilder().build())
                                 .build(),
                         1,
-                        100000L,
-                        123000000L,
-                        200000L),
+                        NODE_CREATE_NODE_FEE,
+                        NODE_CREATE_NETWORK_FEE,
+                        NODE_CREATE_SERVICE_FEE),
                 new TestCase(
                         new NodeUpdateFeeCalculator(),
                         TransactionBody.newBuilder()
-                                .nodeUpdate(com.hedera.hapi.node.addressbook.NodeUpdateTransactionBody.newBuilder()
-                                        .build())
+                                .nodeUpdate(
+                                        NodeUpdateTransactionBody.newBuilder().build())
                                 .build(),
                         2,
-                        1100000L,
-                        234000000L,
-                        2200000L),
+                        NODE_UPDATE_NODE_FEE,
+                        NODE_UPDATE_NETWORK_FEE,
+                        NODE_UPDATE_SERVICE_FEE),
                 new TestCase(
                         new NodeDeleteFeeCalculator(),
                         TransactionBody.newBuilder()
-                                .nodeDelete(com.hedera.hapi.node.addressbook.NodeDeleteTransactionBody.newBuilder()
-                                        .build())
+                                .nodeDelete(
+                                        NodeDeleteTransactionBody.newBuilder().build())
                                 .build(),
                         1,
-                        100000L,
-                        345000000L,
-                        200000L));
+                        NODE_DELETE_NODE_FEE,
+                        NODE_DELETE_NETWORK_FEE,
+                        NODE_DELETE_SERVICE_FEE));
     }
 
     @ParameterizedTest(name = "{index}: {0}")
