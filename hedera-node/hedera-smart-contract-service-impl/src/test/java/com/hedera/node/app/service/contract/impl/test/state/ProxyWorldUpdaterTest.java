@@ -500,13 +500,13 @@ class ProxyWorldUpdaterTest {
 
     @Test
     void setAccountCodeDelegationTest() {
-        subject.setAccountCodeDelegationIndicator(accountID, Address.ZERO);
+        subject.setAccountCodeDelegation(accountID, Address.ZERO);
         verify(subject.enhancement().operations()).setAccountCodeDelegation(accountID, Address.ZERO);
     }
 
     @Test
-    void createAccountWithCodeDelegationIndicatorTest() {
-        subject.createAccountWithCodeDelegationIndicator(SOME_EVM_ADDRESS, Address.ZERO);
+    void createAccountWithCodeDelegationTest() {
+        subject.createAccountWithCodeDelegation(SOME_EVM_ADDRESS, Address.ZERO);
         verify(evmFrameState).tryLazyCreation(SOME_EVM_ADDRESS, Address.ZERO);
     }
 }

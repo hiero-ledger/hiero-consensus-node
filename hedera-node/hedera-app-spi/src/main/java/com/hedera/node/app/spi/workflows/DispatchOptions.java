@@ -180,42 +180,6 @@ public record DispatchOptions<T extends StreamBuilder>(
     }
 
     /**
-     * Returns options for a dispatch that is logically independent of the parent dispatch but should still produce a child record.
-     * Use cases include,
-     * <ul>
-     *     <li>Updating the delegation indicator for an account</li>
-     *     <li>Creating a new account that includes a delegation indicator</li>
-     * </ul>
-     * Using this type as setting code authorization on an account is independent of the parent transaction,
-     * but we still want to have a record of it as a child record.  It seems unlikely that other use cases will arise for this type of dispatch.
-     *
-     * @param payerId the account to pay for the dispatch
-     * @param body the transaction to dispatch
-     * @param streamBuilderType the type of stream builder to use for the dispatch
-     * @return the options for the setup dispatch
-     * @param <T> the type of stream builder to use for the dispatch
-     */
-    public static <T extends StreamBuilder> DispatchOptions<T> independentChildDispatch(
-            @NonNull final AccountID payerId,
-            @NonNull final TransactionBody body,
-            @NonNull final Class<T> streamBuilderType) {
-        return new DispatchOptions<>(
-                Commit.IMMEDIATELY,
-                payerId,
-                body,
-                UsePresetTxnId.NO,
-                PREAUTHORIZED_KEYS,
-                emptySet(),
-                TransactionCategory.CHILD,
-                ConsensusThrottling.OFF,
-                streamBuilderType,
-                ReversingBehavior.IRREVERSIBLE,
-                NOOP_SIGNED_TX_CUSTOMIZER,
-                EMPTY_METADATA,
-                UNIVERSAL_NOOP_FEE_CHARGING);
-    }
-
-    /**
      * Returns options for a dispatch that is part of the parent dispatch's transactional unit, but in a setup role
      * that logically precedes the parent transaction's effects. Use cases include,
      * <ul>

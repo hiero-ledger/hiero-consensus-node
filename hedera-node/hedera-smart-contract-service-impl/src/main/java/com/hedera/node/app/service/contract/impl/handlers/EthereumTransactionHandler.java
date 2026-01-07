@@ -120,13 +120,13 @@ public class EthereumTransactionHandler extends AbstractContractTransactionHandl
             // Ensure that type 4 transactions have at least one authorization in the list
             if (ethTxData.type().equals(EthTransactionType.EIP7702)) {
                 validateTruePreCheck(
-                        ethTxData.authorizationList() != null && ethTxData.authorizationList().length > 0,
+                        ethTxData.authorizationList() != null && ethTxData.authorizationListAsRlp().length > 0,
                         INVALID_ETHEREUM_TRANSACTION);
                 // parse the inner code delegations to ensure they are valid
                 parseInnerCodeDelegations(ethTxData);
             }
             final var authorizationListSize =
-                    ethTxData.authorizationList() == null ? 0L : ethTxData.authorizationList().length;
+                    ethTxData.authorizationList() == null ? 0L : ethTxData.authorizationListAsRlp().length;
             final var gasRequirements = gasCalculator.transactionGasRequirements(
                     org.apache.tuweni.bytes.Bytes.wrap(callData), isContractCreate, 0L, authorizationListSize);
             validateTruePreCheck(ethTxData.gasLimit() >= gasRequirements.minimumGasUsed(), INSUFFICIENT_GAS);

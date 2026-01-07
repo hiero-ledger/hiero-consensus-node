@@ -63,15 +63,21 @@ public record CodeDelegationProcessor(long chainId) {
             return result;
         }
 
+        // Get a new proxy world updater to handle state changes and records for code delegations.
+        final ProxyWorldUpdater proxyWorldUpdater = (ProxyWorldUpdater) worldUpdater.updater();
         transaction
                 .codeDelegations()
-                .forEach(codeDelegation -> setAccountCodeToDelegationIndicator(worldUpdater, codeDelegation, result));
+                .forEach(codeDelegation -> processCodeDelegation(proxyWorldUpdater, codeDelegation, result));
+        // Commit the changes for code delegations.
+        proxyWorldUpdater.commit();
 
         return result;
     }
 
-    private void setAccountCodeToDelegationIndicator(
-            final WorldUpdater worldUpdater, final CodeDelegation codeDelegation, final CodeDelegationResult result) {
+    private void processCodeDelegation(
+            final ProxyWorldUpdater proxyWorldUpdater,
+            final CodeDelegation codeDelegation,
+            final CodeDelegationResult result) {
         LOG.trace("Processing code delegation: {}", codeDelegation);
 
         if ((codeDelegation.getChainId() != 0) && (chainId != codeDelegation.getChainId())) {
@@ -86,10 +92,6 @@ public record CodeDelegationProcessor(long chainId) {
             return;
         }
 
-        if (codeDelegation.getR().compareTo(HALF_CURVE_ORDER) > 0) {
-            return;
-        }
-
         if (codeDelegation.getYParity() >= MAX_Y_PARITY) {
             return;
         }
@@ -101,7 +103,7 @@ public record CodeDelegationProcessor(long chainId) {
 
         final var authorizerAddress = Address.wrap(Bytes.wrap(authorizer.get().address()));
         final Optional<MutableAccount> maybeAuthorityAccount =
-                Optional.ofNullable(worldUpdater.getAccount(authorizerAddress));
+                Optional.ofNullable(proxyWorldUpdater.getAccount(authorizerAddress));
 
         result.addAccessedDelegatorAddress(authorizerAddress);
 
@@ -114,12 +116,11 @@ public record CodeDelegationProcessor(long chainId) {
                 return;
             }
 
-            if (!((ProxyWorldUpdater) worldUpdater)
-                    .createAccountWithCodeDelegationIndicator(authorizerAddress, delegatedContractAddress)) {
+            if (!proxyWorldUpdater.createAccountWithCodeDelegation(authorizerAddress, delegatedContractAddress)) {
                 return;
             }
 
-            authority = worldUpdater.getAccount(authorizerAddress);
+            authority = proxyWorldUpdater.getAccount(authorizerAddress);
             if (authority == null) {
                 return;
             }
@@ -139,9 +140,8 @@ public record CodeDelegationProcessor(long chainId) {
                 return;
             }
 
-            if (!((ProxyWorldUpdater) worldUpdater)
-                    .setAccountCodeDelegationIndicator(
-                            ((HederaEvmAccount) authority).hederaId(), delegatedContractAddress)) {
+            if (!proxyWorldUpdater.setAccountCodeDelegation(
+                    ((HederaEvmAccount) authority).hederaId(), delegatedContractAddress)) {
                 return;
             }
             result.incrementAlreadyExistingDelegators();

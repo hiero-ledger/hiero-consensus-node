@@ -22,6 +22,7 @@ import static com.hedera.node.app.service.contract.impl.test.TestHelpers.VALID_C
 import static com.hedera.node.app.service.contract.impl.test.TestHelpers.entityIdFactory;
 import static com.hedera.node.app.service.contract.impl.utils.SynthTxnUtils.synthAccountCreationFromHapi;
 import static com.hedera.node.app.service.contract.impl.utils.SynthTxnUtils.synthContractCreationFromParent;
+import static com.hedera.node.app.spi.workflows.record.StreamBuilder.SignedTxCustomizer.NOOP_SIGNED_TX_CUSTOMIZER;
 import static com.hedera.node.app.spi.workflows.record.StreamBuilder.SignedTxCustomizer.SUPPRESSING_SIGNED_TX_CUSTOMIZER;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -640,8 +641,11 @@ class HandleHederaOperationsTest {
         when(streamBuilder.status()).thenReturn(ResponseCodeEnum.SUCCESS);
 
         try (MockedStatic<DispatchOptions> icd = Mockito.mockStatic(DispatchOptions.class)) {
-            icd.when(() -> DispatchOptions.independentChildDispatch(
-                            eq(payerID), any(TransactionBody.class), eq(CryptoUpdateStreamBuilder.class)))
+            icd.when(() -> DispatchOptions.stepDispatch(
+                            eq(payerID),
+                            any(TransactionBody.class),
+                            eq(CryptoUpdateStreamBuilder.class),
+                            eq(NOOP_SIGNED_TX_CUSTOMIZER)))
                     .thenReturn(dispatchOptions);
 
             when(context.dispatch(any())).thenReturn(streamBuilder);
@@ -664,8 +668,11 @@ class HandleHederaOperationsTest {
         when(streamBuilder.status()).thenReturn(ResponseCodeEnum.INVALID_ACCOUNT_ID);
 
         try (MockedStatic<DispatchOptions> icd = Mockito.mockStatic(DispatchOptions.class)) {
-            icd.when(() -> DispatchOptions.independentChildDispatch(
-                            eq(payerID), any(TransactionBody.class), eq(CryptoUpdateStreamBuilder.class)))
+            icd.when(() -> DispatchOptions.stepDispatch(
+                            eq(payerID),
+                            any(TransactionBody.class),
+                            eq(CryptoUpdateStreamBuilder.class),
+                            eq(NOOP_SIGNED_TX_CUSTOMIZER)))
                     .thenReturn(dispatchOptions);
 
             when(context.dispatch(any())).thenReturn(streamBuilder);
