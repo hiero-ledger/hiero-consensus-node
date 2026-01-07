@@ -13,6 +13,8 @@ import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.ST
 import static com.hedera.node.app.service.token.impl.schemas.V0490TokenSchema.STAKING_NETWORK_REWARDS_STATE_LABEL;
 import static com.hedera.node.app.service.token.impl.schemas.V0610TokenSchema.NODE_REWARDS_STATE_ID;
 import static com.hedera.node.app.service.token.impl.schemas.V0610TokenSchema.NODE_REWARDS_STATE_LABEL;
+import static com.hedera.node.app.service.token.impl.schemas.V0700TokenSchema.STAKE_PERIOD_INFO_STATE_ID;
+import static com.hedera.node.app.service.token.impl.schemas.V0700TokenSchema.STAKE_PERIOD_INFO_STATE_LABEL;
 import static com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema.PLATFORM_STATE_STATE_ID;
 import static com.swirlds.platform.state.service.schemas.V0540PlatformStateSchema.PLATFORM_STATE_STATE_LABEL;
 import static org.hiero.consensus.roster.RosterStateId.ROSTERS_STATE_ID;
@@ -34,6 +36,7 @@ import com.hedera.hapi.node.state.token.Account;
 import com.hedera.hapi.node.state.token.NetworkStakingRewards;
 import com.hedera.hapi.node.state.token.NodeActivity;
 import com.hedera.hapi.node.state.token.NodeRewards;
+import com.hedera.hapi.node.state.token.StakePeriodInfo;
 import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.hedera.hapi.platform.state.JudgeId;
 import com.hedera.hapi.platform.state.PlatformState;
@@ -99,12 +102,17 @@ class NodeRewardManagerTest {
     @Mock
     private SystemTransactions systemTransactions;
 
+    @Mock(strictness = Mock.Strictness.LENIENT)
+    private StakePeriodInfoManager stakePeriodInfoManager;
+
     private NodeRewardManager nodeRewardManager;
     private final AtomicReference<NodeRewards> nodeRewardsRef = new AtomicReference<>();
     private WritableSingletonStateBase<NodeRewards> nodeRewardsState;
     private final AtomicReference<PlatformState> stateRef = new AtomicReference<>();
     private final AtomicReference<NetworkStakingRewards> networkStakingRewardsRef = new AtomicReference<>();
     private final AtomicReference<RosterState> rosterStateRef = new AtomicReference<>();
+    private final AtomicReference<StakePeriodInfo> stakePeriodInfoRef = new AtomicReference<>();
+    private WritableSingletonStateBase<StakePeriodInfo> stakePeriodInfoState;
 
     private static final Instant NOW = Instant.ofEpochSecond(1_234_567L);
     private static final Instant NOW_MINUS_600 = NOW.minusSeconds(600);
@@ -120,7 +128,7 @@ class NodeRewardManagerTest {
                 .getOrCreateConfig();
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1));
         nodeRewardManager = new NodeRewardManager(
-                configProvider, entityIdFactory, exchangeRateManager, new NodeMetrics(new NoOpMetrics()));
+                configProvider, entityIdFactory, exchangeRateManager, new NodeMetrics(new NoOpMetrics()), stakePeriodInfoManager);
     }
 
     @Test
@@ -201,7 +209,7 @@ class NodeRewardManagerTest {
         given(configProvider.getConfiguration()).willReturn(new VersionedConfigImpl(config, 1L));
 
         nodeRewardManager = new NodeRewardManager(
-                configProvider, entityIdFactory, exchangeRateManager, new NodeMetrics(new NoOpMetrics()));
+                configProvider, entityIdFactory, exchangeRateManager, new NodeMetrics(new NoOpMetrics()), stakePeriodInfoManager);
 
         nodeRewardManager.maybeRewardActiveNodes(state, Instant.now(), systemTransactions);
         verify(systemTransactions, never())
@@ -211,8 +219,10 @@ class NodeRewardManagerTest {
     @Test
     void testMaybeRewardActiveNodesWhenCurrentPeriod() {
         givenSetup(NodeRewards.DEFAULT, platformStateWithFreezeTime(null), null);
+        given(stakePeriodInfoManager.classifyLastStakePeriodCalculationTime(any(), any()))
+                .willReturn(StakePeriodInfoManager.LastStakePeriodCalculationsTime.CURRENT_PERIOD);
         nodeRewardManager = new NodeRewardManager(
-                configProvider, entityIdFactory, exchangeRateManager, new NodeMetrics(new NoOpMetrics()));
+                configProvider, entityIdFactory, exchangeRateManager, new NodeMetrics(new NoOpMetrics()), stakePeriodInfoManager);
         nodeRewardManager.maybeRewardActiveNodes(state, NOW_MINUS_600, systemTransactions);
         verify(systemTransactions, never())
                 .dispatchNodeRewards(any(), any(), any(), anyLong(), any(), anyLong(), anyLong(), any());
@@ -228,8 +238,10 @@ class NodeRewardManagerTest {
                 .stakingRewardsActivated(true)
                 .build();
         givenSetup(NodeRewards.DEFAULT, platformStateWithFreezeTime(null), networkStakingRewards);
+        given(stakePeriodInfoManager.classifyLastStakePeriodCalculationTime(any(), any()))
+                .willReturn(StakePeriodInfoManager.LastStakePeriodCalculationsTime.PREVIOUS_PERIOD);
         nodeRewardManager = new NodeRewardManager(
-                configProvider, entityIdFactory, exchangeRateManager, new NodeMetrics(new NoOpMetrics()));
+                configProvider, entityIdFactory, exchangeRateManager, new NodeMetrics(new NoOpMetrics()), stakePeriodInfoManager);
         when(exchangeRateManager.getTinybarsFromTinycents(anyLong(), any())).thenReturn(5000L);
 
         nodeRewardManager.maybeRewardActiveNodes(state, NOW, systemTransactions);
@@ -245,6 +257,13 @@ class NodeRewardManagerTest {
         nodeRewardsState = new FunctionWritableSingletonState<>(
                 NODE_REWARDS_STATE_ID, NODE_REWARDS_STATE_LABEL, nodeRewardsRef::get, nodeRewardsRef::set);
         nodeRewardsRef.set(nodeRewards);
+
+        stakePeriodInfoState = new FunctionWritableSingletonState<>(
+                STAKE_PERIOD_INFO_STATE_ID, STAKE_PERIOD_INFO_STATE_LABEL, stakePeriodInfoRef::get, stakePeriodInfoRef::set);
+        stakePeriodInfoRef.set(StakePeriodInfo.newBuilder()
+                .lastStakePeriodCalculationTime(asTimestamp(NOW_MINUS_600))
+                .build());
+
         rosterStateRef.set(RosterState.newBuilder()
                 .roundRosterPairs(RoundRosterPair.newBuilder()
                         .roundNumber(0)
@@ -276,6 +295,8 @@ class NodeRewardManagerTest {
 
         given(writableStates.<NodeRewards>getSingleton(NODE_REWARDS_STATE_ID)).willReturn(nodeRewardsState);
         given(readableStates.<NodeRewards>getSingleton(NODE_REWARDS_STATE_ID)).willReturn(nodeRewardsState);
+        given(writableStates.<StakePeriodInfo>getSingleton(STAKE_PERIOD_INFO_STATE_ID)).willReturn(stakePeriodInfoState);
+        given(readableStates.<StakePeriodInfo>getSingleton(STAKE_PERIOD_INFO_STATE_ID)).willReturn(stakePeriodInfoState);
         given(readableStates.<PlatformState>getSingleton(PLATFORM_STATE_STATE_ID))
                 .willReturn(new FunctionWritableSingletonState<>(
                         PLATFORM_STATE_STATE_ID, PLATFORM_STATE_STATE_LABEL, stateRef::get, stateRef::set));

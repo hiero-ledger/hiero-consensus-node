@@ -73,6 +73,7 @@ message NetworkStakingRewards {
     /**
      * The last time a node reward payment was made. This will be set at the
      * end of a staking period.
+     * This field is deprecated and will be removed in a future release. We use StakePeriodInfo instead.
      */
-    proto.Timestamp last_node_reward_payments_time = 5;
+    proto.Timestamp last_node_reward_payments_time = 5 [deprecated = true];
 }

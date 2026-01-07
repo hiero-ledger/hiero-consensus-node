@@ -26,9 +26,10 @@ import "services/basic_types.proto";
  */
 message NodePayments {
   /**
-  * The time when the last node fees were distributed
+  * The time when the last node fees were distributed.
+  * This field is deprecated and will be removed in a future release. We use StakePeriodInfo instead.
   */
-  proto.Timestamp last_node_fee_distribution_time = 1;
+  proto.Timestamp last_node_fee_distribution_time = 1 [deprecated = true];
   /**
    * A list of node account id to the total amount of fees due to each node in the current staking period
    */
