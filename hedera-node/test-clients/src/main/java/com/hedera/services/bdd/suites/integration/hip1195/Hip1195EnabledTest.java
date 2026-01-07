@@ -1256,10 +1256,9 @@ public class Hip1195EnabledTest {
      * (default 10) fails with TOO_MANY_HOOK_INVOCATIONS.
      * Each pre-only hook counts as 1 invocation, each pre+post hook counts as 2.
      */
-    @LeakyHapiTest(overrides = {"contracts.maxGasPerTransaction"})
+    @HapiTest
     final Stream<DynamicTest> tooManyHookInvocationsFails() {
         return hapiTest(
-                overriding("contracts.maxGasPerTransaction", "15000000"),
                 cryptoCreate(PAYER).balance(100 * THOUSAND_HBAR),
                 // Create accounts with hooks - each pre+post hook counts as 2 invocations
                 cryptoCreate("owner1").withHooks(accountAllowanceHook(1L, TRUE_PRE_POST_ALLOWANCE_HOOK.name())),
