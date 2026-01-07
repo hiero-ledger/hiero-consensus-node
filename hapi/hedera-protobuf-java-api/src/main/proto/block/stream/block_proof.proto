@@ -99,7 +99,7 @@ import "block/stream/state_proof.proto";
  * documentation.
  */
 message BlockProof {
-    /** // TODO Do we really need this field?
+    /**
      * The block this proof secures.<br/>
      * We provide this because a proof for a future block can be used to prove
      * the state of the ledger at that block and the blocks before it.<br/>
