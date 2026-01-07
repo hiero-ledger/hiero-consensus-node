@@ -83,9 +83,8 @@ public class DefaultHashgraphModule implements HashgraphModule {
         EventCounter.registerEventCounterMetrics(metrics);
 
         // Create and bind components
-        final ConsensusConfig consensusConfig = configuration.getConfigData(ConsensusConfig.class);
         final ConsensusEngine consensusEngine =
-                new DefaultConsensusEngine(consensusConfig, metrics, time, roster, selfId, freezeChecker);
+                new DefaultConsensusEngine(configuration, metrics, time, roster, selfId, freezeChecker);
         consensusEngineWiring.bind(consensusEngine);
     }
 

@@ -61,7 +61,7 @@ public class TestIntake {
 
     /**
      * @param platformContext the platform context used to configure this intake.
-     * @param roster     the roster used by this intake
+     * @param roster the roster used by this intake
      */
     public TestIntake(@NonNull final PlatformContext platformContext, @NonNull final Roster roster) {
         final NodeId selfId = NodeId.of(0);
@@ -95,8 +95,13 @@ public class TestIntake {
             }
         };
 
-        final ConsensusEngine consensusEngine =
-                new DefaultConsensusEngine(platformContext, roster, selfId, localFreezeCheck);
+        final ConsensusEngine consensusEngine = new DefaultConsensusEngine(
+                platformContext.getConfiguration(),
+                platformContext.getMetrics(),
+                platformContext.getTime(),
+                roster,
+                selfId,
+                localFreezeCheck);
 
         consensusEngineWiring = new ComponentWiring<>(model, ConsensusEngine.class, scheduler("consensusEngine"));
         consensusEngineWiring.bind(consensusEngine);
