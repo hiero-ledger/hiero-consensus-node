@@ -101,8 +101,8 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
                 embedding = Embedding.NA;
                 return;
             }
-            final boolean hasMultiNetworkTests = hasAnnotatedTestNode(testPlan, Set.of(MultiNetworkHapiTest.class));
-            final boolean hasStandardHapiTests = hasAnnotatedTestNode(
+            // Do nothing if the test plan has no HapiTests of any kind
+            if (!hasAnnotatedTestNode(
                     testPlan,
                     Set.of(
                             EmbeddedHapiTest.class,
@@ -111,15 +111,9 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
                             LeakyEmbeddedHapiTest.class,
                             LeakyHapiTest.class,
                             LeakyRepeatableHapiTest.class,
-                            RepeatableHapiTest.class));
-            if (hasMultiNetworkTests && !hasStandardHapiTests) {
-                log.info("Test plan has only MultiNetworkHapiTest annotations; skipping shared network startup.");
-                embedding = Embedding.NA;
-                return;
-            }
-            // Do nothing if the test plan has no HapiTests of any kind
-            if (!hasStandardHapiTests) {
+                            RepeatableHapiTest.class))) {
                 log.info("No HapiTests found in test plan, skipping shared network startup");
+                embedding = Embedding.NA;
                 return;
             }
             embedding = embeddingMode();
@@ -140,22 +134,10 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
                         case REPEATABLE -> EmbeddedNetwork.newSharedNetwork(EmbeddedMode.REPEATABLE);
                     };
             if (network != null) {
-                if (enableClprOverrides && network instanceof SubProcessNetwork subProcessNetwork) {
-                    subProcessNetwork.nodes().forEach(node -> {
-                        final var overrides = subProcessNetwork.getApplicationPropertyOverrides();
-                        final var existing = overrides.getOrDefault(node.getNodeId(), List.of());
-                        final var updated = new ArrayList<>(existing);
-                        for (int i = 0; i + 1 < updated.size(); i += 2) {
-                            if ("clpr.clprEnabled".equals(updated.get(i))) {
-                                updated.set(i + 1, "true");
-                                overrides.put(node.getNodeId(), List.copyOf(updated));
-                                return;
-                            }
-                        }
-                        updated.add("clpr.clprEnabled");
-                        updated.add("true");
-                        overrides.put(node.getNodeId(), List.copyOf(updated));
-                    });
+                if (network instanceof SubProcessNetwork subProcessNetwork) {
+                    if (enableClprOverrides) {
+                        upsertApplicationOverride(subProcessNetwork, "clpr.clprEnabled", "true");
+                    }
                 }
                 checkPrOverridesForBlockNodeStreaming(network);
                 network.start();
@@ -243,6 +225,27 @@ public class SharedNetworkLauncherSessionListener implements LauncherSessionList
         private static void startSharedEmbedded(@NonNull final EmbeddedMode mode) {
             SHARED_NETWORK.set(EmbeddedNetwork.newSharedNetwork(mode));
             SHARED_NETWORK.get().start();
+        }
+
+        private static void upsertApplicationOverride(
+                @NonNull final SubProcessNetwork subProcessNetwork,
+                @NonNull final String property,
+                @NonNull final String value) {
+            final var overrides = subProcessNetwork.getApplicationPropertyOverrides();
+            subProcessNetwork.nodes().forEach(node -> {
+                final var existing = overrides.getOrDefault(node.getNodeId(), List.of());
+                final var updated = new ArrayList<>(existing);
+                for (int i = 0; i + 1 < updated.size(); i += 2) {
+                    if (property.equals(updated.get(i))) {
+                        updated.set(i + 1, value);
+                        overrides.put(node.getNodeId(), List.copyOf(updated));
+                        return;
+                    }
+                }
+                updated.add(property);
+                updated.add(value);
+                overrides.put(node.getNodeId(), List.copyOf(updated));
+            });
         }
 
         private static Embedding embeddingMode() {

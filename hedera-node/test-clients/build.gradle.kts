@@ -92,8 +92,8 @@ val prCheckTags =
             // MATS task → explicitly REQUIRE MATS
             put("$task$matsSuffix", "($tags)&MATS")
         }
-        put("hapiTestClpr", "CLPR");
-        put("hapiTestMultiNetwork", "MULTINETWORK");
+        put("hapiTestClpr", "CLPR")
+        put("hapiTestMultiNetwork", "MULTINETWORK")
     }
 
 val remoteCheckTags =
@@ -203,7 +203,12 @@ tasks {
 
 tasks.register<Test>("testSubprocess") {
     testClassesDirs = sourceSets.main.get().output.classesDirs
-    classpath = configurations.runtimeClasspath.get().plus(files(tasks.jar))
+    classpath =
+        configurations.runtimeClasspath
+            .get()
+            .plus(files(tasks.jar))
+            // the following line adds access to pregenerated keys in `src/test/resources`.
+            .plus(sourceSets.test.get().output)
 
     val ciTagExpression =
         gradle.startParameter.taskNames

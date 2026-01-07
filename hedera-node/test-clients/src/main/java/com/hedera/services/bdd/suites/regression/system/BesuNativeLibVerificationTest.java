@@ -7,11 +7,13 @@ import static com.hedera.services.bdd.spec.HapiSpec.hapiTest;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.assertHgcaaLogContainsText;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.blockingOrder;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doAdhoc;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.doingContextual;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.freezeUpgrade;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.ifCi;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.ifNotCi;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.runBackgroundTrafficUntilFreezeComplete;
 import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcing;
+import static com.hedera.services.bdd.spec.utilops.UtilVerbs.sourcingContextual;
 import static com.hedera.services.bdd.spec.utilops.upgrade.BuildUpgradeZipOp.FAKE_UPGRADE_ZIP_LOC;
 import static com.hedera.services.bdd.suites.freeze.CommonUpgradeResources.DEFAULT_UPGRADE_FILE_ID;
 import static com.hedera.services.bdd.suites.freeze.CommonUpgradeResources.upgradeFileHashAt;
@@ -39,6 +41,11 @@ import org.junit.jupiter.api.Tag;
 @Disabled("Only to be run manually on a local env when validating native lib verification behavior")
 public class BesuNativeLibVerificationTest implements LifecycleTest {
 
+    /**
+     * Verifies the network halts when native library verification is enabled and a native lib is missing.
+     *
+     * @return dynamic tests covering the halt behavior
+     */
     @HapiTest
     public Stream<DynamicTest> besuNativeLibVerificationHaltsIfLibNotPresent() {
 
@@ -63,23 +70,26 @@ public class BesuNativeLibVerificationTest implements LifecycleTest {
                         doAdhoc(LifecycleTest::restartAtNextConfigVersion))));
     }
 
+    /** {@inheritDoc} */
     @Override
     public SpecOperation upgradeToNextConfigVersion(
             @NonNull Map<String, String> envOverrides, @NonNull SpecOperation... preRestartOps) {
-        final var version = CURRENT_CONFIG_VERSION.incrementAndGet();
         requireNonNull(preRestartOps);
         requireNonNull(envOverrides);
-        return blockingOrder(
-                runBackgroundTrafficUntilFreezeComplete(),
-                sourcing(() -> freezeUpgrade()
-                        .startingIn(2)
-                        .seconds()
-                        .withUpdateFile(DEFAULT_UPGRADE_FILE_ID)
-                        .havingHash(upgradeFileHashAt(FAKE_UPGRADE_ZIP_LOC))),
-                LifecycleTest.confirmFreezeAndShutdown(),
-                blockingOrder(preRestartOps),
-                // we just restart the network with the new config version
-                FakeNmt.restartNetwork(version, envOverrides),
-                doAdhoc(() -> CURRENT_CONFIG_VERSION.set(version)));
+        return sourcingContextual(spec -> {
+            final var version = LifecycleTest.incrementConfigVersion(spec);
+            return blockingOrder(
+                    runBackgroundTrafficUntilFreezeComplete(),
+                    sourcing(() -> freezeUpgrade()
+                            .startingIn(2)
+                            .seconds()
+                            .withUpdateFile(DEFAULT_UPGRADE_FILE_ID)
+                            .havingHash(upgradeFileHashAt(FAKE_UPGRADE_ZIP_LOC))),
+                    LifecycleTest.confirmFreezeAndShutdown(),
+                    blockingOrder(preRestartOps),
+                    // we just restart the network with the new config version
+                    FakeNmt.restartNetwork(version, envOverrides),
+                    doingContextual(context -> LifecycleTest.setCurrentConfigVersion(context, version)));
+        });
     }
 }
