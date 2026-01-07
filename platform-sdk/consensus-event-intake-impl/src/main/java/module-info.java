@@ -18,6 +18,7 @@ module org.hiero.consensus.event.intake.impl {
     requires com.swirlds.logging;
     requires org.hiero.base.crypto;
     requires org.hiero.consensus.concurrent;
+    requires org.hiero.consensus.metrics;
     requires org.apache.logging.log4j;
     requires static transitive com.github.spotbugs.annotations;
 

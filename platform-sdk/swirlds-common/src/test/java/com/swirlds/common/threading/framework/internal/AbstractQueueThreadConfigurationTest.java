@@ -33,6 +33,7 @@ import org.hiero.consensus.metrics.platform.MetricKeyRegistry;
 import org.hiero.consensus.metrics.platform.PlatformMetricsFactoryImpl;
 import org.hiero.consensus.model.node.NodeId;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -227,6 +228,7 @@ class AbstractQueueThreadConfigurationTest {
 
     @Test
     @DisplayName("Testing build with metric enabled")
+    @Disabled("Enabling metrics has been removed. Need to decide about the future of metrics in queue threads.")
     void buildShouldCreateQueueThreadThatCanBeMonitoredWithMetrics() {
         // given
         final ThreadManager threadManager = mock(ThreadManager.class);

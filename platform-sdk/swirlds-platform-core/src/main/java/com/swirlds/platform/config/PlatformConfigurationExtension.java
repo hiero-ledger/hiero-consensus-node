@@ -12,7 +12,6 @@ import com.swirlds.component.framework.schedulers.builders.TaskSchedulerConfigur
 import com.swirlds.config.api.ConfigurationExtension;
 import com.swirlds.logging.api.internal.configuration.InternalLoggingConfig;
 import com.swirlds.merkledb.config.MerkleDbConfig;
-import com.swirlds.platform.event.preconsensus.PcesConfig;
 import com.swirlds.platform.gossip.ProtocolConfig;
 import com.swirlds.platform.gossip.config.GossipConfig;
 import com.swirlds.platform.gossip.config.NetworkEndpoint;
@@ -27,15 +26,6 @@ import com.swirlds.platform.wiring.PlatformSchedulersConfig;
 import com.swirlds.virtualmap.config.VirtualMapConfig;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import java.util.Set;
-import org.hiero.base.crypto.config.CryptoConfig;
-import org.hiero.consensus.concurrent.config.BasicCommonConfig;
-import org.hiero.consensus.config.EventConfig;
-import org.hiero.consensus.event.creator.config.EventCreationConfig;
-import org.hiero.consensus.event.creator.config.EventCreationWiringConfig;
-import org.hiero.consensus.event.intake.config.EventIntakeWiringConfig;
-import org.hiero.consensus.hashgraph.config.ConsensusConfig;
-import org.hiero.consensus.metrics.config.MetricsConfig;
-import org.hiero.consensus.metrics.platform.prometheus.PrometheusConfig;
 import org.hiero.consensus.model.node.NodeId;
 
 /**
@@ -55,23 +45,13 @@ public class PlatformConfigurationExtension implements ConfigurationExtension {
         // Load Configuration Definitions
         return Set.of(
                 AddressBookConfig.class,
-                BasicCommonConfig.class,
                 BasicConfig.class,
-                ConsensusConfig.class,
-                CryptoConfig.class,
-                EventConfig.class,
-                EventCreationConfig.class,
-                EventCreationWiringConfig.class,
-                EventIntakeWiringConfig.class,
                 MerkleDbConfig.class,
-                MetricsConfig.class,
                 OSHealthCheckConfig.class,
                 PathsConfig.class,
-                PcesConfig.class,
                 PlatformMetricsConfig.class,
                 PlatformSchedulersConfig.class,
                 PlatformStatusConfig.class,
-                PrometheusConfig.class,
                 ProtocolConfig.class,
                 ReconnectConfig.class,
                 SocketConfig.class,

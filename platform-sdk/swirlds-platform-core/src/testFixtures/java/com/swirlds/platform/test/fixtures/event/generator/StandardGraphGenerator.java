@@ -12,6 +12,9 @@ import com.hedera.hapi.platform.state.ConsensusSnapshot;
 import com.swirlds.common.context.PlatformContext;
 import com.swirlds.platform.event.orphan.DefaultOrphanBuffer;
 import com.swirlds.platform.event.orphan.OrphanBuffer;
+import com.swirlds.platform.ConsensusImpl;
+import com.swirlds.platform.event.linking.ConsensusLinker;
+import com.swirlds.platform.event.linking.NoOpLinkerLogsAndMetrics;
 import com.swirlds.platform.gui.GuiEventStorage;
 import com.swirlds.platform.gui.hashgraph.HashgraphGuiSource;
 import com.swirlds.platform.gui.hashgraph.internal.StandardGuiSource;
@@ -43,6 +46,8 @@ import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.hashgraph.ConsensusConstants;
 import org.hiero.consensus.model.hashgraph.ConsensusRound;
 import org.hiero.consensus.model.node.NodeId;
+import org.hiero.consensus.orphan.DefaultOrphanBuffer;
+import org.hiero.consensus.orphan.OrphanBuffer;
 import org.hiero.consensus.roster.RosterUtils;
 import org.hiero.consensus.round.EventWindowUtils;
 
@@ -582,6 +587,18 @@ public class StandardGraphGenerator implements GraphGenerator {
      */
     public final EventImpl generateEvent() {
         return generateEventWithoutIndex();
+    }
+
+    /**
+     * Generate the next event and return its base event.
+     *
+     * <p>This is the same as calling {@code generateEvent()}, but returns the {@link PlatformEvent}
+     * as {@link EventImpl} is an internal class.
+     *
+     * @return the next event's base event
+     */
+    public final PlatformEvent generateBaseEvent() {
+        return generateEvent().getBaseEvent();
     }
 
     /**

@@ -7,10 +7,17 @@ plugins {
 
 description = "Consensus Utility"
 
-mainModuleInfo { annotationProcessor("com.swirlds.config.processor") }
+mainModuleInfo {
+    annotationProcessor("com.swirlds.config.processor")
+    annotationProcessor("com.google.auto.service.processor")
+}
 
 testModuleInfo {
+    requires("com.swirlds.common")
+    requires("com.swirlds.common.test.fixtures")
     requires("org.hiero.base.utility.test.fixtures")
+    requires("org.hiero.consensus.model.test.fixtures")
+    requires("org.assertj.core")
     requires("org.hiero.consensus.roster")
     requires("com.swirlds.platform.core")
     requires("com.swirlds.platform.core.test.fixtures")
