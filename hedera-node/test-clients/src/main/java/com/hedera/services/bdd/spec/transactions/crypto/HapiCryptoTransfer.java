@@ -148,6 +148,7 @@ public class HapiCryptoTransfer extends HapiBaseTransfer<HapiCryptoTransfer> {
 
     public HapiCryptoTransfer(final BiConsumer<HapiSpec, CryptoTransferTransactionBody.Builder> def) {
         explicitDef = Optional.of(def);
+        sigMapPrefixes(TrieSigMapGenerator.withNature(FULL_PREFIXES));
     }
 
     @SafeVarargs
@@ -171,6 +172,7 @@ public class HapiCryptoTransfer extends HapiBaseTransfer<HapiCryptoTransfer> {
                         spec -> Stream.of(providers).map(p -> p.apply(spec)).collect(mergingAccounts);
             }
         }
+        sigMapPrefixes(TrieSigMapGenerator.withNature(FULL_PREFIXES));
     }
 
     public HapiCryptoTransfer(final TokenMovement... sources) {

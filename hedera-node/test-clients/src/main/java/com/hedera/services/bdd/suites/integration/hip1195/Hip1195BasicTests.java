@@ -662,6 +662,7 @@ public class Hip1195BasicTests {
                         .withPreHookFor("sender", 242L, 3 * HOOK_GAS_LIMIT, "")
                         .withPrePostHookFor("treasury", 241L, 2 * HOOK_GAS_LIMIT, "")
                         .payingWith("sender")
+                        .signedBy("sender")
                         .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK)
                         .via("nftTransferFails"),
                 sourcingContextual(spec -> {
@@ -675,8 +676,7 @@ public class Hip1195BasicTests {
                     final double usdGasCost = spec.ratesProvider().toUsdWithActiveRates(tinybarGasCost);
                     return validateChargedUsd(
                             "nftTransferFails",
-                            NFT_TRANSFER_WITH_CUSTOM_BASE_USD + (3 * HOOK_INVOCATION_USD) + usdGasCost,
-                            5);
+                            NFT_TRANSFER_WITH_CUSTOM_BASE_USD + (3 * HOOK_INVOCATION_USD) + usdGasCost);
                 }));
     }
 
