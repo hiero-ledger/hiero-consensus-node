@@ -115,7 +115,7 @@ public class HdhmBucketIntegrityValidator implements HdhmBucketValidator {
                     continue;
                 }
                 final int hashCode = entry.getHashCode();
-                if ((hashCode & bucketIndex) != bucketIndex) {
+                if ((hashCode & bucketIndex) != bucketIndex || hashCode != keyBytes.hashCode()) {
                     printFileDataLocationError(log, "Hash code mismatch", keyToPathDfc, bucketLocation);
                     collectInfo(new HashCodeMismatchInfo(hashCode, bucketIndex), hashCodeMismatchInfos);
                 }

@@ -15,6 +15,7 @@ import com.swirlds.merkledb.files.DataFileCommon;
 import com.swirlds.merkledb.files.DataFileMetadata;
 import com.swirlds.merkledb.files.hashmap.Bucket;
 import com.swirlds.merkledb.files.hashmap.ParsedBucket;
+import com.swirlds.merkledb.utilities.MerkleDbFileUtils;
 import com.swirlds.virtualmap.datasource.VirtualHashRecord;
 import com.swirlds.virtualmap.datasource.VirtualLeafBytes;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -89,7 +90,7 @@ public class ChunkedFileIterator implements AutoCloseable {
      * @param startByte the starting byte offset in the file (will be adjusted to nearest boundary if non-zero)
      * @param endByte the ending byte offset in the file (exclusive)
      * @param bufferSizeBytes the buffer size for both boundary scanning and stream reading
-     * @param totalBoundarySearchNanos atomic counter to accumulate boundary search time in nanoseconds
+     * @param totalBoundarySearchTime atomic counter to accumulate boundary search time in milliseconds
      * @throws IOException if there was a problem opening the file or finding a valid boundary
      */
     public ChunkedFileIterator(
@@ -99,7 +100,7 @@ public class ChunkedFileIterator implements AutoCloseable {
             long startByte,
             long endByte,
             int bufferSizeBytes,
-            @NonNull final AtomicLong totalBoundarySearchNanos)
+            @NonNull final AtomicLong totalBoundarySearchTime)
             throws IOException {
         this.channel = FileChannel.open(path, StandardOpenOption.READ);
         try {
@@ -114,9 +115,9 @@ public class ChunkedFileIterator implements AutoCloseable {
 
             if (startByte > 0) {
                 // Find boundary, then position channel and open streams
-                final long startTimeNanos = System.nanoTime();
+                final long startTime = System.currentTimeMillis();
                 this.startByte += findBoundaryOffset();
-                totalBoundarySearchNanos.addAndGet(System.nanoTime() - startTimeNanos);
+                totalBoundarySearchTime.addAndGet(System.currentTimeMillis() - startTime);
                 channel.position(this.startByte);
                 openStreams();
             } else {
@@ -238,9 +239,7 @@ public class ChunkedFileIterator implements AutoCloseable {
         final ByteBuffer scanBuffer = ByteBuffer.allocate(bufferSizeBytes);
 
         // Read large chunk at current position
-        scanBuffer.clear();
-        channel.position(startByte);
-        int bytesRead = channel.read(scanBuffer);
+        int bytesRead = MerkleDbFileUtils.completelyRead(channel, scanBuffer, startByte);
         if (bytesRead <= 0) {
             throw new IOException("No valid data item boundary found in chunk");
         }

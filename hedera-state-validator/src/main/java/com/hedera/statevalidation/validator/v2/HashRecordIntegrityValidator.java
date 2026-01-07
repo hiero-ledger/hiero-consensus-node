@@ -2,7 +2,10 @@
 package com.hedera.statevalidation.validator.v2;
 
 import com.hedera.statevalidation.validator.v2.util.ValidationAssertions;
+import com.swirlds.merkledb.MerkleDbDataSource;
 import com.swirlds.platform.state.snapshot.DeserializedSignedState;
+import com.swirlds.state.MerkleNodeState;
+import com.swirlds.virtualmap.VirtualMap;
 import com.swirlds.virtualmap.datasource.VirtualHashRecord;
 import com.swirlds.virtualmap.internal.cache.VirtualNodeCache;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -24,6 +27,8 @@ public class HashRecordIntegrityValidator implements HashRecordValidator {
     private final AtomicLong nullHashCount = new AtomicLong(0);
     private final AtomicLong nullHashSentinelCount = new AtomicLong(0);
 
+    private long lastLeafPath;
+
     /**
      * {@inheritDoc}
      */
@@ -36,7 +41,14 @@ public class HashRecordIntegrityValidator implements HashRecordValidator {
      * {@inheritDoc}
      */
     @Override
-    public void initialize(@NonNull final DeserializedSignedState deserializedSignedState) {}
+    public void initialize(@NonNull final DeserializedSignedState deserializedSignedState) {
+        //noinspection resource -- doesn't matter in this context
+        final MerkleNodeState state =
+                deserializedSignedState.reservedSignedState().get().getState();
+        final VirtualMap virtualMap = (VirtualMap) state.getRoot();
+        final MerkleDbDataSource vds = (MerkleDbDataSource) virtualMap.getDataSource();
+        this.lastLeafPath = vds.getLastLeafPath();
+    }
 
     // Cross-check with index?
     /**
@@ -68,12 +80,19 @@ public class HashRecordIntegrityValidator implements HashRecordValidator {
     public void validate() {
         log.info("Checked {} VirtualHashRecord entries", processedCount.get());
 
-        final boolean ok = nullHashCount.get() == 0 && nullHashSentinelCount.get() == 0;
+        final long expectedCount = lastLeafPath + 1;
+        final boolean ok =
+                processedCount.get() == expectedCount && nullHashCount.get() == 0 && nullHashSentinelCount.get() == 0;
 
         ValidationAssertions.requireTrue(
                 ok,
                 getTag(),
-                ("%s validation failed. " + "nullHashCount=%d, nullHashSentinelCount=%d")
-                        .formatted(getTag(), nullHashCount.get(), nullHashSentinelCount.get()));
+                ("%s validation failed. Hash record count exp=%d act=%d, nullHashCount=%d, nullHashSentinelCount=%d")
+                        .formatted(
+                                getTag(),
+                                expectedCount,
+                                processedCount.get(),
+                                nullHashCount.get(),
+                                nullHashSentinelCount.get()));
     }
 }

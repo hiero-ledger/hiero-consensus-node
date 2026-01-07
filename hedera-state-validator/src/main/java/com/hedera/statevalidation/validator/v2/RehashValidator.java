@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.hedera.statevalidation.validator.v2;
 
-import static com.swirlds.base.units.UnitConstants.NANOSECONDS_TO_MILLISECONDS;
-
 import com.hedera.statevalidation.validator.v2.pipeline.RehashTaskExecutor;
 import com.hedera.statevalidation.validator.v2.util.ValidationAssertions;
 import com.hedera.statevalidation.validator.v2.util.ValidationException;
@@ -66,7 +64,7 @@ public class RehashValidator implements Validator {
     public void validate() {
         logger.debug("Doing full rehash for the path range: {} - {} in the VirtualMap", firstLeafPath, lastLeafPath);
 
-        final long startTimeNanos = System.nanoTime();
+        final long startTime = System.currentTimeMillis();
         final RehashTaskExecutor executor = new RehashTaskExecutor(records, firstLeafPath, lastLeafPath);
         final Hash computedHash;
 
@@ -78,8 +76,6 @@ public class RehashValidator implements Validator {
 
         ValidationAssertions.requireEqual(originalHash, computedHash, getTag());
 
-        logger.debug(
-                "It took {} ms to rehash the state",
-                (System.nanoTime() - startTimeNanos) * NANOSECONDS_TO_MILLISECONDS);
+        logger.debug("It took {} ms to rehash the state", System.currentTimeMillis() - startTime);
     }
 }

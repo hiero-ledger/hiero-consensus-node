@@ -13,7 +13,6 @@ import static com.hedera.statevalidation.validator.v2.TokenRelationsIntegrityVal
 import static com.hedera.statevalidation.validator.v2.Validator.ALL_TAG;
 import static com.hedera.statevalidation.validator.v2.ValidatorRegistry.createAndInitIndividualValidators;
 import static com.hedera.statevalidation.validator.v2.ValidatorRegistry.createAndInitValidators;
-import static com.swirlds.base.units.UnitConstants.NANOSECONDS_TO_MILLISECONDS;
 
 import com.hedera.statevalidation.report.SlackReportBuilder;
 import com.hedera.statevalidation.util.StateUtils;
@@ -143,7 +142,7 @@ public class Validate2Command implements Callable<Integer> {
             final var validationExecutionListener = new ValidationExecutionListener();
             final List<ValidationListener> validationListeners = List.of(validationExecutionListener);
 
-            final long startTimeNanos = System.nanoTime();
+            final long startTime = System.currentTimeMillis();
 
             // Run individual validators (those that don't use the pipeline)
             final List<Validator> individualValidators =
@@ -175,9 +174,7 @@ public class Validate2Command implements Callable<Integer> {
                     chunkMultiplier,
                     bufferSizeKib);
 
-            log.debug(
-                    "Time spent for validation: {} ms",
-                    (System.nanoTime() - startTimeNanos) * NANOSECONDS_TO_MILLISECONDS);
+            log.info("Time spent for validation: {} ms", System.currentTimeMillis() - startTime);
 
             // Return result
             if (!pipelineSuccess || validationExecutionListener.isFailed()) {

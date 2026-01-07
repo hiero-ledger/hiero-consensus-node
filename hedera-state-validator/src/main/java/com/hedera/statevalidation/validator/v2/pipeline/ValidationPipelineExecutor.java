@@ -4,7 +4,6 @@ package com.hedera.statevalidation.validator.v2.pipeline;
 import static com.swirlds.base.units.UnitConstants.BYTES_TO_MEBIBYTES;
 import static com.swirlds.base.units.UnitConstants.KB_TO_BYTES;
 import static com.swirlds.base.units.UnitConstants.MEBIBYTES_TO_BYTES;
-import static com.swirlds.base.units.UnitConstants.NANOSECONDS_TO_MILLISECONDS;
 
 import com.hedera.pbj.runtime.io.buffer.BufferedData;
 import com.hedera.pbj.runtime.io.buffer.Bytes;
@@ -77,7 +76,7 @@ public final class ValidationPipelineExecutor {
     private HashList pathToHashRam;
     private BlockingQueue<List<ValidationItem>> dataQueue;
     private DataStats dataStats;
-    private AtomicLong totalBoundarySearchNanos;
+    private AtomicLong totalBoundarySearchTime;
 
     private ValidationPipelineExecutor(
             @NonNull final MerkleDbDataSource vds,
@@ -192,7 +191,7 @@ public final class ValidationPipelineExecutor {
 
                 // Initialize data structures for processing
                 dataStats = new DataStats();
-                totalBoundarySearchNanos = new AtomicLong(0L);
+                totalBoundarySearchTime = new AtomicLong(0L);
                 dataQueue = new LinkedBlockingQueue<>(queueCapacity);
 
                 final var processorFutures = new ArrayList<Future<Void>>();
@@ -288,9 +287,7 @@ public final class ValidationPipelineExecutor {
                 }
 
                 // Debug metrics
-                log.debug(
-                        "Total boundary search time: {} ms",
-                        totalBoundarySearchNanos.get() * NANOSECONDS_TO_MILLISECONDS);
+                log.debug("Total boundary search time: {} ms", totalBoundarySearchTime.get());
 
                 return !dataStats.hasErrorReads();
             }
@@ -421,7 +418,7 @@ public final class ValidationPipelineExecutor {
                 startByte,
                 endByte,
                 bufferSizeBytes,
-                totalBoundarySearchNanos)) {
+                totalBoundarySearchTime)) {
 
             List<ValidationItem> batch = new ArrayList<>(batchSize);
             while (iterator.next()) {
