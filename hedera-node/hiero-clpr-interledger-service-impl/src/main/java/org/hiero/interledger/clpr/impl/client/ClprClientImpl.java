@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package org.hiero.interledger.clpr.impl.client;
 
+import com.hedera.hapi.block.stream.StateProof;
 import com.hedera.hapi.node.base.AccountID;
 import com.hedera.hapi.node.base.QueryHeader;
 import com.hedera.hapi.node.base.ResponseCodeEnum;
@@ -175,7 +176,7 @@ public class ClprClientImpl implements ClprClient {
         try {
             var stateProof = ClprStateProofUtils.buildLocalClprStateProofWrapper(clprLedgerConfiguration);
             if (stateProof == null || stateProof.paths().isEmpty()) {
-                stateProof = devModeStateProof(clprLedgerConfiguration);
+                stateProof = devModeLedgerConfigStateProof(clprLedgerConfiguration);
             }
             final var txnBody = TransactionBody.newBuilder()
                     .transactionID(newTransactionId(payerAccountId))
@@ -217,10 +218,9 @@ public class ClprClientImpl implements ClprClient {
             @NonNull ClprMessageQueueMetadata clprMessageQueueMetadata) {
         try {
             var stateProof = ClprStateProofUtils.buildLocalClprStateProofWrapper(ledgerId, clprMessageQueueMetadata);
-            // TODO: create dev mode state proof for message queue metadata
-            //            if (stateProof.paths().isEmpty()) {
-            //                stateProof = devModeStateProof(clprLedgerConfiguration);
-            //            }
+            if (stateProof.paths().isEmpty()) {
+                stateProof = devModeMsgQueueMetadataStateProof(clprMessageQueueMetadata);
+            }
             final var txnBody = TransactionBody.newBuilder()
                     .transactionID(newTransactionId(payerAccountId))
                     .clprUpdateMessageQueueMetadata(ClprUpdateMessageQueueMetadataTransactionBody.newBuilder()
@@ -333,10 +333,19 @@ public class ClprClientImpl implements ClprClient {
         return null;
     }
 
-    private com.hedera.hapi.block.stream.StateProof devModeStateProof(
-            @NonNull final ClprLedgerConfiguration configuration) {
+    private StateProof devModeLedgerConfigStateProof(@NonNull final ClprLedgerConfiguration configuration) {
         final var stateItemBytes =
                 org.hiero.hapi.interledger.state.clpr.ClprLedgerConfiguration.PROTOBUF.toBytes(configuration);
+        return devModeStateProof(stateItemBytes);
+    }
+
+    private StateProof devModeMsgQueueMetadataStateProof(@NonNull final ClprMessageQueueMetadata messageQueueMetadata) {
+        final var stateItemBytes =
+                org.hiero.hapi.interledger.state.clpr.ClprMessageQueueMetadata.PROTOBUF.toBytes(messageQueueMetadata);
+        return devModeStateProof(stateItemBytes);
+    }
+
+    private com.hedera.hapi.block.stream.StateProof devModeStateProof(@NonNull final Bytes stateItemBytes) {
         final var leaf = com.hedera.hapi.node.state.blockstream.MerkleLeaf.newBuilder()
                 .stateItem(stateItemBytes)
                 .build();
