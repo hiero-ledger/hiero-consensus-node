@@ -162,8 +162,8 @@ public class ConsensusNodeManager {
         // Wiring: Forward consensus rounds to registered listeners
         final PlatformComponents platformComponents = blocks.platformComponents();
         platformComponents
-                .consensusEngineWiring()
-                .consensusRoundsOutputWire()
+                .hashgraphModule()
+                .consensusRoundOutputWire()
                 .solderTo("dockerApp", "consensusRounds", this::notifyConsensusRoundListeners);
 
         platform = componentBuilder.build();
@@ -189,10 +189,10 @@ public class ConsensusNodeManager {
     /**
      * Notifies registered listeners about new consensus rounds.
      *
-     * @param rounds the list of consensus rounds to notify listeners about, must not be {@code null}
+     * @param round the consensus round to notify listeners about, must not be {@code null}
      */
-    private void notifyConsensusRoundListeners(@NonNull final List<ConsensusRound> rounds) {
-        consensusRoundListeners.forEach(listener -> listener.onConsensusRounds(rounds));
+    private void notifyConsensusRoundListeners(@NonNull final ConsensusRound round) {
+        consensusRoundListeners.forEach(listener -> listener.onConsensusRound(round));
     }
 
     /**

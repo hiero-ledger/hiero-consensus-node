@@ -643,7 +643,7 @@ public class ContainerNode extends AbstractNode implements Node, TimeTickReceive
                 case LOG_ENTRY -> resultsCollector.addLogEntry(ProtobufConverter.toPlatform(event.getLogEntry()));
                 case PLATFORM_STATUS_CHANGE -> handlePlatformChange(event);
                 case CONSENSUS_ROUNDS ->
-                    resultsCollector.addConsensusRounds(ProtobufConverter.toPbj(event.getConsensusRounds()));
+                    resultsCollector.addConsensusRound(ProtobufConverter.toPlatform(event.getConsensusRound()));
                 default -> log.warn("Received unexpected event: {}", event);
             }
         }

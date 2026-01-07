@@ -3,6 +3,7 @@ package com.swirlds.platform.cli;
 
 import static com.swirlds.platform.builder.ConsensusModuleBuilder.createNoOpEventCreatorModule;
 import static com.swirlds.platform.builder.ConsensusModuleBuilder.createNoOpEventIntakeModule;
+import static com.swirlds.platform.builder.ConsensusModuleBuilder.createNoOpHashgraphModule;
 
 import com.swirlds.cli.PlatformCli;
 import com.swirlds.cli.utility.AbstractCommand;
@@ -29,6 +30,7 @@ import java.util.List;
 import java.util.Set;
 import org.hiero.consensus.event.creator.EventCreatorModule;
 import org.hiero.consensus.event.intake.EventIntakeModule;
+import org.hiero.consensus.hashgraph.HashgraphModule;
 import picocli.CommandLine;
 
 @CommandLine.Command(
@@ -112,9 +114,10 @@ public final class DiagramCommand extends AbstractCommand {
 
         final EventCreatorModule eventCreatorModule = createNoOpEventCreatorModule(model, configuration);
         final EventIntakeModule eventIntakeModule = createNoOpEventIntakeModule(model, configuration);
+        final HashgraphModule hashgraphModule = createNoOpHashgraphModule(model, configuration);
 
         final PlatformComponents platformComponents =
-                PlatformComponents.create(platformContext, model, eventCreatorModule, eventIntakeModule);
+                PlatformComponents.create(platformContext, model, eventCreatorModule, eventIntakeModule, hashgraphModule);
 
         PlatformWiring.wire(platformContext, new NoOpExecutionLayer(), platformComponents, ApplicationCallbacks.EMPTY);
 

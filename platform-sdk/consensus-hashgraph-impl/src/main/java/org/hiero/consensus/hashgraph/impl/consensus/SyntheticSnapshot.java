@@ -32,7 +32,7 @@ public final class SyntheticSnapshot {
      * but is instead generated to be used as a starting point for consensus. The snapshot will contain a single
      * judge whose generation will be almost ancient. All events older than the judge will be considered ancient.
      * The judge is the only event needed to continue consensus operations. Once the judge is added to
-     * {@link com.swirlds.platform.Consensus}, it will be marked as already having reached consensus beforehand, so it
+     * {@link Consensus}, it will be marked as already having reached consensus beforehand, so it
      * will not reach consensus again.
      *
      * @param round              the round of the snapshot

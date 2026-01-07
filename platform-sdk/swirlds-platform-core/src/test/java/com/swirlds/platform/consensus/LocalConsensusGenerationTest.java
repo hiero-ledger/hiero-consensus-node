@@ -8,6 +8,7 @@ import org.hiero.consensus.hashgraph.impl.EventImpl;
 import com.swirlds.platform.test.fixtures.graph.SimpleGraph;
 import com.swirlds.platform.test.fixtures.graph.SimpleGraphs;
 import java.util.List;
+import org.hiero.consensus.hashgraph.impl.consensus.LocalConsensusGeneration;
 import org.junit.jupiter.api.Test;
 
 /**

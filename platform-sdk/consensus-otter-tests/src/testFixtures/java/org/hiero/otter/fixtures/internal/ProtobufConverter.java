@@ -466,36 +466,6 @@ public class ProtobufConverter {
     }
 
     /**
-     * Converts a ProtoConsensusRounds to List<ConsensusRound>
-     *
-     * @param sourceRounds the ProtoConsensusRounds to convert
-     * @return the converted ConsensusRound
-     */
-    @NonNull
-    public static List<org.hiero.consensus.model.hashgraph.ConsensusRound> toPbj(
-            @NonNull final org.hiero.otter.fixtures.container.proto.ProtoConsensusRounds sourceRounds) {
-        return sourceRounds.getRoundsList().stream()
-                .map(ProtobufConverter::toPlatform)
-                .collect(Collectors.toList());
-    }
-
-    /**
-     * Converts a List<ConsensusRound> to ProtoConsensusRounds
-     *
-     * @param sourceRounds the ConsensusRounds to convert
-     * @return the converted ConsensusRound
-     */
-    @NonNull
-    public static org.hiero.otter.fixtures.container.proto.ProtoConsensusRounds fromPlatform(
-            @NonNull final List<org.hiero.consensus.model.hashgraph.ConsensusRound> sourceRounds) {
-        final List<ProtoConsensusRound> legacyRounds =
-                sourceRounds.stream().map(ProtobufConverter::fromPlatform).toList();
-        return org.hiero.otter.fixtures.container.proto.ProtoConsensusRounds.newBuilder()
-                .addAllRounds(legacyRounds)
-                .build();
-    }
-
-    /**
      * Converts a ProtoConsensusRound to ConsensusRound.
      *
      * @param sourceRound the ProtoConsensusRound to convert

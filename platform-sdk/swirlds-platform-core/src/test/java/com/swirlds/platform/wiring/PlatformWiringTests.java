@@ -3,6 +3,7 @@ package com.swirlds.platform.wiring;
 
 import static com.swirlds.platform.builder.ConsensusModuleBuilder.createNoOpEventCreatorModule;
 import static com.swirlds.platform.builder.ConsensusModuleBuilder.createNoOpEventIntakeModule;
+import static com.swirlds.platform.builder.ConsensusModuleBuilder.createNoOpHashgraphModule;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -23,7 +24,6 @@ import com.swirlds.platform.components.AppNotifier;
 import com.swirlds.platform.components.EventWindowManager;
 import com.swirlds.platform.components.SavedStateController;
 import com.swirlds.platform.components.appcomm.LatestCompleteStateNotifier;
-import com.swirlds.platform.components.consensus.ConsensusEngine;
 import com.swirlds.platform.crypto.KeyGeneratingException;
 import com.swirlds.platform.crypto.KeysAndCertsGenerator;
 import com.swirlds.platform.event.branching.BranchDetector;
@@ -53,6 +53,7 @@ import java.util.stream.Stream;
 import org.hiero.consensus.crypto.SigningSchema;
 import org.hiero.consensus.event.creator.EventCreatorModule;
 import org.hiero.consensus.event.intake.EventIntakeModule;
+import org.hiero.consensus.hashgraph.HashgraphModule;
 import org.hiero.consensus.metrics.noop.NoOpMetrics;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
@@ -92,9 +93,10 @@ class PlatformWiringTests {
         final Configuration configuration = platformContext.getConfiguration();
         final EventCreatorModule eventCreatorModule = createNoOpEventCreatorModule(model, configuration);
         final EventIntakeModule eventIntakeModule = createNoOpEventIntakeModule(model, configuration);
+        final HashgraphModule hashgraphModule = createNoOpHashgraphModule(model, configuration);
 
         final PlatformComponents platformComponents =
-                PlatformComponents.create(platformContext, model, eventCreatorModule, eventIntakeModule);
+                PlatformComponents.create(platformContext, model, eventCreatorModule, eventIntakeModule, hashgraphModule);
         PlatformWiring.wire(
                 platformContext, mock(ExecutionLayer.class), platformComponents, ApplicationCallbacks.EMPTY);
 

@@ -50,7 +50,7 @@ public class EventPipelineTracker {
     /**
      * Records the delay experienced by a single event after the specified stage.
      *
-     * @param name  the name of the stage
+     * @param name the name of the stage
      * @param event the event to record
      */
     public void recordEvent(@NonNull final String name, @NonNull final PlatformEvent event) {
@@ -65,7 +65,7 @@ public class EventPipelineTracker {
     /**
      * Records the delay experienced by a list of events after the specified stage.
      *
-     * @param name   the name of the stage
+     * @param name the name of the stage
      * @param events the list of events to record
      */
     public void recordEvents(@NonNull final String name, @NonNull final List<PlatformEvent> events) {
@@ -82,16 +82,14 @@ public class EventPipelineTracker {
     /**
      * Records the delay experienced by all events in the given consensus rounds after the specified stage.
      *
-     * @param name            the name of the stage
-     * @param consensusRounds the list of consensus rounds to record
+     * @param name the name of the stage
+     * @param round the consensus round to record
      */
-    public void recordRounds(@NonNull final String name, @NonNull final List<ConsensusRound> consensusRounds) {
+    public void recordRounds(@NonNull final String name, @NonNull final ConsensusRound round) {
         final AverageAndMaxTimeStat stat = metricMap.get(name);
         if (stat != null) {
-            for (final ConsensusRound round : consensusRounds) {
-                for (final PlatformEvent event : round.getConsensusEvents()) {
-                    stat.update(event.getTimeReceived());
-                }
+            for (final PlatformEvent event : round.getConsensusEvents()) {
+                stat.update(event.getTimeReceived());
             }
         } else {
             throw new IllegalArgumentException("No metric registered for stage: " + name);

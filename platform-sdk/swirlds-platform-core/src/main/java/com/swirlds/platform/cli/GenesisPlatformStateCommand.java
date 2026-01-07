@@ -26,6 +26,7 @@ import com.swirlds.state.spi.WritableStates;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.concurrent.ExecutionException;
+import org.hiero.consensus.hashgraph.impl.consensus.SyntheticSnapshot;
 import org.hiero.consensus.roster.RosterStateId;
 import org.hiero.consensus.roster.WritableRosterStore;
 import picocli.CommandLine;

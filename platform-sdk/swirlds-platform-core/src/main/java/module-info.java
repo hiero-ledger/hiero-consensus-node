@@ -8,6 +8,7 @@ import org.hiero.consensus.event.intake.EventIntakeModule;
 module com.swirlds.platform.core {
     uses EventCreatorModule;
     uses EventIntakeModule;
+    uses org.hiero.consensus.hashgraph.HashgraphModule;
 
     /* Public Package Exports. This list should remain alphabetized. */
     exports com.swirlds.platform;

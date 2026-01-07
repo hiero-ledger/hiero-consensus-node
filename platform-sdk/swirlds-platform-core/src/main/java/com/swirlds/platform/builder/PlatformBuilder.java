@@ -6,10 +6,12 @@ import static com.swirlds.logging.legacy.LogMarker.EXCEPTION;
 import static com.swirlds.logging.legacy.LogMarker.STARTUP;
 import static com.swirlds.platform.builder.ConsensusModuleBuilder.createEventCreatorModule;
 import static com.swirlds.platform.builder.ConsensusModuleBuilder.createEventIntakeModule;
+import static com.swirlds.platform.builder.ConsensusModuleBuilder.createHashgraphModule;
 import static com.swirlds.platform.builder.PlatformBuildConstants.DEFAULT_CONFIG_FILE_NAME;
 import static com.swirlds.platform.builder.internal.StaticPlatformBuilder.doStaticSetup;
 import static com.swirlds.platform.config.internal.PlatformConfigUtils.checkConfiguration;
 import static com.swirlds.platform.state.service.PlatformStateUtils.isInFreezePeriod;
+import static java.util.Objects.hash;
 import static java.util.Objects.requireNonNull;
 import static org.hiero.consensus.concurrent.manager.AdHocThreadManager.getStaticThreadManager;
 import static org.hiero.consensus.pces.PcesUtilities.getDatabaseDirectory;
@@ -63,6 +65,7 @@ import org.hiero.consensus.crypto.PlatformSigner;
 import org.hiero.consensus.event.IntakeEventCounter;
 import org.hiero.consensus.event.creator.EventCreatorModule;
 import org.hiero.consensus.event.intake.EventIntakeModule;
+import org.hiero.consensus.hashgraph.HashgraphModule;
 import org.hiero.consensus.model.event.PlatformEvent;
 import org.hiero.consensus.model.node.KeysAndCerts;
 import org.hiero.consensus.model.node.NodeId;
@@ -93,6 +96,7 @@ public final class PlatformBuilder {
 
     private EventCreatorModule eventCreatorModule;
     private EventIntakeModule eventIntakeModule;
+    private HashgraphModule hashgraphModule;
 
     private static final UncaughtExceptionHandler DEFAULT_UNCAUGHT_EXCEPTION_HANDLER =
             (t, e) -> logger.error(EXCEPTION.getMarker(), "Uncaught exception on thread {}: {}", t, e);
@@ -402,6 +406,34 @@ public final class PlatformBuilder {
     }
 
     /**
+     * Provide the Hashgraph module to use for this platform.
+     *
+     * @param hashgraphModule the hashgraph module
+     * @return this
+     */
+    @NonNull
+    public PlatformBuilder withHashgraphModule(@NonNull final HashgraphModule hashgraphModule) {
+        throwIfAlreadyUsed();
+        this.hashgraphModule = requireNonNull(hashgraphModule);
+        return this;
+    }
+
+    private void initializeHashgraphModule() {
+        if (this.hashgraphModule == null) {
+            this.hashgraphModule = createHashgraphModule();
+        }
+
+        hashgraphModule.initialize(
+                model,
+                platformContext.getConfiguration(),
+                platformContext.getMetrics(),
+                platformContext.getTime(),
+                rosterHistory.getCurrentRoster(),
+                selfId,
+                instant -> isInFreezePeriod(instant, stateLifecycleManager.getMutableState()));
+    }
+
+    /**
      * Provide the consensus event intake to use for this platform.
      *
      * @param eventIntakeModule the consensus event intake module
@@ -536,7 +568,7 @@ public final class PlatformBuilder {
         initializeEventIntakeModule(intakeEventCounter, pipelineTracker);
 
         final PlatformComponents platformComponentWiring =
-                PlatformComponents.create(platformContext, model, eventCreatorModule, eventIntakeModule);
+                PlatformComponents.create(platformContext, model, eventCreatorModule, eventIntakeModule, hashgraphModule);
 
         PlatformWiring.wire(platformContext, execution, platformComponentWiring, callbacks);
         PlatformWiring.wireMetrics(platformComponentWiring, pipelineTracker);
