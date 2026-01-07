@@ -32,7 +32,9 @@ import org.junit.jupiter.api.Test;
 
 @DisplayName("Async Stream Test")
 class AsyncStreamTest {
+
     private final Configuration configuration = new TestConfigBuilder()
+            .withConfigDataType(ReconnectConfig.class)
             .withValue("reconnect.asyncOutputStream", 10000) // FUTURE: Looks like that property is not defined
             .withValue(ReconnectConfig_.ASYNC_STREAM_BUFFER_SIZE, 100)
             .withValue(ReconnectConfig_.ASYNC_OUTPUT_STREAM_FLUSH, "50ms")

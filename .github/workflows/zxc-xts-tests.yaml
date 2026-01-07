@@ -43,7 +43,7 @@ on:
         default: "latest"
       mirror-node-version:
         type: string
-        description: "The mirror node version to deploy for the mirror node regression panel (if not specified, '0.142.2' will be used)"
+        description: "The mirror node version to deploy for the mirror node regression panel (if not specified, '0.145.2' will be used)"
         default: "latest"
       helm-release-name:
         type: string
@@ -302,7 +302,7 @@ jobs:
       custom-job-name: "${{ inputs.custom-job-label }} Mirror Node Regression"
       solo-version: ${{ inputs.solo-version }}
       helm-release-name: ${{ inputs.helm-release-name }}
-      mirror-node-version: ${{ inputs.mirror-node-version || '0.142.2' }}
+      mirror-node-version: ${{ inputs.mirror-node-version || '0.145.2' }}
     secrets:
       access-token: ${{ secrets.regression-access-token }}
       slack-detailed-report-webhook: ${{ secrets.slack-citr-details-token }}
