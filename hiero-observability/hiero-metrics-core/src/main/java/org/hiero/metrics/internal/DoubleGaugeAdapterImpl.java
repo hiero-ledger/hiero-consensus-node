@@ -23,12 +23,12 @@ public final class DoubleGaugeAdapterImpl<M> extends AbstractSettableMetric<Supp
     }
 
     @Override
-    protected DoubleValueMeasurementSnapshotImpl createSnapshot(M measurement, LabelValues dynamicLabelValues) {
+    public DoubleValueMeasurementSnapshotImpl createSnapshot(M measurement, LabelValues dynamicLabelValues) {
         return new DoubleValueMeasurementSnapshotImpl(dynamicLabelValues);
     }
 
     @Override
-    protected void updateSnapshot(M measurement, MeasurementSnapshot snapshot) {
+    public void updateSnapshot(M measurement, MeasurementSnapshot snapshot) {
         ((DoubleValueMeasurementSnapshotImpl) snapshot).set(exportGetter.applyAsDouble(measurement));
     }
 

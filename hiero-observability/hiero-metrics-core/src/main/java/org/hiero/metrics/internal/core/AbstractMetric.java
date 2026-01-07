@@ -51,16 +51,16 @@ public abstract class AbstractMetric<M> implements Metric {
         staticLabels = builder.getStaticLabels().stream().sorted().toList();
         dynamicLabelNames = builder.getDynamicLabelNames().stream().sorted().toList();
 
-        snapshot = new UpdatableMetricSnapshot<>(this, this::createSnapshot, this::updateSnapshot);
+        snapshot = new UpdatableMetricSnapshot<>(this);
     }
 
     public final UpdatableMetricSnapshot<M> snapshot() {
         return snapshot;
     }
 
-    protected abstract MeasurementSnapshot createSnapshot(M measurement, LabelValues dynamicLabelValues);
+    public abstract MeasurementSnapshot createSnapshot(M measurement, LabelValues dynamicLabelValues);
 
-    protected abstract void updateSnapshot(M measurement, MeasurementSnapshot snapshot);
+    public abstract void updateSnapshot(M measurement, MeasurementSnapshot snapshot);
 
     protected LabelValues createLabelValues(String... namesAndValues) {
         Objects.requireNonNull(namesAndValues, "Label names and values must not be null");

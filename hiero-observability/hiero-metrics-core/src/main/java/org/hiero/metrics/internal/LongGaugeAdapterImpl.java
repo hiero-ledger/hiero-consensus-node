@@ -23,12 +23,12 @@ public final class LongGaugeAdapterImpl<M> extends AbstractSettableMetric<Suppli
     }
 
     @Override
-    protected LongValueMeasurementSnapshotImpl createSnapshot(M measurement, LabelValues dynamicLabelValues) {
+    public LongValueMeasurementSnapshotImpl createSnapshot(M measurement, LabelValues dynamicLabelValues) {
         return new LongValueMeasurementSnapshotImpl(dynamicLabelValues);
     }
 
     @Override
-    protected void updateSnapshot(M measurement, MeasurementSnapshot snapshot) {
+    public void updateSnapshot(M measurement, MeasurementSnapshot snapshot) {
         ((LongValueMeasurementSnapshotImpl) snapshot).set(exportGetter.applyAsLong(measurement));
     }
 

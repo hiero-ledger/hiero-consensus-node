@@ -18,13 +18,13 @@ public final class LongCounterImpl extends AbstractSettableMetric<LongSupplier, 
     }
 
     @Override
-    protected LongValueMeasurementSnapshotImpl createSnapshot(
+    public LongValueMeasurementSnapshotImpl createSnapshot(
             LongCounterMeasurement measurement, LabelValues dynamicLabelValues) {
         return new LongValueMeasurementSnapshotImpl(dynamicLabelValues);
     }
 
     @Override
-    protected void updateSnapshot(LongCounterMeasurement measurement, MeasurementSnapshot snapshot) {
+    public void updateSnapshot(LongCounterMeasurement measurement, MeasurementSnapshot snapshot) {
         ((LongValueMeasurementSnapshotImpl) snapshot).set(cast(measurement).get());
     }
 

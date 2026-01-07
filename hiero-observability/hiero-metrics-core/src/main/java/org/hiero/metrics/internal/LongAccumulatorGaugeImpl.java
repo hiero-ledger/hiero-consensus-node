@@ -25,13 +25,13 @@ public class LongAccumulatorGaugeImpl extends AbstractSettableMetric<LongSupplie
     }
 
     @Override
-    protected LongValueMeasurementSnapshotImpl createSnapshot(
+    public LongValueMeasurementSnapshotImpl createSnapshot(
             LongAccumulatorGaugeMeasurement measurement, LabelValues dynamicLabelValues) {
         return new LongValueMeasurementSnapshotImpl(dynamicLabelValues);
     }
 
     @Override
-    protected void updateSnapshot(LongAccumulatorGaugeMeasurement measurement, MeasurementSnapshot snapshot) {
+    public void updateSnapshot(LongAccumulatorGaugeMeasurement measurement, MeasurementSnapshot snapshot) {
         ((LongValueMeasurementSnapshotImpl) snapshot).set(exportValueSupplier.applyAsLong(cast(measurement)));
     }
 

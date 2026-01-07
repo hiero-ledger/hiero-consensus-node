@@ -27,7 +27,7 @@ public final class ObservableGaugeImpl extends AbstractMetric<NumberSupplier> im
     }
 
     @Override
-    protected MeasurementSnapshot createSnapshot(NumberSupplier measurement, LabelValues dynamicLabelValues) {
+    public MeasurementSnapshot createSnapshot(NumberSupplier measurement, LabelValues dynamicLabelValues) {
         if (measurement.isFloatingSupplier()) {
             return new DoubleValueMeasurementSnapshotImpl(dynamicLabelValues);
         } else {
@@ -36,7 +36,7 @@ public final class ObservableGaugeImpl extends AbstractMetric<NumberSupplier> im
     }
 
     @Override
-    protected void updateSnapshot(NumberSupplier measurement, MeasurementSnapshot snapshot) {
+    public void updateSnapshot(NumberSupplier measurement, MeasurementSnapshot snapshot) {
         if (measurement.isFloatingSupplier()) {
             ((DoubleValueMeasurementSnapshotImpl) snapshot)
                     .set(measurement.getDoubleSupplier().getAsDouble());
