@@ -78,8 +78,8 @@ import java.util.Set;
 import java.util.function.Predicate;
 import org.hiero.hapi.interledger.state.clpr.ClprLedgerConfiguration;
 import org.hiero.hapi.interledger.state.clpr.ClprLedgerId;
-import org.hiero.hapi.interledger.state.clpr.ClprMessageQueueMetadata;
 import org.hiero.hapi.interledger.state.clpr.ClprMessageKey;
+import org.hiero.hapi.interledger.state.clpr.ClprMessageQueueMetadata;
 import org.hiero.hapi.interledger.state.clpr.ClprMessageValue;
 
 /**
