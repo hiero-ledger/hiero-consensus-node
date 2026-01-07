@@ -70,8 +70,8 @@ class CryptoTransferValidatorTest {
                     .tokenTransfers(tokenTransfer)
                     .build();
 
-            assertThatThrownBy(() -> subject.validateSemantics(
-                            op, config, HandleContext.TransactionCategory.USER, ACCOUNT_3333))
+            assertThatThrownBy(() ->
+                            subject.validateSemantics(op, config, HandleContext.TransactionCategory.USER, ACCOUNT_3333))
                     .isInstanceOf(HandleException.class)
                     .has(responseCode(TRANSFER_TO_FEE_COLLECTION_ACCOUNT_NOT_ALLOWED));
         }
@@ -92,8 +92,8 @@ class CryptoTransferValidatorTest {
                     .tokenTransfers(tokenTransfer)
                     .build();
 
-            assertThatThrownBy(() -> subject.validateSemantics(
-                            op, config, HandleContext.TransactionCategory.USER, ACCOUNT_3333))
+            assertThatThrownBy(() ->
+                            subject.validateSemantics(op, config, HandleContext.TransactionCategory.USER, ACCOUNT_3333))
                     .isInstanceOf(HandleException.class)
                     .has(responseCode(TRANSFER_TO_FEE_COLLECTION_ACCOUNT_NOT_ALLOWED));
         }
@@ -118,8 +118,8 @@ class CryptoTransferValidatorTest {
                     .tokenTransfers(tokenTransfer)
                     .build();
 
-            assertThatCode(() -> subject.validateSemantics(
-                            op, config, HandleContext.TransactionCategory.USER, ACCOUNT_3333))
+            assertThatCode(() ->
+                            subject.validateSemantics(op, config, HandleContext.TransactionCategory.USER, ACCOUNT_3333))
                     .doesNotThrowAnyException();
         }
 
@@ -139,8 +139,8 @@ class CryptoTransferValidatorTest {
                     .tokenTransfers(tokenTransfer)
                     .build();
 
-            assertThatCode(() -> subject.validateSemantics(
-                            op, config, HandleContext.TransactionCategory.USER, ACCOUNT_3333))
+            assertThatCode(() ->
+                            subject.validateSemantics(op, config, HandleContext.TransactionCategory.USER, ACCOUNT_3333))
                     .doesNotThrowAnyException();
         }
 
@@ -164,8 +164,8 @@ class CryptoTransferValidatorTest {
                     .tokenTransfers(tokenTransfer)
                     .build();
 
-            assertThatCode(() -> subject.validateSemantics(
-                            op, config, HandleContext.TransactionCategory.USER, ACCOUNT_3333))
+            assertThatCode(() ->
+                            subject.validateSemantics(op, config, HandleContext.TransactionCategory.USER, ACCOUNT_3333))
                     .doesNotThrowAnyException();
         }
 
@@ -189,8 +189,8 @@ class CryptoTransferValidatorTest {
                     .tokenTransfers(tokenTransfer)
                     .build();
 
-            assertThatCode(() -> subject.validateSemantics(
-                            op, config, HandleContext.TransactionCategory.USER, ACCOUNT_3333))
+            assertThatCode(() ->
+                            subject.validateSemantics(op, config, HandleContext.TransactionCategory.USER, ACCOUNT_3333))
                     .doesNotThrowAnyException();
         }
 
@@ -211,8 +211,8 @@ class CryptoTransferValidatorTest {
                             .build())
                     .build();
 
-            assertThatCode(() -> subject.validateSemantics(
-                            op, config, HandleContext.TransactionCategory.USER, ACCOUNT_3333))
+            assertThatCode(() ->
+                            subject.validateSemantics(op, config, HandleContext.TransactionCategory.USER, ACCOUNT_3333))
                     .doesNotThrowAnyException();
         }
 
@@ -249,8 +249,8 @@ class CryptoTransferValidatorTest {
                     .tokenTransfers(validTransfer, invalidTransfer)
                     .build();
 
-            assertThatThrownBy(() -> subject.validateSemantics(
-                            op, config, HandleContext.TransactionCategory.USER, ACCOUNT_3333))
+            assertThatThrownBy(() ->
+                            subject.validateSemantics(op, config, HandleContext.TransactionCategory.USER, ACCOUNT_3333))
                     .isInstanceOf(HandleException.class)
                     .has(responseCode(TRANSFER_TO_FEE_COLLECTION_ACCOUNT_NOT_ALLOWED));
         }

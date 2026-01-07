@@ -277,9 +277,11 @@ public class Hip1195EnabledTest {
     }
 
     @HapiTest
-    final Stream<DynamicTest> transfersWithHooksGasThrottled() {
+    final Stream<DynamicTest> transfersWithHooksMaxGasRejected() {
         return hapiTest(
-                cryptoCreate(PAYER).balance(100 * THOUSAND_HBAR),
+                cryptoCreate(PAYER)
+                        .balance(100 * THOUSAND_HBAR)
+                        .withHooks(accountAllowanceHook(123L, TRUE_ALLOWANCE_HOOK.name())),
                 cryptoCreate(OWNER)
                         .withHooks(
                                 accountAllowanceHook(123L, TRUE_ALLOWANCE_HOOK.name()),
@@ -289,20 +291,17 @@ public class Hip1195EnabledTest {
                 cryptoTransfer(TokenMovement.movingHbar(10).between(OWNER, GENESIS))
                         .withPreHookFor(OWNER, 124L, 15000000000000L, "")
                         .payingWith(PAYER)
-                        .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK)
-                        .via("payerTxnGasLimitExceeded"),
+                        .hasKnownStatus(MAX_GAS_LIMIT_EXCEEDED),
                 cryptoTransfer(TokenMovement.movingHbar(10).between(OWNER, GENESIS))
                         .withPreHookFor(OWNER, 124L, 15000000000000L, "")
-                        .hasKnownStatus(REJECTED_BY_ACCOUNT_ALLOWANCE_HOOK)
-                        .via("defaultPayerMaxGasLimitExceededTxn"),
-                getTxnRecord("payerTxnGasLimitExceeded")
-                        .andAllChildRecords()
-                        .hasChildRecords(recordWith().status(MAX_GAS_LIMIT_EXCEEDED))
-                        .logged(),
-                getTxnRecord("defaultPayerMaxGasLimitExceededTxn")
-                        .andAllChildRecords()
-                        .hasChildRecords(recordWith().status(MAX_GAS_LIMIT_EXCEEDED))
-                        .logged());
+                        .hasKnownStatus(MAX_GAS_LIMIT_EXCEEDED),
+                cryptoTransfer(TokenMovement.movingHbar(10).between(OWNER, GENESIS))
+                        .withPrePostHookFor(OWNER, 125L, 14000000000000L, "")
+                        .hasKnownStatus(MAX_GAS_LIMIT_EXCEEDED),
+                cryptoTransfer(TokenMovement.movingHbar(10).between(OWNER, PAYER))
+                        .withPreHookFor(OWNER, 124L, 14000000000000L, "")
+                        .withPreHookFor(OWNER, 123L, 14000000000000L, "")
+                        .hasKnownStatus(MAX_GAS_LIMIT_EXCEEDED));
     }
 
     @HapiTest

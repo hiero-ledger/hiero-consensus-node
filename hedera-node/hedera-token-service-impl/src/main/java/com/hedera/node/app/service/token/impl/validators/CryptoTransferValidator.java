@@ -164,7 +164,8 @@ public class CryptoTransferValidator {
     /**
      * Utility to merge two partial HookInfo results.
      */
-    private static CryptoTransferHandler.HookInfo merge(final CryptoTransferHandler.HookInfo a, final CryptoTransferHandler.HookInfo b) {
+    private static CryptoTransferHandler.HookInfo merge(
+            final CryptoTransferHandler.HookInfo a, final CryptoTransferHandler.HookInfo b) {
         if (a == CryptoTransferHandler.HookInfo.NO_HOOKS) {
             return b;
         } else if (b == CryptoTransferHandler.HookInfo.NO_HOOKS) {
@@ -292,9 +293,10 @@ public class CryptoTransferValidator {
                 TRANSFER_TO_FEE_COLLECTION_ACCOUNT_NOT_ALLOWED);
     }
 
-    private void validateHookGasLimit(final CryptoTransferTransactionBody op,
-                                      final HooksConfig hooksConfig,
-                                      final ContractsConfig contractsConfig) {
+    private void validateHookGasLimit(
+            final CryptoTransferTransactionBody op,
+            final HooksConfig hooksConfig,
+            final ContractsConfig contractsConfig) {
         final var gasLimit = hooksConfig.lambdaIntrinsicGasCost();
         long totalGasLimit = 0L;
         for (final var aa : op.transfersOrElse(TransferList.DEFAULT).accountAmounts()) {
