@@ -54,6 +54,8 @@ import "services/schedule_get_info.proto";
 import "services/get_account_details.proto";
 
 import "interledger/clpr_get_ledger_configuration.proto";
+import "interledger/clpr_get_message_queue_metadata.proto";
+import "interledger/clpr_get_messages.proto";
 
 /**
  * A single query response.
@@ -241,5 +243,17 @@ message Response {
          * for a specific ledger id.
          */
         org.hiero.hapi.interledger.clpr.ClprGetLedgerConfigurationResponse clpr_ledger_configuration = 159;
+
+        /**
+         * A response for a query requesting the metadata of a message queue
+         * for a specific remote ledger id.
+         */
+        org.hiero.hapi.interledger.clpr.ClprGetMessageQueueMetadataResponse clpr_message_queue_metadata = 160;
+
+        /**
+         * A response for a query requesting a bundle of messages from a
+         * remote ledger's message queue.
+         */
+        org.hiero.hapi.interledger.clpr.ClprGetMessagesResponse clpr_messages = 161;
     }
 }

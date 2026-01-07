@@ -104,6 +104,8 @@ import "services/hook_store.proto";
 import "services/hook_dispatch.proto";
 
 import "interledger/clpr_set_ledger_configuration.proto";
+import "interledger/clpr_update_message_queue_metadata.proto";
+import "interledger/clpr_process_message_bundle.proto";
 
 /**
  * A wrapper around signed transaction bytes.<br/>
@@ -675,6 +677,16 @@ message TransactionBody {
          * A transaction body for setting CLPR Ledger Configuration.
          */
         org.hiero.hapi.interledger.clpr.ClprSetLedgerConfigurationTransactionBody clprSetLedgerConfiguration = 100;
+
+        /**
+         * A transaction body for updating the metadata of a remote CLPR message queue.
+         */
+        org.hiero.hapi.interledger.clpr.ClprUpdateMessageQueueMetadataTransactionBody clprUpdateMessageQueueMetadata = 101;
+
+        /**
+         * A transaction body for submitting a bundle of CLPR messages for processing.
+         */
+        org.hiero.hapi.interledger.clpr.ClprProcessMessageBundleTransactionBody clprProcessMessageBundle = 102;
     }
 
     /**

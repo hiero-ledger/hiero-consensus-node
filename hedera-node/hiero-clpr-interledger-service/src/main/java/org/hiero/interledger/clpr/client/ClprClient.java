@@ -7,6 +7,8 @@ import com.hedera.hapi.node.base.ResponseCodeEnum;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import edu.umd.cs.findbugs.annotations.Nullable;
 import org.hiero.hapi.interledger.state.clpr.ClprLedgerId;
+import org.hiero.hapi.interledger.state.clpr.ClprMessageBundle;
+import org.hiero.hapi.interledger.state.clpr.ClprMessageQueueMetadata;
 
 /**
  * Interface for the CLPR (Cross-Ledger Protocol) client.
@@ -41,6 +43,26 @@ public interface ClprClient extends AutoCloseable {
             @NonNull AccountID payerAccountId,
             @NonNull AccountID nodeAccountId,
             @NonNull StateProof ledgerConfigurationProof);
+
+    @NonNull
+    ResponseCodeEnum updateMessageQueueMetadata(
+            @NonNull AccountID payerAccountId,
+            @NonNull AccountID nodeAccountId,
+            @NonNull ClprLedgerId ledgerId,
+            @NonNull ClprMessageQueueMetadata clprMessageQueueMetadata);
+
+    @Nullable
+    ClprMessageQueueMetadata getMessageQueueMetadata(@NonNull ClprLedgerId ledgerId);
+
+    @NonNull
+    ResponseCodeEnum processMessageBundle(
+            @NonNull AccountID payerAccountId,
+            @NonNull AccountID nodeAccountId,
+            @NonNull ClprLedgerId ledgerId,
+            @NonNull ClprMessageBundle messageBundle);
+
+    @Nullable
+    ClprMessageBundle getMessages(@NonNull ClprLedgerId ledgerId, int maxNumMsg, int maxNumBytes);
 
     /**
      * Closes the CLPR client connection.

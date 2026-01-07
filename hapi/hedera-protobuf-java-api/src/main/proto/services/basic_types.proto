@@ -1868,6 +1868,26 @@ enum HederaFunctionality {
      * Creates or updates a CLPR remote configuration.
      */
     ClprSetLedgerConfig = 131;
+
+    /**
+     * Get a CLPR message queue metadata.
+     */
+    ClprGetMessageQueueMetadata = 132;
+
+    /**
+     * Creates or updates a CLPR remote message queue metadata.
+     */
+    ClprUpdateMessageQueueMetadata = 133;
+
+    /**
+     * Retrieves a bundle of messages from a remote CLPR ledger.
+     */
+    ClprGetMessages = 134;
+
+    /**
+     * Submits a bundle of CLPR messages to be processed.
+     */
+    ClprProcessMessageBundle = 135;
 }
 
 /**
