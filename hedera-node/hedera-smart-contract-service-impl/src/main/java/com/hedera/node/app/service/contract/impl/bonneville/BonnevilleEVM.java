@@ -355,7 +355,7 @@ class BEVM {
     ExceptionalHaltReason _run() {
         if( _codes.length==0 )
             return stop();
-        SB trace = new SB();
+        SB trace = null; // new SB();
         PrintStream oldSysOut = System.out;
         if( trace != null )
             System.setOut(new PrintStream(new FileOutputStream( FileDescriptor.out)));
