@@ -18,13 +18,12 @@ public final class DoubleCounterImpl extends AbstractSettableMetric<DoubleSuppli
     }
 
     @Override
-    protected MeasurementSnapshot createMeasurementSnapshot(
-            DoubleCounterMeasurement measurement, LabelValues dynamicLabelValues) {
+    protected MeasurementSnapshot createSnapshot(DoubleCounterMeasurement measurement, LabelValues dynamicLabelValues) {
         return new DoubleValueMeasurementSnapshotImpl(dynamicLabelValues);
     }
 
     @Override
-    protected void updateMeasurementSnapshot(DoubleCounterMeasurement measurement, MeasurementSnapshot snapshot) {
+    protected void updateSnapshot(DoubleCounterMeasurement measurement, MeasurementSnapshot snapshot) {
         ((DoubleValueMeasurementSnapshotImpl) snapshot).set(cast(measurement).get());
     }
 

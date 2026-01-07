@@ -9,7 +9,6 @@ import org.hiero.metrics.api.core.Label;
 import org.hiero.metrics.api.core.Metric;
 import org.hiero.metrics.api.core.MetricType;
 import org.hiero.metrics.api.export.snapshot.MeasurementSnapshot;
-import org.hiero.metrics.internal.export.snapshot.MeasurementAndSnapshot;
 import org.hiero.metrics.internal.export.snapshot.UpdatableMetricSnapshot;
 
 /**
@@ -52,23 +51,16 @@ public abstract class AbstractMetric<M> implements Metric {
         staticLabels = builder.getStaticLabels().stream().sorted().toList();
         dynamicLabelNames = builder.getDynamicLabelNames().stream().sorted().toList();
 
-        snapshot = new UpdatableMetricSnapshot<>(this);
+        snapshot = new UpdatableMetricSnapshot<>(this, this::createSnapshot, this::updateSnapshot);
     }
 
     public final UpdatableMetricSnapshot<M> snapshot() {
         return snapshot;
     }
 
-    protected final void addMeasurementSnapshot(M measurement, LabelValues dynamicLabelValues) {
-        snapshot.addMeasurementAndSnapshot(new MeasurementAndSnapshot<>(
-                measurement,
-                createMeasurementSnapshot(measurement, dynamicLabelValues),
-                this::updateMeasurementSnapshot));
-    }
+    protected abstract MeasurementSnapshot createSnapshot(M measurement, LabelValues dynamicLabelValues);
 
-    protected abstract MeasurementSnapshot createMeasurementSnapshot(M measurement, LabelValues dynamicLabelValues);
-
-    protected abstract void updateMeasurementSnapshot(M measurement, MeasurementSnapshot snapshot);
+    protected abstract void updateSnapshot(M measurement, MeasurementSnapshot snapshot);
 
     protected LabelValues createLabelValues(String... namesAndValues) {
         Objects.requireNonNull(namesAndValues, "Label names and values must not be null");

@@ -26,14 +26,13 @@ public class DoubleAccumulatorGaugeImpl
     }
 
     @Override
-    protected MeasurementSnapshot createMeasurementSnapshot(
+    protected MeasurementSnapshot createSnapshot(
             DoubleAccumulatorGaugeMeasurement measurement, LabelValues dynamicLabelValues) {
         return new DoubleValueMeasurementSnapshotImpl(dynamicLabelValues);
     }
 
     @Override
-    protected void updateMeasurementSnapshot(
-            DoubleAccumulatorGaugeMeasurement measurement, MeasurementSnapshot snapshot) {
+    protected void updateSnapshot(DoubleAccumulatorGaugeMeasurement measurement, MeasurementSnapshot snapshot) {
         ((DoubleValueMeasurementSnapshotImpl) snapshot).set(exportValueSupplier.applyAsDouble(cast(measurement)));
     }
 

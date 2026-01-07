@@ -102,7 +102,7 @@ public abstract class AbstractSettableMetric<I, M> extends AbstractMetric<M> imp
 
     private M createMeasurementAndSnapshot(LabelValues labelValues, @NonNull I initializer) {
         M measurement = measurementFactory.apply(initializer);
-        addMeasurementSnapshot(measurement, labelValues);
+        snapshot().addMeasurement(measurement, labelValues);
         return measurement;
     }
 }

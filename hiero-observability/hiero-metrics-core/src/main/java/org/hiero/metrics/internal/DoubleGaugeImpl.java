@@ -18,13 +18,13 @@ public final class DoubleGaugeImpl extends AbstractSettableMetric<DoubleSupplier
     }
 
     @Override
-    protected DoubleValueMeasurementSnapshotImpl createMeasurementSnapshot(
+    protected DoubleValueMeasurementSnapshotImpl createSnapshot(
             DoubleGaugeMeasurement measurement, LabelValues dynamicLabelValues) {
         return new DoubleValueMeasurementSnapshotImpl(dynamicLabelValues);
     }
 
     @Override
-    protected void updateMeasurementSnapshot(DoubleGaugeMeasurement measurement, MeasurementSnapshot snapshot) {
+    protected void updateSnapshot(DoubleGaugeMeasurement measurement, MeasurementSnapshot snapshot) {
         ((DoubleValueMeasurementSnapshotImpl) snapshot).set(cast(measurement).get());
     }
 
