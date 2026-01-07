@@ -90,4 +90,9 @@ message ClprLocalLedgerMetadata {
      * Hash of the roster that produced the current local configuration.
      */
     bytes roster_hash = 2;
+
+    /**
+     * Next available short ledger id.
+     */
+    int32 next_ledger_short_id = 3;
 }
