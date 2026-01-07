@@ -157,6 +157,7 @@ public final class BlockStreamUtils {
             case HOOK_ID_KEY -> mapChangeKey.hookIdKeyOrThrow();
             case LAMBDA_SLOT_KEY -> mapChangeKey.lambdaSlotKeyOrThrow();
             case CLPR_LEDGER_ID_KEY -> mapChangeKey.clprLedgerIdKeyOrThrow();
+            case CLPR_MESSAGE_KEY -> mapChangeKey.clprMessageKeyOrThrow();
         };
     }
 
@@ -196,6 +197,7 @@ public final class BlockStreamUtils {
             case WRAPS_MESSAGE_HISTORY_VALUE -> mapChangeValue.wrapsMessageHistoryValueOrThrow();
             case CLPR_LEDGER_CONFIGURATION_VALUE -> mapChangeValue.clprLedgerConfigurationValueOrThrow();
             case CLPR_MESSAGE_QUEUE_METADATA_VALUE -> mapChangeValue.clprMessageQueueMetadataValueOrThrow();
+            case CLPR_MESSAGE_VALUE -> mapChangeValue.clprMessageValueOrThrow();
         };
     }
 
