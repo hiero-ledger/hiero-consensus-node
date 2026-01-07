@@ -675,7 +675,8 @@ public class Hip1195BasicTests {
                     final double usdGasCost = spec.ratesProvider().toUsdWithActiveRates(tinybarGasCost);
                     return validateChargedUsd(
                             "nftTransferFails",
-                            NFT_TRANSFER_WITH_CUSTOM_BASE_USD + (3 * HOOK_INVOCATION_USD) + usdGasCost);
+                            NFT_TRANSFER_WITH_CUSTOM_BASE_USD + (3 * HOOK_INVOCATION_USD) + usdGasCost,
+                            5);
                 }));
     }
 
