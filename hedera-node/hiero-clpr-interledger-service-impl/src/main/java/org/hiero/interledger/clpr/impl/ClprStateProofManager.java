@@ -135,6 +135,28 @@ public class ClprStateProofManager {
                 state, V0700ClprSchema.CLPR_LEDGER_CONFIGURATIONS_STATE_ID, ClprLedgerId.PROTOBUF.toBytes(ledgerId));
     }
 
+    @Nullable
+    public StateProof getMessageQueueMetadata(@NonNull final ClprLedgerId ledgerId) {
+        requireNonNull(ledgerId);
+        if (!clprConfig.devModeEnabled()) {
+            return null;
+        }
+        final var snapshot = latestSnapshot().orElse(null);
+        if (snapshot == null) {
+            return null;
+        }
+
+        final var state = snapshot.merkleState();
+        final var readableStates = state.getReadableStates(ClprService.NAME);
+        if (!readableStates.contains(V0700ClprSchema.CLPR_MESSAGE_QUEUE_METADATA_STATE_ID)) {
+            throw new IllegalStateException(
+                    "CLPR message queue metadata state not found - service may not be properly initialized");
+        }
+        // TODO: If the ledger id is blank, it's a query for the local ledger configuration. Add code to handle.
+        return buildMerkleStateProof(
+                state, V0700ClprSchema.CLPR_MESSAGE_QUEUE_METADATA_STATE_ID, ClprLedgerId.PROTOBUF.toBytes(ledgerId));
+    }
+
     /**
      * Returns the current ledger configuration from state without constructing a state proof.
      *

@@ -59,6 +59,8 @@ import java.util.function.Function;
 import java.util.stream.Stream;
 import org.assertj.core.api.Assertions;
 import org.hiero.interledger.clpr.impl.handlers.ClprGetLedgerConfigurationHandler;
+import org.hiero.interledger.clpr.impl.handlers.ClprGetMessageQueueMetadataHandler;
+import org.hiero.interledger.clpr.impl.handlers.ClprGetMessagesHandler;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -72,6 +74,12 @@ import org.mockito.junit.jupiter.MockitoExtension;
 class QueryDispatcherTest {
     @Mock
     private ClprGetLedgerConfigurationHandler clprGetLedgerConfigurationHandler;
+
+    @Mock
+    private ClprGetMessagesHandler clprGetMessagesHandler;
+
+    @Mock
+    private ClprGetMessageQueueMetadataHandler clprGetMessageQueueMetadataHandler;
 
     @Mock
     private ConsensusGetTopicInfoHandler consensusGetTopicInfoHandler;
@@ -156,6 +164,8 @@ class QueryDispatcherTest {
     void setup() {
         handlers = new QueryHandlers(
                 clprGetLedgerConfigurationHandler,
+                clprGetMessagesHandler,
+                clprGetMessageQueueMetadataHandler,
                 consensusGetTopicInfoHandler,
                 contractGetBySolidityIDHandler,
                 contractCallLocalHandler,
