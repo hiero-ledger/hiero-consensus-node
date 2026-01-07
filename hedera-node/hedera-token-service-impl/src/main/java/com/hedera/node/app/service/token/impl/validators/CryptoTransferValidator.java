@@ -114,9 +114,6 @@ public class CryptoTransferValidator {
                     category.equals(HandleContext.TransactionCategory.USER),
                     HOOKS_EXECUTIONS_REQUIRE_TOP_LEVEL_CRYPTO_TRANSFER);
             validateHookGasLimitAndInvocations(op, hooksConfig);
-            validateTrue(
-                    transfers.accountAmounts().stream().noneMatch(AccountAmount::isApproval),
-                    CANNOT_SET_HOOKS_AND_APPROVAL);
         }
 
         // Validate that there aren't too many hbar transfers
